@@ -397,13 +397,16 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
                 requested_capability="knowledge",
                 expected_capability="knowledge",
                 expected_task_kind="knowledge_lookup",
-                expected_launch_state="closed",
-                expected_next_action="out_of_scope",
-                expected_scope_class="out_of_scope",
-                expected_policy_reason="product_scope_boundary",
+                expected_launch_state="candidate_only",
+                expected_next_action="clarify",
+                expected_scope_class="in_scope",
+                expected_scope_reason="context_missing",
                 expected_target="none",
+                expected_context_resolution_state="missing_context",
+                expected_context_reference_type="previous_goal",
+                expected_missing_slots=("previous_goal",),
                 critical=True,
-                tags=("contextual_followup", "out_of_scope"),
+                tags=("contextual_followup", "missing_context"),
             )
             for index, goal in enumerate(
                 (
@@ -413,11 +416,24 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
                     "这个流程需要多久",
                     "该流程需要什么材料",
                     "这个流程在哪里办",
-                    "这个流程能帮我提交吗",
                     "该流程怎么取消",
                 ),
                 start=1,
             )
+        ),
+        IntentCase(
+            case_id="intent-followup-transaction-no-context-001",
+            user_goal="这个流程能帮我提交吗",
+            requested_capability="knowledge",
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="closed",
+            expected_next_action="out_of_scope",
+            expected_scope_class="out_of_scope",
+            expected_policy_reason="product_scope_boundary",
+            expected_target="none",
+            critical=True,
+            tags=("contextual_followup", "transaction_guardrail"),
         ),
     )
 
@@ -488,6 +504,61 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_context_reference_type="curriculum_slot",
             critical=True,
             tags=("context_follow_up", "curriculum_slot"),
+        ),
+        IntentCase(
+            case_id="intent-context-previous-goal-001",
+            user_goal="这个流程怎么办",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-previous-goal-001",
+                            key="recent_goal",
+                            value="处分申诉",
+                            source_type="system_inferred",
+                            confidence="high",
+                            visibility="user_visible",
+                        ),
+                    )
+                )
+            ),
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="open",
+            expected_next_action="delegate",
+            expected_scope_class="in_scope",
+            expected_scope_reason="campus_context_signal",
+            expected_target="rag-agent",
+            expected_context_resolution_state="resolved",
+            expected_context_reference_type="previous_goal",
+            critical=True,
+            tags=("context_follow_up", "previous_goal"),
+        ),
+        IntentCase(
+            case_id="intent-context-previous-goal-ambiguous-001",
+            user_goal="这个流程怎么办",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                session=SessionSummary(
+                    confirmed_slots=(
+                        SessionSlot(name="policy_topic", value="奖学金"),
+                        SessionSlot(name="policy_topic", value="转专业"),
+                    )
+                )
+            ),
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="candidate_only",
+            expected_next_action="clarify",
+            expected_scope_class="in_scope",
+            expected_scope_reason="context_ambiguous",
+            expected_target="none",
+            expected_context_resolution_state="ambiguous",
+            expected_context_reference_type="previous_goal",
+            expected_missing_slots=("previous_goal",),
+            critical=True,
+            tags=("context_follow_up", "previous_goal", "ambiguous"),
         ),
     )
 

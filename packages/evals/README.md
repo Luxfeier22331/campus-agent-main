@@ -80,6 +80,9 @@ Evaluation helpers for campus-agent v2.
   `observed_regression` 作为默认 gate suites；observed regression truth 固定在
   `intent_observed_regression.json`，只接受 review decision 为 `accepted` 且带
   request / trace / sampled_at correlation 的 case
+- intent gate 报告现在携带 `case_set_version` 与 `policy_artifact` 摘要，来源为
+  `configs/runtime/intent-policy.v1.json`；gate 结果必须绑定到具体 policy /
+  classifier / intent schema / case-set 版本，而不是只记录通过数量
 - `campus_evals.eval_admission intent-candidates` 只把 mined JSONL 包装成
   `pending_review` manifest，不会直接接收 golden truth；review / dedupe / expected truth
   修订完成后，才允许人工迁入 observed regression fixture

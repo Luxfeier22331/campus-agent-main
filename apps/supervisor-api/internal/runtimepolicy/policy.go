@@ -14,153 +14,6 @@ const (
 	curriculumSemesterSlot      = "curriculum_semester"
 )
 
-var delegatedActionPrefixSignals = []string{"帮我", "代我", "替我"}
-
-var highRiskTransactionActionSignals = []string{
-	"提交",
-	"申请",
-	"办理",
-	"预约",
-	"报名",
-	"缴费",
-	"支付",
-	"发送",
-	"上传",
-	"删除",
-	"取消",
-	"修改",
-	"确认",
-	"代办",
-}
-
-var politicalTopicSignals = []string{
-	"政治",
-	"政策",
-	"候选人",
-	"选举",
-	"投票",
-	"政党",
-	"政府",
-	"国家主席",
-	"总统",
-	"意识形态",
-}
-
-var politicalInfluenceActionSignals = []string{"说服", "劝说", "拉票", "动员", "煽动", "影响", "宣传"}
-var politicalTargetAudienceSignals = []string{"同学", "学生", "老师", "家长", "公众", "大家", "群里", "选民"}
-var politicalPositionSignals = []string{"支持", "反对", "投票给", "不要投票给"}
-var politicalMessageWritingSignals = []string{"写一段话", "写文案", "写帖子", "写宣传稿", "写一篇"}
-
-var campusScopeSignals = []string{
-	"中央民族大学",
-	"民大",
-	"培养方案",
-	"人才培养",
-	"培养计划",
-	"课程",
-	"学分",
-	"学期",
-	"大一",
-	"大二",
-	"大三",
-	"大四",
-	"学院",
-	"专业",
-	"民族实验班",
-	"基地班",
-	"创新班",
-	"奖学金",
-	"助学金",
-	"选课",
-	"开课",
-	"教务",
-	"校历",
-	"图书馆",
-	"宿舍",
-	"学籍",
-	"转专业",
-	"毕业",
-	"推免",
-	"保研",
-	"学生证",
-	"处分",
-	"申诉",
-	"习概",
-	"习近平新时代中国特色社会主义思想概论",
-	"习近平法治思想概论",
-	"马原",
-	"毛概",
-	"史纲",
-	"形策",
-	"民概",
-	"图书",
-	"春假",
-	"library",
-	"scholarship",
-	"curriculum",
-	"graduationrequirements",
-	"course",
-}
-
-var externalInstitutionSignals = []string{
-	"mit",
-	"麻省理工",
-	"harvard",
-	"哈佛",
-	"stanford",
-	"斯坦福",
-	"oxford",
-	"牛津",
-	"cambridge",
-	"剑桥",
-	"清华",
-	"北京大学",
-	"北大",
-	"复旦",
-	"上海交大",
-	"浙大",
-}
-
-var generalWorldSignals = []string{
-	"天气",
-	"股价",
-	"汇率",
-	"比特币",
-	"世界杯",
-	"nba",
-	"写诗",
-	"写一首诗",
-	"讲个笑话",
-	"推荐电影",
-	"推荐一部电影",
-	"电影",
-	"量子力学",
-	"相对论",
-	"黑洞",
-	"宇宙",
-}
-
-var geopoliticalEntitySignals = []string{"中国", "美国", "英国", "法国", "德国", "日本", "俄罗斯", "欧盟", "联合国"}
-var politicalOfficeSignals = []string{"国家主席", "主席是谁", "总统", "总理", "首相", "外交部长", "领导人是谁"}
-var contextualFollowUpSignals = []string{"这个流程", "该流程", "流程怎么办"}
-var structuredTransportSignals = []string{"校车", "班车", "通勤车", "接驳车"}
-var structuredServiceSubjectSignals = []string{"图书馆", "食堂", "会议室", "校医院", "校园卡", "一卡通", "宿舍", "报修"}
-var structuredServiceStatusSignals = []string{"开门", "开放", "营业", "办公时间", "开放时间", "开到几点", "营业到几点", "状态"}
-var structuredNoticeSignals = []string{"通知", "公告", "公示"}
-var noticeContextReferenceSignals = []string{
-	"这条通知",
-	"这则通知",
-	"该通知",
-	"这个通知",
-	"这条公告",
-	"上一条通知",
-	"上一条公告",
-	"刚才的通知",
-	"前面的通知",
-}
-var curriculumSemesterSignals = []string{"大一上", "大一下", "大二上", "大二下", "大三上", "大三下", "大四上", "大四下"}
-var followUpLeadingSignals = []string{"那", "这个", "该", "上一", "刚才", "前面"}
-
 type Scope struct {
 	Corpus     string
 	Collection string
@@ -178,7 +31,9 @@ type SelectedNoticeRef struct {
 }
 
 type ProfileMemoryItem struct {
-	Value string
+	Key        string
+	Value      string
+	Visibility string
 }
 
 type Context struct {
@@ -324,18 +179,26 @@ func (f RoutingFrame) Map() map[string]any {
 }
 
 func Evaluate(request Request) Decision {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		return intentPolicyUnavailableDecision(request)
+	}
+	return EvaluateWithPolicy(request, policy)
+}
+
+func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 	normalizedGoal := NormalizeGoal(request.UserGoal)
-	contextPreflight := resolveContextFollowUp(request.Context, normalizedGoal)
-	scopeGate := evaluateScope(request, normalizedGoal)
+	contextPreflight := resolveContextFollowUp(request.Context, normalizedGoal, policy)
+	scopeGate := evaluateScope(request, normalizedGoal, policy)
 	policyGate := PolicyGate{Decision: "delegate", RiskLevel: "low"}
 
-	frame := baseRoutingFrame(request.EffectiveCapability)
+	frame := baseRoutingFrame(request.EffectiveCapability, policy)
 	frame.ContextResolutionState = contextPreflight.State
 	frame.ContextReferenceType = contextPreflight.ReferenceType
 	frame.ResolvedSlots = contextPreflight.ResolvedSlots
 	frame.AmbiguityReason = contextPreflight.AmbiguityReason
 
-	if reason := evaluatePolicyReason(normalizedGoal); reason != "" {
+	if reason := evaluatePolicyReason(normalizedGoal, policy); reason != "" {
 		policyGate = PolicyGate{
 			Decision:  "rejected",
 			Reason:    reason,
@@ -348,10 +211,10 @@ func Evaluate(request Request) Decision {
 		frame.PolicyReason = reason
 		frame.LaunchState = "closed"
 		frame.ScopeReason = "policy_guardrail"
-		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{PolicyVersion}, frame}
+		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
 	}
 
-	if isHighRiskTransactionAction(normalizedGoal) {
+	if isHighRiskTransactionAction(normalizedGoal, policy) {
 		policyGate = PolicyGate{
 			Decision:  "approval_required",
 			Reason:    "approval_required",
@@ -364,7 +227,7 @@ func Evaluate(request Request) Decision {
 		frame.PolicyReason = "approval_required"
 		frame.LaunchState = "closed"
 		frame.ScopeReason = "transaction_guardrail"
-		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{PolicyVersion}, frame}
+		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
 	}
 
 	if contextPreflight.State == "missing_context" || contextPreflight.State == "ambiguous" {
@@ -390,7 +253,7 @@ func Evaluate(request Request) Decision {
 			RiskLevel:     "low",
 			MatchedSignal: contextPreflight.MatchedSignal,
 		}
-		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{PolicyVersion}, frame}
+		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
 	}
 
 	switch request.EffectiveCapability {
@@ -403,9 +266,25 @@ func Evaluate(request Request) Decision {
 		frame.ScopeReason = "navigation_temporarily_unsupported"
 		policyGate = PolicyGate{Decision: "out_of_scope", Reason: frame.PolicyReason, RiskLevel: "low"}
 	case "campus_services":
-		frame.DomainCandidates = []string{"campus_services"}
-		frame.ScopeClass = "in_scope"
-		frame.ScopeReason = "explicit_requested_capability"
+		if !isPlannableCampusServicesSubtype(normalizedGoal, policy) {
+			frame.DomainCandidates = []string{"campus_services"}
+			frame.MissingSlots = []string{"campus_service_task"}
+			frame.NeedsClarification = true
+			frame.SuggestedNextAction = "clarify"
+			frame.ScopeClass = "in_scope"
+			frame.LaunchState = "candidate_only"
+			frame.ScopeReason = "structured_subtype_missing"
+			frame.RoutingConfidence = "low"
+			policyGate = PolicyGate{
+				Decision:  "clarify",
+				Reason:    "structured_subtype_missing",
+				RiskLevel: "low",
+			}
+		} else {
+			frame.DomainCandidates = []string{"campus_services"}
+			frame.ScopeClass = "in_scope"
+			frame.ScopeReason = "explicit_requested_capability"
+		}
 	case "notice":
 		frame.DomainCandidates = []string{"notice"}
 		frame.ScopeClass = "in_scope"
@@ -436,10 +315,46 @@ func Evaluate(request Request) Decision {
 		}
 	}
 
+	return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
+}
+
+func intentPolicyUnavailableDecision(request Request) Decision {
+	contextPreflight := ContextPreflight{
+		State:         "not_follow_up",
+		ReferenceType: "none",
+		ResolvedSlots: map[string]string{},
+		MissingSlots:  []string{},
+	}
+	scopeGate := ScopeGate{Decision: "out_of_scope", Reason: "intent_policy_unavailable"}
+	policyGate := PolicyGate{Decision: "rejected", Reason: "intent_policy_unavailable", RiskLevel: "high"}
+	frame := RoutingFrame{
+		Capability:             defaultString(request.EffectiveCapability, "knowledge"),
+		TaskKind:               taskKindForCapability(request.EffectiveCapability),
+		DomainCandidates:       []string{"policy_refusal"},
+		MissingSlots:           []string{},
+		RiskLevel:              "high",
+		NeedsClarification:     false,
+		SuggestedNextAction:    "rejected",
+		PersonalizationMode:    "generic",
+		ClarificationSubject:   "",
+		ScopeClass:             "out_of_scope",
+		PolicyReason:           "intent_policy_unavailable",
+		LaunchState:            "closed",
+		ScopeReason:            "intent_policy_unavailable",
+		MatchedSignal:          "",
+		ClassifierVersion:      ClassifierVersion,
+		SchemaVersion:          IntentSchema,
+		RoutingConfidence:      "low",
+		AmbiguitySignal:        "",
+		ContextResolutionState: "not_follow_up",
+		ContextReferenceType:   "none",
+		ResolvedSlots:          map[string]string{},
+		AmbiguityReason:        "",
+	}
 	return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{PolicyVersion}, frame}
 }
 
-func baseRoutingFrame(capability string) RoutingFrame {
+func baseRoutingFrame(capability string, policy IntentPolicyArtifact) RoutingFrame {
 	return RoutingFrame{
 		Capability:             defaultString(capability, "knowledge"),
 		TaskKind:               taskKindForCapability(capability),
@@ -455,8 +370,8 @@ func baseRoutingFrame(capability string) RoutingFrame {
 		LaunchState:            "open",
 		ScopeReason:            "scope_undetermined_delegate",
 		MatchedSignal:          "",
-		ClassifierVersion:      ClassifierVersion,
-		SchemaVersion:          IntentSchema,
+		ClassifierVersion:      policy.ClassifierVersion,
+		SchemaVersion:          policy.IntentSchemaVersion,
 		RoutingConfidence:      "high",
 		AmbiguitySignal:        "",
 		ContextResolutionState: "not_follow_up",
@@ -466,7 +381,7 @@ func baseRoutingFrame(capability string) RoutingFrame {
 	}
 }
 
-func evaluateScope(request Request, normalizedGoal string) ScopeGate {
+func evaluateScope(request Request, normalizedGoal string, policy IntentPolicyArtifact) ScopeGate {
 	if request.EffectiveCapability != "" && request.EffectiveCapability != "knowledge" {
 		return ScopeGate{Decision: "in_scope", Reason: "explicit_requested_capability"}
 	}
@@ -476,23 +391,23 @@ func evaluateScope(request Request, normalizedGoal string) ScopeGate {
 	if normalizedGoal == "" {
 		return ScopeGate{Decision: "in_scope", Reason: "scope_undetermined_delegate"}
 	}
-	if signal := firstMatch(normalizedGoal, externalInstitutionSignals); signal != "" {
+	if signal := firstMatch(normalizedGoal, policy.Signals("external_institution")); signal != "" {
 		return ScopeGate{Decision: "out_of_scope", Reason: "product_scope_boundary", MatchedSignal: signal}
 	}
-	if signal := firstMatch(normalizedGoal, generalWorldSignals); signal != "" {
+	if signal := firstMatch(normalizedGoal, policy.Signals("general_world")); signal != "" {
 		return ScopeGate{Decision: "out_of_scope", Reason: "product_scope_boundary", MatchedSignal: signal}
 	}
-	if signal := matchOpenDomainPoliticalFact(normalizedGoal); signal != "" {
+	if signal := matchOpenDomainPoliticalFact(normalizedGoal, policy); signal != "" {
 		return ScopeGate{Decision: "out_of_scope", Reason: "product_scope_boundary", MatchedSignal: signal}
 	}
-	if signal := matchStructuredRuntimeCandidate(normalizedGoal); signal != "" {
+	if signal := matchStructuredRuntimeCandidate(normalizedGoal, policy); signal != "" {
 		return ScopeGate{Decision: "in_scope", Reason: "structured_runtime_candidate_signal", MatchedSignal: signal}
 	}
-	if signal := firstMatch(normalizedGoal, campusScopeSignals); signal != "" {
+	if signal := firstMatch(normalizedGoal, policy.Signals("campus_scope")); signal != "" {
 		return ScopeGate{Decision: "in_scope", Reason: "campus_scope_signal", MatchedSignal: signal}
 	}
-	if signal := firstMatch(normalizedGoal, contextualFollowUpSignals); signal != "" {
-		if contextSignal := firstContextSignal(request.Context); contextSignal != "" {
+	if signal := firstMatch(normalizedGoal, policy.Signals("contextual_follow_up")); signal != "" {
+		if contextSignal := firstContextSignal(request.Context, policy); contextSignal != "" {
 			return ScopeGate{Decision: "in_scope", Reason: "campus_context_signal", MatchedSignal: contextSignal}
 		}
 		return ScopeGate{Decision: "out_of_scope", Reason: "product_scope_boundary", MatchedSignal: signal}
@@ -500,8 +415,40 @@ func evaluateScope(request Request, normalizedGoal string) ScopeGate {
 	return ScopeGate{Decision: "out_of_scope", Reason: "product_scope_boundary"}
 }
 
-func resolveContextFollowUp(context Context, normalizedGoal string) ContextPreflight {
-	if signal := firstMatch(normalizedGoal, noticeContextReferenceSignals); signal != "" {
+func resolveContextFollowUp(context Context, normalizedGoal string, policy IntentPolicyArtifact) ContextPreflight {
+	if signal := firstMatch(normalizedGoal, policy.Signals("contextual_follow_up")); signal != "" {
+		candidates := previousGoalContextCandidates(context, policy)
+		if len(candidates) == 0 {
+			return ContextPreflight{
+				State:         "missing_context",
+				ReferenceType: "previous_goal",
+				MissingSlots:  []string{"previous_goal"},
+				ResolvedSlots: map[string]string{},
+				MatchedSignal: signal,
+			}
+		}
+		if len(candidates) > 1 {
+			return ContextPreflight{
+				State:           "ambiguous",
+				ReferenceType:   "previous_goal",
+				MissingSlots:    []string{"previous_goal"},
+				ResolvedSlots:   map[string]string{},
+				AmbiguityReason: "multiple_previous_goal_candidates",
+				MatchedSignal:   signal,
+			}
+		}
+		return ContextPreflight{
+			State:         "resolved",
+			ReferenceType: "previous_goal",
+			ResolvedSlots: map[string]string{
+				"previous_goal": candidates[0],
+			},
+			MissingSlots:  []string{},
+			MatchedSignal: signal,
+		}
+	}
+
+	if signal := firstMatch(normalizedGoal, policy.Signals("notice_context_reference")); signal != "" {
 		if context.SelectedNoticeRef.NoticeID == "" {
 			return ContextPreflight{
 				State:         "missing_context",
@@ -527,8 +474,8 @@ func resolveContextFollowUp(context Context, normalizedGoal string) ContextPrefl
 		}
 	}
 
-	if signal := firstMatch(normalizedGoal, curriculumSemesterSignals); signal != "" &&
-		looksLikeContextualSemesterFollowUp(normalizedGoal) {
+	if signal := firstMatch(normalizedGoal, policy.Signals("curriculum_semester")); signal != "" &&
+		looksLikeContextualSemesterFollowUp(normalizedGoal, policy) {
 		program := sessionSlotValue(context.SessionSlots, curriculumProgramSlot)
 		programFamily := sessionSlotValue(context.SessionSlots, curriculumProgramFamilySlot)
 		if program == "" && programFamily == "" {
@@ -564,82 +511,125 @@ func resolveContextFollowUp(context Context, normalizedGoal string) ContextPrefl
 	}
 }
 
-func evaluatePolicyReason(normalizedGoal string) string {
-	if isTargetedPoliticalPersuasion(normalizedGoal) {
+func evaluatePolicyReason(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if isTargetedPoliticalPersuasion(normalizedGoal, policy) {
 		return "political_persuasion"
 	}
 	return ""
 }
 
-func isHighRiskTransactionAction(normalizedGoal string) bool {
-	for _, prefix := range delegatedActionPrefixSignals {
+func isHighRiskTransactionAction(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	for _, prefix := range policy.Signals("delegated_action_prefix") {
 		if !strings.Contains(normalizedGoal, NormalizeGoal(prefix)) {
 			continue
 		}
-		if containsAny(normalizedGoal, highRiskTransactionActionSignals) {
+		if containsAny(normalizedGoal, policy.Signals("high_risk_transaction_action")) {
 			return true
 		}
 	}
 	return false
 }
 
-func isTargetedPoliticalPersuasion(normalizedGoal string) bool {
-	if !containsAny(normalizedGoal, politicalTopicSignals) {
+func isTargetedPoliticalPersuasion(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	if !containsAny(normalizedGoal, policy.Signals("political_topic")) {
 		return false
 	}
-	hasInfluence := containsAny(normalizedGoal, politicalInfluenceActionSignals)
-	hasAudience := containsAny(normalizedGoal, politicalTargetAudienceSignals)
-	hasPosition := containsAny(normalizedGoal, politicalPositionSignals)
-	hasWriting := containsAny(normalizedGoal, politicalMessageWritingSignals)
+	hasInfluence := containsAny(normalizedGoal, policy.Signals("political_influence_action"))
+	hasAudience := containsAny(normalizedGoal, policy.Signals("political_target_audience"))
+	hasPosition := containsAny(normalizedGoal, policy.Signals("political_position"))
+	hasWriting := containsAny(normalizedGoal, policy.Signals("political_message_writing"))
 	if hasInfluence && (hasAudience || hasPosition) {
 		return true
 	}
 	return hasWriting && hasInfluence
 }
 
-func matchStructuredRuntimeCandidate(normalizedGoal string) string {
-	if signal := firstMatch(normalizedGoal, structuredTransportSignals); signal != "" {
+func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if signal := firstMatch(normalizedGoal, policy.Signals("structured_transport")); signal != "" {
 		return signal
 	}
-	if signal := firstMatch(normalizedGoal, structuredNoticeSignals); signal != "" {
+	if signal := firstMatch(normalizedGoal, policy.Signals("structured_notice")); signal != "" {
 		return signal
 	}
-	serviceSubject := firstMatch(normalizedGoal, structuredServiceSubjectSignals)
+	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
 	if serviceSubject == "" {
 		return ""
 	}
-	if !containsAny(normalizedGoal, structuredServiceStatusSignals) {
+	if !containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
 		return ""
 	}
 	return serviceSubject
 }
 
-func matchOpenDomainPoliticalFact(normalizedGoal string) string {
-	if !containsAny(normalizedGoal, geopoliticalEntitySignals) {
-		return ""
+func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	if firstMatch(normalizedGoal, policy.Signals("structured_transport")) != "" {
+		return true
 	}
-	return firstMatch(normalizedGoal, politicalOfficeSignals)
+	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
+	if serviceSubject == "" {
+		return false
+	}
+	return containsAny(normalizedGoal, policy.Signals("structured_service_status"))
 }
 
-func firstContextSignal(context Context) string {
-	for _, slot := range context.SessionSlots {
-		if signal := firstMatch(NormalizeGoal(slot.Value), campusScopeSignals); signal != "" {
-			return signal
-		}
+func matchOpenDomainPoliticalFact(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if !containsAny(normalizedGoal, policy.Signals("geopolitical_entity")) {
+		return ""
 	}
-	for _, item := range context.ProfileMemory {
-		if signal := firstMatch(NormalizeGoal(item.Value), campusScopeSignals); signal != "" {
+	return firstMatch(normalizedGoal, policy.Signals("political_office"))
+}
+
+func firstContextSignal(context Context, policy IntentPolicyArtifact) string {
+	for _, candidate := range previousGoalContextCandidates(context, policy) {
+		if signal := firstMatch(NormalizeGoal(candidate), policy.Signals("campus_scope")); signal != "" {
 			return signal
 		}
 	}
 	return ""
 }
 
-func looksLikeContextualSemesterFollowUp(normalizedGoal string) bool {
+func previousGoalContextCandidates(context Context, policy IntentPolicyArtifact) []string {
+	candidates := []string{}
+	seen := map[string]struct{}{}
+	for _, slot := range context.SessionSlots {
+		value := strings.TrimSpace(slot.Value)
+		if value == "" {
+			continue
+		}
+		if firstMatch(NormalizeGoal(value), policy.Signals("campus_scope")) == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		candidates = append(candidates, value)
+	}
+	for _, item := range context.ProfileMemory {
+		if item.Key != "" && item.Key != "recent_goal" {
+			continue
+		}
+		value := strings.TrimSpace(item.Value)
+		if value == "" {
+			continue
+		}
+		if firstMatch(NormalizeGoal(value), policy.Signals("campus_scope")) == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		candidates = append(candidates, value)
+	}
+	return candidates
+}
+
+func looksLikeContextualSemesterFollowUp(normalizedGoal string, policy IntentPolicyArtifact) bool {
 	if strings.HasSuffix(normalizedGoal, "呢") || len([]rune(normalizedGoal)) <= 6 {
 		return true
 	}
-	return containsAny(normalizedGoal, followUpLeadingSignals)
+	return containsAny(normalizedGoal, policy.Signals("follow_up_leading"))
 }
 
 func sessionSlotValue(slots []SessionSlot, name string) string {

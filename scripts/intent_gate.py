@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from campus_evals.intent_models import IntentEvalReport
+from campus_evals.intent_policy_artifact import intent_policy_gate_metadata
 from campus_evals.intent_runner import report_to_dict, run_intent_cases
 from campus_evals.intent_scenarios import intent_release_gate_cases, intent_suite_cases
 
@@ -45,8 +46,16 @@ def run_intent_gate(suites: tuple[str, ...] = DEFAULT_SUITES) -> dict[str, objec
 
 def build_gate_payload(suite_reports: dict[str, IntentEvalReport]) -> dict[str, object]:
     suite_payloads = {suite: report_to_dict(report) for suite, report in suite_reports.items()}
+    policy_metadata = intent_policy_gate_metadata()
     return {
         "schema_version": 1,
+        "case_set_version": policy_metadata["case_set_version"],
+        "policy_artifact": {
+            "schema_version": policy_metadata["schema_version"],
+            "policy_version": policy_metadata["policy_version"],
+            "classifier_version": policy_metadata["classifier_version"],
+            "intent_schema_version": policy_metadata["intent_schema_version"],
+        },
         "total": sum(report.total for report in suite_reports.values()),
         "passed": sum(report.passed for report in suite_reports.values()),
         "failed": sum(report.failed for report in suite_reports.values()),

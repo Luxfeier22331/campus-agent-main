@@ -11,7 +11,11 @@ from campus_contracts import (
 )
 
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.scope_policy import ScopeDecision, evaluate_knowledge_scope
+from campus_supervisor_core.scope_policy import (
+    ScopeDecision,
+    evaluate_knowledge_scope,
+    has_campus_scope_signal,
+)
 
 IntentTaskKind = Literal[
     "knowledge_lookup",
@@ -374,6 +378,31 @@ def resolve_context_follow_up(
     compact_goal: str | None = None,
 ) -> ContextResolution:
     normalized_goal = compact_goal or "".join(context.user_goal.strip().split()).casefold()
+    contextual_signal = _first_compact_match(normalized_goal, _CONTEXTUAL_FOLLOW_UP_SIGNALS)
+    if contextual_signal:
+        candidates = _previous_goal_context_candidates(context)
+        if not candidates:
+            return ContextResolution(
+                state="missing_context",
+                reference_type="previous_goal",
+                missing_slots=("previous_goal",),
+                matched_signal=contextual_signal,
+            )
+        if len(candidates) > 1:
+            return ContextResolution(
+                state="ambiguous",
+                reference_type="previous_goal",
+                missing_slots=("previous_goal",),
+                ambiguity_reason="multiple_previous_goal_candidates",
+                matched_signal=contextual_signal,
+            )
+        return ContextResolution(
+            state="resolved",
+            reference_type="previous_goal",
+            resolved_slots={"previous_goal": candidates[0]},
+            matched_signal=contextual_signal,
+        )
+
     notice_signal = _first_compact_match(normalized_goal, _NOTICE_CONTEXT_REFERENCE_SIGNALS)
     if notice_signal:
         selected_notice_ref = context.context.session.selected_notice_ref
@@ -423,6 +452,32 @@ def resolve_context_follow_up(
         )
 
     return ContextResolution()
+
+
+def _previous_goal_context_candidates(context: SupervisorRequestContext) -> tuple[str, ...]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for value in context.personalization_hint.confirmed_slot_terms:
+        if not _has_campus_scope_signal(value):
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        candidates.append(value)
+    for item in context.context.profile_memory.items:
+        if item.key != "recent_goal":
+            continue
+        if not _has_campus_scope_signal(item.value):
+            continue
+        if item.value in seen:
+            continue
+        seen.add(item.value)
+        candidates.append(item.value)
+    return tuple(candidates)
+
+
+def _has_campus_scope_signal(value: str) -> bool:
+    return has_campus_scope_signal(value)
 
 
 def _looks_like_contextual_semester_follow_up(normalized_goal: str) -> bool:

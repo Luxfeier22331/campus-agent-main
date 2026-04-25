@@ -283,4 +283,9 @@ def _first_context_signal(context: SupervisorRequestContext) -> str | None:
     return None
 
 
-__all__ = ["ScopeClass", "ScopeDecision", "evaluate_knowledge_scope"]
+def has_campus_scope_signal(value: str) -> bool:
+    normalized_value = _normalize_goal(value)
+    return _first_match(normalized_value, _CAMPUS_SCOPE_SIGNALS) is not None
+
+
+__all__ = ["ScopeClass", "ScopeDecision", "evaluate_knowledge_scope", "has_campus_scope_signal"]

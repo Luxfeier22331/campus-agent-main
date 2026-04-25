@@ -152,6 +152,12 @@ prompt 内部的隐式判断。
 - `packages/evals` 拥有 intent truth dataset、runner、regression gate 与 observed-case
   promotion 协议
 
+长期 intent policy / classifier 规则必须由 repo-owned artifact 治理，而不是散落在 runtime
+源码中的匿名 signal list。该 artifact 至少固定 policy artifact schema version、runtime
+policy version、classifier behavior version、intent schema version、case-set version、reason
+code registry 与 signal group taxonomy。runtime 可以把 artifact 编译进部署镜像或按受控路径加载，
+但缺失、版本漂移或结构不合法时必须 fail closed，不能静默回退到另一套未版本化规则。
+
 长期 intent frame 至少应显式表达：
 
 - admitted / inferred capability family

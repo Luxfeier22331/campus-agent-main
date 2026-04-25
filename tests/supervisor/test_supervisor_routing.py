@@ -7,6 +7,8 @@ from campus_contracts import (
     ActorContext,
     ContextProjection,
     KnowledgeScope,
+    ProfileMemoryItem,
+    ProfileMemorySummary,
     SelectedNoticeRef,
     SessionSlot,
     SessionSummary,
@@ -138,6 +140,57 @@ class SupervisorRoutingTest(unittest.TestCase):
                 "curriculum_program": "计算机科学与技术",
                 "curriculum_semester": "大二下",
             },
+        )
+
+    def test_route_request_resolves_previous_goal_follow_up_from_profile_memory(self) -> None:
+        request = SupervisorRequest(
+            user_goal="这个流程怎么办",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-001",
+                            key="recent_goal",
+                            value="处分申诉",
+                            source_type="system_inferred",
+                            confidence="high",
+                            visibility="user_visible",
+                        ),
+                    )
+                )
+            ),
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-agent")
+        self.assertEqual(decision.intent_frame.context_resolution_state, "resolved")
+        self.assertEqual(decision.intent_frame.context_reference_type, "previous_goal")
+        self.assertEqual(decision.intent_frame.resolved_slots, {"previous_goal": "处分申诉"})
+
+    def test_route_request_clarifies_ambiguous_previous_goal_follow_up(self) -> None:
+        request = SupervisorRequest(
+            user_goal="这个流程怎么办",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                session=SessionSummary(
+                    confirmed_slots=(
+                        SessionSlot(name="policy_topic", value="奖学金"),
+                        SessionSlot(name="policy_topic", value="转专业"),
+                    )
+                )
+            ),
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "clarify")
+        self.assertEqual(decision.intent_frame.context_resolution_state, "ambiguous")
+        self.assertEqual(decision.intent_frame.context_reference_type, "previous_goal")
+        self.assertEqual(
+            decision.intent_frame.ambiguity_reason, "multiple_previous_goal_candidates"
         )
 
     def test_route_request_does_not_build_structured_payload_for_campus_services(self) -> None:
@@ -298,19 +351,31 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.capability, "knowledge")
         self.assertEqual(decision.intent_frame.launch_state, "open")
 
-    def test_route_request_rejects_contextual_follow_up_without_campus_context(self) -> None:
-        for user_goal in ("这个流程怎么办", "这个流程能帮我提交吗"):
-            with self.subTest(user_goal=user_goal):
-                request = SupervisorRequest(
-                    user_goal=user_goal,
-                    requested_capability="knowledge",
-                )
+    def test_route_request_clarifies_contextual_follow_up_without_campus_context(self) -> None:
+        request = SupervisorRequest(
+            user_goal="这个流程怎么办",
+            requested_capability="knowledge",
+        )
 
-                decision = route_request(SupervisorRequestContext.from_request(request))
+        decision = route_request(SupervisorRequestContext.from_request(request))
 
-                self.assertIsNone(decision.target)
-                self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
-                self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "clarify")
+        self.assertEqual(decision.intent_frame.context_resolution_state, "missing_context")
+        self.assertEqual(decision.intent_frame.context_reference_type, "previous_goal")
+        self.assertEqual(decision.intent_frame.missing_slots, ("previous_goal",))
+
+    def test_route_request_rejects_ungrounded_transactional_follow_up(self) -> None:
+        request = SupervisorRequest(
+            user_goal="这个流程能帮我提交吗",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+        self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
 
     def test_route_request_returns_approval_required_for_high_risk_knowledge_request(self) -> None:
         request = SupervisorRequest(

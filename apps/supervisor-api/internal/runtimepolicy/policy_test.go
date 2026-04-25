@@ -6,6 +6,89 @@ import (
 	"testing"
 )
 
+func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	if policy.PolicyVersion != PolicyVersion {
+		t.Fatalf("policy_version = %q, want %q", policy.PolicyVersion, PolicyVersion)
+	}
+	if policy.ClassifierVersion != ClassifierVersion {
+		t.Fatalf("classifier_version = %q, want %q", policy.ClassifierVersion, ClassifierVersion)
+	}
+	if policy.IntentSchemaVersion != IntentSchema {
+		t.Fatalf("intent_schema_version = %q, want %q", policy.IntentSchemaVersion, IntentSchema)
+	}
+	if len(policy.SignalGroups["campus_scope"]) == 0 {
+		t.Fatal("campus_scope signal group must not be empty")
+	}
+}
+
+func TestIntentPolicyArtifactFailsClosedWhenMissing(t *testing.T) {
+	_, err := LoadIntentPolicy(filepath.Join(t.TempDir(), "missing-intent-policy.json"))
+	if err == nil {
+		t.Fatal("expected missing intent policy artifact to fail")
+	}
+}
+
+func TestEvaluateRuntimePolicyUsesExplicitIntentPolicyArtifact(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "intent-policy.v1.json")
+	if err := os.WriteFile(
+		policyPath,
+		[]byte(`{
+			"schema_version":"intent-policy-artifact-v1",
+			"policy_version":"runtime-policy-v1",
+			"classifier_version":"go-runtime-policy-v1",
+			"intent_schema_version":"intent-schema-1.0.0",
+			"case_set_version":"intent-case-set-v1",
+			"reason_codes":["campus_scope_signal","product_scope_boundary","scope_undetermined_delegate"],
+			"signal_groups":{
+				"campus_scope":["测试校内信号"],
+				"external_institution":["外校信号"],
+				"general_world":[],
+				"geopolitical_entity":[],
+				"political_office":[],
+				"structured_transport":[],
+				"structured_service_subject":[],
+				"structured_service_status":[],
+				"structured_notice":[],
+				"contextual_follow_up":[],
+				"notice_context_reference":[],
+				"curriculum_semester":[],
+				"follow_up_leading":[],
+				"delegated_action_prefix":[],
+				"high_risk_transaction_action":[],
+				"political_topic":[],
+				"political_influence_action":[],
+				"political_target_audience":[],
+				"political_position":[],
+				"political_message_writing":[]
+			}
+		}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write policy fixture: %v", err)
+	}
+
+	policy, err := LoadIntentPolicy(policyPath)
+	if err != nil {
+		t.Fatalf("load policy fixture: %v", err)
+	}
+	decision := EvaluateWithPolicy(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "测试校内信号怎么处理",
+	}, policy)
+
+	if decision.RoutingFrame.SuggestedNextAction != "delegate" {
+		t.Fatalf("action = %q, want delegate", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.ScopeGate.MatchedSignal != "测试校内信号" {
+		t.Fatalf("matched signal = %q, want fixture signal", decision.ScopeGate.MatchedSignal)
+	}
+}
+
 func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -115,6 +198,72 @@ func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 	}
 	if curriculumDecision.ContextPreflight.ResolvedSlots["curriculum_semester"] != "大二下" {
 		t.Fatalf("curriculum resolved slots = %#v", curriculumDecision.ContextPreflight.ResolvedSlots)
+	}
+
+	previousGoalDecision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+		Context: Context{
+			ProfileMemory: []ProfileMemoryItem{
+				{Key: "recent_goal", Value: "处分申诉", Visibility: "user_visible"},
+			},
+		},
+	})
+	if previousGoalDecision.ContextPreflight.State != "resolved" {
+		t.Fatalf("previous goal context state = %q, want resolved", previousGoalDecision.ContextPreflight.State)
+	}
+	if previousGoalDecision.ContextPreflight.ReferenceType != "previous_goal" {
+		t.Fatalf(
+			"previous goal reference type = %q, want previous_goal",
+			previousGoalDecision.ContextPreflight.ReferenceType,
+		)
+	}
+	if previousGoalDecision.ContextPreflight.ResolvedSlots["previous_goal"] != "处分申诉" {
+		t.Fatalf("previous goal resolved slots = %#v", previousGoalDecision.ContextPreflight.ResolvedSlots)
+	}
+}
+
+func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+		Context: Context{
+			SessionSlots: []SessionSlot{
+				{Name: "policy_topic", Value: "奖学金"},
+				{Name: "policy_topic", Value: "转专业"},
+			},
+		},
+	})
+
+	if decision.ContextPreflight.State != "ambiguous" {
+		t.Fatalf("context state = %q, want ambiguous", decision.ContextPreflight.State)
+	}
+	if decision.ContextPreflight.ReferenceType != "previous_goal" {
+		t.Fatalf("reference type = %q, want previous_goal", decision.ContextPreflight.ReferenceType)
+	}
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.AmbiguityReason == "" {
+		t.Fatal("ambiguity reason must be populated")
+	}
+}
+
+func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "campus_services",
+		UserGoal:            "校园卡怎么补办",
+	})
+
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.ScopeReason != "structured_subtype_missing" {
+		t.Fatalf("scope reason = %q, want structured_subtype_missing", decision.RoutingFrame.ScopeReason)
+	}
+	if len(decision.RoutingFrame.MissingSlots) != 1 ||
+		decision.RoutingFrame.MissingSlots[0] != "campus_service_task" {
+		t.Fatalf("missing slots = %#v, want campus_service_task", decision.RoutingFrame.MissingSlots)
 	}
 }
 
