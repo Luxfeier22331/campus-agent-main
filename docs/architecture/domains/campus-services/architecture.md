@@ -13,7 +13,7 @@ updated: 2026-04-25
 它回答的是：
 
 - `campus-services-agent` 长期负责哪些结构化校园服务能力
-- `transport_schedule_lookup`、`service_status_lookup` 与后续 service/contact
+- `transport_schedule_lookup`、`service_status_lookup` 与后续 service guide / contact
   runtime capability 应如何分层
 - supervisor、`campus-services-agent`、`navigation-agent`、query service 与 projection
   各自负责什么
@@ -56,10 +56,11 @@ adapter -> internal query service -> projection-backed structured truth`
 
 later-wave 已冻结方向包括：
 
+- `service_guide_lookup`
+  - 回答办理指南、材料、入口说明、服务时间、联系方式、适用范围与来源引用
+  - 只读，不提交申请、不预约、不代办、不创建工单、不修改任何业务状态
 - `contact_directory_lookup`
   - 回答部门电话、邮箱、办公地点、联系人与联系渠道
-- `service_process_lookup`
-  - 回答办理步骤、材料、入口、适用人群与前提条件
 
 不属于 `campus-services-agent` 的内容：
 
@@ -69,6 +70,9 @@ later-wave 已冻结方向包括：
   - 继续属于 `notice-agent`
 - 地点查找、路径规划、route geometry、spatial truth
   - 继续属于 `navigation-agent`
+- 事务执行、代办、提交、预约、支付、工单创建或任何状态变更
+  - 当前中短期不进入产品规划；不得通过 tool handoff、表单自动化或 app-api loopback
+    变相实现
 
 ## Owner Split
 
@@ -83,7 +87,7 @@ later-wave 已冻结方向包括：
   - 只负责查询 admitted projection、应用 temporal semantics、返回 typed result
 - projection / normalized truth
   - 负责 current-effective service state、route window、stop refs、
-    contact facts、process facts
+    service guide facts、contact facts
 
 ## Projection-Owned Query Shapes
 
@@ -99,10 +103,12 @@ later-wave 已冻结方向包括：
 - `contact_directory_lookup`
   - 只读 `campus_services/contact_directory` contact entity / entity-group projection
   - handbook 电话页、official-web 联系方式页与 future directory page 只作为 provenance 上游
-- `service_process_lookup`
-  - 只读 `campus_services/service_catalog` process-oriented projection
-  - handbook flow page、official-web 办事说明页与 future service
-    entry page 只作为 provenance 上游
+- `service_guide_lookup`
+  - 只读 `campus_services/service_guide` guide-oriented projection
+  - handbook flow page、official-web 办事说明页与 future service entry page 只作为
+    provenance 上游
+  - 只允许返回办理说明、材料、入口、适用人群、服务时间、联系方式与 source refs；
+    不返回可执行 transaction payload，不生成 submission / booking / work-order handoff
 
 固定约束：
 
@@ -110,6 +116,23 @@ later-wave 已冻结方向包括：
 - `current/latest/effective` 等 temporal semantics 必须是 code-owned routing/query truth
 - alias ambiguity -> clarification
 - currentness 不可证、projection 缺关键字段或 source 冲突 -> fail-close / unavailable
+
+## Read-Only Service Guide Boundary
+
+`service_guide_lookup` 面向“怎么申请 / 怎么办理 / 需要什么材料 / 在哪里办 / 办理时间 /
+联系方式 / 服务入口说明”等只读信息查询。它的输出是 source-linked guide answer，不是可执行
+workflow。
+
+固定规则：
+
+- “校园卡怎么申请”“宿舍报修怎么办理”“会议室预约流程是什么”属于
+  `service_guide_lookup` 的目标问题形态
+- “帮我提交申请”“替我预约会议室”“代我办理校园卡”不属于
+  `service_guide_lookup`；supervisor 不得为这类请求生成事务型 execution handoff
+- 若用户明确询问办理说明，可以进入 `service_guide_lookup`；若用户要求系统代办，则必须保持
+  terminal guardrail / fail-close 语义，不能自动改写为执行动作
+- 当 guide projection 缺失、过期、source refs 不可证或存在冲突时，runtime 返回
+  `not_found` / `temporarily_unverifiable`，不得回退为 generic retrieval 编造流程
 
 ## Transport Schedule Data Plane
 

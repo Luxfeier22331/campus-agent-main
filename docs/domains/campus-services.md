@@ -17,6 +17,7 @@ updated: 2026-04-23
 
 - `../architecture/domains/campus-services/architecture.md`
 - `../contracts/service-status-lookup-contract.md`
+- `../contracts/service-guide-lookup-contract.md`
 - `../contracts/transport-schedule-lookup-contract.md`
 - `../decisions/adr-0005-campus-services-taxonomy.md`
 - `../decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
@@ -24,6 +25,7 @@ updated: 2026-04-23
 
 ## Data / Reference
 
+- `../data/campus-services-service-guide-source-truth-schema.md`
 - `../reference/student-handbook-normalization-strategy.md`
 - `../reference/runtime-serving-and-index-terms.md`
 - `../runbooks/index-release-runbook.md`
