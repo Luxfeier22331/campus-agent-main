@@ -19,18 +19,23 @@ import (
 )
 
 type Event struct {
-	BridgeDuration      time.Duration
-	Name                string
-	RequestID           string
-	TraceID             string
-	Lane                string
-	RequestedCapability string
-	Outcome             string
-	Decision            string
-	FailureCode         string
-	StatusCode          int
-	Duration            time.Duration
-	QueueWait           time.Duration
+	BridgeDuration        time.Duration
+	ContextPreflightState string
+	Name                  string
+	RequestID             string
+	TraceID               string
+	Lane                  string
+	RequestedCapability   string
+	Outcome               string
+	Decision              string
+	FailureCode           string
+	StatusCode            int
+	Duration              time.Duration
+	QueueWait             time.Duration
+	ScopeGateDecision     string
+	PolicyGateDecision    string
+	RoutingNextAction     string
+	PlanningOutcome       string
 }
 
 type Status struct {
@@ -129,14 +134,19 @@ func (e *Emitter) Emit(ctx context.Context, event Event) {
 
 	attributes := []attribute.KeyValue{
 		attribute.Int64("bridge_duration_ms", event.BridgeDuration.Milliseconds()),
+		attribute.String("context_preflight_state", event.ContextPreflightState),
 		attribute.String("request_id", event.RequestID),
 		attribute.String("trace_id", event.TraceID),
 		attribute.String("lane", event.Lane),
 		attribute.String("requested_capability", event.RequestedCapability),
 		attribute.String("outcome", event.Outcome),
+		attribute.String("planning_outcome", event.PlanningOutcome),
+		attribute.String("policy_gate_decision", event.PolicyGateDecision),
 		attribute.String("decision", event.Decision),
 		attribute.String("failure_code", event.FailureCode),
 		attribute.Int64("queue_wait_ms", event.QueueWait.Milliseconds()),
+		attribute.String("routing_next_action", event.RoutingNextAction),
+		attribute.String("scope_gate_decision", event.ScopeGateDecision),
 		attribute.Int("status_code", event.StatusCode),
 		attribute.Int64("duration_ms", event.Duration.Milliseconds()),
 	}

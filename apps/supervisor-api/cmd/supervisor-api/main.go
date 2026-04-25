@@ -23,7 +23,11 @@ func main() {
 		os.Exit(1)
 	}
 	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-	bridgeClient := bridge.NewHTTPClient(cfg.BridgeBaseURL, cfg.BridgeSharedSecret)
+	bridgeClient := bridge.NewHTTPClientWithResponseLimit(
+		cfg.BridgeBaseURL,
+		cfg.BridgeSharedSecret,
+		cfg.BridgeResponseLimitBytes,
+	)
 	handler := httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, logger, nil)
 
 	server := &http.Server{

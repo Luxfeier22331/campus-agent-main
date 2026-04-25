@@ -6,6 +6,8 @@
 !apps/supervisor-core-worker/**
 !configs/ingestion/
 !configs/ingestion/**
+!configs/runtime/
+!configs/runtime/query-serving-scopes.v1.json
 !packages/campus-services-agent/
 !packages/campus-services-agent/**
 !packages/contracts/

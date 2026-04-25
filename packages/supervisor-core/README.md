@@ -10,8 +10,8 @@ shaping 和 audit projection 的稳定 package。
 这个 package 只拥有 supervisor 的编排职责：
 
 - 将共享 `SupervisorRequest` 投影为 supervisor 可决策的内部上下文
-- 在路由前执行显式 request validation 与 query policy gate
-- 对 query-serving 请求执行显式 routing decision
+- 消费 Go `supervisor-api` 在 bridge v2 中给出的 deterministic runtime decisions
+- 对非 bridge 单元测试 / harness 保留 semantic routing fallback
 - 在内部构造 `SpecialistRequest` 并委派给对应 agent
 - 对 agent 返回结果执行 finalization policy
 - 组装统一的 `SpecialistResponse`
@@ -24,8 +24,8 @@ shaping 和 audit projection 的稳定 package。
 - ingestion/data plane 逻辑
 - 对象存储、Qdrant、MinIO 或其他基础设施细节
 
-`apps/supervisor-api` 只能把外部请求映射进这里，不能把 routing、policy 或 response assembly 回灌到
-API 壳。
+`apps/supervisor-api` 拥有入口 deterministic runtime / policy gate；这里不再作为
+capability、scope、query-enabled scope 或 structured payload planning 的 runtime truth。
 
 ## Accepted Current-Design Modules
 
@@ -33,10 +33,11 @@ API 壳。
 
 - `context.py` 将 `SupervisorRequest` 投影为 `SupervisorRequestContext`，承接 request
   framing 所需的最小字段。
-- `validation.py` 在 supervisor 边界内解析 capability、拒绝冲突输入，并保持 fail-closed。
-- `query_policy.py` 持有当前 query-enabled scope policy，不把当前 serving scope 限制写死在 API
-  shell。
-- `routing.py` 承担当前 routing decision，在 validation 与 policy gate 之后决定 agent 路径。
+- `validation.py` 对 Go 已投影的 capability 做 trust-but-verify，缺失时 fail-closed。
+- `query_policy.py` 仅保留非 bridge fallback / 测试辅助；Go
+  `apps/supervisor-api` 的 `runtimepolicy` 是 query-enabled scope admission owner。
+- `routing.py` 保留 semantic routing fallback；bridge 主路径优先使用 Go runtime decision
+  注入的 `RoutingDecision`。
 - `errors.py` 提供 supervisor 侧稳定错误分类，供 API shell 做结构化 HTTP 映射。
 - `framing.py` 在 routing 决定后构造内部 `SpecialistRequest`，把 external request boundary
   和 internal handoff boundary 分开。
@@ -56,10 +57,11 @@ API 壳。
 - `campus-services-agent` 与 `notice-agent` 现已作为 forward runtime owner package 接入
   default delegate map，但这只冻结 execution-side owner / adapter / protocol
   seam；不等于产品主路径已经打开这些 capability
-- query-serving 是否开放某个 corpus/scope，属于 routing/policy 决策，不应由 API shell 固定构造
+- query-serving 是否开放某个 corpus/scope，由 Go `apps/supervisor-api` 读取
+  `configs/runtime/query-serving-scopes.v1.json` 后在 bridge 前 fail-closed
 - 当前 runtime-profile 已开放 `regulations/student_rules` 与
-  `curriculum/curriculum_plan` 的 query-serving；`campus_services/*` 继续保持
-  `offline_preparation`
+  `curriculum/curriculum_plan`，以及 `official_web/stable_reference` 的 query-serving；
+  `campus_services/*` 继续保持 `offline_preparation`
 
 如果后续要继续增加 agent 或放开新的 query-serving corpus，应先更新架构/决策文档，再调整这里的 contract 描述与实现。
 
@@ -87,6 +89,8 @@ API 壳。
   tests.supervisor.test_supervisor_validation -q`
 - `uv run --all-packages python -m unittest
   tests.supervisor.test_supervisor_query_policy -q`
+- `uv run --all-packages python -m unittest
+  tests.supervisor.test_supervisor_runtime_guardrails -q`
 - `uv run --all-packages python -m unittest
   tests.supervisor.test_supervisor_policy -q`
 - `uv run --all-packages python -m unittest tests.api.test_supervisor_api -q`

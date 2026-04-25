@@ -109,11 +109,29 @@ Docker-side Go runtime control plane 长期负责：
   bridge v2 传递 `preplanned_target`、`allowed_tools`、`specialist_payload` 与
   `planning_outcome`；Python worker 只消费 Go preplanned handoff，不再在
   `packages/supervisor-core` query time 构造校车 / service status / notice payload
+- planner 实现边界在 `apps/supervisor-api/internal/structuredplanning`；
+  `apps/supervisor-api/internal/execution` 只负责 request projection 与 bridge v2
+  `runtime_decisions` 适配
+- Go `supervisor-api` 已拥有 deterministic runtime policy foundation；当前实现位于
+  `apps/supervisor-api/internal/runtimepolicy`，bridge v2 传递 `scope_gate`、
+  `policy_gate`、`context_preflight`、`tool_policy` 与 `routing_frame`。Python
+  bridge 对缺失 Go-owned routing frame 的 v2 请求 fail-closed，并把 terminal /
+  clarification frame 注入 `packages/supervisor-core`，不再在 bridge 主路径重新做
+  product-scope、approval-required 或 context-follow-up 裁决
+- Go `supervisor-api` 已把 runtime policy decision summary 纳入内部观测口径：
+  `/metrics` 只用低基数 label 发布 `scope_gate`、`policy_gate`、
+  `context_preflight`、`routing_next_action` 与 `planning_outcome`；OTel 与 execution
+  audit 同步携带这些安全摘要，不携带 raw `user_goal` 或 prompt/provider payload
+- Go `supervisor-api` 已拥有 query-enabled scope admission；当前 allowlist 来自
+  `configs/runtime/query-serving-scopes.v1.json`，并通过 drift test 与 ingestion
+  runtime profile 的 `query_enabled_by_default=true` 保持一致。disabled knowledge
+  scope 在进入 Python bridge 前返回 `403 disallowed_knowledge_scope`
 - Go `supervisor-api` 已拥有 structured runtime opening gate：
   `campus_services` / `notice` 默认关闭，只有通过
-  `SUPERVISOR_API_OPEN_CAPABILITIES` 显式开放后才允许进入 Python bridge；关闭时
-  non-stream request 返回 `503 structured_runtime_closed`，lifecycle stream 返回
-  terminal `execution.failed`
+  `SUPERVISOR_API_OPEN_CAPABILITIES` 显式开放后才允许进入 Python bridge；该变量只接受
+  `campus_services`、`notice` 或 `campus_services,notice`，不接受 `*` / `all`
+  wildcard；关闭时 non-stream request 返回 `503 structured_runtime_closed`，
+  lifecycle stream 返回 terminal `execution.failed`
 - Go `supervisor-api` 已拥有 prompt config admission summary：
   `/readyz` 发布 Go-owned `prompt_config_gate`；Python worker 继续实际创建
   provider client / prompt executor，只上报 executor admission 与 HTTP pool health

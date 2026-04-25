@@ -35,22 +35,12 @@ class BridgePreplannedRouting:
     payload: dict[str, object]
     allowed_tools: tuple[str, ...]
 
-    def to_routing_decision(self, *, capability: str) -> RoutingDecision:
+    def to_routing_decision(self, *, intent_frame: IntentFrame) -> RoutingDecision:
         return RoutingDecision(
             target=self.target,  # type: ignore[arg-type]
             primary_corpus=None,
             primary_collection=None,
-            intent_frame=IntentFrame(
-                capability=capability,  # type: ignore[arg-type]
-                task_kind=_task_kind_for_capability(capability),
-                domain_candidates=_domain_candidates_for_target(self.target),
-                missing_slots=(),
-                risk_level="low",
-                needs_clarification=False,
-                suggested_next_action="delegate",
-                scope_class="in_scope",
-                scope_reason="go_preplanned_handoff",
-            ),
+            intent_frame=intent_frame,
             specialist_payload=_parse_specialist_payload(self.payload_kind, self.payload),
             allowed_tools=self.allowed_tools,  # type: ignore[arg-type]
         )
@@ -59,7 +49,7 @@ class BridgePreplannedRouting:
 @dataclass(frozen=True, slots=True)
 class BridgeSupervisorEnvelope:
     request: SupervisorRequest
-    preplanned_routing: BridgePreplannedRouting | None = None
+    routing_decision: RoutingDecision | None = None
 
 
 def _parse_bridge_supervisor_request(payload: dict[str, object]) -> SupervisorRequest:
@@ -70,7 +60,7 @@ def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuper
     _require_bridge_version(payload.get("bridge_version"))
     effective_capability = _parse_effective_capability(payload)
     lane = _require_string(payload.get("lane"), field_name="lane")
-    preplanned_routing = _parse_runtime_decisions(
+    runtime_routing_decision = _parse_runtime_decisions(
         payload.get("runtime_decisions"),
         effective_capability=effective_capability,
         lane=lane,
@@ -89,7 +79,7 @@ def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuper
             _require_object(payload.get("version_query"), field_name="version_query")
         ),
     )
-    return BridgeSupervisorEnvelope(request=request, preplanned_routing=preplanned_routing)
+    return BridgeSupervisorEnvelope(request=request, routing_decision=runtime_routing_decision)
 
 
 def _require_bridge_version(raw_version: object) -> None:
@@ -115,7 +105,7 @@ def _parse_runtime_decisions(
     *,
     effective_capability: str,
     lane: str,
-) -> BridgePreplannedRouting | None:
+) -> RoutingDecision | None:
     decisions = _require_object(raw_decisions, field_name="runtime_decisions")
     decision_capability = _require_string(
         decisions.get("effective_capability"),
@@ -129,9 +119,13 @@ def _parse_runtime_decisions(
         raise ValueError("runtime_decisions.effective_capability must match effective_capability")
     if decision_lane != lane:
         raise ValueError("runtime_decisions.lane must match lane")
+    intent_frame = _parse_routing_frame(
+        decisions.get("routing_frame"),
+        effective_capability=effective_capability,
+    )
     planning_outcome = _parse_optional_string(decisions.get("planning_outcome"))
     if planning_outcome != "preplanned":
-        return None
+        return _routing_decision_from_frame(intent_frame)
     target = _require_string(
         decisions.get("preplanned_target"),
         field_name="runtime_decisions.preplanned_target",
@@ -157,7 +151,90 @@ def _parse_runtime_decisions(
         payload_kind=payload_kind,
         payload=payload,
         allowed_tools=allowed_tools,
+    ).to_routing_decision(intent_frame=intent_frame)
+
+
+def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> IntentFrame:
+    frame = _require_object(raw_frame, field_name="runtime_decisions.routing_frame")
+    capability = _require_string(
+        frame.get("capability"),
+        field_name="runtime_decisions.routing_frame.capability",
     )
+    if capability != effective_capability:
+        raise ValueError(
+            "runtime_decisions.routing_frame.capability must match effective_capability"
+        )
+    return IntentFrame(
+        capability=capability,  # type: ignore[arg-type]
+        task_kind=_require_string(
+            frame.get("task_kind"),
+            field_name="runtime_decisions.routing_frame.task_kind",
+        ),  # type: ignore[arg-type]
+        domain_candidates=_parse_string_tuple(
+            frame.get("domain_candidates"),
+            field_name="runtime_decisions.routing_frame.domain_candidates",
+        ),
+        missing_slots=_parse_string_tuple(
+            frame.get("missing_slots"),
+            field_name="runtime_decisions.routing_frame.missing_slots",
+        ),
+        risk_level=_require_string(
+            frame.get("risk_level"),
+            field_name="runtime_decisions.routing_frame.risk_level",
+        ),  # type: ignore[arg-type]
+        needs_clarification=_require_bool(
+            frame.get("needs_clarification"),
+            field_name="runtime_decisions.routing_frame.needs_clarification",
+        ),
+        suggested_next_action=_require_string(
+            frame.get("suggested_next_action"),
+            field_name="runtime_decisions.routing_frame.suggested_next_action",
+        ),  # type: ignore[arg-type]
+        personalization_mode=(
+            _parse_optional_string(frame.get("personalization_mode")) or "generic"
+        ),  # type: ignore[arg-type]
+        clarification_subject=_parse_optional_string(frame.get("clarification_subject")) or "",
+        scope_class=_parse_optional_string(frame.get("scope_class")) or "",
+        policy_reason=_parse_optional_string(frame.get("policy_reason")) or "",
+        launch_state=_parse_optional_string(frame.get("launch_state")) or "open",  # type: ignore[arg-type]
+        scope_reason=_parse_optional_string(frame.get("scope_reason")) or "",
+        matched_signal=_parse_optional_string(frame.get("matched_signal")) or "",
+        classifier_version=(
+            _parse_optional_string(frame.get("classifier_version")) or "go-runtime-policy-v1"
+        ),
+        schema_version=_parse_optional_string(frame.get("schema_version")) or "intent-schema-1.0.0",
+        routing_confidence=(_parse_optional_string(frame.get("routing_confidence")) or "high"),  # type: ignore[arg-type]
+        ambiguity_signal=_parse_optional_string(frame.get("ambiguity_signal")) or "",
+        context_resolution_state=(
+            _parse_optional_string(frame.get("context_resolution_state")) or "not_follow_up"
+        ),  # type: ignore[arg-type]
+        context_reference_type=(
+            _parse_optional_string(frame.get("context_reference_type")) or "none"
+        ),  # type: ignore[arg-type]
+        resolved_slots=_parse_string_dict(
+            frame.get("resolved_slots"),
+            field_name="runtime_decisions.routing_frame.resolved_slots",
+        ),
+        ambiguity_reason=_parse_optional_string(frame.get("ambiguity_reason")) or "",
+    )
+
+
+def _routing_decision_from_frame(intent_frame: IntentFrame) -> RoutingDecision | None:
+    if intent_frame.suggested_next_action != "delegate":
+        return RoutingDecision(
+            target=None,
+            primary_corpus=None,
+            primary_collection=None,
+            intent_frame=intent_frame,
+        )
+    if intent_frame.capability == "knowledge":
+        return RoutingDecision(
+            target="rag-agent",
+            primary_corpus=None,
+            primary_collection=None,
+            intent_frame=intent_frame,
+        )
+    return None
 
 
 def _require_object(raw_value: object, *, field_name: str) -> dict[str, object]:
@@ -390,6 +467,28 @@ def _parse_string_tuple(raw_value: object, *, field_name: str) -> tuple[str, ...
         if normalized:
             values.append(normalized)
     return tuple(values)
+
+
+def _parse_string_dict(raw_value: object, *, field_name: str) -> dict[str, str]:
+    if raw_value is None:
+        return {}
+    if not isinstance(raw_value, dict):
+        raise ValueError(f"{field_name} must be an object")
+    values: dict[str, str] = {}
+    for key, value in raw_value.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ValueError(f"{field_name} must only contain string values")
+        normalized_key = key.strip()
+        normalized_value = value.strip()
+        if normalized_key and normalized_value:
+            values[normalized_key] = normalized_value
+    return values
+
+
+def _require_bool(raw_value: object, *, field_name: str) -> bool:
+    if not isinstance(raw_value, bool):
+        raise ValueError(f"{field_name} must be a boolean")
+    return raw_value
 
 
 def _require_string(raw_value: object, *, field_name: str) -> str:

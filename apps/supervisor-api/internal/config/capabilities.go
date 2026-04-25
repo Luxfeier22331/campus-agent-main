@@ -9,7 +9,7 @@ func (c Config) CapabilityOpen(capability string) bool {
 	}
 	for _, item := range c.OpenCapabilities {
 		normalized := strings.TrimSpace(item)
-		if normalized == "*" || normalized == "all" || normalized == normalizedCapability {
+		if normalized == normalizedCapability {
 			return true
 		}
 	}

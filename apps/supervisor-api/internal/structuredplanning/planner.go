@@ -1,8 +1,15 @@
-package execution
+package structuredplanning
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+)
 
 var yearPattern = regexp.MustCompile(`(20\d{2})年`)
+
+var transportSignals = []string{"校车", "班车", "通勤车", "接驳车"}
 
 var transactionalActionSignals = []string{
 	"提交",
@@ -34,75 +41,59 @@ var noticeGetSignals = []string{
 	"打开这条通知",
 }
 
-type preplannedHandoff struct {
+type Request struct {
+	EffectiveCapability string
+	UserGoal            string
+	VersionQuery        VersionQuery
+	SelectedNoticeRef   SelectedNoticeRef
+}
+
+type VersionQuery struct {
+	Mode               string
+	AsOf               string
+	VersionID          string
+	CompareToVersionID string
+}
+
+type SelectedNoticeRef struct {
+	NoticeID     string
+	SourceFamily string
+	Title        string
+}
+
+type Handoff struct {
 	Target       string
 	PayloadKind  string
 	Payload      map[string]any
 	AllowedTools []string
 }
 
-func runtimeDecisions(
-	effectiveCapability string,
-	lane string,
-	userGoal string,
-	versionQuery versionQuery,
-	context contextProjection,
-) map[string]any {
-	decisions := map[string]any{
-		"effective_capability": effectiveCapability,
-		"lane":                 lane,
-	}
-	if handoff := planPreplannedHandoff(
-		effectiveCapability,
-		userGoal,
-		versionQuery,
-		context,
-	); handoff != nil {
-		decisions["planning_outcome"] = "preplanned"
-		decisions["preplanned_target"] = handoff.Target
-		decisions["allowed_tools"] = handoff.AllowedTools
-		decisions["specialist_payload"] = map[string]any{
-			"kind":    handoff.PayloadKind,
-			"payload": handoff.Payload,
-		}
-		decisions["preplanned_handoff"] = handoff.toMap()
-	} else {
-		decisions["planning_outcome"] = "not_preplanned"
-	}
-	return decisions
-}
-
-func planPreplannedHandoff(
-	effectiveCapability string,
-	userGoal string,
-	versionQuery versionQuery,
-	context contextProjection,
-) *preplannedHandoff {
-	normalizedGoal := normalizeGoal(userGoal)
+func Plan(request Request) *Handoff {
+	normalizedGoal := normalizeGoal(request.UserGoal)
 	if normalizedGoal == "" || containsAny(normalizedGoal, transactionalActionSignals) {
 		return nil
 	}
-	if effectiveCapability == "campus_services" {
+	if request.EffectiveCapability == "campus_services" {
 		if containsAny(normalizedGoal, transportSignals) {
-			return &preplannedHandoff{
+			return &Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "transport_schedule_lookup",
-				Payload:      transportSchedulePayload(userGoal, normalizedGoal, versionQuery),
-				AllowedTools: []string{"transport_schedule_lookup"},
+				Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "transport_schedule_lookup"),
 			}
 		}
 		if containsAny(normalizedGoal, serviceStatusSignals) {
-			return &preplannedHandoff{
+			return &Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_status_lookup",
-				Payload:      serviceStatusPayload(userGoal, normalizedGoal, versionQuery),
-				AllowedTools: []string{"service_status_lookup"},
+				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
 			}
 		}
 		return nil
 	}
-	if effectiveCapability == "notice" {
-		selectedNoticeRef := context.SelectedNoticeRef
+	if request.EffectiveCapability == "notice" {
+		selectedNoticeRef := request.SelectedNoticeRef
 		if selectedNoticeRef.NoticeID != "" && containsAny(normalizedGoal, noticeGetSignals) {
 			payload := map[string]any{
 				"notice_id": selectedNoticeRef.NoticeID,
@@ -110,27 +101,36 @@ func planPreplannedHandoff(
 			if selectedNoticeRef.SourceFamily != "" {
 				payload["source_family"] = selectedNoticeRef.SourceFamily
 			}
-			return &preplannedHandoff{
+			return &Handoff{
 				Target:       "notice-agent",
 				PayloadKind:  "campus_notice_get",
 				Payload:      payload,
-				AllowedTools: []string{"campus_notice_get"},
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
 			}
 		}
-		return &preplannedHandoff{
+		return &Handoff{
 			Target:       "notice-agent",
 			PayloadKind:  "campus_notice_discover",
-			Payload:      noticeDiscoverPayload(userGoal, normalizedGoal, versionQuery),
-			AllowedTools: []string{"campus_notice_discover"},
+			Payload:      noticeDiscoverPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_discover"),
 		}
 	}
 	return nil
 }
 
+func (h Handoff) Map() map[string]any {
+	return map[string]any{
+		"target":        h.Target,
+		"payload_kind":  h.PayloadKind,
+		"payload":       h.Payload,
+		"allowed_tools": h.AllowedTools,
+	}
+}
+
 func transportSchedulePayload(
 	userGoal string,
 	normalizedGoal string,
-	versionQuery versionQuery,
+	versionQuery VersionQuery,
 ) map[string]any {
 	payload := map[string]any{
 		"query_text":     userGoal,
@@ -149,7 +149,7 @@ func transportSchedulePayload(
 func serviceStatusPayload(
 	userGoal string,
 	normalizedGoal string,
-	versionQuery versionQuery,
+	versionQuery VersionQuery,
 ) map[string]any {
 	payload := map[string]any{
 		"subject_query":  userGoal,
@@ -164,7 +164,7 @@ func serviceStatusPayload(
 func noticeDiscoverPayload(
 	userGoal string,
 	normalizedGoal string,
-	versionQuery versionQuery,
+	versionQuery VersionQuery,
 ) map[string]any {
 	return map[string]any{
 		"query_text":     userGoal,
@@ -241,7 +241,7 @@ func transportServiceTimeQueryPayload(normalizedGoal string) map[string]any {
 	return query
 }
 
-func temporalQueryPayload(versionQuery versionQuery, normalizedGoal string) map[string]any {
+func temporalQueryPayload(versionQuery VersionQuery, normalizedGoal string) map[string]any {
 	if versionQuery.Mode == "as_of" {
 		return map[string]any{
 			"mode":  "as_of",
@@ -267,11 +267,16 @@ func campusScopeFromGoal(normalizedGoal string) string {
 	return ""
 }
 
-func (p preplannedHandoff) toMap() map[string]any {
-	return map[string]any{
-		"target":        p.Target,
-		"payload_kind":  p.PayloadKind,
-		"payload":       p.Payload,
-		"allowed_tools": p.AllowedTools,
+func normalizeGoal(userGoal string) string {
+	return strings.ToLower(strings.Join(strings.Fields(userGoal), ""))
+}
+
+func containsAny(value string, signals []string) bool {
+	for _, signal := range signals {
+		normalizedSignal := normalizeGoal(signal)
+		if normalizedSignal != "" && strings.Contains(value, normalizedSignal) {
+			return true
+		}
 	}
+	return false
 }

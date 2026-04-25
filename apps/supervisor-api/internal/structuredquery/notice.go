@@ -7,7 +7,11 @@ import (
 	"strings"
 )
 
-const internalNoticeRestrictedSourceFamily = "internal_notice_restricted"
+const (
+	internalNoticeRestrictedSourceFamily = "internal_notice_restricted"
+	defaultNoticeDiscoverMaxResults      = 5
+	noticeDiscoverMaxResultsLimit        = 20
+)
 
 var errNoticeBodyUnavailable = errors.New("notice body unavailable")
 
@@ -137,7 +141,10 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 		return invalidRequest("query_text is required.")
 	}
 	if request.MaxResults <= 0 {
-		request.MaxResults = 5
+		request.MaxResults = defaultNoticeDiscoverMaxResults
+	}
+	if request.MaxResults > noticeDiscoverMaxResultsLimit {
+		request.MaxResults = noticeDiscoverMaxResultsLimit
 	}
 	sourceFamilies := internalNoticeSourceFamilies(request.SourceFamilies)
 	if len(sourceFamilies) == 0 || !hasInternalNoticeAccess(envelope.AccessContext) {

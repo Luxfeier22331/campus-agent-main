@@ -19,6 +19,16 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
 )
 
+type failingReadCloser struct{}
+
+func (failingReadCloser) Read(_ []byte) (int, error) {
+	return 0, errors.New("read failed")
+}
+
+func (failingReadCloser) Close() error {
+	return nil
+}
+
 func newTestRequest(method string, target string, body io.Reader) *http.Request {
 	return httptest.NewRequestWithContext(context.Background(), method, target, body)
 }
@@ -189,6 +199,205 @@ func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 	}
 }
 
+func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		ExecutionAuditEnabled:         true,
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		SpecialistPromptModel:         "gpt-specialist",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body:       json.RawMessage(`{"status":"ready"}`),
+		},
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	executionAuditRuntime := expectRecord(t, body["execution_audit_runtime"], "execution_audit_runtime")
+	if executionAuditRuntime["enabled"] != true || executionAuditRuntime["configured"] != false {
+		t.Fatalf("unexpected execution_audit_runtime: %#v", executionAuditRuntime)
+	}
+}
+
+func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		OpenCapabilities:              []string{"campus_services"},
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		SpecialistPromptModel:         "gpt-specialist",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body:       json.RawMessage(`{"status":"ready"}`),
+		},
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
+	if structuredQueryRuntime["configured"] != false {
+		t.Fatalf("structured_query_runtime.configured = %v, want false", structuredQueryRuntime["configured"])
+	}
+}
+
+func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		OpenCapabilities:              []string{"notice"},
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		SpecialistPromptModel:         "gpt-specialist",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body:       json.RawMessage(`{"status":"ready"}`),
+		},
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
+	if structuredQueryRuntime["notice_read_model_configured"] != false ||
+		structuredQueryRuntime["notice_body_store_configured"] != false {
+		t.Fatalf("unexpected structured_query_runtime: %#v", structuredQueryRuntime)
+	}
+}
+
+func TestReadyzDegradesWhenOpenedNoticeRuntimeHealthProbeFails(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                         "campus-agent",
+		MaxConcurrentAnswers:            8,
+		OpenCapabilities:                []string{"notice"},
+		PromptRuntimeProvider:           "openai-responses",
+		SupervisorPromptModel:           "gpt-supervisor",
+		SpecialistPromptModel:           "gpt-specialist",
+		PromptRuntimeAPIKey:             "test-key",
+		PromptRuntimeTransport:          "responses",
+		PromptRuntimeBaseURL:            "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs:   true,
+		NoticeReadModelDatabaseURL:      "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
+		NoticeReadModelTable:            "ingestion_projection.internal_notice_read_model",
+		NoticeObjectStoreEndpoint:       "http://127.0.0.1:1",
+		NoticeObjectStoreAccessKey:      "access-key",
+		NoticeObjectStoreSecretKey:      "secret-object-key",
+		NoticeObjectStoreBucketDerived:  "campus-rag-derived",
+		NoticeObjectStoreBodyLimitBytes: 1_048_576,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body:       json.RawMessage(`{"status":"ready"}`),
+		},
+	})
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
+	if structuredQueryRuntime["notice_read_model_configured"] != true ||
+		structuredQueryRuntime["notice_body_store_configured"] != true {
+		t.Fatalf("notice runtime should be configured: %#v", structuredQueryRuntime)
+	}
+	if structuredQueryRuntime["notice_read_model_healthy"] != false ||
+		structuredQueryRuntime["notice_body_store_healthy"] != false {
+		t.Fatalf("notice runtime health should fail closed: %#v", structuredQueryRuntime)
+	}
+	lastError, _ := structuredQueryRuntime["notice_runtime_last_error"].(string)
+	if lastError == "" {
+		t.Fatalf("notice_runtime_last_error = %q, want stable reason", lastError)
+	}
+	for _, secret := range []string{"secret-pass", "secret-object-key", "127.0.0.1:1"} {
+		if strings.Contains(lastError, secret) {
+			t.Fatalf("notice_runtime_last_error leaked %q: %s", secret, lastError)
+		}
+	}
+}
+
+func TestReadyzDoesNotDegradeWhenClosedNoticeRuntimeHealthProbeFails(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                         "campus-agent",
+		MaxConcurrentAnswers:            8,
+		PromptRuntimeProvider:           "openai-responses",
+		SupervisorPromptModel:           "gpt-supervisor",
+		SpecialistPromptModel:           "gpt-specialist",
+		PromptRuntimeAPIKey:             "test-key",
+		PromptRuntimeTransport:          "responses",
+		PromptRuntimeBaseURL:            "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs:   true,
+		NoticeReadModelDatabaseURL:      "postgresql://notice:secret-pass@127.0.0.1:1/campus_agent",
+		NoticeReadModelTable:            "ingestion_projection.internal_notice_read_model",
+		NoticeObjectStoreEndpoint:       "http://127.0.0.1:1",
+		NoticeObjectStoreAccessKey:      "access-key",
+		NoticeObjectStoreSecretKey:      "secret-object-key",
+		NoticeObjectStoreBucketDerived:  "campus-rag-derived",
+		NoticeObjectStoreBodyLimitBytes: 1_048_576,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body:       json.RawMessage(`{"status":"ready"}`),
+		},
+	})
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
+	if structuredQueryRuntime["notice_read_model_healthy"] != false {
+		t.Fatalf("notice health should still be reported: %#v", structuredQueryRuntime)
+	}
+}
+
 func TestAnswerRejectsInvalidJSON(t *testing.T) {
 	server := NewServer(config.Config{
 		RequestBodyLimitBytes: 1_048_576,
@@ -235,6 +444,20 @@ func TestAnswerRejectsBodyTooLarge(t *testing.T) {
 	)
 
 	assertError(t, response, http.StatusRequestEntityTooLarge, "request_body_too_large")
+}
+
+func TestAnswerRejectsUnreadableBodySeparatelyFromBodyTooLarge(t *testing.T) {
+	server := NewServer(config.Config{
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, nil)
+	response := httptest.NewRecorder()
+	request := newTestRequest(http.MethodPost, "/api/v1/answer", nil)
+	request.Body = failingReadCloser{}
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadRequest, "request_body_unreadable")
 }
 
 func TestAnswerFailsClosedWhenBridgeIsMissing(t *testing.T) {
@@ -310,6 +533,43 @@ func TestAnswerRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
 		`campus_supervisor_api_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
 	) {
 		t.Fatalf("metrics missing structured runtime gate rejection:\n%s", metricsResponse.Body.String())
+	}
+}
+
+func TestAnswerRecordsRuntimePolicyDecisionMetricsBeforeBridge(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "supervisor_response",
+			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"out of scope"}`),
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"MIT的校长是谁","request_id":"req-runtime-policy-metrics"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+
+	metricsResponse := httptest.NewRecorder()
+	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
+	expectedMetric := `campus_supervisor_api_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned"} 1`
+	if !strings.Contains(metricsResponse.Body.String(), expectedMetric) {
+		t.Fatalf("metrics missing runtime policy decision:\n%s", metricsResponse.Body.String())
 	}
 }
 
@@ -605,6 +865,62 @@ func TestAnswerPassesSupervisorErrorsThrough(t *testing.T) {
 	assertError(t, response, http.StatusForbidden, "disallowed_knowledge_scope")
 }
 
+func TestAnswerRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusInternalServerError,
+			Kind:       "supervisor_response",
+			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello","request_id":"req-response-status-mismatch"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_response")
+}
+
+func TestAnswerRejectsSupervisorErrorWith2xxStatus(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "supervisor_error",
+			Body:       json.RawMessage(`{"error":{"code":"bad_bridge","message":"bad","retryable":true}}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello","request_id":"req-error-status-mismatch"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_response")
+}
+
 func TestAnswerMapsSupervisorBridgeCancellationToCanceledLifecycle(t *testing.T) {
 	server := NewServer(config.Config{
 		AuthMode:              "bearer",
@@ -854,6 +1170,39 @@ func TestAnswerMapsBridgeTimeout(t *testing.T) {
 	server.ServeHTTP(response, request)
 
 	assertError(t, response, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
+}
+
+func TestAnswerRedactsBridgeTransportError(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeErr: errors.New("dial http://internal-host:1234/secret?token=raw-token: connection refused"),
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello","request_id":"req-bridge-redaction"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_unavailable")
+	body := response.Body.String()
+	if !strings.Contains(body, "Supervisor Python bridge is unavailable.") {
+		t.Fatalf("response body missing sanitized bridge message: %s", body)
+	}
+	for _, secret := range []string{"internal-host", "/secret", "raw-token"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("response body leaked bridge error detail %q: %s", secret, body)
+		}
+	}
 }
 
 func TestAnswerReturnsWithoutWritingWhenClientContextIsCanceled(t *testing.T) {
@@ -1634,6 +1983,26 @@ func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestMetricsUsesStableRouteLabelForUnknownPaths(t *testing.T) {
+	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
+
+	unknown := httptest.NewRecorder()
+	server.ServeHTTP(unknown, newTestRequest(http.MethodGet, "/unexpected/student/123", nil))
+	if unknown.Code != http.StatusNotFound {
+		t.Fatalf("unknown route status = %d, want 404", unknown.Code)
+	}
+
+	metrics := httptest.NewRecorder()
+	server.ServeHTTP(metrics, newTestRequest(http.MethodGet, "/metrics", nil))
+	body := metrics.Body.String()
+	if !strings.Contains(body, `campus_supervisor_api_requests_total{route="/__unknown__",outcome="not_found",status_class="4xx"} 1`) {
+		t.Fatalf("metrics body missing stable unknown route label:\n%s", body)
+	}
+	if strings.Contains(body, "/unexpected/student/123") {
+		t.Fatalf("metrics body leaked raw unknown route label:\n%s", body)
+	}
+}
+
 func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 	callCount := 0
 	server := NewServerWithDependencies(
@@ -1819,6 +2188,78 @@ func TestAnswerStreamEmitsLifecycleEvents(t *testing.T) {
 	}
 }
 
+func TestAnswerStreamRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusInternalServerError,
+			Kind:       "supervisor_response",
+			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"hello","request_id":"req-stream-response-status-mismatch"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"supervisor_bridge_invalid_response"`) ||
+		strings.Contains(body, "event: execution.completed") {
+		t.Fatalf("stream body missing invalid bridge response failure:\n%s", body)
+	}
+}
+
+func TestAnswerStreamRejectsSupervisorErrorWith2xxStatus(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "supervisor_error",
+			Body:       json.RawMessage(`{"error":{"code":"bad_bridge","message":"bad","retryable":true}}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"hello","request_id":"req-stream-error-status-mismatch"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"supervisor_bridge_invalid_response"`) ||
+		strings.Contains(body, "event: execution.completed") {
+		t.Fatalf("stream body missing invalid bridge error failure:\n%s", body)
+	}
+}
+
 func TestAnswerStreamRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
 	bridgeCalls := 0
 	server := NewServer(config.Config{
@@ -1859,6 +2300,38 @@ func TestAnswerStreamRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
 		!strings.Contains(body, `"code":"structured_runtime_closed"`) ||
 		!strings.Contains(body, `"outcome":"structured_runtime_closed"`) {
 		t.Fatalf("stream body missing structured runtime closed failure:\n%s", body)
+	}
+}
+
+func TestAnswerStreamClosedStructuredRuntimeEmitsTelemetry(t *testing.T) {
+	otelServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(otelServer.Close)
+
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+		OTelEnabled:           true,
+		OTelEndpoint:          otelServer.URL,
+		OTelSampleRatio:       1,
+	}, &fakeBridge{configured: true})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"找一下春假通知","request_id":"req-stream-structured-closed-telemetry"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	status := server.telemetry.Status()
+	if status.ExportedCount != 1 {
+		t.Fatalf("telemetry exported count = %d, want 1", status.ExportedCount)
 	}
 }
 

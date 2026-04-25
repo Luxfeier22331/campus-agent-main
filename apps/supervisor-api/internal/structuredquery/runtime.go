@@ -14,20 +14,23 @@ const (
 	ToolTransportScheduleLookup = "transport_schedule_lookup"
 	ToolCampusNoticeDiscover    = "campus_notice_discover"
 	ToolCampusNoticeGet         = "campus_notice_get"
+
+	defaultStructuredRuntimeHealthTimeout = 250 * time.Millisecond
 )
 
 type Options struct {
-	ProjectionPath                 string
-	TrustedTimeRFC3339             string
-	NoticeReadModelStore           NoticeReadModelStore
-	NoticeBodyStore                NoticeBodyStore
-	NoticeReadModelDatabaseURL     string
-	NoticeReadModelTable           string
-	NoticeObjectStoreEndpoint      string
-	NoticeObjectStoreAccessKey     string
-	NoticeObjectStoreSecretKey     string
-	NoticeObjectStoreRegion        string
-	NoticeObjectStoreBucketDerived string
+	ProjectionPath                  string
+	TrustedTimeRFC3339              string
+	NoticeReadModelStore            NoticeReadModelStore
+	NoticeBodyStore                 NoticeBodyStore
+	NoticeReadModelDatabaseURL      string
+	NoticeReadModelTable            string
+	NoticeObjectStoreEndpoint       string
+	NoticeObjectStoreAccessKey      string
+	NoticeObjectStoreSecretKey      string
+	NoticeObjectStoreRegion         string
+	NoticeObjectStoreBucketDerived  string
+	NoticeObjectStoreBodyLimitBytes int64
 }
 
 type Runtime struct {
@@ -44,6 +47,9 @@ type Status struct {
 	TransportScheduleImplemented bool   `json:"transport_schedule_implemented"`
 	NoticeReadModelConfigured    bool   `json:"notice_read_model_configured"`
 	NoticeBodyStoreConfigured    bool   `json:"notice_body_store_configured"`
+	NoticeReadModelHealthy       bool   `json:"notice_read_model_healthy"`
+	NoticeBodyStoreHealthy       bool   `json:"notice_body_store_healthy"`
+	NoticeRuntimeLastError       string `json:"notice_runtime_last_error"`
 }
 
 type Response struct {
@@ -205,6 +211,7 @@ func NewRuntime(options Options) *Runtime {
 			SecretKey:     strings.TrimSpace(options.NoticeObjectStoreSecretKey),
 			Region:        strings.TrimSpace(options.NoticeObjectStoreRegion),
 			BucketDerived: strings.TrimSpace(options.NoticeObjectStoreBucketDerived),
+			MaxBodyBytes:  options.NoticeObjectStoreBodyLimitBytes,
 		})
 	}
 	runtime := &Runtime{
@@ -227,7 +234,7 @@ func (r *Runtime) Close() {
 	}
 }
 
-func (r *Runtime) Status() Status {
+func (r *Runtime) Status(ctx context.Context) Status {
 	status := Status{
 		Configured:       r.projectionPath != "",
 		ProjectionSource: "file",
@@ -241,7 +248,52 @@ func (r *Runtime) Status() Status {
 	}
 	status.NoticeReadModelConfigured = r.noticeReadModelStore != nil
 	status.NoticeBodyStoreConfigured = r.noticeBodyStore != nil
+	status.NoticeReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+		ctx,
+		r.noticeReadModelStore,
+		"notice_read_model_unhealthy",
+		status.NoticeRuntimeLastError,
+	)
+	status.NoticeBodyStoreHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+		ctx,
+		r.noticeBodyStore,
+		"notice_body_store_unhealthy",
+		status.NoticeRuntimeLastError,
+	)
 	return status
+}
+
+func noticeRuntimeComponentHealthy(
+	ctx context.Context,
+	component any,
+	unhealthyReason string,
+	lastError string,
+) (bool, string) {
+	if component == nil {
+		return false, lastError
+	}
+	checker, ok := component.(interface {
+		HealthCheck(context.Context) error
+	})
+	if !ok {
+		return true, lastError
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, defaultStructuredRuntimeHealthTimeout)
+	defer cancel()
+	if err := checker.HealthCheck(checkCtx); err != nil {
+		return false, appendNoticeRuntimeLastError(lastError, unhealthyReason)
+	}
+	return true, lastError
+}
+
+func appendNoticeRuntimeLastError(current string, reason string) string {
+	if current == "" {
+		return reason
+	}
+	return current + "," + reason
 }
 
 func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Response {

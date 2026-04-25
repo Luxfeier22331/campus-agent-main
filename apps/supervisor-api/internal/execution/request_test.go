@@ -101,6 +101,26 @@ func TestParseAnswerRequestRejectsMissingBearerToken(t *testing.T) {
 	}
 }
 
+func TestParseAnswerRequestRejectsUnconfiguredBearerAuth(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{"user_goal":"library hours","request_id":"req-unconfigured-bearer"}`),
+		map[string]string{
+			"authorization": "Bearer arbitrary-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected unconfigured bearer auth to fail closed")
+	}
+	if httpErr.Status != 500 || httpErr.Code != "auth_not_configured" {
+		t.Fatalf("unexpected error = %#v", httpErr)
+	}
+}
+
 func TestParseAnswerRequestRejectsUnsupportedActorFieldsInTrustedWorkerContext(t *testing.T) {
 	_, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
@@ -439,6 +459,62 @@ func TestParseAnswerRequestProjectsBridgeV2RuntimeDecisionsForTransportSchedule(
 	}
 }
 
+func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"学生手册请假制度怎么规定？",
+			"request_id":"req-knowledge-preplan",
+			"requested_scope":{"corpus":"regulations","collection":"student_rules"},
+			"version_query":{"mode":"compare","version_id":"v1:student-handbook","compare_to_version_id":"v2:student-handbook"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	if runtimeDecisions["planning_outcome"] != "preplanned" {
+		t.Fatalf("planning_outcome = %v, want preplanned", runtimeDecisions["planning_outcome"])
+	}
+	if request.RuntimeDecisions.PlanningOutcome != "preplanned" {
+		t.Fatalf(
+			"request planning outcome = %q, want preplanned",
+			request.RuntimeDecisions.PlanningOutcome,
+		)
+	}
+	if runtimeDecisions["preplanned_target"] != "rag-agent" {
+		t.Fatalf("preplanned_target = %v, want rag-agent", runtimeDecisions["preplanned_target"])
+	}
+	allowedTools, ok := runtimeDecisions["allowed_tools"].([]any)
+	if !ok || len(allowedTools) != 0 {
+		t.Fatalf("allowed_tools = %#v, want empty array", runtimeDecisions["allowed_tools"])
+	}
+	specialistPayload := expectExecutionRecord(t, runtimeDecisions["specialist_payload"], "specialist_payload")
+	if specialistPayload["kind"] != "rag_request" {
+		t.Fatalf("specialist_payload.kind = %v, want rag_request", specialistPayload["kind"])
+	}
+	specialistPayloadRecord := expectExecutionRecord(t, specialistPayload["payload"], "specialist_payload.payload")
+	scope := expectExecutionRecord(t, specialistPayloadRecord["scope"], "specialist_payload.payload.scope")
+	if scope["corpus"] != "regulations" || scope["collection"] != "student_rules" {
+		t.Fatalf("scope = %#v, want regulations/student_rules", scope)
+	}
+	versionQuery := expectExecutionRecord(t, specialistPayloadRecord["version_query"], "specialist_payload.payload.version_query")
+	if versionQuery["mode"] != "compare" ||
+		versionQuery["version_id"] != "v1:student-handbook" ||
+		versionQuery["compare_to_version_id"] != "v2:student-handbook" {
+		t.Fatalf("version_query = %#v, want compare query", versionQuery)
+	}
+}
+
 func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
@@ -463,139 +539,147 @@ func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *test
 	if _, ok := runtimeDecisions["preplanned_handoff"]; ok {
 		t.Fatalf("transactional structured request must not be preplanned: %#v", runtimeDecisions)
 	}
+	policyGate := expectExecutionRecord(t, runtimeDecisions["policy_gate"], "policy_gate")
+	if policyGate["decision"] != "approval_required" {
+		t.Fatalf("policy_gate.decision = %v, want approval_required", policyGate["decision"])
+	}
+	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
+	if routingFrame["suggested_next_action"] != "approval_required" {
+		t.Fatalf("routing_frame.suggested_next_action = %v, want approval_required", routingFrame["suggested_next_action"])
+	}
+	if routingFrame["risk_level"] != "high" {
+		t.Fatalf("routing_frame.risk_level = %v, want high", routingFrame["risk_level"])
+	}
 }
 
-func TestPreplannedHandoffGoldenCases(t *testing.T) {
-	tests := []struct {
-		name           string
-		capability     string
-		userGoal       string
-		context        contextProjection
-		wantTarget     string
-		wantKind       string
-		wantTool       string
-		wantPayloadKey string
-		wantPayloadVal any
-	}{
-		{
-			name:           "transport first departure",
-			capability:     "campus_services",
-			userGoal:       "明天早上去丰台最早的班车是几点",
-			wantTarget:     "campus-services-agent",
-			wantKind:       "transport_schedule_lookup",
-			wantTool:       "transport_schedule_lookup",
-			wantPayloadKey: "intent",
-			wantPayloadVal: "first_departure",
+func TestParseAnswerRequestProjectsRuntimePolicyForOutOfScopeKnowledge(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"MIT的校长是谁",
+			"request_id":"req-out-of-scope-policy"
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
 		},
-		{
-			name:           "transport snapshot metadata",
-			capability:     "campus_services",
-			userGoal:       "最近的校车时刻表是什么",
-			wantTarget:     "campus-services-agent",
-			wantKind:       "transport_schedule_lookup",
-			wantTool:       "transport_schedule_lookup",
-			wantPayloadKey: "intent",
-			wantPayloadVal: "schedule_snapshot_metadata",
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
 		},
-		{
-			name:           "transport timetable",
-			capability:     "campus_services",
-			userGoal:       "校车时刻表",
-			wantTarget:     "campus-services-agent",
-			wantKind:       "transport_schedule_lookup",
-			wantTool:       "transport_schedule_lookup",
-			wantPayloadKey: "intent",
-			wantPayloadVal: "timetable",
-		},
-		{
-			name:           "transport last departure",
-			capability:     "campus_services",
-			userGoal:       "回海淀最后一班校车几点",
-			wantTarget:     "campus-services-agent",
-			wantKind:       "transport_schedule_lookup",
-			wantTool:       "transport_schedule_lookup",
-			wantPayloadKey: "intent",
-			wantPayloadVal: "last_departure",
-		},
-		{
-			name:           "transport departure list",
-			capability:     "campus_services",
-			userGoal:       "下午去丰台校车还有哪些班次",
-			wantTarget:     "campus-services-agent",
-			wantKind:       "transport_schedule_lookup",
-			wantTool:       "transport_schedule_lookup",
-			wantPayloadKey: "intent",
-			wantPayloadVal: "departure_list",
-		},
-		{
-			name:           "transport service window",
-			capability:     "campus_services",
-			userGoal:       "校车今天还跑不跑",
-			wantTarget:     "campus-services-agent",
-			wantKind:       "transport_schedule_lookup",
-			wantTool:       "transport_schedule_lookup",
-			wantPayloadKey: "intent",
-			wantPayloadVal: "service_window",
-		},
-		{
-			name:           "service status campus scope",
-			capability:     "campus_services",
-			userGoal:       "丰台图书馆今天开门吗",
-			wantTarget:     "campus-services-agent",
-			wantKind:       "service_status_lookup",
-			wantTool:       "service_status_lookup",
-			wantPayloadKey: "campus_scope",
-			wantPayloadVal: "fengtai",
-		},
-		{
-			name:           "notice discover",
-			capability:     "notice",
-			userGoal:       "找一下2026年春假通知",
-			wantTarget:     "notice-agent",
-			wantKind:       "campus_notice_discover",
-			wantTool:       "campus_notice_discover",
-			wantPayloadKey: "query_text",
-			wantPayloadVal: "找一下2026年春假通知",
-		},
-		{
-			name:       "notice get selected ref",
-			capability: "notice",
-			userGoal:   "这条通知详情",
-			context: contextProjection{
-				SelectedNoticeRef: selectedNoticeRef{
-					NoticeID:     "notice:2026-spring-break",
-					SourceFamily: "internal_notice_restricted",
-				},
-			},
-			wantTarget:     "notice-agent",
-			wantKind:       "campus_notice_get",
-			wantTool:       "campus_notice_get",
-			wantPayloadKey: "notice_id",
-			wantPayloadVal: "notice:2026-spring-break",
-		},
-	}
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handoff := planPreplannedHandoff(tt.capability, tt.userGoal, versionQuery{}, tt.context)
-			if handoff == nil {
-				t.Fatal("expected preplanned handoff")
-			}
-			if handoff.Target != tt.wantTarget || handoff.PayloadKind != tt.wantKind {
-				t.Fatalf("handoff = %#v", handoff)
-			}
-			if len(handoff.AllowedTools) != 1 || handoff.AllowedTools[0] != tt.wantTool {
-				t.Fatalf("allowed tools = %#v, want %q", handoff.AllowedTools, tt.wantTool)
-			}
-			if handoff.Payload[tt.wantPayloadKey] != tt.wantPayloadVal {
-				t.Fatalf(
-					"payload[%s] = %#v, want %#v",
-					tt.wantPayloadKey,
-					handoff.Payload[tt.wantPayloadKey],
-					tt.wantPayloadVal,
-				)
-			}
-		})
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	scopeGate := expectExecutionRecord(t, runtimeDecisions["scope_gate"], "scope_gate")
+	if scopeGate["decision"] != "out_of_scope" {
+		t.Fatalf("scope_gate.decision = %v, want out_of_scope", scopeGate["decision"])
+	}
+	if scopeGate["reason"] != "product_scope_boundary" {
+		t.Fatalf("scope_gate.reason = %v, want product_scope_boundary", scopeGate["reason"])
+	}
+	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
+	if routingFrame["suggested_next_action"] != "out_of_scope" {
+		t.Fatalf("routing_frame.suggested_next_action = %v, want out_of_scope", routingFrame["suggested_next_action"])
+	}
+	if routingFrame["policy_reason"] != "product_scope_boundary" {
+		t.Fatalf("routing_frame.policy_reason = %v, want product_scope_boundary", routingFrame["policy_reason"])
+	}
+	if request.RuntimeDecisions.ScopeGateDecision != "out_of_scope" {
+		t.Fatalf(
+			"request runtime scope gate = %q, want out_of_scope",
+			request.RuntimeDecisions.ScopeGateDecision,
+		)
+	}
+	if request.RuntimeDecisions.PolicyGateDecision != "out_of_scope" {
+		t.Fatalf(
+			"request runtime policy gate = %q, want out_of_scope",
+			request.RuntimeDecisions.PolicyGateDecision,
+		)
+	}
+	if request.RuntimeDecisions.ContextPreflightState != "not_follow_up" {
+		t.Fatalf(
+			"request runtime context state = %q, want not_follow_up",
+			request.RuntimeDecisions.ContextPreflightState,
+		)
+	}
+	if request.RuntimeDecisions.RoutingNextAction != "out_of_scope" {
+		t.Fatalf(
+			"request runtime next action = %q, want out_of_scope",
+			request.RuntimeDecisions.RoutingNextAction,
+		)
+	}
+	if request.RuntimeDecisions.PlanningOutcome != "not_preplanned" {
+		t.Fatalf(
+			"request planning outcome = %q, want not_preplanned",
+			request.RuntimeDecisions.PlanningOutcome,
+		)
+	}
+}
+
+func TestParseAnswerRequestProjectsRuntimePolicyForMissingNoticeFollowUpContext(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"这条通知详情",
+			"request_id":"req-missing-notice-context",
+			"requested_capability":"notice"
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	contextPreflight := expectExecutionRecord(t, runtimeDecisions["context_preflight"], "context_preflight")
+	if contextPreflight["state"] != "missing_context" {
+		t.Fatalf("context_preflight.state = %v, want missing_context", contextPreflight["state"])
+	}
+	if contextPreflight["reference_type"] != "selected_notice" {
+		t.Fatalf("context_preflight.reference_type = %v, want selected_notice", contextPreflight["reference_type"])
+	}
+	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
+	if routingFrame["suggested_next_action"] != "clarify" {
+		t.Fatalf("routing_frame.suggested_next_action = %v, want clarify", routingFrame["suggested_next_action"])
+	}
+	missingSlots, ok := routingFrame["missing_slots"].([]any)
+	if !ok || len(missingSlots) != 1 || missingSlots[0] != "selected_notice_ref" {
+		t.Fatalf("routing_frame.missing_slots = %#v, want selected_notice_ref", routingFrame["missing_slots"])
+	}
+}
+
+func TestParseAnswerRequestRejectsDisabledKnowledgeScopeInGo(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"谁负责宿舍报修？",
+			"request_id":"req-disabled-scope",
+			"requested_scope":{"corpus":"campus_services","collection":"service_catalog"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected disabled query scope to fail in Go")
+	}
+	if httpErr.Status != 403 || httpErr.Code != "disallowed_knowledge_scope" {
+		t.Fatalf("unexpected error = %#v, want 403 disallowed_knowledge_scope", httpErr)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -16,16 +17,33 @@ const (
 	cancelPath = "/internal/bridge/execution/cancel"
 )
 
+const defaultResponseLimitBytes int64 = 1_048_576
+
+var ErrResponseTooLarge = errors.New("supervisor bridge response exceeds limit")
+
 type HTTPClient struct {
-	baseURL      string
-	sharedSecret string
-	client       *http.Client
+	baseURL            string
+	sharedSecret       string
+	responseLimitBytes int64
+	client             *http.Client
 }
 
 func NewHTTPClient(baseURL string, sharedSecret string) *HTTPClient {
+	return NewHTTPClientWithResponseLimit(baseURL, sharedSecret, defaultResponseLimitBytes)
+}
+
+func NewHTTPClientWithResponseLimit(
+	baseURL string,
+	sharedSecret string,
+	responseLimitBytes int64,
+) *HTTPClient {
+	if responseLimitBytes <= 0 {
+		responseLimitBytes = defaultResponseLimitBytes
+	}
 	return &HTTPClient{
-		baseURL:      strings.TrimRight(strings.TrimSpace(baseURL), "/"),
-		sharedSecret: strings.TrimSpace(sharedSecret),
+		baseURL:            strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		sharedSecret:       strings.TrimSpace(sharedSecret),
+		responseLimitBytes: responseLimitBytes,
 		client: &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConns:        100,
@@ -109,10 +127,13 @@ func (c *HTTPClient) do(
 		return rawResponse{}, err
 	}
 
-	responseBody, readErr := io.ReadAll(response.Body)
+	responseBody, readErr := io.ReadAll(io.LimitReader(response.Body, c.responseLimitBytes+1))
 	closeErr := response.Body.Close()
 	if readErr != nil {
 		return rawResponse{}, readErr
+	}
+	if int64(len(responseBody)) > c.responseLimitBytes {
+		return rawResponse{}, ErrResponseTooLarge
 	}
 	if closeErr != nil {
 		return rawResponse{}, closeErr

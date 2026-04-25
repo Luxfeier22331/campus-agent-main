@@ -17,6 +17,8 @@ Python worker 只负责：
 - 绑定 prompt runtime / provider-backed executors
 - 消费 Go bridge v2 中的 deterministic structured handoff plan，并把它注入
   supervisor-core；不在 Python routing 中重新构造 structured payload
+- 消费 Go bridge v2 中的 `routing_frame` / `scope_gate` / `policy_gate` /
+  `context_preflight`；缺失 Go-owned routing frame 时 fail-closed
 - 在配置 structured query internal seam 时，为 `campus-services-agent`
   注入 Go `supervisor-api` query service client
 - 暴露 private bridge health / readiness
@@ -30,6 +32,8 @@ Python worker 不负责：
 - product-layer auth / session / conversation
 - public execution transport
 - Go `supervisor-api` admission / backpressure / metrics
+- product scope、approval-required、query-enabled scope 或 context follow-up
+  的 deterministic runtime truth
 - retrieval / ingestion data-plane ownership
 
 ## Private Bridge Surface

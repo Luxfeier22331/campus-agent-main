@@ -9,8 +9,9 @@ Current status:
   `GET /metrics`, `POST /api/v1/answer`, `POST /api/v1/answer/stream`, and
   `POST /internal/execution/cancel`.
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
-  auth, request projection, fail-closed bridge handling, lifecycle registry,
-  explicit cancel, and global / per-lane execution admission.
+  auth, strict environment parsing, request projection, fail-closed bridge
+  handling, lifecycle registry, explicit cancel, and global / per-lane execution
+  admission.
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
@@ -20,6 +21,8 @@ Current status:
 - Aggregates Python worker readiness into Go-owned `/readyz`, while keeping Go
   transport admission as the published `transport_runtime`.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
+- Keeps metrics route labels bounded; unknown routes are reported as
+  `/__unknown__` instead of raw URL paths.
 - Emits answer-path structured logs with `trace_id`, `status_code`, `outcome`,
   and `duration_ms`, without logging raw `user_goal`.
 - Emits allowlisted execution audit events to `app-api` internal ingest when
@@ -33,6 +36,17 @@ Current status:
 - Owns the bridge circuit breaker for Python bridge transport / protocol
   failures; open circuits short-circuit answer execution with
   `503 supervisor_bridge_circuit_open` and degrade `/readyz`.
+- Bounds Python bridge response bodies with
+  `SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES`.
+- Owns deterministic structured runtime payload planning in
+  `internal/structuredplanning`; `internal/execution` only adapts planner output
+  into bridge v2 `runtime_decisions`.
+- Owns deterministic runtime policy in `internal/runtimepolicy`, including
+  product scope gate, high-risk approval / reject gate, context follow-up
+  preflight, query-enabled scope admission, and structured tool policy version.
+  Runtime policy decisions are projected into bridge v2 and summarized in
+  Go-owned metrics, OTel attributes, and execution audit events without
+  including raw user text.
 - Hosts the gate-closed structured query runtime foundation for campus services
   and notice capabilities. `service_status_lookup` can read a configured file
   projection fixture for deterministic runtime tests; `transport_schedule_lookup`
@@ -82,6 +96,11 @@ Current admission boundary:
   bridge transport / protocol failures before opening the circuit.
 - `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS` defaults to `10000`; while open, answer
   requests fail fast instead of occupying execution slots on a known-bad bridge.
+- `SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
+  query-serving scope allowlist. When unset, local repo runs discover
+  `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no
+  policy file is found, knowledge scoped requests fail closed. The Docker image
+  sets this env var to `/etc/campus-agent/query-serving-scopes.v1.json`.
 
 Current cancellation boundary:
 
@@ -101,13 +120,17 @@ Current structured query runtime boundary:
 - Internal query routes require `x-supervisor-query-auth`.
 - Structured product serving gates for `campus_services` and `notice` are closed
   by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned allowlist for
-  opening those capabilities after eval / product admission evidence exists.
+  opening those capabilities after eval / product admission evidence exists. It
+  only accepts `campus_services`, `notice`, or `campus_services,notice`;
+  wildcard values such as `*` or `all` are rejected.
 - `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` enables internal query auth.
 - `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` points at a dev/test file
   projection bundle for the current foundation slice.
 - `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
   for deterministic tests; production should normally omit it.
 - `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
+- `SUPERVISOR_NOTICE_BODY_LIMIT_BYTES` bounds canonical notice body reads from
+  object storage.
 - `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` configures the notice read-model PG
   connection; `CAMPUS_SHARED_POSTGRES_URL` is the fallback.
 - `INTERNAL_NOTICE_READ_MODEL_TABLE` defaults to
@@ -126,6 +149,8 @@ Current structured query runtime boundary:
 - `/readyz` reports `capability_gates` so operators can see whether
   `campus_services` / `notice` are still closed, and `/metrics` reports
   capability gate open / closed decisions.
+- `/readyz` degrades if `campus_services` or `notice` is opened before its
+  required structured runtime dependencies are configured.
 
 Current observability boundary:
 
@@ -133,8 +158,9 @@ Current observability boundary:
 - Current Go-owned counters distinguish admission decisions, queue depth,
   queue wait, lifecycle final states, bridge latency, bridge timeout /
   unavailability, cooperative bridge cancel outcomes, structured query
-  outcomes, structured capability gate decisions, bridge circuit state, bridge
-  circuit open / reject totals, and aggregate request outcomes.
+  outcomes, structured capability gate decisions, bounded runtime policy
+  decision summaries, bridge circuit state, bridge circuit open / reject totals,
+  and aggregate request outcomes.
 - `SUPERVISOR_API_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
   is reachable outside a trusted local network; local development leaves it
   empty by default.
@@ -146,10 +172,13 @@ Current observability boundary:
   `apps/supervisor-api` sends only safe runtime event summaries for admission
   rejection, cancel, bridge failure, and timeout to `app-api`; it never includes
   raw `user_goal`, prompt, answer, transcript, auth material, retrieval payload,
-  or provider response.
+  or provider response. The runtime decision summary is limited to low-cardinality
+  labels such as scope gate, policy gate, context preflight, routing next action,
+  and planning outcome.
 - `/readyz` reports `execution_audit_runtime`, and `/metrics` reports emitted,
   dropped, failed, retry, spool, queue depth, batch size, enabled, and
-  configured counters/gauges.
+  configured counters/gauges. `/readyz` degrades when execution audit is enabled
+  but missing its ingest URL or shared secret.
 
 Requirements:
 
@@ -197,10 +226,12 @@ export SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES=10485760
 export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
 export SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000
+export SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=
 export SUPERVISOR_CORE_WORKER_BASE_URL=http://127.0.0.1:18081
 export SUPERVISOR_CORE_WORKER_SHARED_SECRET=bridge-secret
 export SUPERVISOR_CORE_WORKER_TIMEOUT_MS=35000
 export SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS=500
+export SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES=1048576
 export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
 export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
@@ -212,6 +243,7 @@ export OBJECT_STORE_DERIVED_ACCESS_KEY=
 export OBJECT_STORE_DERIVED_SECRET_KEY=
 export OBJECT_STORE_REGION=us-east-1
 export OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived
+export SUPERVISOR_NOTICE_BODY_LIMIT_BYTES=1048576
 ```
 
 Staging lifecycle derives execution audit URL and shared secret from

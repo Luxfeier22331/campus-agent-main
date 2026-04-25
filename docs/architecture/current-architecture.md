@@ -123,10 +123,19 @@ model`
 
 - Docker-side internal execution ingress
 - 暴露 `GET /healthz`、`GET /readyz`、`GET /metrics` 与
-  `POST /api/v1/answer`、`POST /internal/execution/cancel`
-- 拥有 request body limit、caller auth、request projection、in-flight lifecycle、
-  explicit cancel、global / per-lane execution admission、bounded queue、timeout、
-  readiness、metrics、OTel telemetry seam 与 graceful drain
+  `POST /api/v1/answer`、`POST /api/v1/answer/stream`、
+  `POST /internal/execution/cancel`
+- 拥有 request body / bridge response limit、caller auth、strict env parsing、
+  request projection、in-flight lifecycle、explicit cancel、global / per-lane
+  execution admission、bounded queue、timeout、readiness、metrics、OTel telemetry
+  seam 与 graceful drain
+- 拥有 deterministic structured planner；当前实现位于
+  `apps/supervisor-api/internal/structuredplanning`，`internal/execution`
+  仅负责把 planner 输出适配成 bridge v2 `runtime_decisions`
+- 拥有 deterministic runtime policy；当前实现位于
+  `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
+  approval / reject gate、context follow-up preflight、query-enabled scope
+  admission 与 structured tool policy version
 - 通过 private bridge 调用 Python `apps/supervisor-core-worker`
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning

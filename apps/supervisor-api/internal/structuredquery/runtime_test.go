@@ -2,8 +2,10 @@ package structuredquery
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -129,6 +131,36 @@ func TestLookupTransportScheduleListsDeparturesAfterTimeWithLimit(t *testing.T) 
 	}
 	if result.DepartureOptions[1].DepartureAt != "2026-04-24T18:00:00+08:00" {
 		t.Fatalf("second departure_at = %q", result.DepartureOptions[1].DepartureAt)
+	}
+}
+
+func TestLookupTransportScheduleClampsDepartureListResultLimit(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, transportProjectionFixtureWithDepartures(25)),
+		TrustedTimeRFC3339: "2026-04-24T05:00:00+08:00",
+	})
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天去丰台有哪些班车",
+		"intent":"departure_list",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"},
+		"result_limit":9999
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	result, ok := response.Body.(transportScheduleResult)
+	if !ok {
+		t.Fatalf("body = %T, want transportScheduleResult", response.Body)
+	}
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.DepartureOptions) != 20 {
+		t.Fatalf("departure_options length = %d, want 20", len(result.DepartureOptions))
 	}
 }
 
@@ -290,6 +322,47 @@ func transportProjectionFixture() string {
 			}
 		]
 	}`
+}
+
+func transportProjectionFixtureWithDepartures(count int) string {
+	var departures strings.Builder
+	for index := 0; index < count; index++ {
+		if index > 0 {
+			departures.WriteString(",")
+		}
+		departureTime := fmt.Sprintf("%02d:%02d", 6+index/4, (index%4)*15)
+		fmt.Fprintf(
+			&departures,
+			`{"snapshot_id":"snapshot:bus:2026-04-20","route_id":"route:haidian-to-fengtai","service_dates":["2026-04-24"],"departure_time":%q,"origin_stop_id":"stop:haidian-east-gate","destination_stop_id":"stop:fengtai-main-gate"}`,
+			departureTime,
+		)
+	}
+	return fmt.Sprintf(`{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:bus-schedule-2026-04-20",
+				"is_current":true
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:haidian-to-fengtai",
+				"display_name":"海淀到丰台通勤车",
+				"service_family":"intercampus_commute",
+				"origin_campus":"haidian",
+				"destination_campus":"fengtai",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
+				]
+			}
+		],
+		"scheduled_departures":[%s]
+	}`, departures.String())
 }
 
 func serviceStatusProjectionFixture() string {

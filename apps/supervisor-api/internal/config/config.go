@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	env "github.com/caarlos0/env/v11"
 )
 
 type Config struct {
@@ -18,6 +20,7 @@ type Config struct {
 	DefaultActorRoles                 []string
 	BridgeBaseURL                     string
 	BridgeSharedSecret                string
+	BridgeResponseLimitBytes          int64
 	BridgeBreakerFailureThreshold     int
 	BridgeBreakerOpenMS               int
 	MaxConcurrentAnswers              int
@@ -49,6 +52,7 @@ type Config struct {
 	ExecutionAuditSpoolDir            string
 	ExecutionAuditSpoolMaxBytes       int
 	OpenCapabilities                  []string
+	QueryServingScopesPath            string
 	StructuredQuerySharedSecret       string
 	StructuredQueryProjectionPath     string
 	StructuredQueryTrustedTimeRFC3339 string
@@ -67,6 +71,7 @@ type Config struct {
 	NoticeObjectStoreSecretKey        string
 	NoticeObjectStoreRegion           string
 	NoticeObjectStoreBucketDerived    string
+	NoticeObjectStoreBodyLimitBytes   int64
 }
 
 type LaneBudget struct {
@@ -75,125 +80,61 @@ type LaneBudget struct {
 	QueueTimeoutMS int
 }
 
-func FromEnv() Config {
-	cfg, err := LoadFromEnv()
-	if err == nil {
-		return cfg
-	}
-
-	globalMaxConcurrent := readPositiveInt("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", 8)
-	globalQueueCapacity := readPositiveIntAllowZero("SUPERVISOR_API_QUEUE_CAPACITY", 24)
-	globalQueueTimeout := readPositiveInt("SUPERVISOR_API_QUEUE_TIMEOUT_MS", 3_000)
-
-	return Config{
-		AppName:                           readString("CAMPUS_AGENT_APP_NAME", "campus-agent"),
-		Host:                              readString("CAMPUS_AGENT_HTTP_HOST", "127.0.0.1"),
-		Port:                              readPositiveInt("CAMPUS_AGENT_HTTP_PORT", 8000),
-		AuthMode:                          readString("API_AUTH_MODE", "bearer"),
-		BearerToken:                       strings.TrimSpace(os.Getenv("API_BEARER_TOKEN")),
-		WorkerSharedSecret:                strings.TrimSpace(os.Getenv("API_WORKER_SHARED_SECRET")),
-		DefaultActorID:                    readString("API_DEFAULT_ACTOR_ID", ""),
-		DefaultActorRoles:                 readStringList("API_DEFAULT_ACTOR_ROLES"),
-		BridgeBaseURL:                     strings.TrimRight(readString("SUPERVISOR_CORE_WORKER_BASE_URL", ""), "/"),
-		BridgeSharedSecret:                strings.TrimSpace(os.Getenv("SUPERVISOR_CORE_WORKER_SHARED_SECRET")),
-		BridgeBreakerFailureThreshold:     readPositiveInt("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", 5),
-		BridgeBreakerOpenMS:               readPositiveInt("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", 10_000),
-		MaxConcurrentAnswers:              globalMaxConcurrent,
-		QueueCapacity:                     globalQueueCapacity,
-		QueueTimeoutMS:                    globalQueueTimeout,
-		RequestTimeoutMS:                  readPositiveInt("SUPERVISOR_API_REQUEST_TIMEOUT_MS", 45_000),
-		RequestBodyLimitBytes:             int64(readPositiveInt("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES", 1_048_576)),
-		BridgeTimeoutMS:                   readPositiveInt("SUPERVISOR_CORE_WORKER_TIMEOUT_MS", 35_000),
-		BridgeCancelTimeoutMS:             readPositiveInt("SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS", 500),
-		ShutdownGraceMS:                   readPositiveInt("SUPERVISOR_API_SHUTDOWN_GRACE_MS", 45_000),
-		MetricsBearerToken:                strings.TrimSpace(os.Getenv("SUPERVISOR_API_METRICS_BEARER_TOKEN")),
-		LaneBudgets:                       readLaneBudgets(globalMaxConcurrent, globalQueueCapacity, globalQueueTimeout),
-		OTelEnabled:                       readBool("SUPERVISOR_API_OTEL_ENABLED", false),
-		OTelEndpoint:                      strings.TrimSpace(os.Getenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT")),
-		OTelHeaders:                       strings.TrimSpace(os.Getenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS")),
-		OTelServiceName:                   readString("SUPERVISOR_API_OTEL_SERVICE_NAME", "campus-supervisor-api"),
-		OTelExportTimeoutMS:               readPositiveInt("SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", 1_000),
-		OTelSampleRatio:                   readRatio("SUPERVISOR_API_OTEL_SAMPLE_RATIO", 1.0),
-		OTelAllowedAttributesVersion:      readString("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "supervisor-api-otel-attrs-v1"),
-		ExecutionAuditEnabled:             readBool("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", false),
-		ExecutionAuditURL:                 strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_URL")),
-		ExecutionAuditSharedSecret:        strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET")),
-		ExecutionAuditTimeoutMS:           readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", 500),
-		ExecutionAuditQueueCapacity:       readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", 128),
-		ExecutionAuditBatchSize:           readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", 10),
-		ExecutionAuditFlushMS:             readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS", 1_000),
-		ExecutionAuditRetryMaxAttempts:    readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS", 3),
-		ExecutionAuditRetryBaseMS:         readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", 100),
-		ExecutionAuditSpoolDir:            strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR")),
-		ExecutionAuditSpoolMaxBytes:       readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", 10_485_760),
-		OpenCapabilities:                  readStringList("SUPERVISOR_API_OPEN_CAPABILITIES"),
-		StructuredQuerySharedSecret:       strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")),
-		StructuredQueryProjectionPath:     strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH")),
-		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")),
-		StructuredQueryTimeoutMS:          readPositiveInt("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", 1_000),
-		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
-		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
-		SpecialistPromptModel:             readPromptModel("SPECIALIST_PROMPT_MODEL"),
-		PromptRuntimeAPIKey:               readFirstString("PROMPT_RUNTIME_API_KEY", "LLM_API_KEY"),
-		PromptRuntimeTransport:            readString("PROMPT_RUNTIME_TRANSPORT", "responses"),
-		PromptRuntimeBaseURL:              readString("PROMPT_RUNTIME_BASE_URL", readString("LLM_BASE_URL", "https://api.openai.com/v1")),
-		PromptStrictStructuredOutputs:     readBool("PROMPT_STRICT_STRUCTURED_OUTPUTS", true),
-		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
-		NoticeReadModelTable:              readString("INTERNAL_NOTICE_READ_MODEL_TABLE", "ingestion_projection.internal_notice_read_model"),
-		NoticeObjectStoreEndpoint:         strings.TrimSpace(os.Getenv("OBJECT_STORE_ENDPOINT")),
-		NoticeObjectStoreAccessKey:        readFirstString("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_ACCESS_KEY"),
-		NoticeObjectStoreSecretKey:        readFirstString("OBJECT_STORE_DERIVED_SECRET_KEY", "OBJECT_STORE_SECRET_KEY"),
-		NoticeObjectStoreRegion:           readString("OBJECT_STORE_REGION", "us-east-1"),
-		NoticeObjectStoreBucketDerived:    readString("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived"),
-	}
+type envValues struct {
+	AppName                           string  `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
+	Host                              string  `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
+	Port                              int     `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
+	AuthMode                          string  `env:"API_AUTH_MODE" envDefault:"bearer"`
+	BearerToken                       string  `env:"API_BEARER_TOKEN"`
+	WorkerSharedSecret                string  `env:"API_WORKER_SHARED_SECRET"`
+	DefaultActorID                    string  `env:"API_DEFAULT_ACTOR_ID"`
+	BridgeBaseURL                     string  `env:"SUPERVISOR_CORE_WORKER_BASE_URL"`
+	BridgeSharedSecret                string  `env:"SUPERVISOR_CORE_WORKER_SHARED_SECRET"`
+	BridgeResponseLimitBytes          int64   `env:"SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
+	BridgeBreakerFailureThreshold     int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
+	BridgeBreakerOpenMS               int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
+	MaxConcurrentAnswers              int     `env:"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
+	QueueCapacity                     int     `env:"SUPERVISOR_API_QUEUE_CAPACITY" envDefault:"24"`
+	QueueTimeoutMS                    int     `env:"SUPERVISOR_API_QUEUE_TIMEOUT_MS" envDefault:"3000"`
+	RequestTimeoutMS                  int     `env:"SUPERVISOR_API_REQUEST_TIMEOUT_MS" envDefault:"45000"`
+	RequestBodyLimitBytes             int64   `env:"SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
+	BridgeTimeoutMS                   int     `env:"SUPERVISOR_CORE_WORKER_TIMEOUT_MS" envDefault:"35000"`
+	BridgeCancelTimeoutMS             int     `env:"SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
+	ShutdownGraceMS                   int     `env:"SUPERVISOR_API_SHUTDOWN_GRACE_MS" envDefault:"45000"`
+	MetricsBearerToken                string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
+	OTelEndpoint                      string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelHeaders                       string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS"`
+	OTelServiceName                   string  `env:"SUPERVISOR_API_OTEL_SERVICE_NAME" envDefault:"campus-supervisor-api"`
+	OTelExportTimeoutMS               int     `env:"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS" envDefault:"1000"`
+	OTelSampleRatio                   float64 `env:"SUPERVISOR_API_OTEL_SAMPLE_RATIO" envDefault:"1.0"`
+	OTelAllowedAttributesVersion      string  `env:"SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION" envDefault:"supervisor-api-otel-attrs-v1"`
+	ExecutionAuditURL                 string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_URL"`
+	ExecutionAuditSharedSecret        string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET"`
+	ExecutionAuditTimeoutMS           int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS" envDefault:"500"`
+	ExecutionAuditQueueCapacity       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY" envDefault:"128"`
+	ExecutionAuditBatchSize           int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE" envDefault:"10"`
+	ExecutionAuditFlushMS             int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS" envDefault:"1000"`
+	ExecutionAuditRetryMaxAttempts    int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS" envDefault:"3"`
+	ExecutionAuditRetryBaseMS         int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS" envDefault:"100"`
+	ExecutionAuditSpoolDir            string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR"`
+	ExecutionAuditSpoolMaxBytes       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES" envDefault:"10485760"`
+	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
+	StructuredQuerySharedSecret       string  `env:"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"`
+	StructuredQueryProjectionPath     string  `env:"SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH"`
+	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
+	StructuredQueryTimeoutMS          int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
+	PromptRuntimeTransport            string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
+	PromptRuntimeBaseURL              string  `env:"PROMPT_RUNTIME_BASE_URL"`
+	PromptStrictStructuredOutputs     string  `env:"PROMPT_STRICT_STRUCTURED_OUTPUTS" envDefault:"true"`
+	NoticeReadModelTable              string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
+	NoticeObjectStoreEndpoint         string  `env:"OBJECT_STORE_ENDPOINT"`
+	NoticeObjectStoreRegion           string  `env:"OBJECT_STORE_REGION" envDefault:"us-east-1"`
+	NoticeObjectStoreBucketDerived    string  `env:"OBJECT_STORE_BUCKET_DERIVED" envDefault:"campus-rag-derived"`
+	NoticeObjectStoreBodyLimitBytes   int64   `env:"SUPERVISOR_NOTICE_BODY_LIMIT_BYTES" envDefault:"1048576"`
 }
 
 func LoadFromEnv() (Config, error) {
-	port, err := readPositiveIntStrict("CAMPUS_AGENT_HTTP_PORT", 8000)
-	if err != nil {
-		return Config{}, err
-	}
-	maxConcurrent, err := readPositiveIntStrict("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", 8)
-	if err != nil {
-		return Config{}, err
-	}
-	queueCapacity, err := readNonNegativeIntStrict("SUPERVISOR_API_QUEUE_CAPACITY", 24)
-	if err != nil {
-		return Config{}, err
-	}
-	queueTimeout, err := readPositiveIntStrict("SUPERVISOR_API_QUEUE_TIMEOUT_MS", 3_000)
-	if err != nil {
-		return Config{}, err
-	}
-	requestTimeout, err := readPositiveIntStrict("SUPERVISOR_API_REQUEST_TIMEOUT_MS", 45_000)
-	if err != nil {
-		return Config{}, err
-	}
-	bodyLimit, err := readPositiveIntStrict("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES", 1_048_576)
-	if err != nil {
-		return Config{}, err
-	}
-	bridgeTimeout, err := readPositiveIntStrict("SUPERVISOR_CORE_WORKER_TIMEOUT_MS", 35_000)
-	if err != nil {
-		return Config{}, err
-	}
-	bridgeCancelTimeout, err := readPositiveIntStrict("SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS", 500)
-	if err != nil {
-		return Config{}, err
-	}
-	bridgeBreakerFailureThreshold, err := readPositiveIntStrict("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", 5)
-	if err != nil {
-		return Config{}, err
-	}
-	bridgeBreakerOpenMS, err := readPositiveIntStrict("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", 10_000)
-	if err != nil {
-		return Config{}, err
-	}
-	shutdownGrace, err := readPositiveIntStrict("SUPERVISOR_API_SHUTDOWN_GRACE_MS", 45_000)
-	if err != nil {
-		return Config{}, err
-	}
-	laneBudgets, err := readLaneBudgetsStrict(maxConcurrent, queueCapacity, queueTimeout)
+	values, err := parseEnvValues()
 	if err != nil {
 		return Config{}, err
 	}
@@ -201,125 +142,162 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	otelExportTimeout, err := readPositiveIntStrict("SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", 1_000)
-	if err != nil {
-		return Config{}, err
-	}
-	otelSampleRatio, err := readRatioStrict("SUPERVISOR_API_OTEL_SAMPLE_RATIO", 1.0)
-	if err != nil {
-		return Config{}, err
-	}
 	executionAuditEnabled, err := readBoolStrict("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
-	executionAuditTimeout, err := readPositiveIntStrict("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", 500)
-	if err != nil {
-		return Config{}, err
-	}
-	executionAuditQueueCapacity, err := readPositiveIntStrict(
-		"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY",
-		128,
+	promptStrictStructuredOutputs, err := parseBoolStrict(
+		"PROMPT_STRICT_STRUCTURED_OUTPUTS",
+		values.PromptStrictStructuredOutputs,
 	)
 	if err != nil {
 		return Config{}, err
 	}
-	executionAuditBatchSize, err := readPositiveIntStrict("SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", 10)
+	if err := validateEnvValues(values); err != nil {
+		return Config{}, err
+	}
+	laneBudgets, err := readLaneBudgetsStrict(values.MaxConcurrentAnswers, values.QueueCapacity, values.QueueTimeoutMS)
 	if err != nil {
 		return Config{}, err
 	}
-	executionAuditFlushMS, err := readPositiveIntStrict("SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS", 1_000)
-	if err != nil {
-		return Config{}, err
-	}
-	executionAuditRetryMaxAttempts, err := readPositiveIntStrict(
-		"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS",
-		3,
-	)
-	if err != nil {
-		return Config{}, err
-	}
-	executionAuditRetryBaseMS, err := readPositiveIntStrict("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", 100)
-	if err != nil {
-		return Config{}, err
-	}
-	executionAuditSpoolMaxBytes, err := readPositiveIntStrict(
-		"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES",
-		10_485_760,
-	)
-	if err != nil {
-		return Config{}, err
-	}
-	structuredQueryTimeout, err := readPositiveIntStrict("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", 1_000)
-	if err != nil {
-		return Config{}, err
-	}
-	promptStrictStructuredOutputs, err := readBoolStrict("PROMPT_STRICT_STRUCTURED_OUTPUTS", true)
+	openCapabilities, err := readOpenCapabilitiesStrict()
 	if err != nil {
 		return Config{}, err
 	}
 
 	return Config{
-		AppName:                           readString("CAMPUS_AGENT_APP_NAME", "campus-agent"),
-		Host:                              readString("CAMPUS_AGENT_HTTP_HOST", "127.0.0.1"),
-		Port:                              port,
-		AuthMode:                          readString("API_AUTH_MODE", "bearer"),
-		BearerToken:                       strings.TrimSpace(os.Getenv("API_BEARER_TOKEN")),
-		WorkerSharedSecret:                strings.TrimSpace(os.Getenv("API_WORKER_SHARED_SECRET")),
-		DefaultActorID:                    readString("API_DEFAULT_ACTOR_ID", ""),
+		AppName:                           defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
+		Host:                              defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
+		Port:                              values.Port,
+		AuthMode:                          defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
+		BearerToken:                       strings.TrimSpace(values.BearerToken),
+		WorkerSharedSecret:                strings.TrimSpace(values.WorkerSharedSecret),
+		DefaultActorID:                    strings.TrimSpace(values.DefaultActorID),
 		DefaultActorRoles:                 readStringList("API_DEFAULT_ACTOR_ROLES"),
-		BridgeBaseURL:                     strings.TrimRight(readString("SUPERVISOR_CORE_WORKER_BASE_URL", ""), "/"),
-		BridgeSharedSecret:                strings.TrimSpace(os.Getenv("SUPERVISOR_CORE_WORKER_SHARED_SECRET")),
-		BridgeBreakerFailureThreshold:     bridgeBreakerFailureThreshold,
-		BridgeBreakerOpenMS:               bridgeBreakerOpenMS,
-		MaxConcurrentAnswers:              maxConcurrent,
-		QueueCapacity:                     queueCapacity,
-		QueueTimeoutMS:                    queueTimeout,
-		RequestTimeoutMS:                  requestTimeout,
-		RequestBodyLimitBytes:             int64(bodyLimit),
-		BridgeTimeoutMS:                   bridgeTimeout,
-		BridgeCancelTimeoutMS:             bridgeCancelTimeout,
-		ShutdownGraceMS:                   shutdownGrace,
-		MetricsBearerToken:                strings.TrimSpace(os.Getenv("SUPERVISOR_API_METRICS_BEARER_TOKEN")),
+		BridgeBaseURL:                     strings.TrimRight(strings.TrimSpace(values.BridgeBaseURL), "/"),
+		BridgeSharedSecret:                strings.TrimSpace(values.BridgeSharedSecret),
+		BridgeResponseLimitBytes:          values.BridgeResponseLimitBytes,
+		BridgeBreakerFailureThreshold:     values.BridgeBreakerFailureThreshold,
+		BridgeBreakerOpenMS:               values.BridgeBreakerOpenMS,
+		MaxConcurrentAnswers:              values.MaxConcurrentAnswers,
+		QueueCapacity:                     values.QueueCapacity,
+		QueueTimeoutMS:                    values.QueueTimeoutMS,
+		RequestTimeoutMS:                  values.RequestTimeoutMS,
+		RequestBodyLimitBytes:             values.RequestBodyLimitBytes,
+		BridgeTimeoutMS:                   values.BridgeTimeoutMS,
+		BridgeCancelTimeoutMS:             values.BridgeCancelTimeoutMS,
+		ShutdownGraceMS:                   values.ShutdownGraceMS,
+		MetricsBearerToken:                strings.TrimSpace(values.MetricsBearerToken),
 		LaneBudgets:                       laneBudgets,
 		OTelEnabled:                       otelEnabled,
-		OTelEndpoint:                      strings.TrimSpace(os.Getenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT")),
-		OTelHeaders:                       strings.TrimSpace(os.Getenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS")),
-		OTelServiceName:                   readString("SUPERVISOR_API_OTEL_SERVICE_NAME", "campus-supervisor-api"),
-		OTelExportTimeoutMS:               otelExportTimeout,
-		OTelSampleRatio:                   otelSampleRatio,
-		OTelAllowedAttributesVersion:      readString("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "supervisor-api-otel-attrs-v1"),
+		OTelEndpoint:                      strings.TrimSpace(values.OTelEndpoint),
+		OTelHeaders:                       strings.TrimSpace(values.OTelHeaders),
+		OTelServiceName:                   defaultString(strings.TrimSpace(values.OTelServiceName), "campus-supervisor-api"),
+		OTelExportTimeoutMS:               values.OTelExportTimeoutMS,
+		OTelSampleRatio:                   values.OTelSampleRatio,
+		OTelAllowedAttributesVersion:      defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "supervisor-api-otel-attrs-v1"),
 		ExecutionAuditEnabled:             executionAuditEnabled,
-		ExecutionAuditURL:                 strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_URL")),
-		ExecutionAuditSharedSecret:        strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET")),
-		ExecutionAuditTimeoutMS:           executionAuditTimeout,
-		ExecutionAuditQueueCapacity:       executionAuditQueueCapacity,
-		ExecutionAuditBatchSize:           executionAuditBatchSize,
-		ExecutionAuditFlushMS:             executionAuditFlushMS,
-		ExecutionAuditRetryMaxAttempts:    executionAuditRetryMaxAttempts,
-		ExecutionAuditRetryBaseMS:         executionAuditRetryBaseMS,
-		ExecutionAuditSpoolDir:            strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR")),
-		ExecutionAuditSpoolMaxBytes:       executionAuditSpoolMaxBytes,
-		OpenCapabilities:                  readStringList("SUPERVISOR_API_OPEN_CAPABILITIES"),
-		StructuredQuerySharedSecret:       strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")),
-		StructuredQueryProjectionPath:     strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH")),
-		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")),
-		StructuredQueryTimeoutMS:          structuredQueryTimeout,
+		ExecutionAuditURL:                 strings.TrimSpace(values.ExecutionAuditURL),
+		ExecutionAuditSharedSecret:        strings.TrimSpace(values.ExecutionAuditSharedSecret),
+		ExecutionAuditTimeoutMS:           values.ExecutionAuditTimeoutMS,
+		ExecutionAuditQueueCapacity:       values.ExecutionAuditQueueCapacity,
+		ExecutionAuditBatchSize:           values.ExecutionAuditBatchSize,
+		ExecutionAuditFlushMS:             values.ExecutionAuditFlushMS,
+		ExecutionAuditRetryMaxAttempts:    values.ExecutionAuditRetryMaxAttempts,
+		ExecutionAuditRetryBaseMS:         values.ExecutionAuditRetryBaseMS,
+		ExecutionAuditSpoolDir:            strings.TrimSpace(values.ExecutionAuditSpoolDir),
+		ExecutionAuditSpoolMaxBytes:       values.ExecutionAuditSpoolMaxBytes,
+		OpenCapabilities:                  openCapabilities,
+		QueryServingScopesPath:            strings.TrimSpace(values.QueryServingScopesPath),
+		StructuredQuerySharedSecret:       strings.TrimSpace(values.StructuredQuerySharedSecret),
+		StructuredQueryProjectionPath:     strings.TrimSpace(values.StructuredQueryProjectionPath),
+		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
+		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
 		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
 		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
 		SpecialistPromptModel:             readPromptModel("SPECIALIST_PROMPT_MODEL"),
 		PromptRuntimeAPIKey:               readFirstString("PROMPT_RUNTIME_API_KEY", "LLM_API_KEY"),
-		PromptRuntimeTransport:            readString("PROMPT_RUNTIME_TRANSPORT", "responses"),
-		PromptRuntimeBaseURL:              readString("PROMPT_RUNTIME_BASE_URL", readString("LLM_BASE_URL", "https://api.openai.com/v1")),
+		PromptRuntimeTransport:            defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
+		PromptRuntimeBaseURL:              promptRuntimeBaseURL(values),
 		PromptStrictStructuredOutputs:     promptStrictStructuredOutputs,
 		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
-		NoticeReadModelTable:              readString("INTERNAL_NOTICE_READ_MODEL_TABLE", "ingestion_projection.internal_notice_read_model"),
-		NoticeObjectStoreEndpoint:         strings.TrimSpace(os.Getenv("OBJECT_STORE_ENDPOINT")),
+		NoticeReadModelTable:              defaultString(strings.TrimSpace(values.NoticeReadModelTable), "ingestion_projection.internal_notice_read_model"),
+		NoticeObjectStoreEndpoint:         strings.TrimSpace(values.NoticeObjectStoreEndpoint),
 		NoticeObjectStoreAccessKey:        readFirstString("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_ACCESS_KEY"),
 		NoticeObjectStoreSecretKey:        readFirstString("OBJECT_STORE_DERIVED_SECRET_KEY", "OBJECT_STORE_SECRET_KEY"),
-		NoticeObjectStoreRegion:           readString("OBJECT_STORE_REGION", "us-east-1"),
-		NoticeObjectStoreBucketDerived:    readString("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived"),
+		NoticeObjectStoreRegion:           defaultString(strings.TrimSpace(values.NoticeObjectStoreRegion), "us-east-1"),
+		NoticeObjectStoreBucketDerived:    defaultString(strings.TrimSpace(values.NoticeObjectStoreBucketDerived), "campus-rag-derived"),
+		NoticeObjectStoreBodyLimitBytes:   values.NoticeObjectStoreBodyLimitBytes,
 	}, nil
+}
+
+func parseEnvValues() (envValues, error) {
+	values := envValues{}
+	if err := env.Parse(&values); err != nil {
+		return envValues{}, fmt.Errorf("parse supervisor-api env: %w", err)
+	}
+	return values, nil
+}
+
+func validateEnvValues(values envValues) error {
+	checks := []struct {
+		name  string
+		value int
+	}{
+		{"CAMPUS_AGENT_HTTP_PORT", values.Port},
+		{"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", values.MaxConcurrentAnswers},
+		{"SUPERVISOR_API_QUEUE_TIMEOUT_MS", values.QueueTimeoutMS},
+		{"SUPERVISOR_API_REQUEST_TIMEOUT_MS", values.RequestTimeoutMS},
+		{"SUPERVISOR_CORE_WORKER_TIMEOUT_MS", values.BridgeTimeoutMS},
+		{"SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS", values.BridgeCancelTimeoutMS},
+		{"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", values.BridgeBreakerFailureThreshold},
+		{"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", values.BridgeBreakerOpenMS},
+		{"SUPERVISOR_API_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
+		{"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
+		{"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
+		{"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", values.ExecutionAuditQueueCapacity},
+		{"SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", values.ExecutionAuditBatchSize},
+		{"SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS", values.ExecutionAuditFlushMS},
+		{"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS", values.ExecutionAuditRetryMaxAttempts},
+		{"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", values.ExecutionAuditRetryBaseMS},
+		{"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", values.ExecutionAuditSpoolMaxBytes},
+		{"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", values.StructuredQueryTimeoutMS},
+	}
+	for _, check := range checks {
+		if check.value <= 0 {
+			return fmt.Errorf("%s must be a positive integer", check.name)
+		}
+	}
+	if values.QueueCapacity < 0 {
+		return fmt.Errorf("SUPERVISOR_API_QUEUE_CAPACITY must be a non-negative integer")
+	}
+	if values.RequestBodyLimitBytes <= 0 {
+		return fmt.Errorf("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES must be a positive integer")
+	}
+	if values.BridgeResponseLimitBytes <= 0 {
+		return fmt.Errorf("SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
+	}
+	if values.NoticeObjectStoreBodyLimitBytes <= 0 {
+		return fmt.Errorf("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES must be a positive integer")
+	}
+	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
+		return fmt.Errorf("SUPERVISOR_API_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
+	}
+	return nil
+}
+
+func promptRuntimeBaseURL(values envValues) string {
+	if baseURL := strings.TrimSpace(values.PromptRuntimeBaseURL); baseURL != "" {
+		return baseURL
+	}
+	return readString("LLM_BASE_URL", "https://api.openai.com/v1")
+}
+
+func defaultString(value string, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func readString(name string, fallback string) string {
@@ -358,32 +336,6 @@ func readNoticeReadModelDatabaseURL() string {
 	return databaseURL
 }
 
-func readPositiveInt(name string, fallback int) int {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed <= 0 {
-		return fallback
-	}
-	return parsed
-}
-
-func readPositiveIntAllowZero(name string, fallback int) int {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed < 0 {
-		return fallback
-	}
-	return parsed
-}
-
 func readPositiveIntStrict(name string, fallback int) (int, error) {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
@@ -410,27 +362,20 @@ func readNonNegativeIntStrict(name string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-func readBool(name string, fallback bool) bool {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
-	if value == "" {
-		return fallback
-	}
-	switch value {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return fallback
-	}
-}
-
 func readBoolStrict(name string, fallback bool) (bool, error) {
 	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
 	if value == "" {
 		return fallback, nil
 	}
-	switch value {
+	return parseBoolStrict(name, value)
+}
+
+func parseBoolStrict(name string, value string) (bool, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return false, fmt.Errorf("%s must be a boolean", name)
+	}
+	switch normalized {
 	case "1", "true", "yes", "on":
 		return true, nil
 	case "0", "false", "no", "off":
@@ -438,56 +383,6 @@ func readBoolStrict(name string, fallback bool) (bool, error) {
 	default:
 		return false, fmt.Errorf("%s must be a boolean", name)
 	}
-}
-
-func readRatio(name string, fallback float64) float64 {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil || parsed < 0 || parsed > 1 {
-		return fallback
-	}
-	return parsed
-}
-
-func readRatioStrict(name string, fallback float64) (float64, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback, nil
-	}
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil || parsed < 0 || parsed > 1 {
-		return 0, fmt.Errorf("%s must be a number between 0 and 1", name)
-	}
-	return parsed, nil
-}
-
-func readLaneBudgets(
-	globalMaxConcurrent int,
-	globalQueueCapacity int,
-	globalQueueTimeoutMS int,
-) map[string]LaneBudget {
-	budgets := make(map[string]LaneBudget, len(laneNames()))
-	for _, lane := range laneNames() {
-		prefix := "SUPERVISOR_API_LANE_" + strings.ToUpper(lane) + "_"
-		budgets[lane] = LaneBudget{
-			MaxConcurrent: readPositiveInt(
-				prefix+"MAX_CONCURRENT",
-				globalMaxConcurrent,
-			),
-			QueueCapacity: readPositiveIntAllowZero(
-				prefix+"QUEUE_CAPACITY",
-				globalQueueCapacity,
-			),
-			QueueTimeoutMS: readPositiveInt(
-				prefix+"QUEUE_TIMEOUT_MS",
-				globalQueueTimeoutMS,
-			),
-		}
-	}
-	return budgets
 }
 
 func readLaneBudgetsStrict(
@@ -547,4 +442,18 @@ func readStringList(name string) []string {
 		}
 	}
 	return values
+}
+
+func readOpenCapabilitiesStrict() ([]string, error) {
+	values := readStringList("SUPERVISOR_API_OPEN_CAPABILITIES")
+	for _, value := range values {
+		switch strings.TrimSpace(value) {
+		case "campus_services", "notice":
+		case "*", "all":
+			return nil, fmt.Errorf("SUPERVISOR_API_OPEN_CAPABILITIES does not support wildcard value %q", value)
+		default:
+			return nil, fmt.Errorf("SUPERVISOR_API_OPEN_CAPABILITIES contains unsupported capability %q", value)
+		}
+	}
+	return values, nil
 }

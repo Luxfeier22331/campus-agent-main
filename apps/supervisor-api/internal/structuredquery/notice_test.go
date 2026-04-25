@@ -2,6 +2,8 @@ package structuredquery
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -129,6 +131,48 @@ func TestLookupCampusNoticeDiscoverFiltersByTargetSurface(t *testing.T) {
 	}
 }
 
+func TestLookupCampusNoticeDiscoverClampsMaxResults(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{
+			{
+				SourceFamily:   "internal_notice_restricted",
+				SourceNoticeID: "355222",
+				Title:          "中央民族大学丰台校区家具采购项目比选公告",
+				SourceURL:      "https://portal.example.edu/notices/355222",
+			},
+		},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		NoticeBodyStore:      &fakeNoticeBodyStore{},
+	})
+
+	response := runtime.LookupCampusNoticeDiscover(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"采购",
+			"source_families":["internal_notice_restricted"],
+			"max_results":9999
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	if store.searchMaxResults != 20 {
+		t.Fatalf("search max_results = %d, want 20", store.searchMaxResults)
+	}
+}
+
 func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
 		getRow: &noticeReadModelRecord{
@@ -246,6 +290,13 @@ func TestLookupCampusNoticeGetFiltersByTargetSurface(t *testing.T) {
 	}
 }
 
+func TestReadNoticeBodyLimitedRejectsOversizedBody(t *testing.T) {
+	_, err := readNoticeBodyLimited(strings.NewReader("0123456789abcdef"), 8)
+	if !errors.Is(err, errNoticeBodyTooLarge) {
+		t.Fatalf("err = %v, want errNoticeBodyTooLarge", err)
+	}
+}
+
 func TestLookupCampusNoticeDiscoverFailsClosedWithoutRestrictedAuthorization(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
 		searchRows: []noticeReadModelRecord{{SourceNoticeID: "355222"}},
@@ -292,7 +343,7 @@ func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
 		NoticeObjectStoreBucketDerived: "campus-rag-derived",
 	})
 
-	status := runtime.Status()
+	status := runtime.Status(context.Background())
 	if !status.NoticeReadModelConfigured {
 		t.Fatal("notice read model should be configured")
 	}

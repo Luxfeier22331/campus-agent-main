@@ -223,19 +223,24 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 	}()
 
 	emitter.Emit(context.Background(), Event{
-		BridgeDuration:      35 * time.Second,
-		Decision:            "queue_full",
-		Duration:            35*time.Second + 12*time.Millisecond,
-		EventType:           "execution.bridge_failed",
-		FailureKind:         "timeout",
-		HTTPStatus:          http.StatusGatewayTimeout,
-		Lane:                "rag",
-		OccurredAt:          time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC),
-		QueueWait:           12 * time.Millisecond,
-		RequestID:           "req-001",
-		RequestedCapability: "knowledge",
-		Retryable:           true,
-		TraceID:             "trace-001",
+		BridgeDuration:        35 * time.Second,
+		ContextPreflightState: "not_follow_up",
+		Decision:              "queue_full",
+		Duration:              35*time.Second + 12*time.Millisecond,
+		EventType:             "execution.bridge_failed",
+		FailureKind:           "timeout",
+		HTTPStatus:            http.StatusGatewayTimeout,
+		Lane:                  "rag",
+		OccurredAt:            time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC),
+		PlanningOutcome:       "not_preplanned",
+		PolicyGateDecision:    "out_of_scope",
+		QueueWait:             12 * time.Millisecond,
+		RequestID:             "req-001",
+		RequestedCapability:   "knowledge",
+		Retryable:             true,
+		RoutingNextAction:     "out_of_scope",
+		ScopeGateDecision:     "out_of_scope",
+		TraceID:               "trace-001",
 	})
 
 	select {
@@ -256,6 +261,18 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 		}
 		if _, ok := event["user_goal"]; ok {
 			t.Fatal("audit event must not include raw user_goal")
+		}
+		expectedRuntimeFields := map[string]string{
+			"scope_gate_decision":     "out_of_scope",
+			"policy_gate_decision":    "out_of_scope",
+			"context_preflight_state": "not_follow_up",
+			"routing_next_action":     "out_of_scope",
+			"planning_outcome":        "not_preplanned",
+		}
+		for key, want := range expectedRuntimeFields {
+			if event[key] != want {
+				t.Fatalf("audit field %s = %v, want %q", key, event[key], want)
+			}
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for audit event")

@@ -17,6 +17,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_QUEUE_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_REQUEST_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES", "")
+	t.Setenv("SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES", "")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "")
 	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "")
 	t.Setenv("SUPERVISOR_CORE_WORKER_TIMEOUT_MS", "")
@@ -35,6 +36,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("OBJECT_STORE_SECRET_KEY", "")
 	t.Setenv("OBJECT_STORE_REGION", "")
 	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "")
@@ -94,6 +96,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.BridgeTimeoutMS != 35_000 {
 		t.Fatalf("bridge timeout = %d, want 35000", cfg.BridgeTimeoutMS)
 	}
+	if cfg.BridgeResponseLimitBytes != 1_048_576 {
+		t.Fatalf("bridge response limit = %d, want 1048576", cfg.BridgeResponseLimitBytes)
+	}
 	if cfg.ShutdownGraceMS != 45_000 {
 		t.Fatalf("shutdown grace = %d, want 45000", cfg.ShutdownGraceMS)
 	}
@@ -146,6 +151,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
 		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
 	}
+	if cfg.NoticeObjectStoreBodyLimitBytes != 1_048_576 {
+		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeObjectStoreBodyLimitBytes)
+	}
 	if cfg.PromptRuntimeProvider != "" ||
 		cfg.SupervisorPromptModel != "" ||
 		cfg.SpecialistPromptModel != "" ||
@@ -166,12 +174,33 @@ func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
+	t.Setenv("API_AUTH_MODE", "   ")
+	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "   ")
+	t.Setenv("OBJECT_STORE_REGION", "   ")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.AuthMode != "bearer" {
+		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
+	}
+	if cfg.PromptRuntimeTransport != "responses" {
+		t.Fatalf("prompt runtime transport = %q, want responses", cfg.PromptRuntimeTransport)
+	}
+	if cfg.NoticeObjectStoreRegion != "us-east-1" {
+		t.Fatalf("notice object store region = %q, want us-east-1", cfg.NoticeObjectStoreRegion)
+	}
+}
+
 func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", "4")
 	t.Setenv("SUPERVISOR_API_QUEUE_CAPACITY", "12")
 	t.Setenv("SUPERVISOR_API_QUEUE_TIMEOUT_MS", "2500")
 	t.Setenv("SUPERVISOR_API_REQUEST_TIMEOUT_MS", "30000")
 	t.Setenv("SUPERVISOR_CORE_WORKER_TIMEOUT_MS", "25000")
+	t.Setenv("SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES", "2048")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "7500")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "20000")
@@ -206,6 +235,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
 	t.Setenv("PROMPT_RUNTIME_BASE_URL", "https://api.openai.com/v1")
 	t.Setenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "false")
+	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "4096")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -217,6 +247,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.QueueTimeoutMS != 2500 ||
 		cfg.RequestTimeoutMS != 30000 ||
 		cfg.BridgeTimeoutMS != 25000 ||
+		cfg.BridgeResponseLimitBytes != 2048 ||
 		cfg.BridgeBreakerFailureThreshold != 3 ||
 		cfg.BridgeBreakerOpenMS != 7500 ||
 		cfg.ShutdownGraceMS != 20000 ||
@@ -251,8 +282,39 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.PromptRuntimeAPIKey != "prompt-key" ||
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
-		cfg.PromptStrictStructuredOutputs {
+		cfg.PromptStrictStructuredOutputs ||
+		cfg.NoticeObjectStoreBodyLimitBytes != 4096 {
 		t.Fatalf("unexpected config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
+	for _, value := range []string{"*", "all", "campus_services,all"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", value)
+
+			_, err := LoadFromEnv()
+			if err == nil {
+				t.Fatalf("expected SUPERVISOR_API_OPEN_CAPABILITIES=%q to fail", value)
+			}
+		})
+	}
+}
+
+func TestLoadFromEnvRejectsUnknownOpenCapabilities(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services,unknown_capability")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected unknown open capability to fail")
+	}
+}
+
+func TestCapabilityOpenDoesNotTreatWildcardAsRuntimeAllow(t *testing.T) {
+	cfg := Config{OpenCapabilities: []string{"*"}}
+
+	if cfg.CapabilityOpen("notice") {
+		t.Fatal("wildcard open capability must not open notice")
 	}
 }
 

@@ -206,6 +206,108 @@ func TestControllerLaneSaturationDoesNotBlockOtherLanes(t *testing.T) {
 	}
 }
 
+func TestControllerDispatchesQueuedLanesRoundRobin(t *testing.T) {
+	controller := NewController(Config{
+		MaxConcurrent: 1,
+		QueueCapacity: 4,
+		QueueTimeout:  time.Second,
+		Lanes: map[string]LaneConfig{
+			"campus_services": {
+				MaxConcurrent: 1,
+				QueueCapacity: 4,
+				QueueTimeout:  time.Second,
+			},
+			"notice": {
+				MaxConcurrent: 1,
+				QueueCapacity: 4,
+				QueueTimeout:  time.Second,
+			},
+			"rag": {
+				MaxConcurrent: 1,
+				QueueCapacity: 4,
+				QueueTimeout:  time.Second,
+			},
+		},
+	})
+
+	ragLease, decision := controller.AcquireLane(context.Background(), "rag")
+	if decision != DecisionAdmittedImmediate {
+		t.Fatalf("initial rag decision = %s, want %s", decision, DecisionAdmittedImmediate)
+	}
+
+	firstCampus := queueLane(t, controller, "campus_services")
+	notice := queueLane(t, controller, "notice")
+	waitForStatus(t, controller, func(status Status) bool {
+		return status.Lanes["campus_services"].Queued == 1 && status.Lanes["notice"].Queued == 1
+	})
+
+	ragLease.Release()
+	firstCampusLease := firstCampus.expectDecision(t, DecisionAdmittedQueued)
+
+	secondCampus := queueLane(t, controller, "campus_services")
+	waitForStatus(t, controller, func(status Status) bool {
+		return status.Lanes["campus_services"].Queued == 1 && status.Lanes["notice"].Queued == 1
+	})
+
+	firstCampusLease.Release()
+	noticeLease := notice.expectDecision(t, DecisionAdmittedQueued)
+
+	select {
+	case decision := <-secondCampus.decisions:
+		t.Fatalf("second campus_services was admitted before notice: %s", decision)
+	default:
+	}
+
+	noticeLease.Release()
+	secondCampus.expectDecision(t, DecisionAdmittedQueued).Release()
+}
+
+type queuedLaneRequest struct {
+	decisions chan Decision
+	leases    chan *Lease
+}
+
+func queueLane(t *testing.T, controller *Controller, lane string) queuedLaneRequest {
+	t.Helper()
+
+	request := queuedLaneRequest{
+		decisions: make(chan Decision, 1),
+		leases:    make(chan *Lease, 1),
+	}
+	go func() {
+		lease, decision := controller.AcquireLane(context.Background(), lane)
+		request.decisions <- decision
+		if lease != nil {
+			request.leases <- lease
+		}
+	}()
+	return request
+}
+
+func (r queuedLaneRequest) expectDecision(t *testing.T, expected Decision) *Lease {
+	t.Helper()
+
+	select {
+	case decision := <-r.decisions:
+		if decision != expected {
+			t.Fatalf("decision = %s, want %s", decision, expected)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for decision %s", expected)
+	}
+
+	select {
+	case lease := <-r.leases:
+		if lease == nil {
+			t.Fatalf("lease is nil for decision %s", expected)
+		}
+		return lease
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for lease after decision %s", expected)
+	}
+	return nil
+}
+
 func waitForStatus(t *testing.T, controller *Controller, predicate func(Status) bool) {
 	t.Helper()
 

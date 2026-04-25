@@ -18,6 +18,7 @@ import (
 
 const defaultNoticeReadModelTable = "ingestion_projection.internal_notice_read_model"
 const defaultNoticeReadModelMaxConns int32 = 2
+const defaultNoticeBodyLimitBytes int64 = 1_048_576
 
 var noticeSQLIdentifierRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
@@ -179,6 +180,13 @@ func (s *PostgresNoticeReadModelStore) fetchRecords(
 	return records, nil
 }
 
+func (s *PostgresNoticeReadModelStore) HealthCheck(ctx context.Context) error {
+	if s == nil || s.pool == nil {
+		return errors.New("notice read model store is not configured")
+	}
+	return s.pool.Ping(ctx)
+}
+
 func (s *PostgresNoticeReadModelStore) Close() {
 	if s != nil && s.pool != nil {
 		s.pool.Close()
@@ -191,11 +199,13 @@ type NoticeS3Options struct {
 	SecretKey     string
 	Region        string
 	BucketDerived string
+	MaxBodyBytes  int64
 }
 
 type S3NoticeBodyStore struct {
-	client *s3.Client
-	bucket string
+	client       *s3.Client
+	bucket       string
+	maxBodyBytes int64
 }
 
 func NewS3NoticeBodyStore(options NoticeS3Options) NoticeBodyStore {
@@ -213,6 +223,10 @@ func NewS3NoticeBodyStore(options NoticeS3Options) NoticeBodyStore {
 	if bucket == "" {
 		bucket = "campus-rag-derived"
 	}
+	maxBodyBytes := options.MaxBodyBytes
+	if maxBodyBytes <= 0 {
+		maxBodyBytes = defaultNoticeBodyLimitBytes
+	}
 	client := s3.New(s3.Options{
 		BaseEndpoint: aws.String(endpoint),
 		Credentials: aws.NewCredentialsCache(
@@ -222,8 +236,9 @@ func NewS3NoticeBodyStore(options NoticeS3Options) NoticeBodyStore {
 		UsePathStyle: true,
 	})
 	return &S3NoticeBodyStore{
-		client: client,
-		bucket: bucket,
+		client:       client,
+		bucket:       bucket,
+		maxBodyBytes: maxBodyBytes,
 	}
 }
 
@@ -242,9 +257,38 @@ func (s *S3NoticeBodyStore) GetNoticeBody(ctx context.Context, objectKey string)
 	defer func() {
 		_ = response.Body.Close()
 	}()
-	body, err := io.ReadAll(response.Body)
+	bodyText, err := readNoticeBodyLimited(response.Body, s.maxBodyBytes)
 	if err != nil {
 		return "", errNoticeBodyUnavailable
+	}
+	return bodyText, nil
+}
+
+func (s *S3NoticeBodyStore) HealthCheck(ctx context.Context) error {
+	if s == nil || s.client == nil || s.bucket == "" {
+		return errNoticeBodyUnavailable
+	}
+	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(s.bucket),
+	})
+	if err != nil {
+		return errNoticeBodyUnavailable
+	}
+	return nil
+}
+
+var errNoticeBodyTooLarge = errors.New("notice body exceeds limit")
+
+func readNoticeBodyLimited(reader io.Reader, limitBytes int64) (string, error) {
+	if limitBytes <= 0 {
+		limitBytes = defaultNoticeBodyLimitBytes
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, limitBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if int64(len(body)) > limitBytes {
+		return "", errNoticeBodyTooLarge
 	}
 	return string(body), nil
 }

@@ -176,3 +176,18 @@ func TestHTTPClientExecuteHonorsContextCancellation(t *testing.T) {
 		t.Fatalf("err = %v, want context canceled", err)
 	}
 }
+
+func TestHTTPClientRejectsOversizedBridgeResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("x-supervisor-bridge-kind", "supervisor_response")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"status":"completed","padding":"too-large"}`))
+	}))
+	defer server.Close()
+
+	client := NewHTTPClientWithResponseLimit(server.URL, "bridge-secret", 16)
+	_, err := client.Execute(context.Background(), Request{Payload: []byte(`{"user_goal":"hello"}`)})
+	if !errors.Is(err, ErrResponseTooLarge) {
+		t.Fatalf("err = %v, want ErrResponseTooLarge", err)
+	}
+}

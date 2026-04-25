@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	transportLocalDateLayout = "2006-01-02"
-	transportWallTimeLayout  = "15:04"
+	transportLocalDateLayout     = "2006-01-02"
+	transportWallTimeLayout      = "15:04"
+	transportScheduleResultLimit = 20
 )
 
 var transportLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -821,10 +822,17 @@ func limitTransportDepartures(
 	departures []scheduledDeparture,
 	limit *int,
 ) []scheduledDeparture {
-	if limit == nil || *limit >= len(departures) {
+	effectiveLimit := transportScheduleResultLimit
+	if limit != nil && *limit < effectiveLimit {
+		effectiveLimit = *limit
+	}
+	if effectiveLimit <= 0 {
+		effectiveLimit = transportScheduleResultLimit
+	}
+	if effectiveLimit >= len(departures) {
 		return append([]scheduledDeparture(nil), departures...)
 	}
-	return append([]scheduledDeparture(nil), departures[:*limit]...)
+	return append([]scheduledDeparture(nil), departures[:effectiveLimit]...)
 }
 
 func transportCandidatesFromRoutes(routes []transportRouteRecord) []transportRouteCandidate {

@@ -2,6 +2,7 @@ package execution
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
 )
 
 const defaultPolicyProjectionVersion = "phase1-authorization-projection-v1"
@@ -26,6 +28,15 @@ type AnswerExecutionRequest struct {
 	TraceID             string
 	RequestedCapability string
 	Lane                string
+	RuntimeDecisions    RuntimeDecisionSummary
+}
+
+type RuntimeDecisionSummary struct {
+	ScopeGateDecision     string
+	PolicyGateDecision    string
+	ContextPreflightState string
+	RoutingNextAction     string
+	PlanningOutcome       string
 }
 
 type actorContext struct {
@@ -192,6 +203,32 @@ func ParseAnswerRequest(
 	); err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
+	if hasRequestedScope {
+		scopeAllowed, err := runtimepolicy.QueryScopeAllowed(
+			requestedScope.Corpus,
+			requestedScope.Collection,
+			cfg.QueryServingScopesPath,
+		)
+		if err != nil {
+			return AnswerExecutionRequest{}, &HTTPError{
+				Status:    500,
+				Code:      "query_scope_policy_unavailable",
+				Message:   "Knowledge query-serving scope policy could not be loaded.",
+				Retryable: false,
+			}
+		}
+		if !scopeAllowed {
+			return AnswerExecutionRequest{}, &HTTPError{
+				Status: 403,
+				Code:   "disallowed_knowledge_scope",
+				Message: fmt.Sprintf(
+					"knowledge scope %s/%s is not query-enabled",
+					requestedScope.Corpus,
+					requestedScope.Collection,
+				),
+			}
+		}
+	}
 	effectiveRequestedCapability := effectiveCapability(
 		requestedCapability,
 		userGoal,
@@ -203,6 +240,16 @@ func ParseAnswerRequest(
 	if traceID == "" {
 		traceID = newTraceID()
 	}
+
+	runtimeDecisionPayload, runtimeDecisionSummary := runtimeDecisions(
+		effectiveRequestedCapability,
+		laneForCapability(effectiveRequestedCapability),
+		userGoal,
+		hasRequestedScope,
+		requestedScope,
+		versionQuery,
+		context,
+	)
 
 	bridgePayload := map[string]any{
 		"bridge_version":       "supervisor_bridge_v2",
@@ -223,13 +270,7 @@ func ParseAnswerRequest(
 			"version_id":            versionQuery.VersionID,
 			"compare_to_version_id": versionQuery.CompareToVersionID,
 		},
-		"runtime_decisions": runtimeDecisions(
-			effectiveRequestedCapability,
-			laneForCapability(effectiveRequestedCapability),
-			userGoal,
-			versionQuery,
-			context,
-		),
+		"runtime_decisions": runtimeDecisionPayload,
 	}
 	if safetyIdentifier != "" {
 		bridgePayload["safety_identifier"] = safetyIdentifier
@@ -257,6 +298,7 @@ func ParseAnswerRequest(
 		TraceID:             traceID,
 		RequestedCapability: effectiveRequestedCapability,
 		Lane:                laneForCapability(effectiveRequestedCapability),
+		RuntimeDecisions:    runtimeDecisionSummary,
 	}, nil
 }
 
@@ -311,7 +353,15 @@ func authenticate(headers map[string]string, cfg config.Config) (actorContext, *
 	switch cfg.AuthMode {
 	case "bearer":
 		token := extractBearerToken(headers["authorization"])
-		if cfg.BearerToken != "" && token != cfg.BearerToken {
+		expectedToken := strings.TrimSpace(cfg.BearerToken)
+		if expectedToken == "" {
+			return actorContext{}, &HTTPError{
+				Status:  500,
+				Code:    "auth_not_configured",
+				Message: "Bearer auth requires API_BEARER_TOKEN.",
+			}
+		}
+		if token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
 			return actorContext{}, &HTTPError{
 				Status:  401,
 				Code:    "unauthorized",
@@ -353,7 +403,7 @@ func authenticate(headers map[string]string, cfg config.Config) (actorContext, *
 				Message: "Missing worker origin auth.",
 			}
 		}
-		if presented != sharedSecret {
+		if subtle.ConstantTimeCompare([]byte(presented), []byte(sharedSecret)) != 1 {
 			return actorContext{}, &HTTPError{
 				Status:  401,
 				Code:    "unauthorized",

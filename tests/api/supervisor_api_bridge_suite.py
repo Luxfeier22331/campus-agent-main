@@ -8,14 +8,18 @@ from unittest.mock import patch
 
 from campus_contracts import (
     CampusNoticeDiscoverPayload,
+    KnowledgeScope,
+    RagRequestPayload,
     SupervisorRequest,
     SupervisorResponse,
     TransportScheduleLookupPayload,
+    VersionQuery,
 )
 from campus_supervisor_core import InvalidSupervisorRequestError
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core_worker.app import create_bridge_app
+from campus_supervisor_core_worker.api_request_parsing import _parse_bridge_supervisor_envelope
 from campus_supervisor_core_worker.settings import ApiSettings
 
 
@@ -57,6 +61,52 @@ def _bridge_v2_payload(
         "runtime_decisions": {
             "effective_capability": effective_capability,
             "lane": lane,
+            "scope_gate": {
+                "decision": "in_scope",
+                "reason": "scope_undetermined_delegate",
+                "matched_signal": "",
+            },
+            "policy_gate": {
+                "decision": "delegate",
+                "reason": "",
+                "risk_level": "low",
+                "matched_signal": "",
+            },
+            "context_preflight": {
+                "state": "not_follow_up",
+                "reference_type": "none",
+                "missing_slots": [],
+                "resolved_slots": {},
+                "matched_signal": "",
+                "ambiguity_reason": "",
+            },
+            "tool_policy": {
+                "policy_version": "runtime-policy-v1",
+            },
+            "routing_frame": {
+                "capability": effective_capability,
+                "task_kind": "knowledge_lookup",
+                "domain_candidates": ["knowledge"],
+                "missing_slots": [],
+                "risk_level": "low",
+                "needs_clarification": False,
+                "suggested_next_action": "delegate",
+                "personalization_mode": "generic",
+                "clarification_subject": "",
+                "scope_class": "in_scope",
+                "policy_reason": "",
+                "launch_state": "open",
+                "scope_reason": "scope_undetermined_delegate",
+                "matched_signal": "",
+                "classifier_version": "go-runtime-policy-v1",
+                "schema_version": "intent-schema-1.0.0",
+                "routing_confidence": "high",
+                "ambiguity_signal": "",
+                "context_resolution_state": "not_follow_up",
+                "context_reference_type": "none",
+                "resolved_slots": {},
+                "ambiguity_reason": "",
+            },
         },
     }
 
@@ -85,6 +135,58 @@ def _bridge_v2_payload_with_preplanned_handoff(
     body["runtime_decisions"] = {
         "effective_capability": effective_capability,
         "lane": lane,
+        "scope_gate": {
+            "decision": "in_scope",
+            "reason": "go_preplanned_handoff",
+            "matched_signal": "",
+        },
+        "policy_gate": {
+            "decision": "delegate",
+            "reason": "",
+            "risk_level": "low",
+            "matched_signal": "",
+        },
+        "context_preflight": {
+            "state": "not_follow_up",
+            "reference_type": "none",
+            "missing_slots": [],
+            "resolved_slots": {},
+            "matched_signal": "",
+            "ambiguity_reason": "",
+        },
+        "tool_policy": {
+            "policy_version": "runtime-policy-v1",
+        },
+        "routing_frame": {
+            "capability": effective_capability,
+            "task_kind": {
+                "campus_services": "campus_services_lookup",
+                "notice": "notice_lookup",
+            }.get(effective_capability, "knowledge_lookup"),
+            "domain_candidates": {
+                "campus_services": ["campus_services"],
+                "notice": ["notice"],
+            }.get(effective_capability, ["knowledge"]),
+            "missing_slots": [],
+            "risk_level": "low",
+            "needs_clarification": False,
+            "suggested_next_action": "delegate",
+            "personalization_mode": "generic",
+            "clarification_subject": "",
+            "scope_class": "in_scope",
+            "policy_reason": "",
+            "launch_state": "open",
+            "scope_reason": "go_preplanned_handoff",
+            "matched_signal": "",
+            "classifier_version": "go-runtime-policy-v1",
+            "schema_version": "intent-schema-1.0.0",
+            "routing_confidence": "high",
+            "ambiguity_signal": "",
+            "context_resolution_state": "not_follow_up",
+            "context_reference_type": "none",
+            "resolved_slots": {},
+            "ambiguity_reason": "",
+        },
         "planning_outcome": "preplanned",
         "preplanned_target": preplanned_target,
         "allowed_tools": allowed_tools,
@@ -117,50 +219,40 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             supervisor_handler=fake_supervisor,
         )
 
+        body = _bridge_v2_payload(
+            user_goal="保研政策怎么准备？",
+            request_id="req-001",
+            trace_id="trace-001",
+            context={
+                "actor": {
+                    "user_id": "student@example.edu",
+                    "principal_id": "principal-001",
+                    "principal_type": "student",
+                    "roles": ["student"],
+                },
+                "authorization": {
+                    "principal_id": "principal-001",
+                    "entitlement_groups": ["students", "library"],
+                    "visibility_scope": "north",
+                    "retrieval_filter": {
+                        "entitlement_groups": ["students", "library"],
+                        "visibility_level": "public",
+                        "visibility_scope": "north",
+                        "policy_projection_version": "phase1-authorization-projection-v1",
+                    },
+                },
+            },
+        )
+        body["conversation_id"] = "conv-001"
+        body["requested_scope"] = {
+            "corpus": "regulations",
+            "collection": "student_rules",
+        }
         response = app.handle(
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body={
-                "bridge_version": "supervisor_bridge_v2",
-                "user_goal": "保研政策怎么准备？",
-                "conversation_id": "conv-001",
-                "request_id": "req-001",
-                "trace": {"trace_id": "trace-001"},
-                "context": {
-                    "actor": {
-                        "user_id": "student@example.edu",
-                        "principal_id": "principal-001",
-                        "principal_type": "student",
-                        "roles": ["student"],
-                    },
-                    "authorization": {
-                        "principal_id": "principal-001",
-                        "entitlement_groups": ["students", "library"],
-                        "visibility_scope": "north",
-                        "retrieval_filter": {
-                            "entitlement_groups": ["students", "library"],
-                            "visibility_level": "public",
-                            "visibility_scope": "north",
-                            "policy_projection_version": "phase1-authorization-projection-v1",
-                        },
-                    },
-                },
-                "requested_scope": {
-                    "corpus": "regulations",
-                    "collection": "student_rules",
-                },
-                "requested_capability": "knowledge",
-                "effective_capability": "knowledge",
-                "lane": "rag",
-                "version_query": {
-                    "mode": "current",
-                },
-                "runtime_decisions": {
-                    "effective_capability": "knowledge",
-                    "lane": "rag",
-                },
-            },
+            json_body=body,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -233,38 +325,201 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body={
-                "bridge_version": "supervisor_bridge_v2",
-                "user_goal": "校车时刻表",
-                "request_id": "req-v2-effective",
-                "trace": {"trace_id": "trace-v2-effective"},
-                "effective_capability": "campus_services",
-                "lane": "campus_services",
-                "context": {
-                    "actor": {
-                        "user_id": "student@example.edu",
-                    },
-                    "authorization": {
-                        "retrieval_filter": {
-                            "entitlement_groups": [],
-                            "visibility_level": "public",
-                            "policy_projection_version": "phase1-authorization-projection-v1",
-                        },
-                    },
-                },
-                "version_query": {
-                    "mode": "current",
-                },
-                "runtime_decisions": {
-                    "effective_capability": "campus_services",
-                    "lane": "campus_services",
-                },
-            },
+            json_body=_bridge_v2_payload(
+                user_goal="校车时刻表",
+                request_id="req-v2-effective",
+                trace_id="trace-v2-effective",
+                effective_capability="campus_services",
+                lane="campus_services",
+            ),
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].requested_capability, "campus_services")
+
+    def test_bridge_answer_uses_go_runtime_routing_frame_without_python_routing(
+        self,
+    ) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            )
+        )
+        body = _bridge_v2_payload(
+            user_goal="MIT的校长是谁",
+            request_id="req-go-policy-out-of-scope",
+            trace_id="trace-go-policy-out-of-scope",
+            effective_capability="knowledge",
+            lane="rag",
+        )
+        body["runtime_decisions"] = {
+            "effective_capability": "knowledge",
+            "lane": "rag",
+            "scope_gate": {
+                "decision": "out_of_scope",
+                "reason": "product_scope_boundary",
+                "matched_signal": "MIT",
+            },
+            "policy_gate": {
+                "decision": "out_of_scope",
+                "reason": "product_scope_boundary",
+                "risk_level": "low",
+                "matched_signal": "MIT",
+            },
+            "context_preflight": {
+                "state": "not_follow_up",
+                "reference_type": "none",
+                "missing_slots": [],
+                "resolved_slots": {},
+                "matched_signal": "",
+                "ambiguity_reason": "",
+            },
+            "tool_policy": {
+                "policy_version": "runtime-policy-v1",
+            },
+            "routing_frame": {
+                "capability": "knowledge",
+                "task_kind": "knowledge_lookup",
+                "domain_candidates": ["out_of_scope"],
+                "missing_slots": [],
+                "risk_level": "low",
+                "needs_clarification": False,
+                "suggested_next_action": "out_of_scope",
+                "personalization_mode": "generic",
+                "clarification_subject": "",
+                "scope_class": "out_of_scope",
+                "policy_reason": "product_scope_boundary",
+                "launch_state": "closed",
+                "scope_reason": "product_scope_boundary",
+                "matched_signal": "MIT",
+                "classifier_version": "go-runtime-policy-v1",
+                "schema_version": "intent-schema-1.0.0",
+                "routing_confidence": "high",
+                "ambiguity_signal": "",
+                "context_resolution_state": "not_follow_up",
+                "context_reference_type": "none",
+                "resolved_slots": {},
+                "ambiguity_reason": "",
+            },
+        }
+
+        with patch(
+            "campus_supervisor_core.agent.route_request",
+            side_effect=AssertionError("Python routing must not own Go policy decisions"),
+        ):
+            response = app.handle(
+                "POST",
+                "/internal/bridge/supervisor/answer",
+                headers={"x-supervisor-bridge-auth": "bridge-secret"},
+                json_body=body,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json_body["status"], "no_answer")
+        self.assertEqual(response.json_body["observability"]["semantic_outcome"], "out_of_scope")
+        self.assertEqual(
+            response.json_body["observability"]["intent_policy_reason"],
+            "product_scope_boundary",
+        )
+
+    def test_bridge_answer_rejects_v2_payload_without_go_routing_frame(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            )
+        )
+        body = _bridge_v2_payload(
+            user_goal="保研政策怎么准备？",
+            request_id="req-missing-runtime-frame",
+        )
+        body["runtime_decisions"] = {
+            "effective_capability": "knowledge",
+            "lane": "rag",
+        }
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=body,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("routing_frame", response.json_body["error"]["message"])
+
+    def test_bridge_answer_rejects_delegate_frame_without_go_preplanned_handoff(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=_bridge_v2_payload(
+                user_goal="学生手册请假制度怎么规定？",
+                request_id="req-missing-preplanned-handoff",
+                trace_id="trace-missing-preplanned-handoff",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("planning_outcome", response.json_body["error"]["message"])
+
+    def test_bridge_parser_parses_go_preplanned_knowledge_handoff(self) -> None:
+        body = _bridge_v2_payload_with_preplanned_handoff(
+            user_goal="学生手册请假制度怎么规定？",
+            request_id="req-go-preplanned-knowledge",
+            trace_id="trace-go-preplanned-knowledge",
+            effective_capability="knowledge",
+            lane="rag",
+            preplanned_target="rag-agent",
+            payload_kind="rag_request",
+            allowed_tools=[],
+            payload={
+                "scope": {
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                },
+                "version_query": {
+                    "mode": "compare",
+                    "version_id": "v1:student-handbook",
+                    "compare_to_version_id": "v2:student-handbook",
+                },
+            },
+        )
+        body["requested_scope"] = {
+            "corpus": "regulations",
+            "collection": "student_rules",
+        }
+        body["version_query"] = {
+            "mode": "compare",
+            "version_id": "v1:student-handbook",
+            "compare_to_version_id": "v2:student-handbook",
+        }
+
+        envelope = _parse_bridge_supervisor_envelope(body)
+
+        self.assertEqual(envelope.request.requested_capability, "knowledge")
+        self.assertIsNotNone(envelope.routing_decision)
+        assert envelope.routing_decision is not None
+        self.assertEqual(envelope.routing_decision.target, "rag-agent")
+        self.assertEqual(
+            envelope.routing_decision.specialist_payload,
+            RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                version_query=VersionQuery(
+                    mode="compare",
+                    version_id="v1:student-handbook",
+                    compare_to_version_id="v2:student-handbook",
+                ),
+            ),
+        )
 
     def test_bridge_answer_route_requires_bridge_auth(self) -> None:
         app = create_bridge_app(

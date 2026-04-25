@@ -19,19 +19,24 @@ import (
 )
 
 type Event struct {
-	BridgeDuration      time.Duration
-	Decision            string
-	Duration            time.Duration
-	EventType           string
-	FailureKind         string
-	HTTPStatus          int
-	Lane                string
-	OccurredAt          time.Time
-	QueueWait           time.Duration
-	RequestID           string
-	RequestedCapability string
-	Retryable           bool
-	TraceID             string
+	BridgeDuration        time.Duration
+	ContextPreflightState string
+	Decision              string
+	Duration              time.Duration
+	EventType             string
+	FailureKind           string
+	HTTPStatus            int
+	Lane                  string
+	OccurredAt            time.Time
+	PlanningOutcome       string
+	PolicyGateDecision    string
+	QueueWait             time.Duration
+	RequestID             string
+	RequestedCapability   string
+	Retryable             bool
+	RoutingNextAction     string
+	ScopeGateDecision     string
+	TraceID               string
 }
 
 type Status struct {
@@ -501,20 +506,25 @@ func (e *Emitter) enforceSpoolLimit() {
 func eventPayload(event Event) map[string]any {
 	eventType := strings.TrimSpace(event.EventType)
 	return map[string]any{
-		"bridge_duration_ms":   durationMilliseconds(event.BridgeDuration),
-		"decision":             nullableString(event.Decision),
-		"duration_ms":          durationMilliseconds(event.Duration),
-		"event_id":             buildEventID(event.RequestID, eventType),
-		"event_type":           eventType,
-		"failure_kind":         nullableString(event.FailureKind),
-		"http_status":          nullableInt(event.HTTPStatus),
-		"lane":                 nullableString(event.Lane),
-		"occurred_at":          event.OccurredAt.UTC().Format(time.RFC3339Nano),
-		"queue_wait_ms":        durationMilliseconds(event.QueueWait),
-		"request_id":           strings.TrimSpace(event.RequestID),
-		"requested_capability": nullableString(event.RequestedCapability),
-		"retryable":            event.Retryable,
-		"trace_id":             strings.TrimSpace(event.TraceID),
+		"bridge_duration_ms":      durationMilliseconds(event.BridgeDuration),
+		"context_preflight_state": nullableString(event.ContextPreflightState),
+		"decision":                nullableString(event.Decision),
+		"duration_ms":             durationMilliseconds(event.Duration),
+		"event_id":                buildEventID(event.RequestID, eventType),
+		"event_type":              eventType,
+		"failure_kind":            nullableString(event.FailureKind),
+		"http_status":             nullableInt(event.HTTPStatus),
+		"lane":                    nullableString(event.Lane),
+		"occurred_at":             event.OccurredAt.UTC().Format(time.RFC3339Nano),
+		"planning_outcome":        nullableString(event.PlanningOutcome),
+		"policy_gate_decision":    nullableString(event.PolicyGateDecision),
+		"queue_wait_ms":           durationMilliseconds(event.QueueWait),
+		"request_id":              strings.TrimSpace(event.RequestID),
+		"requested_capability":    nullableString(event.RequestedCapability),
+		"retryable":               event.Retryable,
+		"routing_next_action":     nullableString(event.RoutingNextAction),
+		"scope_gate_decision":     nullableString(event.ScopeGateDecision),
+		"trace_id":                strings.TrimSpace(event.TraceID),
 	}
 }
 

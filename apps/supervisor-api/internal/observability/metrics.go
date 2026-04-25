@@ -114,6 +114,26 @@ type capabilityGateKey struct {
 	Decision   string
 }
 
+type RuntimeDecisionLabels struct {
+	Capability            string
+	Lane                  string
+	ScopeGate             string
+	PolicyGate            string
+	ContextPreflightState string
+	RoutingNextAction     string
+	PlanningOutcome       string
+}
+
+type runtimeDecisionKey struct {
+	Capability            string
+	Lane                  string
+	ScopeGate             string
+	PolicyGate            string
+	ContextPreflightState string
+	RoutingNextAction     string
+	PlanningOutcome       string
+}
+
 type Metrics struct {
 	mu sync.Mutex
 
@@ -129,6 +149,7 @@ type Metrics struct {
 	bridgeCancelTotals      map[string]uint64
 	structuredQueryTotals   map[structuredQueryKey]uint64
 	capabilityGateTotals    map[capabilityGateKey]uint64
+	runtimeDecisionTotals   map[runtimeDecisionKey]uint64
 	lastAnswerFailureCode   string
 	lastAnswerFailureAt     time.Time
 	lastAnswerSuccessAt     time.Time
@@ -166,6 +187,7 @@ func NewMetrics() *Metrics {
 		},
 		structuredQueryTotals: make(map[structuredQueryKey]uint64),
 		capabilityGateTotals:  make(map[capabilityGateKey]uint64),
+		runtimeDecisionTotals: make(map[runtimeDecisionKey]uint64),
 	}
 }
 
@@ -283,6 +305,20 @@ func (m *Metrics) RecordCapabilityGate(capability string, gate string, decision 
 		Capability: capability,
 		Gate:       gate,
 		Decision:   decision,
+	}]++
+}
+
+func (m *Metrics) RecordRuntimeDecision(labels RuntimeDecisionLabels) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.runtimeDecisionTotals[runtimeDecisionKey{
+		Capability:            defaultMetricLabel(labels.Capability, "unknown"),
+		Lane:                  defaultMetricLabel(labels.Lane, "unknown"),
+		ScopeGate:             defaultMetricLabel(labels.ScopeGate, "unknown"),
+		PolicyGate:            defaultMetricLabel(labels.PolicyGate, "unknown"),
+		ContextPreflightState: defaultMetricLabel(labels.ContextPreflightState, "unknown"),
+		RoutingNextAction:     defaultMetricLabel(labels.RoutingNextAction, "unknown"),
+		PlanningOutcome:       defaultMetricLabel(labels.PlanningOutcome, "unknown"),
 	}]++
 }
 
@@ -522,6 +558,22 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			m.capabilityGateTotals[key],
 		)
 	}
+	builder.WriteString("# HELP campus_supervisor_api_runtime_policy_decisions_total Total Go runtime policy decisions by bounded decision labels.\n")
+	builder.WriteString("# TYPE campus_supervisor_api_runtime_policy_decisions_total counter\n")
+	for _, key := range sortedRuntimeDecisionKeys(m.runtimeDecisionTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_supervisor_api_runtime_policy_decisions_total{capability=%q,lane=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q} %d\n",
+			key.Capability,
+			key.Lane,
+			key.ScopeGate,
+			key.PolicyGate,
+			key.ContextPreflightState,
+			key.RoutingNextAction,
+			key.PlanningOutcome,
+			m.runtimeDecisionTotals[key],
+		)
+	}
 	builder.WriteString("# HELP campus_supervisor_api_lifecycle_active_executions Current registered executions.\n")
 	builder.WriteString("# TYPE campus_supervisor_api_lifecycle_active_executions gauge\n")
 	fmt.Fprintf(&builder, "campus_supervisor_api_lifecycle_active_executions %d\n", snapshot.Lifecycle.ActiveExecutions)
@@ -724,6 +776,14 @@ func defaultMetricNumber(value string) string {
 	return trimmed
 }
 
+func defaultMetricLabel(value string, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fallback
+	}
+	return trimmed
+}
+
 func sortedRoutes[T any](items map[string]T) []string {
 	return sortedStringKeys(items)
 }
@@ -785,6 +845,35 @@ func sortedCapabilityGateKeys(items map[capabilityGateKey]uint64) []capabilityGa
 			return keys[left].Gate < keys[right].Gate
 		}
 		return keys[left].Decision < keys[right].Decision
+	})
+	return keys
+}
+
+func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDecisionKey {
+	keys := make([]runtimeDecisionKey, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(left int, right int) bool {
+		if keys[left].Capability != keys[right].Capability {
+			return keys[left].Capability < keys[right].Capability
+		}
+		if keys[left].Lane != keys[right].Lane {
+			return keys[left].Lane < keys[right].Lane
+		}
+		if keys[left].ScopeGate != keys[right].ScopeGate {
+			return keys[left].ScopeGate < keys[right].ScopeGate
+		}
+		if keys[left].PolicyGate != keys[right].PolicyGate {
+			return keys[left].PolicyGate < keys[right].PolicyGate
+		}
+		if keys[left].ContextPreflightState != keys[right].ContextPreflightState {
+			return keys[left].ContextPreflightState < keys[right].ContextPreflightState
+		}
+		if keys[left].RoutingNextAction != keys[right].RoutingNextAction {
+			return keys[left].RoutingNextAction < keys[right].RoutingNextAction
+		}
+		return keys[left].PlanningOutcome < keys[right].PlanningOutcome
 	})
 	return keys
 }

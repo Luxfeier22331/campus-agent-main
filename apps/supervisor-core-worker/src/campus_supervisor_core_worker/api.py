@@ -193,20 +193,14 @@ def handle_bridge_answer(
             kind="bridge_invalid_request",
         )
     request = envelope.request
-    preplanned_routing_decision = (
-        None
-        if envelope.preplanned_routing is None
-        else envelope.preplanned_routing.to_routing_decision(
-            capability=request.requested_capability or "knowledge"
-        )
-    )
+    runtime_routing_decision = envelope.routing_decision
 
     runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
     runtime_cancel_registry.register(request)
     try:
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
-        response = supervisor_handler(request, preplanned_routing_decision)
+        response = supervisor_handler(request, runtime_routing_decision)
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
     except ExecutionCancelledError as exc:

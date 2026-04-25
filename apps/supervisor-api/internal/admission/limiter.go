@@ -113,8 +113,9 @@ type Controller struct {
 	active        int
 	draining      bool
 
-	laneOrder []string
-	lanes     map[string]*laneState
+	laneOrder         []string
+	lanes             map[string]*laneState
+	nextDispatchIndex int
 
 	queueFullCount      int
 	queueTimeoutCount   int
@@ -321,7 +322,15 @@ func (c *Controller) release(lane string) {
 func (c *Controller) dispatchLocked() {
 	for !c.draining && c.active < c.maxConcurrent {
 		dispatched := false
-		for _, name := range c.laneOrder {
+		if len(c.laneOrder) == 0 {
+			return
+		}
+		if c.nextDispatchIndex >= len(c.laneOrder) {
+			c.nextDispatchIndex = 0
+		}
+		for offset := range c.laneOrder {
+			index := (c.nextDispatchIndex + offset) % len(c.laneOrder)
+			name := c.laneOrder[index]
 			lane := c.lanes[name]
 			if c.active >= c.maxConcurrent {
 				break
@@ -335,7 +344,9 @@ func (c *Controller) dispatchLocked() {
 			lane.active++
 			next.decision = DecisionAdmittedQueued
 			close(next.ready)
+			c.nextDispatchIndex = (index + 1) % len(c.laneOrder)
 			dispatched = true
+			break
 		}
 		if !dispatched {
 			return
@@ -461,6 +472,9 @@ func (c *Controller) ensureLaneLocked(name string, cfg LaneConfig) *laneState {
 
 func (c *Controller) sortLaneOrderLocked() {
 	sort.Strings(c.laneOrder)
+	if c.nextDispatchIndex >= len(c.laneOrder) {
+		c.nextDispatchIndex = 0
+	}
 }
 
 func normalizeLane(lane string) string {

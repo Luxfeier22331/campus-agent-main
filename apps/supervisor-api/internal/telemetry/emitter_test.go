@@ -131,18 +131,23 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 
 	emitter.Emit(context.Background(), Event{
-		BridgeDuration:      25 * time.Millisecond,
-		Decision:            "admitted_immediate",
-		Duration:            50 * time.Millisecond,
-		FailureCode:         "timeout",
-		Lane:                "rag",
-		Name:                "answer.failed",
-		Outcome:             "supervisor_bridge_timeout",
-		QueueWait:           5 * time.Millisecond,
-		RequestID:           "req-attrs",
-		RequestedCapability: "knowledge",
-		StatusCode:          504,
-		TraceID:             "trace-attrs",
+		BridgeDuration:        25 * time.Millisecond,
+		ContextPreflightState: "not_follow_up",
+		Decision:              "admitted_immediate",
+		Duration:              50 * time.Millisecond,
+		FailureCode:           "timeout",
+		Lane:                  "rag",
+		Name:                  "answer.failed",
+		Outcome:               "supervisor_bridge_timeout",
+		PlanningOutcome:       "not_preplanned",
+		PolicyGateDecision:    "out_of_scope",
+		QueueWait:             5 * time.Millisecond,
+		RequestID:             "req-attrs",
+		RequestedCapability:   "knowledge",
+		RoutingNextAction:     "out_of_scope",
+		ScopeGateDecision:     "out_of_scope",
+		StatusCode:            504,
+		TraceID:               "trace-attrs",
 	})
 
 	spans := recorder.Ended()
@@ -151,21 +156,40 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 	attrs := spans[0].Attributes()
 	allowed := map[string]bool{
-		"bridge_duration_ms":   true,
-		"decision":             true,
-		"duration_ms":          true,
-		"failure_code":         true,
-		"lane":                 true,
-		"outcome":              true,
-		"queue_wait_ms":        true,
-		"request_id":           true,
-		"requested_capability": true,
-		"status_code":          true,
-		"trace_id":             true,
+		"bridge_duration_ms":      true,
+		"context_preflight_state": true,
+		"decision":                true,
+		"duration_ms":             true,
+		"failure_code":            true,
+		"lane":                    true,
+		"outcome":                 true,
+		"planning_outcome":        true,
+		"policy_gate_decision":    true,
+		"queue_wait_ms":           true,
+		"request_id":              true,
+		"requested_capability":    true,
+		"routing_next_action":     true,
+		"scope_gate_decision":     true,
+		"status_code":             true,
+		"trace_id":                true,
 	}
+	found := map[string]string{}
 	for _, attr := range attrs {
 		if !allowed[string(attr.Key)] {
 			t.Fatalf("unexpected telemetry attribute %q", attr.Key)
+		}
+		found[string(attr.Key)] = attr.Value.AsString()
+	}
+	expectedValues := map[string]string{
+		"scope_gate_decision":     "out_of_scope",
+		"policy_gate_decision":    "out_of_scope",
+		"context_preflight_state": "not_follow_up",
+		"routing_next_action":     "out_of_scope",
+		"planning_outcome":        "not_preplanned",
+	}
+	for key, want := range expectedValues {
+		if found[key] != want {
+			t.Fatalf("telemetry attribute %s = %q, want %q", key, found[key], want)
 		}
 	}
 	status := emitter.Status()
