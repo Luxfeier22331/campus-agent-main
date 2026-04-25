@@ -36,6 +36,7 @@ import { buildPublicRegulationMarkdown } from "../scripts/sync-real-docs/regulat
 import { formatJsonContent } from "../scripts/sync-real-docs/shared";
 import type { ObjectStoreClient } from "../scripts/sync-real-docs/storage";
 import { buildNodeKey, buildNodeOccurrenceKey } from "../src/components/course-map-types";
+import { buildLocalSearchFallbackResults } from "../src/search/local-search-fallback-core";
 
 class FakeObjectStore implements ObjectStoreClient {
 	private readonly objects: ReadonlyMap<string, Uint8Array | string>;
@@ -542,6 +543,41 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(css).toContain(".rspress-doc.docs-reader-wide");
 		expect(css).toContain(".rspress-doc.docs-reader-map");
 		expect(css).not.toContain(".rspress-doc table {\n\tdisplay: block;");
+	});
+
+	it("builds fallback local search suggestions from the generated search index shape", () => {
+		const results = buildLocalSearchFallbackResults("奖学金", [
+			{
+				title: "中央民族大学本科学生国家奖学金评审办法",
+				routePath: "/student-handbook/scholarship/national-scholarship-evaluation",
+				content: "第一条 为规范国家奖学金评审工作。",
+				toc: [{ id: "第一条", text: "第一条", charIndex: 0 }],
+			},
+		]);
+
+		expect(results[0]).toMatchObject({
+			type: "title",
+			title: "中央民族大学本科学生国家奖学金评审办法",
+			link: "/student-handbook/scholarship/national-scholarship-evaluation",
+			query: "奖学金",
+		});
+	});
+
+	it("falls back to section and content matches when titles do not match", () => {
+		const results = buildLocalSearchFallbackResults("毕业要求", [
+			{
+				title: "计算机类本科人才培养方案",
+				routePath: "/curriculum-plan/undergraduate/计算机类本科人才培养方案",
+				content: "二、毕业要求\n\n软件工程专业毕业要求包括知识、能力和素质要求。",
+				toc: [{ id: "二毕业要求", text: "二、毕业要求", charIndex: 0 }],
+			},
+		]);
+
+		expect(results.map((result) => result.type)).toEqual(["header", "content"]);
+		expect(results[0]).toMatchObject({
+			header: "计算机类本科人才培养方案 > 二、毕业要求",
+			link: "/curriculum-plan/undergraduate/计算机类本科人才培养方案#二毕业要求",
+		});
 	});
 
 	it("omits prose course-map headings when no published course-map surface exists", () => {
