@@ -99,6 +99,7 @@ var serviceGuideActionSignals = []string{
 	"办理时间",
 	"联系方式",
 	"联系谁",
+	"电话",
 	"补办",
 	"退宿",
 	"入住",

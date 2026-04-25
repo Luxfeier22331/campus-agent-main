@@ -60,6 +60,13 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
             "手续",
             "需要什么材料",
             "材料",
+            "在哪里办",
+            "在哪办",
+            "入口",
+            "办理时间",
+            "联系方式",
+            "联系谁",
+            "电话",
             "退宿",
             "入住",
             "不住宿",
@@ -184,6 +191,8 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
         "退宿怎么办",
         "公费医疗报销需要什么材料",
         "公费医疗报销怎么办理",
+        "公费医疗报销联系电话是多少",
+        "公费医疗报销办理时间是什么",
     )
     return tuple(
         IntentCase(
@@ -252,6 +261,8 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
         "宿舍入住怎么办理",
         "本科生退宿需要什么材料",
         "毕业生离校流程是什么",
+        "公费医疗报销需要什么材料",
+        "公费医疗报销联系电话是多少",
     )
     notice_goals = (
         "找一下春假通知",

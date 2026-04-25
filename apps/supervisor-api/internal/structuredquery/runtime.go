@@ -21,6 +21,7 @@ const (
 
 type Options struct {
 	ProjectionPath                  string
+	ServiceGuideProjectionPath      string
 	TrustedTimeRFC3339              string
 	NoticeReadModelStore            NoticeReadModelStore
 	NoticeBodyStore                 NoticeBodyStore
@@ -35,10 +36,11 @@ type Options struct {
 }
 
 type Runtime struct {
-	projectionPath       string
-	trustedTime          time.Time
-	noticeReadModelStore NoticeReadModelStore
-	noticeBodyStore      NoticeBodyStore
+	projectionPath             string
+	serviceGuideProjectionPath string
+	trustedTime                time.Time
+	noticeReadModelStore       NoticeReadModelStore
+	noticeBodyStore            NoticeBodyStore
 }
 
 type Status struct {
@@ -220,9 +222,10 @@ func NewRuntime(options Options) *Runtime {
 		})
 	}
 	runtime := &Runtime{
-		projectionPath:       strings.TrimSpace(options.ProjectionPath),
-		noticeReadModelStore: noticeReadModelStore,
-		noticeBodyStore:      noticeBodyStore,
+		projectionPath:             strings.TrimSpace(options.ProjectionPath),
+		serviceGuideProjectionPath: strings.TrimSpace(options.ServiceGuideProjectionPath),
+		noticeReadModelStore:       noticeReadModelStore,
+		noticeBodyStore:            noticeBodyStore,
 	}
 	if trustedTime := strings.TrimSpace(options.TrustedTimeRFC3339); trustedTime != "" {
 		parsed, err := time.Parse(time.RFC3339, trustedTime)
@@ -241,16 +244,20 @@ func (r *Runtime) Close() {
 
 func (r *Runtime) Status(ctx context.Context) Status {
 	status := Status{
-		Configured:       r.projectionPath != "",
+		Configured:       r.projectionPath != "" || r.serviceGuideProjectionPath != "",
 		ProjectionSource: "file",
 	}
-	if r.projectionPath == "" {
+	if r.projectionPath == "" && r.serviceGuideProjectionPath == "" {
 		status.ProjectionSource = ""
-	} else {
+	}
+	if r.projectionPath != "" {
 		bundle, err := r.loadBundle()
 		status.ServiceStatusProjectionReady = err == nil && len(bundle.ServiceStatusRecords) > 0
-		status.ServiceGuideProjectionReady = err == nil && len(bundle.ServiceGuideRecords) > 0
 		status.TransportScheduleImplemented = err == nil && len(bundle.TransportScheduleSnapshots) > 0
+	}
+	if r.serviceGuideProjectionPath != "" || r.projectionPath != "" {
+		bundle, err := r.loadServiceGuideBundle()
+		status.ServiceGuideProjectionReady = err == nil && len(bundle.ServiceGuideRecords) > 0
 	}
 	status.NoticeReadModelConfigured = r.noticeReadModelStore != nil
 	status.NoticeBodyStoreConfigured = r.noticeBodyStore != nil
@@ -384,10 +391,29 @@ func (r *Runtime) LookupTransportSchedule(ctx context.Context, rawBody []byte) R
 }
 
 func (r *Runtime) loadBundle() (projectionBundle, error) {
-	if r.projectionPath == "" {
+	return loadProjectionBundleFromPath(r.projectionPath)
+}
+
+func (r *Runtime) loadServiceGuideBundle() (projectionBundle, error) {
+	projectionPath := r.serviceGuideProjectionPath
+	if projectionPath == "" {
+		projectionPath = r.projectionPath
+	}
+	return loadProjectionBundleFromPath(
+		projectionPath,
+		"campus_services_service_guide_projection.v1",
+		"campus_services_projection_bundle.v1",
+	)
+}
+
+func loadProjectionBundleFromPath(
+	projectionPath string,
+	allowedSchemaVersions ...string,
+) (projectionBundle, error) {
+	if projectionPath == "" {
 		return projectionBundle{}, errors.New("projection path is not configured")
 	}
-	raw, err := os.ReadFile(r.projectionPath)
+	raw, err := os.ReadFile(projectionPath)
 	if err != nil {
 		return projectionBundle{}, err
 	}
@@ -395,7 +421,23 @@ func (r *Runtime) loadBundle() (projectionBundle, error) {
 	if err := json.Unmarshal(raw, &bundle); err != nil {
 		return projectionBundle{}, err
 	}
+	if len(allowedSchemaVersions) > 0 && !schemaVersionAllowed(
+		bundle.SchemaVersion,
+		allowedSchemaVersions,
+	) {
+		return projectionBundle{}, errors.New("projection schema version is not supported")
+	}
 	return bundle, nil
+}
+
+func schemaVersionAllowed(value string, allowedSchemaVersions []string) bool {
+	normalized := strings.TrimSpace(value)
+	for _, allowed := range allowedSchemaVersions {
+		if normalized == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runtime) timeAnchor() string {

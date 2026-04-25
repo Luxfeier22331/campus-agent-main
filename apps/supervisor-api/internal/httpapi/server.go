@@ -114,6 +114,7 @@ func NewServerWithDependencies(
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
 		ProjectionPath:                  cfg.StructuredQueryProjectionPath,
+		ServiceGuideProjectionPath:      cfg.ServiceGuideProjectionPath,
 		TrustedTimeRFC3339:              cfg.StructuredQueryTrustedTimeRFC3339,
 		NoticeReadModelDatabaseURL:      cfg.NoticeReadModelDatabaseURL,
 		NoticeReadModelTable:            cfg.NoticeReadModelTable,

@@ -63,11 +63,14 @@ Current status:
 - Hosts the gate-closed structured query runtime foundation for campus services
   and notice capabilities. `service_status_lookup` can read a configured file
   projection fixture for deterministic runtime tests; `transport_schedule_lookup`
-  can now resolve projection-backed schedule snapshot metadata, route
-  clarification, departures, service windows, timetables, and temporary
-  suspension summaries; `campus_notice_discover` / `campus_notice_get` read the
-  internal notice PG read model and S3-compatible derived canonical bodies. This
-  still does not open `campus_services` or `notice` product serving.
+  can resolve projection-backed schedule snapshot metadata, route clarification,
+  departures, service windows, timetables, and temporary suspension summaries;
+  `service_guide_lookup` reads a dedicated mounted service-guide projection for
+  source-linked guide sections, materials, entries, hours, contacts, eligibility
+  notes, ambiguity and fail-close outcomes; `campus_notice_discover` /
+  `campus_notice_get` read the internal notice PG read model and S3-compatible
+  derived canonical bodies. This still does not open `campus_services` or
+  `notice` product serving.
 - When `campus_services` or `notice` is explicitly opened, non-stream
   `/api/v1/answer` and lifecycle SSE `/api/v1/answer/stream` can execute those
   deterministic structured payloads directly in Go and shape a supervisor-style
@@ -143,7 +146,11 @@ Current structured query runtime boundary:
   as `*` or `all` are rejected.
 - `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` enables internal query auth.
 - `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` points at a dev/test file
-  projection bundle for the current foundation slice.
+  projection bundle for the current service status / transport foundation slice
+  and remains the fallback service-guide path for local fixtures.
+- `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH` points at the mounted readonly
+  `campus_services/service_guide` current projection used by
+  `service_guide_lookup`.
 - `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
   for deterministic tests; production should normally omit it.
 - `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
@@ -258,6 +265,7 @@ export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
 export SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES=1048576
 export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
 export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
+export SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
 export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=

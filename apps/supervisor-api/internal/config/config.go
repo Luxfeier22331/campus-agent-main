@@ -55,6 +55,7 @@ type Config struct {
 	QueryServingScopesPath            string
 	StructuredQuerySharedSecret       string
 	StructuredQueryProjectionPath     string
+	ServiceGuideProjectionPath        string
 	StructuredQueryTrustedTimeRFC3339 string
 	StructuredQueryTimeoutMS          int
 	PromptRuntimeProvider             string
@@ -121,6 +122,7 @@ type envValues struct {
 	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
 	StructuredQuerySharedSecret       string  `env:"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"`
 	StructuredQueryProjectionPath     string  `env:"SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH"`
+	ServiceGuideProjectionPath        string  `env:"SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH"`
 	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
 	StructuredQueryTimeoutMS          int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport            string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
@@ -211,6 +213,7 @@ func LoadFromEnv() (Config, error) {
 		QueryServingScopesPath:            strings.TrimSpace(values.QueryServingScopesPath),
 		StructuredQuerySharedSecret:       strings.TrimSpace(values.StructuredQuerySharedSecret),
 		StructuredQueryProjectionPath:     strings.TrimSpace(values.StructuredQueryProjectionPath),
+		ServiceGuideProjectionPath:        strings.TrimSpace(values.ServiceGuideProjectionPath),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
 		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
 		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),

@@ -196,6 +196,7 @@ func (s *Server) openStructuredRuntimeHealthy(status structuredquery.Status) boo
 	if s.config.CapabilityOpen("campus_services") &&
 		(!status.Configured ||
 			!status.ServiceStatusProjectionReady ||
+			!status.ServiceGuideProjectionReady ||
 			!status.TransportScheduleImplemented) {
 		return false
 	}

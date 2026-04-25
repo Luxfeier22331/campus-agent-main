@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-25
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 # Service Guide Lookup Contract
 
@@ -13,7 +13,7 @@ updated: 2026-04-25
 它覆盖：
 
 - `packages/contracts` 内后续 `ServiceGuideLookupPayload / Result` 的稳定语义
-- `packages/supervisor-core -> packages/campus-services-agent` 的 handoff seam
+- `apps/supervisor-agent-worker -> packages/campus-services-agent` 的 handoff seam
 - `campus-services-agent -> thin tool adapter -> internal query service`
   的 request/result seam
 - 办理指南、材料、入口说明、服务时间、联系方式、适用范围与 source refs 的 typed
@@ -28,10 +28,10 @@ updated: 2026-04-25
 
 ## 当前 Rollout 状态
 
-- 当前产品主路径尚未开放 `service_guide_lookup`
-- 当前 repo 代码尚未实现该 tool 的 shared contract、planner subtype、Go internal query
-  endpoint、Python thin adapter 或 eval lane
-- 本文只是冻结目标 contract 与数据面设计，不能被解释成 serving surface 已打开
+- 当前产品主路径仍未开放 `service_guide_lookup`
+- 当前 repo 已具备 shared contract、planner subtype、Go internal query endpoint、
+  Python thin adapter、source-truth projection builder 与 intent eval case
+- 已落地实现不等于 serving surface 已打开；opening gate 仍按本文条件收口
 - opening gate 仍取决于 backing projection、release-gate regression / eval evidence 与
   app-owned typed observability summary
 
@@ -285,7 +285,9 @@ ServiceGuideCandidate
 - builder 离线抽取 service records、section facts、materials、entry refs、office hours、
   contacts 与 source refs
 - builder 必须输出 validation summary 与 manual-review report
-- Go `apps/supervisor-api` 只读 mounted current projection file，不直接读取对象存储
+- Go `apps/supervisor-api` 通过 `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH` 只读 mounted
+  current projection file，不直接读取对象存储；`SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`
+  只作为本地 fixture / legacy shared bundle fallback，不是 service guide 的目标态主路径
 
 projection schema 细节见
 `docs/data/campus-services-service-guide-source-truth-schema.md`。

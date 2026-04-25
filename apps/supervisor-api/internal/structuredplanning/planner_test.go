@@ -148,6 +148,20 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "public medical service guide contact",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "公费医疗报销联系电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "公费医疗报销联系电话是多少",
+				"guide_focus":   "contact",
+			},
+		},
+		{
 			name: "notice discover",
 			request: Request{
 				EffectiveCapability: "notice",

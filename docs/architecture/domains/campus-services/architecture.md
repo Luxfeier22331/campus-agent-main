@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 # Campus Services Runtime Architecture
 
@@ -112,6 +112,9 @@ later-wave 已冻结方向包括：
     later-wave closed
 - `service_guide_lookup`
   - 只读 `campus_services/service_guide` guide-oriented projection
+  - Go runtime 通过 `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH` 读取 mounted
+    readonly current file；仅在本地 fixture / legacy shared bundle 测试中回退读取
+    `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`
   - handbook flow page、official-web 办事说明页与 future service entry page 只作为
     provenance 上游
   - handbook-derived first tracked source truth 已覆盖宿舍流程、公费医疗、学生证补办、
@@ -164,7 +167,8 @@ workflow。
 - versioned/current projection artifact 落在
   `campus_services/releases/transport_schedule/{release_id}/...`
 - Docker runtime 通过 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` 读取 mounted
-  readonly current file
+  readonly current file；service guide 使用独立
+  `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH`
 - Go `apps/supervisor-api` 不直接读对象存储、不持有对象存储凭据
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。

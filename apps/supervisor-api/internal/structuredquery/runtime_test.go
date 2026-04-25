@@ -359,6 +359,75 @@ func TestLookupServiceGuideReturnsPublicMedicalRequiredMaterials(t *testing.T) {
 	}
 }
 
+func TestLookupServiceGuideUsesDedicatedProjectionPath(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath: writeTransportProjectionFixture(t, transportProjectionFixture()),
+		ServiceGuideProjectionPath: writeTransportProjectionFixture(
+			t,
+			serviceGuidePublicMedicalProjectionFixture(),
+		),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"公费医疗报销需要什么材料",
+		"guide_focus":"required_materials",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.DisplayName != "公费医疗报销办理指南" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+}
+
+func TestLookupServiceGuideFailsClosedForManualReviewSource(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuideManualReviewSourceFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"宿舍入住怎么办理",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "manual_review_required" {
+		t.Fatalf("fail_close_reason = %q, want manual_review_required", result.FailCloseReason)
+	}
+}
+
+func TestLookupServiceGuideRejectsInvalidTemporalQuery(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuideProjectionFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"宿舍入住怎么办理",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current_year"},
+		"audience":"student"
+	}`))
+
+	if response.StatusCode != 400 {
+		t.Fatalf("status = %d, want 400", response.StatusCode)
+	}
+	if response.Outcome != "invalid_request" {
+		t.Fatalf("outcome = %q, want invalid_request", response.Outcome)
+	}
+}
+
 func TestLookupServiceGuideFailsClosedWhenRequestedFocusIsNotBackedBySource(t *testing.T) {
 	runtime := NewRuntime(Options{
 		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuidePublicMedicalProjectionFixture()),
@@ -660,6 +729,15 @@ func serviceGuideManualReviewFixture() string {
 		serviceGuideProjectionFixture(),
 		`"extraction_status":"ready"`,
 		`"extraction_status":"needs_manual_review"`,
+		1,
+	)
+}
+
+func serviceGuideManualReviewSourceFixture() string {
+	return strings.Replace(
+		serviceGuideProjectionFixture(),
+		`"manual_review_sources":[]`,
+		`"manual_review_sources":[{"service_id":"service:handbook:check-in","source_ref":"handbook:student_rules:pages:252-255#page=253","reason":"test_manual_review","notes":["人工确认"]}]`,
 		1,
 	)
 }

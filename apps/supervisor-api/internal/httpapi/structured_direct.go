@@ -557,9 +557,15 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			}
 		case structuredquery.ToolServiceGuideLookup:
 			service := stringValue(nestedMap(result, "resolved_service")["display_name"])
-			sections := serviceGuideSectionContents(result["guide_sections"])
-			if service != "" && sections != "" {
-				return service + "：\n" + sections
+			guideText := serviceGuideAnswerContents(result)
+			if service != "" && guideText != "" {
+				return service + "：\n" + guideText
+			}
+			if guideText != "" {
+				return guideText
+			}
+			if service != "" {
+				return service
 			}
 		case structuredquery.ToolTransportScheduleLookup:
 			route := stringValue(nestedMap(result, "resolved_route")["display_name"])
@@ -664,6 +670,136 @@ func serviceGuideSectionContents(raw any) string {
 		}
 	}
 	return strings.Join(contents, "\n")
+}
+
+func serviceGuideAnswerContents(result map[string]any) string {
+	if sections := serviceGuideSectionContents(result["guide_sections"]); sections != "" {
+		return sections
+	}
+	if materials := serviceGuideMaterialContents(result["required_materials"]); materials != "" {
+		return materials
+	}
+	if entries := serviceGuideEntryContents(result["entry_refs"]); entries != "" {
+		return entries
+	}
+	if hours := serviceGuideHoursContents(result["office_hours"]); hours != "" {
+		return hours
+	}
+	if contacts := serviceGuideContactContents(result["contact_refs"]); contacts != "" {
+		return contacts
+	}
+	return strings.Join(stringSliceValue(result["eligibility_notes"]), "、")
+}
+
+func serviceGuideMaterialContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		material, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		name := stringValue(material["name"])
+		if name != "" {
+			contents = append(contents, name)
+		}
+	}
+	return strings.Join(contents, "、")
+}
+
+func serviceGuideEntryContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		label := stringValue(entry["label"])
+		if label != "" {
+			contents = append(contents, label)
+		}
+	}
+	return strings.Join(contents, "、")
+}
+
+func serviceGuideHoursContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		hours, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		text := stringValue(hours["time_range"])
+		if text == "" {
+			text = stringValue(hours["effective_note"])
+		}
+		if text != "" {
+			contents = append(contents, text)
+		}
+	}
+	return strings.Join(contents, "、")
+}
+
+func serviceGuideContactContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		contact, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if text := serviceGuideContactText(contact); text != "" {
+			contents = append(contents, text)
+		}
+	}
+	return strings.Join(contents, "、")
+}
+
+func serviceGuideContactText(contact map[string]any) string {
+	parts := []string{}
+	label := stringValue(contact["label"])
+	department := stringValue(contact["department"])
+	if label != "" {
+		parts = append(parts, label)
+	}
+	if department != "" && department != label {
+		parts = append(parts, department)
+	}
+	for _, key := range []string{"phone", "email"} {
+		if value := stringValue(contact[key]); value != "" {
+			parts = append(parts, value)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func stringSliceValue(raw any) []string {
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		value := stringValue(item)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func stringValue(value any) string {

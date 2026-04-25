@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -188,8 +189,8 @@ func (r *Runtime) LookupServiceGuide(ctx context.Context, rawBody []byte) Respon
 	if !isAllowedServiceGuideFocus(request.GuideFocus) {
 		return invalidRequest("unsupported guide_focus: " + request.GuideFocus)
 	}
-	if request.ResultLimit != nil && *request.ResultLimit <= 0 {
-		return invalidRequest("result_limit must be positive.")
+	if err := validateServiceGuideRequest(request); err != nil {
+		return invalidRequest(err.Error())
 	}
 	if err := ctx.Err(); err != nil {
 		return failClosedServiceGuide(request, r.timeAnchor(), "source_truth_unavailable")
@@ -222,8 +223,32 @@ func isAllowedServiceGuideFocus(value string) bool {
 	}
 }
 
+func validateServiceGuideRequest(request serviceGuideRequest) error {
+	switch request.TemporalQuery.Mode {
+	case "current", "latest", "effective", "as_of", "current_year":
+	default:
+		return fmt.Errorf("unsupported temporal_query.mode: %s", request.TemporalQuery.Mode)
+	}
+	if request.TemporalQuery.Mode == "as_of" && request.TemporalQuery.AsOf == "" {
+		return errors.New("temporal_query.as_of is required when mode is as_of")
+	}
+	if request.TemporalQuery.Mode != "as_of" && request.TemporalQuery.AsOf != "" {
+		return errors.New("temporal_query.as_of is only allowed when mode is as_of")
+	}
+	if request.TemporalQuery.Mode == "current_year" && request.TemporalQuery.YearHint == "" {
+		return errors.New("temporal_query.year_hint is required when mode is current_year")
+	}
+	if request.TemporalQuery.Mode != "current_year" && request.TemporalQuery.YearHint != "" {
+		return errors.New("temporal_query.year_hint is only allowed when mode is current_year")
+	}
+	if request.ResultLimit != nil && *request.ResultLimit <= 0 {
+		return errors.New("result_limit must be positive")
+	}
+	return nil
+}
+
 func (r *Runtime) lookupServiceGuide(ctx context.Context, request serviceGuideRequest) Response {
-	bundle, err := r.loadBundle()
+	bundle, err := r.loadServiceGuideBundle()
 	timeAnchor := r.timeAnchor()
 	if err != nil {
 		return failClosedServiceGuide(request, timeAnchor, "source_truth_unavailable")
@@ -268,6 +293,9 @@ func (r *Runtime) lookupServiceGuide(ctx context.Context, request serviceGuideRe
 	record := matches[0].record
 	if serviceGuideHasConflict(record.ServiceID, bundle.ServiceGuideConflicts) {
 		return failClosedServiceGuide(request, timeAnchor, "source_conflict")
+	}
+	if serviceGuideRequiresManualReview(record.ServiceID, bundle.ServiceGuideManualReviews) {
+		return failClosedServiceGuide(request, timeAnchor, "manual_review_required")
 	}
 	status, err := validateServiceGuideRecord(record)
 	if err != nil {
@@ -361,6 +389,19 @@ func serviceGuideNonReadyReason(record serviceGuideRecord) string {
 func serviceGuideHasConflict(serviceID string, conflicts []serviceGuideConflictRecord) bool {
 	for _, conflict := range conflicts {
 		if strings.TrimSpace(conflict.ServiceID) == serviceID {
+			return true
+		}
+	}
+	return false
+}
+
+func serviceGuideRequiresManualReview(
+	serviceID string,
+	manualReviews []serviceGuideManualReviewRecord,
+) bool {
+	for _, review := range manualReviews {
+		reviewServiceID := strings.TrimSpace(review.ServiceID)
+		if reviewServiceID == "" || reviewServiceID == serviceID {
 			return true
 		}
 	}

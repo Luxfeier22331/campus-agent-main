@@ -310,6 +310,67 @@ func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T
 	}
 }
 
+func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailable(t *testing.T) {
+	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"service_status_records":[
+			{
+				"subject_id":"library-haidian",
+				"display_name":"海淀校区图书馆",
+				"aliases":["图书馆"],
+				"campus_scope":"haidian",
+				"observed_status":"open",
+				"effective_from":"2026-04-24T08:00:00+08:00",
+				"effective_until":"2026-04-24T22:00:00+08:00",
+				"override_source_refs":["notice:library-hours"],
+				"related_notice_refs":["notice:library-hours"]
+			}
+		],
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:bus-schedule-2026-04-20",
+				"is_current":true
+			}
+		]
+	}`)
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		OpenCapabilities:              []string{"campus_services"},
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		AgentPromptModel:              "gpt-agent",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+		StructuredQueryProjectionPath: projectionPath,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body:       json.RawMessage(`{"status":"ready"}`),
+		},
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
+	if structuredQueryRuntime["service_status_projection_ready"] != true ||
+		structuredQueryRuntime["transport_schedule_implemented"] != true ||
+		structuredQueryRuntime["service_guide_projection_ready"] != false {
+		t.Fatalf("unexpected structured_query_runtime: %#v", structuredQueryRuntime)
+	}
+}
+
 func TestReadyzDegradesWhenOpenedNoticeRuntimeIsUnavailable(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:                       "campus-agent",
@@ -2009,7 +2070,7 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 }
 
 func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T) {
-	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+	serviceGuideProjectionPath := writeStructuredQueryProjectionFixture(t, `{
 		"schema_version":"campus_services_service_guide_projection.v1",
 		"generated_at":"2026-04-25T10:00:00+08:00",
 		"source_families":["handbook_service_navigation_projection_v1"],
@@ -2045,11 +2106,16 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 		"conflict_records":[],
 		"manual_review_sources":[]
 	}`)
+	sharedProjectionPath := writeStructuredQueryProjectionFixture(t, `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[]
+	}`)
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
 		StructuredQuerySharedSecret:       "query-secret",
-		StructuredQueryProjectionPath:     projectionPath,
+		StructuredQueryProjectionPath:     sharedProjectionPath,
+		ServiceGuideProjectionPath:        serviceGuideProjectionPath,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
 	}, nil)
 
