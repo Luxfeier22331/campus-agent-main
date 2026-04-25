@@ -1,23 +1,18 @@
 from __future__ import annotations
 
 import json
-import threading
 import unittest
+import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from unittest.mock import patch
 
 from campus_contracts import (
-    CampusNoticeDiscoverPayload,
     KnowledgeScope,
     RagRequestPayload,
     SupervisorRequest,
     SupervisorResponse,
-    TransportScheduleLookupPayload,
     VersionQuery,
 )
 from campus_supervisor_core import InvalidSupervisorRequestError
-from campus_supervisor_core.intent import IntentFrame
-from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core_worker.app import create_bridge_app
 from campus_supervisor_core_worker.api_request_parsing import _parse_bridge_supervisor_envelope
 from campus_supervisor_core_worker.settings import ApiSettings
@@ -32,6 +27,7 @@ def _bridge_v2_payload(
     lane: str = "rag",
     context: dict[str, object] | None = None,
     version_query: dict[str, object] | None = None,
+    preplan_delegate: bool = True,
 ) -> dict[str, object]:
     if context is None:
         context = {
@@ -48,7 +44,7 @@ def _bridge_v2_payload(
         }
     if version_query is None:
         version_query = {"mode": "current"}
-    return {
+    body: dict[str, object] = {
         "bridge_version": "supervisor_bridge_v2",
         "user_goal": user_goal,
         "request_id": request_id,
@@ -106,6 +102,64 @@ def _bridge_v2_payload(
                 "context_reference_type": "none",
                 "resolved_slots": {},
                 "ambiguity_reason": "",
+            },
+        },
+    }
+    if preplan_delegate:
+        runtime_decisions = body["runtime_decisions"]
+        assert isinstance(runtime_decisions, dict)
+        runtime_decisions.update(
+            _preplanned_handoff_fields_for_capability(
+                effective_capability=effective_capability,
+                user_goal=user_goal,
+                version_query=version_query,
+            )
+        )
+    return body
+
+
+def _preplanned_handoff_fields_for_capability(
+    *,
+    effective_capability: str,
+    user_goal: str,
+    version_query: dict[str, object],
+) -> dict[str, object]:
+    if effective_capability == "campus_services":
+        return {
+            "planning_outcome": "preplanned",
+            "preplanned_target": "campus-services-agent",
+            "allowed_tools": ["transport_schedule_lookup"],
+            "specialist_payload": {
+                "kind": "transport_schedule_lookup",
+                "payload": {
+                    "query_text": user_goal,
+                    "intent": "timetable",
+                    "snapshot_query": {"mode": "current"},
+                },
+            },
+        }
+    if effective_capability == "notice":
+        return {
+            "planning_outcome": "preplanned",
+            "preplanned_target": "notice-agent",
+            "allowed_tools": ["campus_notice_discover"],
+            "specialist_payload": {
+                "kind": "campus_notice_discover",
+                "payload": {
+                    "query_text": user_goal,
+                    "temporal_query": {"mode": "current"},
+                },
+            },
+        }
+    return {
+        "planning_outcome": "preplanned",
+        "preplanned_target": "rag-agent",
+        "allowed_tools": [],
+        "specialist_payload": {
+            "kind": "rag_request",
+            "payload": {
+                "scope": None,
+                "version_query": version_query,
             },
         },
     }
@@ -404,16 +458,12 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             },
         }
 
-        with patch(
-            "campus_supervisor_core.agent.route_request",
-            side_effect=AssertionError("Python routing must not own Go policy decisions"),
-        ):
-            response = app.handle(
-                "POST",
-                "/internal/bridge/supervisor/answer",
-                headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                json_body=body,
-            )
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=body,
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["status"], "no_answer")
@@ -464,6 +514,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 user_goal="学生手册请假制度怎么规定？",
                 request_id="req-missing-preplanned-handoff",
                 trace_id="trace-missing-preplanned-handoff",
+                preplan_delegate=False,
             ),
         )
 
@@ -706,41 +757,26 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                     structured_query_timeout_seconds=0.75,
                 )
             )
-            with patch(
-                "campus_supervisor_core.agent.route_request",
-                return_value=RoutingDecision(
-                    target="campus-services-agent",
-                    primary_corpus=None,
-                    primary_collection=None,
-                    intent_frame=IntentFrame(
-                        capability="knowledge",
-                        task_kind="knowledge_lookup",
-                        domain_candidates=("campus_services",),
-                        missing_slots=(),
-                        risk_level="low",
-                        needs_clarification=False,
-                        suggested_next_action="delegate",
-                        scope_class="in_scope",
-                    ),
-                    specialist_payload=TransportScheduleLookupPayload(
-                        query_text="最近一版校车时刻表是什么时候发布的",
-                        intent="schedule_snapshot_metadata",
-                    ),
-                    allowed_tools=("transport_schedule_lookup",),
+            response = app.handle(
+                "POST",
+                "/internal/bridge/supervisor/answer",
+                headers={"x-supervisor-bridge-auth": "bridge-secret"},
+                json_body=_bridge_v2_payload_with_preplanned_handoff(
+                    user_goal="最近一版校车时刻表是什么时候发布的",
+                    request_id="req-campus-services-query",
+                    trace_id="trace-campus-services-query",
+                    effective_capability="campus_services",
+                    lane="campus_services",
+                    preplanned_target="campus-services-agent",
+                    payload_kind="transport_schedule_lookup",
+                    allowed_tools=["transport_schedule_lookup"],
+                    payload={
+                        "query_text": "最近一版校车时刻表是什么时候发布的",
+                        "intent": "schedule_snapshot_metadata",
+                        "snapshot_query": {"mode": "current"},
+                    },
                 ),
-            ):
-                response = app.handle(
-                    "POST",
-                    "/internal/bridge/supervisor/answer",
-                    headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                    json_body=_bridge_v2_payload(
-                        user_goal="最近一版校车时刻表是什么时候发布的",
-                        request_id="req-campus-services-query",
-                        trace_id="trace-campus-services-query",
-                        effective_capability="campus_services",
-                        lane="campus_services",
-                    ),
-                )
+            )
         finally:
             if app is not None:
                 app.close()
@@ -807,34 +843,30 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                     structured_query_timeout_seconds=0.75,
                 )
             )
-            with patch(
-                "campus_supervisor_core.agent.route_request",
-                side_effect=AssertionError("Python routing must not build preplanned payload"),
-            ):
-                response = app.handle(
-                    "POST",
-                    "/internal/bridge/supervisor/answer",
-                    headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                    json_body=_bridge_v2_payload_with_preplanned_handoff(
-                        user_goal="最早的班车几点",
-                        request_id="req-go-preplanned-transport",
-                        trace_id="trace-go-preplanned-transport",
-                        effective_capability="campus_services",
-                        lane="campus_services",
-                        preplanned_target="campus-services-agent",
-                        payload_kind="transport_schedule_lookup",
-                        allowed_tools=["transport_schedule_lookup"],
-                        payload={
-                            "query_text": "最早的班车几点",
-                            "intent": "first_departure",
-                            "snapshot_query": {"mode": "current"},
-                            "service_time_query": {
-                                "date_mode": "tomorrow",
-                                "daypart": "morning",
-                            },
+            response = app.handle(
+                "POST",
+                "/internal/bridge/supervisor/answer",
+                headers={"x-supervisor-bridge-auth": "bridge-secret"},
+                json_body=_bridge_v2_payload_with_preplanned_handoff(
+                    user_goal="最早的班车几点",
+                    request_id="req-go-preplanned-transport",
+                    trace_id="trace-go-preplanned-transport",
+                    effective_capability="campus_services",
+                    lane="campus_services",
+                    preplanned_target="campus-services-agent",
+                    payload_kind="transport_schedule_lookup",
+                    allowed_tools=["transport_schedule_lookup"],
+                    payload={
+                        "query_text": "最早的班车几点",
+                        "intent": "first_departure",
+                        "snapshot_query": {"mode": "current"},
+                        "service_time_query": {
+                            "date_mode": "tomorrow",
+                            "daypart": "morning",
                         },
-                    ),
-                )
+                    },
+                ),
+            )
         finally:
             if app is not None:
                 app.close()
@@ -899,55 +931,40 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                     structured_query_timeout_seconds=0.75,
                 )
             )
-            with patch(
-                "campus_supervisor_core.agent.route_request",
-                return_value=RoutingDecision(
-                    target="notice-agent",
-                    primary_corpus=None,
-                    primary_collection=None,
-                    intent_frame=IntentFrame(
-                        capability="notice",
-                        task_kind="notice_lookup",
-                        domain_candidates=("notice",),
-                        missing_slots=(),
-                        risk_level="low",
-                        needs_clarification=False,
-                        suggested_next_action="delegate",
-                        scope_class="in_scope",
-                    ),
-                    specialist_payload=CampusNoticeDiscoverPayload(
-                        query_text="家具采购",
-                        source_families=("internal_notice_restricted",),
-                    ),
-                    allowed_tools=("campus_notice_discover",),
-                ),
-            ):
-                response = app.handle(
-                    "POST",
-                    "/internal/bridge/supervisor/answer",
-                    headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                    json_body=_bridge_v2_payload(
-                        user_goal="找一下家具采购通知",
-                        request_id="req-notice-query",
-                        trace_id="trace-notice-query",
-                        effective_capability="notice",
-                        lane="notice",
-                        context={
-                            "actor": {
-                                "user_id": "student@example.edu",
-                            },
-                            "authorization": {
-                                "principal_id": "principal-001",
+            response = app.handle(
+                "POST",
+                "/internal/bridge/supervisor/answer",
+                headers={"x-supervisor-bridge-auth": "bridge-secret"},
+                json_body=_bridge_v2_payload_with_preplanned_handoff(
+                    user_goal="找一下家具采购通知",
+                    request_id="req-notice-query",
+                    trace_id="trace-notice-query",
+                    effective_capability="notice",
+                    lane="notice",
+                    preplanned_target="notice-agent",
+                    payload_kind="campus_notice_discover",
+                    allowed_tools=["campus_notice_discover"],
+                    payload={
+                        "query_text": "家具采购",
+                        "temporal_query": {"mode": "current"},
+                        "source_families": ["internal_notice_restricted"],
+                    },
+                    context={
+                        "actor": {
+                            "user_id": "student@example.edu",
+                        },
+                        "authorization": {
+                            "principal_id": "principal-001",
+                            "entitlement_groups": ["students"],
+                            "retrieval_filter": {
                                 "entitlement_groups": ["students"],
-                                "retrieval_filter": {
-                                    "entitlement_groups": ["students"],
-                                    "visibility_level": "restricted",
-                                    "policy_projection_version": "phase1-authorization-projection-v1",
-                                },
+                                "visibility_level": "restricted",
+                                "policy_projection_version": "phase1-authorization-projection-v1",
                             },
                         },
-                    ),
-                )
+                    },
+                ),
+            )
         finally:
             if app is not None:
                 app.close()
