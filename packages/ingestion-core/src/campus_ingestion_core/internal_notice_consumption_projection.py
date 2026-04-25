@@ -54,6 +54,8 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
     NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
     NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
+    NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
+    NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
     NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
     NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT,
     NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING,
@@ -66,6 +68,8 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+    NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
+    NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
     NOTICE_TARGET_SURFACE_UNSUPPORTED,
     NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
     NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE,
@@ -611,6 +615,10 @@ def _build_notice_level_entries(
     category_role = _resolve_notice_level_primary_role(inventory_entry)
     if _looks_like_service_status_override_notice(inventory_entry):
         entries.append(_build_service_status_override_entry(inventory_entry))
+    if _looks_like_special_service_notice(inventory_entry):
+        entries.append(_build_special_service_notice_entry(inventory_entry))
+    if _looks_like_stable_contact_update_notice(inventory_entry):
+        entries.append(_build_stable_contact_update_entry(inventory_entry))
     if category_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE:
         entries.append(_build_procurement_notice_entry(inventory_entry))
     elif category_role in {
@@ -750,6 +758,66 @@ def _build_service_status_override_entry(
             "notice_title": notice_title,
             "notice_category": NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
             "notice_query_reason": "service_status_not_admitted",
+        },
+    )
+
+
+def _build_special_service_notice_entry(
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+) -> NoticeConsumptionProjectionEntry:
+    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
+    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
+    return NoticeConsumptionProjectionEntry(
+        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
+        source_corpus=inventory_entry.corpus,
+        source_collection=inventory_entry.collection,
+        source_notice_id=inventory_entry.notice_id,
+        unit_id=f"notice_unit:{inventory_entry.document_id}:special_service_notice",
+        primary_role=NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
+        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
+        target_surface=NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
+        temporal_policy=NOTICE_TEMPORAL_POLICY_TIME_WINDOWED,
+        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
+        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        source_notice_document_id=inventory_entry.document_id,
+        source_document_id=inventory_entry.document_id,
+        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
+        role_metadata={
+            "notice_title": notice_title,
+            "notice_category": NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
+            "notice_query_reason": "special_service_not_admitted",
+        },
+    )
+
+
+def _build_stable_contact_update_entry(
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+) -> NoticeConsumptionProjectionEntry:
+    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
+    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
+    return NoticeConsumptionProjectionEntry(
+        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
+        source_corpus=inventory_entry.corpus,
+        source_collection=inventory_entry.collection,
+        source_notice_id=inventory_entry.notice_id,
+        unit_id=f"notice_unit:{inventory_entry.document_id}:stable_contact_update",
+        primary_role=NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
+        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
+        target_surface=NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
+        temporal_policy=NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
+        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
+        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        source_notice_document_id=inventory_entry.document_id,
+        source_document_id=inventory_entry.document_id,
+        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
+        role_metadata={
+            "notice_title": notice_title,
+            "notice_category": NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
+            "notice_query_reason": "stable_contact_not_admitted",
         },
     )
 
@@ -1388,6 +1456,100 @@ def _looks_like_service_status_override_notice(
         )
     )
     return service_signal and (bounded_time_signal or service_owner_signal)
+
+
+def _looks_like_special_service_notice(
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+) -> bool:
+    title = _notice_title_compact(inventory_entry)
+    if not title:
+        return False
+    medical_special_signal = any(
+        keyword in title
+        for keyword in (
+            "HPV",
+            "hpv",
+            "九价",
+            "四价",
+            "二价",
+            "叶酸",
+        )
+    )
+    service_action_signal = any(
+        keyword in title
+        for keyword in (
+            "预约",
+            "接种",
+            "领取",
+            "开放",
+            "办理",
+            "登记",
+        )
+    )
+    return medical_special_signal and service_action_signal
+
+
+def _looks_like_stable_contact_update_notice(
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+) -> bool:
+    title = _notice_title_compact(inventory_entry)
+    if not title:
+        return False
+    if _looks_like_activity_or_ephemeral_contact_notice_title(title):
+        return False
+    contact_signal = any(
+        keyword in title
+        for keyword in (
+            "联系方式",
+            "联系电话",
+            "办公电话",
+            "咨询电话",
+            "服务热线",
+            "服务电话",
+            "联系邮箱",
+            "办公地点",
+        )
+    )
+    stable_change_signal = any(
+        keyword in title
+        for keyword in (
+            "调整",
+            "变更",
+            "更新",
+            "启用",
+            "公布",
+            "公告",
+            "迁址",
+            "搬迁",
+        )
+    )
+    return contact_signal and stable_change_signal
+
+
+def _looks_like_activity_or_ephemeral_contact_notice_title(title: str) -> bool:
+    return any(
+        keyword in title
+        for keyword in (
+            "活动",
+            "讲座",
+            "会议",
+            "培训",
+            "比赛",
+            "竞赛",
+            "征集",
+            "招募",
+            "志愿者",
+            "报名",
+            "论坛",
+            "展览",
+            "演出",
+        )
+    )
+
+
+def _notice_title_compact(inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry) -> str:
+    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
+    return "".join(str(parent_snapshot.get("notice_title") or "").split())
 
 
 def _looks_like_attachment_form_template_plan(plan: Mapping[str, object]) -> bool:

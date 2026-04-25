@@ -47,6 +47,7 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    replace_scope=True,
                 ),
                 env=env,
                 object_store=object_store,
@@ -73,6 +74,109 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
         self.assertTrue(entry.content_blocks_key.endswith("/source-truth/content-blocks.jsonl"))
         self.assertTrue(entry.attachment_refs_key.endswith("/source-truth/attachment-refs.jsonl"))
         self.assertEqual(entry.parent_snapshot["notice_release_time"], "2026-04-02 18:49")
+
+    def test_incremental_notice_type_import_upserts_without_shrinking_existing_scope(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            existing_bundle_path = root / "notices-bundle-existing.json"
+            existing_manifest_path = root / "export-manifest-existing.json"
+            incremental_bundle_path = root / "notices-bundle-incremental.json"
+            incremental_manifest_path = root / "export-manifest-incremental.json"
+
+            existing_bundle = _sample_notice_bundle()
+            existing_manifest = _sample_export_manifest()
+            existing_manifest["filters"] = {
+                **dict(existing_manifest["filters"]),
+                "selected_notice_ids": ["355119"],
+            }
+
+            incremental_bundle = copy.deepcopy(_sample_notice_bundle())
+            incremental_bundle[0]["notice_id"] = 355120
+            incremental_bundle[0]["notice"]["notice_id"] = 355120
+            incremental_bundle[0]["notice"]["notice_title"] = "第二条类型补宽通知"
+            incremental_bundle[0]["notice"]["notice_content"] = "<p>第二条类型补宽通知正文</p>"
+            incremental_bundle[0]["notice"]["categories"][0]["notice_id"] = 355120
+            for relation in incremental_bundle[0]["notice_attachments"]:
+                relation["notice_id"] = 355120
+            for link in incremental_bundle[0]["links"]:
+                link["notice_id"] = 355120
+
+            incremental_manifest = _sample_export_manifest()
+            incremental_manifest["filters"] = {
+                "collection_mode": "incremental",
+                "max_notices": None,
+                "notice_types": ["6"],
+            }
+
+            _write_json(existing_bundle_path, existing_bundle)
+            _write_json(existing_manifest_path, existing_manifest)
+            _write_json(incremental_bundle_path, incremental_bundle)
+            _write_json(incremental_manifest_path, incremental_manifest)
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=existing_bundle_path,
+                    export_manifest_path=existing_manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+            incremental_report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=incremental_bundle_path,
+                    export_manifest_path=incremental_manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(incremental_report["errors"], [])
+        self.assertEqual(incremental_report["scope_write_mode"], "upsert_selected")
+        self.assertEqual(incremental_report["selected_notice_ids"], ["355120"])
+        self.assertEqual(
+            tuple(
+                entry.notice_id
+                for entry in inventory_store.list_by_scope("campus_notices", "internal_notice")
+            ),
+            ("355119", "355120"),
+        )
+        self.assertEqual(
+            sorted(
+                record.document_id
+                for record in document_registry.list_by_scope("campus_notices", "internal_notice")
+                if record.document_id.startswith("notice:")
+            ),
+            [
+                "notice:muc_internal_portal:355119",
+                "notice:muc_internal_portal:355120",
+            ],
+        )
 
     def test_selected_import_upserts_source_truth_inventory_without_shrinking_existing_scope(
         self,

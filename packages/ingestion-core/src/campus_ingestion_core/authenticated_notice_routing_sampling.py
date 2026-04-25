@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -25,9 +26,16 @@ _NOTICE_LEVEL_QUERY_FAMILIES = frozenset(
         "academic_affairs_lifecycle",
         "finance_payment_action",
         "health_medical_action",
+        "health_welfare_service_notice",
         "form_template_download",
         "survey_feedback_collection",
         "library_resource_notice",
+        "academic_course_exam_operation",
+        "academic_program_selection",
+        "student_status_registration",
+        "student_program_award_selection",
+        "it_platform_operation_notice",
+        "library_acquisition_service",
     }
 )
 _SERVICE_STATUS_CANDIDATE_FAMILIES = frozenset(
@@ -37,6 +45,7 @@ _SERVICE_STATUS_CANDIDATE_FAMILIES = frozenset(
         "it_platform_service_status",
         "library_service_status",
         "transport_commute_status",
+        "facility_transport_classroom_status",
     }
 )
 _LOW_VALUE_MACHINE_SKIP_FAMILIES = frozenset(
@@ -48,6 +57,11 @@ _LOW_VALUE_MACHINE_SKIP_FAMILIES = frozenset(
         "job_recruitment",
         "internal_governance_party_admin",
         "general_publicity_culture",
+        "staff_internal_admin",
+        "research_publicity_call",
+        "governance_party_life",
+        "culture_publicity_activity",
+        "campus_news_publicity",
     }
 )
 _MACHINE_PROCESSING_VALUE_TERMS = (
@@ -70,6 +84,56 @@ _MACHINE_PROCESSING_VALUE_TERMS = (
     "资格审核",
     "提交",
     "报送",
+)
+_REVIEW_LATER_ACTION_TERMS = (
+    "报名",
+    "提交",
+    "报送",
+    "领取",
+    "缴费",
+    "扣款",
+    "办理",
+    "申请",
+    "申报",
+    "确认",
+    "下载",
+    "查询",
+    "考试",
+    "评审",
+    "招录",
+    "选拔",
+)
+_REVIEW_LATER_SERVICE_TERMS = (
+    "开放",
+    "暂停",
+    "调整",
+    "维护",
+    "停用",
+    "恢复",
+    "关闭",
+    "试运行",
+    "运营",
+    "停电",
+    "断网",
+    "班车",
+    "教室",
+    "图书馆",
+    "门户",
+)
+_REVIEW_LATER_PUBLICITY_TERMS = (
+    "预告",
+    "展映",
+    "活动总结",
+    "倡议",
+    "简报",
+    "喜讯",
+    "讲座",
+    "沙龙",
+    "论坛",
+    "文化节",
+    "征文",
+    "竞赛",
+    "比赛",
 )
 
 
@@ -108,6 +172,35 @@ class AuthenticatedNoticeRoutingSampleReport:
     samples: tuple[AuthenticatedNoticeRoutingSample, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeRoutingReviewLaterCluster:
+    cluster_id: str
+    count: int
+    notice_type_names: tuple[str, ...]
+    title_signature: str
+    action_signals: tuple[str, ...]
+    service_signals: tuple[str, ...]
+    publicity_signals: tuple[str, ...]
+    attachment_bucket: str
+    recommended_action: str
+    sample_notice_ids: tuple[str, ...]
+    sample_titles: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeRoutingAuditReport:
+    source_corpus: str
+    source_collection: str
+    notice_count: int
+    family_counts: dict[str, int]
+    admission_policy_counts: dict[str, int]
+    suggested_consumption_route_counts: dict[str, int]
+    machine_processing_policy_counts: dict[str, int]
+    review_later_count: int
+    review_later_notices: tuple[AuthenticatedNoticeRoutingSample, ...]
+    review_later_clusters: tuple[AuthenticatedNoticeRoutingReviewLaterCluster, ...]
+
+
 def build_authenticated_notice_routing_sample_report_from_bundle_records(
     *,
     bundle_records: Sequence[Mapping[str, Any]],
@@ -122,6 +215,39 @@ def build_authenticated_notice_routing_sample_report_from_bundle_records(
         source_collection=config.collection,
         sample_limit_per_group=sample_limit_per_group,
         boundary_sample_limit=boundary_sample_limit,
+    )
+
+
+def build_authenticated_notice_routing_audit_report_from_bundle_records(
+    *,
+    bundle_records: Sequence[Mapping[str, Any]],
+    config: AuthenticatedNoticeNoticeFamilyConfig,
+) -> AuthenticatedNoticeRoutingAuditReport:
+    samples = tuple(_sample_from_bundle_record(record, config=config) for record in bundle_records)
+    return _build_audit_report(
+        samples=samples,
+        source_corpus=config.corpus,
+        source_collection=config.collection,
+    )
+
+
+def build_authenticated_notice_routing_audit_report_from_inventory_entries(
+    *,
+    inventory_entries: Sequence[AuthenticatedNoticeSourceTruthInventoryEntry],
+    config: AuthenticatedNoticeNoticeFamilyConfig,
+) -> AuthenticatedNoticeRoutingAuditReport:
+    samples = tuple(
+        _sample_from_bundle_record(
+            _bundle_record_from_inventory_entry(entry),
+            config=config,
+            inventory_entry=entry,
+        )
+        for entry in inventory_entries
+    )
+    return _build_audit_report(
+        samples=samples,
+        source_corpus=config.corpus,
+        source_collection=config.collection,
     )
 
 
@@ -146,6 +272,35 @@ def build_authenticated_notice_routing_sample_report_from_inventory_entries(
         source_collection=config.collection,
         sample_limit_per_group=sample_limit_per_group,
         boundary_sample_limit=boundary_sample_limit,
+    )
+
+
+def _build_audit_report(
+    *,
+    samples: Sequence[AuthenticatedNoticeRoutingSample],
+    source_corpus: str,
+    source_collection: str,
+) -> AuthenticatedNoticeRoutingAuditReport:
+    review_later_notices = tuple(
+        sample for sample in samples if sample.suggested_consumption_route == "review_later"
+    )
+    return AuthenticatedNoticeRoutingAuditReport(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        notice_count=len(samples),
+        family_counts=dict(sorted(Counter(sample.notice_family for sample in samples).items())),
+        admission_policy_counts=dict(
+            sorted(Counter(sample.admission_policy for sample in samples).items())
+        ),
+        suggested_consumption_route_counts=dict(
+            sorted(Counter(sample.suggested_consumption_route for sample in samples).items())
+        ),
+        machine_processing_policy_counts=dict(
+            sorted(Counter(sample.machine_processing_policy for sample in samples).items())
+        ),
+        review_later_count=len(review_later_notices),
+        review_later_notices=review_later_notices,
+        review_later_clusters=_build_review_later_clusters(review_later_notices),
     )
 
 
@@ -216,6 +371,134 @@ def _select_grouped_samples(
         selected.append(sample)
         selected_ids.add(sample.notice_id)
     return tuple(selected)
+
+
+def _build_review_later_clusters(
+    samples: Sequence[AuthenticatedNoticeRoutingSample],
+) -> tuple[AuthenticatedNoticeRoutingReviewLaterCluster, ...]:
+    grouped: dict[
+        tuple[
+            tuple[str, ...],
+            str,
+            tuple[str, ...],
+            tuple[str, ...],
+            tuple[str, ...],
+            str,
+            str,
+        ],
+        list[AuthenticatedNoticeRoutingSample],
+    ] = {}
+    for sample in samples:
+        text = "".join(f"{sample.notice_title}".split())
+        action_signals = _matched_terms(_REVIEW_LATER_ACTION_TERMS, text)
+        service_signals = _matched_terms(_REVIEW_LATER_SERVICE_TERMS, text)
+        publicity_signals = _matched_terms(_REVIEW_LATER_PUBLICITY_TERMS, text)
+        attachment_bucket = _attachment_bucket(sample)
+        recommended_action = _recommend_review_later_action(
+            action_signals=action_signals,
+            service_signals=service_signals,
+            publicity_signals=publicity_signals,
+        )
+        title_signature = _review_later_title_signature(
+            title=sample.notice_title,
+            action_signals=action_signals,
+            service_signals=service_signals,
+            publicity_signals=publicity_signals,
+        )
+        notice_type_names = sample.notice_type_names or ("unknown",)
+        key = (
+            notice_type_names,
+            title_signature,
+            action_signals,
+            service_signals,
+            publicity_signals,
+            attachment_bucket,
+            recommended_action,
+        )
+        grouped.setdefault(key, []).append(sample)
+
+    clusters: list[AuthenticatedNoticeRoutingReviewLaterCluster] = []
+    for index, (key, cluster_samples) in enumerate(
+        sorted(
+            grouped.items(),
+            key=lambda item: (-len(item[1]), item[0]),
+        ),
+        start=1,
+    ):
+        (
+            notice_type_names,
+            title_signature,
+            action_signals,
+            service_signals,
+            publicity_signals,
+            attachment_bucket,
+            recommended_action,
+        ) = key
+        cluster_id = f"review_later_cluster_{index:03d}"
+        preview_samples = tuple(cluster_samples[:8])
+        clusters.append(
+            AuthenticatedNoticeRoutingReviewLaterCluster(
+                cluster_id=cluster_id,
+                count=len(cluster_samples),
+                notice_type_names=notice_type_names,
+                title_signature=title_signature,
+                action_signals=action_signals,
+                service_signals=service_signals,
+                publicity_signals=publicity_signals,
+                attachment_bucket=attachment_bucket,
+                recommended_action=recommended_action,
+                sample_notice_ids=tuple(sample.notice_id for sample in preview_samples),
+                sample_titles=tuple(sample.notice_title for sample in preview_samples),
+            )
+        )
+    return tuple(clusters)
+
+
+def _matched_terms(terms: Sequence[str], text: str) -> tuple[str, ...]:
+    return tuple(term for term in terms if term in text)
+
+
+def _attachment_bucket(sample: AuthenticatedNoticeRoutingSample) -> str:
+    if sample.multimodal_processing_required_count > 0:
+        return "multimodal_required"
+    if sample.attachment_ref_count > 0:
+        return "has_attachments"
+    return "no_attachments"
+
+
+def _recommend_review_later_action(
+    *,
+    action_signals: tuple[str, ...],
+    service_signals: tuple[str, ...],
+    publicity_signals: tuple[str, ...],
+) -> str:
+    if service_signals:
+        return "candidate_service_status_rule"
+    if action_signals:
+        return "candidate_notice_level_query_rule"
+    if publicity_signals:
+        return "candidate_defer_skip_rule"
+    return "keep_other_review_later"
+
+
+def _review_later_title_signature(
+    *,
+    title: str,
+    action_signals: tuple[str, ...],
+    service_signals: tuple[str, ...],
+    publicity_signals: tuple[str, ...],
+) -> str:
+    if service_signals:
+        return "service:" + "+".join(service_signals)
+    if action_signals:
+        return "action:" + "+".join(action_signals)
+    if publicity_signals:
+        return "publicity:" + "+".join(publicity_signals)
+    normalized = re.sub(r"\d{4}(?:-\d{4})?", "", title)
+    normalized = re.sub(r"[\s《》“”\"'：:，,、（）()【】/\\—-]+", "", normalized)
+    for token in ("关于", "温馨提醒", "通知", "公告", "的"):
+        normalized = normalized.replace(token, "")
+    return (normalized[:18] or "uncategorized").strip()
 
 
 def _sample_from_bundle_record(
@@ -342,6 +625,8 @@ def _resolve_machine_processing_policy(
     body: str,
     multimodal_processing_required_count: int,
 ) -> str:
+    if family == "other":
+        return "skip"
     text = "".join(f"{title}\n{body}".split())
     has_value_signal = any(term in text for term in _MACHINE_PROCESSING_VALUE_TERMS)
     if multimodal_processing_required_count <= 0:
@@ -356,8 +641,12 @@ def _resolve_machine_processing_policy(
 
 
 __all__ = [
+    "AuthenticatedNoticeRoutingAuditReport",
+    "AuthenticatedNoticeRoutingReviewLaterCluster",
     "AuthenticatedNoticeRoutingSample",
     "AuthenticatedNoticeRoutingSampleReport",
+    "build_authenticated_notice_routing_audit_report_from_bundle_records",
+    "build_authenticated_notice_routing_audit_report_from_inventory_entries",
     "build_authenticated_notice_routing_sample_report_from_bundle_records",
     "build_authenticated_notice_routing_sample_report_from_inventory_entries",
 ]

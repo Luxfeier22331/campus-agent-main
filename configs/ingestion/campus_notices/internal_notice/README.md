@@ -84,6 +84,9 @@ Current interpretation is:
   - read-only stratified routing sampler for notice-family taxonomy review; it
     can replay a historical bundle or sample current source-truth inventory, and
     does not create consumption admission
+  - pass `--audit-output-path <path>` to write a full read-only taxonomy audit
+    artifact with all `review_later` notices and deterministic clusters; this
+    artifact is operator evidence, not an admission manifest
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.evaluate_authenticated_notice_routing_taxonomy
   --fail-on-error`
@@ -94,14 +97,24 @@ Current interpretation is:
 Current routing taxonomy groups include:
 
 - high-value `notice_level_query`: course/teaching, academic lifecycle,
-  student applications, document collection, exchange/visit, research project,
-  safety/compliance, finance/payment, health/medical, form/template, survey
-  collection, library resources, and operational procedures
+  academic course/exam operations, academic program selection, student
+  applications, student status / registration, student program / award
+  selection, document collection, exchange/visit, research project,
+  safety/compliance, finance/payment, health/medical, health/welfare service,
+  form/template, survey collection, IT platform operations, library resources,
+  library acquisition service, and operational procedures
 - `service_status_candidate`: service windows, facility status, IT/platform
-  status, library opening/status, and transport/commute status
+  status, library opening/status, transport/commute status, and
+  facility/transport/classroom availability
 - `defer` / low-value machine skip: lectures, activities, meeting/training,
-  competition, recruitment, internal governance events, and general cultural
-  publicity
+  competition, recruitment, staff/internal admin, research publicity calls,
+  governance/party life, internal governance events, general cultural publicity,
+  cultural publicity activities, and campus news/publicity
+- fallback `other/review_later` remains a bounded low-confidence bucket and uses
+  `machine_processing_policy=skip`; it is not a VLM backlog or automatic
+  consumer-admission source
+- current source-truth inventory replay can be audited without bundle input;
+  historical bundle replay remains supported for wider taxonomy regression
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
   - target-collection materializer for `regulations/institutional_rules`

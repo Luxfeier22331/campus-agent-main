@@ -84,6 +84,8 @@ NoticeTargetSurface = Literal[
     "notice_level_query",
     "procurement_notice_history",
     "campus_services/service_status_candidate",
+    "campus_services/special_service_candidate",
+    "campus_services/stable_contact_candidate",
 ]
 ServiceStatusValue = Literal["open", "closed", "temporarily_closed", "limited_service", "unknown"]
 TransportServiceStatusValue = Literal[
@@ -202,6 +204,8 @@ ALLOWED_NOTICE_TARGET_SURFACES = (
     "notice_level_query",
     "procurement_notice_history",
     "campus_services/service_status_candidate",
+    "campus_services/special_service_candidate",
+    "campus_services/stable_contact_candidate",
 )
 ALLOWED_SERVICE_STATUS_VALUES = (
     "open",

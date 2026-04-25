@@ -26,6 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", default="internal_notice")
     parser.add_argument("--entitlement-group", action="append", default=[])
     parser.add_argument("--visibility-scope", default="campus")
+    parser.add_argument(
+        "--replace-scope",
+        action="store_true",
+        help="Allow this import to refresh the entire source corpus/collection scope.",
+    )
     return parser
 
 
@@ -47,6 +52,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         collection=args.collection,
         default_entitlement_groups=(entitlement_groups or ("campus_members",)),
         visibility_scope=args.visibility_scope,
+        replace_scope=args.replace_scope,
     )
     result = import_authenticated_notice_export(request=request)
     payload = asdict(result) if is_dataclass(result) else _normalize_payload(result)

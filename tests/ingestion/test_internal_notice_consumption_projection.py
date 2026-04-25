@@ -30,6 +30,8 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
     NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
     NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
+    NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
+    NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
     NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
     NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
@@ -37,8 +39,11 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+    NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
+    NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
     NOTICE_TARGET_SURFACE_UNSUPPORTED,
     NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
+    NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
     InMemoryNoticeConsumptionProjectionStore,
     build_internal_notice_consumption_projection_entries,
     check_internal_notice_processing_gaps,
@@ -489,6 +494,135 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         self.assertEqual(
             service_unit.role_metadata["notice_query_reason"],
             "service_status_not_admitted",
+        )
+
+    def test_build_entries_routes_special_medical_service_notice_to_typed_candidate(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="355401",
+                    title_slug="hpv-vaccine-appointment",
+                    title="关于校医院开放九价HPV疫苗预约接种的通知",
+                ),
+            )
+        )
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="355401",
+                    notice_title="关于校医院开放九价HPV疫苗预约接种的通知",
+                    published_date="2026-04-20 10:00",
+                ),
+            )
+        )
+
+        entries = build_internal_notice_consumption_projection_entries(
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+        )
+
+        special_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355401"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE
+        )
+        self.assertEqual(
+            special_unit.target_surface, NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE
+        )
+        self.assertEqual(
+            special_unit.consumption_status,
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        )
+        self.assertEqual(
+            special_unit.role_metadata["notice_query_reason"],
+            "special_service_not_admitted",
+        )
+
+    def test_build_entries_routes_stable_contact_notice_to_typed_candidate(self) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="355402",
+                    title_slug="finance-office-phone-update",
+                    title="关于财务处办公电话和联系方式调整的通知",
+                ),
+            )
+        )
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="355402",
+                    notice_title="关于财务处办公电话和联系方式调整的通知",
+                    published_date="2026-04-21 10:00",
+                ),
+            )
+        )
+
+        entries = build_internal_notice_consumption_projection_entries(
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+        )
+
+        contact_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355402"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE
+        )
+        self.assertEqual(
+            contact_unit.target_surface, NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE
+        )
+        self.assertEqual(
+            contact_unit.temporal_policy,
+            NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
+        )
+        self.assertEqual(
+            contact_unit.role_metadata["notice_query_reason"],
+            "stable_contact_not_admitted",
+        )
+
+    def test_build_entries_does_not_route_activity_contact_to_stable_contact_candidate(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="355403",
+                    title_slug="activity-contact",
+                    title="关于举办校园开放日活动联系人及电话的通知",
+                ),
+            )
+        )
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="355403",
+                    notice_title="关于举办校园开放日活动联系人及电话的通知",
+                    published_date="2026-04-22 10:00",
+                ),
+            )
+        )
+
+        entries = build_internal_notice_consumption_projection_entries(
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+        )
+
+        self.assertFalse(
+            any(
+                entry.source_notice_id == "355403"
+                and entry.primary_role == NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE
+                for entry in entries
+            )
         )
 
     def test_build_entries_marks_attachment_form_template_as_notice_query_hint(

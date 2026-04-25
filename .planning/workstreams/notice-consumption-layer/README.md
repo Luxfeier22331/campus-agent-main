@@ -103,6 +103,34 @@ consumption projection / query read model / query runtime 语义拆开。
     resource、internal governance 与 general cultural publicity 分流；历史 3000
     条 bundle 回放中 `other/review_later` 从 1278 降到 900，`notice_level_query`
     为 1016，`service_status_candidate` 为 96。
+  - 2026-04-26 routing taxonomy expansion round 2：继续补齐
+    academic course/exam operation、student status/registration、student
+    program/award selection、health/welfare service、facility/transport/classroom
+    status、IT platform operation、library acquisition service、staff/internal
+    admin、research publicity call、governance party life 与 cultural publicity
+    activity 分流；历史 3000 条 bundle 回放中 `other/review_later` 从 900 降到
+    568，`notice_level_query` 为 1209，`service_status_candidate` 为 166，
+    `defer` 为 936。
+  - 2026-04-26 routing taxonomy expansion round 3：继续补齐 academic program
+    selection、student status/registration 扩展、finance reimbursement/subsidy、
+    exchange/study-abroad project、course operation 扩展、facility/library/IT
+    service status 扩展、competition event 扩展、campus news/publicity 与更多
+    staff/governance/research publicity defer 分流；历史 3000 条 bundle 回放中
+    `other/review_later` 从 568 降到 289，`notice_level_query` 为 1364，
+    `service_status_candidate` 为 185，`defer` 为 1041。
+  - 2026-04-26 routing taxonomy expansion round 4：继续补齐选调生招录、红色
+    1+1、图书馆考研读者服务、门户/App 试运行、后勤服务信息、银行扣款、辅导员岗位等级评聘与
+    校历/开学放假等窄规则；fallback `other/review_later` 明确
+    `machine_processing_policy=skip`，不作为 VLM backlog。历史 3000 条 bundle
+    回放中 `other/review_later` 收敛到 205，`notice_level_query` 为 1385，
+    `service_status_candidate` 为 198，`defer` 为 1091。
+  - 2026-04-26 full routing taxonomy audit：`sample_authenticated_notice_routing_candidates`
+    新增 `--audit-output-path`，可对 historical bundle 或当前 source-truth
+    inventory 写出只读 audit artifact，包含全部 `review_later` notices 和
+    deterministic clusters；该 artifact 不创建 consumer admission。当前本机
+    source-truth inventory replay 返回 282 条，`other/review_later` 从 66 收敛到
+    1；保留的 1 条为低置信“为师生办实事清单”。历史 3000 条 bundle 回放中
+    `other/review_later` 从 205 收敛到 198，eval fixture 扩到 127 cases。
 
 ## Native Planning Truth
 

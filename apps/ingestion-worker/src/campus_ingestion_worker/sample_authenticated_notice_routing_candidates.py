@@ -15,6 +15,8 @@ from campus_ingestion_core.authenticated_notice_notice_family import (
     read_authenticated_notice_notice_family_config_path,
 )
 from campus_ingestion_core.authenticated_notice_routing_sampling import (
+    build_authenticated_notice_routing_audit_report_from_bundle_records,
+    build_authenticated_notice_routing_audit_report_from_inventory_entries,
     build_authenticated_notice_routing_sample_report_from_bundle_records,
     build_authenticated_notice_routing_sample_report_from_inventory_entries,
 )
@@ -37,6 +39,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sample-limit-per-group", type=int, default=12)
     parser.add_argument("--boundary-sample-limit", type=int, default=30)
     parser.add_argument("--output-path")
+    parser.add_argument(
+        "--audit-output-path",
+        help=(
+            "Write a full read-only routing audit artifact with all review_later "
+            "notices and deterministic clusters. This does not create consumer admission."
+        ),
+    )
     return parser
 
 
@@ -58,6 +67,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             sample_limit_per_group=args.sample_limit_per_group,
             boundary_sample_limit=args.boundary_sample_limit,
         )
+        audit_report = (
+            build_authenticated_notice_routing_audit_report_from_bundle_records(
+                bundle_records=bundle_records,
+                config=config,
+            )
+            if args.audit_output_path
+            else None
+        )
     else:
         inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(
             source,
@@ -74,9 +91,25 @@ def main(argv: Sequence[str] | None = None) -> None:
             sample_limit_per_group=args.sample_limit_per_group,
             boundary_sample_limit=args.boundary_sample_limit,
         )
+        audit_report = (
+            build_authenticated_notice_routing_audit_report_from_inventory_entries(
+                inventory_entries=inventory_entries,
+                config=config,
+            )
+            if args.audit_output_path
+            else None
+        )
     payload = json.dumps(asdict(report), ensure_ascii=False, indent=2, sort_keys=True)
     if args.output_path:
         Path(args.output_path).write_text(payload, encoding="utf-8")
+    if args.audit_output_path and audit_report is not None:
+        audit_payload = json.dumps(
+            asdict(audit_report),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        Path(args.audit_output_path).write_text(audit_payload, encoding="utf-8")
     print(payload)
 
 

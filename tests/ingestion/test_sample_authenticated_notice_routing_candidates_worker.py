@@ -67,6 +67,71 @@ class SampleAuthenticatedNoticeRoutingCandidatesWorkerCliTest(unittest.TestCase)
             )
             self.assertEqual(json.loads(output_path.read_text())["notice_count"], 1)
 
+    def test_main_writes_review_later_audit_report(self) -> None:
+        bundle = [
+            {
+                "notice_id": "review-later-1",
+                "notice": {
+                    "notice_id": "review-later-1",
+                    "notice_title": "关于领取校庆纪念品的温馨提醒",
+                    "notice_content": "",
+                    "categories": [
+                        {"notice_type": "5", "notice_type_name": "办公通知"},
+                    ],
+                },
+                "notice_attachments": [],
+                "attachments": [],
+            },
+            {
+                "notice_id": "354192",
+                "notice": {
+                    "notice_id": "354192",
+                    "notice_title": "关于2025-2026学年第二学期本科生网上选课的通知",
+                    "notice_content": "",
+                    "categories": [
+                        {"notice_type": "6", "notice_type_name": "教学通知"},
+                    ],
+                },
+                "notice_attachments": [],
+                "attachments": [],
+            },
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bundle_path = Path(temp_dir) / "bundle.json"
+            audit_path = Path(temp_dir) / "routing-audit.json"
+            bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+
+            with (
+                patch(
+                    "campus_ingestion_worker.sample_authenticated_notice_routing_candidates.load_worker_env"
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                worker.main(
+                    [
+                        "--bundle-path",
+                        str(bundle_path),
+                        "--sample-limit-per-group",
+                        "0",
+                        "--boundary-sample-limit",
+                        "0",
+                        "--audit-output-path",
+                        str(audit_path),
+                    ]
+                )
+
+            audit = json.loads(audit_path.read_text())
+            self.assertEqual(audit["notice_count"], 2)
+            self.assertEqual(audit["review_later_count"], 1)
+            self.assertEqual(
+                audit["review_later_notices"][0]["notice_id"],
+                "review-later-1",
+            )
+            self.assertEqual(
+                audit["review_later_clusters"][0]["recommended_action"],
+                "candidate_notice_level_query_rule",
+            )
+
     def test_main_samples_source_truth_inventory_when_bundle_path_is_absent(self) -> None:
         store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
         store.upsert_many(

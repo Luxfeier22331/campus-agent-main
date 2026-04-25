@@ -109,6 +109,7 @@ class AuthenticatedNoticeImportRequest:
     parser_version: str = DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION
     embedding_model: str = DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL
     import_source: str = DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE
+    replace_scope: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "bundle_path", Path(self.bundle_path))
@@ -232,7 +233,15 @@ def import_authenticated_notice_export(
         bundle_records=bundle_payload,
         export_manifest=export_manifest,
     )
-    selected_notice_ids = _selected_notice_ids_from_export_manifest(export_manifest)
+    prepared_notice_ids = _prepared_notice_ids(prepared)
+    manifest_selected_notice_ids = _selected_notice_ids_from_export_manifest(export_manifest)
+    replace_scope = request.replace_scope or _manifest_declares_full_scope_replace(export_manifest)
+    selected_notice_ids = _resolve_selected_notice_ids_for_import(
+        replace_scope=replace_scope,
+        manifest_selected_notice_ids=manifest_selected_notice_ids,
+        prepared_notice_ids=prepared_notice_ids,
+        notice_count=prepared.notice_count,
+    )
 
     raw_uploaded_count = 0
     raw_reused_count = 0
@@ -277,7 +286,7 @@ def import_authenticated_notice_export(
         embedding_model=request.embedding_model,
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
         default_visibility_scope=request.visibility_scope,
-        scope_refresh=(None if selected_notice_ids else (request.corpus, request.collection)),
+        scope_refresh=((request.corpus, request.collection) if replace_scope else None),
         scope_refresh_preserve_existing=_should_preserve_authenticated_notice_scope_record,
     )
     if inventory_store is not None:
@@ -324,14 +333,14 @@ def import_authenticated_notice_export(
                 object_store_settings=object_store_settings,
             )
             inventory_entries.append(inventory_entry_from_parent_snapshot(parent_snapshot))
-        if selected_notice_ids:
-            inventory_store.upsert_many(tuple(inventory_entries))
-        else:
+        if replace_scope:
             inventory_store.replace_scope(
                 request.corpus,
                 request.collection,
                 tuple(inventory_entries),
             )
+        else:
+            inventory_store.upsert_many(tuple(inventory_entries))
     projection_store = consumption_projection_store
     if projection_store is None:
         projection_store = _build_consumption_projection_store_from_env_if_configured(source)
@@ -378,6 +387,8 @@ def import_authenticated_notice_export(
         "skipped_document_ids": list(stats.skipped_document_ids),
         "raw_uploaded_count": raw_uploaded_count,
         "raw_reused_count": raw_reused_count,
+        "scope_write_mode": "replace_scope" if replace_scope else "upsert_selected",
+        "selected_notice_ids": list(selected_notice_ids),
         "errors": list(stats.errors),
     }
     if projection_store is not None:
@@ -512,6 +523,62 @@ def _selected_notice_ids_from_export_manifest(
             if str(item).strip()
         )
     )
+
+
+def _prepared_notice_ids(prepared: AuthenticatedNoticeBundleImportResult) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            str(notice_import.notice_id).strip()
+            for notice_import in prepared.notice_imports
+            if str(notice_import.notice_id).strip()
+        )
+    )
+
+
+def _resolve_selected_notice_ids_for_import(
+    *,
+    replace_scope: bool,
+    manifest_selected_notice_ids: tuple[str, ...],
+    prepared_notice_ids: tuple[str, ...],
+    notice_count: int,
+) -> tuple[str, ...]:
+    if replace_scope:
+        return ()
+    if manifest_selected_notice_ids:
+        missing_from_manifest = sorted(set(prepared_notice_ids) - set(manifest_selected_notice_ids))
+        if missing_from_manifest:
+            raise ValueError(
+                "authenticated notice bounded import manifest selected_notice_ids must cover "
+                "all bundle notice ids; missing: " + ", ".join(missing_from_manifest)
+            )
+        return prepared_notice_ids
+    if notice_count and not prepared_notice_ids:
+        raise ValueError("authenticated notice bounded import requires derivable notice ids")
+    return prepared_notice_ids
+
+
+def _manifest_declares_full_scope_replace(export_manifest: dict[str, Any] | None) -> bool:
+    if not isinstance(export_manifest, dict):
+        return False
+    containers: list[dict[str, Any]] = [export_manifest]
+    for key in ("source_truth_import", "source_truth", "import"):
+        value = export_manifest.get(key)
+        if isinstance(value, dict):
+            containers.append(value)
+    for container in containers:
+        if container.get("replace_scope") is True:
+            return True
+        for key in ("scope_write_mode", "scope_refresh", "source_truth_scope"):
+            value = str(container.get(key) or "").strip().lower()
+            if value in {
+                "full",
+                "full_scope",
+                "replace_scope",
+                "replace",
+                "full-scope",
+            }:
+                return True
+    return False
 
 
 def _assert_attachment_blob_root_precondition(

@@ -182,15 +182,22 @@ projection、查询 read model 与 notice tool runtime 是四个不同语义：
 notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工作：
 
 - 它可以从 historical bundle 或 source-truth inventory 生成 stratified sample report
+- `--audit-output-path` 可生成全量只读 taxonomy audit artifact，包含全部
+  `review_later` notices 与 deterministic clusters；该 artifact 只用于 operator
+  审计，不是 selected admission manifest
 - 它产出 reviewer 可复核的 `notice_family`、`suggested_consumption_route` 与
   `machine_processing_policy`
 - taxonomy rule 变更必须可通过 repo-tracked deterministic JSONL gate 回放，至少
   校验 `notice_family`、`suggested_consumption_route` 与
   `machine_processing_policy`
-- 当前 taxonomy 已把教务生命周期、财务缴费/补贴、健康医疗、表格模板、问卷反馈、
-  图书馆资源等高价值通知归入 `notice_level_query`；把设施、IT 平台、图书馆开放、
-  班车通勤等可用性/开放时间变化归入 `service_status_candidate`；把内部治理活动和一般文化宣传归入
+- 当前 taxonomy 已把教务生命周期、课程/考试运行、培养项目选拔、学生状态注册、学生项目/奖励选拔、
+  交换/公派留学、财务缴费/补贴/报销、健康医疗/福利、表格模板、问卷反馈、IT 操作说明、图书馆资源/荐购等高价值通知归入
+  `notice_level_query`；把设施、教室、自习室、交通/班车、IT 平台、图书馆开放/关闭等可用性/开放时间变化归入
+  `service_status_candidate`；把内部行政、人事/员工内部事项、研究宣传征稿、党团治理生活、一般文化宣传和校园新闻归入
   `defer`，且默认跳过低价值视觉处理
+- fallback `other/review_later` 只保留为低置信分流边界，默认
+  `machine_processing_policy=skip`；它不等于 consumer admission，也不形成
+  pending multimodal backlog
 - 它不代表 consumer admission，不写 projection/read model，也不打开 query-serving
 
 新写入的 consumption projection 不再使用 `notice_runtime` 同时表示 holding、
@@ -198,8 +205,11 @@ read-model 与 runtime execution。notice-level 查询候选使用
 `target_surface=notice_level_query` 与
 `consumption_status=retained_for_notice_query`；采购/招标通知使用
 `target_surface=procurement_notice_history`；service status 相关通知只作为
-`campus_services/service_status_candidate` 候选；internal restricted no-adoption 使用
-`target_surface=unsupported`。
+`campus_services/service_status_candidate` 候选；特殊服务预约/领取通知使用
+`campus_services/special_service_candidate` 候选；稳定部门联系方式变更使用
+`campus_services/stable_contact_candidate` 候选；internal restricted no-adoption 使用
+`target_surface=unsupported`。这些 campus-services 候选只表示下游 typed materialization
+输入，不打开对应 runtime lookup，也不得让下游在 query time 回扫通知正文。
 
 ## Collector Runtime Ownership
 
@@ -267,6 +277,13 @@ seam：
   converter 反向提升成 source channel truth
 - source-truth replay、attachment materialization 与 legacy Office normalization
   必须继续复用 repo-owned shared contract，而不是在 collector/import seam 各自复制一套规则
+- bootstrap import 默认只能按 bundle 内 notice ids 做 upsert；`incremental`、
+  notice-type bounded、`max_notices` bounded 或 selected export 都不得刷新整个
+  source scope
+- full-scope source-truth / document-registry refresh 必须由 import request 的
+  explicit replace-scope admission 或 export manifest 的 explicit full-scope
+  source-truth import declaration 打开；不能从 `backfill`、notice type 列表或
+  bundle 大小推断
 
 补充约束：
 

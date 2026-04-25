@@ -31,7 +31,23 @@ route, and machine-processing policy. The latest taxonomy expansion splits
 academic affairs lifecycle, finance/payment, health/medical, form/template,
 survey/feedback, facility/IT/library/transport service status, library resource,
 internal governance, and general cultural publicity out of generic
-`other/review_later`.
+`other/review_later`. A second expansion splits academic course/exam operation,
+student status/registration, student program/award selection, health/welfare
+service, facility/transport/classroom status, IT platform operation, library
+acquisition service, staff/internal admin, research publicity calls, governance
+party life, and cultural publicity activity. A third expansion splits academic
+program selection and campus news/publicity, and widens student status,
+finance reimbursement/subsidy, exchange/study-abroad, course operation,
+facility/library/IT service status, competition, staff, governance, and research
+publicity rules. A fourth expansion adds the remaining high-confidence
+other/review_later splits for selected-graduate recruitment exams, red 1+1
+governance activity, library reader services, portal/App trials, logistics
+service information, bank deduction, counselor grade appointment, and academic
+calendar notices; fallback `other/review_later` remains a low-confidence boundary
+with `machine_processing_policy=skip`, not a VLM backlog. The full read-only
+taxonomy audit path now writes all `review_later` notices and deterministic
+clusters via `--audit-output-path`; it is operator evidence only and does not
+create selected consumer admission.
 
 ## Current Slice
 
@@ -262,6 +278,55 @@ internal governance, and general cultural publicity out of generic
     - routing taxonomy fixture 扩到 31 cases；历史 3000 条 bundle 回放结果：
       `other/review_later=900`、`notice_level_query=1016`、
       `service_status_candidate=96`、`defer=867`
+  - 2026-04-26 routing taxonomy expansion round 2：
+    - 新增高价值 query families：
+      `academic_course_exam_operation`、`student_status_registration`、
+      `student_program_award_selection`、`health_welfare_service_notice`、
+      `it_platform_operation_notice` 与 `library_acquisition_service`
+    - 新增 service-status candidate family：
+      `facility_transport_classroom_status`
+    - 新增低价值 defer / machine-skip families：
+      `staff_internal_admin`、`research_publicity_call`、
+      `governance_party_life` 与 `culture_publicity_activity`
+    - routing taxonomy fixture 扩到 50 cases；历史 3000 条 bundle 回放结果：
+      `other/review_later=568`、`notice_level_query=1209`、
+      `service_status_candidate=166`、`defer=936`
+  - 2026-04-26 routing taxonomy expansion round 3：
+    - 新增高价值 query family：`academic_program_selection`
+    - 新增低价值 defer / machine-skip family：`campus_news_publicity`
+    - 扩展 `student_status_registration`、`finance_payment_action`、
+      `exchange_visit_project`、`academic_course_exam_operation`、
+      `facility_transport_classroom_status`、`library_service_status`、
+      `it_platform_service_status`、`competition_event`、
+      `research_publicity_call`、`staff_internal_admin` 与
+      `governance_party_life`
+    - routing taxonomy fixture 扩到 71 cases；历史 3000 条 bundle 回放结果：
+      `other/review_later=289`、`notice_level_query=1364`、
+      `service_status_candidate=185`、`defer=1041`
+  - 2026-04-26 routing taxonomy expansion round 4：
+    - 扩展 `student_affairs_application`、`governance_party_life`、
+      `library_service_status`、`it_platform_operation_notice`、
+      `facility_transport_classroom_status`、`finance_payment_action`、
+      `staff_internal_admin` 与 `academic_course_exam_operation`
+    - fallback `other/review_later` 明确
+      `machine_processing_policy=skip`，只作为低置信分流边界，不形成 VLM backlog
+    - routing taxonomy fixture 扩到 91 cases；历史 3000 条 bundle 回放结果：
+      `other/review_later=205`、`notice_level_query=1385`、
+      `service_status_candidate=198`、`defer=1091`
+  - 2026-04-26 full routing taxonomy audit：
+    - `sample_authenticated_notice_routing_candidates` 新增
+      `--audit-output-path`，可对 historical bundle 或当前 source-truth inventory
+      输出全量只读 audit artifact
+    - audit artifact 包含全部 `review_later` notices 与 deterministic clusters，
+      仅用于 operator 审计，不代表 consumer admission / projection / read model
+      写入
+    - 基于当前本机 source-truth inventory replay 的 282 条记录继续补齐常用下载表单、
+      采购公告、学术宣传、设施交通状态、问卷调查、财务动作、内部行政与文化活动
+      分流；`other/review_later` 从 66 收敛到 1，保留项为低置信
+      “为师生办实事清单”
+    - routing taxonomy fixture 扩到 127 cases；历史 3000 条 bundle 回放结果：
+      `other/review_later=198`、`notice_level_query=1384`、
+      `service_status_candidate=199`、`defer=1098`
 - Semantic split closeout：
   - `notice_runtime` 不再作为新写入 projection target/status 语义
   - notice-level query 候选写入 `target_surface=notice_level_query`
@@ -309,6 +374,8 @@ internal governance, and general cultural publicity out of generic
     拆分 source-required、skipped-low-value 与 action-required counts
   - routing sampler / taxonomy 测试：细化 family 分类、bundle sampling 与
     source-truth inventory sampling worker CLI
+  - routing taxonomy eval fixture 覆盖 127 cases，包含 fallback
+    `other/review_later` machine skip guard
 - planning verification:
   - `git diff --check -- ...notice-consumption-layer...`
 
