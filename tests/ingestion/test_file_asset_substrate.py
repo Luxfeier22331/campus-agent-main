@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tomllib
 import unittest
 import zipfile
@@ -789,9 +790,18 @@ class LegacyOfficeNormalizationSubstrateTest(unittest.TestCase):
             input_path.write_bytes(b"legacy-xls-binary")
             output_dir = temp_root / "normalized"
 
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "legacy Office conversion service is not configured",
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "LEGACY_OFFICE_CONVERSION_BASE_URL": "",
+                        "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET": "",
+                    },
+                ),
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "legacy Office conversion service is not configured",
+                ),
             ):
                 normalize_legacy_office_asset(
                     input_path=input_path,

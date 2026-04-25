@@ -4,6 +4,7 @@ import hashlib
 import importlib
 import io
 import json
+import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -162,9 +163,18 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             input_path.write_bytes(b"legacy-doc-binary")
             output_dir = Path(temp_dir) / "normalized"
 
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "legacy Office conversion service is not configured",
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "LEGACY_OFFICE_CONVERSION_BASE_URL": "",
+                        "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET": "",
+                    },
+                ),
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "legacy Office conversion service is not configured",
+                ),
             ):
                 worker.normalize_authenticated_notice_legacy_office_attachment(
                     input_path=input_path,
