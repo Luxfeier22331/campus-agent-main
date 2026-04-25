@@ -29,8 +29,8 @@ updated: 2026-04-26
   stale audit helper 已删除，intent eval 只通过 Go `supervisor-api`
   runtime-policy runner 执行；Python supervisor-core residual `intent.py`、
   `scope_policy.py`、`query_policy.py`、`validation.py`、`context.py` 与
-  `tool_policy.py` 已删除，Python worker cancel registry 仅保留
-  cancel flag store，不再发布 execution lifecycle counters；旧
+  `tool_policy.py` 已删除，Python worker cancel flag store 仅保留
+  request-scoped flag，不再发布 execution lifecycle counters；旧
   `SupervisorAgent` / `agent.py` / `handle_agent_request` /
   `AgentDelegate` / `MissingAgentDelegateError` 已退役，剩余
   `AgentDispatcher`、`AgentDelegate`、`dispatch_agent_request` 与 dispatch error
@@ -105,8 +105,8 @@ updated: 2026-04-26
   `RoutingDecision` 与 runtime audit helper 回流。
 - 2026-04-25 补充：Python supervisor-core residual intent/scope/query/validation/
   context/tool policy helpers 已删除；Go runtime policy / execution tests 承接 residual
-  裁决覆盖，Python core 不再维护 target/tool matrix；Python bridge cancel registry
-  只保留 request-scoped cancel flag store，execution lifecycle counters 继续由 Go 发布。
+  裁决覆盖，Python core 不再维护 target/tool matrix；Python bridge cancel flag store
+  只保留 request-scoped flag，execution lifecycle counters 继续由 Go 发布。
 - 2026-04-26 补充：bridge envelope 升级为 `supervisor_bridge_v6`，并要求
   `response_contract=agent_response`；Python bridge 只返回 private
   `AgentResponse`，Go `supervisor-api` 统一 finalizes public
@@ -724,7 +724,7 @@ updated: 2026-04-26
   `POST /internal/bridge/execution/cancel`
 - Go cancel endpoint returns `bridge_cancel_status` while preserving
   `202 cancel_requested` for active executions
-- Python bridge owns an active execution cancel registry
+- Python bridge keeps a request-scoped cancel flag store
 - Python bridge cancel route returns `202 cancel_requested` for active request ids
   and `404 execution_not_found` otherwise
 - cooperative cancel metrics are exposed under `/metrics`
@@ -814,10 +814,9 @@ updated: 2026-04-26
 
 ## Phase 13 Completed Implementation
 
-- Python bridge cancel registry now exposes request-scoped cancel checks
-- worker answer route stops before and after supervisor handling when cancel is observed
-- default `packages/supervisor-core` orchestration checks cancellation around routing,
-  RAG prompt execution, agent delegation and response finalization
+- Python bridge cancel flag store now exposes request-scoped cancel checks
+- worker answer route stops before and after agent dispatch when cancel is observed
+- default agent dispatch checks cancellation around prompt execution and agent delegation
 - Python bridge returns `499 execution_cancelled` as a `supervisor_error` bridge
   envelope for cancelled executions
 - Go `apps/supervisor-api` maps bridge cancellation terminal responses to lifecycle

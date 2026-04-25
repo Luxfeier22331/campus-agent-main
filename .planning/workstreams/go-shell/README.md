@@ -47,7 +47,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   only，legacy Python `routing.py`、`audit.py`、`policy.py`、`response.py`、
   `intent.py`、`scope_policy.py`、`query_policy.py`、`validation.py`、`context.py`
   与 `tool_policy.py` helper 已删除；
-  Python worker cancel registry 仅保留最小 cancel flag store，不再发布 execution
+  Python worker cancel flag store 仅保留最小 request-scoped flag，不再发布 execution
   lifecycle counters；旧 `SupervisorAgent` / `agent.py` /
   `handle_agent_request` 命名已退役，剩余 `AgentDispatcher` /
   `dispatch_agent_request` 已内联到 `apps/supervisor-agent-worker`，standalone
@@ -117,7 +117,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   - `supervisor-api` 在 configured structured query base URL / secret 时注入
     notice HTTP query service
 - `Phase 13`
-  - Python bridge cancel registry 已接入 supervisor orchestration checkpoints
+  - Python bridge cancel flag store 已接入 supervisor orchestration checkpoints
   - cancelled bridge terminal response 以 `499 execution_cancelled` 回到 Go
   - Go lifecycle final state 可记录为 `canceled`
 - `Phase 14`
@@ -243,7 +243,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
     capability/scope/version guard 与 target/tool policy ownership
   - `packages/supervisor-core` 只信任 Go bridge v4 full `AgentRequest` handoff，
     不再执行 Python target/tool matrix
-  - Python worker cancel registry 瘦身为 request-scoped cancel flag store，readyz 不再
+  - Python worker cancel flag store 瘦身为 request-scoped flag store，readyz 不再
     暴露 active execution / cancel count runtime truth
   - 更新 docs / guard，防止 legacy helper 与 direct runtime truth 回流
 - `Phase 55`

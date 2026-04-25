@@ -188,7 +188,7 @@ docker compose -f infra/local/docker-compose.supervisor-runtime.yml ps
 uv run --all-packages python -m scripts.doctor_env supervisor-api --json
 ```
 
-- 再看 `supervisor-agent-worker.log` 中缺的是 prompt/runtime 还是 audit/runtime
+- 再看 `supervisor-agent-worker.log` 中缺的是 prompt runtime、HTTP pool 还是 worker runtime
 
 真实 chat smoke 返回 `supervisor_unavailable`，且 `supervisor-agent-worker.log` 中出现
 `QDRANT_URL is required`

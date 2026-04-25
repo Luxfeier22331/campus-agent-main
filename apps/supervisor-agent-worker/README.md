@@ -26,7 +26,7 @@ Python worker 只负责：
 - 在配置 structured query internal seam 时，为 `campus-services-agent`
   注入 Go `supervisor-api` query service client
 - 暴露 private bridge health / readiness
-- 接收 Go `supervisor-api` 的 cooperative cancel signal，并在 Python bridge registry
+- 接收 Go `supervisor-api` 的 cooperative cancel signal，并在 Python bridge flag store
   中保留最小 cancel flag；默认 agent dispatch path 会在 prompt execution 和 agent
   delegation 前后检查取消状态
 

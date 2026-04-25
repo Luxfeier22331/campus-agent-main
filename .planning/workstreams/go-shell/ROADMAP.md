@@ -241,7 +241,7 @@ Docker-side execution runtime kernel。
 **Scope:**
 
 - add private Python bridge route `POST /internal/bridge/execution/cancel`
-- add Python bridge active execution cancel registry
+- add Python bridge request-scoped cancel flag store
 - extend Go bridge client with bounded cancel call
 - keep Go cancel endpoint canonical response as `202 cancel_requested`
 - expose cooperative cancel delivery outcome in metrics / response summary
@@ -387,12 +387,12 @@ query-time read-model runtime 从 Python notice-agent 迁到 Go `apps/supervisor
 
 ## Phase 13: Python Cancellation Checkpoints
 
-**Goal:** 让 Go explicit cancel 不只停在 Python bridge registry，而能被默认
+**Goal:** 让 Go explicit cancel 不只停在 Python bridge cancel flag store，而能被默认
 supervisor semantic orchestration checkpoints 观测。
 
 **Scope:**
 
-- expose request-scoped cancel checks from Python bridge registry
+- expose request-scoped cancel checks from Python bridge cancel flag store
 - check cancellation before / after supervisor handling in the bridge answer route
 - pass cancellation checker into default `packages/supervisor-core` orchestration
 - check cancellation around routing, RAG prompt execution, agent delegation and
@@ -658,7 +658,7 @@ envelope。
 
 **Scope:**
 
-- keep Python cancel registry as minimal cancel flag store
+- keep Python cancel flag store as minimal request-scoped flag store
 - publish lifecycle / cancel runtime truth from Go `/readyz` and `/metrics`
 - slim Python `/internal/bridge/readyz` to prompt runtime, prompt HTTP pool and
   worker runtime
@@ -1280,7 +1280,7 @@ runtime policy truth。
 
 ## Phase 53: Python Cancel Runtime Counter Slimming
 
-**Goal:** Python worker cancel registry 只保留 request-scoped cancel flag store，不再发布
+**Goal:** Python worker cancel flag store 只保留 request-scoped flag，不再发布
 execution lifecycle runtime truth。
 
 **Scope:**
