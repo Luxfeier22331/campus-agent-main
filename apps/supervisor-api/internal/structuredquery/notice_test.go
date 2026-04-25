@@ -16,6 +16,8 @@ func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) 
 				CanonicalURL:               "https://portal.example.edu/notices/355222",
 				PublishedAt:                "2026-04-12",
 				EffectiveAt:                "2026-04-12",
+				TargetSurface:              "procurement_notice_history",
+				PrimaryRole:                "procurement_notice",
 				CanonicalMarkdownObjectKey: "campus_notices/documents/internal_notice/355222/canonical.md",
 				BodyExcerpt:                "家具采购项目摘要",
 				AttachmentRefs:             []string{"attachment:355222:1"},
@@ -66,11 +68,64 @@ func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) 
 	if result.NoticeCards[0].BodyExcerpt != "家具采购项目摘要" {
 		t.Fatalf("body_excerpt = %q", result.NoticeCards[0].BodyExcerpt)
 	}
+	if result.NoticeCards[0].TargetSurface != "procurement_notice_history" {
+		t.Fatalf("target_surface = %q", result.NoticeCards[0].TargetSurface)
+	}
+	if result.NoticeCards[0].PrimaryRole != "procurement_notice" {
+		t.Fatalf("primary_role = %q", result.NoticeCards[0].PrimaryRole)
+	}
 	if store.searchQueryText != "家具采购" {
 		t.Fatalf("search query = %q, want 家具采购", store.searchQueryText)
 	}
 	if store.searchMaxResults != 3 {
 		t.Fatalf("search max_results = %d, want 3", store.searchMaxResults)
+	}
+}
+
+func TestLookupCampusNoticeDiscoverFiltersByTargetSurface(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{
+			{
+				SourceFamily:   "internal_notice_restricted",
+				SourceNoticeID: "355222",
+				Title:          "中央民族大学丰台校区家具采购项目比选公告",
+				SourceURL:      "https://portal.example.edu/notices/355222",
+				PublishedAt:    "2026-04-12",
+				TargetSurface:  "procurement_notice_history",
+				BodyExcerpt:    "家具采购项目摘要",
+			},
+		},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		NoticeBodyStore:      &fakeNoticeBodyStore{},
+		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticeDiscover(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"家具采购",
+			"source_families":["internal_notice_restricted"],
+			"target_surfaces":["procurement_notice_history"],
+			"max_results":3
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	if got, want := store.searchTargetSurfaces, []string{"procurement_notice_history"}; !equalStrings(got, want) {
+		t.Fatalf("target_surfaces = %#v, want %#v", got, want)
 	}
 }
 
@@ -84,6 +139,8 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 			CanonicalURL:               "https://portal.example.edu/notices/355222",
 			PublishedAt:                "2026-04-12",
 			EffectiveAt:                "2026-04-12",
+			TargetSurface:              "procurement_notice_history",
+			PrimaryRole:                "procurement_notice",
 			CanonicalMarkdownObjectKey: "campus_notices/documents/internal_notice/355222/canonical.md",
 			AttachmentRefs:             []string{"attachment:355222:1"},
 			ProvenanceRefs:             []string{"notice:muc_internal_portal:355222"},
@@ -132,8 +189,60 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 	if len(result.AttachmentRefs) != 1 || result.AttachmentRefs[0] != "attachment:355222:1" {
 		t.Fatalf("attachment_refs = %#v", result.AttachmentRefs)
 	}
+	if result.TargetSurface != "procurement_notice_history" {
+		t.Fatalf("target_surface = %q", result.TargetSurface)
+	}
+	if result.PrimaryRole != "procurement_notice" {
+		t.Fatalf("primary_role = %q", result.PrimaryRole)
+	}
 	if bodyStore.readCount != 1 {
 		t.Fatalf("body read count = %d, want 1", bodyStore.readCount)
+	}
+}
+
+func TestLookupCampusNoticeGetFiltersByTargetSurface(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		getRow: &noticeReadModelRecord{
+			SourceFamily:               "internal_notice_restricted",
+			SourceNoticeID:             "355222",
+			Title:                      "中央民族大学丰台校区家具采购项目比选公告",
+			TargetSurface:              "procurement_notice_history",
+			PrimaryRole:                "procurement_notice",
+			CanonicalMarkdownObjectKey: "campus_notices/documents/internal_notice/355222/canonical.md",
+		},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		NoticeBodyStore: &fakeNoticeBodyStore{
+			bodies: map[string]string{
+				"campus_notices/documents/internal_notice/355222/canonical.md": "# 采购公告",
+			},
+		},
+	})
+
+	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{
+		"payload":{
+			"notice_id":"355222",
+			"source_family":"internal_notice_restricted",
+			"target_surfaces":["procurement_notice_history"]
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	if got, want := store.getTargetSurfaces, []string{"procurement_notice_history"}; !equalStrings(got, want) {
+		t.Fatalf("target_surfaces = %#v, want %#v", got, want)
 	}
 }
 
@@ -209,21 +318,25 @@ func TestNoticePostgresOptionsDefaultsToSmallLocalPool(t *testing.T) {
 }
 
 type fakeNoticeReadModelStore struct {
-	searchRows       []noticeReadModelRecord
-	getRow           *noticeReadModelRecord
-	searchCount      int
-	searchQueryText  string
-	searchMaxResults int
+	searchRows           []noticeReadModelRecord
+	getRow               *noticeReadModelRecord
+	searchCount          int
+	searchQueryText      string
+	searchMaxResults     int
+	searchTargetSurfaces []string
+	getTargetSurfaces    []string
 }
 
 func (s *fakeNoticeReadModelStore) SearchNotices(
 	ctx context.Context,
 	sourceFamilies []string,
 	queryText string,
+	targetSurfaces []string,
 	maxResults int,
 ) ([]noticeReadModelRecord, error) {
 	s.searchCount++
 	s.searchQueryText = queryText
+	s.searchTargetSurfaces = append([]string(nil), targetSurfaces...)
 	s.searchMaxResults = maxResults
 	return append([]noticeReadModelRecord(nil), s.searchRows...), nil
 }
@@ -232,7 +345,9 @@ func (s *fakeNoticeReadModelStore) GetNoticeByID(
 	ctx context.Context,
 	noticeID string,
 	sourceFamily string,
+	targetSurfaces []string,
 ) (noticeReadModelRecord, bool, error) {
+	s.getTargetSurfaces = append([]string(nil), targetSurfaces...)
 	if s.getRow == nil {
 		return noticeReadModelRecord{}, false, nil
 	}
@@ -251,4 +366,16 @@ func (s *fakeNoticeBodyStore) GetNoticeBody(ctx context.Context, objectKey strin
 		return "", errNoticeBodyUnavailable
 	}
 	return body, nil
+}
+
+func equalStrings(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }

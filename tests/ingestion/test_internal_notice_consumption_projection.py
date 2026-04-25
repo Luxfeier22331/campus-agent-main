@@ -11,7 +11,9 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING,
     NOTICE_COMPLETENESS_COMPLETE,
+    NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+    NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
@@ -24,7 +26,9 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
     NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
     NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
+    NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
@@ -33,11 +37,14 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
     InMemoryNoticeConsumptionProjectionStore,
     build_internal_notice_consumption_projection_entries,
+    check_internal_notice_processing_gaps,
     read_notice_consumption_projection_status,
     rebuild_internal_notice_consumption_projection,
     select_ready_target_document_ids,
 )
 from campus_ingestion_core.internal_notice_regulation_promotion import (
+    InternalNoticeRegulationPromotionDocumentReport,
+    InternalNoticeRegulationPromotionManifestReport,
     InternalNoticeRegulationPromotionRequest,
 )
 from campus_ingestion_core.notice_consumption_projection import (
@@ -506,6 +513,87 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             "attachment_form_template_query_hint_only",
         )
 
+    def test_manual_review_promotion_action_becomes_pending_multimodal_processing(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime()
+        manual_review_report = _manual_review_report(
+            document_id="notice:muc_internal_portal:351907",
+            notice_id="351907",
+            document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+            reasons=("promotion_class_ambiguous",),
+        )
+
+        with patch(
+            "campus_ingestion_core.internal_notice_consumption_projection.build_internal_notice_regulation_promotion_manifest",
+            return_value=_manifest_report((manual_review_report,)),
+        ):
+            entries = build_internal_notice_consumption_projection_entries(
+                env=_env(),
+                registry=registry,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+            )
+
+        pending_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "351907"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE
+        )
+        self.assertEqual(
+            pending_unit.target_surface,
+            NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+        )
+        self.assertEqual(
+            pending_unit.completeness_status,
+            NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
+        )
+        self.assertEqual(
+            pending_unit.consumption_status,
+            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+        )
+        self.assertEqual(pending_unit.default_agent, NOTICE_DEFAULT_AGENT_NOTICE)
+        self.assertEqual(
+            pending_unit.role_metadata["processing_gap_reason"],
+            "multimodal_processing_required",
+        )
+
+    def test_hard_manual_review_reasons_become_unsupported_no_adoption(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime()
+        manual_review_report = _manual_review_report(
+            document_id="notice:muc_internal_portal:351907",
+            notice_id="351907",
+            document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+            reasons=("input_lane_not_admitted",),
+        )
+
+        with patch(
+            "campus_ingestion_core.internal_notice_consumption_projection.build_internal_notice_regulation_promotion_manifest",
+            return_value=_manifest_report((manual_review_report,)),
+        ):
+            entries = build_internal_notice_consumption_projection_entries(
+                env=_env(),
+                registry=registry,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+            )
+
+        unsupported_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "351907"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE
+        )
+        self.assertEqual(unsupported_unit.target_surface, NOTICE_TARGET_SURFACE_UNSUPPORTED)
+        self.assertEqual(unsupported_unit.consumption_status, NOTICE_CONSUMPTION_STATUS_NO_ADOPTION)
+        self.assertEqual(
+            unsupported_unit.role_metadata["no_adoption_reason"],
+            "unsupported_manual_review_legacy_reason",
+        )
+
     def test_partial_rebuild_replaces_existing_units_for_selected_notice_ids(self) -> None:
         registry, inventory_store, object_store = _build_runtime(
             extra_notice_rows=(
@@ -614,6 +702,89 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(status.held_unit_count, 1)
+
+    def test_read_notice_consumption_projection_status_counts_pending_multimodal_units(
+        self,
+    ) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                replace(
+                    _projection_entry("355000"),
+                    target_surface=NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+                    consumption_status=NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+                ),
+            )
+        )
+
+        status = read_notice_consumption_projection_status(
+            projection_store,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            source_notice_id="355000",
+        )
+
+        self.assertEqual(status.pending_multimodal_unit_count, 1)
+        self.assertEqual(status.manual_review_unit_count, 0)
+
+    def test_check_internal_notice_processing_gaps_groups_machine_processing_states(
+        self,
+    ) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                replace(
+                    _projection_entry("355000"),
+                    unit_id="notice_unit:355000:pending_multimodal",
+                    target_surface=NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+                    consumption_status=NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+                    role_metadata={"processing_gap_reason": "multimodal_processing_required"},
+                ),
+                replace(
+                    _projection_entry("355001"),
+                    unit_id="notice_unit:355001:unsupported",
+                    target_surface=NOTICE_TARGET_SURFACE_UNSUPPORTED,
+                    consumption_status=NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+                    role_metadata={"no_adoption_reason": "unsupported_legacy_reason"},
+                ),
+                replace(
+                    _projection_entry("355002"),
+                    unit_id="notice_unit:355002:ready",
+                    target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+                    consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+                ),
+                replace(
+                    _projection_entry("355003"),
+                    unit_id="notice_unit:355003:authority_pending",
+                    semantic_owner=NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING,
+                    consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+                    role_metadata={
+                        "owner_source_missing_reason": "authoritative_attachment_missing"
+                    },
+                ),
+            )
+        )
+
+        report = check_internal_notice_processing_gaps(
+            projection_store=projection_store,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+        )
+
+        self.assertEqual(report.projection_entry_count, 4)
+        self.assertEqual(report.pending_multimodal_processing_count, 1)
+        self.assertEqual(report.authority_pending_count, 1)
+        self.assertEqual(report.unsupported_count, 1)
+        self.assertEqual(report.no_adoption_count, 1)
+        self.assertEqual(report.ready_for_target_count, 1)
+        self.assertEqual(report.retained_for_notice_query_count, 1)
+        self.assertEqual(report.legacy_manual_review_required_count, 0)
+        self.assertEqual(
+            {unit.unit_id for unit in report.gap_units},
+            {
+                "notice_unit:355000:pending_multimodal",
+                "notice_unit:355001:unsupported",
+                "notice_unit:355003:authority_pending",
+            },
+        )
 
 
 class NoticeConsumptionProjectionPostgresStoreTest(unittest.TestCase):
@@ -820,6 +991,69 @@ def _projection_entry(notice_id: str):
             object_store=_FakeObjectStore(objects={}),
         )
         if entry.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
+    )
+
+
+def _manual_review_report(
+    *,
+    document_id: str,
+    notice_id: str,
+    document_nature: str,
+    reasons: tuple[str, ...],
+) -> InternalNoticeRegulationPromotionDocumentReport:
+    return InternalNoticeRegulationPromotionDocumentReport(
+        document_id=document_id,
+        notice_id=notice_id,
+        site_id="muc_internal_portal",
+        source_kind="parent_notice",
+        source_title="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+        input_lane="notice_body",
+        revision_track="source-faithful",
+        version_id=f"sha256:{notice_id}:source-faithful",
+        action="manual_review_required",
+        promotion_class="scoped_rule",
+        document_nature=document_nature,
+        semantic_owner_kind="notice_body",
+        target_corpus="regulations",
+        target_collection="scoped_rules",
+        regulation_title_normalized="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+        issuing_org="中央民族大学",
+        effective_date=None,
+        revision_signal=None,
+        source_notice_release_time="2026-04-01 10:00",
+        source_parent_document_id=document_id,
+        source_attachment_ref_id=None,
+        source_attachment_sha256=None,
+        duplicate_group_key=None,
+        duplicate_primary_document_id=None,
+        quality_gates_passed=("canonical_text_available",),
+        missing_required_metadata=(),
+        reasons=reasons,
+        artifact_key=None,
+    )
+
+
+def _manifest_report(
+    documents: tuple[InternalNoticeRegulationPromotionDocumentReport, ...],
+) -> InternalNoticeRegulationPromotionManifestReport:
+    return InternalNoticeRegulationPromotionManifestReport(
+        corpus="campus_notices",
+        collection="internal_notice",
+        target_corpus="regulations",
+        target_collection="institutional_rules",
+        target_serving_stage="candidate",
+        registry_record_count=len(documents),
+        selected_record_count=len(documents),
+        selected_notice_ids=tuple(sorted({document.notice_id for document in documents})),
+        selected_document_ids=(),
+        scanned_document_count=len(documents),
+        candidate_count=0,
+        hold_count=0,
+        manual_review_count=len(documents),
+        promotion_class_counts={},
+        action_counts={"manual_review_required": len(documents)},
+        lane_counts={},
+        documents=documents,
     )
 
 

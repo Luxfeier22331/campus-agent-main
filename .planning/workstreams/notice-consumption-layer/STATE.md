@@ -16,10 +16,12 @@ updated: 2026-04-25
 **Total Plans in Phase:** 1
 **Progress:** 8/8 phases complete
 **Last Activity:** 2026-04-25
-**Last Activity Description:** Completed lightweight internal_notice read-model
-local closeout: full canonical body stays in object storage, PG read model keeps
-bounded excerpt/search text plus object key, and supervisor-api local notice PG
-pooling is explicitly bounded.
+**Last Activity Description:** Completed manual-review downline for the
+internal_notice consumption layer: new projection rows no longer emit
+`consumption_status=manual_review_required`; machine-continuable legacy manual
+promotion outcomes are routed to `pending_multimodal_processing`, hard
+unsupported outcomes are routed to `no_adoption`, and operator gap audit now
+reports processing states directly.
 
 ## Current Slice
 
@@ -81,8 +83,8 @@ pooling is explicitly bounded.
   - `import_authenticated_notice_export` 已支持显式 projection rebuild seam
   - `regulations/institutional_rules` / `regulations/scoped_rules`
     materialization 已经通过 projection ready derived-unit truth 过滤 candidate
-  - operator read-model 已能按 notice id 汇总 ready / held / manual /
-    no-adoption units
+  - operator read-model 已能按 notice id 汇总 ready / held /
+    pending_multimodal / legacy manual / no-adoption units
 - Phase 7 closeout：
   - `procurement_notice` notice category 与 projection unit 已落地
   - internal restricted `roster_publication` / `lecture_activity` no-adoption
@@ -93,8 +95,8 @@ pooling is explicitly bounded.
   - `attachment_form_template` projection truth 已落地，target surface 为
     `notice_level_query`，状态仍是 `retained_for_notice_query`
 - Phase 8 closeout：
-  - operator/read-model status 可以按 notice id 汇总 ready / held / manual /
-    no-adoption units 与原因
+  - operator/read-model status 可以按 notice id 汇总 ready / held /
+    pending_multimodal / legacy manual / no-adoption units 与原因
   - explicit worker CLI `show_internal_notice_consumption_projection_status` 已落地
   - selected-notice rebuild 已改为 replace selected notices，避免局部 rebuild 留下
     stale projection units
@@ -120,6 +122,39 @@ pooling is explicitly bounded.
       rebuild
     - 本地误写的 `campus_notices/internal_notice` projection scope 已清空；read
       model 未写入
+  - 2026-04-25 closeout supplement：
+    - `CampusNoticeDiscoverPayload` 与 Go structured query runtime 已支持
+      `target_surfaces`，可显式过滤 `procurement_notice_history` 等 queryable
+      read-model surface
+    - 新增 `check_internal_notice_read_model_consistency` worker CLI，用于只读
+      比对 consumption projection 与 read model，报告 queryable projection
+      missing rows 与 read-model extra rows
+  - 2026-04-25 manual-review downline：
+    - 新生成的 consumption projection 不再产出
+      `consumption_status=manual_review_required`
+    - legacy `manual_review_required` promotion action 若仍可机器继续处理，转为
+      `target_surface=multimodal_processing_candidate` 与
+      `consumption_status=pending_multimodal_processing`
+    - `input_lane_not_admitted` / `draft_signal_detected` /
+      `unsupported_revision_track` 等硬性不采纳 reason 转为
+      `target_surface=unsupported` 与 `consumption_status=no_adoption`
+    - status/report worker 增加 pending multimodal count，同时保留 legacy manual
+      count 用于历史数据暴露
+    - 新增 `check_internal_notice_processing_gaps` worker CLI，按 selected notices
+      汇总 pending multimodal、authority pending、unsupported、no adoption、ready
+      与 retained 状态
+  - 2026-04-25 multimodal closeout：
+    - 新增 `process_internal_notice_pending_multimodal_entries` core path 与
+      `process_internal_notice_multimodal` worker CLI
+    - worker 默认只接受 `--notice-id` / `--selection-path`，拒绝 implicit
+      full-scope multimodal processing
+    - provider 连接复用 env chat endpoint：优先读取
+      `INTERNAL_NOTICE_MULTIMODAL_*`，否则继承 `PROMPT_RUNTIME_*` / `LLM_*`
+    - 处理结果只允许把 pending unit 关闭为 notice-level
+      `retained_for_notice_query` 或 `no_adoption`；需要更多处理时继续保留
+      pending，不直接升格为 regulation target
+    - read model 现在会把 `multimodal_summary` /
+      `multimodal_extracted_text` 纳入 bounded excerpt/search text
 - Semantic split closeout：
   - `notice_runtime` 不再作为新写入 projection target/status 语义
   - notice-level query 候选写入 `target_surface=notice_level_query`
@@ -153,6 +188,10 @@ pooling is explicitly bounded.
   - explicit rebuild worker CLI 测试
   - operator status worker CLI 测试
   - procurement/no-adoption/service-status/form-template projection unit 测试
+  - read-model consistency checker / worker CLI 测试
+  - notice discover target surface facet 测试
+  - manual-review downline projection / status / rebuild report / processing gap
+    checker 测试
 - planning verification:
   - `git diff --check -- ...notice-consumption-layer...`
 

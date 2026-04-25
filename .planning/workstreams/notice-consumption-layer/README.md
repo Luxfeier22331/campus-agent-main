@@ -42,6 +42,19 @@ consumption projection / query read model / query runtime 语义拆开。
     inventory 或 holding collection 当成已消费 notice；persistent consumer
     projection rebuild 的 core path 与 CLI 默认拒绝 implicit full-scope
     rebuild，必须显式传入 `--notice-id` 或 `--document-id`
+  - 2026-04-25 closeout supplement：notice discover runtime 已支持
+    `target_surfaces` facet，例如只查 `procurement_notice_history`；read-model
+    consistency doctor 已落地为 repo-owned worker CLI，只读检查 projection 与
+    read model 的 missing/extra unit
+  - 2026-04-25 manual-review downline：新生成的 consumption projection 不再写入
+    `consumption_status=manual_review_required`；可机器继续处理的 legacy manual
+    promotion action 转为 `pending_multimodal_processing` +
+    `multimodal_processing_candidate`，硬性不采纳 reason 转为 `no_adoption` +
+    `unsupported`，并新增 processing gaps audit CLI
+  - 2026-04-25 multimodal closeout：新增 selected-notice multimodal processor，
+    通过 env chat endpoint 处理 `pending_multimodal_processing` units；机器摘要
+    只回写为 notice-level query/read-model truth 或 `no_adoption`，不把视觉模型输出
+    伪装成 regulation ready target
 
 ## Native Planning Truth
 

@@ -60,6 +60,11 @@ ToolFailCloseReason = Literal[
 ]
 HistoricalDowngradeReason = Literal["current_year_miss", "current_effective_miss"]
 NoticeSourceFamily = Literal["official_web_public_notice", "internal_notice_restricted"]
+NoticeTargetSurface = Literal[
+    "notice_level_query",
+    "procurement_notice_history",
+    "campus_services/service_status_candidate",
+]
 ServiceStatusValue = Literal["open", "closed", "temporarily_closed", "limited_service", "unknown"]
 TransportServiceStatusValue = Literal[
     "running",
@@ -153,6 +158,11 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
 )
 ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
 ALLOWED_NOTICE_SOURCE_FAMILIES = ("official_web_public_notice", "internal_notice_restricted")
+ALLOWED_NOTICE_TARGET_SURFACES = (
+    "notice_level_query",
+    "procurement_notice_history",
+    "campus_services/service_status_candidate",
+)
 ALLOWED_SERVICE_STATUS_VALUES = (
     "open",
     "closed",
@@ -253,6 +263,11 @@ def _validate_historical_downgrade_reason(reason: str) -> None:
 def _validate_notice_source_family(source_family: str) -> None:
     if source_family not in ALLOWED_NOTICE_SOURCE_FAMILIES:
         raise ValueError(f"unsupported notice source family: {source_family}")
+
+
+def _validate_notice_target_surface(target_surface: str) -> None:
+    if target_surface not in ALLOWED_NOTICE_TARGET_SURFACES:
+        raise ValueError(f"unsupported notice target surface: {target_surface}")
 
 
 def _validate_service_status_value(status: str) -> None:

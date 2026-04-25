@@ -6,6 +6,7 @@ from campus_contracts.models_shared import (
     CoordinateReferenceSystem,
     HistoricalDowngradeReason,
     NoticeSourceFamily,
+    NoticeTargetSurface,
     PlaceEntityType,
     ServiceStatusValue,
     TemporalQueryMode,
@@ -18,6 +19,7 @@ from campus_contracts.models_shared import (
     TransportServiceStatusValue,
     _validate_historical_downgrade_reason,
     _validate_notice_source_family,
+    _validate_notice_target_surface,
     _validate_service_status_value,
     _validate_temporal_query_mode,
     _validate_tool_business_outcome,
@@ -385,9 +387,8 @@ class TransportScheduleLookupResult:
             raise ValueError(
                 "fail_close_reason must not be empty for fail-closed transport schedule results"
             )
-        if (
-            self.selected_departure is not None
-            and (self.departure_options or self.timetable_entries or self.service_window is not None)
+        if self.selected_departure is not None and (
+            self.departure_options or self.timetable_entries or self.service_window is not None
         ):
             raise ValueError(
                 "selected_departure must not be combined with departure_options, timetable_entries, or service_window"
@@ -408,6 +409,7 @@ class CampusNoticeDiscoverPayload:
     query_text: str
     temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
     source_families: tuple[NoticeSourceFamily | str, ...] = field(default_factory=tuple)
+    target_surfaces: tuple[NoticeTargetSurface | str, ...] = field(default_factory=tuple)
     max_results: int = 5
 
     def __post_init__(self) -> None:
@@ -415,6 +417,8 @@ class CampusNoticeDiscoverPayload:
             raise ValueError("query_text must not be empty")
         for source_family in self.source_families:
             _validate_notice_source_family(source_family)
+        for target_surface in self.target_surfaces:
+            _validate_notice_target_surface(target_surface)
         if self.max_results <= 0:
             raise ValueError("max_results must be positive")
 

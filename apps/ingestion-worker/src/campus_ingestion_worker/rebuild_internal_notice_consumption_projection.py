@@ -11,6 +11,10 @@ from typing import Any
 from campus_ingestion_core.authenticated_notice_legacy_export import (
     load_authenticated_notice_selection_notice_ids,
 )
+from campus_ingestion_core.internal_notice_consumption_admission import (
+    build_internal_notice_consumption_admission_store_from_env,
+    record_internal_notice_consumption_admission,
+)
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NoticeConsumptionProjectionEntry,
     rebuild_internal_notice_consumption_projection,
@@ -19,6 +23,10 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
 from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
+    NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+    NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     is_notice_query_retained_consumption_status,
 )
 
@@ -58,7 +66,20 @@ def main(argv: Sequence[str] | None = None) -> None:
         document_ids=tuple(args.document_ids),
     )
     entries = rebuild_internal_notice_consumption_projection(request=request)
-    print(json.dumps(_build_report(entries), ensure_ascii=False, indent=2, sort_keys=True))
+    report = _build_report(entries)
+    admission_store = build_internal_notice_consumption_admission_store_from_env()
+    report["batch_id"] = record_internal_notice_consumption_admission(
+        source_corpus=args.corpus,
+        source_collection=args.collection,
+        command="projection_rebuild",
+        notice_ids=notice_ids,
+        result_counts={
+            "projection_entry_count": int(report["projection_entry_count"]),
+            "notice_count": int(report["notice_count"]),
+        },
+        store=admission_store,
+    )
+    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
 
 
 def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[str, Any]:
@@ -73,16 +94,22 @@ def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[s
         "projection_entry_count": len(entries),
         "notice_count": len({entry.source_notice_id for entry in entries}),
         "ready_for_target_count": consumption_status_counts.get(
-            "ready_for_target_materialization",
+            NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
             0,
         ),
         "retained_for_notice_query_count": retained_for_notice_query_count,
         "held_in_notice_runtime_count": retained_for_notice_query_count,
         "manual_review_required_count": consumption_status_counts.get(
-            "manual_review_required",
+            NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
             0,
         ),
-        "no_adoption_count": consumption_status_counts.get("no_adoption", 0),
+        "pending_multimodal_processing_count": consumption_status_counts.get(
+            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+            0,
+        ),
+        "no_adoption_count": consumption_status_counts.get(
+            NOTICE_CONSUMPTION_STATUS_NO_ADOPTION, 0
+        ),
         "primary_role_counts": dict(sorted(primary_role_counts.items())),
         "consumption_status_counts": dict(sorted(consumption_status_counts.items())),
         "entries": [asdict(entry) for entry in entries],

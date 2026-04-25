@@ -71,6 +71,7 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 	ctx context.Context,
 	sourceFamilies []string,
 	queryText string,
+	targetSurfaces []string,
 	maxResults int,
 ) ([]noticeReadModelRecord, error) {
 	if s == nil || s.pool == nil {
@@ -82,6 +83,11 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 	normalizedQuery := strings.TrimSpace(queryText)
 	params := []any{sourceFamilies}
 	filters := []string{"queryable = true", "source_family = any($1)"}
+	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(targetSurfaces)
+	if len(normalizedTargetSurfaces) > 0 {
+		params = append(params, normalizedTargetSurfaces)
+		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
+	}
 	if normalizedQuery != "" {
 		params = append(
 			params,
@@ -113,6 +119,7 @@ func (s *PostgresNoticeReadModelStore) GetNoticeByID(
 	ctx context.Context,
 	noticeID string,
 	sourceFamily string,
+	targetSurfaces []string,
 ) (noticeReadModelRecord, bool, error) {
 	if s == nil || s.pool == nil {
 		return noticeReadModelRecord{}, false, errors.New("notice read model store is not configured")
@@ -122,6 +129,11 @@ func (s *PostgresNoticeReadModelStore) GetNoticeByID(
 	if strings.TrimSpace(sourceFamily) != "" {
 		filters = append(filters, fmt.Sprintf("source_family = $%d", len(params)+1))
 		params = append(params, strings.TrimSpace(sourceFamily))
+	}
+	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(targetSurfaces)
+	if len(normalizedTargetSurfaces) > 0 {
+		params = append(params, normalizedTargetSurfaces)
+		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
 	}
 	query := fmt.Sprintf(
 		"select record from %s where %s order by published_at desc nulls last, unit_id asc limit 1",

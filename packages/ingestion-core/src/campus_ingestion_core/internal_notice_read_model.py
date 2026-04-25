@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Protocol
 
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
@@ -53,6 +54,29 @@ class InternalNoticeReadModelObjectStore(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
 
+@dataclass(frozen=True, slots=True)
+class InternalNoticeReadModelConsistencyReport:
+    source_corpus: str
+    source_collection: str
+    selected_notice_ids: tuple[str, ...]
+    projection_entry_count: int
+    projection_queryable_count: int
+    read_model_entry_count: int
+    missing_queryable_projection_unit_ids: tuple[str, ...]
+    extra_read_model_unit_ids: tuple[str, ...]
+    ok: bool
+
+
+@dataclass(frozen=True, slots=True)
+class InternalNoticeReadModelRepairReport:
+    source_corpus: str
+    source_collection: str
+    selected_notice_ids: tuple[str, ...]
+    before: InternalNoticeReadModelConsistencyReport
+    after: InternalNoticeReadModelConsistencyReport
+    rebuilt_count: int
+
+
 def build_internal_notice_read_model_entries(
     projection_entries: Sequence[NoticeConsumptionProjectionEntry],
     *,
@@ -82,7 +106,7 @@ def build_internal_notice_read_model_entries(
             if canonical_key
             else ""
         )
-        body_excerpt = _build_body_excerpt(body)
+        body_excerpt = _build_body_excerpt(_build_read_model_body_text(entry, body))
         rows.append(
             InternalNoticeReadModelEntry(
                 source_family=entry.source_family,
@@ -176,6 +200,107 @@ def rebuild_internal_notice_read_model(
     return runtime_read_model_store.list_by_scope(source_corpus, source_collection)
 
 
+def check_internal_notice_read_model_consistency(
+    *,
+    source_corpus: str = "campus_notices",
+    source_collection: str = "internal_notice",
+    notice_ids: Sequence[str] = (),
+    env: Mapping[str, str] | None = None,
+    projection_store: NoticeConsumptionProjectionStore | None = None,
+    read_model_store: InternalNoticeReadModelStore | None = None,
+) -> InternalNoticeReadModelConsistencyReport:
+    source = dict(env if env is not None else os.environ)
+    runtime_projection_store = (
+        projection_store or build_notice_consumption_projection_store_from_env(source)
+    )
+    runtime_read_model_store = read_model_store or build_internal_notice_read_model_store_from_env(
+        source
+    )
+    normalized_notice_ids = normalize_notice_ids(notice_ids)
+    projection_entries = runtime_projection_store.list_by_scope(
+        source_corpus,
+        source_collection,
+        notice_ids=normalized_notice_ids,
+    )
+    read_model_rows = runtime_read_model_store.list_by_scope(
+        source_corpus,
+        source_collection,
+        notice_ids=normalized_notice_ids,
+    )
+    projection_unit_ids = {entry.unit_id for entry in projection_entries}
+    queryable_projection_unit_ids = {
+        entry.unit_id for entry in projection_entries if _is_queryable(entry)
+    }
+    read_model_unit_ids = {row.unit_id for row in read_model_rows}
+    missing_queryable_projection_unit_ids = tuple(
+        sorted(queryable_projection_unit_ids - read_model_unit_ids)
+    )
+    extra_read_model_unit_ids = tuple(sorted(read_model_unit_ids - projection_unit_ids))
+    return InternalNoticeReadModelConsistencyReport(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        selected_notice_ids=normalized_notice_ids,
+        projection_entry_count=len(projection_entries),
+        projection_queryable_count=len(queryable_projection_unit_ids),
+        read_model_entry_count=len(read_model_rows),
+        missing_queryable_projection_unit_ids=missing_queryable_projection_unit_ids,
+        extra_read_model_unit_ids=extra_read_model_unit_ids,
+        ok=not missing_queryable_projection_unit_ids and not extra_read_model_unit_ids,
+    )
+
+
+def repair_internal_notice_read_model_consistency(
+    *,
+    source_corpus: str = "campus_notices",
+    source_collection: str = "internal_notice",
+    notice_ids: Sequence[str] = (),
+    env: Mapping[str, str] | None = None,
+    projection_store: NoticeConsumptionProjectionStore | None = None,
+    read_model_store: InternalNoticeReadModelStore | None = None,
+    registry=None,
+    object_store: InternalNoticeReadModelObjectStore | None = None,
+    bucket_derived: str | None = None,
+) -> InternalNoticeReadModelRepairReport:
+    normalized_notice_ids = normalize_notice_ids(notice_ids)
+    if not normalized_notice_ids:
+        raise ValueError("selected notice_ids are required for read model consistency repair")
+    before = check_internal_notice_read_model_consistency(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        notice_ids=normalized_notice_ids,
+        env=env,
+        projection_store=projection_store,
+        read_model_store=read_model_store,
+    )
+    rows = rebuild_internal_notice_read_model(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        notice_ids=normalized_notice_ids,
+        env=env,
+        projection_store=projection_store,
+        read_model_store=read_model_store,
+        registry=registry,
+        object_store=object_store,
+        bucket_derived=bucket_derived,
+    )
+    after = check_internal_notice_read_model_consistency(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        notice_ids=normalized_notice_ids,
+        env=env,
+        projection_store=projection_store,
+        read_model_store=read_model_store,
+    )
+    return InternalNoticeReadModelRepairReport(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        selected_notice_ids=normalized_notice_ids,
+        before=before,
+        after=after,
+        rebuilt_count=len(rows),
+    )
+
+
 def build_internal_notice_read_model_store_from_env(
     env: dict[str, str] | None = None,
     *,
@@ -253,7 +378,14 @@ def _build_search_text(
     metadata_values = [
         str(value)
         for key, value in sorted(entry.role_metadata.items())
-        if key in {"notice_category", "notice_title", "title"}
+        if key
+        in {
+            "multimodal_extracted_text",
+            "multimodal_summary",
+            "notice_category",
+            "notice_title",
+            "title",
+        }
     ]
     return "\n".join(
         item.strip()
@@ -271,6 +403,19 @@ def _build_search_text(
 
 def _build_body_excerpt(body: str) -> str:
     return body.strip()[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
+
+
+def _build_read_model_body_text(entry: NoticeConsumptionProjectionEntry, body: str) -> str:
+    metadata = entry.role_metadata or {}
+    return "\n\n".join(
+        item
+        for item in (
+            body.strip(),
+            str(metadata.get("multimodal_summary") or "").strip(),
+            str(metadata.get("multimodal_extracted_text") or "").strip(),
+        )
+        if item
+    )
 
 
 def _build_provenance_refs(
@@ -307,13 +452,17 @@ __all__ = [
     "DEFAULT_INTERNAL_NOTICE_READ_MODEL_TABLE",
     "DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS",
     "InMemoryInternalNoticeReadModelStore",
+    "InternalNoticeReadModelConsistencyReport",
     "InternalNoticeReadModelEntry",
     "InternalNoticeReadModelObjectStore",
+    "InternalNoticeReadModelRepairReport",
     "InternalNoticeReadModelStore",
     "PostgresInternalNoticeReadModelStore",
     "_postgres_connection",
     "build_internal_notice_read_model_entries",
     "build_internal_notice_read_model_store_from_env",
+    "check_internal_notice_read_model_consistency",
     "normalize_notice_ids",
     "rebuild_internal_notice_read_model",
+    "repair_internal_notice_read_model_consistency",
 ]

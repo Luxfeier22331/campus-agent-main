@@ -7,11 +7,13 @@ from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+    NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
     NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
     NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
     NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
+    NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
@@ -21,7 +23,9 @@ from campus_ingestion_core.internal_notice_read_model import (
     InMemoryInternalNoticeReadModelStore,
     PostgresInternalNoticeReadModelStore,
     build_internal_notice_read_model_entries,
+    check_internal_notice_read_model_consistency,
     rebuild_internal_notice_read_model,
+    repair_internal_notice_read_model_consistency,
 )
 from campus_ingestion_core.notice_consumption_projection import (
     InMemoryNoticeConsumptionProjectionStore,
@@ -86,6 +90,13 @@ class InternalNoticeReadModelTest(unittest.TestCase):
         self.assertFalse(roster.queryable)
         self.assertEqual(roster.target_surface, NOTICE_TARGET_SURFACE_UNSUPPORTED)
 
+        pending_multimodal = next(
+            row
+            for row in rows
+            if row.target_surface == NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE
+        )
+        self.assertFalse(pending_multimodal.queryable)
+
     def test_build_entries_keeps_full_body_out_of_read_model_storage(self) -> None:
         registry, object_store, projection_entries = _runtime()
         long_tail = "TAIL_MARKER_SHOULD_NOT_BE_STORED"
@@ -117,6 +128,37 @@ class InternalNoticeReadModelTest(unittest.TestCase):
         )
         self.assertNotIn(long_tail, procurement.body_excerpt)
         self.assertNotIn(long_tail, procurement.search_text)
+
+    def test_build_entries_indexes_multimodal_processing_summary(self) -> None:
+        registry, object_store, projection_entries = _runtime()
+        multimodal_entry = _projection_entry(
+            notice_id="355333",
+            unit_id="notice_unit:355333:processed_multimodal",
+            primary_role=NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
+            target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+            title="关于校园空间示意图的通知",
+        )
+        multimodal_entry.role_metadata.update(
+            {
+                "multimodal_summary": "图中说明了丰台校区办事地点分布。",
+                "multimodal_extracted_text": "北区服务大厅办理校园卡业务。",
+            }
+        )
+
+        rows = build_internal_notice_read_model_entries(
+            (*projection_entries, multimodal_entry),
+            registry=registry,
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+        )
+
+        multimodal_row = next(
+            row for row in rows if row.unit_id == "notice_unit:355333:processed_multimodal"
+        )
+        self.assertTrue(multimodal_row.queryable)
+        self.assertIn("丰台校区办事地点分布", multimodal_row.body_excerpt)
+        self.assertIn("校园卡业务", multimodal_row.search_text)
 
     def test_rebuild_internal_notice_read_model_replaces_selected_notices(self) -> None:
         registry, object_store, projection_entries = _runtime()
@@ -168,6 +210,94 @@ class InternalNoticeReadModelTest(unittest.TestCase):
             rebuild_internal_notice_read_model(
                 projection_store=projection_store,
                 read_model_store=read_model_store,
+                registry=registry,
+                object_store=object_store,
+                bucket_derived="campus-rag-derived",
+                source_corpus="campus_notices",
+                source_collection="internal_notice",
+            )
+
+    def test_check_read_model_consistency_reports_missing_queryable_and_extra_rows(self) -> None:
+        _registry, _object_store, projection_entries = _runtime()
+        projection_store = InMemoryNoticeConsumptionProjectionStore(projection_entries)
+        read_model_store = InMemoryInternalNoticeReadModelStore(
+            (
+                _read_model_seed("355222", "notice_unit:355222:notice_window"),
+                _read_model_seed("999999", "orphan-unit"),
+            )
+        )
+
+        report = check_internal_notice_read_model_consistency(
+            projection_store=projection_store,
+            read_model_store=read_model_store,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+        )
+
+        self.assertFalse(report.ok)
+        self.assertEqual(report.projection_entry_count, 5)
+        self.assertEqual(report.projection_queryable_count, 3)
+        self.assertEqual(report.read_model_entry_count, 2)
+        self.assertEqual(
+            report.missing_queryable_projection_unit_ids,
+            (
+                "notice_unit:355111:service_status_override",
+                "notice_unit:355222:procurement_notice",
+            ),
+        )
+        self.assertEqual(report.extra_read_model_unit_ids, ("orphan-unit",))
+
+    def test_repair_read_model_consistency_replaces_selected_notice_rows(self) -> None:
+        registry, object_store, projection_entries = _runtime()
+        projection_store = InMemoryNoticeConsumptionProjectionStore(projection_entries)
+        read_model_store = InMemoryInternalNoticeReadModelStore(
+            (
+                _read_model_seed("355222", "notice_unit:355222:notice_window"),
+                _read_model_seed("355222", "stale-procurement-unit"),
+                _read_model_seed("999999", "unrelated-unit"),
+            )
+        )
+
+        report = repair_internal_notice_read_model_consistency(
+            projection_store=projection_store,
+            read_model_store=read_model_store,
+            registry=registry,
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            notice_ids=("355222",),
+        )
+
+        self.assertFalse(report.before.ok)
+        self.assertTrue(report.after.ok)
+        self.assertEqual(report.rebuilt_count, 2)
+        stored_355222 = read_model_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=("355222",),
+        )
+        self.assertEqual(
+            {row.unit_id for row in stored_355222},
+            {
+                "notice_unit:355222:notice_window",
+                "notice_unit:355222:procurement_notice",
+            },
+        )
+        self.assertEqual(
+            {
+                row.source_notice_id
+                for row in read_model_store.list_by_scope("campus_notices", "internal_notice")
+            },
+            {"355222", "999999"},
+        )
+
+    def test_repair_read_model_consistency_requires_selected_notice_ids(self) -> None:
+        registry, object_store, projection_entries = _runtime()
+        with self.assertRaisesRegex(ValueError, "selected notice_ids are required"):
+            repair_internal_notice_read_model_consistency(
+                projection_store=InMemoryNoticeConsumptionProjectionStore(projection_entries),
+                read_model_store=InMemoryInternalNoticeReadModelStore(),
                 registry=registry,
                 object_store=object_store,
                 bucket_derived="campus-rag-derived",
@@ -239,7 +369,22 @@ def _runtime():
         units_key="campus_notices/documents/internal_notice/355111/document-units.jsonl",
         is_current=True,
     )
-    registry = InMemoryDocumentRegistry((procurement_record, roster_record, service_record))
+    pending_multimodal_record = _record(
+        notice_id="355333",
+        title_slug="campus-map",
+        content_hash="sha256:campus-map",
+        body_key="campus_notices/documents/internal_notice/355333/canonical.md",
+        units_key="campus_notices/documents/internal_notice/355333/document-units.jsonl",
+        is_current=True,
+    )
+    registry = InMemoryDocumentRegistry(
+        (
+            procurement_record,
+            roster_record,
+            service_record,
+            pending_multimodal_record,
+        )
+    )
     object_store = _FakeObjectStore(
         objects={
             (
@@ -256,6 +401,10 @@ def _runtime():
                 "campus-rag-derived",
                 service_record.canonical_markdown_object_key,
             ): _canonical_markdown("# 关于暑假期间办理就业相关事务的通知\n\n服务时间调整。\n"),
+            (
+                "campus-rag-derived",
+                pending_multimodal_record.canonical_markdown_object_key,
+            ): _canonical_markdown("# 关于校园空间示意图的通知\n\n见附件示意图。\n"),
         }
     )
     projection_entries = (
@@ -290,6 +439,14 @@ def _runtime():
             target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
             consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
             title="关于暑假期间办理就业相关事务的通知",
+        ),
+        _projection_entry(
+            notice_id="355333",
+            unit_id="notice_unit:355333:multimodal_gap",
+            primary_role=NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
+            target_surface=NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+            title="关于校园空间示意图的通知",
         ),
     )
     return registry, object_store, projection_entries

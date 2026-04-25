@@ -16,12 +16,14 @@ type NoticeReadModelStore interface {
 		ctx context.Context,
 		sourceFamilies []string,
 		queryText string,
+		targetSurfaces []string,
 		maxResults int,
 	) ([]noticeReadModelRecord, error)
 	GetNoticeByID(
 		ctx context.Context,
 		noticeID string,
 		sourceFamily string,
+		targetSurfaces []string,
 	) (noticeReadModelRecord, bool, error)
 }
 
@@ -53,12 +55,14 @@ type noticeDiscoverRequest struct {
 	QueryText      string        `json:"query_text"`
 	TemporalQuery  temporalQuery `json:"temporal_query"`
 	SourceFamilies []string      `json:"source_families"`
+	TargetSurfaces []string      `json:"target_surfaces"`
 	MaxResults     int           `json:"max_results"`
 }
 
 type noticeGetRequest struct {
-	NoticeID     string `json:"notice_id"`
-	SourceFamily string `json:"source_family"`
+	NoticeID       string   `json:"notice_id"`
+	SourceFamily   string   `json:"source_family"`
+	TargetSurfaces []string `json:"target_surfaces"`
 }
 
 type noticeReadModelRecord struct {
@@ -78,15 +82,17 @@ type noticeReadModelRecord struct {
 }
 
 type noticeCard struct {
-	NoticeID     string `json:"notice_id"`
-	Title        string `json:"title"`
-	SourceFamily string `json:"source_family"`
-	SourceURL    string `json:"source_url"`
-	CanonicalURL string `json:"canonical_url,omitempty"`
-	PublishedAt  string `json:"published_at,omitempty"`
-	EffectiveAt  string `json:"effective_at,omitempty"`
-	BodyExcerpt  string `json:"body_excerpt,omitempty"`
-	IsCurrent    bool   `json:"is_current"`
+	NoticeID      string `json:"notice_id"`
+	Title         string `json:"title"`
+	SourceFamily  string `json:"source_family"`
+	SourceURL     string `json:"source_url"`
+	CanonicalURL  string `json:"canonical_url,omitempty"`
+	PublishedAt   string `json:"published_at,omitempty"`
+	EffectiveAt   string `json:"effective_at,omitempty"`
+	TargetSurface string `json:"target_surface,omitempty"`
+	PrimaryRole   string `json:"primary_role,omitempty"`
+	BodyExcerpt   string `json:"body_excerpt,omitempty"`
+	IsCurrent     bool   `json:"is_current"`
 }
 
 type noticeDiscoverResult struct {
@@ -109,6 +115,8 @@ type noticeGetResult struct {
 	NormalizedBody            string   `json:"normalized_body,omitempty"`
 	PublishedAt               string   `json:"published_at,omitempty"`
 	EffectiveAt               string   `json:"effective_at,omitempty"`
+	TargetSurface             string   `json:"target_surface,omitempty"`
+	PrimaryRole               string   `json:"primary_role,omitempty"`
 	AttachmentRefs            []string `json:"attachment_refs,omitempty"`
 	ProvenanceRefs            []string `json:"provenance_refs,omitempty"`
 	HistoricalDowngradeReason string   `json:"historical_downgrade_reason,omitempty"`
@@ -145,6 +153,7 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 		ctx,
 		sourceFamilies,
 		request.QueryText,
+		request.TargetSurfaces,
 		request.MaxResults,
 	)
 	if err != nil {
@@ -162,15 +171,17 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 	cards := make([]noticeCard, 0, len(rows))
 	for _, row := range rows {
 		cards = append(cards, noticeCard{
-			NoticeID:     row.SourceNoticeID,
-			Title:        row.Title,
-			SourceFamily: row.SourceFamily,
-			SourceURL:    row.SourceURL,
-			CanonicalURL: row.CanonicalURL,
-			PublishedAt:  row.PublishedAt,
-			EffectiveAt:  row.EffectiveAt,
-			BodyExcerpt:  row.BodyExcerpt,
-			IsCurrent:    true,
+			NoticeID:      row.SourceNoticeID,
+			Title:         row.Title,
+			SourceFamily:  row.SourceFamily,
+			SourceURL:     row.SourceURL,
+			CanonicalURL:  row.CanonicalURL,
+			PublishedAt:   row.PublishedAt,
+			EffectiveAt:   row.EffectiveAt,
+			TargetSurface: row.TargetSurface,
+			PrimaryRole:   row.PrimaryRole,
+			BodyExcerpt:   row.BodyExcerpt,
+			IsCurrent:     true,
 		})
 	}
 	body := noticeDiscoverResult{
@@ -194,6 +205,7 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	}
 	request.NoticeID = strings.TrimSpace(request.NoticeID)
 	request.SourceFamily = strings.TrimSpace(request.SourceFamily)
+	request.TargetSurfaces = normalizeNoticeTargetSurfaces(request.TargetSurfaces)
 	if request.NoticeID == "" {
 		return invalidRequest("notice_id is required.")
 	}
@@ -210,7 +222,7 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	if err := ctx.Err(); err != nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
-	row, ok, err := r.noticeReadModelStore.GetNoticeByID(ctx, request.NoticeID, sourceFamily)
+	row, ok, err := r.noticeReadModelStore.GetNoticeByID(ctx, request.NoticeID, sourceFamily, request.TargetSurfaces)
 	if err != nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
@@ -240,6 +252,8 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 		NormalizedBody: bodyText,
 		PublishedAt:    row.PublishedAt,
 		EffectiveAt:    row.EffectiveAt,
+		TargetSurface:  row.TargetSurface,
+		PrimaryRole:    row.PrimaryRole,
 		AttachmentRefs: append([]string(nil), row.AttachmentRefs...),
 		ProvenanceRefs: append([]string(nil), row.ProvenanceRefs...),
 	}
@@ -262,6 +276,7 @@ func normalizeNoticeDiscoverRequest(request *noticeDiscoverRequest) {
 	for index, value := range request.SourceFamilies {
 		request.SourceFamilies[index] = strings.TrimSpace(value)
 	}
+	request.TargetSurfaces = normalizeNoticeTargetSurfaces(request.TargetSurfaces)
 }
 
 func internalNoticeSourceFamilies(values []string) []string {
@@ -273,6 +288,20 @@ func internalNoticeSourceFamilies(values []string) []string {
 	for _, value := range values {
 		item := strings.TrimSpace(value)
 		if item != internalNoticeRestrictedSourceFamily || seen[item] {
+			continue
+		}
+		seen[item] = true
+		normalized = append(normalized, item)
+	}
+	return normalized
+}
+
+func normalizeNoticeTargetSurfaces(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		item := strings.TrimSpace(value)
+		if item == "" || seen[item] {
 			continue
 		}
 		seen[item] = true

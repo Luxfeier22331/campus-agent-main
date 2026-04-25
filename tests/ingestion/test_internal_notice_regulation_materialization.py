@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+import unittest.mock
 
 import campus_ingestion_core.internal_notice_regulation_materialization as regulation_materialization
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -831,6 +832,83 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertEqual(report.promotion_candidate_count, 0)
         self.assertEqual(report.materialized_document_count, 0)
         self.assertEqual(registry.list_by_scope("regulations", "institutional_rules"), ())
+
+    def test_materialize_uses_projection_truth_without_rebuilding_promotion_manifest(
+        self,
+    ) -> None:
+        parent = _record(
+            document_id="notice:muc_internal_portal:300101",
+            source_uri="https://portal.example.edu/notices/300101",
+            canonical_key="campus_notices/documents/internal_notice/300101/canonical.md",
+            units_key="campus_notices/documents/internal_notice/300101/document-units.jsonl",
+            content_hash="sha256:parent-300101",
+            is_current=True,
+        )
+        registry = InMemoryDocumentRegistry((parent,))
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 中央民族大学实验室安全管理规定\n\n第一条 为加强实验室安全管理，制定本规定。\n"
+                ),
+                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": parent.document_id,
+                            "version_id": parent.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "中央民族大学实验室安全管理规定",
+                            "source_url": parent.source_uri,
+                            "page_start": 1,
+                            "page_end": 2,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {"title": "中央民族大学实验室安全管理规定"},
+                        }
+                    ]
+                ),
+            }
+        )
+        ready_projection = _ready_institutional_projection_entry(
+            notice_id="300101",
+            source_document_id=parent.document_id,
+        )
+
+        with (
+            unittest.mock.patch(
+                "campus_ingestion_core.internal_notice_regulation_materialization.build_internal_notice_regulation_promotion_manifest",
+                side_effect=AssertionError("must not rebuild promotion manifest"),
+                create=True,
+            ),
+            unittest.mock.patch(
+                "campus_ingestion_core.internal_notice_regulation_materialization.build_internal_notice_regulation_candidate_artifact_manifest",
+                side_effect=AssertionError("must not rebuild candidate artifact manifest"),
+                create=True,
+            ),
+        ):
+            report = regulation_materialization.materialize_institutional_regulations_from_internal_notice_scope(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "EMBEDDING_PROVIDER": "mock",
+                    "EMBEDDING_MODEL": "mock-embedding-8d",
+                    "SPARSE_PROVIDER": "mock",
+                },
+                object_store=object_store,
+                registry=registry,
+                raw_asset_registry=InMemoryRawAssetRegistry(()),
+                source_truth_inventory_store=InMemoryAuthenticatedNoticeSourceTruthInventoryStore(),
+                consumption_projection_store=InMemoryNoticeConsumptionProjectionStore(
+                    (ready_projection,)
+                ),
+            )
+
+        self.assertEqual(report.promotion_candidate_count, 1)
+        self.assertEqual(report.materialized_document_count, 1)
 
 
 class _ReadOnlyProjectionStore(InMemoryNoticeConsumptionProjectionStore):

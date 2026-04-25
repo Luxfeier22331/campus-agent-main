@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-23
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 # Campus Notice Runtime Contract
 
@@ -56,6 +56,10 @@ CampusNoticeDiscoverPayload
 - source_families[]:
   - official_web_public_notice
   - internal_notice_restricted
+- target_surfaces[]:
+  - notice_level_query
+  - procurement_notice_history
+  - campus_services/service_status_candidate
 - max_results: int
 ```
 
@@ -64,6 +68,9 @@ CampusNoticeDiscoverPayload
 - `query_text` 保留用户原问句，不得为空
 - `temporal_query` 继续复用 repo-owned `TemporalQuery`
 - `source_families` 是上游已知约束，不是 query-time source scan 指令
+- `target_surfaces` 是可选的 notice consumption facet；为空时读取所有 queryable
+  notice read-model rows，指定时只读取对应 query surface，例如
+  `procurement_notice_history`
 
 ## Internal Query HTTP Packet
 
@@ -83,6 +90,7 @@ CampusNoticeDiscoverPayload
   "payload": {
     "query_text": "家具采购",
     "source_families": ["internal_notice_restricted"],
+    "target_surfaces": ["procurement_notice_history"],
     "max_results": 5
   },
   "access_context": {

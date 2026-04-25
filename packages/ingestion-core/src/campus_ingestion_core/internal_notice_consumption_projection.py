@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -32,15 +33,16 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_ANSWERABLE,
     NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-    NOTICE_ANSWERABILITY_MANUAL_REVIEW_REQUIRED,
     NOTICE_ANSWERABILITY_NOT_ANSWERABLE,
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING,
     NOTICE_COMPLETENESS_COMPLETE,
     NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
+    NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+    NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
@@ -60,6 +62,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_SEMANTIC_OWNER_WRAPPER_NOTICE,
     NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
@@ -77,6 +80,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     PostgresNoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
     is_notice_query_retained_consumption_status,
+    normalize_notice_ids,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -107,9 +111,39 @@ class NoticeConsumptionProjectionStatus:
     ready_unit_count: int
     held_unit_count: int
     manual_review_unit_count: int
+    pending_multimodal_unit_count: int
     no_adoption_unit_count: int
     has_target_ready_units: bool
     units: tuple[NoticeConsumptionProjectionUnitStatus, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class InternalNoticeProcessingGapUnit:
+    source_notice_id: str
+    unit_id: str
+    primary_role: str
+    semantic_owner: str
+    target_surface: str
+    consumption_status: str
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class InternalNoticeProcessingGapsReport:
+    source_corpus: str
+    source_collection: str
+    selected_notice_ids: tuple[str, ...]
+    projection_entry_count: int
+    pending_multimodal_processing_count: int
+    authority_pending_count: int
+    unsupported_count: int
+    no_adoption_count: int
+    ready_for_target_count: int
+    retained_for_notice_query_count: int
+    legacy_manual_review_required_count: int
+    consumption_status_counts: dict[str, int]
+    target_surface_counts: dict[str, int]
+    gap_units: tuple[InternalNoticeProcessingGapUnit, ...]
 
 
 def build_internal_notice_consumption_projection_entries(
@@ -290,6 +324,11 @@ def read_notice_consumption_projection_status(
         for entry in entries
         if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED
     )
+    pending_multimodal_count = sum(
+        1
+        for entry in entries
+        if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING
+    )
     no_adoption_count = sum(
         1 for entry in entries if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
     )
@@ -301,9 +340,70 @@ def read_notice_consumption_projection_status(
         ready_unit_count=ready_count,
         held_unit_count=held_count,
         manual_review_unit_count=manual_count,
+        pending_multimodal_unit_count=pending_multimodal_count,
         no_adoption_unit_count=no_adoption_count,
         has_target_ready_units=ready_count > 0,
         units=units,
+    )
+
+
+def check_internal_notice_processing_gaps(
+    *,
+    source_corpus: str = "campus_notices",
+    source_collection: str = "internal_notice",
+    notice_ids: Sequence[str] = (),
+    env: Mapping[str, str] | None = None,
+    projection_store: NoticeConsumptionProjectionStore | None = None,
+) -> InternalNoticeProcessingGapsReport:
+    source = dict(env if env is not None else os.environ)
+    runtime_projection_store = (
+        projection_store or build_notice_consumption_projection_store_from_env(source)
+    )
+    normalized_notice_ids = normalize_notice_ids(notice_ids)
+    entries = runtime_projection_store.list_by_scope(
+        source_corpus,
+        source_collection,
+        notice_ids=normalized_notice_ids,
+    )
+    consumption_status_counts = Counter(entry.consumption_status for entry in entries)
+    target_surface_counts = Counter(entry.target_surface for entry in entries)
+    pending_multimodal_count = consumption_status_counts.get(
+        NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+        0,
+    )
+    authority_pending_count = sum(
+        1 for entry in entries if entry.semantic_owner == NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING
+    )
+    unsupported_count = target_surface_counts.get(NOTICE_TARGET_SURFACE_UNSUPPORTED, 0)
+    no_adoption_count = consumption_status_counts.get(NOTICE_CONSUMPTION_STATUS_NO_ADOPTION, 0)
+    ready_for_target_count = consumption_status_counts.get(
+        NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+        0,
+    )
+    retained_for_notice_query_count = sum(
+        1
+        for entry in entries
+        if is_notice_query_retained_consumption_status(entry.consumption_status)
+    )
+    legacy_manual_review_count = consumption_status_counts.get(
+        NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
+        0,
+    )
+    return InternalNoticeProcessingGapsReport(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        selected_notice_ids=normalized_notice_ids,
+        projection_entry_count=len(entries),
+        pending_multimodal_processing_count=pending_multimodal_count,
+        authority_pending_count=authority_pending_count,
+        unsupported_count=unsupported_count,
+        no_adoption_count=no_adoption_count,
+        ready_for_target_count=ready_for_target_count,
+        retained_for_notice_query_count=retained_for_notice_query_count,
+        legacy_manual_review_required_count=legacy_manual_review_count,
+        consumption_status_counts=dict(sorted(consumption_status_counts.items())),
+        target_surface_counts=dict(sorted(target_surface_counts.items())),
+        gap_units=tuple(_build_processing_gap_units(entries)),
     )
 
 
@@ -314,6 +414,7 @@ def _build_unit_status(
     for key in (
         "owner_source_missing_reason",
         "no_adoption_reason",
+        "processing_gap_reason",
         "notice_query_reason",
         "notice_runtime_reason",
         "archive_reason",
@@ -328,6 +429,44 @@ def _build_unit_status(
         target_surface=entry.target_surface,
         consumption_status=entry.consumption_status,
         reasons=reasons,
+    )
+
+
+def _build_processing_gap_units(
+    entries: Sequence[NoticeConsumptionProjectionEntry],
+) -> tuple[InternalNoticeProcessingGapUnit, ...]:
+    return tuple(
+        _build_processing_gap_unit(entry)
+        for entry in sorted(entries, key=lambda item: (item.source_notice_id, item.unit_id))
+        if _is_processing_gap_entry(entry)
+    )
+
+
+def _is_processing_gap_entry(entry: NoticeConsumptionProjectionEntry) -> bool:
+    return (
+        entry.consumption_status
+        in {
+            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+            NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+            NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
+        }
+        or entry.semantic_owner == NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING
+        or entry.target_surface == NOTICE_TARGET_SURFACE_UNSUPPORTED
+    )
+
+
+def _build_processing_gap_unit(
+    entry: NoticeConsumptionProjectionEntry,
+) -> InternalNoticeProcessingGapUnit:
+    unit_status = _build_unit_status(entry)
+    return InternalNoticeProcessingGapUnit(
+        source_notice_id=entry.source_notice_id,
+        unit_id=entry.unit_id,
+        primary_role=entry.primary_role,
+        semantic_owner=entry.semantic_owner,
+        target_surface=entry.target_surface,
+        consumption_status=entry.consumption_status,
+        reasons=unit_status.reasons,
     )
 
 
@@ -598,6 +737,10 @@ def _build_document_consumption_entry(
     completeness_status = _resolve_completeness_status(report)
     answerability = _resolve_answerability(completeness_status=completeness_status)
     target_surface = _resolve_target_surface(primary_role)
+    if _requires_multimodal_processing(report):
+        target_surface = NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE
+    elif _is_unsupported_manual_review_reason(report):
+        target_surface = NOTICE_TARGET_SURFACE_UNSUPPORTED
     default_agent = _resolve_default_agent(
         target_surface=target_surface,
         completeness_status=completeness_status,
@@ -657,6 +800,7 @@ def _build_document_consumption_entry(
             "school_unit_name": _extract_school_unit_name(title),
             "campus_site": _extract_campus_site(combined_text),
             "force_status": _extract_force_status(combined_text),
+            **_build_processing_gap_metadata(report),
         },
     )
 
@@ -711,7 +855,9 @@ def _resolve_completeness_status(report: InternalNoticeRegulationPromotionDocume
     ):
         return NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING
     if report.action == "manual_review_required":
-        return NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED
+        if _is_unsupported_manual_review_reason(report):
+            return NOTICE_COMPLETENESS_REFERENCE_ONLY
+        return NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING
     return NOTICE_COMPLETENESS_REFERENCE_ONLY
 
 
@@ -720,8 +866,11 @@ def _resolve_answerability(*, completeness_status: str) -> str:
         return NOTICE_ANSWERABILITY_ANSWERABLE
     if completeness_status == NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING:
         return NOTICE_ANSWERABILITY_NOT_ANSWERABLE
-    if completeness_status == NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED:
-        return NOTICE_ANSWERABILITY_MANUAL_REVIEW_REQUIRED
+    if completeness_status in {
+        NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED,
+        NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
+    }:
+        return NOTICE_ANSWERABILITY_NOT_ANSWERABLE
     return NOTICE_ANSWERABILITY_REFERENCE_ONLY
 
 
@@ -733,6 +882,11 @@ def _resolve_default_agent(
 ) -> str:
     if (
         target_surface != NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
+        and target_surface
+        not in {
+            NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+            NOTICE_TARGET_SURFACE_UNSUPPORTED,
+        }
         and completeness_status == NOTICE_COMPLETENESS_COMPLETE
         and answerability == NOTICE_ANSWERABILITY_ANSWERABLE
     ):
@@ -748,13 +902,65 @@ def _resolve_consumption_status(
 ) -> str:
     if (
         target_surface != NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
+        and target_surface
+        not in {
+            NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+            NOTICE_TARGET_SURFACE_UNSUPPORTED,
+        }
         and completeness_status == NOTICE_COMPLETENESS_COMPLETE
         and answerability == NOTICE_ANSWERABILITY_ANSWERABLE
     ):
         return NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
-    if completeness_status == NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED:
-        return NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED
+    if target_surface == NOTICE_TARGET_SURFACE_UNSUPPORTED:
+        return NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
+    if completeness_status in {
+        NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED,
+        NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
+    }:
+        return NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING
     return NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY
+
+
+def _requires_multimodal_processing(
+    report: InternalNoticeRegulationPromotionDocumentReport,
+) -> bool:
+    return (
+        report.action == "manual_review_required"
+        and report.owner_source_missing_reason is None
+        and not _is_unsupported_manual_review_reason(report)
+    )
+
+
+def _is_unsupported_manual_review_reason(
+    report: InternalNoticeRegulationPromotionDocumentReport,
+) -> bool:
+    if report.action != "manual_review_required":
+        return False
+    reasons = set(report.reasons)
+    return bool(
+        reasons
+        & {
+            "draft_signal_detected",
+            "input_lane_not_admitted",
+            "unsupported_revision_track",
+        }
+    )
+
+
+def _build_processing_gap_metadata(
+    report: InternalNoticeRegulationPromotionDocumentReport,
+) -> dict[str, object]:
+    if _requires_multimodal_processing(report):
+        return {
+            "processing_gap_reason": "multimodal_processing_required",
+            "legacy_promotion_action": "manual_review_required",
+        }
+    if _is_unsupported_manual_review_reason(report):
+        return {
+            "no_adoption_reason": "unsupported_manual_review_legacy_reason",
+            "legacy_promotion_action": "manual_review_required",
+        }
+    return {}
 
 
 def _load_promotion_body(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import unittest.mock
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
@@ -235,6 +236,81 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
         self.assertEqual(seasonal_metadata["document_nature"], "time_bound_operational_rule")
         self.assertEqual(seasonal_metadata["source_notice_ids"], ["191176", "191177"])
         self.assertEqual(seasonal_metadata["school_unit_name"], "生命与环境科学学院")
+
+    def test_materialize_scoped_rules_uses_projection_truth_without_rebuilding_promotion_manifest(
+        self,
+    ) -> None:
+        source_record = _record(
+            notice_id="351907",
+            title_slug="recommendation-rule",
+            content_hash="sha256:annual-351907",
+            body_key="campus_notices/documents/internal_notice/351907/canonical.md",
+            units_key="campus_notices/documents/internal_notice/351907/document-units.jsonl",
+            is_current=True,
+        )
+        registry = InMemoryDocumentRegistry((source_record,))
+        object_store = _FakeObjectStore(
+            objects={
+                (
+                    "campus-rag-derived",
+                    source_record.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则\n\n第一条 为规范推荐2026届本科生免试攻读研究生工作，制定本细则。\n"
+                ),
+                ("campus-rag-derived", source_record.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": source_record.document_id,
+                            "version_id": source_record.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                            "source_url": source_record.source_uri,
+                            "page_start": 1,
+                            "page_end": 2,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {
+                                "title": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则"
+                            },
+                        }
+                    ]
+                ),
+            }
+        )
+        with unittest.mock.patch(
+            "campus_ingestion_core.internal_notice_scoped_rule_materialization_engine.build_internal_notice_regulation_promotion_manifest",
+            side_effect=AssertionError("must not rebuild promotion manifest"),
+            create=True,
+        ):
+            report = scoped_materialization.materialize_scoped_rules_from_internal_notice_scope(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "EMBEDDING_PROVIDER": "mock",
+                    "EMBEDDING_MODEL": "mock-embedding-8d",
+                    "SPARSE_PROVIDER": "mock",
+                },
+                object_store=object_store,
+                registry=registry,
+                raw_asset_registry=InMemoryRawAssetRegistry(()),
+                source_truth_inventory_store=InMemoryAuthenticatedNoticeSourceTruthInventoryStore(),
+                consumption_projection_store=InMemoryNoticeConsumptionProjectionStore(
+                    (
+                        _ready_scoped_projection_entry(
+                            notice_id="351907",
+                            primary_role=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+                        ),
+                    )
+                ),
+            )
+
+        self.assertEqual(report.scoped_rule_candidate_count, 1)
+        self.assertEqual(report.materialized_document_count, 1)
 
     def test_materialize_scoped_rules_refreshes_existing_target_artifacts_when_provenance_expands(
         self,

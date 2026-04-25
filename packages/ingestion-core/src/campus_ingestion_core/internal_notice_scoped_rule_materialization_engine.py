@@ -12,7 +12,6 @@ from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
-    build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
@@ -23,14 +22,15 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.internal_notice_consumption_projection import (
+    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
     NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
     InMemoryNoticeConsumptionProjectionStore,
+    NoticeConsumptionProjectionEntry,
     NoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
     list_existing_internal_notice_consumption_projection_entries,
-    select_ready_target_document_ids,
 )
 from campus_ingestion_core.internal_notice_regulation_materialization import (
     _index_latest_scope_records,
@@ -45,7 +45,6 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticePromotionObjectStore,
     InternalNoticeRegulationPromotionDocumentReport,
     InternalNoticeRegulationPromotionRequest,
-    build_internal_notice_regulation_promotion_manifest,
 )
 from campus_ingestion_core.internal_notice_regulation_promotion_artifacts import (
     _extract_candidate_promotion_body,
@@ -60,7 +59,6 @@ from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared im
     InternalNoticeScopedRuleMaterializationReport,
     _aggregate_notice_ids,
     _candidate_group_key,
-    _detect_scoped_rule_nature,
     _extract_campus_site,
     _extract_cycle_year,
     _extract_force_status,
@@ -111,10 +109,6 @@ def materialize_scoped_rules_from_internal_notice_scope(
     runtime_object_store = object_store or S3ObjectStoreWriter(ObjectStoreSettings.from_env(source))
     runtime_registry = registry or build_document_registry_from_env(source)
     runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
-    runtime_inventory = (
-        source_truth_inventory_store
-        or build_authenticated_notice_source_truth_inventory_store_from_env(source)
-    )
     if consumption_projection_store is not None:
         runtime_consumption_projection_store = consumption_projection_store
     else:
@@ -129,58 +123,16 @@ def materialize_scoped_rules_from_internal_notice_scope(
         runtime_consumption_projection_store,
         request=runtime_request,
     )
-    ready_document_ids = frozenset(
-        select_ready_target_document_ids(
-            projection_entries,
-            target_surface=NOTICE_TARGET_SURFACE_SCOPED_RULES,
-            primary_roles=(
-                NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
-                NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
-            ),
-        )
-    )
-
-    promotion_report = build_internal_notice_regulation_promotion_manifest(
-        request=runtime_request,
-        env=source,
-        registry=runtime_registry,
-        source_truth_inventory_store=runtime_inventory,
-        object_store=runtime_object_store,
-    )
     source_record_by_lineage = _index_latest_scope_records(
         runtime_registry.list_by_scope(runtime_request.corpus, runtime_request.collection)
     )
-    notice_ids = tuple(sorted({report.notice_id for report in promotion_report.documents}))
-    inventory_entries = runtime_inventory.list_by_scope(
-        runtime_request.corpus,
-        runtime_request.collection,
-        notice_ids=notice_ids,
-    )
-    inventory_by_notice = {entry.notice_id: entry for entry in inventory_entries}
     bucket_derived = object_store_settings.bucket_derived
-
-    candidates: list[InternalNoticeScopedRuleCandidate] = []
-    report_by_document_id: dict[str, InternalNoticeRegulationPromotionDocumentReport] = {}
-    for report in promotion_report.documents:
-        document_nature = _detect_scoped_rule_nature(report)
-        if document_nature is None:
-            continue
-        if report.document_id not in ready_document_ids:
-            continue
-        source_record = source_record_by_lineage.get((report.document_id, report.revision_track))
-        if source_record is None:
-            continue
-        inventory_entry = inventory_by_notice.get(report.notice_id)
-        candidate = _build_scoped_rule_candidate(
-            report=report,
-            source_record=source_record,
-            inventory_entry=inventory_entry,
-            object_store=runtime_object_store,
-            bucket_derived=bucket_derived,
-            document_nature=document_nature,
-        )
-        candidates.append(candidate)
-        report_by_document_id[report.document_id] = report
+    candidates, report_by_document_id = _build_projection_scoped_rule_candidates(
+        projection_entries=projection_entries,
+        source_record_by_lineage=source_record_by_lineage,
+        object_store=runtime_object_store,
+        bucket_derived=bucket_derived,
+    )
 
     if not candidates:
         runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
@@ -332,6 +284,124 @@ def build_scoped_rule_scope_refresh_documents(
             )
         )
     return documents
+
+
+def _build_projection_scoped_rule_candidates(
+    *,
+    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    source_record_by_lineage: Mapping[tuple[str, str], DocumentRegistryRecord],
+    object_store: ScopedRuleMaterializationObjectStore,
+    bucket_derived: str,
+) -> tuple[
+    list[InternalNoticeScopedRuleCandidate],
+    dict[str, InternalNoticeRegulationPromotionDocumentReport],
+]:
+    candidates: list[InternalNoticeScopedRuleCandidate] = []
+    report_by_document_id: dict[str, InternalNoticeRegulationPromotionDocumentReport] = {}
+    for entry in projection_entries:
+        if entry.target_surface != NOTICE_TARGET_SURFACE_SCOPED_RULES:
+            continue
+        if entry.consumption_status != NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET:
+            continue
+        document_nature = _projection_document_nature(entry)
+        if document_nature is None:
+            continue
+        source_document_id = entry.source_document_id or entry.source_notice_document_id
+        source_record = source_record_by_lineage.get((source_document_id, "source-faithful"))
+        if source_record is None:
+            continue
+        report = _build_projection_scoped_report(
+            entry=entry,
+            source_record=source_record,
+            document_nature=document_nature,
+            object_store=object_store,
+            bucket_derived=bucket_derived,
+        )
+        candidate = _build_scoped_rule_candidate(
+            report=report,
+            source_record=source_record,
+            inventory_entry=None,
+            object_store=object_store,
+            bucket_derived=bucket_derived,
+            document_nature=document_nature,
+        )
+        candidates.append(candidate)
+        report_by_document_id[report.document_id] = report
+    return candidates, report_by_document_id
+
+
+def _projection_document_nature(entry: NoticeConsumptionProjectionEntry) -> str | None:
+    if entry.primary_role == NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE:
+        return NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE
+    if entry.primary_role == NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE:
+        return NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE
+    return None
+
+
+def _build_projection_scoped_report(
+    *,
+    entry: NoticeConsumptionProjectionEntry,
+    source_record: DocumentRegistryRecord,
+    document_nature: str,
+    object_store: ScopedRuleMaterializationObjectStore,
+    bucket_derived: str,
+) -> InternalNoticeRegulationPromotionDocumentReport:
+    source_markdown = object_store.get_bytes(
+        bucket=bucket_derived,
+        key=source_record.canonical_markdown_object_key or "",
+    ).decode("utf-8")
+    title = _extract_projection_markdown_title(source_markdown)
+    metadata = dict(entry.role_metadata or {})
+    return InternalNoticeRegulationPromotionDocumentReport(
+        document_id=source_record.document_id,
+        notice_id=entry.source_notice_id,
+        site_id=_extract_site_id(entry.source_notice_document_id),
+        source_kind="parent_notice"
+        if source_record.document_id == entry.source_notice_document_id
+        else "attachment_document",
+        source_title=str(metadata.get("title") or metadata.get("notice_title") or title),
+        input_lane=str(metadata.get("semantic_owner_kind") or entry.semantic_owner),
+        revision_track=source_record.revision_track,
+        version_id=source_record.version_id,
+        action="candidate",
+        promotion_class=str(metadata.get("promotion_class") or "scoped_rule"),
+        document_nature=document_nature,
+        semantic_owner_kind=str(metadata.get("semantic_owner_kind") or entry.semantic_owner),
+        target_corpus=_TARGET_SCOPE[0],
+        target_collection=_TARGET_SCOPE[1],
+        regulation_title_normalized=str(metadata.get("regulation_title_normalized") or title),
+        issuing_org=str(metadata.get("issuing_org") or "中央民族大学"),
+        effective_date=str(metadata.get("effective_date") or "").strip() or None,
+        revision_signal=str(metadata.get("revision_signal") or "").strip() or None,
+        source_notice_release_time=entry.source_notice_release_time or source_record.published_date,
+        source_parent_document_id=entry.source_notice_document_id,
+        source_attachment_ref_id=entry.source_attachment_ref_ids[0]
+        if entry.source_attachment_ref_ids
+        else None,
+        source_attachment_sha256=str(metadata.get("source_attachment_sha256") or "").strip()
+        or None,
+        duplicate_group_key=None,
+        duplicate_primary_document_id=None,
+        quality_gates_passed=tuple(
+            str(item) for item in metadata.get("quality_gates_passed") or ()
+        ),
+        missing_required_metadata=(),
+        reasons=tuple(str(item) for item in metadata.get("reasons") or ()),
+        artifact_key=None,
+    )
+
+
+def _extract_projection_markdown_title(markdown: str) -> str:
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            return _strip_heading(stripped)
+    return ""
+
+
+def _extract_site_id(source_notice_document_id: str) -> str:
+    parts = source_notice_document_id.split(":")
+    return parts[1] if len(parts) >= 3 else "muc_internal_portal"
 
 
 def _build_scoped_rule_candidate(

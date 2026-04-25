@@ -439,8 +439,25 @@ owner` 解析。
 
 - 如果 parent notice 正文明确出现 `附件：`、`参见《…》附件`、`信息门户-文件发布`、`自行下载参照执行` 一类 owner 指向信号
 - 但 source-truth / child document 还没有恢复出对应 attachment owner 或 file-release owner
-- 则结果必须是 `manual_review_required`
+- 则 promotion/source diagnostic 可以保留 legacy `manual_review_required`，
+  但 consumption projection 不再把它写成 terminal status
 - 不得把这类 parent notice body 直接 promote 成 regulation 正文
+
+消费层固定下线 `consumption_status=manual_review_required`：
+
+- 可由机器继续处理的视觉/非线性内容写入
+  `target_surface=multimodal_processing_candidate` 与
+  `consumption_status=pending_multimodal_processing`
+- selected multimodal worker 可通过 env chat endpoint 处理这类 unit；结果只能回写为
+  notice-level query/read-model truth 或 `no_adoption`，不得把视觉模型摘要直接冒充
+  `regulations/*` ready target
+- owner/source relation 不完整的条目写入 `semantic_owner=authority_pending`，由
+  processing gap audit 暴露，不伪装成 ready target
+- 不属于当前 admitted lane 的硬性 manual-review legacy reason 写入
+  `target_surface=unsupported` 与 `consumption_status=no_adoption`
+- `manual_review_required` 只允许作为 source-truth attachment classification、
+  promotion diagnostic 或历史兼容字段出现，不允许作为新生成的 consumption
+  projection status
 
 这层解析结果必须作为显式 metadata 落盘，而不是在后置阶段重新猜测。当前第一版固定字段为：
 
@@ -526,14 +543,15 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
 `manual_review_required` 的固定语义补充：
 
 - 这类 attachment 不是 `reference_only decorative asset`；它们仍然是 notice 的信息组成部分
-- 当前 repo 只承认“保留 relation truth + 显式 manual outcome”这一条 canonical 形态，不把它们伪装成 OCR
-  candidate
+- 当前 repo 只承认“保留 relation truth + 显式 source diagnostic”这一条 canonical
+  source-truth 形态，不把它们伪装成 OCR candidate；进入 consumption
+  projection 后，可机器处理的 gap 必须转为 `pending_multimodal_processing`
 - `manual_review_required` 的典型样本包括校园导览总图、位置示意图、楼宇分区图等空间关系主导的内联图片
 - frozen inventory / staged truth 必须保留
   `classification=manual_review_required`、`materialization_policy=manual_review`
   与 `review_reason`
-- 这条 lane 当前不生成 child document，也不进入 chunk preparation；如果后续需要空间问答或地图理解，应另开
-  spatial/manual lane，而不是回退到 generic OCR
+- 这条 source lane 当前不生成 child document，也不进入 chunk preparation；如果后续需要空间问答或地图理解，应接入
+  multimodal processing lane，而不是回退到 generic OCR 或人工终态
 
 ## Scope Materialization Rule
 

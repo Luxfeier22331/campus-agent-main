@@ -9,11 +9,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
     NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NoticeConsumptionProjectionEntry,
 )
@@ -57,6 +59,7 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                 source_document_id="notice:muc_internal_portal:351907",
             ),
         )
+        admission_store = object()
 
         with (
             patch(
@@ -66,6 +69,14 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                 "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.rebuild_internal_notice_consumption_projection",
                 return_value=entries,
             ) as rebuild,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
+                return_value="batch-projection-001",
+            ) as record_admission,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.build_internal_notice_consumption_admission_store_from_env",
+                return_value=admission_store,
+            ) as build_admission_store,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             worker.main(
@@ -78,9 +89,14 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
             )
 
         request = rebuild.call_args.kwargs["request"]
+        build_admission_store.assert_called_once()
         self.assertEqual(request.notice_ids, ("351907",))
         self.assertEqual(str(request.promotion_routing_path), "/tmp/promotion-routing.v1.json")
+        self.assertEqual(record_admission.call_args.kwargs["command"], "projection_rebuild")
+        self.assertEqual(record_admission.call_args.kwargs["notice_ids"], ("351907",))
+        self.assertIs(record_admission.call_args.kwargs["store"], admission_store)
         payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["batch_id"], "batch-projection-001")
         self.assertEqual(payload["projection_entry_count"], 2)
         self.assertEqual(payload["ready_for_target_count"], 1)
         self.assertEqual(payload["retained_for_notice_query_count"], 1)
@@ -90,6 +106,42 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
             NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
             payload["consumption_status_counts"],
         )
+
+    def test_main_reports_pending_multimodal_processing_without_manual_review_count(
+        self,
+    ) -> None:
+        entries = (
+            _entry(
+                notice_id="351907",
+                unit_id="notice_unit:351907:manual-gap",
+                primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+                target_surface=NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+                consumption_status=NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+            ),
+        )
+
+        with (
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.rebuild_internal_notice_consumption_projection",
+                return_value=entries,
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.build_internal_notice_consumption_admission_store_from_env"
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
+                return_value="batch-projection-001",
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            worker.main(["--notice-id", "351907"])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["pending_multimodal_processing_count"], 1)
+        self.assertEqual(payload["manual_review_required_count"], 0)
 
     def test_main_merges_notice_ids_from_selection_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -115,6 +167,13 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                     "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.rebuild_internal_notice_consumption_projection",
                     return_value=(),
                 ) as rebuild,
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.build_internal_notice_consumption_admission_store_from_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
+                    return_value="batch-projection-001",
+                ),
                 patch("sys.stdout", new_callable=io.StringIO),
             ):
                 worker.main(

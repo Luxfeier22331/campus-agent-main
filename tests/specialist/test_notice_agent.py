@@ -155,6 +155,7 @@ class NoticeAgentTest(unittest.TestCase):
                 payload=CampusNoticeDiscoverPayload(
                     query_text="家具采购",
                     source_families=("internal_notice_restricted",),
+                    target_surfaces=("procurement_notice_history",),
                     max_results=3,
                 ),
                 access_context=_restricted_access_context(),
@@ -167,6 +168,10 @@ class NoticeAgentTest(unittest.TestCase):
         )
         self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
         self.assertEqual(transport.calls[0][2]["payload"]["query_text"], "家具采购")
+        self.assertEqual(
+            transport.calls[0][2]["payload"]["target_surfaces"],
+            ("procurement_notice_history",),
+        )
         self.assertEqual(
             transport.calls[0][2]["access_context"]["authorization"]["retrieval_filter"][
                 "visibility_level"
