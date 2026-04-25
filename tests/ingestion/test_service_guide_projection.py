@@ -9,6 +9,7 @@ from campus_ingestion_core.service_guide_projection import (
     SERVICE_GUIDE_PROJECTION_FILENAME,
     assert_service_guide_projection_release_ready,
     build_service_guide_projection_bundle_from_curated_handbook_flow_graph,
+    build_service_guide_projection_bundle_from_curated_service_guide,
     build_service_guide_projection_bundle_from_handbook_flow_graph,
     build_service_guide_projection_bundle_from_handbook_flow_graph_document_data,
     validate_service_guide_projection_bundle,
@@ -32,6 +33,80 @@ class _FakeObjectStore:
 
 
 class ServiceGuideProjectionTest(unittest.TestCase):
+    def test_builds_public_medical_service_guide_from_curated_source_truth(self) -> None:
+        curated_path = Path(
+            "configs/ingestion/regulations/student_rules/curated-service-guides/"
+            "central-minzu-student-public-medical.v1.json"
+        )
+
+        result = build_service_guide_projection_bundle_from_curated_service_guide(
+            curated_service_guide_artifact=json.loads(curated_path.read_text(encoding="utf-8")),
+            generated_at="2026-04-25T10:00:00+08:00",
+            effective_from="2018-09-01T00:00:00+08:00",
+            effective_until="2099-12-31T23:59:59+08:00",
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        assert_service_guide_projection_release_ready(
+            result.bundle,
+            expected_ready_records=3,
+        )
+        self.assertEqual(result.bundle["source_families"], ["handbook_curated_service_guide_v1"])
+        by_name = {
+            record["display_name"]: record for record in result.bundle["service_guide_records"]
+        }
+        self.assertEqual(
+            set(by_name),
+            {
+                "公费医疗资格与就医规则",
+                "公费医疗报销办理指南",
+                "公费医疗不予报销范围",
+            },
+        )
+        reimbursement = by_name["公费医疗报销办理指南"]
+        self.assertEqual(reimbursement["category"], "student_public_medical")
+        self.assertIn("公费医疗报销", reimbursement["aliases"])
+        self.assertEqual(
+            {section["section_type"] for section in reimbursement["guide_sections"]},
+            {"overview", "procedure", "required_materials", "entry"},
+        )
+        self.assertEqual(
+            {material["name"] for material in reimbursement["materials"]},
+            {
+                "《转诊单》",
+                "急诊证明",
+                "检查报告",
+                "处方",
+                "住院收据",
+                "住院费明细单",
+                "书面申请",
+                "出院手续",
+            },
+        )
+        self.assertIn(
+            "假期急病门诊报销",
+            next(
+                material["note"]
+                for material in reimbursement["materials"]
+                if material["name"] == "急诊证明"
+            ),
+        )
+        self.assertEqual(
+            reimbursement["entry_refs"],
+            [
+                {
+                    "entry_id": "service:handbook:student-public-medical-reimbursement:entry:school-hospital",
+                    "label": "校医院",
+                    "entry_type": "offline_location",
+                    "url": "",
+                    "location_ref": "",
+                    "source_refs": ["handbook:student_rules:pages:259-260#page=260"],
+                }
+            ],
+        )
+        self.assertEqual(reimbursement["office_hours"], [])
+        self.assertEqual(reimbursement["contact_refs"], [])
+
     def test_builds_ready_projection_from_curated_handbook_flow_graph_artifact(self) -> None:
         result = build_service_guide_projection_bundle_from_curated_handbook_flow_graph(
             curated_flow_graph_artifact=_curated_handbook_flow_graph_artifact(),

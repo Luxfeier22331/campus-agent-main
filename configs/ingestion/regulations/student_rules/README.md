@@ -48,6 +48,9 @@ Non-regulation service/navigation pages are derived into the offline-only
 
 - `中央民族大学校内常用电话` -> `campus_services/contact_directory`
 - `中央民族大学学生公寓管理工作流程` -> `campus_services/service_catalog`
+- `中央民族大学学生公费医疗管理办法` -> curated
+  `campus_services/service_guide` records under
+  `curated-service-guides/central-minzu-student-public-medical.v1.json`
 
 The repo-tracked `split-manifest.v1.json` is a scaffold and must be filled with
 real document ranges before `process_raw_ingestion_job` runs with

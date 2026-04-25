@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-23
+updated: 2026-04-26
 ---
 # Data
 
@@ -21,6 +21,7 @@ canonical truth”“哪些只是 projection carrier”。
 - `authenticated-notice-source-truth-schema.md`
 - `campus-services-transport-schedule-source-truth-schema.md`
 - `campus-services-service-guide-source-truth-schema.md`
+- `campus-services-contact-directory-source-truth-schema.md`
 
 ## Navigation / Entity Data
 

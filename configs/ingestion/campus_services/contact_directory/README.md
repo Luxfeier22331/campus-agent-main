@@ -21,6 +21,8 @@ Current runtime truth:
 - collection prefix: `contact_directory`
 - release manifests:
   `campus_services/releases/contact_directory/{release_id}/...`
+- structured projection artifact:
+  `campus_services/releases/contact_directory/{release_id}/contact-directory-projection.json`
 - chunk profile: `contact_directory_semantic_v1`
 
 `contact_directory` is the long-term home for structured campus contact content
@@ -29,3 +31,16 @@ current runtime profile remains `offline_preparation` and is not part of the
 default query-serving surface. Even in `offline_preparation`, this collection
 participates in the release-managed alias lifecycle: Qdrant should expose a
 stable `contact_directory` alias that points at versioned physical collections.
+
+Current structured projection:
+
+- schema: `campus_services_contact_directory_projection.v1`
+- source truth: handbook cleanup `document-units.jsonl` for
+  `中央民族大学校内常用电话`
+- builder shell:
+  `python -m campus_ingestion_worker.build_contact_directory_projection`
+- data contract:
+  `docs/data/campus-services-contact-directory-source-truth-schema.md`
+
+This projection does not open `contact_directory_lookup`; it only prepares the
+normalized source truth for a later runtime gate.

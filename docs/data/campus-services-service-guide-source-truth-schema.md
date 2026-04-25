@@ -48,6 +48,9 @@ workflow owner。
 - handbook-derived service navigation pages
   - 通过 source projection selector 定位 `source_title + source_handbook_section +
     source_page_start/source_page_end`
+  - 流程图类 source truth 使用 `handbook_curated_service_flow_graph.v1`
+  - 非流程图、但已由文档站整理并人工确认字段语义的办理指南使用
+    `handbook_curated_service_guide.v1`
 - `campus_services/service_catalog`
   - service entries、topic landing pages、service portal pages、办事入口说明页
 - official-web service reference pages
@@ -64,6 +67,13 @@ workflow owner。
 - unreviewed OCR fragments without source refs
 - user-provided freeform instructions
 - transaction backend API、预约系统 API、支付系统 API 或工单系统 API
+
+当前 tracked curated service guide source truth：
+
+- `configs/ingestion/regulations/student_rules/curated-service-guides/central-minzu-student-public-medical.v1.json`
+  - 来源：`中央民族大学学生公费医疗管理办法`，学生手册第 259-260 页
+  - 覆盖：公费医疗资格与就医规则、公费医疗报销办理指南、公费医疗不予报销范围
+  - 不覆盖：联系电话、办公时间；这类 focus 查询必须保持 fail-close / unavailable
 
 ## Projection Bundle
 

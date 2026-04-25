@@ -103,6 +103,8 @@ later-wave 已冻结方向包括：
 - `contact_directory_lookup`
   - 只读 `campus_services/contact_directory` contact entity / entity-group projection
   - handbook 电话页、official-web 联系方式页与 future directory page 只作为 provenance 上游
+  - 当前只补 offline projection data-plane；runtime lookup 与产品 opening gate 仍保持
+    later-wave closed
 - `service_guide_lookup`
   - 只读 `campus_services/service_guide` guide-oriented projection
   - handbook flow page、official-web 办事说明页与 future service entry page 只作为
@@ -198,6 +200,7 @@ runtime lane 已开放。
 - `docs/contracts/service-status-lookup-contract.md`
 - `docs/contracts/transport-schedule-lookup-contract.md`
 - `docs/data/campus-services-transport-schedule-source-truth-schema.md`
+- `docs/data/campus-services-contact-directory-source-truth-schema.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`

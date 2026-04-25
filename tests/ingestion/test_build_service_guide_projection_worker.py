@@ -66,6 +66,48 @@ class BuildServiceGuideProjectionWorkerTest(unittest.TestCase):
             object_store.objects,
         )
 
+    def test_worker_builds_combined_projection_release_from_flow_graph_and_service_guide(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            curated_flow_graph_path = root / "curated-flow-graph.json"
+            curated_service_guide_path = Path(
+                "configs/ingestion/regulations/student_rules/curated-service-guides/"
+                "central-minzu-student-public-medical.v1.json"
+            )
+            _write_json(curated_flow_graph_path, _curated_handbook_flow_graph_artifact())
+            object_store = _FakeObjectStore()
+
+            report = worker.build_service_guide_projection_release_from_curated_sources(
+                curated_flow_graph_paths=[curated_flow_graph_path],
+                curated_service_guide_paths=[curated_service_guide_path],
+                work_dir=root / "work",
+                release_id="service-guide-combined-20260425T100000",
+                generated_at="2026-04-25T10:00:00+08:00",
+                effective_from="2018-09-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                object_store=object_store,
+                derived_bucket="campus-rag-derived",
+                expected_ready_records=5,
+            )
+
+        self.assertEqual(report.release_id, "service-guide-combined-20260425T100000")
+        current_payload = json.loads(
+            object_store.objects[
+                (
+                    "campus-rag-derived",
+                    "campus_services/releases/service_guide/current/service-guide-projection.json",
+                )
+            ].decode("utf-8")
+        )
+        self.assertEqual(len(current_payload["service_guide_records"]), 5)
+        display_names = {
+            record["display_name"] for record in current_payload["service_guide_records"]
+        }
+        self.assertIn("公费医疗报销办理指南", display_names)
+        self.assertIn("公寓楼新生办理入住手续流程", display_names)
+
 
 def _curated_handbook_flow_graph_artifact() -> dict[str, object]:
     return {
