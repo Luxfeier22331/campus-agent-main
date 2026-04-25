@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 import uuid
@@ -85,6 +86,86 @@ def _print_payload(payload: object, *, as_json: bool) -> None:
     print(payload)
 
 
+def _toml_inline(value: object) -> str:
+    if isinstance(value, str):
+        return json.dumps(value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, list):
+        return "[" + ",".join(_toml_inline(item) for item in value) + "]"
+    if isinstance(value, dict):
+        return "{" + ",".join(f"{key}={_toml_inline(item)}" for key, item in value.items()) + "}"
+    raise TypeError(f"unsupported TOML inline value: {type(value).__name__}")
+
+
+def _hook_command(repo_root: Path, event: str) -> str:
+    repo = shlex.quote(str(repo_root))
+    return f"cd {repo} && /usr/bin/python3 -m scripts.workstream_harness_hooks {event}"
+
+
+def _codex_hooks_config(repo_root: Path) -> str:
+    def command_hook(event: str, *, status_message: str, timeout: int) -> dict[str, object]:
+        return {
+            "type": "command",
+            "command": _hook_command(repo_root, event),
+            "statusMessage": status_message,
+            "timeout": timeout,
+        }
+
+    hooks = {
+        "SessionStart": [
+            {
+                "matcher": "startup|resume",
+                "hooks": [
+                    command_hook(
+                        "session-start",
+                        status_message="Loading workstream harness contract",
+                        timeout=10,
+                    )
+                ],
+            }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    command_hook(
+                        "pre-tool-use",
+                        status_message="Checking destructive Bash commands",
+                        timeout=10,
+                    )
+                ],
+            }
+        ],
+        "PermissionRequest": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    command_hook(
+                        "permission-request",
+                        status_message="Checking repo risk gates",
+                        timeout=10,
+                    )
+                ],
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    command_hook(
+                        "stop",
+                        status_message="Validating harness result",
+                        timeout=15,
+                    )
+                ],
+            }
+        ],
+    }
+    return "hooks=" + _toml_inline(hooks)
+
+
 def _shell_command(
     repo_root: Path,
     *,
@@ -98,6 +179,8 @@ def _shell_command(
         "codex",
         "--enable",
         "codex_hooks",
+        "-c",
+        _codex_hooks_config(repo_root),
         "--cd",
         str(repo_root),
         "--sandbox",
@@ -128,6 +211,8 @@ def _exec_command(
         "exec",
         "--enable",
         "codex_hooks",
+        "-c",
+        _codex_hooks_config(repo_root),
         "--cd",
         str(repo_root),
         "--sandbox",

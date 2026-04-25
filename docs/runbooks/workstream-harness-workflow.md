@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 
 # Workstream Harness Workflow
@@ -25,7 +25,11 @@ plain `codex` / repo 内普通讨论会话：
 
 - 不进入 harness terminal-result contract
 - 不要求 `result write`
-- 只继续复用 repo-wide 安全 hook
+- 不默认加载 repo harness hooks
+
+如果本机曾经运行过旧版 harness rollout，删除残留的 ignored
+`.codex/hooks.json`。当前 harness hooks 由 wrapper 在启动 Codex 时通过 runtime config
+显式注入，不再以 repo-local hook file 作为默认入口。
 
 真正的执行会话：
 
@@ -52,7 +56,10 @@ uv run --all-packages python -m scripts.workstream_harness doctor
 ## Behavioral Rules
 
 - harness 默认会先 claim workstream，再注入 session env 与 runtime ledger
-- 只有 wrapper 注入了 harness env 的 session，才会消费 `SessionStart` / `Stop` 的终态 contract
+- wrapper 启动 Codex 时会显式传入 `--enable codex_hooks` 与 runtime `hooks`
+  config
+- 只有 wrapper 启动的 harness session，才会消费
+  `SessionStart` / `PreToolUse` / `PermissionRequest` / `Stop` contract
 - terminal result 必须满足 `workstream_harness_result_v1`
 - canonical transport 是 result artifact side channel，不是用户可见 final answer：
 
@@ -91,8 +98,8 @@ uv run --all-packages python -m scripts.workstream_harness result write \
 - `Stop` hook 与 wrapper 都只从 `result_file` 解析终态
 - 如果 `result_file` 缺失、非法或不可读，run 会被拦截或收口为 `failed_needs_repair`
 - `Stop` hook 会拦截缺失或非法终态，并给一次 continuation 机会
-- `PreToolUse` 会阻断明显 destructive 的 Bash 命令
-- `PermissionRequest` 会把高风险升级请求转成显式 risk gate，
+- `PreToolUse` 会在 harness execution 内阻断明显 destructive 的 Bash 命令
+- `PermissionRequest` 会在 harness execution 内把高风险升级请求转成显式 risk gate，
   而不是让 run 静默停住
 
 ## Runtime State

@@ -10,12 +10,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from scripts.workstream_harness import (
-    main as workstream_harness_main,
-)
-from scripts.workstream_harness import (
+    _exec_command,
+    _shell_command,
     parse_args,
     run_codex_exec_session,
     run_codex_shell_session,
+)
+from scripts.workstream_harness import (
+    main as workstream_harness_main,
 )
 from scripts.workstream_harness_hooks import handle_event
 from scripts.workstream_harness_result import (
@@ -186,6 +188,47 @@ class WorkstreamHarnessResultTest(unittest.TestCase):
 
 
 class WorkstreamHarnessHookTest(unittest.TestCase):
+    def test_shell_command_injects_runtime_hooks_config(self) -> None:
+        command = _shell_command(
+            Path("/repo"),
+            model=None,
+            profile=None,
+            sandbox="danger-full-access",
+            approval_policy="never",
+            codex_args=[],
+        )
+
+        self.assertIn("--enable", command)
+        self.assertIn("codex_hooks", command)
+        config = command[command.index("-c") + 1]
+        self.assertTrue(config.startswith("hooks="))
+        self.assertIn("SessionStart", config)
+        self.assertIn("PreToolUse", config)
+        self.assertIn("PermissionRequest", config)
+        self.assertIn("Stop", config)
+        self.assertIn("scripts.workstream_harness_hooks", config)
+
+    def test_exec_command_injects_runtime_hooks_config(self) -> None:
+        command = _exec_command(
+            Path("/repo"),
+            model=None,
+            profile=None,
+            sandbox="danger-full-access",
+            prompt="do work",
+            output_last_message_path=Path("/repo/.planning/runtime/harness/message.txt"),
+            skip_git_repo_check=True,
+        )
+
+        self.assertIn("--enable", command)
+        self.assertIn("codex_hooks", command)
+        config = command[command.index("-c") + 1]
+        self.assertTrue(config.startswith("hooks="))
+        self.assertIn("SessionStart", config)
+        self.assertIn("PreToolUse", config)
+        self.assertIn("PermissionRequest", config)
+        self.assertIn("Stop", config)
+        self.assertIn("scripts.workstream_harness_hooks", config)
+
     def test_session_start_is_noop_outside_harness_session(self) -> None:
         output = handle_event(
             "SessionStart",
@@ -457,11 +500,14 @@ class WorkstreamHarnessCliTest(unittest.TestCase):
             )
 
             stdout = io.StringIO()
-            with _patched_env(
-                CAMPUS_WORKSTREAM_RUN_ID=run_id,
-                CAMPUS_WORKSTREAM_REPO_ROOT=str(repo_root),
-                CAMPUS_WORKSTREAM_RESULT_PATH=str(result_file_path(repo_root, run_id)),
-            ), redirect_stdout(stdout):
+            with (
+                _patched_env(
+                    CAMPUS_WORKSTREAM_RUN_ID=run_id,
+                    CAMPUS_WORKSTREAM_REPO_ROOT=str(repo_root),
+                    CAMPUS_WORKSTREAM_RESULT_PATH=str(result_file_path(repo_root, run_id)),
+                ),
+                redirect_stdout(stdout),
+            ):
                 exit_code = workstream_harness_main(
                     [
                         "--repo-root",
@@ -504,11 +550,14 @@ class WorkstreamHarnessCliTest(unittest.TestCase):
                 claim_id="claim-cli-blocked",
             )
 
-            with _patched_env(
-                CAMPUS_WORKSTREAM_RUN_ID=run_id,
-                CAMPUS_WORKSTREAM_REPO_ROOT=str(repo_root),
-                CAMPUS_WORKSTREAM_RESULT_PATH=str(result_file_path(repo_root, run_id)),
-            ), self.assertRaisesRegex(ValueError, "blocked 结果必须提供 blocker"):
+            with (
+                _patched_env(
+                    CAMPUS_WORKSTREAM_RUN_ID=run_id,
+                    CAMPUS_WORKSTREAM_REPO_ROOT=str(repo_root),
+                    CAMPUS_WORKSTREAM_RESULT_PATH=str(result_file_path(repo_root, run_id)),
+                ),
+                self.assertRaisesRegex(ValueError, "blocked 结果必须提供 blocker"),
+            ):
                 workstream_harness_main(
                     [
                         "--repo-root",

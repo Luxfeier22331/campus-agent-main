@@ -43,7 +43,7 @@
 		"yaml:lint": "uv run --all-packages python -m scripts.check_yaml_tracked",
 		"go:fmt:check": "test -z \"$(gofmt -l apps/supervisor-api)\"",
 		"go:vet": "cd apps/supervisor-api && go vet ./...",
-		"go:lint": "command -v golangci-lint >/dev/null 2>&1 || { echo 'golangci-lint v2.11.4 is required. Install it from https://golangci-lint.run/welcome/install/'; exit 1; } && cd apps/supervisor-api && golangci-lint run ./...",
+		"go:lint": "export PATH=\"$(go env GOPATH)/bin:$PATH\"; command -v golangci-lint >/dev/null 2>&1 || { echo 'golangci-lint v2.11.4 is required. Install it from https://golangci-lint.run/welcome/install/'; exit 1; } && cd apps/supervisor-api && golangci-lint run ./...",
 		"go:static:check": "pnpm go:fmt:check && pnpm go:vet && pnpm go:lint",
 		"go:test": "cd apps/supervisor-api && go test ./...",
 		"go:check": "pnpm go:static:check && pnpm go:test",

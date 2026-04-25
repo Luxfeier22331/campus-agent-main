@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 
 # Workstream Agent Harness Contract
@@ -16,9 +16,11 @@ blocker 和 verification 语义。
 - 适用于 repo 内通过 harness wrapper 运行的 agent session
 - 运行时状态只写入 gitignored `.planning/runtime/harness/`
 - 不复用产品侧 `approval_required`
-- `SessionStart` / `Stop` 的 harness contract 只在 wrapper 注入的 harness session env
-  存在时生效
-- 普通 repo 讨论会话不消费 terminal result contract；它们只继续复用 repo-wide 安全 guardrails
+- Codex hooks 由 `scripts.workstream_harness` wrapper 在启动 Codex 时通过 runtime config
+  显式注入；repo 不再依赖本机 `.codex/hooks.json` 作为默认入口
+- `SessionStart` / `PreToolUse` / `PermissionRequest` / `Stop` 的 harness
+  contract 只属于 wrapper 启动的 harness session
+- 普通 repo 讨论会话不消费 terminal result contract，也不应默认加载 repo harness hooks
 
 ## Terminal Result Schema
 
@@ -185,3 +187,17 @@ run ledger 会额外记录 `result_source`，用于区分本次终态来自：
 - terminal result 必须写入 canonical result artifact，wrapper / hook 只认这一条通道
 - 非 Codex runtime 如果不能消费 repo-local hook，也必须在 wrapper 退出前完成等价的
   result validation 与 run persistence
+
+## Codex Hook Registration Boundary
+
+Codex hook registration is adapter-owned:
+
+- `scripts.workstream_harness codex shell|exec ...` 启动 Codex 时必须显式传入
+  `--enable codex_hooks` 与 `-c hooks=...`
+- hook command 直接从 repo root 执行
+  `python -m scripts.workstream_harness_hooks <event>`，不再依赖 ignored
+  `.codex/hooks/*.py` wrapper
+- 本机若残留旧的 `.codex/hooks.json`，应删除；否则在用户全局开启 `codex_hooks`
+  时，plain `codex` 也会加载 repo hook 并出现额外 hook 噪音
+- `PreToolUse` 只作为 harness execution guardrail，不是 repo 的完整权限模型；
+  wrapper/result artifact/stop validation 仍是终态 correctness 的主要 enforcement
