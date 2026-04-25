@@ -16,12 +16,16 @@ from campus_rag_agent.prompt_execution import RagPromptExecutor
 from campus_services_agent import delegate_to_campus_services_agent
 
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.errors import ExecutionCancelledError, MissingSpecialistDelegateError
+from campus_supervisor_core.errors import (
+    ExecutionCancelledError,
+    MissingRoutingInputError,
+    MissingSpecialistDelegateError,
+)
 from campus_supervisor_core.framing import frame_specialist_request
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
 from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 from campus_supervisor_core.response import assemble_response, attach_intent_observability
-from campus_supervisor_core.routing import RoutingDecision, route_request
+from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core.tool_policy import assert_tool_policy_is_supported
 
 SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
@@ -61,7 +65,11 @@ class SupervisorAgent:
     def handle(self, request: SupervisorRequest) -> SupervisorResponse:
         self._raise_if_cancelled()
         context = SupervisorRequestContext.from_request(request)
-        decision = self.preplanned_routing_decision or route_request(context)
+        if self.preplanned_routing_decision is None:
+            raise MissingRoutingInputError(
+                "preplanned routing decision is required from supervisor-api"
+            )
+        decision = self.preplanned_routing_decision
         self._raise_if_cancelled()
         terminal_response = finalize_routing_decision(
             context,

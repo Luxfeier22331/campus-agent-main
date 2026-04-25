@@ -44,8 +44,15 @@ var noticeGetSignals = []string{
 type Request struct {
 	EffectiveCapability string
 	UserGoal            string
+	HasRequestedScope   bool
+	RequestedScope      Scope
 	VersionQuery        VersionQuery
 	SelectedNoticeRef   SelectedNoticeRef
+}
+
+type Scope struct {
+	Corpus     string
+	Collection string
 }
 
 type VersionQuery struct {
@@ -115,6 +122,14 @@ func Plan(request Request) *Handoff {
 			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_discover"),
 		}
 	}
+	if request.EffectiveCapability == "knowledge" {
+		return &Handoff{
+			Target:       "rag-agent",
+			PayloadKind:  "rag_request",
+			Payload:      ragRequestPayload(request),
+			AllowedTools: runtimepolicy.AllowedToolsForTarget("rag-agent"),
+		}
+	}
 	return nil
 }
 
@@ -170,6 +185,36 @@ func noticeDiscoverPayload(
 		"query_text":     userGoal,
 		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal),
 	}
+}
+
+func ragRequestPayload(request Request) map[string]any {
+	payload := map[string]any{
+		"scope":         nil,
+		"version_query": versionQueryPayload(request.VersionQuery),
+	}
+	if request.HasRequestedScope {
+		payload["scope"] = map[string]any{
+			"corpus":     request.RequestedScope.Corpus,
+			"collection": request.RequestedScope.Collection,
+		}
+	}
+	return payload
+}
+
+func versionQueryPayload(versionQuery VersionQuery) map[string]any {
+	payload := map[string]any{
+		"mode": defaultString(versionQuery.Mode, "current"),
+	}
+	if versionQuery.AsOf != "" {
+		payload["as_of"] = versionQuery.AsOf
+	}
+	if versionQuery.VersionID != "" {
+		payload["version_id"] = versionQuery.VersionID
+	}
+	if versionQuery.CompareToVersionID != "" {
+		payload["compare_to_version_id"] = versionQuery.CompareToVersionID
+	}
+	return payload
 }
 
 func classifyTransportIntent(normalizedGoal string) string {
@@ -279,4 +324,11 @@ func containsAny(value string, signals []string) bool {
 		}
 	}
 	return false
+}
+
+func defaultString(value string, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }

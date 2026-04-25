@@ -29,6 +29,7 @@ from campus_supervisor_core.audit import (
     SupervisorAuditRecord,
 )
 from campus_supervisor_core.errors import (
+    MissingRoutingInputError,
     MissingSpecialistDelegateError,
 )
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
@@ -112,6 +113,26 @@ def _make_curriculum_course_facts_response() -> SpecialistResponse:
 
 
 class SupervisorCoreRoutingTest(unittest.TestCase):
+    def test_handle_request_requires_go_preplanned_routing_decision(self) -> None:
+        with self.assertRaisesRegex(
+            MissingRoutingInputError,
+            "preplanned routing decision is required",
+        ):
+            handle_request(
+                SupervisorRequest(
+                    user_goal="library hours",
+                    request_id="req-missing-preplanned",
+                    trace=TraceContext(trace_id="trace-missing-preplanned"),
+                    actor=ActorContext(user_id="student-001"),
+                    requested_capability="knowledge",
+                    requested_scope=KnowledgeScope(
+                        corpus="regulations",
+                        collection="student_rules",
+                    ),
+                ),
+                specialist_delegates={},
+            )
+
     def test_handle_request_stops_before_specialist_delegate_when_cancelled(self) -> None:
         delegate_called = False
 

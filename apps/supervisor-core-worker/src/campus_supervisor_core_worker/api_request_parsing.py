@@ -13,6 +13,7 @@ from campus_contracts import (
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,
+    RagRequestPayload,
     ServiceStatusLookupPayload,
     SessionSlot,
     SessionSummary,
@@ -220,21 +221,16 @@ def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> Int
 
 
 def _routing_decision_from_frame(intent_frame: IntentFrame) -> RoutingDecision | None:
-    if intent_frame.suggested_next_action != "delegate":
-        return RoutingDecision(
-            target=None,
-            primary_corpus=None,
-            primary_collection=None,
-            intent_frame=intent_frame,
+    if intent_frame.suggested_next_action == "delegate":
+        raise ValueError(
+            "runtime_decisions.planning_outcome must be preplanned for delegate routing"
         )
-    if intent_frame.capability == "knowledge":
-        return RoutingDecision(
-            target="rag-agent",
-            primary_corpus=None,
-            primary_collection=None,
-            intent_frame=intent_frame,
-        )
-    return None
+    return RoutingDecision(
+        target=None,
+        primary_corpus=None,
+        primary_collection=None,
+        intent_frame=intent_frame,
+    )
 
 
 def _require_object(raw_value: object, *, field_name: str) -> dict[str, object]:
@@ -251,7 +247,13 @@ def _parse_specialist_payload(
     | ServiceStatusLookupPayload
     | CampusNoticeDiscoverPayload
     | CampusNoticeGetPayload
+    | RagRequestPayload
 ):
+    if payload_kind == "rag_request":
+        return RagRequestPayload(
+            scope=_parse_requested_scope(payload.get("scope")),
+            version_query=_parse_version_query(payload.get("version_query")),
+        )
     if payload_kind == "transport_schedule_lookup":
         route_selector = payload.get("route_selector")
         service_time_query = payload.get("service_time_query")

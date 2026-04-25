@@ -47,6 +47,11 @@ func runtimeDecisions(
 	handoff := structuredplanning.Plan(structuredplanning.Request{
 		EffectiveCapability: effectiveCapability,
 		UserGoal:            userGoal,
+		HasRequestedScope:   hasRequestedScope,
+		RequestedScope: structuredplanning.Scope{
+			Corpus:     requestedScope.Corpus,
+			Collection: requestedScope.Collection,
+		},
 		VersionQuery: structuredplanning.VersionQuery{
 			Mode:               versionQuery.Mode,
 			AsOf:               versionQuery.AsOf,
@@ -59,7 +64,7 @@ func runtimeDecisions(
 			Title:        context.SelectedNoticeRef.Title,
 		},
 	})
-	if handoff != nil {
+	if policyDecision.RoutingFrame.SuggestedNextAction == "delegate" && handoff != nil {
 		summary.PlanningOutcome = "preplanned"
 		decisions["planning_outcome"] = "preplanned"
 		decisions["preplanned_target"] = handoff.Target
