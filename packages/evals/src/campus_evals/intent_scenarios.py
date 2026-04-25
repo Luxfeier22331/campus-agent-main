@@ -66,7 +66,19 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
             "离校",
         )
     ) and any(
-        signal in goal for signal in ("宿舍", "住宿", "公寓", "退宿", "入住", "不住宿", "离校")
+        signal in goal
+        for signal in (
+            "宿舍",
+            "住宿",
+            "公寓",
+            "退宿",
+            "入住",
+            "不住宿",
+            "离校",
+            "公费医疗",
+            "医疗报销",
+            "医药费报销",
+        )
     ):
         return ("service_guide_lookup",)
     return ("service_status_lookup",)
@@ -170,6 +182,8 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
         "本科生申请不住宿需要什么材料",
         "研究生申请退宿流程",
         "退宿怎么办",
+        "公费医疗报销需要什么材料",
+        "公费医疗报销怎么办理",
     )
     return tuple(
         IntentCase(

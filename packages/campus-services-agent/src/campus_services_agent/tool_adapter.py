@@ -318,10 +318,21 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
     if result.office_hours:
         return "、".join(hours.time_range or hours.effective_note for hours in result.office_hours)
     if result.contact_refs:
-        return "、".join(contact.label for contact in result.contact_refs)
+        return "、".join(_service_guide_contact_text(contact) for contact in result.contact_refs)
     if result.eligibility_notes:
         return "、".join(result.eligibility_notes)
     return ""
+
+
+def _service_guide_contact_text(contact) -> str:
+    parts = [contact.label]
+    if contact.department and contact.department != contact.label:
+        parts.append(contact.department)
+    if contact.phone:
+        parts.append(contact.phone)
+    if contact.email:
+        parts.append(contact.email)
+    return " ".join(parts)
 
 
 def _access_context_from_request(request: SpecialistRequest) -> CampusServicesAccessContext:

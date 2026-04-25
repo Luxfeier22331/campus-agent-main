@@ -134,6 +134,20 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "public medical service guide required materials",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "公费医疗报销需要什么材料",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "公费医疗报销需要什么材料",
+				"guide_focus":   "required_materials",
+			},
+		},
+		{
 			name: "notice discover",
 			request: Request{
 				EffectiveCapability: "notice",

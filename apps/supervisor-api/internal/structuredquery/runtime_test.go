@@ -325,6 +325,87 @@ func TestLookupServiceGuideFailsClosedForManualReviewRecord(t *testing.T) {
 	}
 }
 
+func TestLookupServiceGuideReturnsPublicMedicalRequiredMaterials(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuidePublicMedicalProjectionFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"公费医疗报销需要什么材料",
+		"guide_focus":"required_materials",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.DisplayName != "公费医疗报销办理指南" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	materialNames := map[string]bool{}
+	for _, material := range result.RequiredMaterials {
+		materialNames[material.Name] = true
+	}
+	for _, name := range []string{"急诊证明", "住院收据", "住院费明细单", "出院手续"} {
+		if !materialNames[name] {
+			t.Fatalf("required_materials missing %q: %#v", name, result.RequiredMaterials)
+		}
+	}
+	if len(result.SourceRefs) == 0 || result.SourceRefs[0] != "handbook:student_rules:pages:259-260#page=259" {
+		t.Fatalf("source_refs = %#v", result.SourceRefs)
+	}
+}
+
+func TestLookupServiceGuideFailsClosedWhenRequestedFocusIsNotBackedBySource(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuidePublicMedicalProjectionFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"公费医疗报销联系电话是多少",
+		"guide_focus":"contact",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
+	}
+}
+
+func TestLookupServiceGuideIncludesContactSourceRefs(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuideContactProjectionFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"公费医疗报销联系电话是多少",
+		"guide_focus":"contact",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.ContactRefs) != 1 || result.ContactRefs[0].Phone != "68930000" {
+		t.Fatalf("contact_refs = %#v", result.ContactRefs)
+	}
+	if !testStringSliceContains(result.SourceRefs, "handbook:student_rules:pages:261-261#page=261") {
+		t.Fatalf("source_refs = %#v, want contact source ref", result.SourceRefs)
+	}
+}
+
 func writeTransportProjectionFixture(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "campus-services-projection.json")
@@ -581,4 +662,66 @@ func serviceGuideManualReviewFixture() string {
 		`"extraction_status":"needs_manual_review"`,
 		1,
 	)
+}
+
+func serviceGuidePublicMedicalProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-04-25T10:00:00+08:00",
+		"source_families":["handbook_curated_service_guide_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:handbook:student-public-medical-reimbursement",
+				"display_name":"公费医疗报销办理指南",
+				"aliases":["公费医疗报销办理指南","公费医疗报销","医疗报销","医药费报销","假期急病报销","住院报销"],
+				"category":"student_public_medical",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:259-260#page=259","handbook:student_rules:pages:259-260#page=260"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:student-public-medical-reimbursement:section:required-materials",
+						"section_type":"required_materials",
+						"title":"公费医疗报销材料",
+						"content":"假期急病门诊凭急诊证明、检查报告和处方报销；急病住院凭急诊证明、住院收据、住院费明细单报销；住院者出院结算后二周内持出院手续到校医院报销。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:259-260#page=259","handbook:student_rules:pages:259-260#page=260"]
+					}
+				],
+				"materials":[
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:emergency-certificate","name":"急诊证明","required":true,"note":"假期急病门诊报销和急病住院报销均需提供。","source_refs":["handbook:student_rules:pages:259-260#page=259"]},
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:hospital-receipt","name":"住院收据","required":true,"note":"急病住院报销需提供。","source_refs":["handbook:student_rules:pages:259-260#page=259"]},
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:hospital-detail","name":"住院费明细单","required":true,"note":"急病住院报销需提供。","source_refs":["handbook:student_rules:pages:259-260#page=259"]},
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:discharge-documents","name":"出院手续","required":true,"note":"凡住院者必须在出院结算后二周内持出院手续到校医院报销。","source_refs":["handbook:student_rules:pages:259-260#page=260"]}
+				],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["国家计划内招生的本科生、硕士生、博士生、预科部学生享受公费医疗。"],
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}
+
+func serviceGuideContactProjectionFixture() string {
+	return strings.Replace(
+		serviceGuidePublicMedicalProjectionFixture(),
+		`"contact_refs":[]`,
+		`"contact_refs":[{"contact_id":"contact:handbook:school-hospital","label":"校医院","department":"校医院","phone":"68930000","email":"","location_ref":"","source_refs":["handbook:student_rules:pages:261-261#page=261"]}]`,
+		1,
+	)
+}
+
+func testStringSliceContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

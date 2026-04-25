@@ -69,6 +69,9 @@ var serviceGuideSubjectSignals = []string{
 	"一卡通",
 	"会议室",
 	"校医院",
+	"公费医疗",
+	"医疗报销",
+	"医药费报销",
 	"报修",
 }
 

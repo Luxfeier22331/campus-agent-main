@@ -336,6 +336,12 @@ func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t
 			wantLane:       "campus_services",
 		},
 		{
+			name:           "public medical service guide",
+			userGoal:       "公费医疗报销需要什么材料",
+			wantCapability: "campus_services",
+			wantLane:       "campus_services",
+		},
+		{
 			name:           "notice discovery",
 			userGoal:       "找一下春假通知",
 			wantCapability: "notice",

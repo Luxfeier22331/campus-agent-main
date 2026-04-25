@@ -276,6 +276,9 @@ func (r *Runtime) lookupServiceGuide(ctx context.Context, request serviceGuideRe
 	if queryTime.Before(status.effectiveFrom) || !queryTime.Before(status.effectiveUntil) {
 		return failClosedServiceGuide(request, timeAnchor, "current_state_unverifiable")
 	}
+	if !serviceGuideFocusBackedByRecord(record, request.GuideFocus) {
+		return failClosedServiceGuide(request, timeAnchor, "source_truth_unavailable")
+	}
 	body := serviceGuideResultFromRecord(request, record, timeAnchor)
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }
@@ -404,7 +407,6 @@ func serviceGuideResultFromRecord(
 		Outcome:                "resolved_current",
 		ResolvedService:        serviceGuideRefFromRecord(record),
 		GuideSections:          sections,
-		SourceRefs:             uniqueServiceGuideSourceRefs(record.SourceRefs, sections),
 		QueriedTimeAnchor:      timeAnchor,
 		EffectiveFrom:          record.EffectiveFrom,
 		EffectiveUntil:         record.EffectiveUntil,
@@ -425,7 +427,43 @@ func serviceGuideResultFromRecord(
 	if request.GuideFocus == "eligibility" || request.GuideFocus == "full_guide" {
 		result.EligibilityNotes = append([]string(nil), record.EligibilityNotes...)
 	}
+	result.SourceRefs = uniqueServiceGuideSourceRefs(record.SourceRefs, result)
 	return result
+}
+
+func serviceGuideFocusBackedByRecord(record serviceGuideRecord, focus string) bool {
+	switch focus {
+	case "overview", "procedure":
+		return serviceGuideHasSection(record.GuideSections, focus)
+	case "required_materials":
+		return len(record.Materials) > 0 || serviceGuideHasSection(record.GuideSections, focus)
+	case "entry":
+		return len(record.EntryRefs) > 0 || serviceGuideHasSection(record.GuideSections, focus)
+	case "office_hours":
+		return len(record.OfficeHours) > 0 || serviceGuideHasSection(record.GuideSections, focus)
+	case "contact":
+		return len(record.ContactRefs) > 0 || serviceGuideHasSection(record.GuideSections, focus)
+	case "eligibility":
+		return len(record.EligibilityNotes) > 0 || serviceGuideHasSection(record.GuideSections, focus)
+	case "full_guide":
+		return len(record.GuideSections) > 0 ||
+			len(record.Materials) > 0 ||
+			len(record.EntryRefs) > 0 ||
+			len(record.OfficeHours) > 0 ||
+			len(record.ContactRefs) > 0 ||
+			len(record.EligibilityNotes) > 0
+	default:
+		return false
+	}
+}
+
+func serviceGuideHasSection(records []serviceGuideSectionRecord, sectionType string) bool {
+	for _, record := range records {
+		if record.SectionType == sectionType {
+			return true
+		}
+	}
+	return false
 }
 
 func filterServiceGuideSections(
@@ -536,7 +574,7 @@ func serviceGuideContacts(records []serviceGuideContactRecord) []serviceGuideCon
 
 func uniqueServiceGuideSourceRefs(
 	recordSourceRefs []string,
-	sections []serviceGuideSection,
+	result serviceGuideResult,
 ) []string {
 	seen := map[string]struct{}{}
 	refs := []string{}
@@ -554,8 +592,28 @@ func uniqueServiceGuideSourceRefs(
 	for _, ref := range recordSourceRefs {
 		appendRef(ref)
 	}
-	for _, section := range sections {
+	for _, section := range result.GuideSections {
 		for _, ref := range section.SourceRefs {
+			appendRef(ref)
+		}
+	}
+	for _, material := range result.RequiredMaterials {
+		for _, ref := range material.SourceRefs {
+			appendRef(ref)
+		}
+	}
+	for _, entry := range result.EntryRefs {
+		for _, ref := range entry.SourceRefs {
+			appendRef(ref)
+		}
+	}
+	for _, hours := range result.OfficeHours {
+		for _, ref := range hours.SourceRefs {
+			appendRef(ref)
+		}
+	}
+	for _, contact := range result.ContactRefs {
+		for _, ref := range contact.SourceRefs {
 			appendRef(ref)
 		}
 	}

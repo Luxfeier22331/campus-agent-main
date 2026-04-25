@@ -70,7 +70,19 @@ var serviceStatusSignals = []string{
 	"营业到几点",
 	"状态",
 }
-var serviceSubjectSignals = []string{"图书馆", "食堂", "会议室", "校医院", "校园卡", "一卡通", "宿舍", "报修"}
+var serviceSubjectSignals = []string{
+	"图书馆",
+	"食堂",
+	"会议室",
+	"校医院",
+	"公费医疗",
+	"医疗报销",
+	"医药费报销",
+	"校园卡",
+	"一卡通",
+	"宿舍",
+	"报修",
+}
 var serviceGuideActionSignals = []string{
 	"怎么申请",
 	"如何申请",
@@ -106,6 +118,9 @@ var serviceGuideSubjectSignals = []string{
 	"一卡通",
 	"会议室",
 	"校医院",
+	"公费医疗",
+	"医疗报销",
+	"医药费报销",
 	"报修",
 }
 var noticeSignals = []string{"通知", "公告", "公示"}

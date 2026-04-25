@@ -180,6 +180,16 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 			wantRisk:   "low",
 		},
 		{
+			name: "structured public medical service guide candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "公费医疗报销需要什么材料",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
 			name: "structured notice candidate stays candidate only",
 			request: Request{
 				EffectiveCapability: "knowledge",

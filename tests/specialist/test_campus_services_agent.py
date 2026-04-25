@@ -7,6 +7,7 @@ from campus_contracts import (
     AuthorizationProjection,
     ContextProjection,
     ScheduledDeparture,
+    ServiceGuideContactRef,
     ServiceGuideLookupPayload,
     ServiceGuideLookupResult,
     ServiceGuideSection,
@@ -215,6 +216,42 @@ class CampusServicesAgentTest(unittest.TestCase):
             query_service.last_service_guide_query.payload.service_query,
             "宿舍入住怎么办理",
         )
+
+    def test_service_guide_contact_response_includes_contact_channels(self) -> None:
+        response = campus_services_tool_adapter._service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="校医院电话是多少",
+                guide_focus="contact",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:handbook:student-public-medical-reimbursement",
+                    display_name="公费医疗报销办理指南",
+                    aliases=("公费医疗报销",),
+                    category="student_public_medical",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                contact_refs=(
+                    ServiceGuideContactRef(
+                        label="校医院",
+                        department="校医院",
+                        phone="68930000",
+                        email="hospital@example.edu",
+                        source_refs=("handbook:student_rules:pages:261-261#page=261",),
+                    ),
+                ),
+                source_refs=("handbook:student_rules:pages:261-261#page=261",),
+                queried_time_anchor="2026-04-26T10:30:00+08:00",
+                effective_from="2018-09-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="student_public_medical",
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("校医院", response.answer_text)
+        self.assertIn("68930000", response.answer_text)
+        self.assertIn("hospital@example.edu", response.answer_text)
 
     def test_missing_query_service_returns_error_response(self) -> None:
         response = delegate_to_campus_services_agent(
