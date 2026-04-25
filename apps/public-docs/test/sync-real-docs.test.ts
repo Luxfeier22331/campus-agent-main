@@ -669,7 +669,13 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(css).toContain(".rspress-doc .rp-table-scroll-container");
 		expect(css).toContain(".rspress-doc.docs-reader-wide");
 		expect(css).toContain(".rspress-doc.docs-reader-map");
+		expect(css).toContain("--docs-sidebar-indent-2");
+		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item[data-depth=\"2\"]");
+		expect(css).toContain(".rspress-doc .docs-table-scroll table");
+		expect(css).toContain(".rspress-doc table thead th");
 		expect(css).not.toContain(".rspress-doc table {\n\tdisplay: block;");
+		expect(css).not.toContain(".rspress-doc table {\n\twidth: max-content;");
+		expect(css).not.toContain('content: "横向滚动查看更多列"');
 	});
 
 	it("keeps course-map routes before the inspector in a two-column desktop layout", () => {
