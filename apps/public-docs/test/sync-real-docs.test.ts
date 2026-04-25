@@ -17,8 +17,8 @@ import {
 	buildTopLevelMetaEntries,
 } from "../scripts/sync-real-docs";
 import {
-	buildCourseMapDataPayload,
 	buildCourseMapDataImportName,
+	buildCourseMapDataPayload,
 	buildCourseMapDocEmbedForRoute,
 	inferCourseMapRouteGroup,
 	normalizeCourseMapNodeLabel,
@@ -171,9 +171,7 @@ describe("course-map rendering keys", () => {
 	it("classifies public foundation courses outside professional core groups", () => {
 		expect(inferCourseMapRouteGroup("中国近现代史纲要")).toBe("foundation");
 		expect(inferCourseMapRouteGroup("马克思主义基本原理概论")).toBe("foundation");
-		expect(inferCourseMapRouteGroup("习近平新时代中国特色社会主义思想概论")).toBe(
-			"foundation",
-		);
+		expect(inferCourseMapRouteGroup("习近平新时代中国特色社会主义思想概论")).toBe("foundation");
 		expect(inferCourseMapRouteGroup("毕业论文（设计）")).toBe("practice");
 	});
 
@@ -326,9 +324,7 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 			root,
 			"apps/public-docs/src/generated/handbook-flow-graphs/central-minzu-student-dormitory-management-workflow.data.ts",
 		);
-		expect(readFileSync(dataPath, "utf-8")).toContain(
-			'flowHeading: "研究生申请办理退宿手续"',
-		);
+		expect(readFileSync(dataPath, "utf-8")).toContain('flowHeading: "研究生申请办理退宿手续"');
 		expect(readFileSync(dataPath, "utf-8")).toContain('extractionStatus: "ready"');
 	});
 
@@ -700,13 +696,20 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 
 	it("styles generated and markdown tables through scroll containers", () => {
 		const css = readFileSync(join(process.cwd(), "theme/docs-ui.css"), "utf8");
+		const theme = readFileSync(join(process.cwd(), "theme/index.tsx"), "utf8");
 
 		expect(css).toContain(".rspress-doc .docs-table-scroll");
 		expect(css).toContain(".rspress-doc .rp-table-scroll-container");
 		expect(css).toContain(".rspress-doc.docs-reader-wide");
 		expect(css).toContain(".rspress-doc.docs-reader-map");
-		expect(css).toContain("--docs-sidebar-indent-2");
-		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item[data-depth=\"2\"]");
+		expect(css).toContain("--docs-sidebar-width: 20rem;");
+		expect(css).toContain("--docs-sidebar-gutter: 12px;");
+		expect(css).toContain("--rp-sidebar-margin-left: var(--docs-sidebar-gutter);");
+		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item__left");
+		expect(css).toContain("-webkit-line-clamp: 2;");
+		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item--group-item::before");
+		expect(css).toContain("body .rp-search-button--mobile");
+		expect(css).toContain("body .rp-nav-hamburger__sm");
 		expect(css).toContain(".rspress-doc .docs-table-scroll table");
 		expect(css).toContain(".rspress-doc table thead th");
 		expect(css).toContain("main.rp-doc-layout__doc-container {\n\tbox-sizing: border-box;");
@@ -714,22 +717,24 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(css).toContain("padding-right: 1.25rem;");
 		expect(css).not.toContain(".rspress-doc table {\n\tdisplay: block;");
 		expect(css).not.toContain(".rspress-doc table {\n\twidth: max-content;");
-		expect(css).not.toContain('content: "横向滚动查看更多列"');
+		expect(css).toContain('content: "横向滑动查看更多列"');
+		expect(css).toContain("--docs-sidebar-width: 20rem;");
+		expect(css).toContain("@media (min-width: 1100px) and (max-width: 1359px)");
+		expect(css).toContain("@media (min-width: 900px) and (max-width: 1099px)");
+		expect(theme).not.toContain("useFlushSidebarIndent();");
+		expect(theme).not.toContain("MutationObserver");
 	});
 
-	it("keeps course-map routes before the inspector in a two-column desktop layout", () => {
-		const css = readFileSync(
-			join(process.cwd(), "src/components/course-map-section.css"),
-			"utf8",
-		);
+	it("keeps course-map routes as a lightweight read-first document surface", () => {
+		const css = readFileSync(join(process.cwd(), "src/components/course-map-section.css"), "utf8");
 
-		expect(css).toContain(
-			"grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);",
-		);
 		expect(css).toContain("container-type: inline-size;");
 		expect(css).toContain("@container (max-width: 58rem)");
-		expect(css).toContain(".course-map-inspector {\n\tposition: sticky;");
-		expect(css).not.toContain(".course-map-inspector {\n\torder: -1;");
+		expect(css).toContain(".course-map-course-relations summary");
+		expect(css).toContain(".course-map-route-card-list");
+		expect(css).toContain(".course-map-document-nav-tab");
+		expect(css).not.toContain(".course-map-inspector");
+		expect(css).not.toContain(".course-map-graph");
 	});
 
 	it("renders document technical metadata as a fixed low-distraction popover", () => {
@@ -1108,7 +1113,7 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 			},
 		]);
 
-		expect(home).toContain("学生手册、培养方案与公开规章的统一阅读入口");
+		expect(home).toContain("集中阅读学生手册、培养方案与公开规章");
 		expect(home).not.toContain("验证");
 		expect(home).not.toContain("MinIO");
 		expect(home).not.toContain("样本");

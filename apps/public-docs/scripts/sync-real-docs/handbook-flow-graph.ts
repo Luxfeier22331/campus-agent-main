@@ -215,7 +215,10 @@ function validateCuratedHandbookFlowGraphPayload(
 	if (requireInt(documentData, "sourcePageEnd") !== sourcePageEnd) {
 		throw new Error(`${projectionName} curated flow graph sourcePageEnd mismatch`);
 	}
-	if (documentData.extractionStatus !== "ready" && documentData.extractionStatus !== "needs_review") {
+	if (
+		documentData.extractionStatus !== "ready" &&
+		documentData.extractionStatus !== "needs_review"
+	) {
 		throw new Error(`${projectionName} curated flow graph extractionStatus mismatch`);
 	}
 	if (iterDocumentDataFlowSteps(documentData).length === 0) {
@@ -354,7 +357,9 @@ function iterBodyBearingFlowSteps(flowGraph: Record<string, unknown>): Record<st
 	return steps;
 }
 
-function iterDocumentDataFlowSteps(documentData: Record<string, unknown>): Record<string, unknown>[] {
+function iterDocumentDataFlowSteps(
+	documentData: Record<string, unknown>,
+): Record<string, unknown>[] {
 	const steps: Record<string, unknown>[] = [];
 	for (const page of asArray(documentData.pageFindings).map(asRecord).filter(isRecord)) {
 		for (const flow of asArray(page.flows).map(asRecord).filter(isRecord)) {

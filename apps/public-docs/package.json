@@ -18,9 +18,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.913.0",
-		"@rspress/core": "^2.0.9",
-		"@xyflow/react": "^12.10.2",
-		"dagre": "^0.8.5"
+		"@rspress/core": "^2.0.9"
 	},
 	"devDependencies": {
 		"@types/node": "^22.8.1",

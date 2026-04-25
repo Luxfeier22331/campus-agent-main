@@ -3,8 +3,8 @@ import { defineConfig } from "@rspress/core";
 
 export default defineConfig({
 	root: path.join(__dirname, "docs"),
-	title: "Campus Agent 文档站",
-	description: "Campus Agent 正式公开文档站，接入当前公开文档样本。",
+	title: "校园公开文档",
+	description: "校园公开文档站，集中阅读学生手册、培养方案与公开规章。",
 	lang: "zh",
 	globalUIComponents: [path.join(__dirname, "src/components/SearchKeyboardGuard.tsx")],
 	search: {

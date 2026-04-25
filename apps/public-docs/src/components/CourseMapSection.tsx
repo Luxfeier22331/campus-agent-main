@@ -1,14 +1,12 @@
-import { lazy, Suspense, useDeferredValue, useId, useMemo, useState } from "react";
+import { useId, useState } from "react";
 import "./course-map-section.css";
-import {
-	type CourseMapBlock,
-	type CourseMapDocumentData,
-	type CourseMapEdge,
-	type CourseMapNode,
-	type CourseMapStatus,
+import type {
+	CourseMapBlock,
+	CourseMapDocumentData,
+	CourseMapEdge,
+	CourseMapNode,
+	CourseMapStatus,
 } from "./course-map-types";
-
-const CourseRelationGraphView = lazy(() => import("./CourseRelationGraphView"));
 
 interface Props {
 	data: CourseMapDocumentData;
@@ -17,19 +15,24 @@ interface Props {
 interface IndexedCourseMapNode {
 	node: CourseMapNode;
 	nodeId: string;
-	index: number;
-}
-
-interface KeyedCourseMapEdge {
-	edge: CourseMapEdge;
-	edgeKey: string;
-	targetNodeId: string | null;
 }
 
 interface KeyedExtractionNote {
 	note: string;
 	noteKey: string;
 }
+
+interface CourseRelation {
+	edge: CourseMapEdge;
+	label: string;
+}
+
+interface CourseRelations {
+	incoming: CourseRelation[];
+	outgoing: CourseRelation[];
+}
+
+const SEARCH_NODE_COUNT_THRESHOLD = 40;
 
 const ROUTE_GROUP_LABELS = {
 	foundation: "公共基础",
@@ -42,14 +45,14 @@ const ROUTE_GROUP_ORDER = ["foundation", "core", "extension", "practice"] as con
 
 const STATUS_LABELS = {
 	ready: "已整理",
-	partial: "部分整理",
-	failed: "待整理",
+	partial: "需核对",
+	failed: "仅原图",
 } as const;
 
 const STATUS_DESCRIPTIONS = {
-	ready: "已提取为可阅读的课程路径，并保留原始区域图用于校对。",
-	partial: "已发布结构化课程路径，但仍建议结合原始区域图核对边界。",
-	failed: "暂未形成结构化路径，仅保留原始区域图。",
+	ready: "结构化课程路径已生成，原始区域图保留用于核对。",
+	partial: "结构化课程路径已生成，部分边界仍建议结合原图核对。",
+	failed: "暂未形成结构化课程路径，仅保留原始区域图。",
 } as const;
 
 function resolveStageLabels(data: CourseMapBlock): string[] {
@@ -64,75 +67,10 @@ function resolveNodeGroup(node: CourseMapNode): keyof typeof ROUTE_GROUP_LABELS 
 }
 
 function buildIndexedNodes(data: CourseMapBlock): IndexedCourseMapNode[] {
-	return data.nodes.map((node, index) => ({
+	return data.nodes.map((node) => ({
 		node,
 		nodeId: node.node_id,
-		index,
 	}));
-}
-
-function buildNodeIds(nodes: IndexedCourseMapNode[]): Set<string> {
-	return new Set(nodes.map(({ nodeId }) => nodeId));
-}
-
-function findIndexedNodeByActiveKey({
-	indexedNodes,
-	activeNodeId,
-}: {
-	indexedNodes: IndexedCourseMapNode[];
-	activeNodeId: string | null;
-}): IndexedCourseMapNode | null {
-	if (!activeNodeId) {
-		return null;
-	}
-	return indexedNodes.find(({ nodeId }) => nodeId === activeNodeId) ?? null;
-}
-
-function buildRelatedNodeIdSet({
-	data,
-	activeNode,
-}: {
-	data: CourseMapBlock;
-	activeNode: CourseMapNode | null;
-}): Set<string> {
-	if (!activeNode) {
-		return new Set();
-	}
-	const nodeIds = new Set<string>();
-	for (const edge of data.edges) {
-		if (edge.source_node_id === activeNode.node_id) {
-			nodeIds.add(edge.target_node_id);
-		}
-		if (edge.target_node_id === activeNode.node_id) {
-			nodeIds.add(edge.source_node_id);
-		}
-	}
-	return nodeIds;
-}
-
-function buildKeyedEdges({
-	edges,
-	nodeIds,
-	prefix,
-	targetNodeIdSelector,
-}: {
-	edges: CourseMapEdge[];
-	nodeIds: Set<string>;
-	prefix: string;
-	targetNodeIdSelector: (edge: CourseMapEdge) => string;
-}): KeyedCourseMapEdge[] {
-	const seen = new Map<string, number>();
-	return edges.map((edge) => {
-		const baseKey = `${prefix}:${edge.edge_id}`;
-		const occurrence = seen.get(baseKey) ?? 0;
-		seen.set(baseKey, occurrence + 1);
-		const targetNodeId = targetNodeIdSelector(edge);
-		return {
-			edge,
-			edgeKey: occurrence === 0 ? baseKey : `${baseKey}#${occurrence}`,
-			targetNodeId: nodeIds.has(targetNodeId) ? targetNodeId : null,
-		};
-	});
 }
 
 function buildKeyedExtractionNotes(notes: string[]): KeyedExtractionNote[] {
@@ -168,8 +106,32 @@ function buildStageGroups({
 	})).filter((entry) => entry.items.length > 0);
 }
 
-function shouldShowGraph(data: CourseMapBlock): boolean {
-	return data.nodes.length >= 2 && data.edges.length > 0;
+function buildRelationLookup(block: CourseMapBlock): Map<string, CourseRelations> {
+	const lookup = new Map<string, CourseRelations>();
+	const nodeIds = new Set(block.nodes.map((node) => node.node_id));
+	for (const node of block.nodes) {
+		lookup.set(node.node_id, { incoming: [], outgoing: [] });
+	}
+	for (const edge of block.edges) {
+		const sourceRelations = lookup.get(edge.source_node_id);
+		const targetRelations = lookup.get(edge.target_node_id);
+		if (!(sourceRelations && targetRelations)) {
+			continue;
+		}
+		sourceRelations.outgoing.push({
+			edge,
+			label: nodeIds.has(edge.target_node_id)
+				? edge.target_label
+				: `${edge.target_label}（未定位）`,
+		});
+		targetRelations.incoming.push({
+			edge,
+			label: nodeIds.has(edge.source_node_id)
+				? edge.source_label
+				: `${edge.source_label}（未定位）`,
+		});
+	}
+	return lookup;
 }
 
 function hasPublishableStructure(block: CourseMapBlock): boolean {
@@ -204,9 +166,15 @@ function CourseMapSearch({
 	const searchInputId = useId();
 
 	return (
-		<div className="course-map-search">
-			<label htmlFor={searchInputId}>在这张课程地图中查找</label>
+		<details className="course-map-search">
+			<summary>
+				<span>筛选课程</span>
+				<small>
+					{resultCount}/{nodeCount}
+				</small>
+			</summary>
 			<div className="course-map-search-control">
+				<label htmlFor={searchInputId}>按课程名、阶段或类别筛选</label>
 				<input
 					id={searchInputId}
 					type="search"
@@ -214,84 +182,97 @@ function CourseMapSearch({
 					placeholder="输入课程名、阶段或类别"
 					onChange={(event) => onChange(event.target.value)}
 				/>
-				<span>
-					{resultCount}/{nodeCount}
-				</span>
 			</div>
-		</div>
+		</details>
 	);
 }
 
-function CourseRouteCard({
-	node,
-	nodeId,
-	selected,
-	related,
-	onSelectNode,
+function RelationColumn({
+	title,
+	emptyLabel,
+	relations,
 }: {
-	node: CourseMapNode;
-	nodeId: string;
-	selected: boolean;
-	related: boolean;
-	onSelectNode: (nodeId: string) => void;
+	title: string;
+	emptyLabel: string;
+	relations: CourseRelation[];
 }) {
-	const incomingCount = node.incoming_count ?? 0;
-	const outgoingCount = node.outgoing_count ?? 0;
-	const relationLabel =
-		incomingCount > 0 || outgoingCount > 0
-			? `${incomingCount > 0 ? `${incomingCount} 个前置` : "无前置"} · ${
-					outgoingCount > 0 ? `${outgoingCount} 个后续` : "无后续"
-				}`
-			: "未标出依赖";
+	return (
+		<section className="course-map-relation-column">
+			<h6>{title}</h6>
+			{relations.length > 0 ? (
+				<ul>
+					{relations.map(({ edge, label }) => (
+						<li key={`${title}:${edge.edge_id}`}>{label}</li>
+					))}
+				</ul>
+			) : (
+				<p>{emptyLabel}</p>
+			)}
+		</section>
+	);
+}
+
+function CourseRouteCard({ node, relations }: { node: CourseMapNode; relations: CourseRelations }) {
+	const incomingCount = relations.incoming.length;
+	const outgoingCount = relations.outgoing.length;
+	const hasRelations = incomingCount > 0 || outgoingCount > 0;
+	const relationLabel = hasRelations
+		? `${incomingCount > 0 ? `${incomingCount} 个前置` : "无前置"} · ${
+				outgoingCount > 0 ? `${outgoingCount} 个后续` : "无后续"
+			}`
+		: "未标出前后关系";
 
 	return (
-		<button
-			type="button"
-			aria-pressed={selected}
-			className={
-				selected
-					? "course-map-route-card selected"
-					: related
-						? "course-map-route-card related"
-						: "course-map-route-card"
-			}
-			onClick={() => onSelectNode(nodeId)}
-		>
-			<span className="course-map-route-card-main">
-				<span className="course-map-route-card-title">{node.node_label}</span>
+		<article className="course-map-route-card">
+			<header className="course-map-route-card-main">
+				<strong className="course-map-route-card-title">{node.node_label}</strong>
 				<span className="course-map-route-card-meta">
 					{ROUTE_GROUP_LABELS[resolveNodeGroup(node)]}
 					{node.category_label ? ` · ${node.category_label}` : ""}
 				</span>
-			</span>
-			<span className="course-map-route-card-status">{relationLabel}</span>
-		</button>
+			</header>
+			{hasRelations ? (
+				<details className="course-map-course-relations">
+					<summary>{relationLabel}</summary>
+					<div className="course-map-relation-grid">
+						<RelationColumn
+							title="前置"
+							emptyLabel="未标出前置课程"
+							relations={relations.incoming}
+						/>
+						<RelationColumn
+							title="后续"
+							emptyLabel="未标出后续课程"
+							relations={relations.outgoing}
+						/>
+					</div>
+				</details>
+			) : (
+				<p className="course-map-route-card-status">{relationLabel}</p>
+			)}
+		</article>
 	);
 }
 
 function CourseRouteMapView({
 	data,
 	indexedNodes,
-	activeNodeId,
 	query,
-	onSelectNode,
+	relationLookup,
 }: {
 	data: CourseMapBlock;
 	indexedNodes: IndexedCourseMapNode[];
-	activeNodeId: string | null;
 	query: string;
-	onSelectNode: (nodeId: string) => void;
+	relationLookup: Map<string, CourseRelations>;
 }) {
 	const stageLabels = resolveStageLabels(data);
-	const activeEntry = findIndexedNodeByActiveKey({ indexedNodes, activeNodeId });
-	const relatedNodeIds = buildRelatedNodeIdSet({ data, activeNode: activeEntry?.node ?? null });
 	const visibleNodes = indexedNodes.filter(({ node }) => matchesCourseQuery(node, query));
 
 	return (
 		<section className="course-map-route-panel" aria-label="课程路径">
 			<div className="course-map-route-copy">
 				<h4>按培养阶段阅读</h4>
-				<p>优先展示可读路径。选择任意课程后，会同步显示它的前置与后续关系。</p>
+				<p>默认展示整理后的课程路径。前置和后续课程收在条目内，按需展开核对。</p>
 			</div>
 			{visibleNodes.length === 0 ? (
 				<div className="course-map-empty-filter">
@@ -324,10 +305,7 @@ function CourseRouteMapView({
 													<CourseRouteCard
 														key={nodeId}
 														node={node}
-														nodeId={nodeId}
-														selected={nodeId === activeNodeId}
-														related={nodeId !== activeNodeId && relatedNodeIds.has(nodeId)}
-														onSelectNode={onSelectNode}
+														relations={relationLookup.get(nodeId) ?? { incoming: [], outgoing: [] }}
 													/>
 												))}
 											</div>
@@ -343,124 +321,18 @@ function CourseRouteMapView({
 	);
 }
 
-function RelationList({
-	title,
-	emptyLabel,
-	edges,
-	labelSelector,
-	onSelectNode,
-}: {
-	title: string;
-	emptyLabel: string;
-	edges: KeyedCourseMapEdge[];
-	labelSelector: (edge: CourseMapEdge) => string;
-	onSelectNode: (nodeId: string) => void;
-}) {
-	return (
-		<section className="course-map-relation-group">
-			<h5>{title}</h5>
-			{edges.length > 0 ? (
-				<ul>
-					{edges.map(({ edge, edgeKey, targetNodeId }) => {
-						const label = labelSelector(edge);
-						return (
-							<li key={edgeKey}>
-								{targetNodeId ? (
-									<button type="button" onClick={() => onSelectNode(targetNodeId)}>
-										{label}
-									</button>
-								) : (
-									<span>{label}</span>
-								)}
-							</li>
-						);
-					})}
-				</ul>
-			) : (
-				<p>{emptyLabel}</p>
-			)}
-		</section>
-	);
-}
-
-function CourseMapInspector({
-	data,
-	indexedNodes,
-	activeNodeId,
-	onSelectNode,
-}: {
-	data: CourseMapBlock;
-	indexedNodes: IndexedCourseMapNode[];
-	activeNodeId: string | null;
-	onSelectNode: (nodeId: string) => void;
-}) {
-	const activeEntry =
-		findIndexedNodeByActiveKey({ indexedNodes, activeNodeId }) ?? indexedNodes[0] ?? null;
-	if (!activeEntry) {
-		return null;
-	}
-	const activeNode = activeEntry.node;
-	const nodeIds = buildNodeIds(indexedNodes);
-	const incomingEdges = data.edges.filter((edge) => edge.target_node_id === activeNode.node_id);
-	const outgoingEdges = data.edges.filter((edge) => edge.source_node_id === activeNode.node_id);
-	const keyedIncomingEdges = buildKeyedEdges({
-		edges: incomingEdges,
-		nodeIds,
-		prefix: "incoming",
-		targetNodeIdSelector: (edge) => edge.source_node_id,
-	});
-	const keyedOutgoingEdges = buildKeyedEdges({
-		edges: outgoingEdges,
-		nodeIds,
-		prefix: "outgoing",
-		targetNodeIdSelector: (edge) => edge.target_node_id,
-	});
-
-	return (
-		<aside className="course-map-inspector" aria-label="当前课程关系">
-			<div className="course-map-inspector-card">
-				<p className="course-map-inspector-eyebrow">当前选中</p>
-				<h4>{activeNode.node_label}</h4>
-				<div className="course-map-inspector-meta">
-					<span>{activeNode.stage_label}</span>
-					<span>{ROUTE_GROUP_LABELS[resolveNodeGroup(activeNode)]}</span>
-					{activeNode.category_label ? <span>{activeNode.category_label}</span> : null}
-				</div>
-				<div className="course-map-relation-grid">
-					<RelationList
-						title="前置课程"
-						emptyLabel="未标出前置关系"
-						edges={keyedIncomingEdges}
-						labelSelector={(edge) => edge.source_label}
-						onSelectNode={onSelectNode}
-					/>
-					<RelationList
-						title="后续课程"
-						emptyLabel="未标出后续关系"
-						edges={keyedOutgoingEdges}
-						labelSelector={(edge) => edge.target_label}
-						onSelectNode={onSelectNode}
-					/>
-				</div>
-			</div>
-		</aside>
-	);
-}
-
 function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
-	const stageLabels = resolveStageLabels(block);
-	const indexedNodes = useMemo(() => buildIndexedNodes(block), [block]);
-	const initialNode = indexedNodes[0] ?? null;
+	const indexedNodes = buildIndexedNodes(block);
 	const keyedExtractionNotes = buildKeyedExtractionNotes(block.extractionNotes);
-	const [activeNodeId, setActiveNodeId] = useState<string | null>(initialNode?.nodeId ?? null);
 	const [courseQuery, setCourseQuery] = useState("");
-	const [overviewOpen, setOverviewOpen] = useState(false);
-	const deferredCourseQuery = useDeferredValue(courseQuery.trim());
 	const effectiveStatus = resolveEffectiveBlockStatus(block);
-	const graphEnabled = effectiveStatus !== "failed" && shouldShowGraph(block);
+	const showSearch =
+		effectiveStatus !== "failed" && block.nodes.length > SEARCH_NODE_COUNT_THRESHOLD;
+	const normalizedCourseQuery = showSearch ? courseQuery.trim() : "";
 	const visibleNodeCount = indexedNodes.filter(({ node }) =>
-		matchesCourseQuery(node, deferredCourseQuery),
+		matchesCourseQuery(node, normalizedCourseQuery),
 	).length;
+	const relationLookup = buildRelationLookup(block);
 	const summary = buildCourseMapSummary(block, effectiveStatus);
 
 	return (
@@ -468,110 +340,58 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 			<header className="course-map-header">
 				<div className="course-map-title-row">
 					<p className="course-map-eyebrow">课程地图</p>
-					<span className={`course-map-status-badge status-${effectiveStatus}`}>
-						{STATUS_LABELS[effectiveStatus]}
-					</span>
-				</div>
-				<div className="course-map-heading-grid">
-					<div>
-						<h3>{block.title}</h3>
-						<p className="course-map-meta">
-							{summary}
-						</p>
-					</div>
-					{effectiveStatus === "failed" ? null : (
-						<div className="course-map-stat-grid">
-							<div>
-								<span>阶段</span>
-								<strong>{stageLabels.length}</strong>
-							</div>
-							<div>
-								<span>课程</span>
-								<strong>{block.nodes.length}</strong>
-							</div>
-							<div>
-								<span>关系</span>
-								<strong>{block.edges.length}</strong>
-							</div>
-						</div>
+					{effectiveStatus === "ready" ? null : (
+						<span className={`course-map-status-badge status-${effectiveStatus}`}>
+							{STATUS_LABELS[effectiveStatus]}
+						</span>
 					)}
 				</div>
-				<p className="course-map-status-copy">{STATUS_DESCRIPTIONS[effectiveStatus]}</p>
+				<h3>{block.title}</h3>
+				<p className="course-map-meta">{summary}</p>
+				{effectiveStatus !== "ready" ? (
+					<p className="course-map-status-copy">{STATUS_DESCRIPTIONS[effectiveStatus]}</p>
+				) : null}
 			</header>
 
 			{effectiveStatus === "failed" ? (
 				<section className="course-map-failure-panel">
 					<h4>暂未形成结构化课程路径</h4>
-					<p>当前只保留原始课程地图区域图，后续重新识别后再进入结构化阅读。</p>
+					<p>{STATUS_DESCRIPTIONS[effectiveStatus]}</p>
 				</section>
 			) : (
 				<>
-					<CourseMapSearch
-						query={courseQuery}
-						onChange={setCourseQuery}
-						nodeCount={block.nodes.length}
-						resultCount={visibleNodeCount}
-					/>
-					<div className="course-map-explorer">
-						<CourseRouteMapView
-							data={block}
-							indexedNodes={indexedNodes}
-							activeNodeId={activeNodeId}
-							query={deferredCourseQuery}
-							onSelectNode={setActiveNodeId}
+					{showSearch ? (
+						<CourseMapSearch
+							query={courseQuery}
+							onChange={setCourseQuery}
+							nodeCount={block.nodes.length}
+							resultCount={visibleNodeCount}
 						/>
-						<CourseMapInspector
-							data={block}
-							indexedNodes={indexedNodes}
-							activeNodeId={activeNodeId}
-							onSelectNode={setActiveNodeId}
-						/>
-					</div>
-					{graphEnabled ? (
-						<details
-							className="course-map-overview-panel"
-							onToggle={(event) => setOverviewOpen(event.currentTarget.open)}
-						>
-							<summary>查看全局关系总览</summary>
-							<p>
-								总览用于观察整体拓扑，不作为默认阅读视图。需要阅读课程名称时，请使用上方路径卡片。
-							</p>
-							{overviewOpen ? (
-								<Suspense
-									fallback={
-										<section className="course-map-graph-loading">
-											<h4>正在加载关系总览</h4>
-											<p>关系总览用于查看课程之间的前后关系。</p>
-										</section>
-									}
-								>
-									<CourseRelationGraphView
-										data={block}
-										activeNodeId={activeNodeId}
-										onSelectNode={setActiveNodeId}
-									/>
-								</Suspense>
-							) : null}
-						</details>
 					) : null}
+					<CourseRouteMapView
+						data={block}
+						indexedNodes={indexedNodes}
+						query={normalizedCourseQuery}
+						relationLookup={relationLookup}
+					/>
 				</>
 			)}
 
 			<details className="course-map-image-panel">
 				<summary>查看原始课程地图区域图</summary>
-				<p>原图用于人工核对结构化结果，不作为默认阅读入口。</p>
+				<p>原图仅用于核对结构化结果，不作为默认阅读入口。</p>
 				<img alt={`${block.title} 原始区域图`} src={block.imageSrc} />
 			</details>
 
 			{block.extractionNotes.length > 0 ? (
-				<section className="course-map-notes">
-					<h4>整理说明</h4>
+				<details className="course-map-notes">
+					<summary>查看整理说明</summary>
 					<ul>
 						{keyedExtractionNotes.map(({ note, noteKey }) => (
 							<li key={noteKey}>{note}</li>
 						))}
 					</ul>
-				</section>
+				</details>
 			) : null}
 		</section>
 	);
@@ -595,7 +415,7 @@ function CourseMapDocumentNav({
 				</div>
 				<span>{blocks.length} 张</span>
 			</div>
-			<div className="course-map-document-nav-list">
+			<div className="course-map-document-nav-list" role="tablist" aria-label="切换课程地图">
 				{blocks.map((block) => {
 					const selected = block.blockId === activeBlockId;
 					const effectiveStatus = resolveEffectiveBlockStatus(block);
@@ -603,19 +423,15 @@ function CourseMapDocumentNav({
 						<button
 							key={block.blockId}
 							type="button"
-							aria-pressed={selected}
+							role="tab"
+							aria-selected={selected}
 							className={
-								selected ? "course-map-document-nav-card selected" : "course-map-document-nav-card"
+								selected ? "course-map-document-nav-tab selected" : "course-map-document-nav-tab"
 							}
 							onClick={() => onSelectBlock(block.blockId)}
 						>
-							<span className="course-map-document-nav-card-main">
-								<strong>{block.title}</strong>
-								<small>{buildCourseMapSummary(block, effectiveStatus)}</small>
-							</span>
-							<span className={`course-map-status-badge status-${effectiveStatus}`}>
-								{STATUS_LABELS[effectiveStatus]}
-							</span>
+							<strong>{block.title}</strong>
+							<small>{buildCourseMapSummary(block, effectiveStatus)}</small>
 						</button>
 					);
 				})}
@@ -625,11 +441,14 @@ function CourseMapDocumentNav({
 }
 
 export default function CourseMapSection({ data }: Props) {
-	const [activeBlockId, setActiveBlockId] = useState<string | null>(data.blocks[0]?.blockId ?? null);
+	const [activeBlockId, setActiveBlockId] = useState<string | null>(
+		data.blocks[0]?.blockId ?? null,
+	);
 	if (data.blocks.length === 0) {
 		return null;
 	}
-	const activeBlock = data.blocks.find((block) => block.blockId === activeBlockId) ?? data.blocks[0];
+	const activeBlock =
+		data.blocks.find((block) => block.blockId === activeBlockId) ?? data.blocks[0];
 
 	return (
 		<section className="course-map-collection">

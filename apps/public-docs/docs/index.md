@@ -1,25 +1,27 @@
 ---
-title: "Campus Agent 文档站"
+title: "文档首页"
 footer: false
 ---
 
-# Campus Agent 文档站
+# 校园公开文档
 
 <p class="docs-home-kicker">校园公开文档入口</p>
 
-学生手册、培养方案与公开规章的统一阅读入口。
+<p class="docs-home-lede">集中阅读学生手册、培养方案与公开规章。内容保持来源、页码和版本信息可见，适合按文件核对制度依据。</p>
 
 <div class="docs-home-grid">
 <a class="docs-home-card" href="/student-handbook/">
 	<strong>学生手册</strong>
 	<span>查询学籍、奖助、纪律、住宿、公费医疗等学生管理制度。</span>
+	<small>按制度类别阅读</small>
 </a>
 <a class="docs-home-card" href="/curriculum-plan/">
 	<strong>培养方案</strong>
 	<span>按专业、实验班、强基计划和通识课程查看培养目标、毕业要求和课程安排。</span>
+	<small>按培养类型阅读</small>
 </a>
 </div>
 
 ## 真实公开文档
 
-汇总学生手册、培养方案与公开规章，保持与学校公开文件一致的阅读入口。
+<p class="docs-home-note">如果你已经知道文件名称，可以直接使用顶部搜索；如果不确定归属，先从学生手册或培养方案集合进入。</p>
