@@ -86,6 +86,13 @@ Evaluation helpers for campus-agent v2.
 - `campus_evals.eval_admission intent-candidates` 只把 mined JSONL 包装成
   `pending_review` manifest，不会直接接收 golden truth；review / dedupe / expected truth
   修订完成后，才允许人工迁入 observed regression fixture
+- `service_guide_lookup` release gate 是确定性组合 gate，入口为：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  service-guide-lookup`；
+  它验证 service guide projection eval、service-guide intent 子集、
+  supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
+  contract tests，不打开 campus_services serving surface，也不产生 operator
+  observability live case-results publish。
 
 配套文档：
 
@@ -107,6 +114,8 @@ Evaluation helpers for campus-agent v2.
   `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
 - `uv run --all-packages python -m unittest tests.evals.test_intent_eval`
 - `uv run --all-packages python -m scripts.intent_gate`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup
+  --json`
 
 retrieval benchmark CLI：
 

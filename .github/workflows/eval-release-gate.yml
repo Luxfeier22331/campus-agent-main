@@ -12,6 +12,7 @@ on:
           - curriculum
           - official-web-stable-reference
           - official-web-fresh-news
+          - service-guide-lookup
       reruns:
         description: Optional rerun count override
         required: false
@@ -110,7 +111,7 @@ jobs:
           if [ -n "${{ inputs.qdrant_collection_name }}" ]; then
             args+=(--qdrant-collection-name "${{ inputs.qdrant_collection_name }}")
           fi
-          if [ "${{ inputs.publish_dry_run }}" = "true" ]; then
+          if [ "${{ inputs.publish_dry_run }}" = "true" ] && [ "${{ inputs.profile }}" != "service-guide-lookup" ]; then
             args+=(--publish-dry-run)
             args+=(--publish-grade-source "${EVAL_GATE_PUBLISH_GRADE_SOURCE}")
             args+=(--publish-grader-version "${EVAL_GATE_PUBLISH_GRADER_VERSION}")

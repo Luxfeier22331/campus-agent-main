@@ -27,6 +27,7 @@ updated: 2026-04-23
 - `curriculum`
 - `official-web-stable-reference`
 - `official-web-fresh-news`
+- `service-guide-lookup`
 
 ## Doctor
 
@@ -80,6 +81,23 @@ uv run --all-packages python -m scripts.eval_gate accept \
   --qdrant-collection-name <physical-collection> \
   --json
 ```
+
+service guide lookup：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate accept \
+  --profile service-guide-lookup \
+  --json
+```
+
+`service-guide-lookup` 是确定性 release gate，不调用 live app-api，不生成
+formal benchmark case-results，也不支持 operator observability publish dry-run。它固定检查：
+
+- `service_guide` source-truth projection 的默认 eval cases
+- `service_guide_lookup` intent 子集，包括办理指南 lookup 与事务性代办 guardrail
+- supervisor-api Go 侧 service guide planning / runtime policy /
+  structured query / answer text
+- Python `campus-services-agent` tool adapter 与 HTTP query service contract
 
 ## Publish
 

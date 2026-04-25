@@ -25,6 +25,7 @@ class EvalGateProfileSpec:
     default_reruns: int
     output_prefix: str
     official_web_scope: str | None = None
+    supports_publish_dry_run: bool = True
 
 
 _PROFILE_SPECS = {
@@ -49,6 +50,12 @@ _PROFILE_SPECS = {
         default_reruns=1,
         output_prefix="official-web-fresh-news-live-gate-accept",
         official_web_scope="fresh_news",
+    ),
+    "service-guide-lookup": EvalGateProfileSpec(
+        name="service-guide-lookup",
+        default_reruns=1,
+        output_prefix="service-guide-lookup-release-gate-accept",
+        supports_publish_dry_run=False,
     ),
 }
 
@@ -233,6 +240,11 @@ def run_eval_acceptance(
     profile_spec = _resolve_profile_spec(profile)
     runner = _resolve_profile_runner(profile)
     resolved_reruns = reruns or profile_spec.default_reruns
+    if publish_dry_run and not profile_spec.supports_publish_dry_run:
+        raise ValueError(
+            f"{profile_spec.name} does not produce live case-results artifacts; "
+            "operator publish dry-run is not applicable"
+        )
 
     argv = [
         "accept",
@@ -352,6 +364,10 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         return runner
     if normalized in {"official-web-stable-reference", "official-web-fresh-news"}:
         from campus_evals.official_web_live_benchmark import main as runner
+
+        return runner
+    if normalized == "service-guide-lookup":
+        from campus_evals.service_guide_lookup_release_gate import main as runner
 
         return runner
     raise ValueError(f"unsupported eval profile runner: {profile}")
