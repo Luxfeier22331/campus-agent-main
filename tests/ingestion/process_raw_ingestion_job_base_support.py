@@ -66,6 +66,12 @@ DERIVED_BUCKET = "campus-rag-derived"
 
 def process_raw_ingestion_job(**kwargs):
     env = kwargs.get("env") or {}
+    if (env.get("INGESTION_COLLECTION") or "").strip() in {
+        "student_rules",
+        "curriculum_plan",
+    } and not (env.get("OCR_PROVIDER_MODE") or "").strip():
+        env = {**env, "OCR_PROVIDER_MODE": "mineru_api"}
+        kwargs["env"] = env
     request = kwargs.pop("request", None)
     if request is None:
         request = RawIngestionRequest(

@@ -122,6 +122,10 @@ class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            service_guide_source_truth_path = (
+                root / "configs" / "service-guide-source-truth.v1.json"
+            )
+            _write_service_guide_source_truth_manifest(service_guide_source_truth_path)
             provider_lines = [
                 _provider_batch_line(
                     _provider_page(
@@ -132,7 +136,7 @@ class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
                             block_order=1,
                         ),
                         _provider_block(
-                            "text", "保卫处：68930010", block_id="p1-body", block_order=2
+                            "text", "保卫处 68930010", block_id="p1-body", block_order=2
                         ),
                     ),
                     _provider_page(
@@ -181,6 +185,9 @@ class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
                     "REBUILD_COLLECTION": "student_rules",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                    "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_PATH": str(
+                        service_guide_source_truth_path
+                    ),
                     "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                     "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
@@ -226,6 +233,64 @@ class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
             self.assertIn("derived_from_raw_asset_id: asset:student-handbook-pdf", phone_doc)
             self.assertIn(
                 "parent_document_id: handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675", phone_doc
+            )
+            projection_uploads = {
+                str(upload["key"]): json.loads(upload["data"].decode("utf-8"))
+                for upload in object_store.uploads
+                if str(upload["key"])
+                == "campus_services/releases/contact_directory/current/contact-directory-projection.json"
+            }
+            projection = projection_uploads[
+                "campus_services/releases/contact_directory/current/contact-directory-projection.json"
+            ]
+            self.assertEqual(
+                projection["schema_version"],
+                "campus_services_contact_directory_projection.v1",
+            )
+            self.assertEqual(
+                [
+                    (record["display_name"], record["phones"][0]["number"])
+                    for record in projection["contact_records"]
+                ],
+                [("保卫处", "68930010")],
+            )
+            service_guide_projection_uploads = {
+                str(upload["key"]): json.loads(upload["data"].decode("utf-8"))
+                for upload in object_store.uploads
+                if str(upload["key"])
+                == "campus_services/releases/service_guide/current/service-guide-projection.json"
+            }
+            service_guide_projection = service_guide_projection_uploads[
+                "campus_services/releases/service_guide/current/service-guide-projection.json"
+            ]
+            self.assertEqual(
+                service_guide_projection["schema_version"],
+                "campus_services_service_guide_projection.v1",
+            )
+            self.assertEqual(len(service_guide_projection["service_guide_records"]), 9)
+            self.assertIn(
+                "研究生申请办理退宿手续",
+                {
+                    record["display_name"]
+                    for record in service_guide_projection["service_guide_records"]
+                },
+            )
+            service_catalog_projection_uploads = {
+                str(upload["key"]): json.loads(upload["data"].decode("utf-8"))
+                for upload in object_store.uploads
+                if str(upload["key"])
+                == "campus_services/releases/service_catalog/current/service-catalog-projection.json"
+            }
+            service_catalog_projection = service_catalog_projection_uploads[
+                "campus_services/releases/service_catalog/current/service-catalog-projection.json"
+            ]
+            self.assertEqual(
+                service_catalog_projection["schema_version"],
+                "campus_services_service_catalog_projection.v1",
+            )
+            self.assertIn(
+                "公费医疗报销办理指南",
+                {entry["display_name"] for entry in service_catalog_projection["service_entries"]},
             )
 
     def test_replay_provider_response_rebuild_reconstructs_handbook_documents_without_indexing_by_default(
@@ -381,3 +446,44 @@ class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
             )
 
             self.assertEqual(raw_asset_registry.list_by_scope("regulations", "student_rules"), ())
+
+
+def _write_service_guide_source_truth_manifest(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "campus_services_service_guide_source_truth_manifest.v1",
+                "target_corpus": "campus_services",
+                "target_collection": "service_guide",
+                "upstream_corpus": "regulations",
+                "upstream_collection": "student_rules",
+                "release_id_prefix": "service-guide-handbook",
+                "effective_from": "2018-09-01T00:00:00+08:00",
+                "effective_until": "2099-12-31T23:59:59+08:00",
+                "expected_ready_records": 9,
+                "curated_flow_graphs": [
+                    {
+                        "path": str(
+                            Path(
+                                "configs/ingestion/regulations/student_rules/curated-flow-graphs/"
+                                "central-minzu-student-dormitory-management-workflow.v1.json"
+                            ).resolve()
+                        )
+                    }
+                ],
+                "curated_service_guides": [
+                    {
+                        "path": str(
+                            Path(
+                                "configs/ingestion/regulations/student_rules/curated-service-guides/"
+                                "central-minzu-student-public-medical.v1.json"
+                            ).resolve()
+                        )
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )

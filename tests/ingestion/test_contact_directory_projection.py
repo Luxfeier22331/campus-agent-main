@@ -34,7 +34,7 @@ class ContactDirectoryProjectionTest(unittest.TestCase):
             document_units=[
                 _phone_policy_unit(
                     section_path=["校级办公与公共服务"],
-                    clean_text="校园110 68932220\n研究生院(学位办)办公室 68932649",
+                    clean_text="校园110：68932220\n研究生院(学位办)办公室 68932649",
                 ),
                 _phone_policy_unit(
                     section_path=["后勤产业集团"],

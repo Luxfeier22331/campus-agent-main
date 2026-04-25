@@ -759,6 +759,33 @@ Behavior:
 - Writes local release artifacts and publishes versioned/current projection
   artifacts to the derived bucket.
 
+### `campus-ingestion-build-service-catalog-projection`
+
+Builds and publishes the `campus_services/service_catalog` projection from an
+existing `service_guide` current projection and an optional `contact_directory`
+current projection.
+
+Required CLI args:
+
+- `--service-guide-projection`
+- `--work-dir`
+
+Optional CLI args:
+
+- `--contact-directory-projection`
+- `--release-id`
+- `--generated-at`
+- `--derived-bucket`
+
+Behavior:
+
+- Reads normalized projection JSON files only.
+- Builds `campus_services_service_catalog_projection.v1` service entries.
+- Links service guide entry/contact labels to stable contact directory records
+  when exact normalized aliases match.
+- Writes local release artifacts and publishes versioned/current projection
+  artifacts to the derived bucket.
+
 ### `migrate_student_handbook_source_faithful`
 
 Worker shell for the handbook source-faithful migration.

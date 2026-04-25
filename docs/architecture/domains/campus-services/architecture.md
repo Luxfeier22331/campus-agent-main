@@ -105,14 +105,25 @@ later-wave 已冻结方向包括：
 - `contact_directory_lookup`
   - 只读 `campus_services/contact_directory` contact entity / entity-group projection
   - handbook 电话页、official-web 联系方式页与 future directory page 只作为 provenance 上游
+  - handbook 电话页必须通过 `regulations/student_rules` declared projection fan-out 进入
+    `campus_services/contact_directory` document artifacts，并由 ingestion/replay
+    run 生成 structured contact projection；不得用单点脚本绕过 handbook ingestion/replay
   - 当前只补 offline projection data-plane；runtime lookup 与产品 opening gate 仍保持
     later-wave closed
 - `service_guide_lookup`
   - 只读 `campus_services/service_guide` guide-oriented projection
   - handbook flow page、official-web 办事说明页与 future service entry page 只作为
     provenance 上游
+  - handbook-derived first tracked source truth 已覆盖宿舍流程、公费医疗、学生证补办、
+    学生申诉、临时困难补助、国家助学贷款与勤工助学岗位聘用；这些仍只是 offline
+    projection backing，不打开产品主路径
   - 只允许返回办理说明、材料、入口、适用人群、服务时间、联系方式与 source refs；
     不返回可执行 transaction payload，不生成 submission / booking / work-order handoff
+- `service_catalog`
+  - 只读 service discovery / alias governance projection
+  - 第一版由 normalized `service_guide` 与可选 `contact_directory` projection 初始化
+  - 不作为 query-serving fallback，不回读 raw PDF、portal HTML、notice HTML 或 generic
+    retrieval chunk
 
 固定约束：
 

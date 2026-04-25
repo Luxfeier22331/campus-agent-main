@@ -9,8 +9,12 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     ImportReport,
     ObjectStoreWriter,
     persist_import_documents,
+    utc_now,
 )
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
+from campus_ingestion_core.contact_directory_projection import (
+    write_contact_directory_projection_release_from_import_documents,
+)
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.raw_ingestion_online_ocr import (
     DEFAULT_ONLINE_OCR_MODEL,
@@ -50,6 +54,12 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.scope_catalog import assert_known_scope
+from campus_ingestion_core.service_catalog_projection import (
+    write_service_catalog_projection_release_from_current_projections,
+)
+from campus_ingestion_core.service_guide_projection import (
+    write_service_guide_projection_release_from_manifest_if_available,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.split_manifest import load_split_manifest
 
@@ -298,7 +308,7 @@ def process_raw_ingestion_job(
     except Exception as exc:
         errors.append(f"{raw_asset_record.object_key}: {exc}")
 
-    return persist_import_documents(
+    report = persist_import_documents(
         documents=documents,
         registry=registry,
         raw_asset_registry=raw_asset_registry,
@@ -313,3 +323,40 @@ def process_raw_ingestion_job(
         report_prefix="process-raw-ingestion-job",
         initial_errors=errors,
     )
+    contact_directory_reports = ()
+    service_guide_report = None
+    if report.failed_count == 0:
+        generated_at = utc_now()
+        contact_directory_reports = (
+            write_contact_directory_projection_release_from_import_documents(
+                documents=documents,
+                output_dir=settings.report_dir / "contact-directory-projection",
+                generated_at=generated_at,
+                object_store=writer,  # type: ignore[arg-type]
+                bucket=settings.object_store.bucket_derived,
+            )
+        )
+        service_guide_report = write_service_guide_projection_release_from_manifest_if_available(
+            source=source,
+            upstream_corpus=settings.corpus,
+            upstream_collection=settings.collection,
+            output_dir=settings.report_dir / "service-guide-projection",
+            generated_at=generated_at,
+            object_store=writer,  # type: ignore[arg-type]
+            bucket=settings.object_store.bucket_derived,
+        )
+        if service_guide_report is not None:
+            contact_directory_projection_path = (
+                contact_directory_reports[0].current_projection_path
+                if contact_directory_reports
+                else None
+            )
+            write_service_catalog_projection_release_from_current_projections(
+                service_guide_projection_path=service_guide_report.current_projection_path,
+                contact_directory_projection_path=contact_directory_projection_path,
+                output_dir=settings.report_dir / "service-catalog-projection",
+                generated_at=generated_at,
+                object_store=writer,  # type: ignore[arg-type]
+                bucket=settings.object_store.bucket_derived,
+            )
+    return report

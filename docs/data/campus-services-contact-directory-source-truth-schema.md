@@ -46,6 +46,11 @@ collection。handbook 电话页应先生成 normalized contact projection，再�
   - canonical selector 位于
     `configs/ingestion/regulations/student_rules/source-projections.v1.json`
   - 当前 tracked source 为 `中央民族大学校内常用电话`，学生手册第 261 页
+  - canonical 入口是 handbook/PDF raw ingestion 与 provider-response replay 的
+    declared projection fan-out；生成 `campus_services/contact_directory`
+    document artifacts 后，同一 ingestion/replay run 继续生成 structured projection
+    release
+  - worker CLI 只作为 debug/recovery shell，不能被当成 PDF 电话页的主消费路径
   - builder 消费 handbook cleanup 已生成的 `document-units.jsonl`
   - 只消费 `policy_page` phone semantic units；原始 table unit 仅作为可追溯证据
 - future official-web contact directory pages

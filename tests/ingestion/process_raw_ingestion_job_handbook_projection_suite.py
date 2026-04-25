@@ -25,11 +25,11 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                         "documents": [
                             {
                                 "document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                                "title": "中央民族大学奖学金评定办法",
-                                "handbook_section": "中央民族大学学生奖励管理规定",
+                                "title": "中央民族大学校内常用电话",
+                                "handbook_section": "中央民族大学公寓及公费医疗管理规定",
                                 "page_start": 1,
                                 "page_end": 1,
-                                "source_uri": "https://campus.example/handbook/scholarship-policy",
+                                "source_uri": "https://campus.example/handbook/contact-directory",
                             }
                         ],
                     },
@@ -68,13 +68,13 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                                 "derived_from": "source_truth",
                                 "derived_from_document_id": None,
                                 "parent_document_id": None,
-                                "source_title": "中央民族大学奖学金评定办法",
-                                "source_handbook_section": "中央民族大学学生奖励管理规定",
+                                "source_title": "中央民族大学校内常用电话",
+                                "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
                                 "source_page_start": 1,
                                 "source_page_end": 1,
                                 "attachment_kind": "navigation_like",
                                 "attachment_role": "service_contact_directory",
-                                "target_title": "中央民族大学奖学金评定办法（联系人投影）",
+                                "target_title": "中央民族大学校内常用电话",
                                 "migration_reason": "handbook_contact_projection_test",
                             },
                         ],
@@ -84,6 +84,10 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            service_guide_source_truth_path = (
+                root / "configs" / "service-guide-source-truth.v1.json"
+            )
+            _write_service_guide_source_truth_manifest(service_guide_source_truth_path)
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
@@ -109,6 +113,9 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                     "INGESTION_COLLECTION": "student_rules",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                    "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_PATH": str(
+                        service_guide_source_truth_path
+                    ),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -118,7 +125,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                     "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                 },
                 object_store=object_store,
-                online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
+                online_ocr=_PhoneDirectoryOnlineOcrClient(),
                 registry=registry,
                 raw_asset_registry=raw_asset_registry,
             )
@@ -131,7 +138,64 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                         for record in registry.list_by_scope("campus_services", "contact_directory")
                     )
                 ),
-                ("campus_services:contact_directory:28eb517c07c83d26ca0c17d33ec46fcdf2eb5258",),
+                ("campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
+            )
+            projection_key = (
+                "campus_services/releases/contact_directory/current/"
+                "contact-directory-projection.json"
+            )
+            projection = json.loads(
+                object_store.objects[(DERIVED_BUCKET, projection_key)].decode("utf-8")
+            )
+            self.assertEqual(
+                projection["schema_version"],
+                "campus_services_contact_directory_projection.v1",
+            )
+            self.assertEqual(
+                {record["display_name"] for record in projection["contact_records"]},
+                {"保卫处", "校医院"},
+            )
+            self.assertEqual(
+                {record["phones"][0]["number"] for record in projection["contact_records"]},
+                {"68930010", "68933120"},
+            )
+            service_guide_projection = json.loads(
+                object_store.objects[
+                    (
+                        DERIVED_BUCKET,
+                        "campus_services/releases/service_guide/current/"
+                        "service-guide-projection.json",
+                    )
+                ].decode("utf-8")
+            )
+            self.assertEqual(
+                service_guide_projection["schema_version"],
+                "campus_services_service_guide_projection.v1",
+            )
+            self.assertEqual(len(service_guide_projection["service_guide_records"]), 9)
+            self.assertIn(
+                "公费医疗报销办理指南",
+                {
+                    record["display_name"]
+                    for record in service_guide_projection["service_guide_records"]
+                },
+            )
+            service_catalog_projection = json.loads(
+                object_store.objects[
+                    (
+                        DERIVED_BUCKET,
+                        "campus_services/releases/service_catalog/current/"
+                        "service-catalog-projection.json",
+                    )
+                ].decode("utf-8")
+            )
+            self.assertEqual(
+                service_catalog_projection["schema_version"],
+                "campus_services_service_catalog_projection.v1",
+            )
+            self.assertIn(
+                "公费医疗报销办理指南",
+                {entry["display_name"] for entry in service_catalog_projection["service_entries"]},
             )
 
     def test_student_handbook_normalized_raw_ingestion_requires_split_manifest(self) -> None:
@@ -271,6 +335,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                 raw_asset_id="asset:student-handbook-master-pdf",
                 raw_version_id=raw_version_id,
                 filename="provider-response.jsonl",
+                model_slug="vlm",
             )
             structured_full_key = build_processed_asset_artifact_key(
                 corpus="regulations",
@@ -340,8 +405,8 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             self.assertEqual(
                 discipline_record["cleaning_policy_version"], "student_rules_cleaning_v1"
             )
-            self.assertEqual(scholarship_record["parser_version"], "paddleocr-vl-1.5")
-            self.assertEqual(discipline_record["parser_version"], "paddleocr-vl-1.5")
+            self.assertEqual(scholarship_record["parser_version"], "mineru-vlm-adapted-v2")
+            self.assertEqual(discipline_record["parser_version"], "mineru-vlm-adapted-v2")
             self.assertEqual(scholarship_record["embedding_model"], "Qwen3-Embedding-4B")
             self.assertEqual(discipline_record["embedding_model"], "Qwen3-Embedding-4B")
 
@@ -689,3 +754,93 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             self.assertEqual(len(registry_payload), 1)
             stored_record = next(iter(registry_payload.values()))
             self.assertEqual(stored_record["document_id"], scholarship_doc_id)
+
+
+class _PhoneDirectoryOnlineOcrClient:
+    def __init__(self) -> None:
+        self.calls: list[Path] = []
+
+    def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
+        self.calls.append(pdf_path)
+        provider_payload = {
+            "result": {
+                "dataInfo": {
+                    "numPages": 1,
+                    "pages": [{"width": 828, "height": 1151}],
+                    "type": "pdf",
+                },
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "blockType": "title",
+                                    "blockId": "p1-title",
+                                    "readingOrder": 1,
+                                    "markdown": {"text": "中央民族大学校内常用电话"},
+                                },
+                                {
+                                    "blockType": "paragraph",
+                                    "blockId": "p1-body",
+                                    "readingOrder": 2,
+                                    "markdown": {"text": "保卫处 68930010"},
+                                },
+                                {
+                                    "blockType": "paragraph",
+                                    "blockId": "p1-body-2",
+                                    "readingOrder": 3,
+                                    "markdown": {"text": "校医院 68933120"},
+                                },
+                            ]
+                        }
+                    }
+                ],
+            },
+            "logId": "phone-directory-001",
+        }
+        return OnlineOcrProviderResult(
+            provider_result_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            )
+        )
+
+
+def _write_service_guide_source_truth_manifest(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "campus_services_service_guide_source_truth_manifest.v1",
+                "target_corpus": "campus_services",
+                "target_collection": "service_guide",
+                "upstream_corpus": "regulations",
+                "upstream_collection": "student_rules",
+                "release_id_prefix": "service-guide-handbook",
+                "effective_from": "2018-09-01T00:00:00+08:00",
+                "effective_until": "2099-12-31T23:59:59+08:00",
+                "expected_ready_records": 9,
+                "curated_flow_graphs": [
+                    {
+                        "path": str(
+                            Path(
+                                "configs/ingestion/regulations/student_rules/curated-flow-graphs/"
+                                "central-minzu-student-dormitory-management-workflow.v1.json"
+                            ).resolve()
+                        )
+                    }
+                ],
+                "curated_service_guides": [
+                    {
+                        "path": str(
+                            Path(
+                                "configs/ingestion/regulations/student_rules/curated-service-guides/"
+                                "central-minzu-student-public-medical.v1.json"
+                            ).resolve()
+                        )
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )

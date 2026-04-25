@@ -7,6 +7,9 @@ This directory holds the repo-tracked config scaffolding for the
   serving-policy control
 - `chunk-profile.json`: canonical generic chunk budget for release-managed
   indexing
+- `source-truth.v1.json`: source-truth contract for initializing
+  `service_catalog` from normalized `service_guide` plus optional
+  `contact_directory` current projections
 - handbook source-truth replay now uses
   `configs/ingestion/regulations/student_rules/source-projections.v1.json` as
   the canonical declaration of service navigation projections
@@ -23,6 +26,8 @@ Current runtime truth:
 - collection prefix: `service_catalog`
 - release manifests: `campus_services/releases/service_catalog/{release_id}/...`
 - chunk profile: `service_catalog_semantic_v1`
+- structured projection:
+  `campus_services/releases/service_catalog/current/service-catalog-projection.json`
 
 `service_catalog` is the long-term home for campus service discovery content
 such as internal service entries, directory pages, topic landing pages, and
@@ -31,3 +36,29 @@ remains `offline_preparation` and is not part of the default query-serving
 surface. Even in `offline_preparation`, this collection participates in the
 release-managed alias lifecycle: Qdrant should expose a stable `service_catalog`
 alias that points at versioned physical collections.
+
+Structured service catalog current projection is generated after successful
+`regulations/student_rules` raw ingestion or provider-response replay when
+`service_guide` current projection is available. The builder consumes normalized
+`service_guide` and optional `contact_directory` projections only; it must not
+re-read raw PDF, portal HTML, notice HTML, or generic retrieval chunks.
+The current source-truth manifest fixes the first handbook-backed release gate
+at 14 ready service entries, matching the 14 ready `service_guide` records.
+
+Targeted rebuild path:
+
+- worker module:
+  `python -m campus_ingestion_worker.build_service_catalog_projection`
+- required inputs:
+  - `--service-guide-projection`
+  - `--work-dir`
+- optional inputs:
+  - `--contact-directory-projection`
+  - `--release-id`
+  - `--generated-at`
+  - `--derived-bucket`
+  - `--expected-ready-records`
+
+Use the worker when normalized `service_guide` or `contact_directory` current
+projection files already exist and the catalog needs to be republished without
+rerunning handbook OCR.

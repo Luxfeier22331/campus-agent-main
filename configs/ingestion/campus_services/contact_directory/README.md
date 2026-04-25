@@ -37,7 +37,11 @@ Current structured projection:
 - schema: `campus_services_contact_directory_projection.v1`
 - source truth: handbook cleanup `document-units.jsonl` for
   `中央民族大学校内常用电话`
-- builder shell:
+- canonical build path: `regulations/student_rules` handbook raw ingestion and
+  provider-response replay consume `source-projections.v1.json`, materialize
+  `campus_services/contact_directory` document artifacts, and publish the
+  structured projection release in the same run
+- debug/recovery shell:
   `python -m campus_ingestion_worker.build_contact_directory_projection`
 - data contract:
   `docs/data/campus-services-contact-directory-source-truth-schema.md`

@@ -8,6 +8,9 @@ from qdrant_client import QdrantClient
 
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport, write_import_report
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
+from campus_ingestion_core.contact_directory_projection import (
+    write_contact_directory_projection_release_from_import_documents,
+)
 from campus_ingestion_core.local_rebuild_documents import (
     _build_replay_documents,
     _collect_projection_aware_import_stats,
@@ -31,6 +34,12 @@ from campus_ingestion_core.local_rebuild_support import (
     _read_default_visibility_scope,
     _run_traced_stage,
     _summarize_persist_stats,
+)
+from campus_ingestion_core.service_catalog_projection import (
+    write_service_catalog_projection_release_from_current_projections,
+)
+from campus_ingestion_core.service_guide_projection import (
+    write_service_guide_projection_release_from_manifest_if_available,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -152,6 +161,63 @@ def replay_provider_response_rebuild(
     )
     errors = list(stats.errors)
     failed_count = stats.failed_count
+    contact_directory_reports = ()
+    service_guide_report = None
+    if failed_count == 0:
+        try:
+            contact_directory_reports = (
+                write_contact_directory_projection_release_from_import_documents(
+                    documents=documents,
+                    output_dir=Path(
+                        (source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()
+                    )
+                    / "contact-directory-projection",
+                    generated_at=stats.timestamp,
+                    object_store=runtime_object_store,
+                    bucket=object_store_settings.bucket_derived,
+                )
+            )
+        except Exception as exc:
+            failed_count += 1
+            errors.append(f"contact directory projection failed: {exc}")
+    if failed_count == 0:
+        try:
+            service_guide_report = (
+                write_service_guide_projection_release_from_manifest_if_available(
+                    source=source,
+                    upstream_corpus=corpus,
+                    upstream_collection=collection,
+                    output_dir=Path(
+                        (source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()
+                    )
+                    / "service-guide-projection",
+                    generated_at=stats.timestamp,
+                    object_store=runtime_object_store,
+                    bucket=object_store_settings.bucket_derived,
+                )
+            )
+        except Exception as exc:
+            failed_count += 1
+            errors.append(f"service guide projection failed: {exc}")
+    if failed_count == 0 and service_guide_report is not None:
+        try:
+            contact_directory_projection_path = (
+                contact_directory_reports[0].current_projection_path
+                if contact_directory_reports
+                else None
+            )
+            write_service_catalog_projection_release_from_current_projections(
+                service_guide_projection_path=service_guide_report.current_projection_path,
+                contact_directory_projection_path=contact_directory_projection_path,
+                output_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip())
+                / "service-catalog-projection",
+                generated_at=stats.timestamp,
+                object_store=runtime_object_store,
+                bucket=object_store_settings.bucket_derived,
+            )
+        except Exception as exc:
+            failed_count += 1
+            errors.append(f"service catalog projection failed: {exc}")
     if _should_index_qdrant_for_replay(source):
         try:
             _run_traced_stage(

@@ -24,8 +24,10 @@ CONTACT_DIRECTORY_VALIDATION_FILENAME = "validation-summary.json"
 CONTACT_DIRECTORY_RELEASE_MANIFEST_FILENAME = "release-manifest.json"
 CONTACT_DIRECTORY_MANUAL_REVIEW_FILENAME = "manual-review-report.json"
 HANDBOOK_PHONE_DIRECTORY_SOURCE_FAMILY = "handbook_phone_directory_projection_v1"
+HANDBOOK_PHONE_DIRECTORY_PROJECTION_NAME = "handbook_phone_directory"
+HANDBOOK_PHONE_DIRECTORY_ATTACHMENT_ROLE = "service_contact_directory"
 
-_PHONE_LINE_RE = re.compile(r"^(?P<name>.+?)\s+(?P<number>\d[\d\- ]{4,}\d)$")
+_PHONE_LINE_RE = re.compile(r"^(?P<name>.+?)[\s:：]+(?P<number>\d[\d\- ]{4,}\d)$")
 
 
 class ContactDirectoryProjectionObjectStore(Protocol):
@@ -96,8 +98,8 @@ def build_contact_directory_projection_bundle_from_handbook_document_units(
         )
         contact_group = _contact_group_from_anchor(anchor)
         for line in _contact_lines(unit.get("clean_text")):
-            parsed = _parse_phone_line(line)
-            if parsed is None:
+            parsed_entries = _parse_phone_entries(line)
+            if not parsed_entries:
                 if _contains_phoneish_number(line):
                     manual_review_sources.append(
                         {
@@ -107,20 +109,20 @@ def build_contact_directory_projection_bundle_from_handbook_document_units(
                         }
                     )
                 continue
-            display_name, phone_number = parsed
-            dedupe_key = (_normalize_search_text(display_name), phone_number)
-            if dedupe_key in seen_contacts:
-                continue
-            seen_contacts.add(dedupe_key)
-            records.append(
-                _contact_record(
-                    display_name=display_name,
-                    phone_number=phone_number,
-                    contact_group=contact_group,
-                    source_title=source_title,
-                    source_ref=source_ref,
+            for display_name, phone_number in parsed_entries:
+                dedupe_key = (_normalize_search_text(display_name), phone_number)
+                if dedupe_key in seen_contacts:
+                    continue
+                seen_contacts.add(dedupe_key)
+                records.append(
+                    _contact_record(
+                        display_name=display_name,
+                        phone_number=phone_number,
+                        contact_group=contact_group,
+                        source_title=source_title,
+                        source_ref=source_ref,
+                    )
                 )
-            )
 
     records.sort(key=lambda item: (item["contact_group"], item["display_name"]))
     bundle = {
@@ -363,6 +365,47 @@ def write_contact_directory_projection_release(
     )
 
 
+def write_contact_directory_projection_release_from_import_documents(
+    *,
+    documents: list[object] | tuple[object, ...],
+    output_dir: Path,
+    generated_at: str,
+    object_store: ContactDirectoryProjectionObjectStore,
+    bucket: str,
+) -> tuple[ContactDirectoryProjectionReleaseReport, ...]:
+    contact_documents = tuple(_iter_contact_directory_handbook_documents(documents))
+    if not contact_documents:
+        return ()
+    document_units: list[dict[str, Any]] = []
+    source_titles: list[str] = []
+    for document in contact_documents:
+        rows = _read_document_units_from_import_document(document)
+        document_units.extend(rows)
+        title = _document_title(document)
+        if title and title not in source_titles:
+            source_titles.append(title)
+    page_start, page_end = _source_page_range(document_units)
+    source_title = source_titles[0] if source_titles else "中央民族大学校内常用电话"
+    build_result = build_contact_directory_projection_bundle_from_handbook_document_units(
+        document_units=document_units,
+        generated_at=generated_at,
+        source_title=source_title,
+        source_page_start=page_start,
+        source_page_end=page_end,
+    )
+    assert_contact_directory_projection_release_ready(build_result.bundle)
+    report = write_contact_directory_projection_release(
+        bundle=build_result.bundle,
+        output_dir=output_dir,
+        release_id=_contact_directory_release_id(generated_at),
+        generated_at=generated_at,
+        manual_review_sources=build_result.manual_review_sources,
+        object_store=object_store,
+        bucket=bucket,
+    )
+    return (report,)
+
+
 def _contact_record(
     *,
     display_name: str,
@@ -461,15 +504,34 @@ def _contact_lines(value: object) -> list[str]:
 
 
 def _parse_phone_line(line: str) -> tuple[str, str] | None:
+    parsed = _parse_phone_entries(line)
+    return parsed[0] if parsed else None
+
+
+def _parse_phone_entries(line: str) -> list[tuple[str, str]]:
     normalized = re.sub(r"\s+", " ", line.strip())
+    matches = list(re.finditer(r"\d[\d\- ]{4,}\d", normalized))
+    if len(matches) > 1:
+        entries: list[tuple[str, str]] = []
+        for index, match in enumerate(matches):
+            name_start = 0 if index == 0 else matches[index - 1].end()
+            name = _normalize_contact_name(normalized[name_start : match.start()])
+            number = re.sub(r"\s+", "", match.group(0).strip())
+            if name and number:
+                entries.append((name, number))
+        return entries
     match = _PHONE_LINE_RE.match(normalized)
     if match is None:
-        return None
-    name = match.group("name").strip()
+        return []
+    name = _normalize_contact_name(match.group("name"))
     number = re.sub(r"\s+", "", match.group("number").strip())
     if not name or not number:
-        return None
-    return name, number
+        return []
+    return [(name, number)]
+
+
+def _normalize_contact_name(value: str) -> str:
+    return re.sub(r"[\s:：\-—]+$", "", value.strip()).strip()
 
 
 def _contains_phoneish_number(value: str) -> bool:
@@ -550,6 +612,79 @@ def _list_of_dicts(value: object) -> list[dict[str, Any]]:
     return [dict(item) for item in value if isinstance(item, dict)]
 
 
+def _iter_contact_directory_handbook_documents(documents: list[object] | tuple[object, ...]):
+    for document in documents:
+        if getattr(document, "corpus", None) != CONTACT_DIRECTORY_CORPUS:
+            continue
+        if getattr(document, "collection", None) != CONTACT_DIRECTORY_COLLECTION:
+            continue
+        rows = _read_document_units_from_import_document(document)
+        if not rows:
+            continue
+        if not _is_handbook_phone_directory_document(rows):
+            continue
+        yield document
+
+
+def _read_document_units_from_import_document(document: object) -> list[dict[str, Any]]:
+    data = getattr(document, "document_units_bytes", b"")
+    if not isinstance(data, bytes):
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in data.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if isinstance(payload, dict):
+            rows.append(dict(payload))
+    return rows
+
+
+def _is_handbook_phone_directory_document(rows: list[dict[str, Any]]) -> bool:
+    for row in rows:
+        metadata = _mapping_or_empty(row.get("metadata"))
+        if metadata.get("projection_name") == HANDBOOK_PHONE_DIRECTORY_PROJECTION_NAME:
+            return True
+        if metadata.get("attachment_role") == HANDBOOK_PHONE_DIRECTORY_ATTACHMENT_ROLE:
+            return True
+    return False
+
+
+def _document_title(document: object) -> str:
+    title = getattr(document, "title", None)
+    if isinstance(title, str) and title.strip():
+        return title.strip()
+    metadata = getattr(document, "metadata", None)
+    if isinstance(metadata, dict):
+        metadata_title = metadata.get("title")
+        if isinstance(metadata_title, str) and metadata_title.strip():
+            return metadata_title.strip()
+    return ""
+
+
+def _source_page_range(document_units: list[dict[str, Any]]) -> tuple[int, int]:
+    page_starts: list[int] = []
+    page_ends: list[int] = []
+    for unit in document_units:
+        anchor = _mapping_or_empty(unit.get("anchor"))
+        page_start = _optional_positive_int(anchor.get("page_start"))
+        page_end = _optional_positive_int(anchor.get("page_end"))
+        if page_start is not None:
+            page_starts.append(page_start)
+        if page_end is not None:
+            page_ends.append(page_end)
+    if not page_starts:
+        return (1, 1)
+    page_start = min(page_starts)
+    page_end = max(page_ends or page_starts)
+    return page_start, max(page_start, page_end)
+
+
+def _contact_directory_release_id(generated_at: str) -> str:
+    parsed = _parse_rfc3339(generated_at, "generated_at")
+    return f"contact-directory-handbook-{parsed.strftime('%Y%m%d_%H%M%S')}"
+
+
 def _mapping_or_empty(value: object) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
@@ -581,6 +716,8 @@ __all__ = [
     "CONTACT_DIRECTORY_PROJECTION_SCHEMA_VERSION",
     "CONTACT_DIRECTORY_RELEASE_MANIFEST_SCHEMA_VERSION",
     "CONTACT_DIRECTORY_VALIDATION_REPORT_SCHEMA_VERSION",
+    "HANDBOOK_PHONE_DIRECTORY_ATTACHMENT_ROLE",
+    "HANDBOOK_PHONE_DIRECTORY_PROJECTION_NAME",
     "HANDBOOK_PHONE_DIRECTORY_SOURCE_FAMILY",
     "ContactDirectoryProjectionBuildResult",
     "ContactDirectoryProjectionReleaseReport",
@@ -589,4 +726,5 @@ __all__ = [
     "build_contact_directory_projection_bundle_from_handbook_document_units",
     "validate_contact_directory_projection_bundle",
     "write_contact_directory_projection_release",
+    "write_contact_directory_projection_release_from_import_documents",
 ]
