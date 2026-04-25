@@ -15,6 +15,11 @@ interface SafetyAnomalyCursor {
 	detectedAt: string;
 }
 
+interface QualityBadcaseCursor {
+	badcaseId: string;
+	openedAt: string;
+}
+
 export function encodeRequestCursor(input: { requestId: string; startedAt: string }): string {
 	return encodeBase64UrlJson(input satisfies RequestProjectionCursor);
 }
@@ -90,6 +95,33 @@ export function decodeSafetyAnomalyCursor(cursor: string): SafetyAnomalyCursor |
 		return {
 			detectedAt: parsed.detectedAt,
 			requestId: parsed.requestId,
+		};
+	} catch {
+		return null;
+	}
+}
+
+export function encodeQualityBadcaseCursor(input: { badcaseId: string; openedAt: string }): string {
+	return encodeBase64UrlJson(input satisfies QualityBadcaseCursor);
+}
+
+export function decodeQualityBadcaseCursor(cursor: string): QualityBadcaseCursor | null {
+	try {
+		const parsed = decodeBase64UrlJson<Partial<QualityBadcaseCursor>>(cursor);
+
+		if (
+			typeof parsed.badcaseId !== "string" ||
+			!parsed.badcaseId ||
+			typeof parsed.openedAt !== "string" ||
+			!parsed.openedAt ||
+			Number.isNaN(Date.parse(parsed.openedAt))
+		) {
+			return null;
+		}
+
+		return {
+			badcaseId: parsed.badcaseId,
+			openedAt: parsed.openedAt,
 		};
 	} catch {
 		return null;

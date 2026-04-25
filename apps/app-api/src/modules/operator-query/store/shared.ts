@@ -254,28 +254,53 @@ export function toScore(scoreMilli: number | null): number | null {
 	return typeof scoreMilli === "number" ? Number((scoreMilli / 1000).toFixed(3)) : null;
 }
 
-export function inferGradeDomainFromCauseClass(causeClass: string): string | null {
-	if (causeClass.includes("citation")) {
+export function inferEvalFamilyFromCauseClass(
+	causeClass: string,
+): "citation" | "grounding" | "intent" | "policy" | "unknown" {
+	const normalized = causeClass.toLowerCase();
+	if (normalized.includes("citation")) {
 		return "citation";
 	}
 	if (
-		causeClass.includes("policy") ||
-		causeClass.includes("acl") ||
-		causeClass.includes("access") ||
-		causeClass.includes("restricted") ||
-		causeClass.includes("approval")
+		normalized.includes("intent") ||
+		normalized.includes("routing") ||
+		normalized.includes("classifier") ||
+		normalized.includes("context_resolution") ||
+		normalized.includes("missing_slot") ||
+		normalized.includes("handoff")
+	) {
+		return "intent";
+	}
+	if (
+		normalized.includes("policy") ||
+		normalized.includes("acl") ||
+		normalized.includes("authz") ||
+		normalized.includes("access") ||
+		normalized.includes("restricted") ||
+		normalized.includes("approval")
 	) {
 		return "policy";
 	}
 	if (
-		causeClass.includes("ground") ||
-		causeClass.includes("recall") ||
-		causeClass.includes("retrieval")
+		normalized.includes("ground") ||
+		normalized.includes("recall") ||
+		normalized.includes("retrieval") ||
+		normalized.includes("evidence") ||
+		normalized.includes("freshness")
 	) {
 		return "grounding";
 	}
 
-	return null;
+	return "unknown";
+}
+
+export function inferGradeDomainFromCauseClass(causeClass: string): string | null {
+	const family = inferEvalFamilyFromCauseClass(causeClass);
+	if (family === "unknown") {
+		return null;
+	}
+
+	return family;
 }
 
 export function buildGradeBucketMap(rows: QualityGradeProjectionRow[]) {

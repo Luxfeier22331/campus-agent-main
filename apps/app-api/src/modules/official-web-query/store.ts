@@ -417,15 +417,16 @@ export function createPgOfficialWebQueryStore(
 				.orderBy(desc(officialWebRunProjection.startedAt), desc(officialWebRunProjection.runId))
 				.limit(filters.limit + 1);
 
-			const items = rows.slice(0, filters.limit).map(toRunRecord);
-			const nextRow = rows[filters.limit];
+			const visibleRows = rows.slice(0, filters.limit);
+			const items = visibleRows.map(toRunRecord);
+			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
 
 			return {
 				page: {
-					nextCursor: nextRow
+					nextCursor: cursorRow
 						? encodeCursor({
-								runId: nextRow.runId,
-								startedAt: nextRow.startedAt.toISOString(),
+								runId: cursorRow.runId,
+								startedAt: cursorRow.startedAt.toISOString(),
 							})
 						: null,
 				},

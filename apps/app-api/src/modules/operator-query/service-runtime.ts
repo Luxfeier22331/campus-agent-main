@@ -15,6 +15,7 @@ import type {
 	OperatorQueryService,
 	OperatorQueryServiceDependencies,
 } from "./service-types";
+import { inferEvalFamilyFromCauseClass } from "./store/shared";
 
 function validateTimeseriesGranularity(filters: NormalizedOperatorOverviewFilters): void {
 	if (!filters.granularity) {
@@ -42,46 +43,6 @@ function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
 	}
 }
 
-function inferSuggestedEvalFamily(
-	causeClass: string,
-): "citation" | "grounding" | "intent" | "policy" | "unknown" {
-	const normalized = causeClass.toLowerCase();
-	if (normalized.includes("citation")) {
-		return "citation";
-	}
-	if (
-		normalized.includes("intent") ||
-		normalized.includes("routing") ||
-		normalized.includes("classifier") ||
-		normalized.includes("context_resolution") ||
-		normalized.includes("missing_slot") ||
-		normalized.includes("handoff")
-	) {
-		return "intent";
-	}
-	if (
-		normalized.includes("policy") ||
-		normalized.includes("acl") ||
-		normalized.includes("authz") ||
-		normalized.includes("access") ||
-		normalized.includes("restricted") ||
-		normalized.includes("approval")
-	) {
-		return "policy";
-	}
-	if (
-		normalized.includes("ground") ||
-		normalized.includes("recall") ||
-		normalized.includes("retrieval") ||
-		normalized.includes("evidence") ||
-		normalized.includes("freshness")
-	) {
-		return "grounding";
-	}
-
-	return "unknown";
-}
-
 function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 	return {
 		candidates: badcases.badcases.map((badcase) => ({
@@ -92,7 +53,7 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 				createdAt: badcase.openedAt,
 				source: "operator_badcase" as const,
 				status: "pending_review" as const,
-				suggestedEvalFamily: inferSuggestedEvalFamily(badcase.causeClass),
+				suggestedEvalFamily: inferEvalFamilyFromCauseClass(badcase.causeClass),
 			},
 			links: badcase.links,
 			requestId: badcase.requestId,
@@ -199,6 +160,18 @@ export function buildOperatorQueryService(
 			const filters = normalizeOverviewFilters(input.filters);
 			validateTimeseriesGranularity(filters);
 			return dependencies.store.getQualityTimeseries(filters);
+		},
+
+		async getIntentSummary(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.getIntentSummary(normalizeOverviewFilters(input.filters));
+		},
+
+		async getIntentTimeseries(input) {
+			ensureOperatorPrincipal(input.principal);
+			const filters = normalizeOverviewFilters(input.filters);
+			validateTimeseriesGranularity(filters);
+			return dependencies.store.getIntentTimeseries(filters);
 		},
 
 		async getSafetySummary(input) {

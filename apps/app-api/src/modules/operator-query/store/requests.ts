@@ -366,15 +366,16 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 				.orderBy(desc(requestProjection.startedAt), desc(requestProjection.requestId))
 				.limit(filters.limit + 1);
 
-			const items = rows.slice(0, filters.limit).map(toRequestProjectionRecord);
-			const nextRow = rows[filters.limit];
+			const visibleRows = rows.slice(0, filters.limit);
+			const items = visibleRows.map(toRequestProjectionRecord);
+			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
 
 			return {
 				page: {
-					nextCursor: nextRow
+					nextCursor: cursorRow
 						? encodeRequestCursor({
-								requestId: nextRow.requestId,
-								startedAt: nextRow.startedAt.toISOString(),
+								requestId: cursorRow.requestId,
+								startedAt: cursorRow.startedAt.toISOString(),
 							})
 						: null,
 				},
@@ -435,16 +436,17 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 				.orderBy(desc(requestAuditProjection.occurredAt), desc(requestAuditProjection.auditEventId))
 				.limit(filters.limit + 1);
 
-			const items = rows.slice(0, filters.limit).map(toAuditListItem);
-			const nextRow = rows[filters.limit];
+			const visibleRows = rows.slice(0, filters.limit);
+			const items = visibleRows.map(toAuditListItem);
+			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
 
 			return {
 				events: items,
 				page: {
-					nextCursor: nextRow
+					nextCursor: cursorRow
 						? encodeAuditCursor({
-								auditEventId: nextRow.auditEventId,
-								occurredAt: nextRow.occurredAt.toISOString(),
+								auditEventId: cursorRow.auditEventId,
+								occurredAt: cursorRow.occurredAt.toISOString(),
 							})
 						: null,
 				},

@@ -135,6 +135,11 @@ list endpoints 额外支持：
 - `GET /api/operator/quality/badcases`
 - `GET /api/operator/quality/eval-candidates`
 
+### Intent Governance
+
+- `GET /api/operator/intent/summary`
+- `GET /api/operator/intent/timeseries`
+
 ### Safety/Authz
 
 - `GET /api/operator/safety/summary`
@@ -266,7 +271,10 @@ list endpoints 额外支持：
         "count": 9,
         "eligibleCount": 1248
       },
-      "projectionFailureCount": 1
+      "projectionFailureCount": 1,
+      "outboxPendingCount": 4,
+      "outboxRetryCount": 2,
+      "outboxStaleCount": 1
     }
   },
   "alerts": [
@@ -307,6 +315,8 @@ list endpoints 额外支持：
 - `alerts` 是 operator-facing curated summary，不要求与任一 vendor 告警系统一一对应
 - `emptyRecallRate` 只对 `retrievalAttempted=true` 的请求计数
 - `citationMissRate` 只对 `citationExpected=true` 的请求计数
+- `sinkHealth.projectionFailureCount`、`outboxPendingCount`、`outboxRetryCount` 与
+  `outboxStaleCount` 来自 app-owned projection outbox health，不来自 sink query
 
 ## Requests Observability Endpoint
 
@@ -785,6 +795,101 @@ list endpoints 额外支持：
   admission 仍由 eval layer 决定
 - `suggestedEvalFamily` 当前取值为 `citation`、`grounding`、`intent`、`policy` 或 `unknown`
 - endpoint 不写入 eval truth，不生成 benchmark artifact，不创建 fix task
+
+## Intent Governance Endpoints
+
+### `GET /api/operator/intent/summary`
+
+返回入口意图治理摘要，用于发现 classifier、schema 与 context resolution drift。
+
+响应：
+
+```json
+{
+  "window": {
+    "from": "2026-04-02T00:00:00.000Z",
+    "to": "2026-04-03T00:00:00.000Z",
+    "granularity": "15m"
+  },
+  "runtime": {
+    "requestCount": 248,
+    "lowConfidenceRate": {
+      "value": 0.0403,
+      "count": 10,
+      "eligibleCount": 248
+    },
+    "ambiguityRate": {
+      "value": 0.0605,
+      "count": 15,
+      "eligibleCount": 248
+    },
+    "contextUnresolvedRate": {
+      "value": 0.0121,
+      "count": 3,
+      "eligibleCount": 248
+    },
+    "distributions": {
+      "capability": [{ "value": "knowledge", "count": 180 }],
+      "taskKind": [{ "value": "knowledge_lookup", "count": 170 }],
+      "launchState": [{ "value": "open", "count": 210 }],
+      "nextAction": [{ "value": "delegate", "count": 205 }],
+      "scopeClass": [{ "value": "in_scope", "count": 232 }],
+      "classifierVersion": [
+        { "value": "intent-classifier@2026-04-20", "count": 248 }
+      ],
+      "schemaVersion": [{ "value": "intent-schema-1.0.0", "count": 248 }]
+    }
+  },
+  "sampledGrades": {
+    "coverageRate": {
+      "value": 0.121,
+      "count": 30,
+      "eligibleCount": 248
+    },
+    "intentPassRate": {
+      "value": 0.9,
+      "count": 27,
+      "eligibleCount": 30
+    }
+  },
+  "asOf": "2026-04-03T00:00:10.000Z"
+}
+```
+
+规则：
+
+- `runtime.*` 来自 `runtime.request_observability_fact` 中的 typed intent summary
+- `sampledGrades.*` 来自 `operator.quality_grade_projection` 的 `gradeDomain=intent`
+- distributions 只返回 operator-safe code / version / count，不返回 raw prompt、raw user
+  transcript 或 raw classifier payload
+
+### `GET /api/operator/intent/timeseries`
+
+返回 intent governance trend。
+
+响应：
+
+```json
+{
+  "window": {
+    "from": "2026-04-02T00:00:00.000Z",
+    "to": "2026-04-03T00:00:00.000Z",
+    "granularity": "15m"
+  },
+  "series": [
+    {
+      "bucketStart": "2026-04-02T00:00:00.000Z",
+      "bucketEnd": "2026-04-02T00:15:00.000Z",
+      "requestCount": 42,
+      "lowConfidenceRate": 0.0476,
+      "ambiguityRate": 0.0714,
+      "contextUnresolvedRate": 0.0238,
+      "sampledIntentPassRate": 0.875
+    }
+  ],
+  "asOf": "2026-04-03T00:00:10.000Z"
+}
+```
 
 ## Safety/Authz Endpoints
 

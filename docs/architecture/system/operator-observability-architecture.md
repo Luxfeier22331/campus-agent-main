@@ -180,6 +180,11 @@ runtime-internal package import 拼装它们。
   query 的别名
 - prompt identity 与 typed runtime branch 现已进入 observability-safe summary seam，但
   raw prompt 仍禁止出现在 panel/read-model
+- overview health 已经从 `runtime.projection_outbox` 派生 projection failure、
+  pending、retry 与 stale outbox summary，不再把 projection failure 暂置为固定值
+- intent governance 已经进入 operator-facing read model：request detail 保留 typed intent
+  summary，`app-api` 另提供 intent summary / timeseries 聚合，用于 classifier、schema 与
+  context-resolution drift 监控
 
 当前尚未全部落成 merged truth 的，是更完整的 `Quality`、`Safety/Authz`、`Cost`、`Audit` operator
 product surface；这属于 rollout 进度问题，不是 ownership 未定。

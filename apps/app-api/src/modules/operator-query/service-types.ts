@@ -120,6 +120,11 @@ export interface MetricRatio {
 	eligibleCount: number | null;
 }
 
+export interface OperatorDistributionBucket {
+	value: string;
+	count: number;
+}
+
 export interface OperatorResultWindow {
 	from: string;
 	to: string;
@@ -299,6 +304,9 @@ export interface OperatorOverviewResult {
 		sinkHealth: {
 			missingTraceRate: MetricRatio;
 			projectionFailureCount: number;
+			outboxPendingCount: number;
+			outboxRetryCount: number;
+			outboxStaleCount: number;
 		};
 	};
 	alerts: OperatorOverviewAlert[];
@@ -387,6 +395,44 @@ export interface OperatorQualityTimeseriesResult {
 		noAnswerRate: number;
 		needsClarificationRate: number;
 		sampledGroundingPassRate: number | null;
+	}>;
+	asOf: string;
+}
+
+export interface OperatorIntentSummaryResult {
+	window: OperatorResultWindow;
+	runtime: {
+		requestCount: number;
+		lowConfidenceRate: MetricRatio;
+		ambiguityRate: MetricRatio;
+		contextUnresolvedRate: MetricRatio;
+		distributions: {
+			capability: OperatorDistributionBucket[];
+			taskKind: OperatorDistributionBucket[];
+			launchState: OperatorDistributionBucket[];
+			nextAction: OperatorDistributionBucket[];
+			scopeClass: OperatorDistributionBucket[];
+			classifierVersion: OperatorDistributionBucket[];
+			schemaVersion: OperatorDistributionBucket[];
+		};
+	};
+	sampledGrades: {
+		coverageRate: MetricRatio | null;
+		intentPassRate: MetricRatio | null;
+	} | null;
+	asOf: string;
+}
+
+export interface OperatorIntentTimeseriesResult {
+	window: OperatorResultWindow;
+	series: Array<{
+		bucketStart: string;
+		bucketEnd: string;
+		requestCount: number;
+		lowConfidenceRate: number;
+		ambiguityRate: number;
+		contextUnresolvedRate: number;
+		sampledIntentPassRate: number | null;
 	}>;
 	asOf: string;
 }
@@ -596,6 +642,12 @@ export interface OperatorQueryStore {
 	getQualityTimeseries(
 		filters: NormalizedOperatorOverviewFilters,
 	): Promise<OperatorQualityTimeseriesResult>;
+	getIntentSummary(
+		filters: NormalizedOperatorOverviewFilters,
+	): Promise<OperatorIntentSummaryResult>;
+	getIntentTimeseries(
+		filters: NormalizedOperatorOverviewFilters,
+	): Promise<OperatorIntentTimeseriesResult>;
 	getSafetySummary(
 		filters: NormalizedOperatorOverviewFilters,
 	): Promise<OperatorSafetySummaryResult>;
@@ -638,6 +690,14 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;
 	}): Promise<OperatorQualityTimeseriesResult>;
+	getIntentSummary(input: {
+		principal: ResolvedAppPrincipal;
+		filters: OperatorOverviewFilters;
+	}): Promise<OperatorIntentSummaryResult>;
+	getIntentTimeseries(input: {
+		principal: ResolvedAppPrincipal;
+		filters: OperatorOverviewFilters;
+	}): Promise<OperatorIntentTimeseriesResult>;
 	getSafetySummary(input: {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;

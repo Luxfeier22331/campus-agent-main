@@ -12,6 +12,7 @@ vi.mock("../src/db/runtime", () => ({
 	createRuntimeDbGetter,
 }));
 
+import { encodeBase64UrlJson } from "../src/base64url";
 import { createPgOperatorQueryStore } from "../src/modules/operator-query/store";
 import { summarizeSafetyAnomaly } from "../src/modules/operator-query/store/safety";
 
@@ -651,6 +652,209 @@ describe("pg operator query store", () => {
 		);
 	});
 
+	it("derives overview sink health from projection outbox state", async () => {
+		const observabilityRows = [
+			{
+				durationMs: 100,
+				estimatedCostMicrousd: 10,
+				requestId: "req_health_01",
+				retrievalAttempted: false,
+				startedAt: new Date("2026-03-28T08:50:00.000Z"),
+				status: "completed",
+				traceAvailable: false,
+			},
+			{
+				durationMs: 200,
+				estimatedCostMicrousd: 20,
+				requestId: "req_health_02",
+				retrievalAttempted: false,
+				startedAt: new Date("2026-03-28T08:55:00.000Z"),
+				status: "completed",
+				traceAvailable: true,
+			},
+		];
+		const outboxRows = [
+			{
+				attemptCount: 2,
+				availableAt: new Date("2026-03-28T08:40:00.000Z"),
+				eventId: "outbox_failed_stale",
+				lastError: "projection write failed",
+				processedAt: null,
+				requestId: "req_health_01",
+			},
+			{
+				attemptCount: 0,
+				availableAt: new Date("2026-03-28T08:59:00.000Z"),
+				eventId: "outbox_pending_fresh",
+				lastError: null,
+				processedAt: null,
+				requestId: "req_health_02",
+			},
+			{
+				attemptCount: 1,
+				availableAt: new Date("2026-03-28T08:45:00.000Z"),
+				eventId: "outbox_recovered",
+				lastError: null,
+				processedAt: new Date("2026-03-28T08:46:00.000Z"),
+				requestId: "req_health_02",
+			},
+		];
+		const responses = [observabilityRows, outboxRows];
+		const where = vi.fn().mockImplementation(async () => responses.shift() ?? []);
+		const from = vi.fn(() => ({ where }));
+		const select = vi.fn(() => ({ from }));
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never, {
+			now: () => new Date("2026-03-28T09:00:00.000Z"),
+		});
+
+		const result = await store.getOverview({
+			collection: null,
+			granularity: null,
+			modelName: null,
+			principalType: null,
+			requestedCapability: null,
+			selectedTarget: null,
+			surface: null,
+			window: "1h",
+		});
+
+		expect(result.overview.sinkHealth).toMatchObject({
+			missingTraceRate: {
+				count: 1,
+				eligibleCount: 2,
+				value: 0.5,
+			},
+			outboxPendingCount: 2,
+			outboxRetryCount: 2,
+			outboxStaleCount: 1,
+			projectionFailureCount: 1,
+		});
+	});
+
+	it("summarizes intent governance signals from request observability facts and intent grades", async () => {
+		const observabilityRows = [
+			{
+				intentAmbiguityReason: null,
+				intentAmbiguitySignal: null,
+				intentCapability: "knowledge",
+				intentClassifierVersion: "intent-classifier@2026-04-20",
+				intentContextResolutionState: "resolved",
+				intentLaunchState: "open",
+				intentNextAction: "delegate",
+				intentRoutingConfidence: "high",
+				intentSchemaVersion: "intent-schema-1.0.0",
+				intentScopeClass: "in_scope",
+				intentTaskKind: "knowledge_lookup",
+				requestId: "req_intent_01",
+				startedAt: new Date("2026-03-28T08:40:00.000Z"),
+			},
+			{
+				intentAmbiguityReason: "missing_slot",
+				intentAmbiguitySignal: "ambiguous",
+				intentCapability: "campus_services",
+				intentClassifierVersion: "intent-classifier@2026-04-20",
+				intentContextResolutionState: "unresolved",
+				intentLaunchState: "candidate_only",
+				intentNextAction: "clarify",
+				intentRoutingConfidence: "low",
+				intentSchemaVersion: "intent-schema-1.0.0",
+				intentScopeClass: "in_scope",
+				intentTaskKind: "campus_services_lookup",
+				requestId: "req_intent_02",
+				startedAt: new Date("2026-03-28T08:45:00.000Z"),
+			},
+			{
+				intentAmbiguityReason: null,
+				intentAmbiguitySignal: null,
+				intentCapability: "knowledge",
+				intentClassifierVersion: "intent-classifier@2026-04-21",
+				intentContextResolutionState: "resolved",
+				intentLaunchState: "open",
+				intentNextAction: "delegate",
+				intentRoutingConfidence: "medium",
+				intentSchemaVersion: "intent-schema-1.1.0",
+				intentScopeClass: "out_of_scope",
+				intentTaskKind: "knowledge_lookup",
+				requestId: "req_intent_03",
+				startedAt: new Date("2026-03-28T08:50:00.000Z"),
+			},
+		];
+		const gradeRows = [
+			{
+				gradeDomain: "intent",
+				requestId: "req_intent_01",
+				verdict: "pass",
+			},
+			{
+				gradeDomain: "intent",
+				requestId: "req_intent_02",
+				verdict: "fail",
+			},
+		];
+		const responses = [observabilityRows, gradeRows];
+		const observabilityWhere = vi.fn().mockResolvedValue(responses.shift());
+		const gradeOrderBy = vi.fn().mockResolvedValue(responses.shift());
+		const gradeWhere = vi.fn(() => ({ orderBy: gradeOrderBy }));
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: observabilityWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: gradeWhere,
+				})),
+			});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never, {
+			now: () => new Date("2026-03-28T09:00:00.000Z"),
+		});
+
+		const result = await store.getIntentSummary({
+			collection: null,
+			granularity: null,
+			modelName: null,
+			principalType: null,
+			requestedCapability: null,
+			selectedTarget: null,
+			surface: null,
+			window: "1h",
+		});
+
+		expect(result.runtime.requestCount).toBe(3);
+		expect(result.runtime.lowConfidenceRate).toEqual({
+			count: 1,
+			eligibleCount: 3,
+			value: 0.3333,
+		});
+		expect(result.runtime.ambiguityRate.count).toBe(1);
+		expect(result.runtime.contextUnresolvedRate.count).toBe(1);
+		expect(result.runtime.distributions.capability).toEqual([
+			{ count: 2, value: "knowledge" },
+			{ count: 1, value: "campus_services" },
+		]);
+		expect(result.runtime.distributions.classifierVersion).toEqual([
+			{ count: 2, value: "intent-classifier@2026-04-20" },
+			{ count: 1, value: "intent-classifier@2026-04-21" },
+		]);
+		expect(result.sampledGrades?.intentPassRate).toEqual({
+			count: 1,
+			eligibleCount: 2,
+			value: 0.5,
+		});
+	});
+
 	it("renders operator-facing target labels in safety anomaly summaries", () => {
 		expect(
 			summarizeSafetyAnomaly({
@@ -661,5 +865,523 @@ describe("pg operator query store", () => {
 				status: "completed",
 			}),
 		).toBe("knowledge request finalized without the required policy projection for rag agent.");
+	});
+
+	it("returns opaque quality badcase cursors for the last visible row", async () => {
+		const badcaseRows = [
+			{
+				badcaseId: "badcase_01",
+				causeClass: "unknown_runtime_failure",
+				detectedBy: "runtime_monitor",
+				gradeJson: null,
+				openedAt: new Date("2026-04-01T10:00:00.000Z"),
+				requestId: "req_01",
+				selectedTarget: "rag-agent",
+				status: "open",
+				summary: "First badcase",
+				surface: "public_chat_web",
+				traceId: "trace_01",
+			},
+			{
+				badcaseId: "badcase_02",
+				causeClass: "unknown_runtime_failure",
+				detectedBy: "runtime_monitor",
+				gradeJson: null,
+				openedAt: new Date("2026-04-01T09:00:00.000Z"),
+				requestId: "req_02",
+				selectedTarget: "rag-agent",
+				status: "open",
+				summary: "Second badcase",
+				surface: "public_chat_web",
+				traceId: "trace_02",
+			},
+		];
+		const badcaseLimit = vi.fn().mockResolvedValue(badcaseRows);
+		const badcaseOrderBy = vi.fn(() => ({ limit: badcaseLimit }));
+		const backlinkWhere = vi.fn().mockResolvedValue([]);
+
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					orderBy: badcaseOrderBy,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: backlinkWhere,
+				})),
+			});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		const result = await store.listQualityBadcases({
+			causeClass: null,
+			cursor: null,
+			detectedBy: null,
+			limit: 1,
+			status: null,
+		});
+
+		expect(result.badcases).toHaveLength(1);
+		expect(result.page.nextCursor).toBe(
+			encodeBase64UrlJson({
+				badcaseId: "badcase_01",
+				openedAt: "2026-04-01T10:00:00.000Z",
+			}),
+		);
+		expect(result.page.nextCursor).not.toBe("badcase_02");
+	});
+
+	it("returns opaque request cursors for the last visible row", async () => {
+		const requestRows = [
+			{
+				answerPreview: "First answer",
+				completedAt: new Date("2026-04-01T10:00:01.000Z"),
+				conversationId: "conv_01",
+				createdAt: new Date("2026-04-01T10:00:00.000Z"),
+				diagnosticsJson: null,
+				durationMs: 100,
+				errorCode: null,
+				principalDisplayName: "Student One",
+				principalId: "student_01",
+				principalType: "campus_member",
+				projectedAt: new Date("2026-04-01T10:00:02.000Z"),
+				queryPreview: "First question",
+				requestedCapability: "knowledge",
+				requestedScopeJson: null,
+				requestId: "req_01",
+				resolvedScopeJson: null,
+				selectedTarget: "rag-agent",
+				sourceDocIdsJson: [],
+				startedAt: new Date("2026-04-01T10:00:00.000Z"),
+				status: "completed",
+				surface: "public_chat_web",
+				traceId: "trace_01",
+				updatedAt: new Date("2026-04-01T10:00:02.000Z"),
+				versionQueryJson: null,
+			},
+			{
+				answerPreview: "Second answer",
+				completedAt: new Date("2026-04-01T09:00:01.000Z"),
+				conversationId: "conv_02",
+				createdAt: new Date("2026-04-01T09:00:00.000Z"),
+				diagnosticsJson: null,
+				durationMs: 100,
+				errorCode: null,
+				principalDisplayName: "Student Two",
+				principalId: "student_02",
+				principalType: "campus_member",
+				projectedAt: new Date("2026-04-01T09:00:02.000Z"),
+				queryPreview: "Second question",
+				requestedCapability: "knowledge",
+				requestedScopeJson: null,
+				requestId: "req_02",
+				resolvedScopeJson: null,
+				selectedTarget: "rag-agent",
+				sourceDocIdsJson: [],
+				startedAt: new Date("2026-04-01T09:00:00.000Z"),
+				status: "completed",
+				surface: "public_chat_web",
+				traceId: "trace_02",
+				updatedAt: new Date("2026-04-01T09:00:02.000Z"),
+				versionQueryJson: null,
+			},
+		];
+		const requestLimit = vi.fn().mockResolvedValue(requestRows);
+		const requestOrderBy = vi.fn(() => ({ limit: requestLimit }));
+		const select = vi.fn().mockReturnValueOnce({
+			from: vi.fn(() => ({
+				orderBy: requestOrderBy,
+			})),
+		});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		const result = await store.list({
+			conversationId: null,
+			cursor: null,
+			limit: 1,
+			q: null,
+			requestId: null,
+			status: null,
+			surface: null,
+		});
+
+		expect(result.requests).toHaveLength(1);
+		expect(result.page.nextCursor).toBe(
+			encodeBase64UrlJson({
+				requestId: "req_01",
+				startedAt: "2026-04-01T10:00:00.000Z",
+			}),
+		);
+		expect(result.page.nextCursor).not.toBe(
+			encodeBase64UrlJson({
+				requestId: "req_02",
+				startedAt: "2026-04-01T09:00:00.000Z",
+			}),
+		);
+	});
+
+	it("returns opaque audit cursors for the last visible row", async () => {
+		const auditRows = [
+			{
+				auditEventId: "audit_01",
+				eventType: "request.completed",
+				metadataJson: null,
+				occurredAt: new Date("2026-04-01T10:00:00.000Z"),
+				principalId: "student_01",
+				principalType: "campus_member",
+				requestId: "req_01",
+				selectedTarget: "rag-agent",
+				status: "completed",
+				summary: "First event",
+				surface: "public_chat_web",
+				traceId: "trace_01",
+			},
+			{
+				auditEventId: "audit_02",
+				eventType: "request.completed",
+				metadataJson: null,
+				occurredAt: new Date("2026-04-01T09:00:00.000Z"),
+				principalId: "student_02",
+				principalType: "campus_member",
+				requestId: "req_02",
+				selectedTarget: "rag-agent",
+				status: "completed",
+				summary: "Second event",
+				surface: "public_chat_web",
+				traceId: "trace_02",
+			},
+		];
+		const auditLimit = vi.fn().mockResolvedValue(auditRows);
+		const auditOrderBy = vi.fn(() => ({ limit: auditLimit }));
+		const select = vi.fn().mockReturnValueOnce({
+			from: vi.fn(() => ({
+				orderBy: auditOrderBy,
+			})),
+		});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		const result = await store.listAudit({
+			cursor: null,
+			eventType: null,
+			limit: 1,
+			principalType: null,
+			requestId: null,
+			selectedTarget: null,
+			status: null,
+			surface: null,
+			traceId: null,
+		});
+
+		expect(result.events).toHaveLength(1);
+		expect(result.page.nextCursor).toBe(
+			encodeBase64UrlJson({
+				auditEventId: "audit_01",
+				occurredAt: "2026-04-01T10:00:00.000Z",
+			}),
+		);
+		expect(result.page.nextCursor).not.toBe(
+			encodeBase64UrlJson({
+				auditEventId: "audit_02",
+				occurredAt: "2026-04-01T09:00:00.000Z",
+			}),
+		);
+	});
+
+	it("returns opaque safety anomaly cursors for the last visible row", async () => {
+		const anomalyRows = [
+			{
+				aclAnomalyCode: "projection_missing",
+				failClosed: false,
+				principalType: "campus_member",
+				requestedCapability: "knowledge",
+				requestId: "req_01",
+				selectedTarget: "rag-agent",
+				startedAt: new Date("2026-04-01T10:00:00.000Z"),
+				status: "completed",
+				surface: "public_chat_web",
+				traceId: "trace_01",
+			},
+			{
+				aclAnomalyCode: "projection_missing",
+				failClosed: false,
+				principalType: "campus_member",
+				requestedCapability: "knowledge",
+				requestId: "req_02",
+				selectedTarget: "rag-agent",
+				startedAt: new Date("2026-04-01T09:00:00.000Z"),
+				status: "completed",
+				surface: "public_chat_web",
+				traceId: "trace_02",
+			},
+		];
+		const anomalyOrderBy = vi.fn().mockResolvedValue(anomalyRows);
+		const anomalyWhere = vi.fn(() => ({ orderBy: anomalyOrderBy }));
+		const backlinkWhere = vi.fn().mockResolvedValue([]);
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: anomalyWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: backlinkWhere,
+				})),
+			});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		const result = await store.listSafetyAnomalies({
+			anomalyCode: null,
+			cursor: null,
+			limit: 1,
+			severity: null,
+			status: null,
+		});
+
+		expect(result.anomalies).toHaveLength(1);
+		expect(result.page.nextCursor).toBe(
+			encodeBase64UrlJson({
+				detectedAt: "2026-04-01T10:00:00.000Z",
+				requestId: "req_01",
+			}),
+		);
+		expect(result.page.nextCursor).not.toBe(
+			encodeBase64UrlJson({
+				detectedAt: "2026-04-01T09:00:00.000Z",
+				requestId: "req_02",
+			}),
+		);
+	});
+
+	it("applies quality badcase cursor filters before ordering the next page", async () => {
+		const cursor = encodeBase64UrlJson({
+			badcaseId: "badcase_02",
+			openedAt: "2026-04-01T09:00:00.000Z",
+		});
+		const badcaseLimit = vi.fn().mockResolvedValue([]);
+		const badcaseOrderBy = vi.fn(() => ({ limit: badcaseLimit }));
+		const badcaseWhere = vi.fn(() => ({ orderBy: badcaseOrderBy }));
+		const select = vi.fn().mockReturnValueOnce({
+			from: vi.fn(() => ({
+				orderBy: badcaseOrderBy,
+				where: badcaseWhere,
+			})),
+		});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		await store.listQualityBadcases({
+			causeClass: null,
+			cursor,
+			detectedBy: null,
+			limit: 10,
+			status: null,
+		});
+
+		expect(badcaseWhere).toHaveBeenCalledTimes(1);
+	});
+
+	it("attaches intent grades to intent classifier badcases", async () => {
+		const badcaseRows = [
+			{
+				badcaseId: "badcase_intent_01",
+				causeClass: "intent_classifier_mismatch",
+				detectedBy: "runtime_monitor",
+				gradeJson: null,
+				openedAt: new Date("2026-04-01T10:00:00.000Z"),
+				requestId: "req_intent_01",
+				selectedTarget: "supervisor-core",
+				status: "open",
+				summary: "Intent classifier selected the wrong target",
+				surface: "public_chat_web",
+				traceId: "trace_intent_01",
+			},
+		];
+		const gradeRows = [
+			{
+				gradeDomain: "intent",
+				gradeId: "grade_intent_01",
+				graderVersion: "intent-grader@2026-04-20",
+				projectedAt: new Date("2026-04-01T10:00:04.000Z"),
+				requestId: "req_intent_01",
+				requestStartedAt: new Date("2026-04-01T09:59:58.000Z"),
+				sampledAt: new Date("2026-04-01T10:00:03.000Z"),
+				scoreMilli: 120,
+				verdict: "fail",
+			},
+		];
+		const badcaseLimit = vi.fn().mockResolvedValue(badcaseRows);
+		const badcaseOrderBy = vi.fn(() => ({ limit: badcaseLimit }));
+		const backlinkWhere = vi.fn().mockResolvedValue([]);
+		const gradeOrderBy = vi.fn().mockResolvedValue(gradeRows);
+		const gradeWhere = vi.fn(() => ({ orderBy: gradeOrderBy }));
+
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					orderBy: badcaseOrderBy,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: backlinkWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: gradeWhere,
+				})),
+			});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		const result = await store.listQualityBadcases({
+			causeClass: null,
+			cursor: null,
+			detectedBy: null,
+			limit: 10,
+			status: null,
+		});
+
+		expect(result.badcases[0]?.grade).toEqual({
+			graderVersion: "intent-grader@2026-04-20",
+			result: "fail",
+			score: 0.12,
+		});
+	});
+
+	it("keeps same-request badcase grades scoped to each inferred quality domain", async () => {
+		const badcaseRows = [
+			{
+				badcaseId: "badcase_citation_01",
+				causeClass: "citation_missing",
+				detectedBy: "runtime_monitor",
+				gradeJson: null,
+				openedAt: new Date("2026-04-01T10:00:00.000Z"),
+				requestId: "req_shared_01",
+				selectedTarget: "rag-agent",
+				status: "open",
+				summary: "Citation missing",
+				surface: "public_chat_web",
+				traceId: "trace_shared_01",
+			},
+			{
+				badcaseId: "badcase_intent_01",
+				causeClass: "intent_classifier_mismatch",
+				detectedBy: "runtime_monitor",
+				gradeJson: null,
+				openedAt: new Date("2026-04-01T09:59:00.000Z"),
+				requestId: "req_shared_01",
+				selectedTarget: "supervisor-core",
+				status: "open",
+				summary: "Intent classifier selected the wrong target",
+				surface: "public_chat_web",
+				traceId: "trace_shared_01",
+			},
+		];
+		const gradeRows = [
+			{
+				gradeDomain: "intent",
+				gradeId: "grade_intent_01",
+				graderVersion: "intent-grader@2026-04-20",
+				projectedAt: new Date("2026-04-01T10:00:04.000Z"),
+				requestId: "req_shared_01",
+				requestStartedAt: new Date("2026-04-01T09:59:58.000Z"),
+				sampledAt: new Date("2026-04-01T10:00:03.000Z"),
+				scoreMilli: 120,
+				verdict: "fail",
+			},
+			{
+				gradeDomain: "citation",
+				gradeId: "grade_citation_01",
+				graderVersion: "citation-grader@2026-04-20",
+				projectedAt: new Date("2026-04-01T10:00:02.000Z"),
+				requestId: "req_shared_01",
+				requestStartedAt: new Date("2026-04-01T09:59:58.000Z"),
+				sampledAt: new Date("2026-04-01T10:00:01.000Z"),
+				scoreMilli: 900,
+				verdict: "pass",
+			},
+		];
+		const badcaseLimit = vi.fn().mockResolvedValue(badcaseRows);
+		const badcaseOrderBy = vi.fn(() => ({ limit: badcaseLimit }));
+		const backlinkWhere = vi.fn().mockResolvedValue([]);
+		const gradeOrderBy = vi.fn().mockResolvedValue(gradeRows);
+		const gradeWhere = vi.fn(() => ({ orderBy: gradeOrderBy }));
+
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					orderBy: badcaseOrderBy,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: backlinkWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: gradeWhere,
+				})),
+			});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never);
+		const result = await store.listQualityBadcases({
+			causeClass: null,
+			cursor: null,
+			detectedBy: null,
+			limit: 10,
+			status: null,
+		});
+
+		expect(result.badcases).toEqual([
+			expect.objectContaining({
+				badcaseId: "badcase_citation_01",
+				grade: {
+					graderVersion: "citation-grader@2026-04-20",
+					result: "pass",
+					score: 0.9,
+				},
+			}),
+			expect.objectContaining({
+				badcaseId: "badcase_intent_01",
+				grade: {
+					graderVersion: "intent-grader@2026-04-20",
+					result: "fail",
+					score: 0.12,
+				},
+			}),
+		]);
 	});
 });

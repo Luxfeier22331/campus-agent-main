@@ -18,6 +18,8 @@ export function registerOperatorQueryRequestsListSuite(): void {
 				getAuditById: vi.fn(),
 				getObservabilityById: vi.fn(),
 				getOverview: vi.fn(),
+				getIntentSummary: vi.fn(),
+				getIntentTimeseries: vi.fn(),
 				getQualitySummary: vi.fn(),
 				getQualityTimeseries: vi.fn(),
 				getSafetySummary: vi.fn(),
