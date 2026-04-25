@@ -31,6 +31,9 @@ It does not carry:
 - `notice-family-classification.v1.json`
   - read-only notice-family admission metadata used by inventory/replay/operator
     read models
+  - current taxonomy covers high-value notice-level query families, service
+    status candidate families, procurement/history, regulation candidates, and
+    low-value defer/no-adoption families
 - `routing-taxonomy-eval.v1.jsonl`
   - fixed routing taxonomy fixture consumed by the deterministic eval gate for
     `notice_family`, `suggested_consumption_route`, and
@@ -87,6 +90,18 @@ Current interpretation is:
   - deterministic routing taxonomy gate for repo-tracked JSONL fixtures; it
     validates notice family, suggested route, and machine-processing policy
     before taxonomy rule changes are promoted
+
+Current routing taxonomy groups include:
+
+- high-value `notice_level_query`: course/teaching, academic lifecycle,
+  student applications, document collection, exchange/visit, research project,
+  safety/compliance, finance/payment, health/medical, form/template, survey
+  collection, library resources, and operational procedures
+- `service_status_candidate`: service windows, facility status, IT/platform
+  status, library opening/status, and transport/commute status
+- `defer` / low-value machine skip: lectures, activities, meeting/training,
+  competition, recruitment, internal governance events, and general cultural
+  publicity
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
   - target-collection materializer for `regulations/institutional_rules`
