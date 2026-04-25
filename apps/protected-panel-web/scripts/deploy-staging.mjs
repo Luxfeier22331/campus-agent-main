@@ -41,8 +41,8 @@ function normalizeAccessTeamDomain(value) {
 	let normalized;
 	try {
 		const parsed = new URL(trimmed);
-		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-			fail("STAGING_ACCESS_TEAM_DOMAIN must start with http:// or https://");
+		if (parsed.protocol !== "https:") {
+			fail("STAGING_ACCESS_TEAM_DOMAIN must start with https://");
 		}
 		parsed.pathname = "";
 		parsed.search = "";

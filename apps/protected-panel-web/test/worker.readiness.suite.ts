@@ -149,6 +149,79 @@ export function registerWorkerReadinessSuite() {
 		});
 	});
 
+	it("fails readyz closed when the access team domain is a non-loopback http issuer", async () => {
+		const response = await worker.fetch(new Request("https://panel.example.com/readyz"), {
+			APP_API: {
+				fetch: async () =>
+					new Response(
+						JSON.stringify({
+							status: "ready",
+						}),
+						{
+							status: 200,
+							headers: {
+								"content-type": "application/json",
+							},
+						},
+					),
+			},
+			ASSETS: {
+				fetch: async () => createHtmlShellResponse(),
+			},
+			PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+			PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+			PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+			ACCESS_TEAM_DOMAIN: "http://team-readyz.cloudflareaccess.com",
+			ACCESS_POLICY_AUD: "panel-readyz-audience",
+		});
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				code: "dependency_not_ready",
+				details: {
+					missing: ["ACCESS_TEAM_DOMAIN"],
+				},
+				message: "Runtime configuration is incomplete.",
+			},
+		});
+	});
+
+	it("keeps the loopback local access smoke issuer available for authenticated dev smoke", async () => {
+		const response = await worker.fetch(new Request("https://panel.example.com/readyz"), {
+			APP_API: {
+				fetch: async () =>
+					new Response(
+						JSON.stringify({
+							status: "ready",
+						}),
+						{
+							status: 200,
+							headers: {
+								"content-type": "application/json",
+							},
+						},
+					),
+			},
+			ASSETS: {
+				fetch: async () => createHtmlShellResponse(),
+			},
+			PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+			PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+			PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+			ACCESS_TEAM_DOMAIN: "http://127.0.0.1:9798",
+			ACCESS_POLICY_AUD: "panel-local-smoke",
+		});
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			status: "ready",
+			dependencies: {
+				accessOriginAdmission: "configured",
+			},
+		});
+	});
+
 	it("fails readyz closed when the shared app-api runtime is not ready", async () => {
 		const response = await worker.fetch(new Request("https://panel.example.com/readyz"), {
 			APP_API: {

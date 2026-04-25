@@ -40,6 +40,8 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(deployStagingSource).toContain("SENTRY_RELEASE:");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
+		expect(deployStagingSource).toContain("STAGING_ACCESS_TEAM_DOMAIN must start with https://");
+		expect(deployStagingSource).not.toContain("must start with http:// or https://");
 		expect(packageManifest.scripts?.build).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
 		expect(packageManifest.scripts?.["build:staging"]).toContain(

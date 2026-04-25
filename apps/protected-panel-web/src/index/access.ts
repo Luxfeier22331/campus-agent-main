@@ -10,6 +10,12 @@ import {
 	REQUIRED_PROTECTION_ENVELOPE,
 } from "./types";
 
+const LOOPBACK_ACCESS_SMOKE_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+function isLoopbackAccessSmokeIssuer(parsed: URL): boolean {
+	return parsed.protocol === "http:" && LOOPBACK_ACCESS_SMOKE_HOSTS.has(parsed.hostname);
+}
+
 export function normalizeConfiguredAccessTeamDomain(teamDomain: string | undefined): string | null {
 	const trimmed = teamDomain?.trim();
 	if (!trimmed) {
@@ -19,7 +25,7 @@ export function normalizeConfiguredAccessTeamDomain(teamDomain: string | undefin
 	let normalized: string;
 	try {
 		const parsed = new URL(trimmed);
-		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+		if (parsed.protocol !== "https:" && !isLoopbackAccessSmokeIssuer(parsed)) {
 			return null;
 		}
 		parsed.pathname = "";
