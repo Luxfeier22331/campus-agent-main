@@ -38,6 +38,11 @@ const STATIC_PROXY_ROUTES = [
 	},
 	{
 		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
+		path: "/api/operator/quality/eval-candidates",
+		targetPath: "/api/operator/quality/eval-candidates",
+	},
+	{
+		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
 		path: "/api/operator/safety/summary",
 		targetPath: "/api/operator/safety/summary",
 	},
@@ -222,7 +227,7 @@ export const worker = {
 					official_web: "ready",
 					jobs: "blocked",
 					operations: "deferred",
-					audit: "blocked",
+					audit: "ready",
 				},
 				...(admission.operatorContext ? { operator_context: admission.operatorContext } : {}),
 			});

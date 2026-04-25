@@ -123,6 +123,7 @@ export function createMetricStoreHandlers(runtime: OperatorQueryRuntime) {
 			);
 			const groundingRows = gradeRows.filter((row) => row.gradeDomain === "grounding");
 			const citationRows = gradeRows.filter((row) => row.gradeDomain === "citation");
+			const intentRows = gradeRows.filter((row) => row.gradeDomain === "intent");
 			const policyRows = gradeRows.filter((row) => row.gradeDomain === "policy");
 			const sampledGrades =
 				gradeRows.length === 0
@@ -139,6 +140,10 @@ export function createMetricStoreHandlers(runtime: OperatorQueryRuntime) {
 							groundingPassRate: toRatio(
 								groundingRows.filter((row) => row.verdict === "pass").length,
 								groundingRows.length,
+							),
+							intentPassRate: toRatio(
+								intentRows.filter((row) => row.verdict === "pass").length,
+								intentRows.length,
 							),
 							policyPassRate: toRatio(
 								policyRows.filter((row) => row.verdict === "pass").length,

@@ -10,6 +10,8 @@ from campus_evals.intent_models import IntentCase
 
 _REVIEW_LAUNCH_STATES = {"candidate_only", "closed"}
 _REVIEW_NEXT_ACTIONS = {"out_of_scope", "approval_required", "rejected"}
+_REVIEW_VERDICTS = {"incorrect", "needs_review"}
+_FOLLOW_UP_CONTEXT_STATES = {"resolved", "ambiguous", "missing_context"}
 
 
 def mine_intent_case_candidates(
@@ -35,6 +37,8 @@ def _requires_review(record: Mapping[str, object]) -> bool:
     return (
         _string_field(record, "intent_launch_state") in _REVIEW_LAUNCH_STATES
         or _string_field(record, "intent_next_action") in _REVIEW_NEXT_ACTIONS
+        or _string_field(record, "intent_review_verdict") in _REVIEW_VERDICTS
+        or _string_field(record, "intent_context_resolution_state") in _FOLLOW_UP_CONTEXT_STATES
     )
 
 
@@ -42,6 +46,15 @@ def _case_from_record(record: Mapping[str, object], *, user_goal: str) -> Intent
     request_id = _string_field(record, "request_id") or _normalize_user_goal(user_goal)
     launch_state = _string_field(record, "intent_launch_state")
     selected_target = _string_field(record, "selected_target") or "none"
+    tags = ["mined", "needs_review"]
+    if launch_state:
+        tags.append(launch_state)
+    context_state = _string_field(record, "intent_context_resolution_state")
+    if context_state:
+        tags.extend(("follow_up", context_state))
+    review_verdict = _string_field(record, "intent_review_verdict")
+    if review_verdict:
+        tags.append(f"reviewed_{review_verdict}")
     return IntentCase(
         case_id=f"mined-{request_id}",
         user_goal=user_goal,
@@ -52,9 +65,11 @@ def _case_from_record(record: Mapping[str, object], *, user_goal: str) -> Intent
         expected_scope_class=_string_field(record, "intent_scope_class"),
         expected_scope_reason=_string_field(record, "intent_scope_reason"),
         expected_policy_reason=_string_field(record, "intent_policy_reason"),
+        expected_context_resolution_state=context_state,
+        expected_context_reference_type=_string_field(record, "intent_context_reference_type"),
         expected_target=selected_target,
         critical=True,
-        tags=("mined", "needs_review", launch_state) if launch_state else ("mined", "needs_review"),
+        tags=tuple(tags),
     )
 
 

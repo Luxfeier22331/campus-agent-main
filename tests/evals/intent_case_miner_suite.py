@@ -70,6 +70,47 @@ class IntentCaseMinerTest(unittest.TestCase):
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0].case_id, "mined-req-001")
 
+    def test_mine_intent_case_candidates_samples_follow_up_and_reviewed_failures(self) -> None:
+        candidates = mine_intent_case_candidates(
+            (
+                {
+                    "request_id": "req-follow-up-001",
+                    "user_goal": "那大二下呢",
+                    "intent_capability": "knowledge",
+                    "intent_task_kind": "knowledge_lookup",
+                    "intent_launch_state": "open",
+                    "intent_next_action": "delegate",
+                    "intent_scope_class": "in_scope",
+                    "intent_scope_reason": "campus_scope_signal",
+                    "intent_context_resolution_state": "resolved",
+                    "intent_context_reference_type": "curriculum_slot",
+                    "selected_target": "rag-agent",
+                },
+                {
+                    "request_id": "req-reviewed-001",
+                    "user_goal": "这条通知详情",
+                    "intent_capability": "knowledge",
+                    "intent_task_kind": "knowledge_lookup",
+                    "intent_launch_state": "candidate_only",
+                    "intent_next_action": "clarify",
+                    "intent_scope_class": "in_scope",
+                    "intent_scope_reason": "structured_runtime_candidate_signal",
+                    "intent_review_verdict": "incorrect",
+                    "selected_target": "none",
+                },
+            )
+        )
+
+        self.assertEqual(
+            [case.case_id for case in candidates],
+            [
+                "mined-req-follow-up-001",
+                "mined-req-reviewed-001",
+            ],
+        )
+        self.assertIn("follow_up", candidates[0].tags)
+        self.assertIn("reviewed_incorrect", candidates[1].tags)
+
 
 if __name__ == "__main__":
     unittest.main()

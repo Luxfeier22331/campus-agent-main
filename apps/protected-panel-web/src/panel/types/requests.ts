@@ -59,6 +59,14 @@ export interface RequestIntentObservabilitySummary {
 	scopeReason: string | null;
 	policyReason: string | null;
 	classifierVersion: string | null;
+	schemaVersion?: string | null;
+	routingConfidence?: string | null;
+	ambiguitySignal?: string | null;
+	contextResolutionState?: string | null;
+	contextReferenceType?: string | null;
+	resolvedSlots?: Record<string, string> | null;
+	missingSlots?: string[] | null;
+	ambiguityReason?: string | null;
 }
 
 export interface RawRequestObservabilityRecord {

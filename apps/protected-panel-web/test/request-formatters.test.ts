@@ -64,11 +64,19 @@ describe("request intent formatters", () => {
 	it("builds operator-facing intent rows from request observability intent summaries", () => {
 		expect(
 			buildRequestIntentEntries({
+				ambiguityReason: null,
+				ambiguitySignal: null,
 				capability: "campus_services",
 				classifierVersion: "deterministic-intent-v1",
+				contextReferenceType: "selected_notice",
+				contextResolutionState: "resolved",
 				launchState: "open",
+				missingSlots: [],
 				nextAction: "delegate",
 				policyReason: null,
+				resolvedSlots: { notice_id: "notice:2026-spring-break" },
+				routingConfidence: "high",
+				schemaVersion: "intent-schema-1.0.0",
 				scopeClass: "in_scope",
 				scopeReason: "explicit_requested_capability",
 				taskKind: "campus_services_lookup",
@@ -81,6 +89,12 @@ describe("request intent formatters", () => {
 			{ label: "范围判定", value: "范围内" },
 			{ label: "范围原因", value: "显式请求能力" },
 			{ label: "策略原因", value: "无" },
+			{ label: "上下文解析", value: "已解析" },
+			{ label: "上下文引用", value: "已选通知" },
+			{ label: "路由置信度", value: "高" },
+			{ label: "缺失槽位", value: "无" },
+			{ label: "解析槽位", value: "notice_id=notice:2026-spring-break" },
+			{ label: "意图 Schema", value: "intent-schema-1.0.0" },
 			{ label: "分类器版本", value: "deterministic-intent-v1" },
 		]);
 	});

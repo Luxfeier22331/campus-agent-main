@@ -250,6 +250,7 @@ class SupervisorCorePromptExecutionTest(unittest.TestCase):
         response = handle_request(
             SupervisorRequest(
                 user_goal="library map",
+                requested_capability="knowledge",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
                     collection="student_rules",

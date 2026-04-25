@@ -36,7 +36,7 @@ function toIntentObservabilitySummary(
 	if (!fact) {
 		return null;
 	}
-	const summary = {
+	const summary: OperatorIntentObservabilitySummary = {
 		capability: fact.intentCapability ?? null,
 		classifierVersion: fact.intentClassifierVersion ?? null,
 		launchState: fact.intentLaunchState ?? null,
@@ -46,6 +46,30 @@ function toIntentObservabilitySummary(
 		scopeReason: fact.intentScopeReason ?? null,
 		taskKind: fact.intentTaskKind ?? null,
 	};
+	if (fact.intentAmbiguityReason) {
+		summary.ambiguityReason = fact.intentAmbiguityReason;
+	}
+	if (fact.intentAmbiguitySignal) {
+		summary.ambiguitySignal = fact.intentAmbiguitySignal;
+	}
+	if (fact.intentContextReferenceType) {
+		summary.contextReferenceType = fact.intentContextReferenceType;
+	}
+	if (fact.intentContextResolutionState) {
+		summary.contextResolutionState = fact.intentContextResolutionState;
+	}
+	if (fact.intentMissingSlotsJson) {
+		summary.missingSlots = fact.intentMissingSlotsJson;
+	}
+	if (fact.intentResolvedSlotsJson) {
+		summary.resolvedSlots = fact.intentResolvedSlotsJson;
+	}
+	if (fact.intentRoutingConfidence) {
+		summary.routingConfidence = fact.intentRoutingConfidence;
+	}
+	if (fact.intentSchemaVersion) {
+		summary.schemaVersion = fact.intentSchemaVersion;
+	}
 	return Object.values(summary).some((value) => value !== null) ? summary : null;
 }
 

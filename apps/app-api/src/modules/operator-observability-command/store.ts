@@ -36,7 +36,7 @@ export interface QualityGradeProjectionWrite {
 	collection: string | null;
 	modelName: string | null;
 	gradeSource: string;
-	gradeDomain: "grounding" | "citation" | "policy";
+	gradeDomain: "grounding" | "citation" | "policy" | "intent";
 	verdict: "pass" | "fail" | "needs_review";
 	scoreMilli: number | null;
 	graderVersion: string;

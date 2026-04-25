@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 # 目标架构
 
@@ -134,6 +134,84 @@ raw/source-truth/projection/document/chunk/index`
 如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 agent 接入，并拥有单独的
 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。
 
+## 长期 routing intent governance 形态
+
+顶层 routing intent 长期必须是可版本化、可观测、可评测的 typed governance artifact，而不是
+prompt 内部的隐式判断。
+
+固定职责如下：
+
+- `apps/app-api` 拥有 surface capability policy、conversation / session truth、operator
+  review truth 与观测驱动治理 read model
+- `apps/supervisor-api` 只拥有 deterministic execution admission、lane / opening gate、
+  timeout / cancel / audit event 与 runtime metrics
+- `packages/supervisor-core` 拥有 supervisor routing intent framing、routing clarification
+  与 handoff semantics
+- domain agent 只拥有已选定 capability family 内部的 specialist clarification 与执行语义
+- `packages/evals` 拥有 intent truth dataset、runner、regression gate 与 observed-case
+  promotion 协议
+
+长期 intent frame 至少应显式表达：
+
+- admitted / inferred capability family
+- task kind
+- next action
+- launch state
+- risk level
+- scope class / scope reason / policy reason
+- missing slots
+- routing confidence 或 ambiguity signal
+- context resolution state
+- classifier version
+- intent schema version
+
+其中 `intent_schema_version` 与 `intent_classifier_version` 必须分离：
+
+- `intent_schema_version` 约束字段、枚举、reason code 与下游兼容性
+- `intent_classifier_version` 约束 deterministic rule / model / resolver 的行为版本
+- schema 的破坏性变更必须显式升 major，并同步 app-api、panel、eval 与 telemetry consumer
+- classifier 的行为修复可以在兼容 schema 下独立迭代，但必须进入 eval regression 与
+  observability rollup
+
+上下文 follow-up 长期不作为 prompt side effect 处理，而由 supervisor-owned routing context
+resolver 显式产出：
+
+- `context_resolution_state`，例如 `not_follow_up`、`resolved`、`ambiguous`、
+  `missing_context`
+- `context_reference_type`，例如 previous goal、selected notice、curriculum slot、
+  service temporal reference
+- resolved slots
+- missing slots
+- ambiguity reason
+
+resolver 只能消费 `apps/app-api` 投影出的最小 typed context，例如 session slot、selected notice
+ref、recent goal summary 与 actor / profile projection；它不得反向读取 raw transcript、raw
+session store 或 browser-local state。
+
+长期 eval 必须把 routing intent 作为独立 workflow gate，而不是用最终回答质量间接覆盖。最小
+suite family 固定为：
+
+- `release_gate`：稳定 deterministic routing / guardrail baseline
+- `context_follow_up`：多轮引用、slot 继承、缺上下文澄清与歧义处理
+- `observed_regression`：从线上观测、人工复核、incident backfill 晋升的真实样本
+- `version_compat`：schema / classifier version 与下游消费兼容性
+
+长期 operator observability 必须能区分：
+
+- routing 错误
+- routing clarification 正确但 specialist 证据不足
+- capability family 正确但 handoff / tool / source 执行失败
+- schema / classifier version 变化导致的行为漂移
+
+观测驱动治理链路固定为：
+
+`request observability fact -> operator review / sampled grade -> intent case mining
+-> packages/evals observed_regression -> release gate / version compat report`
+
+该链路只能回流 sanitized routing / outcome / review summary，不得把 raw prompt、raw answer、
+raw transcript、auth material 或 provider raw response 作为 panel truth 或 eval canonical
+asset。
+
 ## 长期 identity / authorization / memory 形态
 
 长期真相层固定拆成：
@@ -180,6 +258,9 @@ routing、policy、eval 与 observability 约束；它不是当前 campus path �
 当前尚未完成但属于目标架构一部分的能力包括：
 
 - richer execution capability families
+- governed routing intent schema / classifier versioning
+- context follow-up resolver and routing clarification eval
+- observability-driven intent review / observed regression loop
 - campus navigation / wayfinding
 - planner-first agentic retrieval
 - explicit historical / as-of / compare query

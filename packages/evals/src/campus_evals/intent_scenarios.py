@@ -5,6 +5,7 @@ from campus_contracts import (
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,
+    SelectedNoticeRef,
     SessionSlot,
     SessionSummary,
     VersionQuery,
@@ -24,8 +25,21 @@ def intent_release_gate_cases() -> tuple[IntentCase, ...]:
     cases.extend(_transaction_guardrail_cases())
     cases.extend(_political_guardrail_cases())
     cases.extend(_contextual_follow_up_cases())
+    cases.extend(intent_context_follow_up_cases())
     cases.extend(_invalid_envelope_cases())
     return tuple(cases)
+
+
+def intent_suite_cases(suite: str) -> tuple[IntentCase, ...]:
+    if suite == "release_gate":
+        return intent_release_gate_cases()
+    if suite == "context_follow_up":
+        return intent_context_follow_up_cases()
+    if suite == "version_compat":
+        return intent_version_compat_cases()
+    if suite == "observed_regression":
+        return ()
+    raise ValueError(f"unsupported intent suite: {suite}")
 
 
 def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
@@ -145,12 +159,8 @@ def _notice_candidate_cases() -> tuple[IntentCase, ...]:
         "找一下春假通知",
         "最近的奖学金通知",
         "通知原文在哪里",
-        "这条通知详情",
-        "读取这条通知",
-        "打开这条通知",
         "采购公告有什么要求",
         "公示名单怎么查看",
-        "上一条公告内容",
         "关于考试安排的通知",
         "学生工作公告",
         "教务处通知",
@@ -413,6 +423,93 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
     )
 
 
+def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
+    return (
+        IntentCase(
+            case_id="intent-context-notice-selected-001",
+            user_goal="这条通知详情",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                session=SessionSummary(
+                    selected_notice_ref=SelectedNoticeRef(
+                        notice_id="notice:2026-spring-break",
+                        source_family="internal_notice_restricted",
+                        title="2026年春假安排通知",
+                    )
+                )
+            ),
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="candidate_only",
+            expected_next_action="delegate",
+            expected_scope_class="in_scope",
+            expected_scope_reason="structured_runtime_candidate_signal",
+            expected_target="rag-agent",
+            expected_context_resolution_state="resolved",
+            expected_context_reference_type="selected_notice",
+            critical=True,
+            tags=("context_follow_up", "selected_notice"),
+        ),
+        IntentCase(
+            case_id="intent-context-notice-missing-001",
+            user_goal="这条通知详情",
+            requested_capability="knowledge",
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="candidate_only",
+            expected_next_action="clarify",
+            expected_scope_class="in_scope",
+            expected_scope_reason="context_missing",
+            expected_target="none",
+            expected_context_resolution_state="missing_context",
+            expected_context_reference_type="selected_notice",
+            expected_missing_slots=("selected_notice_ref",),
+            critical=True,
+            tags=("context_follow_up", "selected_notice", "missing_context"),
+        ),
+        IntentCase(
+            case_id="intent-context-curriculum-semester-001",
+            user_goal="那大二下呢",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                session=SessionSummary(
+                    confirmed_slots=(
+                        SessionSlot(name="curriculum_program", value="计算机科学与技术"),
+                    )
+                )
+            ),
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="open",
+            expected_next_action="delegate",
+            expected_scope_class="in_scope",
+            expected_scope_reason="campus_scope_signal",
+            expected_target="rag-agent",
+            expected_context_resolution_state="resolved",
+            expected_context_reference_type="curriculum_slot",
+            critical=True,
+            tags=("context_follow_up", "curriculum_slot"),
+        ),
+    )
+
+
+def intent_version_compat_cases() -> tuple[IntentCase, ...]:
+    return (
+        IntentCase(
+            case_id="intent-version-compat-schema-v1",
+            user_goal="奖学金怎么申请？",
+            requested_capability="knowledge",
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="open",
+            expected_next_action="delegate",
+            expected_scope_class="in_scope",
+            expected_target="rag-agent",
+            tags=("version_compat",),
+        ),
+    )
+
+
 def _invalid_envelope_cases() -> tuple[IntentCase, ...]:
     service_scope = KnowledgeScope(corpus="campus_services", collection="service_catalog")
     handbook_scope = KnowledgeScope(corpus="regulations", collection="student_rules")
@@ -490,4 +587,9 @@ def _invalid_envelope_cases() -> tuple[IntentCase, ...]:
     )
 
 
-__all__ = ["intent_release_gate_cases"]
+__all__ = [
+    "intent_context_follow_up_cases",
+    "intent_release_gate_cases",
+    "intent_suite_cases",
+    "intent_version_compat_cases",
+]

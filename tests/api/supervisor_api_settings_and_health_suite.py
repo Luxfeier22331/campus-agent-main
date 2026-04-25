@@ -37,10 +37,14 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "api_key_not_configured",
         )
         self.assertIn("prompt_http_pool", ready.json_body)
-        self.assertIn("audit_runtime", ready.json_body)
         self.assertNotIn("transport_runtime", ready.json_body)
         self.assertFalse(ready.json_body["prompt_http_pool"]["healthy"])
-        self.assertTrue(ready.json_body["audit_runtime"]["healthy"])
+        self.assertNotIn("audit_runtime", ready.json_body)
+        self.assertNotIn("execution_cancel_runtime", ready.json_body)
+        self.assertEqual(
+            ready.json_body["worker_runtime"],
+            {"role": "semantic_worker", "cancel_flag_store": "available"},
+        )
         app.close()
 
     def test_bridge_readyz_reports_prompt_runtime_admission_when_provider_binding_is_complete(
@@ -89,8 +93,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "PROMPT_RUNTIME_MAX_CONNECTIONS": "17",
             "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS": "9",
             "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "19",
-            "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
-            "AUDIT_QUEUE_CAPACITY": "64",
             "SUPERVISOR_CORE_WORKER_SHARED_SECRET": "bridge-secret",
             "SUPERVISOR_CORE_WORKER_THREADS": "7",
         }
@@ -112,8 +114,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.prompt_runtime_max_connections, 17)
         self.assertEqual(settings.prompt_runtime_max_keepalive_connections, 9)
         self.assertEqual(settings.prompt_runtime_keepalive_expiry_seconds, 19)
-        self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
-        self.assertEqual(settings.audit_queue_capacity, 64)
         self.assertEqual(settings.bridge_shared_secret, "bridge-secret")
         self.assertEqual(settings.bridge_worker_threads, 7)
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))

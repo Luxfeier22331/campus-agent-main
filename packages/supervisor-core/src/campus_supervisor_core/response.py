@@ -56,6 +56,19 @@ def attach_intent_observability(
         intent_scope_reason=getattr(intent_frame, "scope_reason", "") or "",
         intent_policy_reason=getattr(intent_frame, "policy_reason", "") or "",
         intent_classifier_version=getattr(intent_frame, "classifier_version", "") or "",
+        intent_schema_version=getattr(intent_frame, "schema_version", "") or "",
+        intent_routing_confidence=getattr(intent_frame, "routing_confidence", "") or "",
+        intent_ambiguity_signal=getattr(intent_frame, "ambiguity_signal", "") or "",
+        intent_context_resolution_state=getattr(
+            intent_frame,
+            "context_resolution_state",
+            "",
+        )
+        or "",
+        intent_context_reference_type=getattr(intent_frame, "context_reference_type", "") or "",
+        intent_resolved_slots=getattr(intent_frame, "resolved_slots", {}) or {},
+        intent_missing_slots=getattr(intent_frame, "missing_slots", ()) or (),
+        intent_ambiguity_reason=getattr(intent_frame, "ambiguity_reason", "") or "",
     )
     return replace(response, observability=updated_observability)
 

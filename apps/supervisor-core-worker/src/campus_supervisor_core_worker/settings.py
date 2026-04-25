@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 from campus_shared import APP_NAME
 from campus_shared.prompt_runtime import (
@@ -59,7 +58,6 @@ class ApiSettings:
     app_name: str = APP_NAME
     bridge_shared_secret: str = ""
     runtime_provider: str = ""
-    audit_log_path: Path = Path("./var/log/audit.log")
     prompt_runtime_model: str = ""
     supervisor_prompt_model: str = ""
     specialist_prompt_model: str = ""
@@ -77,7 +75,6 @@ class ApiSettings:
     prompt_runtime_max_keepalive_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS
     prompt_runtime_keepalive_expiry_seconds: float = DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS
     prompt_strict_structured_outputs: bool = True
-    audit_queue_capacity: int = 1024
     bridge_worker_threads: int = 8
     structured_query_base_url: str = ""
     structured_query_shared_secret: str = ""
@@ -90,7 +87,6 @@ class ApiSettings:
             app_name=os.getenv("CAMPUS_AGENT_APP_NAME", APP_NAME),
             bridge_shared_secret=os.getenv("SUPERVISOR_CORE_WORKER_SHARED_SECRET", "").strip(),
             runtime_provider=os.getenv("AGENT_RUNTIME_PROVIDER", ""),
-            audit_log_path=Path(os.getenv("AUDIT_LOG_PATH", "./var/log/audit.log")),
             prompt_runtime_model=prompt_runtime_model,
             supervisor_prompt_model=(
                 os.getenv("SUPERVISOR_PROMPT_MODEL", "").strip() or prompt_runtime_model
@@ -150,7 +146,6 @@ class ApiSettings:
                 "PROMPT_STRICT_STRUCTURED_OUTPUTS",
                 default=True,
             ),
-            audit_queue_capacity=_read_int("AUDIT_QUEUE_CAPACITY", default=1024),
             bridge_worker_threads=_read_int(
                 "SUPERVISOR_CORE_WORKER_THREADS",
                 default=8,

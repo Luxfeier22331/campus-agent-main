@@ -74,12 +74,19 @@ type sessionSlot struct {
 	Confirmed bool
 }
 
+type selectedNoticeRef struct {
+	NoticeID     string
+	SourceFamily string
+	Title        string
+}
+
 type contextProjection struct {
-	Actor         actorContext
-	Authorization authorizationProjection
-	ProfileMemory []profileMemoryItem
-	SessionSlots  []sessionSlot
-	TurnCount     int
+	Actor             actorContext
+	Authorization     authorizationProjection
+	ProfileMemory     []profileMemoryItem
+	SessionSlots      []sessionSlot
+	SelectedNoticeRef selectedNoticeRef
+	TurnCount         int
 }
 
 type knowledgeScope struct {
@@ -185,6 +192,12 @@ func ParseAnswerRequest(
 	); err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
+	effectiveRequestedCapability := effectiveCapability(
+		requestedCapability,
+		userGoal,
+		hasRequestedScope,
+		versionQuery,
+	)
 
 	traceID := strings.TrimSpace(headers["x-trace-id"])
 	if traceID == "" {
@@ -192,9 +205,13 @@ func ParseAnswerRequest(
 	}
 
 	bridgePayload := map[string]any{
-		"user_goal":       userGoal,
-		"conversation_id": conversationID,
-		"request_id":      requestID,
+		"bridge_version":       "supervisor_bridge_v2",
+		"user_goal":            userGoal,
+		"conversation_id":      conversationID,
+		"request_id":           requestID,
+		"effective_capability": effectiveRequestedCapability,
+		"lane":                 laneForCapability(effectiveRequestedCapability),
+		"requested_capability": effectiveRequestedCapability,
 		"trace": map[string]any{
 			"trace_id": traceID,
 		},
@@ -206,12 +223,16 @@ func ParseAnswerRequest(
 			"version_id":            versionQuery.VersionID,
 			"compare_to_version_id": versionQuery.CompareToVersionID,
 		},
+		"runtime_decisions": runtimeDecisions(
+			effectiveRequestedCapability,
+			laneForCapability(effectiveRequestedCapability),
+			userGoal,
+			versionQuery,
+			context,
+		),
 	}
 	if safetyIdentifier != "" {
 		bridgePayload["safety_identifier"] = safetyIdentifier
-	}
-	if requestedCapability != "" {
-		bridgePayload["requested_capability"] = requestedCapability
 	}
 	if hasRequestedScope {
 		bridgePayload["requested_scope"] = map[string]any{
@@ -234,8 +255,8 @@ func ParseAnswerRequest(
 		Payload:             bridgeJSON,
 		RequestID:           requestID,
 		TraceID:             traceID,
-		RequestedCapability: requestedCapability,
-		Lane:                laneForCapability(requestedCapability),
+		RequestedCapability: effectiveRequestedCapability,
+		Lane:                laneForCapability(effectiveRequestedCapability),
 	}, nil
 }
 
@@ -438,17 +459,18 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 	if err != nil {
 		return contextProjection{}, false, err
 	}
-	sessionSlots, turnCount, err := parseSessionSummary(rawContext["session"])
+	sessionSlots, selectedNoticeRef, turnCount, err := parseSessionSummary(rawContext["session"])
 	if err != nil {
 		return contextProjection{}, false, err
 	}
 
 	return contextProjection{
-		Actor:         projectedActor,
-		Authorization: authorization,
-		ProfileMemory: profileMemory,
-		SessionSlots:  sessionSlots,
-		TurnCount:     turnCount,
+		Actor:             projectedActor,
+		Authorization:     authorization,
+		ProfileMemory:     profileMemory,
+		SessionSlots:      sessionSlots,
+		SelectedNoticeRef: selectedNoticeRef,
+		TurnCount:         turnCount,
 	}, true, nil
 }
 
@@ -753,39 +775,39 @@ func parseProfileMemorySummary(raw json.RawMessage) ([]profileMemoryItem, error)
 	return items, nil
 }
 
-func parseSessionSummary(raw json.RawMessage) ([]sessionSlot, int, error) {
+func parseSessionSummary(raw json.RawMessage) ([]sessionSlot, selectedNoticeRef, int, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return nil, 0, nil
+		return nil, selectedNoticeRef{}, 0, nil
 	}
 	rawSession, err := parseObject(raw, "context.session")
 	if err != nil {
-		return nil, 0, fmt.Errorf("context.session must be an object")
+		return nil, selectedNoticeRef{}, 0, fmt.Errorf("context.session must be an object")
 	}
 
 	var rawSlots []json.RawMessage
 	if len(rawSession["confirmed_slots"]) > 0 {
 		rawSlots, err = parseArray(rawSession["confirmed_slots"], "context.session.confirmed_slots")
 		if err != nil {
-			return nil, 0, err
+			return nil, selectedNoticeRef{}, 0, err
 		}
 	}
 	confirmedSlots := make([]sessionSlot, 0, len(rawSlots))
 	for _, rawSlot := range rawSlots {
 		objectSlot, err := parseObject(rawSlot, "context.session.confirmed_slots[]")
 		if err != nil {
-			return nil, 0, fmt.Errorf("context.session.confirmed_slots must only contain objects")
+			return nil, selectedNoticeRef{}, 0, fmt.Errorf("context.session.confirmed_slots must only contain objects")
 		}
 		name, err := requireString(objectSlot["name"], "context.session.confirmed_slots[].name")
 		if err != nil {
-			return nil, 0, err
+			return nil, selectedNoticeRef{}, 0, err
 		}
 		value, err := requireString(objectSlot["value"], "context.session.confirmed_slots[].value")
 		if err != nil {
-			return nil, 0, err
+			return nil, selectedNoticeRef{}, 0, err
 		}
 		confirmed, err := parseOptionalBool(objectSlot["confirmed"], true)
 		if err != nil {
-			return nil, 0, fmt.Errorf("context.session.confirmed_slots[].confirmed must be a boolean")
+			return nil, selectedNoticeRef{}, 0, fmt.Errorf("context.session.confirmed_slots[].confirmed must be a boolean")
 		}
 		confirmedSlots = append(confirmedSlots, sessionSlot{
 			Name:      name,
@@ -794,11 +816,45 @@ func parseSessionSummary(raw json.RawMessage) ([]sessionSlot, int, error) {
 		})
 	}
 
+	selectedRef, err := parseSelectedNoticeRef(rawSession["selected_notice_ref"])
+	if err != nil {
+		return nil, selectedNoticeRef{}, 0, err
+	}
 	turnCount, err := parseOptionalInt(rawSession["turn_count"], 0)
 	if err != nil {
-		return nil, 0, fmt.Errorf("context.session.turn_count must be an integer")
+		return nil, selectedNoticeRef{}, 0, fmt.Errorf("context.session.turn_count must be an integer")
 	}
-	return confirmedSlots, turnCount, nil
+	return confirmedSlots, selectedRef, turnCount, nil
+}
+
+func parseSelectedNoticeRef(raw json.RawMessage) (selectedNoticeRef, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return selectedNoticeRef{}, nil
+	}
+	rawRef, err := parseObject(raw, "context.session.selected_notice_ref")
+	if err != nil {
+		return selectedNoticeRef{}, fmt.Errorf("context.session.selected_notice_ref must be an object")
+	}
+	noticeID, err := requireString(
+		rawRef["notice_id"],
+		"context.session.selected_notice_ref.notice_id",
+	)
+	if err != nil {
+		return selectedNoticeRef{}, err
+	}
+	sourceFamily, err := parseOptionalString(rawRef["source_family"])
+	if err != nil {
+		return selectedNoticeRef{}, fmt.Errorf("context.session.selected_notice_ref.source_family must be a string")
+	}
+	title, err := parseOptionalString(rawRef["title"])
+	if err != nil {
+		return selectedNoticeRef{}, fmt.Errorf("context.session.selected_notice_ref.title must be a string")
+	}
+	return selectedNoticeRef{
+		NoticeID:     noticeID,
+		SourceFamily: sourceFamily,
+		Title:        title,
+	}, nil
 }
 
 func parseRequestedScope(raw json.RawMessage) (knowledgeScope, bool, error) {
@@ -1179,16 +1235,33 @@ func (a authorizationProjection) toMap() map[string]any {
 }
 
 func (c contextProjection) toMap() map[string]any {
+	session := map[string]any{
+		"confirmed_slots": sessionSlotsToMaps(c.SessionSlots),
+		"turn_count":      c.TurnCount,
+	}
+	if c.SelectedNoticeRef.NoticeID != "" {
+		session["selected_notice_ref"] = c.SelectedNoticeRef.toMap()
+	}
 	result := map[string]any{
 		"actor":         c.Actor.toMap(),
 		"authorization": c.Authorization.toMap(),
 		"profile_memory": map[string]any{
 			"items": profileMemoryItemsToMaps(c.ProfileMemory),
 		},
-		"session": map[string]any{
-			"confirmed_slots": sessionSlotsToMaps(c.SessionSlots),
-			"turn_count":      c.TurnCount,
-		},
+		"session": session,
+	}
+	return result
+}
+
+func (r selectedNoticeRef) toMap() map[string]any {
+	result := map[string]any{
+		"notice_id": r.NoticeID,
+	}
+	if r.SourceFamily != "" {
+		result["source_family"] = r.SourceFamily
+	}
+	if r.Title != "" {
+		result["title"] = r.Title
 	}
 	return result
 }

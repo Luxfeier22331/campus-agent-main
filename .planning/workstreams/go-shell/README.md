@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # Workstream: go-shell
@@ -30,11 +30,12 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 19 closeout`
-- current slice: Go `supervisor-api` 已承接 service-status fail-close hardening、
-  execution audit batching/retry/spool、OTel sample/export/drop/failure accounting，
-  以及 `/api/v1/answer/stream` lifecycle SSE seam。`campus_services` / `notice`
-  structured query runtime kernels 仍保持产品 serving gate closed
+- current phase: `Phase 26 closeout`
+- current slice: Go `supervisor-api` 已承接 bridge v2 canonical request
+  projection、deterministic capability/scope/version 裁决、structured runtime
+  payload planner、prompt config admission summary、runtime readiness truth 与
+  execution audit ownership；Python `supervisor-core-worker` 已收窄为 private
+  semantic worker，消费 Go preplanned handoff，不再发布 execution runtime truth
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
 
 ## Completed So Far
@@ -118,10 +119,46 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
   - Go `supervisor-api` 提供 `/api/v1/answer/stream` lifecycle SSE endpoint；
     `app-api` supervisor adapter 提供 optional stream method 透传 SSE body，不做
     token delta 解析
+- `Phase 20`
+  - Go `supervisor-api` 在 caller 未显式提供 `requested_capability` 时推断 effective
+    capability 与 lane
+  - Go `supervisor-api` 拥有 `campus_services` / `notice` structured runtime
+    opening gate，默认 closed，可通过 `SUPERVISOR_API_OPEN_CAPABILITIES` 显式打开
+  - `/readyz` 暴露 `capability_gates`，`/metrics` 暴露 capability gate decision
+    counter
+  - Python `supervisor-core-worker` 不再创建本地 JSONL audit writer，execution audit
+    writer/backflow 归 Go `supervisor-api` 所有
+- `Phase 21`
+  - Go bridge v2 payload 成为 canonical request projection
+  - Python bridge hardcut 到 `supervisor_bridge_v2`
+  - private envelope 承载 `request_id`、trace、actor/context、effective
+    capability、lane、scope/version 与 runtime decisions
+- `Phase 22`
+  - Go 成为 capability / scope / version deterministic entry decision owner
+  - Python supervisor validation 降级为 trust-but-verify，缺少 Go decision 时
+    fail-closed
+  - Python capability keyword inference 已删除
+- `Phase 23`
+  - Go structured runtime payload planner 输出 `preplanned_target`、
+    `allowed_tools`、`specialist_payload` 与 `planning_outcome`
+  - Python worker 注入 Go preplanned handoff；`packages/supervisor-core`
+    不再构造校车 / service status / notice deterministic payload
+- `Phase 24`
+  - Python bridge readyz 只保留 `prompt_runtime`、`prompt_http_pool` 与
+    minimal `worker_runtime`
+  - execution lifecycle / cancel runtime truth 继续由 Go `/readyz` / `/metrics`
+    发布
+- `Phase 25`
+  - Go `/readyz` 发布 `prompt_config_gate`
+  - Python 仍实际创建 provider client / prompt executor，只上报 executor
+    admission 与 HTTP pool health
+- `Phase 26`
+  - 删除 Python capability keyword inference 与 structured payload builder
+  - 增加 guard，防止 deterministic structured runtime planner 回流
 
 ## Remaining Work
 
-- repo 内当前没有 Phase 8-19 的剩余必做实现项
+- repo 内当前没有 Phase 8-26 的剩余必做实现项
 - `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需 eval /
   regression evidence 与产品路由 admission 决策
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；opening
@@ -148,7 +185,8 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 - Go `supervisor-api` 首先承接 HTTP transport、auth、admission、backpressure、cancel/stream、
   readiness/metrics、audit/logging 与 Python orchestration bridge
 - Go structured query runtime 只承接 projection-backed deterministic query service
-  seam；domain-agent 语义、tool selection 与 answer shaping 不迁入 Go `apps/supervisor-api`
+  seam；Go 还拥有 deterministic structured handoff planner。domain-agent 语义、
+  tool execution 与 answer shaping 不迁入 Go `apps/supervisor-api`
 
 ## Recorded Conclusion
 

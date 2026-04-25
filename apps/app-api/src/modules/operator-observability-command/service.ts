@@ -6,7 +6,7 @@ import type {
 	TraceBacklinkProjectionWrite,
 } from "./store";
 
-const ALLOWED_GRADE_DOMAINS = new Set(["grounding", "citation", "policy"]);
+const ALLOWED_GRADE_DOMAINS = new Set(["grounding", "citation", "policy", "intent"]);
 const ALLOWED_GRADE_VERDICTS = new Set(["pass", "fail", "needs_review"]);
 const ALLOWED_EXECUTION_AUDIT_EVENT_TYPES = new Set([
 	"execution.admission_rejected",
@@ -113,7 +113,7 @@ export interface OperatorObservabilityCommandServiceDependencies {
 		}): Promise<void>;
 		recordQualitySampledGrade(input: {
 			collection: string | null;
-			gradeDomain: "grounding" | "citation" | "policy";
+			gradeDomain: "grounding" | "citation" | "policy" | "intent";
 			gradeId: string;
 			gradeSource: string;
 			graderVersion: string;
@@ -261,19 +261,22 @@ function ensureArray<T>(value: unknown, field: string): T[] {
 	return value as T[];
 }
 
-function normalizeGradeDomain(value: unknown, field: string): "grounding" | "citation" | "policy" {
+function normalizeGradeDomain(
+	value: unknown,
+	field: string,
+): "grounding" | "citation" | "policy" | "intent" {
 	const normalized = normalizeRequiredString(value, field);
 	if (!ALLOWED_GRADE_DOMAINS.has(normalized)) {
 		throw new AppApiRouteError({
 			code: "validation_failed",
 			details: { field },
-			message: `${field} must be one of grounding, citation, policy.`,
+			message: `${field} must be one of grounding, citation, policy, intent.`,
 			retryable: false,
 			status: 422,
 		});
 	}
 
-	return normalized as "grounding" | "citation" | "policy";
+	return normalized as "grounding" | "citation" | "policy" | "intent";
 }
 
 function normalizeGradeVerdict(value: unknown, field: string): "pass" | "fail" | "needs_review" {

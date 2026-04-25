@@ -77,7 +77,7 @@ export function registerWorkerOverviewAdmissionSuite() {
 						official_web: "ready",
 						jobs: "blocked",
 						operations: "deferred",
-						audit: "blocked",
+						audit: "ready",
 					},
 					operator_context: {
 						display_name: null,

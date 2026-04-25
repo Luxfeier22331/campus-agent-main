@@ -72,6 +72,7 @@ describe("operator query service aggregate summaries", () => {
 						eligibleCount: 2,
 						value: 0.5,
 					},
+					intentPassRate: null,
 					policyPassRate: {
 						count: 2,
 						eligibleCount: 2,
@@ -413,6 +414,71 @@ describe("operator query service aggregate summaries", () => {
 		expect(store.getQualityTimeseries).not.toHaveBeenCalled();
 	});
 
+	it("rejects non-empty invalid overview windows before delegating to the store", async () => {
+		const store = {
+			getById: vi.fn(),
+			getObservabilityById: vi.fn(),
+			getOverview: vi.fn(),
+			getQualitySummary: vi.fn(),
+			getQualityTimeseries: vi.fn(),
+			getAuditById: vi.fn(),
+			getSafetySummary: vi.fn(),
+			getCostSummary: vi.fn(),
+			listQualityBadcases: vi.fn(),
+			listAudit: vi.fn(),
+			list: vi.fn(),
+		};
+		const service = buildOperatorQueryService({
+			store: store as never,
+		});
+
+		await expect(
+			service.getQualitySummary({
+				filters: {
+					window: "48h",
+				},
+				principal: createOperatorPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 400,
+		});
+		expect(store.getQualitySummary).not.toHaveBeenCalled();
+	});
+
+	it("rejects non-empty invalid timeseries granularities before delegating to the store", async () => {
+		const store = {
+			getById: vi.fn(),
+			getObservabilityById: vi.fn(),
+			getOverview: vi.fn(),
+			getQualitySummary: vi.fn(),
+			getQualityTimeseries: vi.fn(),
+			getAuditById: vi.fn(),
+			getSafetySummary: vi.fn(),
+			getCostSummary: vi.fn(),
+			listQualityBadcases: vi.fn(),
+			listAudit: vi.fn(),
+			list: vi.fn(),
+		};
+		const service = buildOperatorQueryService({
+			store: store as never,
+		});
+
+		await expect(
+			service.getQualityTimeseries({
+				filters: {
+					granularity: "10m",
+					window: "24h",
+				},
+				principal: createOperatorPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 400,
+		});
+		expect(store.getQualityTimeseries).not.toHaveBeenCalled();
+	});
+
 	it("normalizes quality badcase list filters before delegating to the store", async () => {
 		const store = {
 			getById: vi.fn(),
@@ -491,6 +557,28 @@ describe("operator query service aggregate summaries", () => {
 						surface: "public_chat_web",
 						traceId: "trace_01HQ",
 					},
+					{
+						badcaseId: "req_01HR:intent_classifier_mismatch",
+						causeClass: "intent_classifier_mismatch",
+						detectedBy: "runtime_monitor",
+						grade: {
+							graderVersion: "grader@2026-04-03",
+							result: "fail",
+							score: 0.1,
+						},
+						links: {
+							issueFingerprint: "intent-classifier-mismatch",
+							issueLink: null,
+							traceLink: "https://sentry.example/traces/trace_01HR",
+						},
+						openedAt: "2026-03-28T08:03:10.000Z",
+						requestId: "req_01HR",
+						selectedTarget: "supervisor-core",
+						status: "open",
+						summary: "intent classifier selected the wrong handoff target",
+						surface: "public_chat_web",
+						traceId: "trace_01HR",
+					},
 				],
 				page: {
 					nextCursor: null,
@@ -547,6 +635,31 @@ describe("operator query service aggregate summaries", () => {
 					summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
 					surface: "public_chat_web",
 					traceId: "trace_01HQ",
+				},
+				{
+					candidateId: "eval_candidate:req_01HR:intent_classifier_mismatch",
+					causeClass: "intent_classifier_mismatch",
+					grade: {
+						graderVersion: "grader@2026-04-03",
+						result: "fail",
+						score: 0.1,
+					},
+					intake: {
+						createdAt: "2026-03-28T08:03:10.000Z",
+						source: "operator_badcase",
+						status: "pending_review",
+						suggestedEvalFamily: "intent",
+					},
+					links: {
+						issueFingerprint: "intent-classifier-mismatch",
+						issueLink: null,
+						traceLink: "https://sentry.example/traces/trace_01HR",
+					},
+					requestId: "req_01HR",
+					selectedTarget: "supervisor-core",
+					summary: "intent classifier selected the wrong handoff target",
+					surface: "public_chat_web",
+					traceId: "trace_01HR",
 				},
 			],
 			page: {

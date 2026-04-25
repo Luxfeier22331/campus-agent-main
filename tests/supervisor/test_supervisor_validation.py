@@ -6,16 +6,31 @@ from campus_contracts import KnowledgeScope, SupervisorRequest, VersionQuery
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import (
     InvalidSupervisorRequestError,
+    MissingRoutingInputError,
 )
 from campus_supervisor_core.validation import resolve_requested_capability
 
 
 class SupervisorValidationTest(unittest.TestCase):
-    def test_resolve_requested_capability_infers_knowledge_from_scope(self) -> None:
+    def test_resolve_requested_capability_fails_closed_without_go_decision(self) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="图书馆在哪里",
+            )
+        )
+
+        with self.assertRaisesRegex(
+            MissingRoutingInputError,
+            "requested_capability is required",
+        ):
+            resolve_requested_capability(context)
+
+    def test_resolve_requested_capability_trusts_go_provided_knowledge_with_scope(self) -> None:
         capability = resolve_requested_capability(
             SupervisorRequestContext.from_request(
                 SupervisorRequest(
                     user_goal="library hours",
+                    requested_capability="knowledge",
                     requested_scope=KnowledgeScope(
                         corpus="regulations",
                         collection="student_rules",
@@ -26,18 +41,19 @@ class SupervisorValidationTest(unittest.TestCase):
 
         self.assertEqual(capability, "knowledge")
 
-    def test_resolve_requested_capability_infers_place_lookup_from_goal(self) -> None:
+    def test_resolve_requested_capability_trusts_go_provided_place_lookup(self) -> None:
         capability = resolve_requested_capability(
             SupervisorRequestContext.from_request(
                 SupervisorRequest(
                     user_goal="图书馆在哪里",
+                    requested_capability="place_lookup",
                 )
             )
         )
 
         self.assertEqual(capability, "place_lookup")
 
-    def test_resolve_requested_capability_treats_knowledge_as_hint_for_place_lookup(
+    def test_resolve_requested_capability_does_not_reinfer_knowledge_hint(
         self,
     ) -> None:
         cases = ("图书馆在哪里", "图书馆位置", "图书馆地址")
@@ -53,7 +69,7 @@ class SupervisorValidationTest(unittest.TestCase):
                     )
                 )
 
-                self.assertEqual(capability, "place_lookup")
+                self.assertEqual(capability, "knowledge")
 
     def test_resolve_requested_capability_does_not_treat_non_spatial_where_as_place_lookup(
         self,
@@ -156,6 +172,7 @@ class SupervisorValidationTest(unittest.TestCase):
         context = SupervisorRequestContext.from_request(
             SupervisorRequest(
                 user_goal="图书馆在哪里",
+                requested_capability="place_lookup",
                 version_query=VersionQuery(mode="historical"),
             )
         )

@@ -135,6 +135,14 @@ export interface OperatorIntentObservabilitySummary {
 	scopeReason: string | null;
 	policyReason: string | null;
 	classifierVersion: string | null;
+	schemaVersion?: string | null;
+	routingConfidence?: string | null;
+	ambiguitySignal?: string | null;
+	contextResolutionState?: string | null;
+	contextReferenceType?: string | null;
+	resolvedSlots?: Record<string, string> | null;
+	missingSlots?: string[] | null;
+	ambiguityReason?: string | null;
 }
 
 export interface OperatorRequestObservabilityRecord {
@@ -465,7 +473,7 @@ export interface OperatorQualityEvalCandidateListResult {
 		intake: {
 			source: "operator_badcase";
 			status: "pending_review";
-			suggestedEvalFamily: "citation" | "grounding" | "policy" | "unknown";
+			suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
 			createdAt: string;
 		};
 	}>;
@@ -491,6 +499,7 @@ export interface OperatorQualitySummaryResult {
 		coverageRate: MetricRatio | null;
 		groundingPassRate: MetricRatio | null;
 		citationPassRate: MetricRatio | null;
+		intentPassRate: MetricRatio | null;
 		policyPassRate: MetricRatio | null;
 		badcaseOpenCount: number | null;
 	} | null;

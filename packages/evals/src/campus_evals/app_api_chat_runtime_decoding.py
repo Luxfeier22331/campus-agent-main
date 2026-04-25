@@ -34,6 +34,15 @@ __all__ = (
 )
 
 
+def _optional_string_mapping(value: object) -> dict[str, str]:
+    record = _optional_record(value)
+    if record is None:
+        return {}
+    return {
+        str(key): item for key, item in record.items() if isinstance(item, str) and item.strip()
+    }
+
+
 def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
     kind = _required_string(result.get("kind"), "answer.result.kind")
     request_id = _required_string(result.get("requestId"), "answer.result.requestId")
@@ -372,6 +381,56 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             record.get("intentClassifierVersion")
             if "intentClassifierVersion" in record
             else record.get("intent_classifier_version")
+        )
+        or "",
+        intent_schema_version=_optional_string(
+            record.get("intentSchemaVersion")
+            if "intentSchemaVersion" in record
+            else record.get("intent_schema_version")
+        )
+        or "",
+        intent_routing_confidence=_optional_string(
+            record.get("intentRoutingConfidence")
+            if "intentRoutingConfidence" in record
+            else record.get("intent_routing_confidence")
+        )
+        or "",
+        intent_ambiguity_signal=_optional_string(
+            record.get("intentAmbiguitySignal")
+            if "intentAmbiguitySignal" in record
+            else record.get("intent_ambiguity_signal")
+        )
+        or "",
+        intent_context_resolution_state=_optional_string(
+            record.get("intentContextResolutionState")
+            if "intentContextResolutionState" in record
+            else record.get("intent_context_resolution_state")
+        )
+        or "",
+        intent_context_reference_type=_optional_string(
+            record.get("intentContextReferenceType")
+            if "intentContextReferenceType" in record
+            else record.get("intent_context_reference_type")
+        )
+        or "",
+        intent_resolved_slots=_optional_string_mapping(
+            record.get("intentResolvedSlots")
+            if "intentResolvedSlots" in record
+            else record.get("intent_resolved_slots")
+        ),
+        intent_missing_slots=tuple(
+            item
+            for item in _optional_list(
+                record.get("intentMissingSlots")
+                if "intentMissingSlots" in record
+                else record.get("intent_missing_slots")
+            )
+            if isinstance(item, str) and item.strip()
+        ),
+        intent_ambiguity_reason=_optional_string(
+            record.get("intentAmbiguityReason")
+            if "intentAmbiguityReason" in record
+            else record.get("intent_ambiguity_reason")
         )
         or "",
         acl_decision=_optional_string(

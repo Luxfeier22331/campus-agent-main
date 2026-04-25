@@ -48,10 +48,18 @@ type Config struct {
 	ExecutionAuditRetryBaseMS         int
 	ExecutionAuditSpoolDir            string
 	ExecutionAuditSpoolMaxBytes       int
+	OpenCapabilities                  []string
 	StructuredQuerySharedSecret       string
 	StructuredQueryProjectionPath     string
 	StructuredQueryTrustedTimeRFC3339 string
 	StructuredQueryTimeoutMS          int
+	PromptRuntimeProvider             string
+	SupervisorPromptModel             string
+	SpecialistPromptModel             string
+	PromptRuntimeAPIKey               string
+	PromptRuntimeTransport            string
+	PromptRuntimeBaseURL              string
+	PromptStrictStructuredOutputs     bool
 	NoticeReadModelDatabaseURL        string
 	NoticeReadModelTable              string
 	NoticeObjectStoreEndpoint         string
@@ -118,10 +126,18 @@ func FromEnv() Config {
 		ExecutionAuditRetryBaseMS:         readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", 100),
 		ExecutionAuditSpoolDir:            strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR")),
 		ExecutionAuditSpoolMaxBytes:       readPositiveInt("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", 10_485_760),
+		OpenCapabilities:                  readStringList("SUPERVISOR_API_OPEN_CAPABILITIES"),
 		StructuredQuerySharedSecret:       strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")),
 		StructuredQueryProjectionPath:     strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH")),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")),
 		StructuredQueryTimeoutMS:          readPositiveInt("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", 1_000),
+		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
+		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
+		SpecialistPromptModel:             readPromptModel("SPECIALIST_PROMPT_MODEL"),
+		PromptRuntimeAPIKey:               readFirstString("PROMPT_RUNTIME_API_KEY", "LLM_API_KEY"),
+		PromptRuntimeTransport:            readString("PROMPT_RUNTIME_TRANSPORT", "responses"),
+		PromptRuntimeBaseURL:              readString("PROMPT_RUNTIME_BASE_URL", readString("LLM_BASE_URL", "https://api.openai.com/v1")),
+		PromptStrictStructuredOutputs:     readBool("PROMPT_STRICT_STRUCTURED_OUTPUTS", true),
 		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
 		NoticeReadModelTable:              readString("INTERNAL_NOTICE_READ_MODEL_TABLE", "ingestion_projection.internal_notice_read_model"),
 		NoticeObjectStoreEndpoint:         strings.TrimSpace(os.Getenv("OBJECT_STORE_ENDPOINT")),
@@ -238,6 +254,10 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	promptStrictStructuredOutputs, err := readBoolStrict("PROMPT_STRICT_STRUCTURED_OUTPUTS", true)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		AppName:                           readString("CAMPUS_AGENT_APP_NAME", "campus-agent"),
@@ -280,10 +300,18 @@ func LoadFromEnv() (Config, error) {
 		ExecutionAuditRetryBaseMS:         executionAuditRetryBaseMS,
 		ExecutionAuditSpoolDir:            strings.TrimSpace(os.Getenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR")),
 		ExecutionAuditSpoolMaxBytes:       executionAuditSpoolMaxBytes,
+		OpenCapabilities:                  readStringList("SUPERVISOR_API_OPEN_CAPABILITIES"),
 		StructuredQuerySharedSecret:       strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")),
 		StructuredQueryProjectionPath:     strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH")),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")),
 		StructuredQueryTimeoutMS:          structuredQueryTimeout,
+		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
+		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
+		SpecialistPromptModel:             readPromptModel("SPECIALIST_PROMPT_MODEL"),
+		PromptRuntimeAPIKey:               readFirstString("PROMPT_RUNTIME_API_KEY", "LLM_API_KEY"),
+		PromptRuntimeTransport:            readString("PROMPT_RUNTIME_TRANSPORT", "responses"),
+		PromptRuntimeBaseURL:              readString("PROMPT_RUNTIME_BASE_URL", readString("LLM_BASE_URL", "https://api.openai.com/v1")),
+		PromptStrictStructuredOutputs:     promptStrictStructuredOutputs,
 		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
 		NoticeReadModelTable:              readString("INTERNAL_NOTICE_READ_MODEL_TABLE", "ingestion_projection.internal_notice_read_model"),
 		NoticeObjectStoreEndpoint:         strings.TrimSpace(os.Getenv("OBJECT_STORE_ENDPOINT")),
@@ -310,6 +338,13 @@ func readFirstString(names ...string) string {
 		}
 	}
 	return ""
+}
+
+func readPromptModel(roleSpecificName string) string {
+	if value := strings.TrimSpace(os.Getenv(roleSpecificName)); value != "" {
+		return value
+	}
+	return strings.TrimSpace(os.Getenv("PROMPT_RUNTIME_MODEL"))
 }
 
 func readNoticeReadModelDatabaseURL() string {

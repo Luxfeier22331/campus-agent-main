@@ -230,6 +230,7 @@ export function registerOperatorQueryQualitySuite(): void {
 							eligibleCount: 2,
 							value: 0.5,
 						},
+						intentPassRate: null,
 						policyPassRate: {
 							count: 2,
 							eligibleCount: 2,
@@ -300,6 +301,7 @@ export function registerOperatorQueryQualitySuite(): void {
 						eligibleCount: 2,
 						value: 0.5,
 					},
+					intentPassRate: null,
 					policyPassRate: {
 						count: 2,
 						eligibleCount: 2,

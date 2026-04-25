@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field, replace
 
 import httpx
 from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
@@ -19,7 +19,6 @@ from campus_supervisor_core_worker.api import (
     HttpRoute,
     build_bridge_routes,
 )
-from campus_supervisor_core_worker.audit import AsyncJsonlAuditRuntime
 from campus_supervisor_core_worker.prompt_executor import (
     ProviderBackedRagPromptExecutor,
     ProviderBackedSupervisorPromptExecutor,
@@ -64,7 +63,6 @@ class SupervisorApiApp:
     runtime: AgentOSRuntime
     routes: tuple[HttpRoute, ...]
     prompt_http_pool: PromptHTTPPoolRuntime
-    audit_runtime: AsyncJsonlAuditRuntime
     cancel_registry: ExecutionCancelRegistry
 
     def handle(
@@ -89,15 +87,14 @@ class SupervisorApiApp:
             "prompt_http_pool": self.prompt_http_pool.status(
                 admitted=self.runtime.prompt_runtime.admitted
             ),
-            "audit_runtime": asdict(self.audit_runtime.status()),
-            "execution_cancel_runtime": self.cancel_registry.status(),
+            "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
         }
 
     def flush_audit(self, *, timeout_seconds: float = 1.0) -> bool:
-        return self.audit_runtime.flush(timeout_seconds=timeout_seconds)
+        _ = timeout_seconds
+        return True
 
     def close(self) -> None:
-        self.audit_runtime.close()
         self.prompt_http_pool.close()
 
 
@@ -124,10 +121,6 @@ def _create_runtime_app(
         supervisor_prompt_executor,
         rag_prompt_executor,
     ) = _build_prompt_runtime_assets(runtime_settings)
-    audit_runtime = AsyncJsonlAuditRuntime(
-        runtime_settings.audit_log_path,
-        queue_capacity=runtime_settings.audit_queue_capacity,
-    )
     cancel_registry = ExecutionCancelRegistry()
     bound_supervisor_handler = _bind_supervisor_handler(
         runtime_settings,
@@ -139,12 +132,10 @@ def _create_runtime_app(
     routes = build_bridge_routes(
         runtime_settings,
         supervisor_handler=bound_supervisor_handler,
-        audit_sink=audit_runtime.submit,
         prompt_runtime=prompt_runtime,
         runtime_status_provider=lambda: {
             "prompt_http_pool": prompt_http_pool.status(admitted=prompt_runtime.admitted),
-            "audit_runtime": asdict(audit_runtime.status()),
-            "execution_cancel_runtime": cancel_registry.status(),
+            "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
         },
         cancel_registry=cancel_registry,
     )
@@ -158,7 +149,6 @@ def _create_runtime_app(
         ),
         routes=routes,
         prompt_http_pool=prompt_http_pool,
-        audit_runtime=audit_runtime,
         cancel_registry=cancel_registry,
     )
 
@@ -177,13 +167,14 @@ def _bind_supervisor_handler(
     notice_query_service = _build_notice_query_service(settings)
     if campus_services_query_service is not None or notice_query_service is not None:
 
-        def handle_with_structured_query_services(request):
+        def handle_with_structured_query_services(request, preplanned_routing_decision=None):
             agent = SupervisorAgent(
                 supervisor_prompt_executor=supervisor_prompt_executor,
                 rag_prompt_executor=rag_prompt_executor,
                 cancellation_checker=lambda: cancel_registry.is_cancel_requested(
                     request.request_id
                 ),
+                preplanned_routing_decision=preplanned_routing_decision,
             )
             assert agent.specialist_delegates is not None
             if campus_services_query_service is not None:
@@ -204,20 +195,23 @@ def _bind_supervisor_handler(
 
         return handle_with_structured_query_services
     if supervisor_prompt_executor is not None and rag_prompt_executor is not None:
-        return lambda request: handle_request(
+        return lambda request, preplanned_routing_decision=None: handle_request(
             request,
             supervisor_prompt_executor=supervisor_prompt_executor,
             rag_prompt_executor=rag_prompt_executor,
             cancellation_checker=lambda: cancel_registry.is_cancel_requested(request.request_id),
+            preplanned_routing_decision=preplanned_routing_decision,
         )
-    return lambda request: handle_request(
+    return lambda request, preplanned_routing_decision=None: handle_request(
         request,
         cancellation_checker=lambda: cancel_registry.is_cancel_requested(request.request_id),
+        preplanned_routing_decision=preplanned_routing_decision,
     )
 
 
 def _wrap_with_cancel_checks(supervisor_handler, cancel_registry: ExecutionCancelRegistry):
-    def guarded_supervisor_handler(request):
+    def guarded_supervisor_handler(request, preplanned_routing_decision=None):
+        _ = preplanned_routing_decision
         if cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
         response = supervisor_handler(request)

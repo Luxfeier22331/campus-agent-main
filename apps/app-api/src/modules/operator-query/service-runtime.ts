@@ -44,26 +44,37 @@ function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
 
 function inferSuggestedEvalFamily(
 	causeClass: string,
-): "citation" | "grounding" | "policy" | "unknown" {
-	if (causeClass.includes("citation")) {
+): "citation" | "grounding" | "intent" | "policy" | "unknown" {
+	const normalized = causeClass.toLowerCase();
+	if (normalized.includes("citation")) {
 		return "citation";
 	}
 	if (
-		causeClass.includes("policy") ||
-		causeClass.includes("acl") ||
-		causeClass.includes("authz") ||
-		causeClass.includes("access") ||
-		causeClass.includes("restricted") ||
-		causeClass.includes("approval")
+		normalized.includes("intent") ||
+		normalized.includes("routing") ||
+		normalized.includes("classifier") ||
+		normalized.includes("context_resolution") ||
+		normalized.includes("missing_slot") ||
+		normalized.includes("handoff")
+	) {
+		return "intent";
+	}
+	if (
+		normalized.includes("policy") ||
+		normalized.includes("acl") ||
+		normalized.includes("authz") ||
+		normalized.includes("access") ||
+		normalized.includes("restricted") ||
+		normalized.includes("approval")
 	) {
 		return "policy";
 	}
 	if (
-		causeClass.includes("ground") ||
-		causeClass.includes("recall") ||
-		causeClass.includes("retrieval") ||
-		causeClass.includes("evidence") ||
-		causeClass.includes("freshness")
+		normalized.includes("ground") ||
+		normalized.includes("recall") ||
+		normalized.includes("retrieval") ||
+		normalized.includes("evidence") ||
+		normalized.includes("freshness")
 	) {
 		return "grounding";
 	}

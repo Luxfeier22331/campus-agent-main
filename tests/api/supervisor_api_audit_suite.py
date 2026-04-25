@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -19,9 +17,12 @@ def _bridge_request_payload(
     trace_id: str = "trace-audit-001",
 ) -> dict[str, object]:
     return {
+        "bridge_version": "supervisor_bridge_v2",
         "user_goal": user_goal,
         "conversation_id": "conv-audit-001",
         "request_id": request_id,
+        "effective_capability": "knowledge",
+        "lane": "rag",
         "trace": {"trace_id": trace_id},
         "context": {
             "actor": {
@@ -73,37 +74,22 @@ def _bridge_request_payload(
             "collection": "student_rules",
         },
         "requested_capability": "knowledge",
+        "version_query": {"mode": "current"},
+        "runtime_decisions": {
+            "effective_capability": "knowledge",
+            "lane": "rag",
+            "planning_outcome": "not_preplanned",
+        },
     }
 
 
-def _wait_for_audit_lines(
-    audit_path: Path,
-    *,
-    expected_count: int,
-    app: object | None = None,
-    timeout_seconds: float = 1.0,
-) -> list[str]:
-    flush_audit = getattr(app, "flush_audit", None)
-    if callable(flush_audit):
-        flush_audit(timeout_seconds=timeout_seconds)
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() <= deadline:
-        if audit_path.exists():
-            lines = audit_path.read_text(encoding="utf-8").splitlines()
-            if len(lines) >= expected_count:
-                return lines
-        time.sleep(0.01)
-    return audit_path.read_text(encoding="utf-8").splitlines() if audit_path.exists() else []
-
-
 class SupervisorApiAuditTest(unittest.TestCase):
-    def test_bridge_answer_writes_projected_authz_summary_without_sensitive_context(self) -> None:
+    def test_bridge_answer_does_not_write_local_python_audit_log(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             audit_path = Path(tempdir) / "audit.log"
             app = create_bridge_app(
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
-                    audit_log_path=audit_path,
                 ),
                 supervisor_handler=lambda request: SupervisorResponse(
                     selected_target="rag-agent",
@@ -128,36 +114,16 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 200)
-            lines = _wait_for_audit_lines(audit_path, expected_count=1, app=app)
-            self.assertEqual(len(lines), 1)
-            payload = json.loads(lines[0])
-            self.assertEqual(payload["request_id"], "req-audit-001")
-            self.assertEqual(payload["trace_id"], "trace-audit-001")
-            self.assertEqual(payload["user_id"], "student@example.edu")
-            self.assertEqual(payload["principal_type"], "student")
-            self.assertEqual(payload["authorization_projection_source"], "campus_identity")
-            self.assertEqual(payload["entitlement_snapshot_id"], "entitlements-2026-03-29")
-            self.assertEqual(
-                payload["policy_projection_version"], "phase1-authorization-projection-v1"
-            )
-            self.assertEqual(payload["personalization_mode"], "user_grounded")
-            self.assertEqual(payload["selected_target"], "rag-agent")
-            self.assertEqual(payload["status"], "completed")
-            self.assertIsNone(payload["error_code"])
-            self.assertNotIn("entitlement_groups", payload)
-            self.assertNotIn("visibility_scope", payload)
-            self.assertNotIn("approval_state", payload)
-            self.assertNotIn("profile_memory", payload)
-            self.assertNotIn("session", payload)
+            self.assertTrue(app.flush_audit(timeout_seconds=1.0))
+            self.assertFalse(audit_path.exists())
             app.close()
 
-    def test_bridge_answer_writes_error_audit_log_for_supervisor_error(self) -> None:
+    def test_bridge_error_does_not_write_local_python_audit_log(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             audit_path = Path(tempdir) / "audit.log"
             app = create_bridge_app(
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
-                    audit_log_path=audit_path,
                 ),
                 supervisor_handler=lambda request: (_ for _ in ()).throw(
                     DisallowedKnowledgeScopeError(
@@ -178,24 +144,15 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 403)
-            lines = _wait_for_audit_lines(audit_path, expected_count=1, app=app)
-            self.assertEqual(len(lines), 1)
-            payload = json.loads(lines[0])
-            self.assertEqual(payload["request_id"], "req-audit-err")
-            self.assertEqual(payload["status"], "error")
-            self.assertEqual(payload["error_code"], "disallowed_knowledge_scope")
-            self.assertTrue(payload["fail_closed"])
-            self.assertNotIn("context", payload)
-            self.assertNotIn("profile_memory", payload)
+            self.assertTrue(app.flush_audit(timeout_seconds=1.0))
+            self.assertFalse(audit_path.exists())
             app.close()
 
-    def test_audit_write_failure_does_not_fail_bridge_answer_and_degrades_readyz(self) -> None:
-        with tempfile.TemporaryDirectory() as tempdir:
-            audit_path = Path(tempdir)
+    def test_python_audit_path_does_not_degrade_bridge_readyz(self) -> None:
+        with tempfile.TemporaryDirectory():
             app = create_bridge_app(
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
-                    audit_log_path=audit_path,
                     runtime_provider="openai-responses",
                     prompt_runtime_provider="openai-responses",
                     prompt_runtime_api_key="test-key",
@@ -219,7 +176,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
                     trace_id="trace-audit-failure",
                 ),
             )
-            app.flush_audit(timeout_seconds=1.0)
+            self.assertTrue(app.flush_audit(timeout_seconds=1.0))
             ready = app.handle(
                 "GET",
                 "/internal/bridge/readyz",
@@ -227,10 +184,6 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(ready.status_code, 503)
-            self.assertFalse(ready.json_body["audit_runtime"]["healthy"])
-            self.assertIn(
-                "failed to write audit log",
-                ready.json_body["audit_runtime"]["last_error"],
-            )
+            self.assertEqual(ready.status_code, 200)
+            self.assertNotIn("audit_runtime", ready.json_body)
             app.close()

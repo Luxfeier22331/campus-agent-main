@@ -254,6 +254,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 					citationPassRate: { count: 1, eligibleCount: 2, value: 0.5 },
 					coverageRate: { count: 2, eligibleCount: 4, value: 0.5 },
 					groundingPassRate: { count: 1, eligibleCount: 2, value: 0.5 },
+					intentPassRate: null,
 					policyPassRate: { count: 2, eligibleCount: 2, value: 1 },
 				},
 				window: {

@@ -124,6 +124,39 @@ export function registerWorkerOperatorDomainsSuite() {
 								);
 							}
 
+							if (pathname === "/api/operator/quality/eval-candidates") {
+								return new Response(
+									JSON.stringify({
+										candidates: [
+											{
+												candidateId: "eval_candidate:req_01HR:intent_classifier_mismatch",
+												causeClass: "intent_classifier_mismatch",
+												intake: {
+													createdAt: "2026-03-28T08:03:10.000Z",
+													source: "operator_badcase",
+													status: "pending_review",
+													suggestedEvalFamily: "intent",
+												},
+												requestId: "req_01HR",
+												selectedTarget: "supervisor-core",
+												summary: "intent classifier selected the wrong handoff target",
+												surface: "public_chat_web",
+												traceId: "trace_01HR",
+											},
+										],
+										page: {
+											nextCursor: null,
+										},
+									}),
+									{
+										headers: {
+											"content-type": "application/json; charset=utf-8",
+										},
+										status: 200,
+									},
+								);
+							}
+
 							if (pathname === "/api/operator/audit/aevt_01HQ") {
 								return new Response(
 									JSON.stringify({
@@ -215,6 +248,29 @@ export function registerWorkerOperatorDomainsSuite() {
 					],
 				});
 
+				const evalCandidatesResponse = await worker.fetch(
+					new Request(
+						"https://panel.example.com/api/operator/quality/eval-candidates?status=open&causeClass=intent_classifier_mismatch",
+						{
+							headers: {
+								"cf-access-jwt-assertion": token,
+							},
+						},
+					),
+					workerEnv,
+				);
+				expect(evalCandidatesResponse.status).toBe(200);
+				await expect(evalCandidatesResponse.json()).resolves.toMatchObject({
+					candidates: [
+						{
+							candidateId: "eval_candidate:req_01HR:intent_classifier_mismatch",
+							intake: {
+								suggestedEvalFamily: "intent",
+							},
+						},
+					],
+				});
+
 				const auditDetailResponse = await worker.fetch(
 					new Request("https://panel.example.com/api/operator/audit/aevt_01HQ", {
 						headers: {
@@ -234,9 +290,11 @@ export function registerWorkerOperatorDomainsSuite() {
 					"https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web",
 					"https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h",
 					"https://app-api.internal/api/operator/audit?limit=10&requestId=req_01HQ&eventType=request.completed",
+					"https://app-api.internal/api/operator/quality/eval-candidates?status=open&causeClass=intent_classifier_mismatch",
 					"https://app-api.internal/api/operator/audit/aevt_01HQ",
 				]);
 				expect(forwardedOperatorEmails).toEqual([
+					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",

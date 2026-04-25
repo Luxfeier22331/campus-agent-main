@@ -232,6 +232,76 @@ export function formatIntentReasonLabel(reason: string | null) {
 	}
 }
 
+function formatIntentContextResolutionStateLabel(state: string | null) {
+	if (!state) {
+		return PANEL_COPY.unknown;
+	}
+	switch (state) {
+		case "not_follow_up":
+			return "非追问";
+		case "resolved":
+			return "已解析";
+		case "ambiguous":
+			return "有歧义";
+		case "missing_context":
+			return "缺少上下文";
+		default:
+			return state;
+	}
+}
+
+function formatIntentContextReferenceTypeLabel(referenceType: string | null) {
+	if (!referenceType) {
+		return PANEL_COPY.unknown;
+	}
+	switch (referenceType) {
+		case "none":
+			return "无";
+		case "selected_notice":
+			return "已选通知";
+		case "curriculum_slot":
+			return "培养方案槽位";
+		case "previous_goal":
+			return "上一轮目标";
+		case "service_temporal_reference":
+			return "服务时间引用";
+		default:
+			return referenceType;
+	}
+}
+
+function formatIntentRoutingConfidenceLabel(confidence: string | null) {
+	if (!confidence) {
+		return PANEL_COPY.unknown;
+	}
+	switch (confidence) {
+		case "high":
+			return "高";
+		case "medium":
+			return "中";
+		case "low":
+			return "低";
+		default:
+			return confidence;
+	}
+}
+
+function formatStringList(items: string[] | null | undefined) {
+	if (!items || items.length === 0) {
+		return "无";
+	}
+	return items.join(", ");
+}
+
+function formatResolvedSlots(slots: Record<string, string> | null | undefined) {
+	if (!slots || Object.keys(slots).length === 0) {
+		return "无";
+	}
+	return Object.entries(slots)
+		.map(([key, value]) => `${key}=${value}`)
+		.join(", ");
+}
+
 export function buildRequestIntentEntries(intent: RequestIntentObservabilitySummary | undefined) {
 	if (!intent) {
 		return [];
@@ -265,6 +335,30 @@ export function buildRequestIntentEntries(intent: RequestIntentObservabilitySumm
 		{
 			label: "策略原因",
 			value: formatIntentReasonLabel(intent.policyReason),
+		},
+		{
+			label: "上下文解析",
+			value: formatIntentContextResolutionStateLabel(intent.contextResolutionState ?? null),
+		},
+		{
+			label: "上下文引用",
+			value: formatIntentContextReferenceTypeLabel(intent.contextReferenceType ?? null),
+		},
+		{
+			label: "路由置信度",
+			value: formatIntentRoutingConfidenceLabel(intent.routingConfidence ?? null),
+		},
+		{
+			label: "缺失槽位",
+			value: formatStringList(intent.missingSlots),
+		},
+		{
+			label: "解析槽位",
+			value: formatResolvedSlots(intent.resolvedSlots),
+		},
+		{
+			label: "意图 Schema",
+			value: intent.schemaVersion || PANEL_COPY.unknown,
 		},
 		{
 			label: "分类器版本",

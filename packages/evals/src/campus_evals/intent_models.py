@@ -21,6 +21,9 @@ class IntentCase:
     context: ContextProjection = field(default_factory=ContextProjection)
     expected_policy_reason: str = ""
     expected_scope_reason: str = ""
+    expected_context_resolution_state: str = ""
+    expected_context_reference_type: str = ""
+    expected_missing_slots: tuple[str, ...] = ()
     expected_allowed_tools: tuple[str, ...] = ()
     expected_error_code: str = ""
     critical: bool = False
@@ -49,6 +52,10 @@ class ObservedIntent:
     target: str = "none"
     allowed_tools: tuple[str, ...] = ()
     classifier_version: str = ""
+    schema_version: str = ""
+    context_resolution_state: str = ""
+    context_reference_type: str = ""
+    missing_slots: tuple[str, ...] = ()
     error_code: str = ""
 
 
@@ -72,6 +79,11 @@ class IntentEvalReport:
     critical_gate_pass_rate: float | None
     confusion: dict[str, dict[str, int]]
     results: tuple[IntentCaseResult, ...]
+    capability_accuracy: float | None = None
+    next_action_accuracy: float | None = None
+    handoff_accuracy: float | None = None
+    context_resolution_accuracy: float | None = None
+    missing_slot_accuracy: float | None = None
 
 
 __all__ = [

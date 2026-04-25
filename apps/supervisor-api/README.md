@@ -11,6 +11,9 @@ Current status:
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
   auth, request projection, fail-closed bridge handling, lifecycle registry,
   explicit cancel, and global / per-lane execution admission.
+- Infers deterministic effective `requested_capability` and execution lane for
+  common navigation, campus-services, notice, and knowledge requests when the
+  caller omits an explicit capability.
 - Projects the external execution request into private
   `SupervisorRequest -> SupervisorResponse` JSON and calls the Python
   orchestration bridge at `/internal/bridge/*`.
@@ -96,6 +99,9 @@ Current cancellation boundary:
 Current structured query runtime boundary:
 
 - Internal query routes require `x-supervisor-query-auth`.
+- Structured product serving gates for `campus_services` and `notice` are closed
+  by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned allowlist for
+  opening those capabilities after eval / product admission evidence exists.
 - `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` enables internal query auth.
 - `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` points at a dev/test file
   projection bundle for the current foundation slice.
@@ -117,6 +123,9 @@ Current structured query runtime boundary:
   `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
   `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured in the
   `supervisor-api` worker container.
+- `/readyz` reports `capability_gates` so operators can see whether
+  `campus_services` / `notice` are still closed, and `/metrics` reports
+  capability gate open / closed decisions.
 
 Current observability boundary:
 
@@ -124,8 +133,8 @@ Current observability boundary:
 - Current Go-owned counters distinguish admission decisions, queue depth,
   queue wait, lifecycle final states, bridge latency, bridge timeout /
   unavailability, cooperative bridge cancel outcomes, structured query
-  outcomes, bridge circuit state, bridge circuit open / reject totals, and
-  aggregate request outcomes.
+  outcomes, structured capability gate decisions, bridge circuit state, bridge
+  circuit open / reject totals, and aggregate request outcomes.
 - `SUPERVISOR_API_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
   is reachable outside a trusted local network; local development leaves it
   empty by default.
@@ -170,6 +179,7 @@ export SUPERVISOR_API_LANE_RAG_QUEUE_TIMEOUT_MS=3000
 export SUPERVISOR_API_LANE_NAVIGATION_MAX_CONCURRENT=2
 export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_CAPACITY=4
 export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_TIMEOUT_MS=1500
+export SUPERVISOR_API_OPEN_CAPABILITIES=
 export SUPERVISOR_API_OTEL_ENABLED=false
 export SUPERVISOR_API_OTEL_SAMPLE_RATIO=1
 export SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION=supervisor-api-otel-attrs-v1

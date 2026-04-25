@@ -104,6 +104,7 @@ list endpoints 额外支持：
 
 规则：
 
+- 非空但不在允许集合内的 `window` 或 `granularity` 返回 `400 validation_failed`
 - `window` 与 `granularity` 的非法组合返回 `400 validation_failed`
 - 未传 filter 时表示查询当前 operator 可见范围内的全量 app-owned aggregate
 - 过滤只作用于 app-owned projection / rollup 维度，不隐式回源 raw sink
@@ -610,6 +611,11 @@ list endpoints 额外支持：
       "count": 45,
       "eligibleCount": 46
     },
+    "intentPassRate": {
+      "value": 0.95,
+      "count": 19,
+      "eligibleCount": 20
+    },
     "badcaseOpenCount": 7
   },
   "asOf": "2026-04-03T00:00:10.000Z"
@@ -622,6 +628,8 @@ list endpoints 额外支持：
 - sampled grading 缺失时，`sampledGrades` 允许为空块或 `null` 值，不得用 runtime 指标冒充 grader 结果
 - 当前已冻结的第一版 contract 返回 `sampledGrades: null`
 - forward contract 上，`sampledGrades` 的上游固定为 `operator.quality_grade_projection`
+- `sampledGrades.intentPassRate` 只来自 `gradeDomain=intent` 的人工复核或 sampled
+  grader，不得由最终 answer quality 反推
 
 ### `GET /api/operator/quality/timeseries`
 
@@ -775,6 +783,7 @@ list endpoints 额外支持：
 - `candidateId` 稳定派生自 `badcaseId`，便于后续 eval tooling 做幂等 intake
 - `suggestedEvalFamily` 只表达 app-api 基于 `causeClass` 的初始归类；eval review / golden set
   admission 仍由 eval layer 决定
+- `suggestedEvalFamily` 当前取值为 `citation`、`grounding`、`intent`、`policy` 或 `unknown`
 - endpoint 不写入 eval truth，不生成 benchmark artifact，不创建 fix task
 
 ## Safety/Authz Endpoints
@@ -1123,6 +1132,7 @@ list endpoints 额外支持：
 规则：
 
 - `requestId` 必须已存在于 app-owned request truth
+- `gradeDomain` 固定允许 `grounding`、`citation`、`policy`、`intent`
 - 调用时允许只传最小 grading payload；route/service 可以通过 app-owned request fact family 回填
   `surface`、`collection`、`modelName` 等维度
 - 不接受 raw grader transcript、raw prompt、raw answer、raw span payload

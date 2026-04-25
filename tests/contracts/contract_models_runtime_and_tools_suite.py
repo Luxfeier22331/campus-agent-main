@@ -4,6 +4,39 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
+    def test_supervisor_observability_exposes_intent_governance_fields(self) -> None:
+        observability = SupervisorObservability(
+            intent_schema_version="intent-schema-1.0.0",
+            intent_classifier_version="deterministic-intent-v1",
+            intent_routing_confidence="high",
+            intent_ambiguity_signal="",
+            intent_context_resolution_state="resolved",
+            intent_context_reference_type="selected_notice",
+            intent_resolved_slots={"notice_id": "notice:2026-spring-break"},
+            intent_missing_slots=("selected_notice_ref",),
+            intent_ambiguity_reason="",
+        )
+
+        self.assertEqual(
+            asdict(observability)
+            | {
+                "retrieved_sources": (),
+                "prompt_trace": None,
+            },
+            {
+                **asdict(observability),
+                "intent_schema_version": "intent-schema-1.0.0",
+                "intent_classifier_version": "deterministic-intent-v1",
+                "intent_routing_confidence": "high",
+                "intent_ambiguity_signal": "",
+                "intent_context_resolution_state": "resolved",
+                "intent_context_reference_type": "selected_notice",
+                "intent_resolved_slots": {"notice_id": "notice:2026-spring-break"},
+                "intent_missing_slots": ("selected_notice_ref",),
+                "intent_ambiguity_reason": "",
+            },
+        )
+
     def test_source_trust_summary_serializes_as_contract_field(self) -> None:
         diagnostics = RagResultDiagnostics(
             source_trust_summary=SourceTrustSummary(

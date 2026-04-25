@@ -2,7 +2,7 @@
 doc_type: state
 status: active
 created: 2026-04-23
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # State: go-shell
@@ -10,13 +10,13 @@ updated: 2026-04-24
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 19 closeout`
-- current slice: Go `supervisor-api` runtime kernel hardening、Python cooperative cancel
-  bridge、structured query runtime foundation、`transport_schedule_lookup`
-  projection-backed deterministic query kernel、notice read-model query runtime、
-  bridge circuit breaker、runtime accounting、service-status fail-close hardening、
-  execution audit batching/retry/spool、OTel sample accounting 与 lifecycle SSE
-  endpoint 已落地；产品主路由 gate 仍保持关闭
+- current phase: `Phase 26 closeout`
+- current slice: Go `supervisor-api` runtime kernel hardening、bridge v2
+  canonical projection、deterministic capability/scope/version 裁决、structured
+  runtime payload planner、prompt config admission summary、readiness runtime
+  truth、execution audit batching/retry/spool、OTel sample accounting 与
+  lifecycle SSE endpoint 已落地；Python bridge 已收窄为 semantic worker，产品主路由
+  gate 仍默认关闭
 - owner: unassigned
 - active implementation: yes, Go `apps/supervisor-api` plus Python
   `apps/supervisor-core-worker`
@@ -44,6 +44,14 @@ updated: 2026-04-24
   - health / readiness / metrics
   - audit/logging runtime
   - Python orchestration bridge
+- 2026-04-25 补充：Go `supervisor-api` 现在拥有 effective capability/lane inference
+  与 `campus_services` / `notice` structured runtime opening gate；Python
+  `supervisor-core-worker` 不再拥有本地 JSONL audit writer。
+- 2026-04-25 补充：Go `supervisor-api` 现在拥有 bridge v2 canonical request
+  projection、capability/scope/version 单源裁决、deterministic structured
+  payload planner 与 prompt config admission summary；Python
+  `supervisor-core-worker` 只消费 Go preplanned handoff，并只发布 minimal
+  semantic worker readiness。
 - 更宽的 Go/Rust/Python split 保留在
   `supervisor-docker-runtime-language-split` backlog。
 
@@ -62,7 +70,7 @@ updated: 2026-04-24
 
 ## Blockers
 
-- repo-local Phase 8-15 implementation 当前无 blocker。
+- repo-local Phase 8-26 implementation 当前无 blocker。
 - repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
   stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
@@ -72,11 +80,30 @@ updated: 2026-04-24
   regression evidence、产品路由 admission 与真实 projection 数据接入决策。
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；
   opening gate 仍需要 eval / regression evidence 与产品路由 admission 决策。
-- `Phase 16-19` 已完成 repo-local implementation；剩余 opening gate 不在
+- `Phase 16-26` 已完成 repo-local implementation；剩余 opening gate 不在
   `go-shell` execution runtime control-plane 范围内。
 
 ## Verification
 
+- Phase 20 focused verification passed on 2026-04-25:
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
+    `pnpm go:check`
+  - `uv run --all-packages python -m unittest`
+    `tests.api.supervisor_api_audit_suite`
+    `tests.api.supervisor_api_settings_and_health_suite`
+    `tests.api.supervisor_api_bridge_suite`
+    `tests.supervisor.test_supervisor_validation`
+    `tests.supervisor.test_supervisor_routing`
+  - `uv run --all-packages ruff check`
+    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `tests/api/supervisor_api_audit_suite.py`
+    `tests/api/supervisor_api_settings_and_health_suite.py`
+  - `uv run --all-packages ruff format`
+    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `tests/api/supervisor_api_audit_suite.py`
+    `tests/api/supervisor_api_settings_and_health_suite.py --check`
+  - `pnpm docs:lint`
+  - `git diff --check`
 - Hardcut closeout verification passed on 2026-04-24:
   - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH" pnpm go:check`
   - `uv run --all-packages python -m unittest` for supervisor API bridge,

@@ -15,12 +15,13 @@ Python worker 只负责：
 - 接收 Go `supervisor-api` 已投影好的 private `SupervisorRequest`
 - 调用 `packages/supervisor-core`
 - 绑定 prompt runtime / provider-backed executors
+- 消费 Go bridge v2 中的 deterministic structured handoff plan，并把它注入
+  supervisor-core；不在 Python routing 中重新构造 structured payload
 - 在配置 structured query internal seam 时，为 `campus-services-agent`
   注入 Go `supervisor-api` query service client
-- 写入 supervisor audit JSONL
 - 暴露 private bridge health / readiness
 - 接收 Go `supervisor-api` 的 cooperative cancel signal，并在 Python bridge registry
-  中标记 active request id；默认 supervisor orchestration 会在路由、prompt
+  中保留最小 cancel flag；默认 supervisor orchestration 会在路由、prompt
   composition、specialist delegation 和 finalization 前后检查取消状态
 
 Python worker 不负责：
@@ -49,11 +50,11 @@ Python worker 不负责：
 
 - `prompt_runtime`
 - `prompt_http_pool`
-- `audit_runtime`
-- `execution_cancel_runtime`
+- `worker_runtime`
 
-Go `supervisor-api` `/readyz` 会聚合 Python worker readiness，并发布唯一的 execution
-`transport_runtime`。
+Go `supervisor-api` `/readyz` 会聚合 Python worker readiness，并发布唯一的
+execution `transport_runtime`、lifecycle/cancel runtime truth 与
+`prompt_config_gate`。
 
 `/internal/bridge/execution/cancel` 记录 cooperative cancellation state。默认
 Python semantic orchestration 会在 deterministic checkpoints 停止并返回
@@ -89,13 +90,13 @@ docker build -f apps/supervisor-core-worker/Dockerfile \
 docker compose -f infra/local/docker-compose.supervisor-runtime.yml up --build
 ```
 
-## Prompt And Audit Env
+## Prompt Env
 
 ```bash
 export SUPERVISOR_CORE_WORKER_SHARED_SECRET=bridge-secret
 export PROMPT_RUNTIME_PROVIDER=openai-responses
 export PROMPT_RUNTIME_TRANSPORT=responses
-export PROMPT_RUNTIME_MODEL=gpt-5.4
+export PROMPT_RUNTIME_MODEL=gpt-5.5
 export SUPERVISOR_PROMPT_MODEL=
 export SPECIALIST_PROMPT_MODEL=
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
@@ -110,7 +111,6 @@ export PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS=3
 export PROMPT_RUNTIME_MAX_CONNECTIONS=32
 export PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS=16
 export PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS=30
-export AUDIT_QUEUE_CAPACITY=1024
 export SUPERVISOR_CORE_WORKER_THREADS=8
 export SUPERVISOR_STRUCTURED_QUERY_BASE_URL=http://supervisor-api:8000
 export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
@@ -124,8 +124,9 @@ export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
 `PROMPT_STRICT_STRUCTURED_OUTPUTS=true` 同时满足时，`prompt_runtime.admitted` 才会为
 `true`。
 
-Audit 写入在 request path 上只 enqueue；后台 writer 负责 JSONL append。audit 写入失败不会把成功回答改写成
-`500`，但会通过 `readyz.audit_runtime.healthy=false` 暴露。
+Python bridge 不再拥有本地 supervisor audit JSONL writer。execution audit 由 Go
+`apps/supervisor-api` 的 allowlisted audit writer 负责回流到 `app-api` internal
+ingest；Python bridge 只保留可注入 `audit_sink` seam 供测试或特殊 harness 使用。
 
 `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` / `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET`
 只用于 Python worker 调用 Go `supervisor-api` 的 internal

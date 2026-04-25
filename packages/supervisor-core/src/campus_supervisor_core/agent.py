@@ -21,7 +21,7 @@ from campus_supervisor_core.framing import frame_specialist_request
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
 from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 from campus_supervisor_core.response import assemble_response, attach_intent_observability
-from campus_supervisor_core.routing import route_request
+from campus_supervisor_core.routing import RoutingDecision, route_request
 from campus_supervisor_core.tool_policy import assert_tool_policy_is_supported
 
 SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
@@ -44,6 +44,7 @@ class SupervisorAgent:
     supervisor_prompt_executor: SupervisorPromptExecutor | None = None
     rag_prompt_executor: RagPromptExecutor | None = None
     cancellation_checker: CancellationChecker | None = None
+    preplanned_routing_decision: RoutingDecision | None = None
 
     def __post_init__(self) -> None:
         if self.specialist_delegates is None:
@@ -60,7 +61,7 @@ class SupervisorAgent:
     def handle(self, request: SupervisorRequest) -> SupervisorResponse:
         self._raise_if_cancelled()
         context = SupervisorRequestContext.from_request(request)
-        decision = route_request(context)
+        decision = self.preplanned_routing_decision or route_request(context)
         self._raise_if_cancelled()
         terminal_response = finalize_routing_decision(
             context,

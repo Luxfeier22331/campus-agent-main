@@ -36,6 +36,21 @@ def run_intent_cases(cases: tuple[IntentCase, ...]) -> IntentEvalReport:
         ),
         confusion=_build_confusion(cases, results),
         results=results,
+        capability_accuracy=_field_accuracy(cases, results, "expected_capability", "capability"),
+        next_action_accuracy=_field_accuracy(cases, results, "expected_next_action", "next_action"),
+        handoff_accuracy=_field_accuracy(cases, results, "expected_target", "target"),
+        context_resolution_accuracy=_optional_field_accuracy(
+            cases,
+            results,
+            "expected_context_resolution_state",
+            "context_resolution_state",
+        ),
+        missing_slot_accuracy=_optional_field_accuracy(
+            cases,
+            results,
+            "expected_missing_slots",
+            "missing_slots",
+        ),
     )
 
 
@@ -66,6 +81,10 @@ def evaluate_intent_case(case: IntentCase) -> IntentCaseResult:
         target=decision.target or "none",
         allowed_tools=tuple(decision.allowed_tools),
         classifier_version=intent.classifier_version,
+        schema_version=getattr(intent, "schema_version", ""),
+        context_resolution_state=getattr(intent, "context_resolution_state", ""),
+        context_reference_type=getattr(intent, "context_reference_type", ""),
+        missing_slots=tuple(getattr(intent, "missing_slots", ())),
     )
     mismatches = _intent_mismatches(case, observed)
     return IntentCaseResult(
@@ -106,6 +125,18 @@ def _intent_mismatches(case: IntentCase, observed: ObservedIntent) -> dict[str, 
     }
     if case.expected_scope_reason:
         checks["scope_reason"] = (observed.scope_reason, case.expected_scope_reason)
+    if case.expected_context_resolution_state:
+        checks["context_resolution_state"] = (
+            observed.context_resolution_state,
+            case.expected_context_resolution_state,
+        )
+    if case.expected_context_reference_type:
+        checks["context_reference_type"] = (
+            observed.context_reference_type,
+            case.expected_context_reference_type,
+        )
+    if case.expected_missing_slots:
+        checks["missing_slots"] = (observed.missing_slots, case.expected_missing_slots)
     return {
         name: f"{actual} != {expected}"
         for name, (actual, expected) in checks.items()
@@ -130,7 +161,48 @@ def _build_confusion(
         buckets["task_kind"][f"{case.expected_task_kind}->{observed.task_kind}"] += 1
         buckets["launch_state"][f"{case.expected_launch_state}->{observed.launch_state}"] += 1
         buckets["target"][f"{case.expected_target}->{observed.target}"] += 1
+        if case.expected_context_resolution_state:
+            buckets["context_resolution_state"][
+                f"{case.expected_context_resolution_state}->{observed.context_resolution_state}"
+            ] += 1
     return {name: dict(counter) for name, counter in buckets.items()}
+
+
+def _field_accuracy(
+    cases: tuple[IntentCase, ...],
+    results: tuple[IntentCaseResult, ...],
+    expected_field: str,
+    observed_field: str,
+) -> float | None:
+    if not cases:
+        return None
+    matched = sum(
+        1
+        for case, result in zip(cases, results, strict=True)
+        if getattr(case, expected_field) == getattr(result.observed, observed_field)
+    )
+    return matched / len(cases)
+
+
+def _optional_field_accuracy(
+    cases: tuple[IntentCase, ...],
+    results: tuple[IntentCaseResult, ...],
+    expected_field: str,
+    observed_field: str,
+) -> float | None:
+    scoped_pairs = tuple(
+        (case, result)
+        for case, result in zip(cases, results, strict=True)
+        if getattr(case, expected_field)
+    )
+    if not scoped_pairs:
+        return None
+    matched = sum(
+        1
+        for case, result in scoped_pairs
+        if getattr(case, expected_field) == getattr(result.observed, observed_field)
+    )
+    return matched / len(scoped_pairs)
 
 
 def _is_critical_case(case: IntentCase) -> bool:
@@ -146,11 +218,16 @@ def _is_critical_case(case: IntentCase) -> bool:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run deterministic supervisor intent eval cases.")
     parser.add_argument("--output", required=True, help="Path to write JSON report.")
+    parser.add_argument(
+        "--suite",
+        default="release_gate",
+        help="Intent suite name: release_gate, context_follow_up, observed_regression, version_compat.",
+    )
     args = parser.parse_args(argv)
 
-    from campus_evals.intent_scenarios import intent_release_gate_cases
+    from campus_evals.intent_scenarios import intent_suite_cases
 
-    report = run_intent_cases(intent_release_gate_cases())
+    report = run_intent_cases(intent_suite_cases(args.suite))
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(

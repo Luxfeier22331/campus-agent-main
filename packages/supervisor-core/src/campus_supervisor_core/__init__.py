@@ -28,6 +28,7 @@ from campus_supervisor_core.errors import (
     UnsupportedCapabilityError,
 )
 from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
+from campus_supervisor_core.routing import RoutingDecision
 
 AuditSink = Callable[[SupervisorAuditRecord], None]
 CancellationChecker = Callable[[], bool]
@@ -41,11 +42,13 @@ def handle_request(
     supervisor_prompt_executor: SupervisorPromptExecutor | None = None,
     rag_prompt_executor: RagPromptExecutor | None = None,
     cancellation_checker: CancellationChecker | None = None,
+    preplanned_routing_decision: RoutingDecision | None = None,
 ) -> SupervisorResponse:
     agent = SupervisorAgent(
         supervisor_prompt_executor=supervisor_prompt_executor,
         rag_prompt_executor=rag_prompt_executor,
         cancellation_checker=cancellation_checker,
+        preplanned_routing_decision=preplanned_routing_decision,
     )
     if specialist_delegates is not None:
         agent.specialist_delegates = dict(specialist_delegates)

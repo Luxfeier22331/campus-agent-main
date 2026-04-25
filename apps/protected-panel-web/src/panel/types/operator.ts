@@ -130,6 +130,7 @@ export interface RawOperatorQualitySummaryRecord {
 		citationPassRate: RawOperatorMetricRatio | null;
 		coverageRate: RawOperatorMetricRatio | null;
 		groundingPassRate: RawOperatorMetricRatio | null;
+		intentPassRate?: RawOperatorMetricRatio | null;
 		policyPassRate: RawOperatorMetricRatio | null;
 	} | null;
 	window: RawOperatorResultWindow;

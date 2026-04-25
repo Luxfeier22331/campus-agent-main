@@ -100,7 +100,7 @@ export interface AppTelemetry {
 	): Promise<void>;
 	recordQualitySampledGrade(input: {
 		collection: string | null;
-		gradeDomain: "grounding" | "citation" | "policy";
+		gradeDomain: "grounding" | "citation" | "policy" | "intent";
 		gradeId: string;
 		gradeSource: string;
 		graderVersion: string;

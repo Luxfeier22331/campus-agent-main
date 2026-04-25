@@ -1,3 +1,4 @@
+import { AppApiRouteError } from "../../http";
 import type {
 	NormalizedOperatorAuditListFilters,
 	NormalizedOperatorOverviewFilters,
@@ -23,6 +24,15 @@ const OPERATOR_GRANULARITIES = new Set<OperatorResultWindow["granularity"]>([
 	"1d",
 ]);
 
+function validationFailed(message: string): AppApiRouteError {
+	return new AppApiRouteError({
+		code: "validation_failed",
+		message,
+		retryable: false,
+		status: 400,
+	});
+}
+
 export function normalizeOptionalString(value: string | null | undefined): string | null {
 	const normalized = value?.trim();
 	return normalized ? normalized : null;
@@ -38,24 +48,30 @@ export function normalizeLimit(value: number | null | undefined): number {
 
 export function normalizeOverviewWindow(value: string | null | undefined): OperatorOverviewWindow {
 	const normalized = normalizeOptionalString(value);
-	if (normalized && OPERATOR_WINDOWS.has(normalized as OperatorOverviewWindow)) {
+	if (!normalized) {
+		return DEFAULT_WINDOW;
+	}
+	if (OPERATOR_WINDOWS.has(normalized as OperatorOverviewWindow)) {
 		return normalized as OperatorOverviewWindow;
 	}
 
-	return DEFAULT_WINDOW;
+	throw validationFailed("window is invalid.");
 }
 
 export function normalizeOverviewFilters(
 	filters: OperatorOverviewFilters,
 ): NormalizedOperatorOverviewFilters {
 	const granularity = normalizeOptionalString(filters.granularity);
+	if (
+		granularity &&
+		!OPERATOR_GRANULARITIES.has(granularity as OperatorResultWindow["granularity"])
+	) {
+		throw validationFailed("granularity is invalid.");
+	}
 
 	return {
 		collection: normalizeOptionalString(filters.collection),
-		granularity:
-			granularity && OPERATOR_GRANULARITIES.has(granularity as OperatorResultWindow["granularity"])
-				? (granularity as OperatorResultWindow["granularity"])
-				: null,
+		granularity: granularity ? (granularity as OperatorResultWindow["granularity"]) : null,
 		modelName: normalizeOptionalString(filters.modelName),
 		principalType: normalizeOptionalString(filters.principalType),
 		requestedCapability: normalizeOptionalString(filters.requestedCapability),

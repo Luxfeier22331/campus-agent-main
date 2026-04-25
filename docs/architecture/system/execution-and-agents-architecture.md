@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 # Execution And Agents Architecture
 
@@ -90,6 +90,14 @@ Docker-side Go runtime control plane 长期负责：
   `campus_services`、`notice` capability label，并将它们映射到 `rag`、
   `navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
   knowledge path 使用
+- Go `supervisor-api` 已拥有 deterministic effective capability / lane inference：
+  当 caller 未显式传 `requested_capability` 时，常见地点、校车/班车、通知/公告/公示
+  与 knowledge-family 请求会先被归入对应 runtime lane；versioned / scoped
+  knowledge 请求仍保持 knowledge path
+- Go `supervisor-api` 已拥有 private bridge v2 canonical request projection：
+  Python bridge hardcut 到 `supervisor_bridge_v2`，缺失 Go-owned
+  `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
+  `packages/supervisor-core` 不再重复做 capability keyword inference
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup` 具备 file projection fixture backed foundation，
   `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
@@ -97,6 +105,18 @@ Docker-side Go runtime control plane 长期负责：
   具备 Go-owned PG read-model + S3-compatible canonical body query runtime 与
   Python notice-agent HTTP thin-adapter wiring；其 authenticated-notice-backed
   offline projection builder 属于 ingestion data plane，产品主路由 gate 仍保持关闭
+- Go `supervisor-api` 已拥有 deterministic structured runtime payload planner，
+  bridge v2 传递 `preplanned_target`、`allowed_tools`、`specialist_payload` 与
+  `planning_outcome`；Python worker 只消费 Go preplanned handoff，不再在
+  `packages/supervisor-core` query time 构造校车 / service status / notice payload
+- Go `supervisor-api` 已拥有 structured runtime opening gate：
+  `campus_services` / `notice` 默认关闭，只有通过
+  `SUPERVISOR_API_OPEN_CAPABILITIES` 显式开放后才允许进入 Python bridge；关闭时
+  non-stream request 返回 `503 structured_runtime_closed`，lifecycle stream 返回
+  terminal `execution.failed`
+- Go `supervisor-api` 已拥有 prompt config admission summary：
+  `/readyz` 发布 Go-owned `prompt_config_gate`；Python worker 继续实际创建
+  provider client / prompt executor，只上报 executor admission 与 HTTP pool health
 
 Python semantic orchestration 长期继续负责：
 
@@ -105,6 +125,11 @@ Python semantic orchestration 长期继续负责：
 - agent reasoning、prompt-owned clarification / answer synthesis 与 RAG grounding
 - prompt stack semantic assembly 与 provider-backed structured output execution，除非后续
   profiling 证明它们是 Go runtime 稳定后的下一条瓶颈线
+- Python bridge 不再拥有本地 supervisor audit JSONL writer；execution audit writer /
+  backflow 属于 Go `apps/supervisor-api`
+- Python bridge readiness 只报告 `prompt_runtime`、`prompt_http_pool` 与 minimal
+  `worker_runtime`；execution lifecycle / cancel counters / runtime truth 由 Go
+  `apps/supervisor-api` 发布
 
 固定边界：
 

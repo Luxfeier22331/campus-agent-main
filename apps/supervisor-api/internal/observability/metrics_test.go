@@ -17,6 +17,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	metrics.RecordBridgeDuration(90 * time.Millisecond)
 	metrics.RecordBridgeFailure("timeout")
 	metrics.RecordBridgeSuccess()
+	metrics.RecordCapabilityGate("campus_services", "structured_runtime", "closed")
 
 	output := string(metrics.Prometheus(AdmissionSnapshot{
 		Lifecycle: LifecycleSnapshot{
@@ -53,6 +54,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_supervisor_api_admission_lane_queue_wait_ms_count{lane="rag"} 1`,
 		`campus_supervisor_api_bridge_duration_ms_count 1`,
 		`campus_supervisor_api_bridge_failures_total{kind="timeout"} 1`,
+		`campus_supervisor_api_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
 		`campus_supervisor_api_lifecycle_completed_total{state="completed"} 1`,
 		`campus_supervisor_api_lifecycle_completed_total{state="failed"} 1`,
 		`campus_supervisor_api_telemetry_exported_total 5`,

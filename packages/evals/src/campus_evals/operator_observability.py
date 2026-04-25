@@ -23,6 +23,9 @@ _DEFAULT_METRIC_DOMAIN_MAP = {
     "deterministic.unsupported_abstention_accuracy": "policy",
     "deterministic.false_refusal_rate": "policy",
     "deterministic.unsafe_false_allow_rate": "policy",
+    "deterministic.intent_frame_accuracy": "intent",
+    "deterministic.context_resolution_accuracy": "intent",
+    "deterministic.routing_accuracy": "intent",
 }
 _DEFAULT_METRIC_PASS_SCORE_MAP = {
     "ragas.faithfulness": 0.85,
@@ -46,7 +49,7 @@ _DEFAULT_METRIC_PRIORITY = {
     "deterministic.false_refusal_rate": 10,
     "deterministic.unsafe_false_allow_rate": 5,
 }
-_ALLOWED_GRADE_DOMAINS = frozenset({"grounding", "citation", "policy"})
+_ALLOWED_GRADE_DOMAINS = frozenset({"grounding", "citation", "policy", "intent"})
 _PUBLISHABLE_VERDICT_MAP = {
     "passed": "pass",
     "failed": "fail",
@@ -477,7 +480,10 @@ def build_publish_parser() -> argparse.ArgumentParser:
         "--metric-domain-override",
         action="append",
         default=[],
-        help="Optional metric-to-domain override in the form adapter.metric=grounding|citation|policy.",
+        help=(
+            "Optional metric-to-domain override in the form "
+            "adapter.metric=grounding|citation|policy|intent."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -695,6 +701,8 @@ def _parse_metric_domain_overrides(items: list[str]) -> dict[str, str]:
         if not metric_key:
             raise ValueError("metric domain override metric key must not be empty")
         if domain not in _ALLOWED_GRADE_DOMAINS:
-            raise ValueError("metric domain override domain must be grounding, citation, or policy")
+            raise ValueError(
+                "metric domain override domain must be grounding, citation, policy, or intent"
+            )
         overrides[metric_key] = domain
     return overrides

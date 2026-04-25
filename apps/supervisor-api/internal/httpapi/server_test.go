@@ -90,8 +90,15 @@ func TestAnswerRequestLogUsesSupervisorAPIEventName(t *testing.T) {
 
 func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 	server := NewServer(config.Config{
-		AppName:              "campus-agent",
-		MaxConcurrentAnswers: 8,
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		SpecialistPromptModel:         "gpt-specialist",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
 	}, &fakeBridge{
 		configured: true,
 		readyz: bridge.ReadyzResponse{
@@ -131,9 +138,54 @@ func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 	if bridgeRuntime["healthy"] != true {
 		t.Fatalf("bridge_runtime.healthy = %v, want true", bridgeRuntime["healthy"])
 	}
+	if _, ok := body["audit_runtime"]; ok {
+		t.Fatalf("readyz must not publish stale Python audit_runtime")
+	}
 	workerTransportKey := "worker_" + "transport_runtime"
 	if _, ok := bridgeRuntime[workerTransportKey]; ok {
 		t.Fatalf("bridge_runtime.%s must not be published", workerTransportKey)
+	}
+	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
+	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
+		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
+	}
+}
+
+func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		SpecialistPromptModel:         "gpt-specialist",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body: json.RawMessage(`{
+				"status":"ready",
+				"prompt_runtime":{"admitted":true},
+				"prompt_http_pool":{"healthy":true}
+			}`),
+		},
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
+	if promptConfigGate["admitted"] != false {
+		t.Fatalf("prompt_config_gate.admitted = %v, want false", promptConfigGate["admitted"])
+	}
+	if promptConfigGate["reason"] != "prompt_api_key_not_configured" {
+		t.Fatalf("prompt_config_gate.reason = %v", promptConfigGate["reason"])
 	}
 }
 
@@ -204,6 +256,97 @@ func TestAnswerFailsClosedWhenBridgeIsMissing(t *testing.T) {
 	server.ServeHTTP(response, request)
 
 	assertError(t, response, http.StatusServiceUnavailable, "bridge_not_configured")
+}
+
+func TestAnswerRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "supervisor_response",
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"ok"}`),
+			}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"校车什么时候发车","request_id":"req-structured-closed"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-structured-closed")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusServiceUnavailable, "structured_runtime_closed")
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := decodeBody(t, response)
+	if body["request_id"] != "req-structured-closed" {
+		t.Fatalf("request_id = %v, want req-structured-closed", body["request_id"])
+	}
+	if body["trace_id"] != "trace-structured-closed" {
+		t.Fatalf("trace_id = %v, want trace-structured-closed", body["trace_id"])
+	}
+	if body["failure_kind"] != "structured_runtime_closed" {
+		t.Fatalf("failure_kind = %v, want structured_runtime_closed", body["failure_kind"])
+	}
+
+	metricsResponse := httptest.NewRecorder()
+	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(
+		metricsResponse.Body.String(),
+		`campus_supervisor_api_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
+	) {
+		t.Fatalf("metrics missing structured runtime gate rejection:\n%s", metricsResponse.Body.String())
+	}
+}
+
+func TestAnswerAllowsOpenedStructuredRuntimeToReachBridge(t *testing.T) {
+	bridgeClient := &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "supervisor_response",
+			Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"ok"}`),
+		},
+	}
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+		OpenCapabilities:      []string{"campus_services"},
+	}, bridgeClient)
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"校车什么时候发车","request_id":"req-structured-open"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	projected := decodeJSONRecord(t, bridgeClient.seen.Payload)
+	if projected["requested_capability"] != "campus_services" {
+		t.Fatalf("requested_capability = %v, want campus_services", projected["requested_capability"])
+	}
 }
 
 func TestAnswerReturnsQueueFullWhenAdmissionQueueIsFull(t *testing.T) {
@@ -1351,10 +1494,17 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 
 	server := NewServerWithDependencies(
 		config.Config{
-			AppName:              "campus-agent",
-			MaxConcurrentAnswers: 1,
-			QueueCapacity:        1,
-			QueueTimeoutMS:       1_000,
+			AppName:                       "campus-agent",
+			MaxConcurrentAnswers:          1,
+			QueueCapacity:                 1,
+			QueueTimeoutMS:                1_000,
+			PromptRuntimeProvider:         "openai-responses",
+			SupervisorPromptModel:         "gpt-supervisor",
+			SpecialistPromptModel:         "gpt-specialist",
+			PromptRuntimeAPIKey:           "test-key",
+			PromptRuntimeTransport:        "responses",
+			PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+			PromptStrictStructuredOutputs: true,
 		},
 		&fakeBridge{
 			configured: true,
@@ -1488,11 +1638,18 @@ func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 	callCount := 0
 	server := NewServerWithDependencies(
 		config.Config{
-			AuthMode:              "bearer",
-			BearerToken:           "secret-token",
-			DefaultActorID:        "runtime-bearer-user",
-			RequestBodyLimitBytes: 1_048_576,
-			MaxConcurrentAnswers:  8,
+			AuthMode:                      "bearer",
+			BearerToken:                   "secret-token",
+			DefaultActorID:                "runtime-bearer-user",
+			RequestBodyLimitBytes:         1_048_576,
+			MaxConcurrentAnswers:          8,
+			PromptRuntimeProvider:         "openai-responses",
+			SupervisorPromptModel:         "gpt-supervisor",
+			SpecialistPromptModel:         "gpt-specialist",
+			PromptRuntimeAPIKey:           "test-key",
+			PromptRuntimeTransport:        "responses",
+			PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+			PromptStrictStructuredOutputs: true,
 		},
 		&fakeBridge{
 			configured: true,
@@ -1659,6 +1816,49 @@ func TestAnswerStreamEmitsLifecycleEvents(t *testing.T) {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("stream body missing %q:\n%s", snippet, body)
 		}
+	}
+}
+
+func TestAnswerStreamRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "supervisor_response",
+				Body:       json.RawMessage(`{"selected_target":"notice-agent","status":"completed","answer_text":"ok"}`),
+			}, nil
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"找一下春假通知","request_id":"req-stream-structured-closed"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"structured_runtime_closed"`) ||
+		!strings.Contains(body, `"outcome":"structured_runtime_closed"`) {
+		t.Fatalf("stream body missing structured runtime closed failure:\n%s", body)
 	}
 }
 

@@ -86,11 +86,19 @@ export interface SupervisorExecutionObservability {
 	estimatedCostMicrousd: number | null;
 	failClosed: boolean | null;
 	inputTokens: number | null;
+	intentAmbiguityReason?: string | null;
+	intentAmbiguitySignal?: string | null;
 	intentCapability?: string | null;
 	intentClassifierVersion?: string | null;
+	intentContextReferenceType?: string | null;
+	intentContextResolutionState?: string | null;
 	intentLaunchState?: string | null;
+	intentMissingSlots?: string[] | null;
 	intentNextAction?: string | null;
 	intentPolicyReason?: string | null;
+	intentResolvedSlots?: Record<string, string> | null;
+	intentRoutingConfidence?: string | null;
+	intentSchemaVersion?: string | null;
 	intentScopeClass?: string | null;
 	intentScopeReason?: string | null;
 	intentTaskKind?: string | null;
@@ -332,6 +340,46 @@ function normalizeRecordString(
 	);
 }
 
+function recordValue(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): unknown {
+	return snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
+}
+
+function normalizeStringArrayRecord(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): string[] | null {
+	const value = recordValue(record, snakeCaseKey, camelCaseKey);
+	if (!Array.isArray(value)) {
+		return null;
+	}
+	const items = value.filter(
+		(item): item is string => typeof item === "string" && item.trim().length > 0,
+	);
+	return items.length > 0 ? items : [];
+}
+
+function normalizeStringRecord(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): Record<string, string> | null {
+	const value = getRecord(recordValue(record, snakeCaseKey, camelCaseKey));
+	if (!value) {
+		return null;
+	}
+	const normalized = Object.fromEntries(
+		Object.entries(value).flatMap(([key, entry]) =>
+			typeof entry === "string" && entry.trim() ? [[key, entry]] : [],
+		),
+	);
+	return Object.keys(normalized).length > 0 ? normalized : {};
+}
+
 function parsePromptTrace(value: unknown): SupervisorPromptTrace | null {
 	const record = getRecord(value);
 	if (!record) {
@@ -383,15 +431,55 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd),
 		failClosed: normalizeNullableBoolean(record.fail_closed),
 		inputTokens: normalizeNullableNumber(record.input_tokens),
+		intentAmbiguityReason: normalizeRecordString(
+			record,
+			"intent_ambiguity_reason",
+			"intentAmbiguityReason",
+		),
+		intentAmbiguitySignal: normalizeRecordString(
+			record,
+			"intent_ambiguity_signal",
+			"intentAmbiguitySignal",
+		),
 		intentCapability: normalizeRecordString(record, "intent_capability", "intentCapability"),
 		intentClassifierVersion: normalizeRecordString(
 			record,
 			"intent_classifier_version",
 			"intentClassifierVersion",
 		),
+		intentContextReferenceType: normalizeRecordString(
+			record,
+			"intent_context_reference_type",
+			"intentContextReferenceType",
+		),
+		intentContextResolutionState: normalizeRecordString(
+			record,
+			"intent_context_resolution_state",
+			"intentContextResolutionState",
+		),
 		intentLaunchState: normalizeRecordString(record, "intent_launch_state", "intentLaunchState"),
+		intentMissingSlots: normalizeStringArrayRecord(
+			record,
+			"intent_missing_slots",
+			"intentMissingSlots",
+		),
 		intentNextAction: normalizeRecordString(record, "intent_next_action", "intentNextAction"),
 		intentPolicyReason: normalizeRecordString(record, "intent_policy_reason", "intentPolicyReason"),
+		intentResolvedSlots: normalizeStringRecord(
+			record,
+			"intent_resolved_slots",
+			"intentResolvedSlots",
+		),
+		intentRoutingConfidence: normalizeRecordString(
+			record,
+			"intent_routing_confidence",
+			"intentRoutingConfidence",
+		),
+		intentSchemaVersion: normalizeRecordString(
+			record,
+			"intent_schema_version",
+			"intentSchemaVersion",
+		),
 		intentScopeClass: normalizeRecordString(record, "intent_scope_class", "intentScopeClass"),
 		intentScopeReason: normalizeRecordString(record, "intent_scope_reason", "intentScopeReason"),
 		intentTaskKind: normalizeRecordString(record, "intent_task_kind", "intentTaskKind"),

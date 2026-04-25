@@ -156,6 +156,17 @@ export const requestObservabilityFact = runtime.table(
 		intentScopeReason: text("intent_scope_reason"),
 		intentPolicyReason: text("intent_policy_reason"),
 		intentClassifierVersion: text("intent_classifier_version"),
+		intentSchemaVersion: text("intent_schema_version"),
+		intentRoutingConfidence: text("intent_routing_confidence"),
+		intentAmbiguitySignal: text("intent_ambiguity_signal"),
+		intentContextResolutionState: text("intent_context_resolution_state"),
+		intentContextReferenceType: text("intent_context_reference_type"),
+		intentResolvedSlotsJson: jsonb("intent_resolved_slots_json").$type<Record<
+			string,
+			string
+		> | null>(),
+		intentMissingSlotsJson: jsonb("intent_missing_slots_json").$type<string[] | null>(),
+		intentAmbiguityReason: text("intent_ambiguity_reason"),
 		modelProvider: text("model_provider"),
 		modelName: text("model_name"),
 		promptId: text("prompt_id"),

@@ -101,6 +101,75 @@ describe("operator observability command service", () => {
 		);
 	});
 
+	it("accepts intent sampled grades for observability-driven routing governance", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn().mockResolvedValue({
+				collection: "student_rules",
+				modelName: "deterministic-intent",
+				principalType: "student",
+				requestId: "req_intent_01",
+				requestStartedAt: "2026-04-20T00:00:00.000Z",
+				requestedCapability: "knowledge",
+				requestedScopeSummary: null,
+				selectedTarget: "rag-agent",
+				surface: "public_chat_web",
+				traceId: "trace_intent_01",
+			}),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const telemetry = {
+			recordQualitySampledGrade: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({
+			now: () => new Date("2026-04-20T00:20:00.000Z"),
+			store,
+			telemetry,
+		});
+
+		await expect(
+			service.ingestGrades({
+				payload: {
+					grades: [
+						{
+							gradeDomain: "intent",
+							gradeSource: "operator_review",
+							graderVersion: "intent-review@2026-04-20",
+							rationaleSummary: "follow-up should ask for the selected notice context",
+							requestId: "req_intent_01",
+							sampledAt: "2026-04-20T00:10:00.000Z",
+							score: null,
+							traceId: "trace_intent_01",
+							verdict: "needs_review",
+						},
+					],
+				},
+			}),
+		).resolves.toEqual({ accepted: 1 });
+
+		expect(store.upsertQualityGrades).toHaveBeenCalledWith({
+			grades: [
+				expect.objectContaining({
+					gradeDomain: "intent",
+					gradeId: "req_intent_01:operator_review:intent",
+					gradeSource: "operator_review",
+					graderVersion: "intent-review@2026-04-20",
+					rationaleSummary: "follow-up should ask for the selected notice context",
+					requestId: "req_intent_01",
+					scoreMilli: null,
+					verdict: "needs_review",
+				}),
+			],
+		});
+		expect(telemetry.recordQualitySampledGrade).toHaveBeenCalledWith(
+			expect.objectContaining({
+				gradeDomain: "intent",
+				gradeId: "req_intent_01:operator_review:intent",
+			}),
+		);
+	});
+
 	it("enqueues safe execution audit events after validating request identity", async () => {
 		const store = {
 			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),

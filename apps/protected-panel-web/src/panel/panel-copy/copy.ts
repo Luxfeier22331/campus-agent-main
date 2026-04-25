@@ -166,6 +166,7 @@ export const PANEL_COPY = {
 			coverageRate: "覆盖率",
 			emptyRecallRate: "空召回率",
 			groundingPassRate: "Grounding 通过率",
+			intentPassRate: "意图通过率",
 			policyPassRate: "策略通过率",
 			requestCount: "质量域请求数",
 		},

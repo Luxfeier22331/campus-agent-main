@@ -1,91 +1,40 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from campus_contracts import (
     ActorContext,
-    CampusNoticeDiscoverPayload,
+    ContextProjection,
     KnowledgeScope,
-    ServiceStatusLookupPayload,
+    SelectedNoticeRef,
+    SessionSlot,
+    SessionSummary,
     SupervisorRequest,
     TraceContext,
-    TransportScheduleLookupPayload,
-    VersionQuery,
 )
-from campus_supervisor_core import routing as supervisor_routing
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import DisallowedKnowledgeScopeError
 from campus_supervisor_core.routing import route_request
 
 
 class SupervisorRoutingTest(unittest.TestCase):
-    def test_structured_runtime_classifier_identifies_service_status_candidate(self) -> None:
-        classifier = getattr(supervisor_routing, "classify_structured_runtime_candidate", None)
-        self.assertIsNotNone(classifier)
+    def test_structured_runtime_payload_builder_stays_out_of_python_routing(self) -> None:
+        routing_source = Path(
+            "packages/supervisor-core/src/campus_supervisor_core/routing.py"
+        ).read_text(encoding="utf-8")
 
-        decision = classifier(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="图书馆今天开门吗",
-                    requested_capability="knowledge",
-                )
-            )
+        forbidden_symbols = (
+            "classify_structured_runtime_candidate",
+            "_classify_transport_intent",
+            "_transport_route_selector_from_query",
+            "_transport_service_time_query_from_goal",
+            "_looks_like_notice_query",
+            "_campus_scope_from_query",
         )
-
-        self.assertIsNotNone(decision)
-        assert decision is not None
-        self.assertEqual(decision.target, "campus-services-agent")
-        self.assertEqual(decision.allowed_tools, ("service_status_lookup",))
-        self.assertEqual(decision.intent_frame.launch_state, "candidate_only")
-        self.assertEqual(
-            decision.specialist_payload,
-            ServiceStatusLookupPayload(subject_query="图书馆今天开门吗"),
-        )
-
-    def test_structured_runtime_classifier_identifies_notice_discover_candidate(self) -> None:
-        classifier = getattr(supervisor_routing, "classify_structured_runtime_candidate", None)
-        self.assertIsNotNone(classifier)
-
-        decision = classifier(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="找一下春假通知",
-                    requested_capability="knowledge",
-                )
-            )
-        )
-
-        self.assertIsNotNone(decision)
-        assert decision is not None
-        self.assertEqual(decision.target, "notice-agent")
-        self.assertEqual(decision.allowed_tools, ("campus_notice_discover",))
-        self.assertEqual(decision.intent_frame.launch_state, "candidate_only")
-        self.assertEqual(
-            decision.specialist_payload,
-            CampusNoticeDiscoverPayload(query_text="找一下春假通知"),
-        )
-
-    def test_structured_runtime_classifier_keeps_compare_version_query_outside_tool_lane(
-        self,
-    ) -> None:
-        classifier = getattr(supervisor_routing, "classify_structured_runtime_candidate", None)
-        self.assertIsNotNone(classifier)
-
-        decision = classifier(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="比较新旧春假通知差异",
-                    requested_capability="knowledge",
-                    version_query=VersionQuery(
-                        mode="compare",
-                        version_id="v1:notice-2024",
-                        compare_to_version_id="v2:notice-2025",
-                    ),
-                )
-            )
-        )
-
-        self.assertIsNone(decision)
+        for symbol in forbidden_symbols:
+            with self.subTest(symbol=symbol):
+                self.assertNotIn(symbol, routing_source)
 
     def test_route_request_keeps_structured_runtime_candidates_gate_closed(self) -> None:
         request = SupervisorRequest(
@@ -118,8 +67,80 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.scope_reason, "structured_runtime_candidate_signal")
         self.assertEqual(decision.intent_frame.matched_signal, "通知")
         self.assertEqual(decision.intent_frame.classifier_version, "deterministic-intent-v1")
+        self.assertEqual(decision.intent_frame.schema_version, "intent-schema-1.0.0")
 
-    def test_route_request_delegates_explicit_campus_services_capability(self) -> None:
+    def test_route_request_resolves_selected_notice_follow_up_context(self) -> None:
+        request = SupervisorRequest(
+            user_goal="这条通知详情",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                session=SessionSummary(
+                    selected_notice_ref=SelectedNoticeRef(
+                        notice_id="notice:2026-spring-break",
+                        source_family="internal_notice_restricted",
+                        title="2026年春假安排通知",
+                    )
+                )
+            ),
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-agent")
+        self.assertEqual(decision.intent_frame.context_resolution_state, "resolved")
+        self.assertEqual(decision.intent_frame.context_reference_type, "selected_notice")
+        self.assertEqual(
+            decision.intent_frame.resolved_slots,
+            {
+                "notice_id": "notice:2026-spring-break",
+                "notice_source_family": "internal_notice_restricted",
+                "notice_title": "2026年春假安排通知",
+            },
+        )
+        self.assertEqual(decision.intent_frame.missing_slots, ())
+
+    def test_route_request_clarifies_selected_notice_follow_up_without_context(self) -> None:
+        request = SupervisorRequest(
+            user_goal="这条通知详情",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertTrue(decision.intent_frame.needs_clarification)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "clarify")
+        self.assertEqual(decision.intent_frame.context_resolution_state, "missing_context")
+        self.assertEqual(decision.intent_frame.context_reference_type, "selected_notice")
+        self.assertEqual(decision.intent_frame.missing_slots, ("selected_notice_ref",))
+
+    def test_route_request_resolves_curriculum_semester_follow_up_from_session_slots(self) -> None:
+        request = SupervisorRequest(
+            user_goal="那大二下呢",
+            requested_capability="knowledge",
+            context=ContextProjection(
+                session=SessionSummary(
+                    confirmed_slots=(
+                        SessionSlot(name="curriculum_program", value="计算机科学与技术"),
+                    )
+                )
+            ),
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-agent")
+        self.assertEqual(decision.intent_frame.context_resolution_state, "resolved")
+        self.assertEqual(decision.intent_frame.context_reference_type, "curriculum_slot")
+        self.assertEqual(
+            decision.intent_frame.resolved_slots,
+            {
+                "curriculum_program": "计算机科学与技术",
+                "curriculum_semester": "大二下",
+            },
+        )
+
+    def test_route_request_does_not_build_structured_payload_for_campus_services(self) -> None:
         request = SupervisorRequest(
             user_goal="最近的校车时刻表是什么",
             requested_capability="campus_services",
@@ -127,17 +148,12 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "campus-services-agent")
-        self.assertEqual(decision.allowed_tools, ("transport_schedule_lookup",))
-        self.assertEqual(
-            decision.specialist_payload,
-            TransportScheduleLookupPayload(
-                query_text="最近的校车时刻表是什么",
-                intent="schedule_snapshot_metadata",
-            ),
-        )
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.capability, "campus_services")
+        self.assertIsNone(decision.specialist_payload)
+        self.assertEqual(decision.allowed_tools, ())
 
-    def test_route_request_delegates_explicit_notice_capability(self) -> None:
+    def test_route_request_does_not_build_structured_payload_for_notice(self) -> None:
         request = SupervisorRequest(
             user_goal="找一下春假通知",
             requested_capability="notice",
@@ -145,12 +161,10 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "notice-agent")
-        self.assertEqual(decision.allowed_tools, ("campus_notice_discover",))
-        self.assertEqual(
-            decision.specialist_payload,
-            CampusNoticeDiscoverPayload(query_text="找一下春假通知"),
-        )
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.capability, "notice")
+        self.assertIsNone(decision.specialist_payload)
+        self.assertEqual(decision.allowed_tools, ())
 
     def test_route_request_delegates_explicit_notice_capability_without_notice_keyword(
         self,
@@ -162,12 +176,9 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "notice-agent")
-        self.assertEqual(decision.allowed_tools, ("campus_notice_discover",))
-        self.assertEqual(
-            decision.specialist_payload,
-            CampusNoticeDiscoverPayload(query_text="春假安排"),
-        )
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.capability, "notice")
+        self.assertIsNone(decision.specialist_payload)
 
     def test_route_request_selects_rag_specialist_for_regulations_student_handbook(self) -> None:
         request = SupervisorRequest(
@@ -176,6 +187,7 @@ class SupervisorRoutingTest(unittest.TestCase):
             request_id="req-001",
             trace=TraceContext(trace_id="trace-001"),
             actor=ActorContext(user_id="student-001"),
+            requested_capability="knowledge",
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_rules",
@@ -193,6 +205,7 @@ class SupervisorRoutingTest(unittest.TestCase):
     def test_route_request_selects_rag_specialist_for_curriculum_plan(self) -> None:
         request = SupervisorRequest(
             user_goal="graduation requirements",
+            requested_capability="knowledge",
             requested_scope=KnowledgeScope(
                 corpus="curriculum",
                 collection="curriculum_plan",
@@ -209,6 +222,7 @@ class SupervisorRoutingTest(unittest.TestCase):
     def test_route_request_rejects_query_disabled_scope(self) -> None:
         request = SupervisorRequest(
             user_goal="谁负责宿舍报修？",
+            requested_capability="knowledge",
             requested_scope=KnowledgeScope(
                 corpus="campus_services",
                 collection="service_catalog",
@@ -224,6 +238,7 @@ class SupervisorRoutingTest(unittest.TestCase):
     def test_route_request_fail_closes_place_lookup_queries_until_navigation_launch(self) -> None:
         request = SupervisorRequest(
             user_goal="图书馆在哪里",
+            requested_capability="place_lookup",
         )
 
         decision = route_request(SupervisorRequestContext.from_request(request))
@@ -237,7 +252,7 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
         self.assertEqual(decision.intent_frame.policy_reason, "navigation_temporarily_unsupported")
 
-    def test_route_request_fail_closes_place_lookup_even_when_knowledge_is_requested(
+    def test_route_request_does_not_reinfer_place_lookup_when_knowledge_is_provided(
         self,
     ) -> None:
         cases = ("图书馆在哪里", "图书馆位置", "图书馆地址")
@@ -251,13 +266,9 @@ class SupervisorRoutingTest(unittest.TestCase):
 
                 decision = route_request(SupervisorRequestContext.from_request(request))
 
-                self.assertIsNone(decision.target)
-                self.assertEqual(decision.intent_frame.capability, "place_lookup")
-                self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
-                self.assertEqual(
-                    decision.intent_frame.policy_reason,
-                    "navigation_temporarily_unsupported",
-                )
+                self.assertEqual(decision.target, "rag-agent")
+                self.assertEqual(decision.intent_frame.capability, "knowledge")
+                self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
 
     def test_route_request_delegates_knowledge_when_scope_is_missing(self) -> None:
         request = SupervisorRequest(
@@ -304,6 +315,7 @@ class SupervisorRoutingTest(unittest.TestCase):
     def test_route_request_returns_approval_required_for_high_risk_knowledge_request(self) -> None:
         request = SupervisorRequest(
             user_goal="帮我提交奖学金申请",
+            requested_capability="knowledge",
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_rules",

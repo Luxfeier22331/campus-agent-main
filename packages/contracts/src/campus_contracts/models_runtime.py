@@ -73,6 +73,14 @@ class SupervisorObservability:
     intent_scope_reason: str = ""
     intent_policy_reason: str = ""
     intent_classifier_version: str = ""
+    intent_schema_version: str = ""
+    intent_routing_confidence: str = ""
+    intent_ambiguity_signal: str = ""
+    intent_context_resolution_state: str = ""
+    intent_context_reference_type: str = ""
+    intent_resolved_slots: dict[str, str] = field(default_factory=dict)
+    intent_missing_slots: tuple[str, ...] = field(default_factory=tuple)
+    intent_ambiguity_reason: str = ""
     acl_decision: str = ""
     acl_anomaly_code: str = ""
     fail_closed: bool | None = None

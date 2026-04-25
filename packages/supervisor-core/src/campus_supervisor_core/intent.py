@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
-from campus_contracts import RequestedCapability
+from campus_contracts import (
+    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+    CURRICULUM_PROGRAM_SLOT_NAME,
+    CURRICULUM_SEMESTER_SLOT_NAME,
+    RequestedCapability,
+)
 
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.scope_policy import ScopeDecision, evaluate_knowledge_scope
@@ -20,6 +25,21 @@ IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required
 IntentPersonalizationMode = Literal["generic", "cohort_grounded", "user_grounded"]
 IntentScopeClass = Literal["", "in_scope", "out_of_scope"]
 IntentLaunchState = Literal["open", "candidate_only", "closed"]
+IntentContextResolutionState = Literal[
+    "not_follow_up",
+    "resolved",
+    "ambiguous",
+    "missing_context",
+]
+IntentContextReferenceType = Literal[
+    "none",
+    "selected_notice",
+    "curriculum_slot",
+    "previous_goal",
+    "service_temporal_reference",
+]
+IntentRoutingConfidence = Literal["high", "medium", "low"]
+INTENT_SCHEMA_VERSION = "intent-schema-1.0.0"
 INTENT_CLASSIFIER_VERSION = "deterministic-intent-v1"
 
 _DELEGATED_ACTION_PREFIX_SIGNALS = (
@@ -91,6 +111,45 @@ _CONTEXTUAL_FOLLOW_UP_SIGNALS = (
     "该流程",
     "流程怎么办",
 )
+_NOTICE_CONTEXT_REFERENCE_SIGNALS = (
+    "这条通知",
+    "这则通知",
+    "该通知",
+    "这个通知",
+    "这条公告",
+    "上一条通知",
+    "上一条公告",
+    "刚才的通知",
+    "前面的通知",
+)
+_CURRICULUM_SEMESTER_SIGNALS = (
+    "大一上",
+    "大一下",
+    "大二上",
+    "大二下",
+    "大三上",
+    "大三下",
+    "大四上",
+    "大四下",
+)
+_FOLLOW_UP_LEADING_SIGNALS = (
+    "那",
+    "这个",
+    "该",
+    "上一",
+    "刚才",
+    "前面",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ContextResolution:
+    state: IntentContextResolutionState = "not_follow_up"
+    reference_type: IntentContextReferenceType = "none"
+    resolved_slots: dict[str, str] = field(default_factory=dict)
+    missing_slots: tuple[str, ...] = ()
+    ambiguity_reason: str = ""
+    matched_signal: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +169,13 @@ class IntentFrame:
     scope_reason: str = ""
     matched_signal: str = ""
     classifier_version: str = INTENT_CLASSIFIER_VERSION
+    schema_version: str = INTENT_SCHEMA_VERSION
+    routing_confidence: IntentRoutingConfidence = "high"
+    ambiguity_signal: str = ""
+    context_resolution_state: IntentContextResolutionState = "not_follow_up"
+    context_reference_type: IntentContextReferenceType = "none"
+    resolved_slots: dict[str, str] = field(default_factory=dict)
+    ambiguity_reason: str = ""
 
 
 def frame_intent(
@@ -121,6 +187,7 @@ def frame_intent(
     compact_goal = "".join(normalized_goal.split()).casefold()
     personalization_hint = context.personalization_hint
     personalization_mode = _personalization_mode(context)
+    context_resolution = resolve_context_follow_up(context, compact_goal=compact_goal)
     policy_reason = _evaluate_policy_reason(compact_goal)
     if policy_reason:
         return IntentFrame(
@@ -174,6 +241,33 @@ def frame_intent(
             scope_reason="transaction_guardrail",
         )
 
+    if context_resolution.state in {"missing_context", "ambiguous"}:
+        reason = (
+            "context_ambiguous" if context_resolution.state == "ambiguous" else "context_missing"
+        )
+        return IntentFrame(
+            capability=capability,
+            task_kind=_task_kind_for_capability(capability),
+            domain_candidates=("context_follow_up",),
+            missing_slots=context_resolution.missing_slots,
+            risk_level="low",
+            needs_clarification=True,
+            suggested_next_action="clarify",
+            personalization_mode=personalization_mode,
+            scope_class="in_scope",
+            launch_state="candidate_only",
+            scope_reason=reason,
+            matched_signal=context_resolution.matched_signal,
+            routing_confidence="low",
+            ambiguity_signal=context_resolution.matched_signal
+            if context_resolution.state == "ambiguous"
+            else "",
+            context_resolution_state=context_resolution.state,
+            context_reference_type=context_resolution.reference_type,
+            resolved_slots=context_resolution.resolved_slots,
+            ambiguity_reason=context_resolution.ambiguity_reason,
+        )
+
     if capability == "place_lookup":
         return IntentFrame(
             capability="place_lookup",
@@ -188,6 +282,7 @@ def frame_intent(
             policy_reason="navigation_temporarily_unsupported",
             launch_state="closed",
             scope_reason="navigation_temporarily_unsupported",
+            **_context_resolution_frame_fields(context_resolution),
         )
     if capability == "campus_services":
         return IntentFrame(
@@ -202,6 +297,7 @@ def frame_intent(
             scope_class="in_scope",
             launch_state="open",
             scope_reason="explicit_requested_capability",
+            **_context_resolution_frame_fields(context_resolution),
         )
     if capability == "notice":
         return IntentFrame(
@@ -216,6 +312,7 @@ def frame_intent(
             scope_class="in_scope",
             launch_state="open",
             scope_reason="explicit_requested_capability",
+            **_context_resolution_frame_fields(context_resolution),
         )
 
     scope_decision = evaluate_knowledge_scope(context)
@@ -234,6 +331,7 @@ def frame_intent(
             launch_state="closed",
             scope_reason=scope_decision.reason,
             matched_signal=scope_decision.matched_signal,
+            **_context_resolution_frame_fields(context_resolution),
         )
 
     return IntentFrame(
@@ -253,7 +351,98 @@ def frame_intent(
         launch_state=_knowledge_launch_state(scope_decision.reason),
         scope_reason=scope_decision.reason,
         matched_signal=scope_decision.matched_signal,
+        **_context_resolution_frame_fields(context_resolution),
     )
+
+
+def _context_resolution_frame_fields(
+    context_resolution: ContextResolution,
+) -> dict[str, object]:
+    if context_resolution.state == "not_follow_up":
+        return {}
+    return {
+        "context_resolution_state": context_resolution.state,
+        "context_reference_type": context_resolution.reference_type,
+        "resolved_slots": context_resolution.resolved_slots,
+        "ambiguity_reason": context_resolution.ambiguity_reason,
+    }
+
+
+def resolve_context_follow_up(
+    context: SupervisorRequestContext,
+    *,
+    compact_goal: str | None = None,
+) -> ContextResolution:
+    normalized_goal = compact_goal or "".join(context.user_goal.strip().split()).casefold()
+    notice_signal = _first_compact_match(normalized_goal, _NOTICE_CONTEXT_REFERENCE_SIGNALS)
+    if notice_signal:
+        selected_notice_ref = context.context.session.selected_notice_ref
+        if selected_notice_ref is None:
+            return ContextResolution(
+                state="missing_context",
+                reference_type="selected_notice",
+                missing_slots=("selected_notice_ref",),
+                matched_signal=notice_signal,
+            )
+        resolved_slots = {
+            "notice_id": selected_notice_ref.notice_id,
+        }
+        if selected_notice_ref.source_family:
+            resolved_slots["notice_source_family"] = selected_notice_ref.source_family
+        if selected_notice_ref.title:
+            resolved_slots["notice_title"] = selected_notice_ref.title
+        return ContextResolution(
+            state="resolved",
+            reference_type="selected_notice",
+            resolved_slots=resolved_slots,
+            matched_signal=notice_signal,
+        )
+
+    semester_signal = _first_compact_match(normalized_goal, _CURRICULUM_SEMESTER_SIGNALS)
+    if semester_signal and _looks_like_contextual_semester_follow_up(normalized_goal):
+        curriculum_slots = context.context.session.curriculum_follow_up
+        if not curriculum_slots.program and not curriculum_slots.program_family:
+            return ContextResolution(
+                state="missing_context",
+                reference_type="curriculum_slot",
+                missing_slots=(CURRICULUM_PROGRAM_SLOT_NAME,),
+                matched_signal=semester_signal,
+            )
+        resolved_slots = {
+            CURRICULUM_SEMESTER_SLOT_NAME: semester_signal,
+        }
+        if curriculum_slots.program:
+            resolved_slots[CURRICULUM_PROGRAM_SLOT_NAME] = curriculum_slots.program
+        if curriculum_slots.program_family:
+            resolved_slots[CURRICULUM_PROGRAM_FAMILY_SLOT_NAME] = curriculum_slots.program_family
+        return ContextResolution(
+            state="resolved",
+            reference_type="curriculum_slot",
+            resolved_slots=resolved_slots,
+            matched_signal=semester_signal,
+        )
+
+    return ContextResolution()
+
+
+def _looks_like_contextual_semester_follow_up(normalized_goal: str) -> bool:
+    return (
+        any(_compact_signal(signal) in normalized_goal for signal in _FOLLOW_UP_LEADING_SIGNALS)
+        or normalized_goal.endswith("呢")
+        or len(normalized_goal) <= 6
+    )
+
+
+def _first_compact_match(normalized_goal: str, signals: tuple[str, ...]) -> str:
+    for signal in signals:
+        compact_signal = _compact_signal(signal)
+        if compact_signal and compact_signal in normalized_goal:
+            return signal
+    return ""
+
+
+def _compact_signal(signal: str) -> str:
+    return "".join(signal.split()).casefold()
 
 
 def _knowledge_launch_state(scope_reason: str) -> IntentLaunchState:

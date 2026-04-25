@@ -363,6 +363,22 @@ payload 或 provider raw response。
     "refusal_class": "",
     "acl_decision": "allowed",
     "fail_closed": false,
+    "intent_capability": "knowledge",
+    "intent_task_kind": "knowledge_lookup",
+    "intent_launch_state": "open",
+    "intent_next_action": "delegate",
+    "intent_scope_class": "in_scope",
+    "intent_scope_reason": "explicit_requested_scope",
+    "intent_policy_reason": "",
+    "intent_classifier_version": "deterministic-intent-v1",
+    "intent_schema_version": "intent-schema-1.0.0",
+    "intent_routing_confidence": "high",
+    "intent_context_resolution_state": "not_follow_up",
+    "intent_context_reference_type": "none",
+    "intent_resolved_slots": {},
+    "intent_missing_slots": [],
+    "intent_ambiguity_signal": "",
+    "intent_ambiguity_reason": "",
     "prompt_runtime_state": "",
     "prompt_runtime_detail": "",
     "prompt_trace": {
@@ -434,6 +450,12 @@ payload 或 provider raw response。
 - `observability` 是 execution-side typed summary seam，用于
   `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side
   `snake_case`
+- `observability.intent_*` 是 supervisor-owned routing intent governance summary；其中
+  `intent_schema_version` 描述字段 / 枚举 / reason code 兼容性，
+  `intent_classifier_version` 描述当前 deterministic classifier / resolver 行为版本，两者必须分离
+- `observability.intent_context_resolution_*`、`intent_resolved_slots` 与
+  `intent_missing_slots` 只承载 app-api 投影出的最小 typed context 解析结果，不承载 raw
+  transcript 或 browser-local state
 - `observability.retrieved_sources` 表示 execution side 原始 retrieval candidate
   trace；它与最终 `result.evidence.sources` 不是同一层 truth
 - 对 structured runtime lane，`observability` 还会回传 compact summary：

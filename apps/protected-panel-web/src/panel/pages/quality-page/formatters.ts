@@ -127,6 +127,11 @@ export function buildSampledCards(record: OperatorQualitySummaryRecord): Quality
 			value: formatMetricRate(record.sampledGrades.policyPassRate),
 		},
 		{
+			detail: formatMetricEvidence(record.sampledGrades.intentPassRate ?? null),
+			label: PANEL_COPY.qualityPage.cards.intentPassRate,
+			value: formatMetricRate(record.sampledGrades.intentPassRate ?? null),
+		},
+		{
 			detail: formatMetricEvidence(record.sampledGrades.coverageRate),
 			label: PANEL_COPY.qualityPage.cards.coverageRate,
 			value: formatMetricRate(record.sampledGrades.coverageRate),

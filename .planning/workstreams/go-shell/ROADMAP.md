@@ -2,14 +2,14 @@
 doc_type: roadmap
 status: active
 created: 2026-04-23
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # Roadmap: go-shell
 
 ## Current Progress
 
-- `Phase 0-19` repo-local implementation 已完成。
+- `Phase 0-20` repo-local implementation 已完成。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
 - `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
@@ -31,6 +31,9 @@ updated: 2026-04-24
   batching/retry/spool、OTel sample/export/drop/failure accounting，以及
   `/api/v1/answer/stream` lifecycle SSE seam；`app-api` 已具备 optional stream
   adapter。
+- `Phase 20` 已补齐 Go effective capability/lane inference、structured runtime
+  opening gate、capability gate readiness/metrics，以及 Python bridge 本地 audit
+  writer 清理；`campus_services` / `notice` 仍默认 gate closed。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
@@ -513,3 +516,38 @@ export/drop/failure 状态。
 
 - Repo-local implementation is complete. Product route and browser stop UX remain
   owned by app-api/web workstreams.
+
+## Phase 20: Capability Gate And Python Audit Cleanup
+
+**Goal:** 让 Go `apps/supervisor-api` 拥有 deterministic effective capability /
+lane inference 与 structured runtime opening gate，并从 Python bridge 移除本地
+supervisor audit JSONL writer。
+
+**Scope:**
+
+- infer effective `requested_capability` when caller omits it, while preserving
+  scoped / versioned knowledge path behavior
+- reject closed `campus_services` / `notice` structured runtime requests before
+  calling Python bridge
+- expose capability gate state in `/readyz` and gate decision counters in
+  `/metrics`
+- add `SUPERVISOR_API_OPEN_CAPABILITIES` as the explicit Go-owned opening
+  allowlist
+- remove Python bridge local audit runtime, queue config, readyz field, and
+  JSONL writer responsibility
+
+**Exit Criteria:**
+
+- Go execution tests cover capability inference and lane projection
+- Go HTTP tests cover closed structured runtime rejection, stream terminal
+  failure, open-gate bridge pass-through, readiness, and metrics
+- Python bridge tests prove local audit log is not written and `audit_runtime`
+  no longer degrades private readyz
+- docs and workstream state identify Go as owner of audit writer/backflow and
+  structured runtime opening gate
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Opening `campus_services` / `notice`
+  for product serving still requires eval / regression evidence and product
+  route admission; this phase only installs the runtime gate.

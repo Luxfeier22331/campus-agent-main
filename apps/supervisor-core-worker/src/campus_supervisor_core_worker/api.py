@@ -13,11 +13,12 @@ from campus_supervisor_core import (
     build_error_audit_record,
     handle_request,
 )
+from campus_supervisor_core.routing import RoutingDecision
 
 from campus_supervisor_core_worker.api_request_parsing import (
-    _parse_bridge_supervisor_request,
+    _parse_bridge_supervisor_envelope,
 )
-from campus_supervisor_core_worker.audit import AuditSink, AuditSinkError, build_jsonl_audit_sink
+from campus_supervisor_core_worker.audit import AuditSink, AuditSinkError
 from campus_supervisor_core_worker.prompt_stack import PromptRuntimeSettings
 from campus_supervisor_core_worker.settings import ApiSettings
 
@@ -36,7 +37,14 @@ class HttpRoute:
     handler: Callable[[Mapping[str, str], dict[str, object] | None], HttpResponse]
 
 
-SupervisorHandler = Callable[[SupervisorRequest], SupervisorResponse]
+SupervisorHandler = Callable[
+    [SupervisorRequest],
+    SupervisorResponse,
+]
+SupervisorEnvelopeHandler = Callable[
+    [SupervisorRequest, RoutingDecision | None],
+    SupervisorResponse,
+]
 RuntimeStatusProvider = Callable[[], Mapping[str, Mapping[str, object]]]
 
 
@@ -102,13 +110,14 @@ class ExecutionCancelRegistry:
 def build_bridge_routes(
     settings: ApiSettings,
     *,
-    supervisor_handler: SupervisorHandler = handle_request,
+    supervisor_handler: SupervisorEnvelopeHandler | None = None,
     audit_sink: AuditSink | None = None,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
     cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> tuple[HttpRoute, ...]:
     runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
+    runtime_supervisor_handler = supervisor_handler or _default_supervisor_envelope_handler
     return (
         HttpRoute(
             "POST",
@@ -117,7 +126,7 @@ def build_bridge_routes(
                 headers,
                 body,
                 settings,
-                supervisor_handler,
+                runtime_supervisor_handler,
                 audit_sink=audit_sink,
                 cancel_registry=runtime_cancel_registry,
             ),
@@ -151,11 +160,21 @@ def build_bridge_routes(
     )
 
 
+def _default_supervisor_envelope_handler(
+    request: SupervisorRequest,
+    preplanned_routing_decision: RoutingDecision | None,
+) -> SupervisorResponse:
+    return handle_request(
+        request,
+        preplanned_routing_decision=preplanned_routing_decision,
+    )
+
+
 def handle_bridge_answer(
     headers: Mapping[str, str],
     body: dict[str, object] | None,
     settings: ApiSettings,
-    supervisor_handler: SupervisorHandler,
+    supervisor_handler: SupervisorEnvelopeHandler,
     *,
     audit_sink: AuditSink | None = None,
     cancel_registry: ExecutionCancelRegistry | None = None,
@@ -164,28 +183,35 @@ def handle_bridge_answer(
     if bridge_auth_error is not None:
         return bridge_auth_error
 
-    runtime_audit_sink = audit_sink or build_jsonl_audit_sink(settings.audit_log_path)
     payload = body or {}
     try:
-        request = _parse_bridge_supervisor_request(payload)
+        envelope = _parse_bridge_supervisor_envelope(payload)
     except ValueError as exc:
         return _bridge_response(
             400,
             {"error": asdict(ErrorInfo(code="invalid_request", message=str(exc)))},
             kind="bridge_invalid_request",
         )
+    request = envelope.request
+    preplanned_routing_decision = (
+        None
+        if envelope.preplanned_routing is None
+        else envelope.preplanned_routing.to_routing_decision(
+            capability=request.requested_capability or "knowledge"
+        )
+    )
 
     runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
     runtime_cancel_registry.register(request)
     try:
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
-        response = supervisor_handler(request)
+        response = supervisor_handler(request, preplanned_routing_decision)
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
     except ExecutionCancelledError as exc:
         _emit_audit_best_effort(
-            runtime_audit_sink,
+            audit_sink,
             build_error_audit_record(request, error_code=exc.error_code),
         )
         return _bridge_response(
@@ -195,7 +221,7 @@ def handle_bridge_answer(
         )
     except SupervisorError as exc:
         _emit_audit_best_effort(
-            runtime_audit_sink,
+            audit_sink,
             build_error_audit_record(request, error_code=exc.error_code),
         )
         return _bridge_response(
@@ -206,7 +232,7 @@ def handle_bridge_answer(
     finally:
         runtime_cancel_registry.complete(request.request_id)
 
-    _emit_audit_best_effort(runtime_audit_sink, build_audit_record(request, response))
+    _emit_audit_best_effort(audit_sink, build_audit_record(request, response))
     return _bridge_response(200, asdict(response), kind="supervisor_response")
 
 
@@ -263,28 +289,14 @@ def readyz(
     runtime_status_provider: RuntimeStatusProvider | None = None,
     cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
+    _ = cancel_registry
     runtime_prompt = prompt_runtime or _resolve_prompt_runtime_settings(settings)
     runtime_status = dict(runtime_status_provider() if runtime_status_provider else {})
     prompt_http_pool = dict(
         runtime_status.get("prompt_http_pool")
         or _default_prompt_http_pool_status(settings=settings, admitted=runtime_prompt.admitted)
     )
-    audit_runtime = dict(
-        runtime_status.get("audit_runtime")
-        or {
-            "healthy": True,
-            "queue_depth": 0,
-            "queue_capacity": 0,
-            "dropped_count": 0,
-            "writer_alive": True,
-            "last_error": "",
-        }
-    )
-    degraded = (
-        not runtime_prompt.admitted
-        or not bool(prompt_http_pool.get("healthy", True))
-        or not bool(audit_runtime.get("healthy", True))
-    )
+    degraded = not runtime_prompt.admitted or not bool(prompt_http_pool.get("healthy", True))
     return HttpResponse(
         status_code=503 if degraded else 200,
         json_body={
@@ -304,12 +316,8 @@ def readyz(
                 "admission_reason": runtime_prompt.admission_reason,
             },
             "prompt_http_pool": prompt_http_pool,
-            "audit_runtime": audit_runtime,
-            "execution_cancel_runtime": (
-                cancel_registry.status()
-                if cancel_registry is not None
-                else {"active_executions": 0, "cancel_requested_count": 0}
-            ),
+            "worker_runtime": runtime_status.get("worker_runtime")
+            or {"role": "semantic_worker", "cancel_flag_store": "available"},
         },
     )
 
@@ -375,7 +383,9 @@ def _require_bridge_auth(headers: Mapping[str, str], settings: ApiSettings) -> H
     return None
 
 
-def _emit_audit_best_effort(audit_sink: AuditSink, record: object) -> None:
+def _emit_audit_best_effort(audit_sink: AuditSink | None, record: object) -> None:
+    if audit_sink is None:
+        return
     try:
         audit_sink(record)  # type: ignore[arg-type]
     except AuditSinkError:

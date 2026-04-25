@@ -35,6 +35,17 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("OBJECT_STORE_SECRET_KEY", "")
 	t.Setenv("OBJECT_STORE_REGION", "")
 	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "")
+	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
+	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
+	t.Setenv("PROMPT_RUNTIME_MODEL", "")
+	t.Setenv("SUPERVISOR_PROMPT_MODEL", "")
+	t.Setenv("SPECIALIST_PROMPT_MODEL", "")
+	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
+	t.Setenv("LLM_API_KEY", "")
+	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "")
+	t.Setenv("PROMPT_RUNTIME_BASE_URL", "")
+	t.Setenv("LLM_BASE_URL", "")
+	t.Setenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -103,6 +114,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.ExecutionAuditEnabled {
 		t.Fatal("execution audit enabled = true, want false by default")
 	}
+	if len(cfg.OpenCapabilities) != 0 {
+		t.Fatalf("open capabilities = %#v, want empty by default", cfg.OpenCapabilities)
+	}
 	if cfg.ExecutionAuditTimeoutMS != 500 {
 		t.Fatalf("execution audit timeout = %d, want 500", cfg.ExecutionAuditTimeoutMS)
 	}
@@ -131,6 +145,15 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
 		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
+	}
+	if cfg.PromptRuntimeProvider != "" ||
+		cfg.SupervisorPromptModel != "" ||
+		cfg.SpecialistPromptModel != "" ||
+		cfg.PromptRuntimeAPIKey != "" ||
+		cfg.PromptRuntimeTransport != "responses" ||
+		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
+		!cfg.PromptStrictStructuredOutputs {
+		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
 	}
 }
 
@@ -174,6 +197,15 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", "2048")
 	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
 	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
+	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
+	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
+	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
+	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
+	t.Setenv("SPECIALIST_PROMPT_MODEL", "gpt-specialist")
+	t.Setenv("PROMPT_RUNTIME_API_KEY", "prompt-key")
+	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
+	t.Setenv("PROMPT_RUNTIME_BASE_URL", "https://api.openai.com/v1")
+	t.Setenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "false")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -209,7 +241,17 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.ExecutionAuditSpoolDir != "/tmp/supervisor-audit-spool" ||
 		cfg.ExecutionAuditSpoolMaxBytes != 2048 ||
 		cfg.OTelSampleRatio != 0.25 ||
-		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" {
+		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" ||
+		len(cfg.OpenCapabilities) != 2 ||
+		cfg.OpenCapabilities[0] != "campus_services" ||
+		cfg.OpenCapabilities[1] != "notice" ||
+		cfg.PromptRuntimeProvider != "openai-responses" ||
+		cfg.SupervisorPromptModel != "gpt-supervisor" ||
+		cfg.SpecialistPromptModel != "gpt-specialist" ||
+		cfg.PromptRuntimeAPIKey != "prompt-key" ||
+		cfg.PromptRuntimeTransport != "responses" ||
+		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
+		cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected config: %#v", cfg)
 	}
 }

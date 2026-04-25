@@ -296,6 +296,341 @@ func TestParseAnswerRequestMapsForwardCapabilitiesToExecutionLanes(t *testing.T)
 	}
 }
 
+func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t *testing.T) {
+	tests := []struct {
+		name           string
+		userGoal       string
+		wantCapability string
+		wantLane       string
+	}{
+		{
+			name:           "place lookup",
+			userGoal:       "图书馆在哪里",
+			wantCapability: "place_lookup",
+			wantLane:       "navigation",
+		},
+		{
+			name:           "transport schedule",
+			userGoal:       "我明天早上要去丰台上课，最早的班车是几点",
+			wantCapability: "campus_services",
+			wantLane:       "campus_services",
+		},
+		{
+			name:           "notice discovery",
+			userGoal:       "找一下春假通知",
+			wantCapability: "notice",
+			wantLane:       "notice",
+		},
+		{
+			name:           "non spatial where action",
+			userGoal:       "奖学金在哪里申请",
+			wantCapability: "knowledge",
+			wantLane:       "rag",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rawBody, err := json.Marshal(map[string]string{
+				"user_goal":  tt.userGoal,
+				"request_id": "req-infer-capability",
+			})
+			if err != nil {
+				t.Fatalf("marshal body: %v", err)
+			}
+			request, httpErr := ParseAnswerRequest(
+				rawBody,
+				map[string]string{
+					"authorization": "Bearer secret-token",
+				},
+				config.Config{
+					AuthMode:       "bearer",
+					BearerToken:    "secret-token",
+					DefaultActorID: "api-bearer-user",
+				},
+			)
+
+			if httpErr != nil {
+				t.Fatalf("unexpected http error: %#v", httpErr)
+			}
+			if request.RequestedCapability != tt.wantCapability {
+				t.Fatalf("requested capability = %q, want %q", request.RequestedCapability, tt.wantCapability)
+			}
+			if request.Lane != tt.wantLane {
+				t.Fatalf("lane = %q, want %q", request.Lane, tt.wantLane)
+			}
+			payload := decodeExecutionPayload(t, request.Payload)
+			if payload["requested_capability"] != tt.wantCapability {
+				t.Fatalf("projected requested_capability = %v, want %q", payload["requested_capability"], tt.wantCapability)
+			}
+		})
+	}
+}
+
+func TestParseAnswerRequestProjectsBridgeV2RuntimeDecisionsForTransportSchedule(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
+			"request_id":"req-transport-preplan"
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	if payload["bridge_version"] != "supervisor_bridge_v2" {
+		t.Fatalf("bridge_version = %v, want supervisor_bridge_v2", payload["bridge_version"])
+	}
+	if payload["effective_capability"] != "campus_services" {
+		t.Fatalf("effective_capability = %v, want campus_services", payload["effective_capability"])
+	}
+	if payload["lane"] != "campus_services" {
+		t.Fatalf("lane = %v, want campus_services", payload["lane"])
+	}
+	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	if runtimeDecisions["effective_capability"] != "campus_services" {
+		t.Fatalf("effective_capability = %v", runtimeDecisions["effective_capability"])
+	}
+	if runtimeDecisions["planning_outcome"] != "preplanned" {
+		t.Fatalf("planning_outcome = %v, want preplanned", runtimeDecisions["planning_outcome"])
+	}
+	if runtimeDecisions["preplanned_target"] != "campus-services-agent" {
+		t.Fatalf("preplanned_target = %v, want campus-services-agent", runtimeDecisions["preplanned_target"])
+	}
+	allowedTools, ok := runtimeDecisions["allowed_tools"].([]any)
+	if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
+		t.Fatalf("allowed_tools = %#v, want transport_schedule_lookup", runtimeDecisions["allowed_tools"])
+	}
+	specialistPayload := expectExecutionRecord(t, runtimeDecisions["specialist_payload"], "specialist_payload")
+	if specialistPayload["kind"] != "transport_schedule_lookup" {
+		t.Fatalf("specialist_payload.kind = %v, want transport_schedule_lookup", specialistPayload["kind"])
+	}
+	specialistPayloadRecord := expectExecutionRecord(t, specialistPayload["payload"], "specialist_payload.payload")
+	if specialistPayloadRecord["intent"] != "first_departure" {
+		t.Fatalf("specialist_payload.payload.intent = %v, want first_departure", specialistPayloadRecord["intent"])
+	}
+	preplanned := expectExecutionRecord(t, runtimeDecisions["preplanned_handoff"], "preplanned_handoff")
+	if preplanned["target"] != "campus-services-agent" {
+		t.Fatalf("target = %v, want campus-services-agent", preplanned["target"])
+	}
+	if preplanned["payload_kind"] != "transport_schedule_lookup" {
+		t.Fatalf("payload_kind = %v, want transport_schedule_lookup", preplanned["payload_kind"])
+	}
+	payloadRecord := expectExecutionRecord(t, preplanned["payload"], "preplanned_handoff.payload")
+	if payloadRecord["intent"] != "first_departure" {
+		t.Fatalf("intent = %v, want first_departure", payloadRecord["intent"])
+	}
+	routeSelector := expectExecutionRecord(t, payloadRecord["route_selector"], "route_selector")
+	if routeSelector["destination_campus"] != "fengtai" {
+		t.Fatalf("destination_campus = %v, want fengtai", routeSelector["destination_campus"])
+	}
+	serviceTimeQuery := expectExecutionRecord(t, payloadRecord["service_time_query"], "service_time_query")
+	if serviceTimeQuery["date_mode"] != "tomorrow" || serviceTimeQuery["daypart"] != "morning" {
+		t.Fatalf("service_time_query = %#v, want tomorrow morning", serviceTimeQuery)
+	}
+}
+
+func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"帮我提交采购公告",
+			"request_id":"req-transactional-notice"
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	if _, ok := runtimeDecisions["preplanned_handoff"]; ok {
+		t.Fatalf("transactional structured request must not be preplanned: %#v", runtimeDecisions)
+	}
+}
+
+func TestPreplannedHandoffGoldenCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		capability     string
+		userGoal       string
+		context        contextProjection
+		wantTarget     string
+		wantKind       string
+		wantTool       string
+		wantPayloadKey string
+		wantPayloadVal any
+	}{
+		{
+			name:           "transport first departure",
+			capability:     "campus_services",
+			userGoal:       "明天早上去丰台最早的班车是几点",
+			wantTarget:     "campus-services-agent",
+			wantKind:       "transport_schedule_lookup",
+			wantTool:       "transport_schedule_lookup",
+			wantPayloadKey: "intent",
+			wantPayloadVal: "first_departure",
+		},
+		{
+			name:           "transport snapshot metadata",
+			capability:     "campus_services",
+			userGoal:       "最近的校车时刻表是什么",
+			wantTarget:     "campus-services-agent",
+			wantKind:       "transport_schedule_lookup",
+			wantTool:       "transport_schedule_lookup",
+			wantPayloadKey: "intent",
+			wantPayloadVal: "schedule_snapshot_metadata",
+		},
+		{
+			name:           "transport timetable",
+			capability:     "campus_services",
+			userGoal:       "校车时刻表",
+			wantTarget:     "campus-services-agent",
+			wantKind:       "transport_schedule_lookup",
+			wantTool:       "transport_schedule_lookup",
+			wantPayloadKey: "intent",
+			wantPayloadVal: "timetable",
+		},
+		{
+			name:           "transport last departure",
+			capability:     "campus_services",
+			userGoal:       "回海淀最后一班校车几点",
+			wantTarget:     "campus-services-agent",
+			wantKind:       "transport_schedule_lookup",
+			wantTool:       "transport_schedule_lookup",
+			wantPayloadKey: "intent",
+			wantPayloadVal: "last_departure",
+		},
+		{
+			name:           "transport departure list",
+			capability:     "campus_services",
+			userGoal:       "下午去丰台校车还有哪些班次",
+			wantTarget:     "campus-services-agent",
+			wantKind:       "transport_schedule_lookup",
+			wantTool:       "transport_schedule_lookup",
+			wantPayloadKey: "intent",
+			wantPayloadVal: "departure_list",
+		},
+		{
+			name:           "transport service window",
+			capability:     "campus_services",
+			userGoal:       "校车今天还跑不跑",
+			wantTarget:     "campus-services-agent",
+			wantKind:       "transport_schedule_lookup",
+			wantTool:       "transport_schedule_lookup",
+			wantPayloadKey: "intent",
+			wantPayloadVal: "service_window",
+		},
+		{
+			name:           "service status campus scope",
+			capability:     "campus_services",
+			userGoal:       "丰台图书馆今天开门吗",
+			wantTarget:     "campus-services-agent",
+			wantKind:       "service_status_lookup",
+			wantTool:       "service_status_lookup",
+			wantPayloadKey: "campus_scope",
+			wantPayloadVal: "fengtai",
+		},
+		{
+			name:           "notice discover",
+			capability:     "notice",
+			userGoal:       "找一下2026年春假通知",
+			wantTarget:     "notice-agent",
+			wantKind:       "campus_notice_discover",
+			wantTool:       "campus_notice_discover",
+			wantPayloadKey: "query_text",
+			wantPayloadVal: "找一下2026年春假通知",
+		},
+		{
+			name:       "notice get selected ref",
+			capability: "notice",
+			userGoal:   "这条通知详情",
+			context: contextProjection{
+				SelectedNoticeRef: selectedNoticeRef{
+					NoticeID:     "notice:2026-spring-break",
+					SourceFamily: "internal_notice_restricted",
+				},
+			},
+			wantTarget:     "notice-agent",
+			wantKind:       "campus_notice_get",
+			wantTool:       "campus_notice_get",
+			wantPayloadKey: "notice_id",
+			wantPayloadVal: "notice:2026-spring-break",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handoff := planPreplannedHandoff(tt.capability, tt.userGoal, versionQuery{}, tt.context)
+			if handoff == nil {
+				t.Fatal("expected preplanned handoff")
+			}
+			if handoff.Target != tt.wantTarget || handoff.PayloadKind != tt.wantKind {
+				t.Fatalf("handoff = %#v", handoff)
+			}
+			if len(handoff.AllowedTools) != 1 || handoff.AllowedTools[0] != tt.wantTool {
+				t.Fatalf("allowed tools = %#v, want %q", handoff.AllowedTools, tt.wantTool)
+			}
+			if handoff.Payload[tt.wantPayloadKey] != tt.wantPayloadVal {
+				t.Fatalf(
+					"payload[%s] = %#v, want %#v",
+					tt.wantPayloadKey,
+					handoff.Payload[tt.wantPayloadKey],
+					tt.wantPayloadVal,
+				)
+			}
+		})
+	}
+}
+
+func TestParseAnswerRequestKeepsVersionedStructuredQueriesOnKnowledgeLane(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"比较新旧春假通知差异",
+			"request_id":"req-versioned-structured-query",
+			"version_query":{"mode":"compare","version_id":"notice:2025","compare_to_version_id":"notice:2026"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	if request.RequestedCapability != "knowledge" {
+		t.Fatalf("requested capability = %q, want knowledge", request.RequestedCapability)
+	}
+	if request.Lane != "rag" {
+		t.Fatalf("lane = %q, want rag", request.Lane)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	if payload["requested_capability"] != "knowledge" {
+		t.Fatalf("projected requested_capability = %v, want knowledge", payload["requested_capability"])
+	}
+}
+
 func TestParseAnswerRequestRejectsKnowledgeScopeForForwardCapabilities(t *testing.T) {
 	_, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{

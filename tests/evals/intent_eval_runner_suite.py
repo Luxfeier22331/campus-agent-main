@@ -5,6 +5,7 @@ import unittest
 from campus_contracts import KnowledgeScope
 from campus_evals.intent_models import IntentCase
 from campus_evals.intent_runner import run_intent_cases
+from campus_evals.intent_scenarios import intent_context_follow_up_cases, intent_suite_cases
 
 
 class IntentEvalRunnerTest(unittest.TestCase):
@@ -98,6 +99,19 @@ class IntentEvalRunnerTest(unittest.TestCase):
 
         self.assertEqual(report.passed, 1)
         self.assertEqual(report.results[0].observed.scope_reason, "explicit_requested_scope")
+
+    def test_run_intent_cases_reports_context_resolution_metrics(self) -> None:
+        report = run_intent_cases(intent_context_follow_up_cases())
+
+        self.assertGreaterEqual(report.total, 3)
+        self.assertEqual(report.failed, 0)
+        self.assertEqual(report.context_resolution_accuracy, 1.0)
+        self.assertIn("context_resolution_state", report.confusion)
+
+    def test_named_intent_suites_are_available(self) -> None:
+        self.assertGreater(len(intent_suite_cases("release_gate")), 0)
+        self.assertGreater(len(intent_suite_cases("context_follow_up")), 0)
+        self.assertGreater(len(intent_suite_cases("version_compat")), 0)
 
 
 if __name__ == "__main__":

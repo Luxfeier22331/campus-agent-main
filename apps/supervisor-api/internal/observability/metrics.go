@@ -108,6 +108,12 @@ type structuredQueryKey struct {
 	StatusClass string
 }
 
+type capabilityGateKey struct {
+	Capability string
+	Gate       string
+	Decision   string
+}
+
 type Metrics struct {
 	mu sync.Mutex
 
@@ -122,6 +128,7 @@ type Metrics struct {
 	bridgeFailureTotals     map[string]uint64
 	bridgeCancelTotals      map[string]uint64
 	structuredQueryTotals   map[structuredQueryKey]uint64
+	capabilityGateTotals    map[capabilityGateKey]uint64
 	lastAnswerFailureCode   string
 	lastAnswerFailureAt     time.Time
 	lastAnswerSuccessAt     time.Time
@@ -158,6 +165,7 @@ func NewMetrics() *Metrics {
 			"failed":         0,
 		},
 		structuredQueryTotals: make(map[structuredQueryKey]uint64),
+		capabilityGateTotals:  make(map[capabilityGateKey]uint64),
 	}
 }
 
@@ -265,6 +273,16 @@ func (m *Metrics) RecordStructuredQuery(tool string, outcome string, statusCode 
 		Tool:        tool,
 		Outcome:     outcome,
 		StatusClass: statusClass(statusCode),
+	}]++
+}
+
+func (m *Metrics) RecordCapabilityGate(capability string, gate string, decision string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.capabilityGateTotals[capabilityGateKey{
+		Capability: capability,
+		Gate:       gate,
+		Decision:   decision,
 	}]++
 }
 
@@ -490,6 +508,18 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			key.Outcome,
 			key.StatusClass,
 			m.structuredQueryTotals[key],
+		)
+	}
+	builder.WriteString("# HELP campus_supervisor_api_capability_gate_decisions_total Total capability gate decisions by capability and gate.\n")
+	builder.WriteString("# TYPE campus_supervisor_api_capability_gate_decisions_total counter\n")
+	for _, key := range sortedCapabilityGateKeys(m.capabilityGateTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_supervisor_api_capability_gate_decisions_total{capability=%q,gate=%q,decision=%q} %d\n",
+			key.Capability,
+			key.Gate,
+			key.Decision,
+			m.capabilityGateTotals[key],
 		)
 	}
 	builder.WriteString("# HELP campus_supervisor_api_lifecycle_active_executions Current registered executions.\n")
@@ -738,6 +768,23 @@ func sortedStructuredQueryKeys(items map[structuredQueryKey]uint64) []structured
 			return keys[left].Outcome < keys[right].Outcome
 		}
 		return keys[left].StatusClass < keys[right].StatusClass
+	})
+	return keys
+}
+
+func sortedCapabilityGateKeys(items map[capabilityGateKey]uint64) []capabilityGateKey {
+	keys := make([]capabilityGateKey, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(left int, right int) bool {
+		if keys[left].Capability != keys[right].Capability {
+			return keys[left].Capability < keys[right].Capability
+		}
+		if keys[left].Gate != keys[right].Gate {
+			return keys[left].Gate < keys[right].Gate
+		}
+		return keys[left].Decision < keys[right].Decision
 	})
 	return keys
 }

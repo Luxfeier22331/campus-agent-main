@@ -118,6 +118,14 @@ export interface RequestObservabilityFactWrite {
 	intentScopeReason: string | null;
 	intentPolicyReason: string | null;
 	intentClassifierVersion: string | null;
+	intentSchemaVersion?: string | null;
+	intentRoutingConfidence?: string | null;
+	intentAmbiguitySignal?: string | null;
+	intentContextResolutionState?: string | null;
+	intentContextReferenceType?: string | null;
+	intentResolvedSlots?: Record<string, string> | null;
+	intentMissingSlots?: string[] | null;
+	intentAmbiguityReason?: string | null;
 	promptId: string | null;
 	promptVersion: string | null;
 	templateSha256: string | null;

@@ -53,6 +53,16 @@ type bridgeWriteOutcome struct {
 
 const statusClientClosedRequest = 499
 
+type promptConfigGate struct {
+	Admitted                bool   `json:"admitted"`
+	Reason                  string `json:"reason"`
+	Provider                string `json:"provider"`
+	Transport               string `json:"transport"`
+	SupervisorModel         string `json:"supervisor_model"`
+	SpecialistModel         string `json:"specialist_model"`
+	StrictStructuredOutputs bool   `json:"strict_structured_outputs"`
+}
+
 func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
 	return NewServerWithDependencies(
 		cfg,
@@ -285,8 +295,9 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	transportStatus := s.admission.Status()
 	telemetryStatus := s.telemetry.Status()
 	executionAuditStatus := s.executionAudit.Status()
+	promptGate := evaluatePromptConfigGate(s.config)
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
-	ready := bridgeHealthy && transportStatus.Healthy && telemetryHealthy
+	ready := bridgeHealthy && transportStatus.Healthy && telemetryHealthy && promptGate.Admitted
 	statusCode := http.StatusOK
 	statusText := "ready"
 	if !ready {
@@ -302,6 +313,8 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"telemetry_runtime":        telemetryStatus,
 		"execution_audit_runtime":  executionAuditStatus,
 		"structured_query_runtime": s.structuredQuery.Status(),
+		"capability_gates":         s.capabilityGateStatus(),
+		"prompt_config_gate":       promptGate,
 		"bridge_runtime": map[string]any{
 			"configured": bridgeConfigured,
 			"reachable":  bridgeReachable,
@@ -333,7 +346,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"specialist_model",
 		"prompt_runtime",
 		"prompt_http_pool",
-		"audit_runtime",
 	} {
 		if value, ok := readinessBody[key]; ok {
 			responseBody[key] = value
@@ -391,6 +403,39 @@ func (s *Server) handleStructuredQuery(
 	setOutcome(response, result.Outcome)
 	s.metrics.RecordStructuredQuery(tool, result.Outcome, result.StatusCode)
 	writeJSON(response, result.StatusCode, result.Body)
+}
+
+func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
+	provider := strings.TrimSpace(cfg.PromptRuntimeProvider)
+	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
+	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
+	supervisorModel := strings.TrimSpace(cfg.SupervisorPromptModel)
+	specialistModel := strings.TrimSpace(cfg.SpecialistPromptModel)
+	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
+	reason := ""
+	switch {
+	case provider == "":
+		reason = "prompt_provider_not_configured"
+	case supervisorModel == "" || specialistModel == "":
+		reason = "prompt_models_not_configured"
+	case !cfg.PromptStrictStructuredOutputs:
+		reason = "strict_structured_outputs_disabled"
+	case apiKey == "":
+		reason = "prompt_api_key_not_configured"
+	case transport != "responses":
+		reason = "prompt_transport_unsupported"
+	case baseURL == "":
+		reason = "prompt_base_url_not_configured"
+	}
+	return promptConfigGate{
+		Admitted:                reason == "",
+		Reason:                  reason,
+		Provider:                provider,
+		Transport:               transport,
+		SupervisorModel:         supervisorModel,
+		SpecialistModel:         specialistModel,
+		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
+	}
 }
 
 func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Request) {
@@ -475,6 +520,9 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	setTraceID(response, executionRequest.TraceID)
+	if s.rejectClosedStructuredRuntime(response, request.Context(), executionRequest, time.Since(startedAt)) {
+		return
+	}
 
 	if s.bridge == nil || !s.bridge.Configured() {
 		setOutcome(response, "bridge_not_configured")
@@ -801,6 +849,9 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 		Status:    "started",
 		Outcome:   "accepted",
 	})
+	if s.rejectClosedStructuredRuntimeStream(response, request.Context(), executionRequest, time.Since(startedAt)) {
+		return
+	}
 
 	if s.bridge == nil || !s.bridge.Configured() {
 		setOutcome(response, "bridge_not_configured")
@@ -1135,6 +1186,144 @@ func (s *Server) lifecycleStateForRejectedAdmission(
 	return lifecycle.StateFailed
 }
 
+func (s *Server) rejectClosedStructuredRuntime(
+	response http.ResponseWriter,
+	ctx context.Context,
+	executionRequest execution.AnswerExecutionRequest,
+	duration time.Duration,
+) bool {
+	if !s.structuredRuntimeGateApplies(executionRequest.RequestedCapability) {
+		return false
+	}
+	if s.config.CapabilityOpen(executionRequest.RequestedCapability) {
+		s.metrics.RecordCapabilityGate(
+			executionRequest.RequestedCapability,
+			"structured_runtime",
+			"open",
+		)
+		return false
+	}
+	s.metrics.RecordCapabilityGate(
+		executionRequest.RequestedCapability,
+		"structured_runtime",
+		"closed",
+	)
+	setOutcome(response, "structured_runtime_closed")
+	s.telemetry.Emit(ctx, telemetry.Event{
+		Name:                "answer.admission_rejected",
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Decision:            "structured_runtime_closed",
+		Outcome:             "structured_runtime_closed",
+		FailureCode:         "structured_runtime_closed",
+		StatusCode:          http.StatusServiceUnavailable,
+		Duration:            duration,
+	})
+	s.emitExecutionAudit(ctx, executionaudit.Event{
+		Decision:            "structured_runtime_closed",
+		Duration:            duration,
+		EventType:           "execution.admission_rejected",
+		FailureKind:         "structured_runtime_closed",
+		HTTPStatus:          http.StatusServiceUnavailable,
+		Lane:                executionRequest.Lane,
+		RequestID:           executionRequest.RequestID,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Retryable:           false,
+		TraceID:             executionRequest.TraceID,
+	})
+	writeRuntimeFailure(
+		response,
+		http.StatusServiceUnavailable,
+		"structured_runtime_closed",
+		"Structured runtime capability is not opened for product serving.",
+		false,
+		executionRequest.RequestID,
+		executionRequest.TraceID,
+		"structured_runtime_closed",
+	)
+	return true
+}
+
+func (s *Server) rejectClosedStructuredRuntimeStream(
+	response http.ResponseWriter,
+	ctx context.Context,
+	executionRequest execution.AnswerExecutionRequest,
+	duration time.Duration,
+) bool {
+	if !s.structuredRuntimeGateApplies(executionRequest.RequestedCapability) {
+		return false
+	}
+	if s.config.CapabilityOpen(executionRequest.RequestedCapability) {
+		s.metrics.RecordCapabilityGate(
+			executionRequest.RequestedCapability,
+			"structured_runtime",
+			"open",
+		)
+		return false
+	}
+	s.metrics.RecordCapabilityGate(
+		executionRequest.RequestedCapability,
+		"structured_runtime",
+		"closed",
+	)
+	setOutcome(response, "structured_runtime_closed")
+	s.emitExecutionAudit(ctx, executionaudit.Event{
+		Decision:            "structured_runtime_closed",
+		Duration:            duration,
+		EventType:           "execution.admission_rejected",
+		FailureKind:         "structured_runtime_closed",
+		HTTPStatus:          http.StatusServiceUnavailable,
+		Lane:                executionRequest.Lane,
+		RequestID:           executionRequest.RequestID,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Retryable:           false,
+		TraceID:             executionRequest.TraceID,
+	})
+	emitSSE(response, "execution.failed", streamPayload{
+		RequestID:  executionRequest.RequestID,
+		TraceID:    executionRequest.TraceID,
+		EventType:  "execution.failed",
+		Status:     "failed",
+		Outcome:    "structured_runtime_closed",
+		HTTPStatus: http.StatusServiceUnavailable,
+		Retryable:  false,
+		Error: &errorInfo{
+			Code:      "structured_runtime_closed",
+			Message:   "Structured runtime capability is not opened for product serving.",
+			Retryable: false,
+		},
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	return true
+}
+
+func (s *Server) structuredRuntimeGateApplies(capability string) bool {
+	return capability == "campus_services" || capability == "notice"
+}
+
+func (s *Server) capabilityGateStatus() map[string]any {
+	return map[string]any{
+		"knowledge": map[string]any{
+			"open": true,
+			"gate": "always_open",
+		},
+		"place_lookup": map[string]any{
+			"open": true,
+			"gate": "semantic_policy",
+		},
+		"campus_services": map[string]any{
+			"open": s.config.CapabilityOpen("campus_services"),
+			"gate": "structured_runtime",
+		},
+		"notice": map[string]any{
+			"open": s.config.CapabilityOpen("notice"),
+			"gate": "structured_runtime",
+		},
+	}
+}
+
 func (s *Server) handleCancel(response http.ResponseWriter, request *http.Request) {
 	if !s.internalWorkerAuthorized(request) {
 		setOutcome(response, "unauthorized")
@@ -1310,6 +1499,28 @@ func writeError(
 			Message:   message,
 			Retryable: retryable,
 		},
+	})
+}
+
+func writeRuntimeFailure(
+	response http.ResponseWriter,
+	status int,
+	code string,
+	message string,
+	retryable bool,
+	requestID string,
+	traceID string,
+	failureKind string,
+) {
+	writeJSON(response, status, map[string]any{
+		"error": errorInfo{
+			Code:      code,
+			Message:   message,
+			Retryable: retryable,
+		},
+		"failure_kind": failureKind,
+		"request_id":   requestID,
+		"trace_id":     traceID,
 	})
 }
 

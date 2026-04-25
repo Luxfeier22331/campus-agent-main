@@ -125,6 +125,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             request_id="req-cancel-before-delegate",
             trace=TraceContext(trace_id="trace-cancel-before-delegate"),
             actor=ActorContext(user_id="student-001"),
+            requested_capability="knowledge",
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_rules",
@@ -153,6 +154,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             request_id="req-001",
             trace=TraceContext(trace_id="trace-001"),
             actor=ActorContext(user_id="student-001"),
+            requested_capability="knowledge",
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_rules",
@@ -178,6 +180,9 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
         self.assertEqual(
             response.observability.intent_classifier_version, "deterministic-intent-v1"
         )
+        self.assertEqual(response.observability.intent_schema_version, "intent-schema-1.0.0")
+        self.assertEqual(response.observability.intent_context_resolution_state, "not_follow_up")
+        self.assertEqual(response.observability.intent_routing_confidence, "high")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].target, "rag-agent")
         self.assertEqual(
@@ -237,6 +242,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                 request_id="req-curriculum-course-facts-001",
                 trace=TraceContext(trace_id="trace-curriculum-course-facts-001"),
                 actor=ActorContext(user_id="student-001"),
+                requested_capability="knowledge",
                 requested_scope=KnowledgeScope(
                     corpus="curriculum",
                     collection="curriculum_plan",
@@ -325,6 +331,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                 request_id="req-version-query-001",
                 trace=TraceContext(trace_id="trace-version-query-001"),
                 actor=ActorContext(user_id="student-001"),
+                requested_capability="knowledge",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
                     collection="student_rules",
@@ -363,6 +370,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
         response = handle_request(
             SupervisorRequest(
                 user_goal="need help",
+                requested_capability="knowledge",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
                     collection="student_rules",
@@ -498,6 +506,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
         response = handle_request(
             SupervisorRequest(
                 user_goal="帮我提交奖学金申请",
+                requested_capability="knowledge",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
                     collection="student_rules",
@@ -539,6 +548,10 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     intent_scope_class="in_scope",
                     intent_scope_reason="transaction_guardrail",
                     intent_classifier_version="deterministic-intent-v1",
+                    intent_schema_version="intent-schema-1.0.0",
+                    intent_routing_confidence="high",
+                    intent_context_resolution_state="not_follow_up",
+                    intent_context_reference_type="none",
                     acl_decision="approval_required",
                     fail_closed=True,
                 ),
