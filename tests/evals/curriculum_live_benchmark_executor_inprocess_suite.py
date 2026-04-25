@@ -2,21 +2,21 @@ from __future__ import annotations
 
 from tests.evals.curriculum_live_benchmark_test_support import (
     CURRICULUM_SCOPE,
+    AgentResponse,
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
-    AgentResponse,
     VersionQuery,
     _completed_case,
     _error_case,
     _source,
-    build_legacy_curriculum_live_executor,
+    build_inprocess_curriculum_live_executor,
     unittest,
 )
 
 
-class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
-    def test_build_legacy_curriculum_live_executor_captures_retrieved_and_supporting_sources(
+class CurriculumLiveExecutorInprocessTest(unittest.TestCase):
+    def test_build_inprocess_curriculum_live_executor_captures_retrieved_and_supporting_sources(
         self,
     ) -> None:
         retrieved_bundle = EvidenceBundle(
@@ -28,7 +28,7 @@ class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
                 _source("curriculum:background", chunk_id="chunk-b", score=0.73),
             ),
         )
-        executor = build_legacy_curriculum_live_executor(
+        executor = build_inprocess_curriculum_live_executor(
             retriever=lambda *args, **kwargs: retrieved_bundle,
         )
 
@@ -42,7 +42,7 @@ class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
             result.observed_trace.supporting_sources, result.response.result.evidence.sources
         )
 
-    def test_build_legacy_curriculum_live_executor_passes_case_version_query(self) -> None:
+    def test_build_inprocess_curriculum_live_executor_passes_case_version_query(self) -> None:
         seen_requests = []
 
         def fake_delegate(request, *, retriever):
@@ -61,7 +61,7 @@ class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_legacy_curriculum_live_executor(
+        executor = build_inprocess_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="旧版民族学本科人才培养方案",
                 corpus="curriculum",
@@ -81,10 +81,10 @@ class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
         )
         self.assertEqual(result.response.status, "completed")
 
-    def test_build_legacy_curriculum_live_executor_injects_retrieval_backend_failure_case(
+    def test_build_inprocess_curriculum_live_executor_injects_retrieval_backend_failure_case(
         self,
     ) -> None:
-        executor = build_legacy_curriculum_live_executor(
+        executor = build_inprocess_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="民族学本科人才培养方案",
                 corpus="curriculum",
@@ -102,10 +102,10 @@ class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.retrieved_sources, ())
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
-    def test_build_legacy_curriculum_live_executor_injects_evidence_shaping_failure_case(
+    def test_build_inprocess_curriculum_live_executor_injects_evidence_shaping_failure_case(
         self,
     ) -> None:
-        executor = build_legacy_curriculum_live_executor(
+        executor = build_inprocess_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
                 corpus="curriculum",
@@ -123,10 +123,10 @@ class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.retrieved_sources, ())
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
-    def test_build_legacy_curriculum_live_executor_injects_invalid_backend_contract_case(
+    def test_build_inprocess_curriculum_live_executor_injects_invalid_backend_contract_case(
         self,
     ) -> None:
-        executor = build_legacy_curriculum_live_executor(
+        executor = build_inprocess_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="民族学本科第二学士学位人才培养方案学制几年？",
                 corpus="curriculum",

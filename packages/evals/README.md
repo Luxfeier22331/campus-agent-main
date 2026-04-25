@@ -305,7 +305,7 @@ student handbook formal benchmark：
   - 其中 `selected_target` 继续只表示 raw runtime target correlation
     field；report/display 需要 family wording 时应显式派生独立标签
   - 如需保留 trace-rich agent/retrieval 单元行为，测试或局部调试应显式使用
-    `build_legacy_handbook_live_executor(...)`
+    `build_inprocess_handbook_live_executor(...)`
 - curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run
     --reruns 3`
@@ -317,7 +317,7 @@ student handbook formal benchmark：
   - 该入口通过 shared `BenchmarkProfile` core 显式绑定
     `curriculum_plan_live_gate_policy.json`，不再默认回退到 handbook policy
   - 默认入口同样优先走 `app-api` internal eval ingress；包含 deterministic `failure_mode` 的
-    case 仍显式回退 legacy executor，保证错误注入可控
+    case 仍显式回退 in-process executor，保证错误注入可控
   - 本地运行前提与 handbook live runner 相同；root `.env` 里的 `APP_API_*` 仍只表示本地 eval
     ingress 参数
   - backlink 模板配置同 handbook live runner

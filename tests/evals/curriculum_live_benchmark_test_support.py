@@ -7,6 +7,7 @@ from unittest.mock import patch
 import httpx
 from campus_contracts import (
     ActorContext,
+    AgentResponse,
     ClaimSupport,
     EvidenceBundle,
     EvidenceSource,
@@ -15,7 +16,6 @@ from campus_contracts import (
     RagResultPayload,
     RemoteContentSuspicionSummary,
     SourceTrustSummary,
-    AgentResponse,
     VersionQuery,
 )
 from campus_evals import (
@@ -31,7 +31,7 @@ from campus_evals.curriculum_live_benchmark import (
     AppApiEvalClientSettings,
     build_app_api_curriculum_live_executor,
     build_curriculum_live_profile,
-    build_legacy_curriculum_live_executor,
+    build_inprocess_curriculum_live_executor,
 )
 from campus_evals.operator_observability import OperatorRequestCorrelation
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
@@ -180,6 +180,7 @@ __all__ = (
     "HISTORY_FOLLOW_UP_DOC_ID",
     "LAW_FOLLOW_UP_DOC_ID",
     "ActorContext",
+    "AgentResponse",
     "AppApiEvalClientSettings",
     "ClaimSupport",
     "EvidenceBundle",
@@ -193,7 +194,6 @@ __all__ = (
     "RagResultPayload",
     "RemoteContentSuspicionSummary",
     "SourceTrustSummary",
-    "AgentResponse",
     "TraceExpectation",
     "VersionQuery",
     "_completed_case",
@@ -205,7 +205,7 @@ __all__ = (
     "build_curriculum_live_profile",
     "build_curriculum_program_semester_fact_document_id",
     "build_default_ragas_metric_names",
-    "build_legacy_curriculum_live_executor",
+    "build_inprocess_curriculum_live_executor",
     "curriculum_error_gate_cases",
     "curriculum_release_gate_cases",
     "expected_source_ref",

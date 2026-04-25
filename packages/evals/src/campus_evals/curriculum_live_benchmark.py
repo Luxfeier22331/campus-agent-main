@@ -6,12 +6,12 @@ from pathlib import Path
 
 import httpx
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     ErrorInfo,
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
-    AgentRequest,
-    AgentResponse,
 )
 from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import RetrievalBackendError, retrieve_sources
@@ -75,7 +75,7 @@ def build_curriculum_live_executor(
     )
 
 
-def build_legacy_curriculum_live_executor(
+def build_inprocess_curriculum_live_executor(
     *,
     retriever: Retriever = retrieve_sources,
     delegate: Delegate = delegate_to_rag_agent,
@@ -139,12 +139,12 @@ def build_app_api_curriculum_live_executor(
     client: httpx.Client | None = None,
 ) -> Callable[[GoldenCase], ExecutionResult]:
     app_api_client = AppApiEvalClient(settings=settings, client=client)
-    legacy_executor = build_legacy_curriculum_live_executor()
+    inprocess_executor = build_inprocess_curriculum_live_executor()
 
     def _execute(case: GoldenCase) -> ExecutionResult:
         failure_mode = str(case.metadata.get("failure_mode") or "").strip()
         if failure_mode:
-            return legacy_executor(case)
+            return inprocess_executor(case)
         execution = app_api_client.execute_knowledge_request(case=case)
         return ExecutionResult(
             response=execution.response,

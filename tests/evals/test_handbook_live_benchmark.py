@@ -8,12 +8,12 @@ from unittest.mock import patch
 import httpx
 from campus_contracts import (
     ActorContext,
+    AgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagRequestPayload,
     RagResultPayload,
-    AgentResponse,
     VersionQuery,
 )
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
@@ -22,7 +22,7 @@ from campus_evals.handbook_live_benchmark import (
     build_app_api_handbook_live_executor,
     build_default_output_dir,
     build_handbook_live_profile,
-    build_legacy_handbook_live_executor,
+    build_inprocess_handbook_live_executor,
     main,
 )
 from campus_evals.operator_observability import OperatorRequestCorrelation
@@ -115,7 +115,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_legacy_handbook_live_executor(
+        executor = build_inprocess_handbook_live_executor(
             retriever=lambda *args, **kwargs: retrieved_bundle,
             delegate=fake_delegate,
         )
@@ -151,7 +151,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_legacy_handbook_live_executor(
+        executor = build_inprocess_handbook_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="上一版学生证补办流程",
                 corpus="regulations",
@@ -461,7 +461,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_legacy_handbook_live_executor(
+        executor = build_inprocess_handbook_live_executor(
             retriever=lambda *args, **kwargs: self.fail("retriever should not be called"),
             delegate=fake_delegate,
         )
@@ -518,7 +518,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_legacy_handbook_live_executor(
+        executor = build_inprocess_handbook_live_executor(
             retriever=lambda *args, **kwargs: retrieved_bundle,
             delegate=fake_delegate,
         )

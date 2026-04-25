@@ -149,9 +149,9 @@ def build_app_api_curriculum_live_executor(*args, **kwargs):
     return _build(*args, **kwargs)
 
 
-def build_legacy_curriculum_live_executor(*args, **kwargs):
+def build_inprocess_curriculum_live_executor(*args, **kwargs):
     from campus_evals.curriculum_live_benchmark import (
-        build_legacy_curriculum_live_executor as _build,
+        build_inprocess_curriculum_live_executor as _build,
     )
 
     return _build(*args, **kwargs)
@@ -193,8 +193,10 @@ def build_app_api_handbook_live_executor(*args, **kwargs):
     return _build(*args, **kwargs)
 
 
-def build_legacy_handbook_live_executor(*args, **kwargs):
-    from campus_evals.handbook_live_benchmark import build_legacy_handbook_live_executor as _build
+def build_inprocess_handbook_live_executor(*args, **kwargs):
+    from campus_evals.handbook_live_benchmark import (
+        build_inprocess_handbook_live_executor as _build,
+    )
 
     return _build(*args, **kwargs)
 
@@ -261,9 +263,9 @@ __all__ = [
     "build_handbook_ragas_adapter",
     "build_http_ragas_embeddings",
     "build_http_ragas_llm",
+    "build_inprocess_curriculum_live_executor",
+    "build_inprocess_handbook_live_executor",
     "build_json_judge",
-    "build_legacy_curriculum_live_executor",
-    "build_legacy_handbook_live_executor",
     "build_metric_key",
     "build_official_web_live_executor",
     "build_official_web_live_profile",

@@ -6,11 +6,11 @@ from pathlib import Path
 
 import httpx
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
-    AgentRequest,
-    AgentResponse,
 )
 from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import retrieve_sources
@@ -64,7 +64,7 @@ def build_handbook_live_executor(
     )
 
 
-def build_legacy_handbook_live_executor(
+def build_inprocess_handbook_live_executor(
     *,
     retriever: Retriever = retrieve_sources,
     delegate: Delegate = delegate_to_rag_agent,
