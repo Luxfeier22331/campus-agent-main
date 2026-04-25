@@ -58,9 +58,50 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
                 self.assertNotIn("routing_frame", source)
                 self.assertNotIn("supervisor_bridge_v2", source)
 
-    def test_bridge_parser_is_v2_only_and_requires_go_runtime_routing_frame(self) -> None:
+    def test_supervisor_agent_does_not_fallback_to_python_routing(self) -> None:
+        agent_source = (SUPERVISOR_CORE / "agent.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("route_request", agent_source)
+        self.assertIn("preplanned routing decision is required", agent_source)
+
+    def test_supervisor_framing_does_not_build_delegate_payloads(self) -> None:
+        framing_source = (SUPERVISOR_CORE / "framing.py").read_text(encoding="utf-8")
+
+        forbidden_fragments = (
+            "RagRequestPayload(",
+            "PlaceLookupPayload(",
+            "_copy_scope",
+            "_copy_version_query",
+            "context.requested_scope",
+            "context.version_query",
+        )
+        for fragment in forbidden_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertNotIn(fragment, framing_source)
+
+    def test_python_tool_policy_does_not_reintroduce_target_tool_matrix(self) -> None:
+        tool_policy_source = (SUPERVISOR_CORE / "tool_policy.py").read_text(encoding="utf-8")
+
+        forbidden_fragments = (
+            "_ALLOWED_TOOLS_BY_TARGET",
+            "allowed_tools_for_target",
+            "rag-agent",
+            "navigation-agent",
+            "campus-services-agent",
+            "notice-agent",
+        )
+        for fragment in forbidden_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertNotIn(fragment, tool_policy_source)
+
+    def test_bridge_parser_is_v3_only_and_requires_go_runtime_terminal_or_handoff(
+        self,
+    ) -> None:
         parser_source = BRIDGE_PARSER.read_text(encoding="utf-8")
 
-        self.assertIn('"supervisor_bridge_v2"', parser_source)
+        self.assertIn('"supervisor_bridge_v3"', parser_source)
+        self.assertNotIn('"supervisor_bridge_v2"', parser_source)
         self.assertIn("runtime_decisions.routing_frame", parser_source)
+        self.assertIn("runtime_decisions.terminal_envelope", parser_source)
+        self.assertIn("runtime_decisions.handoff", parser_source)
         self.assertNotIn("legacy", parser_source.casefold())

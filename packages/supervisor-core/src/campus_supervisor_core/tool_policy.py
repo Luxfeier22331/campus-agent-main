@@ -1,45 +1,43 @@
 from __future__ import annotations
 
-from campus_contracts import SpecialistRequest, SpecialistTarget, SpecialistToolName
+from campus_contracts import (
+    CampusNoticeDiscoverPayload,
+    CampusNoticeGetPayload,
+    PlaceLookupPayload,
+    RagRequestPayload,
+    ServiceStatusLookupPayload,
+    SpecialistRequest,
+    TransportScheduleLookupPayload,
+)
 
 from campus_supervisor_core.errors import InvalidSpecialistToolPolicyError
 
-_ALLOWED_TOOLS_BY_TARGET: dict[SpecialistTarget, tuple[SpecialistToolName, ...]] = {
-    "rag-agent": (),
-    "navigation-agent": (),
-    "campus-services-agent": (
-        "service_status_lookup",
-        "transport_schedule_lookup",
-    ),
-    "notice-agent": (
-        "campus_notice_discover",
-        "campus_notice_get",
-    ),
-}
-
-
-def allowed_tools_for_target(target: SpecialistTarget) -> tuple[SpecialistToolName, ...]:
-    return _ALLOWED_TOOLS_BY_TARGET[target]
-
 
 def assert_tool_policy_is_supported(request: SpecialistRequest) -> None:
-    allowed_tools = allowed_tools_for_target(request.target)
-    if not allowed_tools:
+    expected_tool = _expected_tool_for_payload(request)
+    if expected_tool is None:
         if request.allowed_tools:
             raise InvalidSpecialistToolPolicyError(
-                f"{request.target} does not allow tools: {', '.join(request.allowed_tools)}"
+                f"payload does not accept tools: {', '.join(request.allowed_tools)}"
             )
         return
 
-    if not request.allowed_tools:
+    if request.allowed_tools != (expected_tool,):
         raise InvalidSpecialistToolPolicyError(
-            f"{request.target} requires code-owned allowed_tools"
+            f"payload requires code-owned allowed_tool: {expected_tool}"
         )
 
-    disallowed_tools = tuple(
-        tool_name for tool_name in request.allowed_tools if tool_name not in allowed_tools
-    )
-    if disallowed_tools:
-        raise InvalidSpecialistToolPolicyError(
-            f"{request.target} does not allow tools: {', '.join(disallowed_tools)}"
-        )
+
+def _expected_tool_for_payload(request: SpecialistRequest) -> str | None:
+    payload = request.payload
+    if isinstance(payload, (RagRequestPayload, PlaceLookupPayload)):
+        return None
+    if isinstance(payload, ServiceStatusLookupPayload):
+        return "service_status_lookup"
+    if isinstance(payload, TransportScheduleLookupPayload):
+        return "transport_schedule_lookup"
+    if isinstance(payload, CampusNoticeDiscoverPayload):
+        return "campus_notice_discover"
+    if isinstance(payload, CampusNoticeGetPayload):
+        return "campus_notice_get"
+    raise InvalidSpecialistToolPolicyError("unsupported specialist payload type")

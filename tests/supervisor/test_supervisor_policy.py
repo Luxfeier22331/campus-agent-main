@@ -5,30 +5,69 @@ import unittest
 from campus_contracts import (
     ErrorInfo,
     EvidenceBundle,
-    PromptTrace,
     RagResultDiagnostics,
     RagResultPayload,
     SpecialistResponse,
+    SupervisorObservability,
     SupervisorRequest,
+    SupervisorResponse,
 )
-from campus_shared import PromptRuntimeValidationError
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
-from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 from campus_supervisor_core.routing import RoutingDecision
 
 
-def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
-    spec = get_supervisor_prompt_spec(prompt_id)
-    return PromptTrace(
-        prompt_id=prompt_id,
-        prompt_version=prompt_id.rsplit("_", 1)[-1],
-        template_sha256=spec.template_sha256,
-        variables_schema_version=spec.variables_schema_version,
-        output_schema_version=spec.output_schema_version,
-        model_provider="openai-responses",
-        model_name="gpt-5.2",
+def _terminal_decision(
+    *,
+    capability: str,
+    task_kind: str,
+    suggested_next_action: str,
+    status: str,
+    answer_text: str,
+    semantic_outcome: str,
+    policy_reason: str,
+    scope_class: str = "out_of_scope",
+    risk_level: str = "low",
+    error: ErrorInfo | None = None,
+) -> RoutingDecision:
+    return RoutingDecision(
+        target=None,
+        primary_corpus=None,
+        primary_collection=None,
+        intent_frame=IntentFrame(
+            capability=capability,
+            task_kind=task_kind,
+            domain_candidates=("out_of_scope",),
+            missing_slots=(),
+            risk_level=risk_level,
+            needs_clarification=False,
+            suggested_next_action=suggested_next_action,
+            personalization_mode="generic",
+            scope_class=scope_class,
+            policy_reason=policy_reason,
+        ),
+        terminal_response=SupervisorResponse(
+            selected_target=None,
+            status=status,  # type: ignore[arg-type]
+            answer_text=answer_text,
+            confidence="low",
+            error=error,
+            observability=SupervisorObservability(
+                retrieval_attempted=False,
+                candidate_count=0,
+                retrieved_source_count=0,
+                citation_expected=False,
+                citation_count=0,
+                citation_missing=False,
+                refusal_class=suggested_next_action,
+                semantic_outcome=semantic_outcome,
+                scope_class=scope_class,
+                policy_reason=policy_reason,
+                acl_decision="denied" if suggested_next_action == "rejected" else "allowed",
+                fail_closed=True,
+            ),
+        ),
     )
 
 
@@ -152,22 +191,14 @@ class SupervisorPolicyTest(unittest.TestCase):
                     requested_capability="knowledge",
                 )
             ),
-            RoutingDecision(
-                target=None,
-                primary_corpus=None,
-                primary_collection=None,
-                intent_frame=IntentFrame(
-                    capability="knowledge",
-                    task_kind="knowledge_lookup",
-                    domain_candidates=("knowledge",),
-                    missing_slots=(),
-                    risk_level="low",
-                    needs_clarification=False,
-                    suggested_next_action="out_of_scope",
-                    personalization_mode="generic",
-                    scope_class="out_of_scope",
-                    policy_reason="product_scope_boundary",
-                ),
+            _terminal_decision(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                suggested_next_action="out_of_scope",
+                status="no_answer",
+                answer_text="Go terminal envelope: out of scope.",
+                semantic_outcome="out_of_scope",
+                policy_reason="product_scope_boundary",
             ),
         )
 
@@ -188,22 +219,14 @@ class SupervisorPolicyTest(unittest.TestCase):
                     requested_capability="place_lookup",
                 )
             ),
-            RoutingDecision(
-                target=None,
-                primary_corpus=None,
-                primary_collection=None,
-                intent_frame=IntentFrame(
-                    capability="place_lookup",
-                    task_kind="place_lookup",
-                    domain_candidates=("out_of_scope",),
-                    missing_slots=(),
-                    risk_level="low",
-                    needs_clarification=False,
-                    suggested_next_action="out_of_scope",
-                    personalization_mode="generic",
-                    scope_class="out_of_scope",
-                    policy_reason="navigation_temporarily_unsupported",
-                ),
+            _terminal_decision(
+                capability="place_lookup",
+                task_kind="place_lookup",
+                suggested_next_action="out_of_scope",
+                status="no_answer",
+                answer_text="当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。",
+                semantic_outcome="out_of_scope",
+                policy_reason="navigation_temporarily_unsupported",
             ),
         )
 
@@ -216,139 +239,6 @@ class SupervisorPolicyTest(unittest.TestCase):
             finalized.observability.policy_reason, "navigation_temporarily_unsupported"
         )
 
-    def test_finalize_out_of_scope_with_invalid_prompt_output_falls_back_to_default_copy(
-        self,
-    ) -> None:
-        class FakePromptExecutor:
-            def compose_out_of_scope(self, packet: object):
-                from campus_supervisor_core.prompt_execution import (
-                    SupervisorPromptExecutionResult,
-                    SupervisorTerminalPromptOutput,
-                )
-
-                return SupervisorPromptExecutionResult(
-                    output=SupervisorTerminalPromptOutput(answer_text="   "),
-                    prompt_trace=_supervisor_prompt_trace("supervisor_out_of_scope_v1"),
-                )
-
-        finalized = finalize_routing_decision(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="MIT的校长是谁",
-                    requested_capability="knowledge",
-                )
-            ),
-            RoutingDecision(
-                target=None,
-                primary_corpus=None,
-                primary_collection=None,
-                intent_frame=IntentFrame(
-                    capability="knowledge",
-                    task_kind="knowledge_lookup",
-                    domain_candidates=("knowledge",),
-                    missing_slots=(),
-                    risk_level="low",
-                    needs_clarification=False,
-                    suggested_next_action="out_of_scope",
-                    personalization_mode="generic",
-                    scope_class="out_of_scope",
-                    policy_reason="product_scope_boundary",
-                ),
-            ),
-            prompt_executor=FakePromptExecutor(),
-        )
-
-        self.assertEqual(
-            finalized.answer_text,
-            "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。",
-        )
-        self.assertIsNone(finalized.observability.prompt_trace)
-
-    def test_finalize_out_of_scope_projects_prompt_runtime_failure_state(self) -> None:
-        class FakePromptExecutor:
-            def compose_out_of_scope(self, packet: object):
-                raise PromptRuntimeValidationError(
-                    prompt_id="supervisor_out_of_scope_v1",
-                    reason="provider_incomplete: content_filter",
-                )
-
-        finalized = finalize_routing_decision(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="MIT的校长是谁",
-                    requested_capability="knowledge",
-                )
-            ),
-            RoutingDecision(
-                target=None,
-                primary_corpus=None,
-                primary_collection=None,
-                intent_frame=IntentFrame(
-                    capability="knowledge",
-                    task_kind="knowledge_lookup",
-                    domain_candidates=("knowledge",),
-                    missing_slots=(),
-                    risk_level="low",
-                    needs_clarification=False,
-                    suggested_next_action="out_of_scope",
-                    personalization_mode="generic",
-                    scope_class="out_of_scope",
-                    policy_reason="product_scope_boundary",
-                ),
-            ),
-            prompt_executor=FakePromptExecutor(),
-        )
-
-        self.assertEqual(finalized.status, "no_answer")
-        self.assertIsNotNone(finalized.observability)
-        self.assertEqual(finalized.observability.prompt_runtime_state, "content_filter")
-        self.assertEqual(finalized.observability.prompt_runtime_detail, "content_filter")
-        self.assertIsNone(finalized.observability.prompt_trace)
-
-    def test_finalize_rejected_with_invalid_prompt_output_falls_back_to_default_copy(self) -> None:
-        class FakePromptExecutor:
-            def compose_reject(self, packet: object):
-                from campus_supervisor_core.prompt_execution import (
-                    SupervisorPromptExecutionResult,
-                    SupervisorTerminalPromptOutput,
-                )
-
-                return SupervisorPromptExecutionResult(
-                    output=SupervisorTerminalPromptOutput(answer_text="   "),
-                    prompt_trace=_supervisor_prompt_trace("supervisor_reject_v1"),
-                )
-
-        finalized = finalize_routing_decision(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="请执行未授权操作",
-                    requested_capability="knowledge",
-                )
-            ),
-            RoutingDecision(
-                target=None,
-                primary_corpus="regulations",
-                primary_collection="student_rules",
-                intent_frame=IntentFrame(
-                    capability="knowledge",
-                    task_kind="unknown",
-                    domain_candidates=("knowledge",),
-                    missing_slots=(),
-                    risk_level="high",
-                    needs_clarification=False,
-                    suggested_next_action="rejected",
-                    personalization_mode="generic",
-                ),
-            ),
-            prompt_executor=FakePromptExecutor(),
-        )
-
-        self.assertEqual(finalized.status, "rejected")
-        self.assertEqual(finalized.answer_text, "这个请求不在当前可执行范围内。")
-        self.assertIsNotNone(finalized.error)
-        self.assertEqual(finalized.error.code, "request_rejected")
-        self.assertIsNone(finalized.observability.prompt_trace)
-
     def test_finalize_rejected_keeps_specific_policy_reason(self) -> None:
         finalized = finalize_routing_decision(
             SupervisorRequestContext.from_request(
@@ -357,20 +247,19 @@ class SupervisorPolicyTest(unittest.TestCase):
                     requested_capability="knowledge",
                 )
             ),
-            RoutingDecision(
-                target=None,
-                primary_corpus=None,
-                primary_collection=None,
-                intent_frame=IntentFrame(
-                    capability="knowledge",
-                    task_kind="knowledge_lookup",
-                    domain_candidates=("knowledge",),
-                    missing_slots=(),
-                    risk_level="high",
-                    needs_clarification=False,
-                    suggested_next_action="rejected",
-                    personalization_mode="generic",
-                    policy_reason="political_persuasion",
+            _terminal_decision(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                suggested_next_action="rejected",
+                status="rejected",
+                answer_text="这个请求不在当前可执行范围内。",
+                semantic_outcome="policy_refusal",
+                policy_reason="political_persuasion",
+                scope_class="in_scope",
+                risk_level="high",
+                error=ErrorInfo(
+                    code="request_rejected",
+                    message="request was rejected by supervisor policy",
                 ),
             ),
         )

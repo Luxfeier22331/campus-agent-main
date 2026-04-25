@@ -387,7 +387,7 @@ func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t
 	}
 }
 
-func TestParseAnswerRequestProjectsBridgeV2RuntimeDecisionsForTransportSchedule(t *testing.T) {
+func TestParseAnswerRequestProjectsBridgeV3RuntimeDecisionsForTransportSchedule(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
@@ -407,8 +407,8 @@ func TestParseAnswerRequestProjectsBridgeV2RuntimeDecisionsForTransportSchedule(
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
-	if payload["bridge_version"] != "supervisor_bridge_v2" {
-		t.Fatalf("bridge_version = %v, want supervisor_bridge_v2", payload["bridge_version"])
+	if payload["bridge_version"] != "supervisor_bridge_v3" {
+		t.Fatalf("bridge_version = %v, want supervisor_bridge_v3", payload["bridge_version"])
 	}
 	if payload["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v, want campus_services", payload["effective_capability"])
@@ -420,17 +420,22 @@ func TestParseAnswerRequestProjectsBridgeV2RuntimeDecisionsForTransportSchedule(
 	if runtimeDecisions["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v", runtimeDecisions["effective_capability"])
 	}
-	if runtimeDecisions["planning_outcome"] != "preplanned" {
-		t.Fatalf("planning_outcome = %v, want preplanned", runtimeDecisions["planning_outcome"])
+	summary := expectExecutionRecord(t, runtimeDecisions["runtime_decision_summary"], "runtime_decision_summary")
+	if summary["planning_outcome"] != "preplanned" {
+		t.Fatalf("runtime_decision_summary.planning_outcome = %v, want preplanned", summary["planning_outcome"])
 	}
-	if runtimeDecisions["preplanned_target"] != "campus-services-agent" {
-		t.Fatalf("preplanned_target = %v, want campus-services-agent", runtimeDecisions["preplanned_target"])
+	handoff := expectExecutionRecord(t, runtimeDecisions["handoff"], "handoff")
+	if handoff["planning_outcome"] != "preplanned" {
+		t.Fatalf("handoff.planning_outcome = %v, want preplanned", handoff["planning_outcome"])
 	}
-	allowedTools, ok := runtimeDecisions["allowed_tools"].([]any)
+	if handoff["target"] != "campus-services-agent" {
+		t.Fatalf("handoff.target = %v, want campus-services-agent", handoff["target"])
+	}
+	allowedTools, ok := handoff["allowed_tools"].([]any)
 	if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
-		t.Fatalf("allowed_tools = %#v, want transport_schedule_lookup", runtimeDecisions["allowed_tools"])
+		t.Fatalf("handoff.allowed_tools = %#v, want transport_schedule_lookup", handoff["allowed_tools"])
 	}
-	specialistPayload := expectExecutionRecord(t, runtimeDecisions["specialist_payload"], "specialist_payload")
+	specialistPayload := expectExecutionRecord(t, handoff["specialist_payload"], "handoff.specialist_payload")
 	if specialistPayload["kind"] != "transport_schedule_lookup" {
 		t.Fatalf("specialist_payload.kind = %v, want transport_schedule_lookup", specialistPayload["kind"])
 	}
@@ -438,14 +443,7 @@ func TestParseAnswerRequestProjectsBridgeV2RuntimeDecisionsForTransportSchedule(
 	if specialistPayloadRecord["intent"] != "first_departure" {
 		t.Fatalf("specialist_payload.payload.intent = %v, want first_departure", specialistPayloadRecord["intent"])
 	}
-	preplanned := expectExecutionRecord(t, runtimeDecisions["preplanned_handoff"], "preplanned_handoff")
-	if preplanned["target"] != "campus-services-agent" {
-		t.Fatalf("target = %v, want campus-services-agent", preplanned["target"])
-	}
-	if preplanned["payload_kind"] != "transport_schedule_lookup" {
-		t.Fatalf("payload_kind = %v, want transport_schedule_lookup", preplanned["payload_kind"])
-	}
-	payloadRecord := expectExecutionRecord(t, preplanned["payload"], "preplanned_handoff.payload")
+	payloadRecord := expectExecutionRecord(t, specialistPayload["payload"], "handoff.specialist_payload.payload")
 	if payloadRecord["intent"] != "first_departure" {
 		t.Fatalf("intent = %v, want first_departure", payloadRecord["intent"])
 	}
@@ -482,23 +480,25 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	if runtimeDecisions["planning_outcome"] != "preplanned" {
-		t.Fatalf("planning_outcome = %v, want preplanned", runtimeDecisions["planning_outcome"])
+	summary := expectExecutionRecord(t, runtimeDecisions["runtime_decision_summary"], "runtime_decision_summary")
+	if summary["planning_outcome"] != "preplanned" {
+		t.Fatalf("runtime_decision_summary.planning_outcome = %v, want preplanned", summary["planning_outcome"])
 	}
+	handoff := expectExecutionRecord(t, runtimeDecisions["handoff"], "handoff")
 	if request.RuntimeDecisions.PlanningOutcome != "preplanned" {
 		t.Fatalf(
 			"request planning outcome = %q, want preplanned",
 			request.RuntimeDecisions.PlanningOutcome,
 		)
 	}
-	if runtimeDecisions["preplanned_target"] != "rag-agent" {
-		t.Fatalf("preplanned_target = %v, want rag-agent", runtimeDecisions["preplanned_target"])
+	if handoff["target"] != "rag-agent" {
+		t.Fatalf("handoff.target = %v, want rag-agent", handoff["target"])
 	}
-	allowedTools, ok := runtimeDecisions["allowed_tools"].([]any)
+	allowedTools, ok := handoff["allowed_tools"].([]any)
 	if !ok || len(allowedTools) != 0 {
-		t.Fatalf("allowed_tools = %#v, want empty array", runtimeDecisions["allowed_tools"])
+		t.Fatalf("handoff.allowed_tools = %#v, want empty array", handoff["allowed_tools"])
 	}
-	specialistPayload := expectExecutionRecord(t, runtimeDecisions["specialist_payload"], "specialist_payload")
+	specialistPayload := expectExecutionRecord(t, handoff["specialist_payload"], "handoff.specialist_payload")
 	if specialistPayload["kind"] != "rag_request" {
 		t.Fatalf("specialist_payload.kind = %v, want rag_request", specialistPayload["kind"])
 	}
@@ -536,7 +536,7 @@ func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *test
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	if _, ok := runtimeDecisions["preplanned_handoff"]; ok {
+	if _, ok := runtimeDecisions["handoff"]; ok {
 		t.Fatalf("transactional structured request must not be preplanned: %#v", runtimeDecisions)
 	}
 	policyGate := expectExecutionRecord(t, runtimeDecisions["policy_gate"], "policy_gate")
@@ -549,6 +549,51 @@ func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *test
 	}
 	if routingFrame["risk_level"] != "high" {
 		t.Fatalf("routing_frame.risk_level = %v, want high", routingFrame["risk_level"])
+	}
+	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
+	if terminalEnvelope["status"] != "approval_required" {
+		t.Fatalf("terminal_envelope.status = %v, want approval_required", terminalEnvelope["status"])
+	}
+	if terminalEnvelope["answer_text"] == "" {
+		t.Fatalf("terminal_envelope.answer_text must be non-empty")
+	}
+}
+
+func TestParseAnswerRequestClarifiesUnplannableCampusServicesSubtypeBeforeBridge(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"校园卡怎么补办",
+			"request_id":"req-campus-services-missing-subtype",
+			"requested_capability":"campus_services"
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	if request.StructuredHandoff != nil {
+		t.Fatalf("unplannable subtype must not preplan handoff: %#v", request.StructuredHandoff)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
+	if routingFrame["suggested_next_action"] != "clarify" {
+		t.Fatalf("routing_frame.suggested_next_action = %v, want clarify", routingFrame["suggested_next_action"])
+	}
+	if routingFrame["scope_reason"] != "structured_subtype_missing" {
+		t.Fatalf("routing_frame.scope_reason = %v, want structured_subtype_missing", routingFrame["scope_reason"])
+	}
+	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
+	if terminalEnvelope["status"] != "needs_clarification" {
+		t.Fatalf("terminal_envelope.status = %v, want needs_clarification", terminalEnvelope["status"])
 	}
 }
 
@@ -586,6 +631,17 @@ func TestParseAnswerRequestProjectsRuntimePolicyForOutOfScopeKnowledge(t *testin
 	}
 	if routingFrame["policy_reason"] != "product_scope_boundary" {
 		t.Fatalf("routing_frame.policy_reason = %v, want product_scope_boundary", routingFrame["policy_reason"])
+	}
+	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
+	if terminalEnvelope["status"] != "no_answer" {
+		t.Fatalf("terminal_envelope.status = %v, want no_answer", terminalEnvelope["status"])
+	}
+	if terminalEnvelope["answer_text"] == "" {
+		t.Fatalf("terminal_envelope.answer_text must be non-empty")
+	}
+	observability := expectExecutionRecord(t, terminalEnvelope["observability"], "terminal_envelope.observability")
+	if observability["semantic_outcome"] != "out_of_scope" {
+		t.Fatalf("semantic_outcome = %v, want out_of_scope", observability["semantic_outcome"])
 	}
 	if request.RuntimeDecisions.ScopeGateDecision != "out_of_scope" {
 		t.Fatalf(
@@ -655,6 +711,13 @@ func TestParseAnswerRequestProjectsRuntimePolicyForMissingNoticeFollowUpContext(
 	missingSlots, ok := routingFrame["missing_slots"].([]any)
 	if !ok || len(missingSlots) != 1 || missingSlots[0] != "selected_notice_ref" {
 		t.Fatalf("routing_frame.missing_slots = %#v, want selected_notice_ref", routingFrame["missing_slots"])
+	}
+	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
+	if terminalEnvelope["status"] != "needs_clarification" {
+		t.Fatalf("terminal_envelope.status = %v, want needs_clarification", terminalEnvelope["status"])
+	}
+	if terminalEnvelope["follow_up_question"] == "" {
+		t.Fatalf("terminal_envelope.follow_up_question must be non-empty")
 	}
 }
 

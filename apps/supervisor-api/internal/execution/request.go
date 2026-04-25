@@ -29,6 +29,8 @@ type AnswerExecutionRequest struct {
 	RequestedCapability string
 	Lane                string
 	RuntimeDecisions    RuntimeDecisionSummary
+	StructuredHandoff   *RuntimeHandoff
+	NoticeAccessContext map[string]any
 }
 
 type RuntimeDecisionSummary struct {
@@ -37,6 +39,31 @@ type RuntimeDecisionSummary struct {
 	ContextPreflightState string
 	RoutingNextAction     string
 	PlanningOutcome       string
+	SelectedTarget        string
+	SelectedTool          string
+	TerminalOutcome       string
+	FailCloseReason       string
+}
+
+func (s RuntimeDecisionSummary) Map() map[string]any {
+	return map[string]any{
+		"scope_gate_decision":     s.ScopeGateDecision,
+		"policy_gate_decision":    s.PolicyGateDecision,
+		"context_preflight_state": s.ContextPreflightState,
+		"routing_next_action":     s.RoutingNextAction,
+		"planning_outcome":        s.PlanningOutcome,
+		"selected_target":         s.SelectedTarget,
+		"selected_tool":           s.SelectedTool,
+		"terminal_outcome":        s.TerminalOutcome,
+		"fail_close_reason":       s.FailCloseReason,
+	}
+}
+
+type RuntimeHandoff struct {
+	Target       string
+	PayloadKind  string
+	Payload      map[string]any
+	AllowedTools []string
 }
 
 type actorContext struct {
@@ -241,7 +268,7 @@ func ParseAnswerRequest(
 		traceID = newTraceID()
 	}
 
-	runtimeDecisionPayload, runtimeDecisionSummary := runtimeDecisions(
+	runtimeDecisionPayload, runtimeDecisionSummary, structuredHandoff := runtimeDecisions(
 		effectiveRequestedCapability,
 		laneForCapability(effectiveRequestedCapability),
 		userGoal,
@@ -252,7 +279,7 @@ func ParseAnswerRequest(
 	)
 
 	bridgePayload := map[string]any{
-		"bridge_version":       "supervisor_bridge_v2",
+		"bridge_version":       "supervisor_bridge_v3",
 		"user_goal":            userGoal,
 		"conversation_id":      conversationID,
 		"request_id":           requestID,
@@ -299,6 +326,8 @@ func ParseAnswerRequest(
 		RequestedCapability: effectiveRequestedCapability,
 		Lane:                laneForCapability(effectiveRequestedCapability),
 		RuntimeDecisions:    runtimeDecisionSummary,
+		StructuredHandoff:   structuredHandoff,
+		NoticeAccessContext: context.noticeAccessContextMap(),
 	}, nil
 }
 
@@ -1301,6 +1330,24 @@ func (c contextProjection) toMap() map[string]any {
 		"session": session,
 	}
 	return result
+}
+
+func (c contextProjection) noticeAccessContextMap() map[string]any {
+	authorization := c.Authorization
+	retrievalFilter := authorization.RetrievalFilter
+	return map[string]any{
+		"authorization": map[string]any{
+			"principal_id":       authorization.PrincipalID,
+			"entitlement_groups": append([]string(nil), authorization.EntitlementGroups...),
+			"retrieval_filter": map[string]any{
+				"entitlement_groups": append([]string(nil), retrievalFilter.EntitlementGroups...),
+				"visibility_level": defaultIfEmpty(
+					retrievalFilter.VisibilityLevel,
+					"public",
+				),
+			},
+		},
+	}
 }
 
 func (r selectedNoticeRef) toMap() map[string]any {

@@ -10,6 +10,7 @@ from campus_contracts import (
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     ContextProjection,
+    ErrorInfo,
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,
@@ -17,7 +18,9 @@ from campus_contracts import (
     ServiceStatusLookupPayload,
     SessionSlot,
     SessionSummary,
+    SupervisorObservability,
     SupervisorRequest,
+    SupervisorResponse,
     TemporalQuery,
     TraceContext,
     TransportRouteSelector,
@@ -85,8 +88,8 @@ def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuper
 
 def _require_bridge_version(raw_version: object) -> None:
     bridge_version = _require_string(raw_version, field_name="bridge_version")
-    if bridge_version != "supervisor_bridge_v2":
-        raise ValueError("bridge_version must be supervisor_bridge_v2")
+    if bridge_version != "supervisor_bridge_v3":
+        raise ValueError("bridge_version must be supervisor_bridge_v3")
 
 
 def _parse_effective_capability(payload: dict[str, object]) -> str:
@@ -124,28 +127,35 @@ def _parse_runtime_decisions(
         decisions.get("routing_frame"),
         effective_capability=effective_capability,
     )
-    planning_outcome = _parse_optional_string(decisions.get("planning_outcome"))
+    raw_handoff = decisions.get("handoff")
+    if raw_handoff is None:
+        return _routing_decision_from_terminal_envelope(
+            intent_frame,
+            decisions.get("terminal_envelope"),
+        )
+    handoff = _require_object(raw_handoff, field_name="runtime_decisions.handoff")
+    planning_outcome = _parse_optional_string(handoff.get("planning_outcome"))
     if planning_outcome != "preplanned":
-        return _routing_decision_from_frame(intent_frame)
+        raise ValueError("runtime_decisions.handoff.planning_outcome must be preplanned")
     target = _require_string(
-        decisions.get("preplanned_target"),
-        field_name="runtime_decisions.preplanned_target",
+        handoff.get("target"),
+        field_name="runtime_decisions.handoff.target",
     )
     allowed_tools = _parse_string_tuple(
-        decisions.get("allowed_tools"),
-        field_name="runtime_decisions.allowed_tools",
+        handoff.get("allowed_tools"),
+        field_name="runtime_decisions.handoff.allowed_tools",
     )
     specialist_payload = _require_object(
-        decisions.get("specialist_payload"),
-        field_name="runtime_decisions.specialist_payload",
+        handoff.get("specialist_payload"),
+        field_name="runtime_decisions.handoff.specialist_payload",
     )
     payload_kind = _require_string(
         specialist_payload.get("kind"),
-        field_name="runtime_decisions.specialist_payload.kind",
+        field_name="runtime_decisions.handoff.specialist_payload.kind",
     )
     payload = _require_object(
         specialist_payload.get("payload"),
-        field_name="runtime_decisions.specialist_payload.payload",
+        field_name="runtime_decisions.handoff.specialist_payload.payload",
     )
     return BridgePreplannedRouting(
         target=target,
@@ -220,16 +230,77 @@ def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> Int
     )
 
 
-def _routing_decision_from_frame(intent_frame: IntentFrame) -> RoutingDecision | None:
+def _routing_decision_from_terminal_envelope(
+    intent_frame: IntentFrame,
+    raw_terminal_envelope: object,
+) -> RoutingDecision | None:
     if intent_frame.suggested_next_action == "delegate":
-        raise ValueError(
-            "runtime_decisions.planning_outcome must be preplanned for delegate routing"
-        )
+        raise ValueError("runtime_decisions.handoff must be present for delegate routing")
+    terminal_response = _parse_terminal_response(raw_terminal_envelope)
     return RoutingDecision(
         target=None,
         primary_corpus=None,
         primary_collection=None,
         intent_frame=intent_frame,
+        terminal_response=terminal_response,
+    )
+
+
+def _parse_terminal_response(raw_terminal_envelope: object) -> SupervisorResponse:
+    envelope = _require_object(
+        raw_terminal_envelope,
+        field_name="runtime_decisions.terminal_envelope",
+    )
+    error = None
+    raw_error = envelope.get("error")
+    if raw_error is not None:
+        error_obj = _require_object(
+            raw_error, field_name="runtime_decisions.terminal_envelope.error"
+        )
+        error = ErrorInfo(
+            code=_require_string(
+                error_obj.get("code"),
+                field_name="runtime_decisions.terminal_envelope.error.code",
+            ),
+            message=_require_string(
+                error_obj.get("message"),
+                field_name="runtime_decisions.terminal_envelope.error.message",
+            ),
+        )
+    return SupervisorResponse(
+        selected_target=None,
+        status=_require_string(
+            envelope.get("status"),
+            field_name="runtime_decisions.terminal_envelope.status",
+        ),  # type: ignore[arg-type]
+        answer_text=_parse_optional_string(envelope.get("answer_text")) or "",
+        follow_up_question=_parse_optional_string(envelope.get("follow_up_question")) or "",
+        confidence=(_parse_optional_string(envelope.get("confidence")) or "low"),  # type: ignore[arg-type]
+        error=error,
+        observability=_parse_terminal_observability(envelope.get("observability")),
+    )
+
+
+def _parse_terminal_observability(raw_observability: object) -> SupervisorObservability | None:
+    if raw_observability is None:
+        return None
+    observability = _require_object(
+        raw_observability,
+        field_name="runtime_decisions.terminal_envelope.observability",
+    )
+    return SupervisorObservability(
+        retrieval_attempted=_parse_optional_bool(observability.get("retrieval_attempted")),
+        candidate_count=_parse_optional_int(observability.get("candidate_count")),
+        retrieved_source_count=_parse_optional_int(observability.get("retrieved_source_count")),
+        citation_expected=_parse_optional_bool(observability.get("citation_expected")),
+        citation_count=_parse_optional_int(observability.get("citation_count")),
+        citation_missing=_parse_optional_bool(observability.get("citation_missing")),
+        refusal_class=_parse_optional_string(observability.get("refusal_class")) or "",
+        semantic_outcome=_parse_optional_string(observability.get("semantic_outcome")) or "",
+        scope_class=_parse_optional_string(observability.get("scope_class")) or "",
+        policy_reason=_parse_optional_string(observability.get("policy_reason")) or "",
+        acl_decision=_parse_optional_string(observability.get("acl_decision")) or "",
+        fail_closed=_parse_optional_bool(observability.get("fail_closed")),
     )
 
 
@@ -321,6 +392,14 @@ def _parse_optional_int(raw_value: object) -> int | None:
         return None
     if not isinstance(raw_value, int) or isinstance(raw_value, bool):
         raise ValueError("integer field must be an integer")
+    return raw_value
+
+
+def _parse_optional_bool(raw_value: object) -> bool | None:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, bool):
+        raise ValueError("boolean field must be a boolean")
     return raw_value
 
 

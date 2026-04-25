@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
 
 from campus_contracts import (
     CampusNoticeDiscoverPayload,
@@ -124,15 +123,19 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
                 ),
             )
 
-        with patch(
-            "campus_supervisor_core.agent.route_request",
-            return_value=RoutingDecision(
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="图书馆今天开门吗",
+                requested_capability="campus_services",
+            ),
+            specialist_delegates={"campus-services-agent": fake_campus_services_agent},
+            preplanned_routing_decision=RoutingDecision(
                 target="campus-services-agent",
                 primary_corpus=None,
                 primary_collection=None,
                 intent_frame=IntentFrame(
-                    capability="knowledge",
-                    task_kind="knowledge_lookup",
+                    capability="campus_services",
+                    task_kind="campus_services_lookup",
                     domain_candidates=("campus_services",),
                     missing_slots=(),
                     risk_level="low",
@@ -147,14 +150,7 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
                 ),
                 allowed_tools=("service_status_lookup",),
             ),
-        ):
-            response = handle_request(
-                SupervisorRequest(
-                    user_goal="图书馆今天开门吗",
-                    requested_capability="knowledge",
-                ),
-                specialist_delegates={"campus-services-agent": fake_campus_services_agent},
-            )
+        )
 
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].target, "campus-services-agent")
@@ -184,7 +180,7 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
 
         with self.assertRaisesRegex(
             InvalidSpecialistToolPolicyError,
-            "notice-agent does not allow tools: service_status_lookup",
+            "payload requires code-owned allowed_tool: campus_notice_discover",
         ):
             handle_specialist_request(
                 request,

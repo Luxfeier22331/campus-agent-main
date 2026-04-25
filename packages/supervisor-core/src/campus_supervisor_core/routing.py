@@ -10,6 +10,7 @@ from campus_contracts import (
     ServiceStatusLookupPayload,
     SpecialistTarget,
     SpecialistToolName,
+    SupervisorResponse,
     TransportScheduleLookupPayload,
 )
 from campus_contracts.models import AllowedCorpus
@@ -36,6 +37,7 @@ class RoutingDecision:
         | None
     ) = None
     allowed_tools: tuple[SpecialistToolName, ...] = ()
+    terminal_response: SupervisorResponse | None = None
 
 
 def route_request(context: SupervisorRequestContext) -> RoutingDecision:

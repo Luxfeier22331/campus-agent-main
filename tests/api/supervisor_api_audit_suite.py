@@ -17,7 +17,7 @@ def _bridge_request_payload(
     trace_id: str = "trace-audit-001",
 ) -> dict[str, object]:
     return {
-        "bridge_version": "supervisor_bridge_v2",
+        "bridge_version": "supervisor_bridge_v3",
         "user_goal": user_goal,
         "conversation_id": "conv-audit-001",
         "request_id": request_id,
@@ -78,7 +78,72 @@ def _bridge_request_payload(
         "runtime_decisions": {
             "effective_capability": "knowledge",
             "lane": "rag",
-            "planning_outcome": "not_preplanned",
+            "scope_gate": {
+                "decision": "in_scope",
+                "reason": "explicit_requested_scope",
+                "matched_signal": "",
+            },
+            "policy_gate": {
+                "decision": "delegate",
+                "reason": "",
+                "risk_level": "low",
+                "matched_signal": "",
+            },
+            "context_preflight": {
+                "state": "not_follow_up",
+                "reference_type": "none",
+                "missing_slots": [],
+                "resolved_slots": {},
+                "matched_signal": "",
+                "ambiguity_reason": "",
+            },
+            "tool_policy": {"policy_version": "runtime-policy-v1"},
+            "runtime_decision_summary": {
+                "scope_gate_decision": "in_scope",
+                "policy_gate_decision": "delegate",
+                "context_preflight_state": "not_follow_up",
+                "routing_next_action": "delegate",
+                "planning_outcome": "preplanned",
+            },
+            "routing_frame": {
+                "capability": "knowledge",
+                "task_kind": "knowledge_lookup",
+                "domain_candidates": ["knowledge"],
+                "missing_slots": [],
+                "risk_level": "low",
+                "needs_clarification": False,
+                "suggested_next_action": "delegate",
+                "personalization_mode": "generic",
+                "clarification_subject": "",
+                "scope_class": "in_scope",
+                "policy_reason": "",
+                "launch_state": "open",
+                "scope_reason": "explicit_requested_scope",
+                "matched_signal": "",
+                "classifier_version": "go-runtime-policy-v1",
+                "schema_version": "intent-schema-1.0.0",
+                "routing_confidence": "high",
+                "ambiguity_signal": "",
+                "context_resolution_state": "not_follow_up",
+                "context_reference_type": "none",
+                "resolved_slots": {},
+                "ambiguity_reason": "",
+            },
+            "handoff": {
+                "planning_outcome": "preplanned",
+                "target": "rag-agent",
+                "allowed_tools": [],
+                "specialist_payload": {
+                    "kind": "rag_request",
+                    "payload": {
+                        "scope": {
+                            "corpus": "regulations",
+                            "collection": "student_rules",
+                        },
+                        "version_query": {"mode": "current"},
+                    },
+                },
+            },
         },
     }
 

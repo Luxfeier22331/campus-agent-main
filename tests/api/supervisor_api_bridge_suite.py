@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import unittest
 import threading
+import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from campus_contracts import (
@@ -13,12 +13,12 @@ from campus_contracts import (
     VersionQuery,
 )
 from campus_supervisor_core import InvalidSupervisorRequestError
-from campus_supervisor_core_worker.app import create_bridge_app
 from campus_supervisor_core_worker.api_request_parsing import _parse_bridge_supervisor_envelope
+from campus_supervisor_core_worker.app import create_bridge_app
 from campus_supervisor_core_worker.settings import ApiSettings
 
 
-def _bridge_v2_payload(
+def _bridge_v3_payload(
     *,
     user_goal: str = "test",
     request_id: str = "req-001",
@@ -45,7 +45,7 @@ def _bridge_v2_payload(
     if version_query is None:
         version_query = {"mode": "current"}
     body: dict[str, object] = {
-        "bridge_version": "supervisor_bridge_v2",
+        "bridge_version": "supervisor_bridge_v3",
         "user_goal": user_goal,
         "request_id": request_id,
         "trace": {"trace_id": trace_id},
@@ -79,6 +79,13 @@ def _bridge_v2_payload(
             "tool_policy": {
                 "policy_version": "runtime-policy-v1",
             },
+            "runtime_decision_summary": {
+                "scope_gate_decision": "in_scope",
+                "policy_gate_decision": "delegate",
+                "context_preflight_state": "not_follow_up",
+                "routing_next_action": "delegate",
+                "planning_outcome": "not_preplanned",
+            },
             "routing_frame": {
                 "capability": effective_capability,
                 "task_kind": "knowledge_lookup",
@@ -109,7 +116,7 @@ def _bridge_v2_payload(
         runtime_decisions = body["runtime_decisions"]
         assert isinstance(runtime_decisions, dict)
         runtime_decisions.update(
-            _preplanned_handoff_fields_for_capability(
+            _handoff_fields_for_capability(
                 effective_capability=effective_capability,
                 user_goal=user_goal,
                 version_query=version_query,
@@ -118,7 +125,7 @@ def _bridge_v2_payload(
     return body
 
 
-def _preplanned_handoff_fields_for_capability(
+def _handoff_fields_for_capability(
     *,
     effective_capability: str,
     user_goal: str,
@@ -126,59 +133,86 @@ def _preplanned_handoff_fields_for_capability(
 ) -> dict[str, object]:
     if effective_capability == "campus_services":
         return {
-            "planning_outcome": "preplanned",
-            "preplanned_target": "campus-services-agent",
-            "allowed_tools": ["transport_schedule_lookup"],
-            "specialist_payload": {
-                "kind": "transport_schedule_lookup",
-                "payload": {
-                    "query_text": user_goal,
-                    "intent": "timetable",
-                    "snapshot_query": {"mode": "current"},
+            "runtime_decision_summary": {
+                "scope_gate_decision": "in_scope",
+                "policy_gate_decision": "delegate",
+                "context_preflight_state": "not_follow_up",
+                "routing_next_action": "delegate",
+                "planning_outcome": "preplanned",
+            },
+            "handoff": {
+                "planning_outcome": "preplanned",
+                "target": "campus-services-agent",
+                "allowed_tools": ["transport_schedule_lookup"],
+                "specialist_payload": {
+                    "kind": "transport_schedule_lookup",
+                    "payload": {
+                        "query_text": user_goal,
+                        "intent": "timetable",
+                        "snapshot_query": {"mode": "current"},
+                    },
                 },
             },
         }
     if effective_capability == "notice":
         return {
-            "planning_outcome": "preplanned",
-            "preplanned_target": "notice-agent",
-            "allowed_tools": ["campus_notice_discover"],
-            "specialist_payload": {
-                "kind": "campus_notice_discover",
-                "payload": {
-                    "query_text": user_goal,
-                    "temporal_query": {"mode": "current"},
+            "runtime_decision_summary": {
+                "scope_gate_decision": "in_scope",
+                "policy_gate_decision": "delegate",
+                "context_preflight_state": "not_follow_up",
+                "routing_next_action": "delegate",
+                "planning_outcome": "preplanned",
+            },
+            "handoff": {
+                "planning_outcome": "preplanned",
+                "target": "notice-agent",
+                "allowed_tools": ["campus_notice_discover"],
+                "specialist_payload": {
+                    "kind": "campus_notice_discover",
+                    "payload": {
+                        "query_text": user_goal,
+                        "temporal_query": {"mode": "current"},
+                    },
                 },
             },
         }
     return {
-        "planning_outcome": "preplanned",
-        "preplanned_target": "rag-agent",
-        "allowed_tools": [],
-        "specialist_payload": {
-            "kind": "rag_request",
-            "payload": {
-                "scope": None,
-                "version_query": version_query,
+        "runtime_decision_summary": {
+            "scope_gate_decision": "in_scope",
+            "policy_gate_decision": "delegate",
+            "context_preflight_state": "not_follow_up",
+            "routing_next_action": "delegate",
+            "planning_outcome": "preplanned",
+        },
+        "handoff": {
+            "planning_outcome": "preplanned",
+            "target": "rag-agent",
+            "allowed_tools": [],
+            "specialist_payload": {
+                "kind": "rag_request",
+                "payload": {
+                    "scope": None,
+                    "version_query": version_query,
+                },
             },
         },
     }
 
 
-def _bridge_v2_payload_with_preplanned_handoff(
+def _bridge_v3_payload_with_handoff(
     *,
     user_goal: str,
     request_id: str,
     trace_id: str,
     effective_capability: str,
     lane: str,
-    preplanned_target: str,
+    handoff_target: str,
     payload_kind: str,
     payload: dict[str, object],
     allowed_tools: list[str],
     context: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    body = _bridge_v2_payload(
+    body = _bridge_v3_payload(
         user_goal=user_goal,
         request_id=request_id,
         trace_id=trace_id,
@@ -191,7 +225,7 @@ def _bridge_v2_payload_with_preplanned_handoff(
         "lane": lane,
         "scope_gate": {
             "decision": "in_scope",
-            "reason": "go_preplanned_handoff",
+            "reason": "go_handoff",
             "matched_signal": "",
         },
         "policy_gate": {
@@ -230,7 +264,7 @@ def _bridge_v2_payload_with_preplanned_handoff(
             "scope_class": "in_scope",
             "policy_reason": "",
             "launch_state": "open",
-            "scope_reason": "go_preplanned_handoff",
+            "scope_reason": "go_handoff",
             "matched_signal": "",
             "classifier_version": "go-runtime-policy-v1",
             "schema_version": "intent-schema-1.0.0",
@@ -241,12 +275,21 @@ def _bridge_v2_payload_with_preplanned_handoff(
             "resolved_slots": {},
             "ambiguity_reason": "",
         },
-        "planning_outcome": "preplanned",
-        "preplanned_target": preplanned_target,
-        "allowed_tools": allowed_tools,
-        "specialist_payload": {
-            "kind": payload_kind,
-            "payload": payload,
+        "runtime_decision_summary": {
+            "scope_gate_decision": "in_scope",
+            "policy_gate_decision": "delegate",
+            "context_preflight_state": "not_follow_up",
+            "routing_next_action": "delegate",
+            "planning_outcome": "preplanned",
+        },
+        "handoff": {
+            "planning_outcome": "preplanned",
+            "target": handoff_target,
+            "allowed_tools": allowed_tools,
+            "specialist_payload": {
+                "kind": payload_kind,
+                "payload": payload,
+            },
         },
     }
     return body
@@ -273,7 +316,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             supervisor_handler=fake_supervisor,
         )
 
-        body = _bridge_v2_payload(
+        body = _bridge_v3_payload(
             user_goal="保研政策怎么准备？",
             request_id="req-001",
             trace_id="trace-001",
@@ -319,7 +362,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].trace.trace_id, "trace-001")
         self.assertEqual(captured_requests[0].context.actor.user_id, "student@example.edu")
 
-    def test_bridge_answer_route_rejects_legacy_payload_without_bridge_v2_marker(self) -> None:
+    def test_bridge_answer_route_rejects_legacy_payload_without_bridge_v3_marker(self) -> None:
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
@@ -354,7 +397,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("bridge_version", response.json_body["error"]["message"])
 
-    def test_bridge_answer_route_maps_v2_effective_capability_to_supervisor_request(
+    def test_bridge_answer_route_maps_v3_effective_capability_to_supervisor_request(
         self,
     ) -> None:
         captured_requests: list[SupervisorRequest] = []
@@ -379,7 +422,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v2_payload(
+            json_body=_bridge_v3_payload(
                 user_goal="校车时刻表",
                 request_id="req-v2-effective",
                 trace_id="trace-v2-effective",
@@ -400,7 +443,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 bridge_shared_secret="bridge-secret",
             )
         )
-        body = _bridge_v2_payload(
+        body = _bridge_v3_payload(
             user_goal="MIT的校长是谁",
             request_id="req-go-policy-out-of-scope",
             trace_id="trace-go-policy-out-of-scope",
@@ -432,6 +475,13 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "tool_policy": {
                 "policy_version": "runtime-policy-v1",
             },
+            "runtime_decision_summary": {
+                "scope_gate_decision": "out_of_scope",
+                "policy_gate_decision": "out_of_scope",
+                "context_preflight_state": "not_follow_up",
+                "routing_next_action": "out_of_scope",
+                "planning_outcome": "not_preplanned",
+            },
             "routing_frame": {
                 "capability": "knowledge",
                 "task_kind": "knowledge_lookup",
@@ -456,6 +506,27 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 "resolved_slots": {},
                 "ambiguity_reason": "",
             },
+            "terminal_envelope": {
+                "selected_target": None,
+                "status": "no_answer",
+                "answer_text": "Go terminal envelope says this is outside the product scope.",
+                "follow_up_question": "",
+                "confidence": "low",
+                "observability": {
+                    "retrieval_attempted": False,
+                    "candidate_count": 0,
+                    "retrieved_source_count": 0,
+                    "citation_expected": False,
+                    "citation_count": 0,
+                    "citation_missing": False,
+                    "refusal_class": "out_of_scope",
+                    "semantic_outcome": "out_of_scope",
+                    "scope_class": "out_of_scope",
+                    "policy_reason": "product_scope_boundary",
+                    "acl_decision": "allowed",
+                    "fail_closed": True,
+                },
+            },
         }
 
         response = app.handle(
@@ -467,19 +538,23 @@ class SupervisorApiBridgeTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["status"], "no_answer")
+        self.assertEqual(
+            response.json_body["answer_text"],
+            "Go terminal envelope says this is outside the product scope.",
+        )
         self.assertEqual(response.json_body["observability"]["semantic_outcome"], "out_of_scope")
         self.assertEqual(
             response.json_body["observability"]["intent_policy_reason"],
             "product_scope_boundary",
         )
 
-    def test_bridge_answer_rejects_v2_payload_without_go_routing_frame(self) -> None:
+    def test_bridge_answer_rejects_v3_payload_without_go_routing_frame(self) -> None:
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
             )
         )
-        body = _bridge_v2_payload(
+        body = _bridge_v3_payload(
             user_goal="保研政策怎么准备？",
             request_id="req-missing-runtime-frame",
         )
@@ -499,7 +574,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("routing_frame", response.json_body["error"]["message"])
 
-    def test_bridge_answer_rejects_delegate_frame_without_go_preplanned_handoff(self) -> None:
+    def test_bridge_answer_rejects_delegate_frame_without_go_handoff(self) -> None:
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
@@ -510,26 +585,60 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v2_payload(
+            json_body=_bridge_v3_payload(
                 user_goal="学生手册请假制度怎么规定？",
-                request_id="req-missing-preplanned-handoff",
-                trace_id="trace-missing-preplanned-handoff",
+                request_id="req-missing-handoff",
+                trace_id="trace-missing-handoff",
                 preplan_delegate=False,
             ),
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
-        self.assertIn("planning_outcome", response.json_body["error"]["message"])
+        self.assertIn("handoff", response.json_body["error"]["message"])
+
+    def test_bridge_answer_rejects_terminal_frame_without_go_terminal_envelope(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            )
+        )
+        body = _bridge_v3_payload(
+            user_goal="MIT的校长是谁",
+            request_id="req-missing-terminal-envelope",
+            trace_id="trace-missing-terminal-envelope",
+            preplan_delegate=False,
+        )
+        runtime_decisions = body["runtime_decisions"]
+        assert isinstance(runtime_decisions, dict)
+        routing_frame = runtime_decisions["routing_frame"]
+        assert isinstance(routing_frame, dict)
+        routing_frame["suggested_next_action"] = "out_of_scope"
+        routing_frame["scope_class"] = "out_of_scope"
+        routing_frame["policy_reason"] = "product_scope_boundary"
+        summary = runtime_decisions["runtime_decision_summary"]
+        assert isinstance(summary, dict)
+        summary["routing_next_action"] = "out_of_scope"
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=body,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("terminal_envelope", response.json_body["error"]["message"])
 
     def test_bridge_parser_parses_go_preplanned_knowledge_handoff(self) -> None:
-        body = _bridge_v2_payload_with_preplanned_handoff(
+        body = _bridge_v3_payload_with_handoff(
             user_goal="学生手册请假制度怎么规定？",
             request_id="req-go-preplanned-knowledge",
             trace_id="trace-go-preplanned-knowledge",
             effective_capability="knowledge",
             lane="rag",
-            preplanned_target="rag-agent",
+            handoff_target="rag-agent",
             payload_kind="rag_request",
             allowed_tools=[],
             payload={
@@ -628,7 +737,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v2_payload(request_id="req-supervisor-error"),
+            json_body=_bridge_v3_payload(request_id="req-supervisor-error"),
         )
 
         self.assertEqual(response.status_code, 400)
@@ -678,7 +787,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                     "POST",
                     "/internal/bridge/supervisor/answer",
                     headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                    json_body=_bridge_v2_payload(
+                    json_body=_bridge_v3_payload(
                         user_goal="图书馆开门吗",
                         request_id="req-active-cancel",
                         trace_id="trace-active-cancel",
@@ -761,13 +870,13 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 "POST",
                 "/internal/bridge/supervisor/answer",
                 headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                json_body=_bridge_v2_payload_with_preplanned_handoff(
+                json_body=_bridge_v3_payload_with_handoff(
                     user_goal="最近一版校车时刻表是什么时候发布的",
                     request_id="req-campus-services-query",
                     trace_id="trace-campus-services-query",
                     effective_capability="campus_services",
                     lane="campus_services",
-                    preplanned_target="campus-services-agent",
+                    handoff_target="campus-services-agent",
                     payload_kind="transport_schedule_lookup",
                     allowed_tools=["transport_schedule_lookup"],
                     payload={
@@ -847,13 +956,13 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 "POST",
                 "/internal/bridge/supervisor/answer",
                 headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                json_body=_bridge_v2_payload_with_preplanned_handoff(
+                json_body=_bridge_v3_payload_with_handoff(
                     user_goal="最早的班车几点",
                     request_id="req-go-preplanned-transport",
                     trace_id="trace-go-preplanned-transport",
                     effective_capability="campus_services",
                     lane="campus_services",
-                    preplanned_target="campus-services-agent",
+                    handoff_target="campus-services-agent",
                     payload_kind="transport_schedule_lookup",
                     allowed_tools=["transport_schedule_lookup"],
                     payload={
@@ -935,13 +1044,13 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 "POST",
                 "/internal/bridge/supervisor/answer",
                 headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                json_body=_bridge_v2_payload_with_preplanned_handoff(
+                json_body=_bridge_v3_payload_with_handoff(
                     user_goal="找一下家具采购通知",
                     request_id="req-notice-query",
                     trace_id="trace-notice-query",
                     effective_capability="notice",
                     lane="notice",
-                    preplanned_target="notice-agent",
+                    handoff_target="notice-agent",
                     payload_kind="campus_notice_discover",
                     allowed_tools=["campus_notice_discover"],
                     payload={

@@ -153,6 +153,22 @@ def _terminal_decision(
     domain_candidates: tuple[str, ...],
     risk_level: str = "low",
 ) -> RoutingDecision:
+    if suggested_next_action == "approval_required":
+        status = "approval_required"
+        answer_text = "该请求涉及需要人工确认的操作，必须先经过审批。"
+        semantic_outcome = "approval_required"
+        refusal_class = "approval_required"
+        acl_decision = "approval_required"
+    else:
+        status = "no_answer"
+        answer_text = (
+            "当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。"
+            if policy_reason == "navigation_temporarily_unsupported"
+            else "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。"
+        )
+        semantic_outcome = "out_of_scope"
+        refusal_class = "out_of_scope"
+        acl_decision = "allowed"
     return RoutingDecision(
         target=None,
         primary_corpus=None,
@@ -167,6 +183,26 @@ def _terminal_decision(
             scope_reason=scope_reason,
             launch_state="closed",
             risk_level=risk_level,
+        ),
+        terminal_response=SupervisorResponse(
+            selected_target=None,
+            status=status,  # type: ignore[arg-type]
+            answer_text=answer_text,
+            confidence="low",
+            observability=SupervisorObservability(
+                retrieval_attempted=False,
+                candidate_count=0,
+                retrieved_source_count=0,
+                citation_expected=False,
+                citation_count=0,
+                citation_missing=False,
+                refusal_class=refusal_class,
+                semantic_outcome=semantic_outcome,
+                scope_class=scope_class,
+                policy_reason=policy_reason,
+                acl_decision=acl_decision,
+                fail_closed=True,
+            ),
         ),
     )
 
@@ -684,6 +720,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     citation_missing=False,
                     refusal_class="approval_required",
                     semantic_outcome="approval_required",
+                    scope_class="in_scope",
                     policy_reason="approval_required",
                     intent_capability="knowledge",
                     intent_task_kind="knowledge_lookup",
