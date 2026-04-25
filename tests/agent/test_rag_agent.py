@@ -10,6 +10,7 @@ from tests.agent.rag_agent_curriculum_semester_selection_suite import *
 from tests.agent.rag_agent_curriculum_structured_lookup_suite import *
 from tests.agent.rag_agent_official_web_suite import *
 from tests.agent.rag_agent_request_prompt_suite import *
+from tests.agent.rag_agent_service_structure_suite import *
 
 if __name__ == "__main__":
     unittest.main()

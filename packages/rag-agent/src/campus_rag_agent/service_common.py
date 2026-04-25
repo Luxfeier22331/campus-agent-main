@@ -87,7 +87,7 @@ def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundl
     )
 
 
-def _execute_retrieval_request_with_legacy_retriever(
+def _execute_retrieval_request_with_callable_retriever(
     retriever: Callable[..., object],
     retrieval_request: RetrievalRequest,
 ) -> EvidenceBundle:
