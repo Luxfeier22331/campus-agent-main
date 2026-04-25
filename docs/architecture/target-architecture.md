@@ -32,6 +32,7 @@ updated: 2026-04-25
 - shared app runtime 与 execution engine 分层
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
+- eval-governed quality lifecycle
 - planner-first `agentic retrieval` target，且仍保持 bounded campus scope
 
 长期主链路固定为：
@@ -212,6 +213,87 @@ suite family 固定为：
 raw transcript、auth material 或 provider raw response 作为 panel truth 或 eval canonical
 asset。
 
+## 长期 eval / quality governance 形态
+
+长期 eval 不是一次性 release checklist，而是围绕 production feedback 持续运行的质量治理
+lifecycle。它必须和 runtime observability、operator review、golden truth 与 release gate
+保持分层，但形成闭环。
+
+固定 owner 如下：
+
+- `packages/evals` 拥有 eval truth、case schema、runner、artifact、grader adapter、
+  release gate 与 golden / regression admission lifecycle
+- `apps/app-api` 拥有 internal eval ingress、request correlation、quality grade /
+  trace backlink ingest 与 operator-facing projection，不拥有 golden truth
+- `protected-panel-web` 只承担 operator review / triage UX；它可以发起受控 review
+  action，但不决定 golden set truth、不生成 benchmark artifact
+- `apps/supervisor-api` 与 domain agent 只产出 execution / trace / outcome
+  facts，不写 eval truth
+- OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader、
+  trace/debug sink 或 analysis input，不成为 repo canonical eval truth
+
+长期 eval lifecycle 固定为：
+
+`production request / incident / operator badcase ->
+app-api operator candidate projection ->
+eval-owned review / dedupe / admission ->
+golden or observed regression case ->
+deterministic + supplemental gate ->
+accepted artifact ->
+optional app-api grade / backlink publish ->
+operator observability rollup`
+
+其中：
+
+- production aggregate、sampled grades、release-gate verdict 与 golden truth 不得混成一张表
+- candidate review 必须记录 accept / reject / duplicate / deprecated / needs-info 等
+  lifecycle decision，以及 reviewer、reason、source request 与 target suite
+- accepted case 必须写入 repo-owned case fixture / artifact truth，而不是只留在 panel、
+  sink dashboard 或临时 JSON
+- release-gate artifact 必须保留 request correlation、runtime versions、case-set version、
+  deterministic verdict、supplemental verdict 与 publish summary
+- failed release gate 只能通过修复 runtime、修复 truth、或有审计记录的 case
+  governance decision 关闭，不能在 panel 上直接 override
+
+长期 suite family 固定分层：
+
+- `smoke`
+  - 小样本、快速、本地开发可跑，覆盖入口 contract 与高风险 happy path
+- `release_gate`
+  - 发布前 canonical denominator，覆盖已开放 serving surface 的核心成功 / fail-close /
+    clarification / policy path
+- `regression_locked`
+  - 高风险历史回归，优先锁定 doc/version/source truth 与已修复 incident
+- `observed_regression`
+  - 从生产 badcase、operator review、incident backfill 与 sampled grade 晋升的真实样本
+- `context_follow_up`
+  - session slot、selected notice、recent goal、profile projection 与缺上下文澄清
+- `version_compat`
+  - intent schema、classifier、prompt、model、index、case-set 与 downstream consumer 兼容性
+- `workflow_trace`
+  - planner、handoff、tool call、guardrail、fail-close 与 structured runtime branch
+    的 trace correctness
+
+长期评分分层固定为：
+
+- deterministic gate 是 canonical release verdict 的第一层，覆盖 status、routing、retrieval、
+  citation、required facts、forbidden claims、policy / authz 与 fail-close
+- supplemental graders 只能补充 grounding、relevance、tool / handoff semantics、
+  workflow quality 与 human-calibrated rubric；它们是否 gating 由 repo-owned policy 决定
+- human review 必须持续校准 automated grader，避免把 grader drift 反向写成 truth
+- 对未开放 capability family，只允许评估 closed / candidate-only / clarification
+  behavior；不能提前要求 answer quality gate
+
+长期 eval artifact 与 observability 回流必须坚持 data minimization：
+
+- eval artifact 可以保存 sanitized prompt summary、expected truth、observability summary、
+  request / trace correlation、grader rationale summary 与 safe links
+- eval artifact 不得保存 raw JWT、raw cookies、raw auth envelope、raw transcript、
+  provider raw response、retrieval backend dump 或未经裁剪的 restricted document
+  payload
+- trace / grader tooling 的原始结果必须先经过 eval-owned projection，再进入
+  `apps/app-api` 的 operator-facing grade / backlink ingest
+
 ## 长期 identity / authorization / memory 形态
 
 长期真相层固定拆成：
@@ -260,7 +342,8 @@ asset。
 - richer execution capability families
 - governed routing intent schema / classifier versioning
 - context follow-up resolver and routing clarification eval
-- observability-driven intent review / observed regression loop
+- eval-owned candidate admission / observed regression lifecycle
+- observability-driven intent review / production badcase backflow
 - campus navigation / wayfinding
 - planner-first agentic retrieval
 - explicit historical / as-of / compare query

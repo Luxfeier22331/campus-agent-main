@@ -76,6 +76,13 @@ Evaluation helpers for campus-agent v2.
 - `student_rules` formal benchmark 的 policy / rubric fixture 分别固定在
   `student_handbook_judge_gate_policy.json` 与
   `student_handbook_judge_rubrics.json`
+- intent eval 现在把 `release_gate`、`context_follow_up`、`version_compat` 与
+  `observed_regression` 作为默认 gate suites；observed regression truth 固定在
+  `intent_observed_regression.json`，只接受 review decision 为 `accepted` 且带
+  request / trace / sampled_at correlation 的 case
+- `campus_evals.eval_admission intent-candidates` 只把 mined JSONL 包装成
+  `pending_review` manifest，不会直接接收 golden truth；review / dedupe / expected truth
+  修订完成后，才允许人工迁入 observed regression fixture
 
 配套文档：
 
@@ -95,6 +102,8 @@ Evaluation helpers for campus-agent v2.
   tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为
   `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
+- `uv run --all-packages python -m unittest tests.evals.test_intent_eval`
+- `uv run --all-packages python -m scripts.intent_gate`
 
 retrieval benchmark CLI：
 

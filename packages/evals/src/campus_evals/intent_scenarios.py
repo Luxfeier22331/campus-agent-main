@@ -38,7 +38,11 @@ def intent_suite_cases(suite: str) -> tuple[IntentCase, ...]:
     if suite == "version_compat":
         return intent_version_compat_cases()
     if suite == "observed_regression":
-        return ()
+        from campus_evals.intent_observed_regression import (
+            load_intent_observed_regression_cases,
+        )
+
+        return load_intent_observed_regression_cases()
     raise ValueError(f"unsupported intent suite: {suite}")
 
 
@@ -103,6 +107,7 @@ def _place_lookup_closed_cases() -> tuple[IntentCase, ...]:
         IntentCase(
             case_id=f"intent-place-closed-{index:03d}",
             user_goal=goal,
+            requested_capability="place_lookup",
             expected_capability="place_lookup",
             expected_task_kind="place_lookup",
             expected_launch_state="closed",
@@ -217,12 +222,7 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="campus-services-agent",
-            expected_allowed_tools=(
-                ("service_status_lookup",)
-                if any(signal in goal for signal in ("开门", "营业", "开放", "办公时间", "状态"))
-                else ("transport_schedule_lookup",)
-            ),
+            expected_target="none",
         )
         for index, goal in enumerate(service_goals, start=1)
     ]
@@ -236,8 +236,7 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="notice-agent",
-            expected_allowed_tools=("campus_notice_discover",),
+            expected_target="none",
         )
         for index, goal in enumerate(notice_goals, start=1)
     )

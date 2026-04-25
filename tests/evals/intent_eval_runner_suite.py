@@ -37,6 +37,7 @@ class IntentEvalRunnerTest(unittest.TestCase):
                 IntentCase(
                     case_id="intent-place-closed",
                     user_goal="图书馆在哪里",
+                    requested_capability="place_lookup",
                     expected_capability="place_lookup",
                     expected_task_kind="place_lookup",
                     expected_launch_state="closed",
@@ -66,6 +67,7 @@ class IntentEvalRunnerTest(unittest.TestCase):
                 IntentCase(
                     case_id="intent-place-closed-mismatch",
                     user_goal="图书馆在哪里",
+                    requested_capability="place_lookup",
                     expected_capability="place_lookup",
                     expected_task_kind="place_lookup",
                     expected_launch_state="open",
@@ -86,6 +88,7 @@ class IntentEvalRunnerTest(unittest.TestCase):
         case = IntentCase(
             case_id="intent-explicit-scope",
             user_goal="library hours",
+            requested_capability="knowledge",
             requested_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             expected_capability="knowledge",
             expected_task_kind="knowledge_lookup",

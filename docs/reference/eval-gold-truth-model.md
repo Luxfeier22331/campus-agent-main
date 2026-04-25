@@ -11,6 +11,32 @@ updated: 2026-04-03
 本文固定 `packages/evals` 中 golden case 的长期 truth 分层，避免继续把 deterministic gate、RAGAS
 reference 和 retrieval/context truth 混写成一份过薄 case。
 
+## Candidate Admission Lifecycle
+
+production request、incident、operator badcase 或低置信 audit 只能先进入 eval-owned
+candidate review manifest，不能直接写入 golden truth。
+
+固定链路：
+
+1. `app-api` 或 audit exporter 只提供 request / trace / sampled_at 等 correlation，以及可复现的候选
+   input。
+2. `packages/evals` 用 admission CLI 生成 `pending_review` manifest。
+3. eval reviewer 完成 dedupe、边界判断和 expected truth 修订后，才把 case
+   接收入对应 suite fixture。
+4. 接收入 fixture 后，deterministic gate 才把它计入 release / regression denominator。
+5. supplemental grader、OpenAI tracing、Sentry、Axiom 或 operator panel 只能消费
+   artifact 或 backlink，不改写 canonical truth。
+
+当前 intent badcase 的 repo-owned 入口：
+
+- candidate manifest builder：
+  `uv run --all-packages python -m campus_evals.eval_admission intent-candidates`
+  with `--input <mined.jsonl> --output <review-manifest.json>`
+- accepted observed regression fixture：
+  `packages/evals/fixtures/intent_observed_regression.json`
+- default gate：
+  `uv run --all-packages python -m scripts.intent_gate`
+
 ## 四层 Truth
 
 ### 1. Deterministic Truth

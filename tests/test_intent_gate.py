@@ -64,7 +64,7 @@ class IntentGateScriptTest(unittest.TestCase):
                 patch("scripts.intent_gate.run_intent_cases", return_value=_report(failed=0)),
                 redirect_stdout(stdout),
             ):
-                exit_code = main(["--output", str(output)])
+                exit_code = main(["--output", str(output), "--suite", "release_gate"])
 
             self.assertEqual(exit_code, 0)
             self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["passed"], 3)
