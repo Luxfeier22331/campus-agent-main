@@ -47,6 +47,9 @@ model`
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
   与 runtime hardening；Python `apps/supervisor-core-worker` 只保留 private bridge worker
+- semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
+  structured capability 可以在 Go `apps/supervisor-api` 的 non-stream answer path
+  直接完成
 - online query path 与 offline data plane 持续分层
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
@@ -131,11 +134,19 @@ model`
   seam 与 graceful drain
 - 拥有 deterministic structured planner；当前实现位于
   `apps/supervisor-api/internal/structuredplanning`，`internal/execution`
-  仅负责把 planner 输出适配成 bridge v2 `runtime_decisions`
+  仅负责把 planner 输出适配成 bridge v3 `runtime_decisions`
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope
-  admission 与 structured tool policy version
+  admission 与 structured tool policy version；intent signal taxonomy、reason
+  code 与 case-set version 当前由 `configs/runtime/intent-policy.v1.json`
+  持有，Go runtime policy 加载该 artifact，并在缺失或 version drift 时
+  fail-closed
+- 拥有 non-delegate terminal envelope 与 runtime decision summary；metrics、OTel
+  与 execution audit 使用同一组低基数 runtime policy labels
+- 对已打开的 `campus_services` / `notice` deterministic structured payload，
+  non-stream `/api/v1/answer` 可以直接执行 Go structured runtime 并返回
+  supervisor-style response
 - 通过 private bridge 调用 Python `apps/supervisor-core-worker`
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning
@@ -161,8 +172,8 @@ model`
 
 ## 当前 Package 边界
 
-- `packages/supervisor-core` top-level request
-  framing、routing、delegation、response finalization
+- `packages/supervisor-core` top-level request framing、Go preplanned handoff /
+  terminal envelope consumption、delegation、response finalization
 - `packages/rag-agent` 当前默认 knowledge agent，负责 retrieval-specific
   planning、clarification、grounded answer synthesis
 - `packages/navigation-agent` 已接受的 navigation capability boundary；当前 package /

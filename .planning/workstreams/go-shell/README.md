@@ -30,12 +30,16 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 26 closeout`
-- current slice: Go `supervisor-api` 已承接 bridge v2 canonical request
+- current phase: `Phase 33 closeout`
+- current slice: Go `supervisor-api` 已承接 bridge v3 canonical request
   projection、deterministic capability/scope/version 裁决、structured runtime
   payload planner、prompt config admission summary、runtime readiness truth 与
   execution audit ownership；Python `supervisor-core-worker` 已收窄为 private
-  semantic worker，消费 Go preplanned handoff，不再发布 execution runtime truth
+  semantic worker，消费 Go preplanned handoff，不再发布 execution runtime truth；Go
+  已从 structured-only handoff planner 扩展为 all-delegate handoff planner，knowledge
+  `rag_request` 也由 bridge v3 preplanned；Go 同时拥有 terminal envelope、structured
+  tool policy summary、opened structured capability 的 direct answer path 与 runtime
+  decision observability summary
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
 
 ## Completed So Far
@@ -129,8 +133,8 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
   - Python `supervisor-core-worker` 不再创建本地 JSONL audit writer，execution audit
     writer/backflow 归 Go `supervisor-api` 所有
 - `Phase 21`
-  - Go bridge v2 payload 成为 canonical request projection
-  - Python bridge hardcut 到 `supervisor_bridge_v2`
+  - Go bridge v3 payload 成为 canonical request projection
+  - Python bridge hardcut 到 `supervisor_bridge_v3`
   - private envelope 承载 `request_id`、trace、actor/context、effective
     capability、lane、scope/version 与 runtime decisions
 - `Phase 22`
@@ -139,8 +143,9 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
     fail-closed
   - Python capability keyword inference 已删除
 - `Phase 23`
-  - Go structured runtime payload planner 输出 `preplanned_target`、
-    `allowed_tools`、`specialist_payload` 与 `planning_outcome`
+  - Go structured runtime payload planner 输出 bridge v3
+    `runtime_decisions.handoff`，其中包含 target、`allowed_tools`、
+    `specialist_payload` 与 `planning_outcome`
   - Python worker 注入 Go preplanned handoff；`packages/supervisor-core`
     不再构造校车 / service status / notice deterministic payload
 - `Phase 24`
@@ -155,10 +160,40 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 - `Phase 26`
   - 删除 Python capability keyword inference 与 structured payload builder
   - 增加 guard，防止 deterministic structured runtime planner 回流
+- `Phase 27`
+  - Go `internal/structuredplanning` 输出 knowledge `rag_request` handoff
+  - Python bridge 对 delegate routing 缺失 `planning_outcome=preplanned` fail-closed
+  - `packages/supervisor-core` 不再 fallback 调用 Python `route_request()`，也不再在
+    `framing.py` 构造 RAG / navigation / structured specialist payload
+- `Phase 28`
+  - Go `supervisor-api` 生成 non-delegate routing 的 terminal envelope
+  - Python bridge 要求 terminal routing 必须携带 Go terminal envelope
+  - `packages/supervisor-core` 不再调用 prompt executor 生成 terminal response
+- `Phase 29`
+  - Go runtime policy 成为 structured tool policy 单一发布口径
+  - Python `tool_policy.py` 只按 payload kind 验证 Go 给出的 `allowed_tools`
+  - guard test 防止 target -> tool matrix 回流到 Python
+- `Phase 30`
+  - bridge envelope hardcut 为 `supervisor_bridge_v3`
+  - `runtime_decisions` 收口为 `routing_frame`、`terminal_envelope`、`handoff`、
+    `tool_policy` 与 `runtime_decision_summary`
+  - Python bridge 拒绝 v2 或缺少 Go-owned terminal / handoff payload 的请求
+- `Phase 31`
+  - `/api/v1/answer` 对已打开的 structured capability 执行 Go direct runtime path
+  - `campus_services` / `notice` deterministic payload 不再必须经过 Python bridge
+  - notice direct path 携带 `payload + access_context` envelope
+- `Phase 32`
+  - runtime decision summary 增加 selected target / tool、terminal outcome 与
+    fail-close reason
+  - metrics、OTel 与 execution audit 使用同一组低基数 runtime policy labels
+- `Phase 33`
+  - 更新 docs / workstream state
+  - 增加 guardrail，禁止 pre-v3 bridge shape、flat planner fields、Python target-tool matrix
+    和 Python payload builder 回流
 
 ## Remaining Work
 
-- repo 内当前没有 Phase 8-26 的剩余必做实现项
+- repo 内当前没有 Phase 8-33 的剩余必做实现项
 - `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需 eval /
   regression evidence 与产品路由 admission 决策
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；opening
@@ -185,8 +220,9 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 - Go `supervisor-api` 首先承接 HTTP transport、auth、admission、backpressure、cancel/stream、
   readiness/metrics、audit/logging 与 Python orchestration bridge
 - Go structured query runtime 只承接 projection-backed deterministic query service
-  seam；Go 还拥有 deterministic structured handoff planner。domain-agent 语义、
-  tool execution 与 answer shaping 不迁入 Go `apps/supervisor-api`
+  seam；Go 还拥有 deterministic handoff planner、terminal envelope 与 opened
+  structured capability 的 direct answer path。semantic agent reasoning、prompt answer
+  synthesis 与 RAG grounding 不迁入 Go `apps/supervisor-api`
 
 ## Recorded Conclusion
 

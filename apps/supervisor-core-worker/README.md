@@ -15,10 +15,14 @@ Python worker 只负责：
 - 接收 Go `supervisor-api` 已投影好的 private `SupervisorRequest`
 - 调用 `packages/supervisor-core`
 - 绑定 prompt runtime / provider-backed executors
-- 消费 Go bridge v2 中的 deterministic structured handoff plan，并把它注入
-  supervisor-core；不在 Python routing 中重新构造 structured payload
-- 消费 Go bridge v2 中的 `routing_frame` / `scope_gate` / `policy_gate` /
-  `context_preflight`；缺失 Go-owned routing frame 时 fail-closed
+- 消费 Go bridge v3 中的 deterministic delegate handoff plan，并把它注入
+  supervisor-core；不在 Python routing / framing 中重新构造 RAG、navigation 或
+  structured payload
+- 消费 Go bridge v3 中的 `routing_frame` / `scope_gate` / `policy_gate` /
+  `context_preflight` / `terminal_envelope` / `handoff`；缺失 Go-owned routing
+  frame、terminal envelope 或 delegate handoff 时 fail-closed
+- 消费 Go bridge v3 中的 terminal response envelope；不在 Python worker /
+  supervisor-core 中重新调用 prompt executor 合成 deterministic terminal 文案
 - 在配置 structured query internal seam 时，为 `campus-services-agent`
   注入 Go `supervisor-api` query service client
 - 暴露 private bridge health / readiness
@@ -34,6 +38,8 @@ Python worker 不负责：
 - Go `supervisor-api` admission / backpressure / metrics
 - product scope、approval-required、query-enabled scope 或 context follow-up
   的 deterministic runtime truth
+- terminal envelope、structured tool policy 或 deterministic structured runtime
+  planner truth
 - retrieval / ingestion data-plane ownership
 
 ## Private Bridge Surface
@@ -59,6 +65,11 @@ Python worker 不负责：
 Go `supervisor-api` `/readyz` 会聚合 Python worker readiness，并发布唯一的
 execution `transport_runtime`、lifecycle/cancel runtime truth 与
 `prompt_config_gate`。
+
+bridge answer route 只接受 `supervisor_bridge_v3`。delegate routing 必须携带
+`runtime_decisions.handoff`；non-delegate routing 必须携带
+`runtime_decisions.terminal_envelope`。`supervisor_bridge_v3` 之前的 shape 和 flat
+preplanned fields 不是 active compatibility path。
 
 `/internal/bridge/execution/cancel` 记录 cooperative cancellation state。默认
 Python semantic orchestration 会在 deterministic checkpoints 停止并返回

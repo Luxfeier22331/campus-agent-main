@@ -15,9 +15,10 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Projects the external execution request into private
-  `SupervisorRequest -> SupervisorResponse` JSON and calls the Python
-  orchestration bridge at `/internal/bridge/*`.
+- Projects the external execution request into private bridge v3
+  `SupervisorRequest -> SupervisorResponse` JSON. Semantic delegate requests call
+  the Python orchestration bridge at `/internal/bridge/*`; opened deterministic
+  structured requests can complete through the Go direct runtime path.
 - Aggregates Python worker readiness into Go-owned `/readyz`, while keeping Go
   transport admission as the published `transport_runtime`.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
@@ -38,15 +39,21 @@ Current status:
   `503 supervisor_bridge_circuit_open` and degrade `/readyz`.
 - Bounds Python bridge response bodies with
   `SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES`.
-- Owns deterministic structured runtime payload planning in
-  `internal/structuredplanning`; `internal/execution` only adapts planner output
-  into bridge v2 `runtime_decisions`.
+- Owns deterministic delegate handoff planning in `internal/structuredplanning`,
+  including `rag-agent` `rag_request` payload projection and structured
+  campus-services / notice payload projection; `internal/execution` only adapts
+  planner output into bridge v3 `runtime_decisions`.
 - Owns deterministic runtime policy in `internal/runtimepolicy`, including
   product scope gate, high-risk approval / reject gate, context follow-up
   preflight, query-enabled scope admission, and structured tool policy version.
-  Runtime policy decisions are projected into bridge v2 and summarized in
+  Runtime policy decisions are projected into bridge v3 and summarized in
   Go-owned metrics, OTel attributes, and execution audit events without
   including raw user text.
+- Owns non-delegate terminal envelopes for clarify, approval-required,
+  out-of-scope and rejected decisions. Python consumes the envelope instead of
+  synthesizing terminal prompt responses.
+- Owns the structured tool policy summary. Python only validates that the
+  preplanned payload kind matches the Go-provided `allowed_tools`.
 - Hosts the gate-closed structured query runtime foundation for campus services
   and notice capabilities. `service_status_lookup` can read a configured file
   projection fixture for deterministic runtime tests; `transport_schedule_lookup`
@@ -55,6 +62,9 @@ Current status:
   suspension summaries; `campus_notice_discover` / `campus_notice_get` read the
   internal notice PG read model and S3-compatible derived canonical bodies. This
   still does not open `campus_services` or `notice` product serving.
+- When `campus_services` or `notice` is explicitly opened, non-stream
+  `/api/v1/answer` can execute those deterministic structured payloads directly
+  in Go and shape a supervisor-style response without calling the Python bridge.
 - Owns bounded FIFO execution admission with queue full / lane queue full /
   queue timeout / lane queue timeout / draining outcomes, `Retry-After` hints,
   and graceful shutdown drain.
@@ -146,6 +156,9 @@ Current structured query runtime boundary:
   `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
   `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured in the
   `supervisor-api` worker container.
+- The Go direct structured answer path uses the same projection-backed query
+  runtime internally after the structured capability opening gate admits the
+  request.
 - `/readyz` reports `capability_gates` so operators can see whether
   `campus_services` / `notice` are still closed, and `/metrics` reports
   capability gate open / closed decisions.
@@ -174,7 +187,8 @@ Current observability boundary:
   raw `user_goal`, prompt, answer, transcript, auth material, retrieval payload,
   or provider response. The runtime decision summary is limited to low-cardinality
   labels such as scope gate, policy gate, context preflight, routing next action,
-  and planning outcome.
+  planning outcome, selected target/tool, terminal outcome, and fail-close
+  reason.
 - `/readyz` reports `execution_audit_runtime`, and `/metrics` reports emitted,
   dropped, failed, retry, spool, queue depth, batch size, enabled, and
   configured counters/gauges. `/readyz` degrades when execution audit is enabled

@@ -2,17 +2,19 @@
 
 `packages/supervisor-core` 是 `campus-agent` 当前已经接受的 supervisor coordination 边界。
 
-它不再被定义成“未来再补的 bootstrap 壳”，而是当前查询主链路中负责 request framing、routing、policy、response
-shaping 和 audit projection 的稳定 package。
+它不再被定义成“未来再补的 bootstrap 壳”，而是当前查询主链路中负责 request framing、消费 Go
+handoff、agent delegation、response finalization 和 audit projection 的稳定 package。
 
 ## Package Contract
 
 这个 package 只拥有 supervisor 的编排职责：
 
 - 将共享 `SupervisorRequest` 投影为 supervisor 可决策的内部上下文
-- 消费 Go `supervisor-api` 在 bridge v2 中给出的 deterministic runtime decisions
-- 对非 bridge 单元测试 / harness 保留 semantic routing fallback
-- 在内部构造 `SpecialistRequest` 并委派给对应 agent
+- 消费 Go `supervisor-api` 在 bridge v3 中给出的 deterministic runtime decisions
+- 消费 Go `supervisor-api` 在 bridge v3 中给出的 deterministic delegate handoff payload
+- 消费 Go `supervisor-api` 在 bridge v3 中给出的 deterministic terminal response
+  envelope
+- 在内部组装 `SpecialistRequest` envelope 并委派给对应 agent
 - 对 agent 返回结果执行 finalization policy
 - 组装统一的 `SpecialistResponse`
 - 投影最小审计字段
@@ -25,7 +27,8 @@ shaping 和 audit projection 的稳定 package。
 - 对象存储、Qdrant、MinIO 或其他基础设施细节
 
 `apps/supervisor-api` 拥有入口 deterministic runtime / policy gate；这里不再作为
-capability、scope、query-enabled scope 或 structured payload planning 的 runtime truth。
+capability、scope、query-enabled scope、terminal response、structured tool policy 或
+structured payload planning 的 runtime truth。
 
 ## Accepted Current-Design Modules
 
@@ -36,18 +39,20 @@ capability、scope、query-enabled scope 或 structured payload planning 的 run
 - `validation.py` 对 Go 已投影的 capability 做 trust-but-verify，缺失时 fail-closed。
 - `query_policy.py` 仅保留非 bridge fallback / 测试辅助；Go
   `apps/supervisor-api` 的 `runtimepolicy` 是 query-enabled scope admission owner。
-- `routing.py` 保留 semantic routing fallback；bridge 主路径优先使用 Go runtime decision
-  注入的 `RoutingDecision`。
+- `routing.py` 保留历史 semantic routing policy 单元覆盖与 eval 参考；bridge 主路径要求 Go
+  runtime decision 注入 `RoutingDecision`，缺失时 fail-closed。
 - `errors.py` 提供 supervisor 侧稳定错误分类，供 API shell 做结构化 HTTP 映射。
-- `framing.py` 在 routing 决定后构造内部 `SpecialistRequest`，把 external request boundary
-  和 internal handoff boundary 分开。
+- `framing.py` 在 Go handoff 决定后构造内部 `SpecialistRequest` envelope；payload 必须来自
+  preplanned `RoutingDecision`，不在 Python 中回填 RAG / navigation / structured payload。
 - `policy.py` 承担 agent 结果后的 finalization policy，稳定处理
-  `completed`、`needs_clarification`、`no_answer` 和 `error`。
+  `completed`、`needs_clarification`、`no_answer` 和 `error`；non-delegate
+  terminal routing 只消费 Go terminal envelope，不再调用 prompt executor 合成
+  deterministic terminal response。
 - `response.py` 承担 response shaping 与 source projection，输出统一的
   `SpecialistResponse`。
 - `audit.py` 承担 audit projection，只输出最小稳定审计字段。
-- `agent.py` 串起 `context -> routing -> agent delegation -> policy -> response
-  assembly` 的主流程。
+- `agent.py` 串起 `context -> preplanned handoff -> agent delegation -> policy ->
+  response assembly` 的主流程。
 
 ## Current Query Scope
 
@@ -75,7 +80,9 @@ capability、scope、query-enabled scope 或 structured payload planning 的 run
 - `packages/retrieval-core` 只通过 `rag-agent` 间接被消费；`supervisor-core` 不直接依赖它。
 - `packages/campus-services-agent` / `packages/notice-agent` 拥有 structured
   runtime capability 的 internal query service protocol 与 thin
-  adapter；`supervisor-core` 只委派，不直接拥有这些 query truth。
+  adapter；`supervisor-core` 只委派，不直接拥有这些 query truth。opened
+  structured capability 的 non-stream direct answer path 可由 Go `supervisor-api`
+  完成，不改变本 package 的 semantic orchestration 边界。
 
 ## Verification Focus
 

@@ -9,7 +9,7 @@ updated: 2026-04-25
 
 ## Current Progress
 
-- `Phase 0-20` repo-local implementation 已完成。
+- `Phase 0-33` repo-local implementation 已完成。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
 - `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
@@ -34,6 +34,19 @@ updated: 2026-04-25
 - `Phase 20` 已补齐 Go effective capability/lane inference、structured runtime
   opening gate、capability gate readiness/metrics，以及 Python bridge 本地 audit
   writer 清理；`campus_services` / `notice` 仍默认 gate closed。
+- `Phase 27` 已把 Go preplanned handoff 从 structured-only 扩展到 knowledge
+  delegate path，Python bridge / `packages/supervisor-core` 主路径不再 fallback 构造
+  routing 或 specialist payload。
+- `Phase 28-30` 已把 non-delegate terminal envelope、structured tool policy
+  summary 与 bridge v3 nested runtime decision envelope 收口到 Go
+  `supervisor-api`，Python bridge 对缺失 Go-owned handoff / terminal envelope 的请求
+  fail-closed。
+- `Phase 31` 已为 opened `campus_services` / `notice` structured capability 增加
+  `/api/v1/answer` direct structured runtime path；deterministic structured payload
+  不再必须经过 Python bridge。
+- `Phase 32-33` 已把 selected target / tool、terminal outcome 与 fail-close reason
+  纳入 metrics / OTel / execution audit 的低基数 runtime decision summary，并补齐
+  docs 与 guardrails。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
@@ -551,3 +564,290 @@ supervisor audit JSONL writer。
 - Repo-local implementation is complete. Opening `campus_services` / `notice`
   for product serving still requires eval / regression evidence and product
   route admission; this phase only installs the runtime gate.
+
+## Phase 21: Bridge V3 Canonical Projection
+
+**Goal:** 建立 Go-owned canonical request projection，并让 Python bridge 只消费该 private
+envelope。
+
+**Scope:**
+
+- emit bridge v3 payload from Go `apps/supervisor-api`
+- carry request id, trace, actor, context, user goal, effective capability, lane,
+  scope/version and runtime decisions
+- hardcut Python parser to `supervisor_bridge_v3`
+- keep Go runtime types out of `packages/contracts`
+
+**Exit Criteria:**
+
+- Go tests cover bridge payload projection
+- Python bridge tests cover v3 parsing and v2 rejection
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. The bridge is a private
+  `supervisor-api -> supervisor-core-worker` envelope, not a shared contract.
+
+## Phase 22: Capability Scope Version Single Truth
+
+**Goal:** 将 deterministic capability / scope / version entry decisions 单源迁到 Go。
+
+**Scope:**
+
+- infer effective capability and lane in Go
+- reject scope/version fields outside knowledge path
+- remove Python keyword inference truth
+- keep Python validation as trust-but-verify
+
+**Exit Criteria:**
+
+- Go tests cover location, transport, notice, non-spatial "where to handle" and
+  versioned notice-like queries
+- Python tests prove missing Go decision fails closed
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Python no longer guesses capability from
+  user text.
+
+## Phase 23: Structured Payload Planner Migration
+
+**Goal:** 将 deterministic structured payload planning 从 Python routing 迁到 Go。
+
+**Scope:**
+
+- build structured handoff payloads in Go `internal/structuredplanning`
+- pass target, allowed tools, specialist payload and planning outcome through bridge
+  v3 `runtime_decisions.handoff`
+- make Python routing consume the Go handoff
+
+**Exit Criteria:**
+
+- Go golden tests cover structured target / tool cases
+- Python tests prove preplanned handoff is passed to supervisor-core
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Python no longer builds校车、service
+  status or notice deterministic payloads at query time.
+
+## Phase 24: Python Bridge Runtime Slimming
+
+**Goal:** 将 execution runtime ownership 从 Python bridge 移出。
+
+**Scope:**
+
+- keep Python cancel registry as minimal cancel flag store
+- publish lifecycle / cancel runtime truth from Go `/readyz` and `/metrics`
+- slim Python `/internal/bridge/readyz` to prompt runtime, prompt HTTP pool and
+  worker runtime
+
+**Exit Criteria:**
+
+- Go readiness tests prove runtime truth does not depend on Python lifecycle counters
+- Python readyz tests prove execution runtime ownership is not exposed
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Python worker is a private semantic
+  worker.
+
+## Phase 25: Prompt Runtime Admission Boundary
+
+**Goal:** 不迁 prompt/provider stack，只把 deterministic prompt admission summary 迁到 Go。
+
+**Scope:**
+
+- read env/model presence in Go
+- publish Go-owned `prompt_config_gate`
+- keep Python provider client and prompt executor creation in Python
+- aggregate Python executor / pool health into Go readiness
+
+**Exit Criteria:**
+
+- missing key, missing model and strict structured output off produce stable Go
+  readiness reasons
+- Python provider/client failure is aggregated as degraded
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Prompt stack and provider executor remain
+  Python-owned.
+
+## Phase 26: Cleanup And Drift Guards
+
+**Goal:** 删除重复 deterministic logic，并防止迁移内容回流到 Python supervisor-core。
+
+**Scope:**
+
+- remove Python capability keyword inference
+- remove Python structured payload builder
+- remove bridge legacy parser path
+- add guard tests for planner / parser drift
+
+**Exit Criteria:**
+
+- focused Go / Python tests pass
+- guard tests prevent reintroducing Python deterministic planner truth
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Remaining Python routing code is retained
+  only for non-bridge fallback / tests where explicitly documented.
+
+## Phase 27: All-Delegate Handoff Planner
+
+**Goal:** 将 Go preplanned handoff 从 structured-only 扩展到 all-delegate path。
+
+**Scope:**
+
+- emit knowledge `rag_request` handoff from Go
+- require preplanned handoff for bridge delegate routing
+- remove Python fallback to `route_request()` and payload construction in
+  `framing.py`
+
+**Exit Criteria:**
+
+- Go tests cover knowledge handoff projection
+- Python tests prove missing handoff fails closed
+- guard tests prevent RAG / navigation / structured payload builders returning to
+  Python framing
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Python supervisor-core consumes the
+  preplanned routing decision.
+
+## Phase 28: Go Terminal Envelope
+
+**Goal:** 让 Go 成为 non-delegate terminal response envelope owner。
+
+**Scope:**
+
+- build `terminal_envelope` for clarify, approval-required, out-of-scope and rejected
+  decisions
+- require `terminal_envelope` in Python bridge for non-delegate routing
+- remove Python prompt-backed terminal response synthesis from supervisor-core
+
+**Exit Criteria:**
+
+- Go tests cover terminal envelope projection
+- Python tests prove missing terminal envelope fails closed
+- supervisor-core tests prove terminal response is consumed rather than synthesized
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Python finalization still handles
+  specialist responses, not runtime terminal policy copy.
+
+## Phase 29: Tool Policy Single Truth
+
+**Goal:** 将 structured target/tool policy truth 收口到 Go runtime policy。
+
+**Scope:**
+
+- publish tool policy through bridge v3 runtime decisions
+- remove Python target -> allowed-tools matrix
+- keep Python validation limited to payload kind vs Go-provided allowed tools
+- add guard test against target-tool matrix reintroduction
+
+**Exit Criteria:**
+
+- Python tests validate payload/tool compatibility
+- guard test fails if Python matrix or target-specific tool truth returns
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Python can reject malformed handoff but does
+  not decide which tool a target may use.
+
+## Phase 30: Bridge V3 Runtime Decision Envelope
+
+**Goal:** 将 bridge runtime decisions 收口为 nested v3 envelope，删除 flat planner fields。
+
+**Scope:**
+
+- use `routing_frame`, `terminal_envelope`, `handoff`, `tool_policy` and
+  `runtime_decision_summary`
+- reject pre-v3 bridge markers
+- reject flat planner-field bridge shapes
+- update Go and Python tests to v3-only expectations
+
+**Exit Criteria:**
+
+- Go bridge projection tests assert nested v3 shape
+- Python bridge tests reject v2 and missing terminal / handoff fields
+- guard scan blocks active pre-v3 parser truth
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Legacy shape is not retained as an active
+  runtime compatibility path.
+
+## Phase 31: Direct Structured Runtime Answer Path
+
+**Goal:** 对 opened structured capabilities，让 deterministic runtime path 可在 Go 中直接完成
+`/api/v1/answer`。
+
+**Scope:**
+
+- execute Go structured runtime for `campus_services` and `notice` handoff payloads
+  after opening gate admission
+- avoid Python bridge for deterministic structured payloads on non-stream answer path
+- wrap notice payload with `payload + access_context`
+- shape supervisor-style response with selected target, status, result,
+  observability and trace id
+
+**Exit Criteria:**
+
+- Go HTTP tests prove structured direct path succeeds without calling Python bridge
+- notice direct path carries authorization context
+- closed structured capability behavior remains fail-closed
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Streaming still uses lifecycle SSE bridge
+  semantics; this phase only changes non-stream `/api/v1/answer`.
+
+## Phase 32: Runtime Decision Observability Summary
+
+**Goal:** 统一 runtime policy decision 的低基数观测口径。
+
+**Scope:**
+
+- add selected target/tool, terminal outcome and fail-close reason to runtime decision
+  summary
+- publish the summary through metrics, OTel attributes and execution audit events
+- keep raw user text, prompts and provider payloads out of observability
+
+**Exit Criteria:**
+
+- Go metrics / telemetry / audit tests cover the added labels
+- runtime decision labels remain bounded and raw-content-free
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Observability summarizes deterministic
+  decisions, not semantic answer content.
+
+## Phase 33: Closeout Guardrails And Docs
+
+**Goal:** 删除残留旧口径，并防止 deterministic runtime planning 回流到 Python。
+
+**Scope:**
+
+- update supervisor-api, supervisor-core-worker, supervisor-core and architecture docs
+- update workstream README / STATE / ROADMAP
+- scan for pre-v3 bridge and flat planner-field references
+- keep guard tests for Python planner, parser and tool-policy drift
+
+**Exit Criteria:**
+
+- focused Go and Python verification passes
+- docs lint and `git diff --check` pass
+- active docs no longer describe pre-v3 or flat planner-field shapes as current truth
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when the verification section in `STATE.md`
+  records the fresh closeout commands for Phase 28-33.
