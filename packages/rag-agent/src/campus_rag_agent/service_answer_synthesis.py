@@ -20,7 +20,7 @@ from .service_curriculum import (
     _build_curriculum_course_answer,
     _build_curriculum_program_family_answer,
 )
-from .service_diagnostics import _build_rag_result_payload
+from .service_diagnostics_payload import _build_rag_result_payload
 from .service_prompting import (
     _compose_no_answer_response,
     _should_keep_deterministic_completed_answer,

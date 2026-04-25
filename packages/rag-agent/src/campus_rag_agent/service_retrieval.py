@@ -20,7 +20,7 @@ from .service_scope import (
     _resolve_curriculum_program_semester_fact_target_document_ids,
     _should_use_curriculum_program_semester_facts,
 )
-from .service_versioning import (
+from .service_versioning_context import (
     _resolve_retrieval_query_mode,
     _resolve_version_answer_context,
     _VersionAnswerContext,

@@ -5,13 +5,15 @@ import re
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
 
-from .agent_curriculum import (
+from .agent_curriculum_answering import (
     _compose_curriculum_lookup_answer,
     _compose_curriculum_semester_course_list_answer,
+)
+from .agent_curriculum_terms import (
     _is_curriculum_semester_course_list_query,
 )
 from .agent_official_web import _compose_official_web_answer
-from .agent_selection import _CJK_SEGMENT_RE, _PROCEDURE_QUERY_HINTS, _query_mode
+from .agent_selection_query import _CJK_SEGMENT_RE, _PROCEDURE_QUERY_HINTS, _query_mode
 from .agent_shared import (
     _answer_prefix,
     _lead_source_title,

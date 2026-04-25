@@ -15,34 +15,21 @@ from campus_rag_agent.confidence import derive_confidence
 from campus_rag_agent.intent import build_personalization_hint, frame_rag_intent
 from campus_rag_agent.prompt_execution import RagPromptExecutor, wrap_rag_prompt_executor
 from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
-from campus_rag_agent.retrieval_adequacy import (
-    ambiguous_retrieval_adequacy,
-    insufficient_retrieval_adequacy,
-)
 
 from .service_answer_synthesis import build_grounded_answer_response
 from .service_common import _build_empty_evidence
-from .service_diagnostics import (
-    _build_rag_result_payload,
-    _empty_evidence_retrieval_adequacy,
+from .service_diagnostics_payload import _build_rag_result_payload
+from .service_outcomes import (
+    RagOutcomeContext,
+    build_empty_retrieval_no_answer_response,
+    build_low_confidence_no_answer_response,
+    build_no_supporting_evidence_response,
+    build_restricted_access_denied_response,
+    maybe_build_evidence_clarification_response,
+    maybe_build_resolved_policy_clause_fail_closed_response,
 )
 from .service_preflight import _maybe_return_pre_retrieval_response
-from .service_prompting import (
-    _build_clarification_question,
-    _compose_clarification_response,
-    _compose_no_answer_response,
-    _retrieval_ambiguity_reason,
-    _should_clarify_with_evidence,
-    _with_prompt_trace,
-)
-from .service_response_text import (
-    _build_no_answer_response,
-    _build_restricted_access_denied_response,
-    _resolve_no_answer_semantics,
-    _resolved_policy_no_answer_reason,
-    _resolved_policy_title,
-    _should_fail_closed_resolved_policy_clause,
-)
+from .service_response_text import _resolve_no_answer_semantics
 from .service_retrieval import (
     build_rag_retrieval_context,
     execute_rag_retrieval_context,
@@ -55,12 +42,14 @@ from .service_scope import (
     _resolve_effective_curriculum_user_goal,
     _resolve_request_scope,
 )
-from .service_versioning import (
+from .service_versioning_evidence import (
+    _build_version_aware_supporting_evidence,
+    _is_compare_support_incomplete,
+)
+from .service_versioning_response import (
     _build_compare_support_incomplete_response,
     _build_version_aware_completed_response,
-    _build_version_aware_supporting_evidence,
     _build_version_filter_unresolved_response,
-    _is_compare_support_incomplete,
 )
 
 Retriever = Callable[..., object]
@@ -173,22 +162,21 @@ def delegate_to_rag_agent(
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
     except RestrictedDocumentAccessDeniedError:
-        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        return AgentResponse(
-            target="rag-agent",
-            status="no_answer",
-            answer_text=_build_restricted_access_denied_response(request, empty_evidence),
-            confidence="low",
-            result=_build_rag_result_payload(
-                evidence=empty_evidence,
-                resolved_scope=effective_scope,
+        return build_restricted_access_denied_response(
+            _build_outcome_context(
+                request=request,
+                effective_scope=effective_scope,
+                user_goal=user_goal,
+                personalization_hint=personalization_hint,
+                intent_frame=intent_frame,
+                prompt_executor=prompt_executor,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
                 curriculum_program_family_plan=curriculum_program_family_plan,
-                no_answer_reason="restricted_access_denied",
-                semantic_outcome="restricted_access_denied",
-            ),
+                evidence=evidence,
+                retrieval_execution_result=retrieval_execution_result,
+            )
         )
     except RetrievalBackendError as exc:
         return AgentResponse(
@@ -209,96 +197,39 @@ def delegate_to_rag_agent(
         )
 
     version_answer_context = retrieval_context.version_answer_context
+    outcome_context = _build_outcome_context(
+        request=request,
+        effective_scope=effective_scope,
+        user_goal=user_goal,
+        personalization_hint=personalization_hint,
+        intent_frame=intent_frame,
+        prompt_executor=prompt_executor,
+        handbook_plan=handbook_plan,
+        curriculum_plan=curriculum_plan,
+        curriculum_course_plan=curriculum_course_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
+        evidence=evidence,
+        retrieval_execution_result=retrieval_execution_result,
+    )
     if not evidence.sources:
         no_answer_reason, semantic_outcome, freshness_fail_closed = _resolve_no_answer_semantics(
             evidence=evidence,
             handbook_plan=handbook_plan,
         )
-        (
-            answer_text,
-            prompt_trace,
-            prompt_runtime_state,
-            prompt_runtime_detail,
-        ) = _compose_no_answer_response(
-            request=request,
-            resolved_scope=effective_scope,
+        return build_empty_retrieval_no_answer_response(
+            outcome_context,
             evidence=evidence,
             no_answer_reason=no_answer_reason,
-            fallback_answer=_build_no_answer_response(
-                evidence,
-                resolved_policy_title=_resolved_policy_title(handbook_plan),
-            ),
-            prompt_executor=prompt_executor,
-            intent_frame=intent_frame,
+            semantic_outcome=semantic_outcome,
+            freshness_fail_closed=freshness_fail_closed,
         )
-        return AgentResponse(
-            target="rag-agent",
-            status="no_answer",
-            answer_text=answer_text,
-            confidence="low",
-            result=_with_prompt_trace(
-                _build_rag_result_payload(
-                    evidence=evidence,
-                    resolved_scope=effective_scope,
-                    handbook_plan=handbook_plan,
-                    curriculum_plan=curriculum_plan,
-                    curriculum_course_plan=curriculum_course_plan,
-                    curriculum_program_family_plan=curriculum_program_family_plan,
-                    no_answer_reason=no_answer_reason,
-                    semantic_outcome=semantic_outcome,
-                    retrieval_adequacy=_empty_evidence_retrieval_adequacy(no_answer_reason),
-                    freshness_fail_closed=freshness_fail_closed,
-                    prompt_runtime_state=prompt_runtime_state,
-                    prompt_runtime_detail=prompt_runtime_detail,
-                    retrieval_execution_result=retrieval_execution_result,
-                ),
-                prompt_trace,
-            ),
-        )
-    if _should_clarify_with_evidence(effective_user_goal, evidence):
-        (
-            follow_up_question,
-            prompt_trace,
-            prompt_runtime_state,
-            prompt_runtime_detail,
-        ) = _compose_clarification_response(
-            request=request,
-            resolved_scope=effective_scope,
-            evidence=evidence,
-            fallback_question=_build_clarification_question(
-                user_goal,
-                evidence,
-                recent_goal=personalization_hint.recent_goal,
-                confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
-                clarification_candidates=curriculum_plan.clarification_candidates
-                if curriculum_plan is not None
-                else (),
-            ),
-            prompt_executor=prompt_executor,
-            intent_frame=intent_frame,
-        )
-        return AgentResponse(
-            target="rag-agent",
-            status="needs_clarification",
-            confidence="low",
-            follow_up_question=follow_up_question,
-            result=_with_prompt_trace(
-                _build_rag_result_payload(
-                    evidence=evidence,
-                    resolved_scope=effective_scope,
-                    handbook_plan=handbook_plan,
-                    curriculum_plan=curriculum_plan,
-                    curriculum_course_plan=curriculum_course_plan,
-                    retrieval_adequacy=ambiguous_retrieval_adequacy(
-                        _retrieval_ambiguity_reason(effective_user_goal, evidence)
-                    ),
-                    prompt_runtime_state=prompt_runtime_state,
-                    prompt_runtime_detail=prompt_runtime_detail,
-                    retrieval_execution_result=retrieval_execution_result,
-                ),
-                prompt_trace,
-            ),
-        )
+    clarification_response = maybe_build_evidence_clarification_response(
+        outcome_context,
+        effective_user_goal=effective_user_goal,
+        evidence=evidence,
+    )
+    if clarification_response is not None:
+        return clarification_response
 
     supporting_evidence = _build_version_aware_supporting_evidence(
         evidence,
@@ -308,46 +239,9 @@ def delegate_to_rag_agent(
     )
     apply_remote_content_suspicion_labels(supporting_evidence)
     if not supporting_evidence.sources:
-        (
-            answer_text,
-            prompt_trace,
-            prompt_runtime_state,
-            prompt_runtime_detail,
-        ) = _compose_no_answer_response(
-            request=request,
-            resolved_scope=effective_scope,
-            evidence=supporting_evidence,
-            no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
-            fallback_answer=_build_no_answer_response(
-                supporting_evidence,
-                resolved_policy_title=_resolved_policy_title(handbook_plan),
-            ),
-            prompt_executor=prompt_executor,
-            intent_frame=intent_frame,
-        )
-        return AgentResponse(
-            target="rag-agent",
-            status="no_answer",
-            answer_text=answer_text,
-            confidence="low",
-            result=_with_prompt_trace(
-                _build_rag_result_payload(
-                    evidence=supporting_evidence,
-                    retrieved_evidence=evidence,
-                    retrieval_execution_result=retrieval_execution_result,
-                    resolved_scope=effective_scope,
-                    handbook_plan=handbook_plan,
-                    curriculum_plan=curriculum_plan,
-                    curriculum_course_plan=curriculum_course_plan,
-                    curriculum_program_family_plan=curriculum_program_family_plan,
-                    no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
-                    semantic_outcome="unsupported_by_evidence",
-                    retrieval_adequacy=insufficient_retrieval_adequacy("no_supporting_sources"),
-                    prompt_runtime_state=prompt_runtime_state,
-                    prompt_runtime_detail=prompt_runtime_detail,
-                ),
-                prompt_trace,
-            ),
+        return build_no_supporting_evidence_response(
+            outcome_context,
+            supporting_evidence=supporting_evidence,
         )
 
     if _is_compare_support_incomplete(
@@ -369,76 +263,16 @@ def delegate_to_rag_agent(
 
     confidence = derive_confidence(supporting_evidence)
     if confidence == "low":
-        (
-            answer_text,
-            prompt_trace,
-            prompt_runtime_state,
-            prompt_runtime_detail,
-        ) = _compose_no_answer_response(
-            request=request,
-            resolved_scope=effective_scope,
-            evidence=supporting_evidence,
-            no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
-            fallback_answer=_build_no_answer_response(
-                supporting_evidence,
-                resolved_policy_title=_resolved_policy_title(handbook_plan),
-            ),
-            prompt_executor=prompt_executor,
-            intent_frame=intent_frame,
+        return build_low_confidence_no_answer_response(
+            outcome_context,
+            supporting_evidence=supporting_evidence,
         )
-        return AgentResponse(
-            target="rag-agent",
-            status="no_answer",
-            answer_text=answer_text,
-            confidence="low",
-            result=_with_prompt_trace(
-                _build_rag_result_payload(
-                    evidence=supporting_evidence,
-                    retrieved_evidence=evidence,
-                    retrieval_execution_result=retrieval_execution_result,
-                    resolved_scope=effective_scope,
-                    handbook_plan=handbook_plan,
-                    curriculum_plan=curriculum_plan,
-                    curriculum_course_plan=curriculum_course_plan,
-                    curriculum_program_family_plan=curriculum_program_family_plan,
-                    no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
-                    semantic_outcome="unsupported_by_evidence",
-                    retrieval_adequacy=insufficient_retrieval_adequacy("weak_supporting_evidence"),
-                    prompt_runtime_state=prompt_runtime_state,
-                    prompt_runtime_detail=prompt_runtime_detail,
-                ),
-                prompt_trace,
-            ),
-        )
-    if _should_fail_closed_resolved_policy_clause(
-        user_goal=user_goal,
-        evidence=supporting_evidence,
-        handbook_plan=handbook_plan,
-    ):
-        return AgentResponse(
-            target="rag-agent",
-            status="no_answer",
-            answer_text=_build_no_answer_response(
-                _build_empty_evidence(effective_scope, user_goal),
-                resolved_policy_title=_resolved_policy_title(handbook_plan),
-            ),
-            confidence="low",
-            result=_build_rag_result_payload(
-                evidence=_build_empty_evidence(effective_scope, user_goal),
-                retrieved_evidence=evidence,
-                retrieval_execution_result=retrieval_execution_result,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
-                no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
-                semantic_outcome="unsupported_by_evidence",
-                retrieval_adequacy=insufficient_retrieval_adequacy(
-                    "resolved_policy_clause_not_found"
-                ),
-            ),
-        )
+    fail_closed_response = maybe_build_resolved_policy_clause_fail_closed_response(
+        outcome_context,
+        supporting_evidence=supporting_evidence,
+    )
+    if fail_closed_response is not None:
+        return fail_closed_response
 
     if version_answer_context.mode in {"historical", "as_of", "compare"}:
         return _build_version_aware_completed_response(
@@ -470,4 +304,35 @@ def delegate_to_rag_agent(
         confidence=confidence,
         prompt_executor=prompt_executor,
         intent_frame=intent_frame,
+    )
+
+
+def _build_outcome_context(
+    *,
+    request: AgentRequest,
+    effective_scope,
+    user_goal: str,
+    personalization_hint,
+    intent_frame,
+    prompt_executor,
+    handbook_plan,
+    curriculum_plan,
+    curriculum_course_plan,
+    curriculum_program_family_plan,
+    evidence,
+    retrieval_execution_result,
+) -> RagOutcomeContext:
+    return RagOutcomeContext(
+        request=request,
+        resolved_scope=effective_scope,
+        user_goal=user_goal,
+        personalization_hint=personalization_hint,
+        intent_frame=intent_frame,
+        prompt_executor=prompt_executor,
+        handbook_plan=handbook_plan,
+        curriculum_plan=curriculum_plan,
+        curriculum_course_plan=curriculum_course_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
+        retrieved_evidence=evidence,
+        retrieval_execution_result=retrieval_execution_result,
     )

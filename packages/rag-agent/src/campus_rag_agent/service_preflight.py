@@ -10,10 +10,8 @@ from campus_rag_agent.retrieval_adequacy import (
 )
 
 from .service_common import _build_empty_evidence
-from .service_diagnostics import (
-    _build_rag_result_payload,
-    _clarification_retrieval_adequacy,
-)
+from .service_diagnostics_adequacy import _clarification_retrieval_adequacy
+from .service_diagnostics_payload import _build_rag_result_payload
 from .service_prompting import (
     _build_clarification_question,
     _compose_clarification_response,

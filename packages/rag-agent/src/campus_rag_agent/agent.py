@@ -6,7 +6,8 @@ from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
 
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
-from .agent_selection import _query_mode, _select_answer_support_rows
+from .agent_selection_query import _query_mode
+from .agent_selection_rows import _select_answer_support_rows
 
 DEFAULT_MAX_ANSWER_SOURCES = 3
 __all__ = (
