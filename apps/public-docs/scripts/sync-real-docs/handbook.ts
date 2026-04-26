@@ -4,6 +4,7 @@ import {
 	sanitizePreservedHtmlForMdx,
 	shouldPreserveTableAsHtml,
 } from "./html-table";
+import { normalizeReadableText } from "./readable-text";
 import {
 	asArray,
 	asRecord,
@@ -422,7 +423,7 @@ function normalizeHandbookBody(lines: string[], title: string | undefined): stri
 			if (normalized.length > 0 && normalized.at(-1) !== "") {
 				normalized.push("");
 			}
-			normalized.push(dedupedHeading, "");
+			normalized.push(normalizeReadableText(dedupedHeading), "");
 			if (HANDBOOK_CHAPTER_HEADING_RE.test(headingText)) {
 				sawChapterHeading = true;
 			}
@@ -432,7 +433,7 @@ function normalizeHandbookBody(lines: string[], title: string | undefined): stri
 			if (normalized.length > 0 && normalized.at(-1) !== "") {
 				normalized.push("");
 			}
-			normalized.push(renderHandbookLeadIn(stripped), "");
+			normalized.push(renderHandbookLeadIn(normalizeReadableText(stripped)), "");
 			continue;
 		}
 		if (
@@ -446,7 +447,7 @@ function normalizeHandbookBody(lines: string[], title: string | undefined): stri
 		) {
 			normalized.push("");
 		}
-		normalized.push(...renderHandbookBodyLines(line.trimEnd()));
+		normalized.push(...renderHandbookBodyLines(normalizeReadableText(line.trimEnd())));
 	}
 	while (normalized.at(-1) === "") {
 		normalized.pop();
@@ -690,19 +691,20 @@ function dedupeHandbookHeading(heading: string, headingCounts: Map<string, numbe
 }
 
 function appendHandbookTableBlocks(lines: string[], html: string): void {
-	if (shouldPreserveTableAsHtml(html)) {
+	const readableHtml = normalizeReadableText(html);
+	if (shouldPreserveTableAsHtml(readableHtml)) {
 		if (lines.length > 0 && lines.at(-1) !== "") {
 			lines.push("");
 		}
-		lines.push(sanitizePreservedHtmlForMdx(html), "");
+		lines.push(sanitizePreservedHtmlForMdx(readableHtml), "");
 		return;
 	}
-	const blocks = convertTableHtmlToMarkdownBlocks(html);
+	const blocks = convertTableHtmlToMarkdownBlocks(readableHtml);
 	if (blocks.some(([blockType]) => blockType !== "table") || blocks.length === 0) {
 		if (lines.length > 0 && lines.at(-1) !== "") {
 			lines.push("");
 		}
-		lines.push(sanitizePreservedHtmlForMdx(html), "");
+		lines.push(sanitizePreservedHtmlForMdx(readableHtml), "");
 		return;
 	}
 	for (const [blockType, blockText] of blocks) {

@@ -1,5 +1,6 @@
 import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import { normalizeReadableText } from "./readable-text";
 import {
 	buildDocumentMetaPanelBlock,
 	buildDocumentReaderMetadataFromJsonl,
@@ -107,7 +108,9 @@ export function buildPublicRegulationMarkdown(input: {
 	let wroteBody = false;
 	for (const row of iterRows(input.jsonlText)) {
 		const rowType = String(row.row_type ?? "").trim();
-		const text = normalizeText(row.clean_text);
+		const text = normalizeReadableText(
+			normalizeText(row.text_readable) || normalizeText(row.clean_text),
+		);
 		if (!text || rowType === "page_number") {
 			continue;
 		}
@@ -121,7 +124,10 @@ export function buildPublicRegulationMarkdown(input: {
 			continue;
 		}
 		if (rowType === "table") {
-			lines.push(normalizeText(row.html) || text, "");
+			lines.push(
+				normalizeReadableText(normalizeText(row.html_readable) || normalizeText(row.html)) || text,
+				"",
+			);
 			wroteBody = true;
 			continue;
 		}

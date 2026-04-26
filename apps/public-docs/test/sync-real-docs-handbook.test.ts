@@ -53,9 +53,9 @@ describe("handbook generated markdown", () => {
 		const cleaned = cleanHandbookMarkdown(markdown);
 
 		expect(cleaned).toContain(
-			'<p class="docs-lead-in">按照国家相关政策并结合学校的实际情况,对学生提供以下几种方式的资助:</p>',
+			'<p class="docs-lead-in">按照国家相关政策并结合学校的实际情况，对学生提供以下几种方式的资助：</p>',
 		);
-		expect(cleaned).toContain("(一)奖学金用于奖励品学兼优的学生。");
+		expect(cleaned).toContain("（一）奖学金用于奖励品学兼优的学生。");
 	});
 
 	it("disables framework footer navigation on generated handbook detail pages", () => {
@@ -124,13 +124,13 @@ describe("handbook generated markdown", () => {
 		const cleaned = cleanHandbookMarkdown(markdown);
 
 		expect(cleaned).toContain(
-			'<p class="docs-lead-in">按照国家相关政策并结合学校的实际情况,对学生提供以下几种方式的资助:</p>',
+			'<p class="docs-lead-in">按照国家相关政策并结合学校的实际情况，对学生提供以下几种方式的资助：</p>',
 		);
 		expect(cleaned).toContain(
-			"\n(一)奖学金用于奖励品学兼优的学生;\n\n(二)助学金用于资助家庭经济困难学生;\n\n(三)勤工助学提供校内岗位。\n",
+			"\n（一）奖学金用于奖励品学兼优的学生；\n\n（二）助学金用于资助家庭经济困难学生；\n\n（三）勤工助学提供校内岗位。\n",
 		);
-		expect(cleaned).not.toContain(": (一)");
-		expect(cleaned).not.toContain("; (二)");
+		expect(cleaned).not.toContain("：（一）");
+		expect(cleaned).not.toContain("；（二）");
 	});
 
 	it("promotes handbook inline numbered chapter headings after splitting them from body text", () => {

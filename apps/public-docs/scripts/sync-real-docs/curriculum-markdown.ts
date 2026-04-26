@@ -27,6 +27,7 @@ import {
 } from "./curriculum-table-repair";
 import type { MarkdownBlock } from "./curriculum-types";
 import { convertTableHtmlToMarkdownBlocks } from "./html-table";
+import { normalizeReadableText } from "./readable-text";
 import {
 	buildDocumentMetaPanelBlock,
 	buildDocumentReaderMetadataFromJsonl,
@@ -83,13 +84,19 @@ export function buildCurriculumMarkdown(input: {
 
 	for (const row of coalesceCurriculumTableContinuations([...iterRows(input.jsonlText)])) {
 		const rowType = String(row.row_type ?? "");
+		const publicationText = normalizeReadableText(
+			normalizeText(row.text_readable) || normalizeText(row.clean_text),
+		);
+		const publicationHtml = normalizeReadableText(
+			normalizeText(row.html_readable) || normalizeText(row.html),
+		);
 		const text =
 			rowType === "heading" || rowType === "paragraph" || rowType === "table_caption"
 				? repairKnownCurriculumDocsTextArtifacts(
 						input.title,
-						normalizeCurriculumBodyText(row.clean_text),
+						normalizeCurriculumBodyText(publicationText),
 					)
-				: normalizeText(row.clean_text);
+				: publicationText;
 		if (rowType === "page_number") {
 			continue;
 		}
@@ -103,10 +110,7 @@ export function buildCurriculumMarkdown(input: {
 						blocks.push(["block", `## ${pendingCourseMapHeadingText}`]);
 						pendingCourseMapHeadingText = undefined;
 					}
-					const html = repairKnownCurriculumDocsTableHtml(
-						input.title,
-						normalizeText(row.html) || text,
-					);
+					const html = repairKnownCurriculumDocsTableHtml(input.title, publicationHtml || text);
 					if (html) {
 						for (const [blockType, blockText] of convertTableHtmlToMarkdownBlocks(html)) {
 							if (blockType === "section_label") {
@@ -156,7 +160,7 @@ export function buildCurriculumMarkdown(input: {
 			continue;
 		}
 		if (rowType === "table") {
-			const html = repairKnownCurriculumDocsTableHtml(input.title, normalizeText(row.html) || text);
+			const html = repairKnownCurriculumDocsTableHtml(input.title, publicationHtml || text);
 			if (html) {
 				for (const [blockType, blockText] of convertTableHtmlToMarkdownBlocks(html)) {
 					if (blockType === "section_label") {
@@ -216,7 +220,7 @@ export function buildCurriculumMarkdown(input: {
 	}
 
 	for (const [, blockText] of blocks) {
-		lines.push(...renderMarkdownBlockLines(blockText), "");
+		lines.push(...renderMarkdownBlockLines(normalizeReadableText(blockText)), "");
 	}
 	if (input.courseMapEmbed && !insertedCourseMapSection) {
 		throw new Error(`missing 课程地图 section while published blocks exist for ${input.title}`);

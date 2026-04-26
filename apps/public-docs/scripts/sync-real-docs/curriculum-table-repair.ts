@@ -4,6 +4,7 @@ import {
 	htmlRowTextSignature,
 	normalizeTableBodyHeaderCells,
 } from "./html-table";
+import { normalizeReadableText } from "./readable-text";
 import { normalizeText } from "./shared";
 
 export function repairKnownCurriculumDocsTextArtifacts(title: string, text: string): string {
@@ -77,7 +78,8 @@ export function coalesceCurriculumTableContinuations(rows: CurriculumRow[]): Cur
 		}
 		const ownerRowId = normalizeText(row.row_id);
 		const continuationGroupId = normalizeText(row.continuation_group_id) || ownerRowId;
-		let mergedHtml = normalizeText(row.html) || normalizeText(row.clean_text);
+		let mergedHtml =
+			normalizeText(row.html_readable) || normalizeText(row.html) || normalizeText(row.clean_text);
 		let mergedRow = row;
 		let nextIndex = index + 1;
 		let didMerge = false;
@@ -94,7 +96,10 @@ export function coalesceCurriculumTableContinuations(rows: CurriculumRow[]): Cur
 			if (!isCurriculumTableContinuationOf(candidate, ownerRowId, continuationGroupId)) {
 				break;
 			}
-			const continuationHtml = normalizeText(candidate.html) || normalizeText(candidate.clean_text);
+			const continuationHtml =
+				normalizeText(candidate.html_readable) ||
+				normalizeText(candidate.html) ||
+				normalizeText(candidate.clean_text);
 			if (mergedHtml && continuationHtml) {
 				mergedHtml = mergeCurriculumTableHtml(mergedHtml, continuationHtml);
 				didMerge = true;
@@ -102,7 +107,14 @@ export function coalesceCurriculumTableContinuations(rows: CurriculumRow[]): Cur
 			nextIndex += 1;
 		}
 		if (didMerge) {
-			mergedRow = { ...row, clean_text: mergedHtml, html: mergedHtml };
+			const readableMergedHtml = normalizeReadableText(mergedHtml);
+			mergedRow = {
+				...row,
+				clean_text: mergedHtml,
+				html: mergedHtml,
+				html_readable: readableMergedHtml,
+				text_readable: readableMergedHtml,
+			};
 		}
 		coalesced.push(mergedRow);
 		index = nextIndex;

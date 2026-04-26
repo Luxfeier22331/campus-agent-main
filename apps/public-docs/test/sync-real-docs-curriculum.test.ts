@@ -8,6 +8,52 @@ import { buildHomePage } from "../scripts/sync-real-docs/pages";
 import { FakeObjectStore } from "./sync-real-docs-test-support";
 
 describe("curriculum generated markdown", () => {
+	it("prefers upstream readable publication text over machine-normalized text", () => {
+		const jsonlText = [
+			'{"row_type":"heading","clean_text":"(一)课程内容","text_readable":"（一）课程内容","heading_level":2}',
+			'{"row_type":"paragraph","clean_text":"主线,坚持分层培养;学院(系)负责审核。","text_readable":"主线，坚持分层培养；学院（系）负责审核。"}',
+			'{"row_type":"table","clean_text":"<table><tr><td>课程类</td><td>课程名称</td></tr><tr><td>备注:课程类</td><td>高等数学(下)</td></tr></table>","html":"<table><tr><td>课程类</td><td>课程名称</td></tr><tr><td>备注:课程类</td><td>高等数学(下)</td></tr></table>","html_readable":"<table><tr><td>课程类</td><td>课程名称</td></tr><tr><td>备注：课程类</td><td>高等数学（下）</td></tr></table>"}',
+		].join("\n");
+
+		const markdown = buildCurriculumMarkdown({
+			title: "示例培养方案",
+			jsonlText,
+		});
+
+		expect(markdown).toContain("## （一）课程内容");
+		expect(markdown).toContain("主线，坚持分层培养；学院（系）负责审核。");
+		expect(markdown).toContain("备注：课程类");
+		expect(markdown).toContain("高等数学（下）");
+		expect(markdown).not.toContain("主线,坚持");
+		expect(markdown).not.toContain("高等数学(下)");
+	});
+
+	it("normalizes stale fallback publication text before rendering generated curriculum docs", () => {
+		const jsonlText = [
+			'{"row_type":"heading","clean_text":"示例培养方案","heading_level":1}',
+			'{"row_type":"paragraph","clean_text":"总评成绩=平时考核(30%)+期中考核(30%)+期末考核(40%); 1.平时考核。"}',
+			'{"row_type":"paragraph","clean_text":"2. 夏翠翠。大学生心理健康教育[M].人民邮电出版社，2019."}',
+			'{"row_type":"table","html":"<table><tr><td>一级指标</td></tr><tr><td>3.素养目标</td></tr><tr><td>A.家庭经济特别困难</td></tr></table>"}',
+		].join("\n");
+
+		const markdown = buildCurriculumMarkdown({
+			title: "示例培养方案",
+			jsonlText,
+		});
+
+		expect(markdown).toContain(
+			"总评成绩=平时考核（30%）+期中考核（30%）+期末考核（40%）； 1. 平时考核。",
+		);
+		expect(markdown).toContain("2. 夏翠翠。大学生心理健康教育[M]. 人民邮电出版社，2019.");
+		expect(markdown).toContain("3. 素养目标");
+		expect(markdown).toContain("A. 家庭经济特别困难");
+		expect(markdown).not.toContain("平时考核(30%)");
+		expect(markdown).not.toContain("1.平时考核");
+		expect(markdown).not.toContain("[M].人民");
+		expect(markdown).not.toContain("3.素养目标");
+		expect(markdown).not.toContain("A.家庭经济特别困难");
+	});
+
 	it("keeps curriculum graduation requirement labels as separate markdown blocks", () => {
 		const jsonlText = [
 			'{"row_type":"heading","clean_text":"计算机类本科人才培养方案","heading_level":1}',
@@ -24,7 +70,7 @@ describe("curriculum generated markdown", () => {
 
 		expect(markdown).toContain("\n## 二、毕业要求\n");
 		expect(markdown).toContain(
-			"\n1. 工程知识:能够将数学、自然科学、工程基础和专业知识用于解决复杂工程问题。\n",
+			"\n1. 工程知识：能够将数学、自然科学、工程基础和专业知识用于解决复杂工程问题。\n",
 		);
 		expect(markdown).toContain("\n\n1\\.1 掌握数学、自然科学、工程基础和计算机类专业知识。\n\n");
 		expect(markdown).toContain(
@@ -92,7 +138,7 @@ describe("curriculum generated markdown", () => {
 		});
 
 		expect(markdown).toContain(
-			"\n1. 工程知识:能够解决复杂工程问题。\n\n1\\.1 掌握数学、自然科学和工程基础。\n\n1\\.2 应用专业知识建模并求解。\n",
+			"\n1. 工程知识：能够解决复杂工程问题。\n\n1\\.1 掌握数学、自然科学和工程基础。\n\n1\\.2 应用专业知识建模并求解。\n",
 		);
 	});
 
@@ -130,7 +176,7 @@ describe("curriculum generated markdown", () => {
 			jsonlText,
 		});
 
-		expect(markdown).toContain('<p className="docs-lead-in">课程清单如下:</p>');
+		expect(markdown).toContain('<p className="docs-lead-in">课程清单如下：</p>');
 		expect(markdown).toContain(
 			'<p className="docs-table-caption">表 1 计算机科学与技术专业毕业要求对培养目标的支撑关系矩阵</p>',
 		);
@@ -153,8 +199,8 @@ describe("curriculum generated markdown", () => {
 		expect(markdown).toContain(
 			"通识教育板块应修52学分。其中必修44学分，包括思政课19学分、基本素养课23学分，劳动教育2学分；选修8学分。\n\n",
 		);
-		expect(markdown).toContain('<p className="docs-lead-in">课程清单如下:</p>');
-		expect(markdown).not.toContain("选修8学分。课程清单如下:");
+		expect(markdown).toContain('<p className="docs-lead-in">课程清单如下：</p>');
+		expect(markdown).not.toContain("选修8学分。课程清单如下：");
 	});
 
 	it("splits dense curriculum parenthesized Arabic enums into readable paragraphs", () => {
@@ -170,9 +216,9 @@ describe("curriculum generated markdown", () => {
 		});
 
 		expect(markdown).toContain(
-			"(1) 第一层次: 完成每月体育锻炼打卡，方为通过;\n\n(2) 第二层次: 各俱乐部制定具体要求;\n\n(3) 第三层次: 完成体育代表队训练。",
+			"（1） 第一层次：完成每月体育锻炼打卡，方为通过；\n\n（2） 第二层次：各俱乐部制定具体要求；\n\n（3） 第三层次：完成体育代表队训练。",
 		);
-		expect(markdown).not.toContain("通过;(2)");
+		expect(markdown).not.toContain("通过；（2）");
 	});
 
 	it("splits dense curriculum bare Arabic enums into readable paragraphs", () => {
@@ -188,9 +234,9 @@ describe("curriculum generated markdown", () => {
 		});
 
 		expect(markdown).toContain(
-			"1)文献资料的查阅与分析应用;\n\n2)学习新技术、新方法;\n\n3)实验方案确定，实验装置的设计与建立。",
+			"1)文献资料的查阅与分析应用；\n\n2)学习新技术、新方法；\n\n3)实验方案确定，实验装置的设计与建立。",
 		);
-		expect(markdown).not.toContain("应用;2)");
+		expect(markdown).not.toContain("应用；2)");
 	});
 
 	it("renders contextual curriculum suggested-course-list lead-ins as styled blocks", () => {
@@ -207,7 +253,7 @@ describe("curriculum generated markdown", () => {
 		});
 
 		expect(markdown).toContain(
-			'<p className="docs-lead-in">1. 计算机科学与技术专业个性化培养至少选择修读6学分,建议课程清单:</p>',
+			'<p className="docs-lead-in">1. 计算机科学与技术专业个性化培养至少选择修读6学分，建议课程清单：</p>',
 		);
 	});
 
@@ -251,11 +297,11 @@ describe("curriculum generated markdown", () => {
 			jsonlText,
 		});
 
-		expect(markdown).toContain('<p className="docs-lead-in">学年论文要求:</p>');
-		expect(markdown).toContain('<p className="docs-lead-in">毕业设计要求:</p>');
-		expect(markdown).toContain('<p className="docs-lead-in">计算机科学与技术专业拓展培养:</p>');
+		expect(markdown).toContain('<p className="docs-lead-in">学年论文要求：</p>');
+		expect(markdown).toContain('<p className="docs-lead-in">毕业设计要求：</p>');
+		expect(markdown).toContain('<p className="docs-lead-in">计算机科学与技术专业拓展培养：</p>');
 		expect(markdown).toContain('<p className="docs-lead-in">培养目标细化如下。</p>');
-		expect(markdown).not.toContain("\n学年论文要求:\n\n学生");
+		expect(markdown).not.toContain("\n学年论文要求：\n\n学生");
 	});
 
 	it("repairs known stale curriculum table artifacts while rendering docs", () => {

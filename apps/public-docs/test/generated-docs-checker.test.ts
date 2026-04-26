@@ -137,6 +137,94 @@ describe("public-docs generated-docs checker", () => {
 		);
 	});
 
+	it("rejects CJK-context halfwidth punctuation in generated publication body", async () => {
+		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
+		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
+		temporaryDirectories.push(root);
+		const target = join(root, "apps/public-docs/docs/curriculum-plan/undergraduate/example.mdx");
+		mkdirSync(join(root, "apps/public-docs/docs/curriculum-plan/undergraduate"), {
+			recursive: true,
+		});
+		writeFileSync(
+			target,
+			[
+				"---",
+				"title: 示例培养方案",
+				'documentKind: "curriculumPlan"',
+				'readerLayout: "reference"',
+				'readerMeasure: "wide"',
+				'readerOutline: "document"',
+				"---",
+				"",
+				'<section className="document-meta-panel">',
+				"来源信息",
+				"</section>",
+				"",
+				"### (一)课程内容",
+				"",
+				"主线,坚持分层培养；学院(系)负责审核。",
+				"",
+				"总评成绩=平时考核(30%)+期中考核(30%)+期末考核(40%); 1.平时考核。",
+				"",
+				"备注:不应使用半角冒号。",
+				"",
+				"https://example.edu/a?b=1, doc_id:curriculum:test",
+			].join("\n"),
+			"utf-8",
+		);
+
+		const messages = validatePublicDocsGeneratedFile(target, { root }).map(
+			(issue) => issue.message,
+		);
+
+		expect(messages).toContain(
+			"generated publication text contains CJK-context halfwidth punctuation: 主线,",
+		);
+		expect(messages).toContain(
+			"generated publication text contains CJK-context halfwidth parentheses: (一)",
+		);
+		expect(messages).toContain(
+			"generated publication text contains CJK-context halfwidth parentheses: (系)",
+		);
+		expect(messages).toContain(
+			"generated publication text contains CJK-context halfwidth parentheses: (30%)",
+		);
+		expect(messages).toContain(
+			"generated publication text contains CJK-context halfwidth punctuation: .平时考核",
+		);
+		expect(messages).toContain("generated publication text contains halfwidth label colon: 备注:");
+		expect(messages).not.toContain(
+			"generated publication text contains CJK-context halfwidth punctuation: 1,",
+		);
+	});
+
+	it("allows markdown links and escaped HTML entities while checking publication punctuation", async () => {
+		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
+		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
+		temporaryDirectories.push(root);
+		const target = join(root, "apps/public-docs/docs/curriculum-plan/index.md");
+		mkdirSync(join(root, "apps/public-docs/docs/curriculum-plan"), { recursive: true });
+		writeFileSync(
+			target,
+			[
+				"---",
+				"title: 培养方案",
+				'documentKind: "collectionLanding"',
+				'readerLayout: "landing"',
+				'readerMeasure: "standard"',
+				'readerOutline: "none"',
+				"---",
+				"",
+				"- [中国少数民族语言文学本科人才培养方案](./undergraduate/中国少数民族语言文学本科人才培养方案)",
+				"",
+				"<div><table><tbody><tr><td>&#42;战场医疗救护</td></tr></tbody></table></div>",
+			].join("\n"),
+			"utf-8",
+		);
+
+		expect(validatePublicDocsGeneratedFile(target, { root })).toEqual([]);
+	});
+
 	it("allows collection landing pages without document source metadata", async () => {
 		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
 		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));

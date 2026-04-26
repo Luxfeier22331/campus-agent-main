@@ -36,6 +36,14 @@ const READER_MEASURES = new Set(["standard", "wide", "full"]);
 const READER_OUTLINES = new Set(["none", "document", "compact"]);
 const OBSOLETE_READER_PROFILE_MESSAGE =
 	"frontmatter must use documentKind, readerLayout, readerMeasure, and readerOutline; readerProfile is obsolete";
+const CJK_CONTEXT_HALFWIDTH_PUNCTUATION_RE =
+	/[\u3400-\u9fff]{1,8}[,.:;?!]|[,.:;?!][\u3400-\u9fff]{1,8}/g;
+const CJK_CONTEXT_HALFWIDTH_PARENTHESES_RE =
+	/\([^\n)]*[\u3400-\u9fff][^\n)]*\)|\([一二三四五六七八九十百千万〇零]{1,6}\)|\(\d{1,2}\)|(?<=[\u3400-\u9fff])\([^()\n]{1,32}\)|\([^()\n]{1,32}\)(?=[\u3400-\u9fff])/g;
+const HALFWIDTH_LABEL_COLON_RE =
+	/(?:备注|课程类|课程号|课程名称|学分|学时|实践学时|开设学期|修读学期|学制|总学分|授予学位|学位授予):/g;
+const PROTECTED_PUBLICATION_TEXT_SPAN_RE =
+	/https?:\/\/[^\s<>'"，,。；;：:！）)]+|www\.[^\s<>'"，,。；;：:！）)]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\b(?:doc_id|sha256|source_artifact_id|source_pdf|version_id|rawAssetId|rawVersionId):[A-Za-z0-9_./:-]+/g;
 
 export interface PublicDocsGeneratedIssue {
 	path: string;
@@ -115,6 +123,7 @@ export function validatePublicDocsGeneratedFile(
 			message: "generated source metadata must use static HTML, not a raw React component tag",
 		});
 	}
+	issues.push(...publicationTextNormalizationIssues(path, split.body));
 	return issues;
 }
 
@@ -221,6 +230,65 @@ function hasDocumentMetaPanel(body: string): boolean {
 
 function hasRawDocumentMetaPanelComponent(body: string): boolean {
 	return /<DocumentMetaPanel(?:\s|>)/.test(body);
+}
+
+function publicationTextNormalizationIssues(
+	path: string,
+	body: string,
+): PublicDocsGeneratedIssue[] {
+	const issues: PublicDocsGeneratedIssue[] = [];
+	let inMetadataPanel = false;
+	let inCodeFence = false;
+	for (const rawLine of body.split(/\r?\n/)) {
+		const trimmed = rawLine.trim();
+		if (trimmed.startsWith("```")) {
+			inCodeFence = !inCodeFence;
+			continue;
+		}
+		if (inCodeFence || trimmed.startsWith("import ") || trimmed.startsWith("export ")) {
+			continue;
+		}
+		if (
+			rawLine.includes('className="document-meta-panel"') ||
+			rawLine.includes('class="document-meta-panel"')
+		) {
+			inMetadataPanel = true;
+		}
+		if (inMetadataPanel) {
+			if (rawLine.includes("</section>")) {
+				inMetadataPanel = false;
+			}
+			continue;
+		}
+		const line = rawLine
+			.replace(/\]\((?:\\.|[^)])*\)/g, "]")
+			.replace(PROTECTED_PUBLICATION_TEXT_SPAN_RE, "")
+			.replace(/<[^>]*>/g, " ")
+			.replace(/&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);/gi, " ")
+			.replace(/&nbsp;/g, " ");
+		if (!line.trim()) {
+			continue;
+		}
+		issues.push(
+			...matchesFor(line, CJK_CONTEXT_HALFWIDTH_PUNCTUATION_RE).map((match) => ({
+				path,
+				message: `generated publication text contains CJK-context halfwidth punctuation: ${match}`,
+			})),
+			...matchesFor(line, CJK_CONTEXT_HALFWIDTH_PARENTHESES_RE).map((match) => ({
+				path,
+				message: `generated publication text contains CJK-context halfwidth parentheses: ${match}`,
+			})),
+			...matchesFor(line, HALFWIDTH_LABEL_COLON_RE).map((match) => ({
+				path,
+				message: `generated publication text contains halfwidth label colon: ${match}`,
+			})),
+		);
+	}
+	return issues;
+}
+
+function matchesFor(line: string, pattern: RegExp): string[] {
+	return [...line.matchAll(new RegExp(pattern.source, "g"))].map((match) => match[0]);
 }
 
 function isCollectionGroupIndexPath(path: string): boolean {
