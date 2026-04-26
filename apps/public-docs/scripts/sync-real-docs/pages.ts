@@ -20,6 +20,9 @@ export function buildHomePage(input: { includePublicRegulations?: boolean } = {}
 	return `---
 title: "文档首页"
 footer: false
+readerProfile: "home"
+readerOutline: "none"
+outline: false
 ---
 
 # 校园公开文档

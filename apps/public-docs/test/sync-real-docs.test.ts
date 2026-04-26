@@ -366,7 +366,9 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 			jsonlText: '{"row_type":"heading","clean_text":"计算机类本科人才培养方案","heading_level":1}',
 		});
 
-		expect(markdown).toMatch(/^---\ntitle: "计算机类本科人才培养方案"\nfooter: false\n---/);
+		expect(markdown).toMatch(
+			/^---\ntitle: "计算机类本科人才培养方案"\nfooter: false\nreaderProfile: "curriculum"\nreaderOutline: "document"\n---/,
+		);
 	});
 
 	it("renders curriculum source and version metadata before generated body content", () => {
@@ -618,6 +620,8 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(cleaned).toMatch(
 			/^---\ntitle: '中央民族大学学生资助管理工作暂行办法'\nfooter: false\ncorpus:/,
 		);
+		expect(cleaned).toContain('readerProfile: "manual"');
+		expect(cleaned).toContain('readerOutline: "document"');
 	});
 
 	it("renders handbook source and page metadata from frontmatter", () => {
@@ -1171,6 +1175,7 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(markdown).toContain("<dd>regulation-source.pdf</dd>");
 		expect(markdown).toContain("<dd>原文第 1-2 页</dd>");
 		expect(markdown).toContain("<dd>2026 版</dd>");
+		expect(markdown).toContain('readerProfile: "manual"');
 		expect(markdown).not.toContain("institutional_rules");
 	});
 
@@ -1190,10 +1195,14 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		]);
 
 		expect(home).toContain("集中阅读学生手册、培养方案与公开规章");
+		expect(home).toContain('readerProfile: "home"');
+		expect(home).toContain('readerOutline: "none"');
 		expect(home).not.toContain("验证");
 		expect(home).not.toContain("MinIO");
 		expect(home).not.toContain("样本");
 		expect(curriculumIndex).toContain("footer: false");
+		expect(curriculumIndex).toContain('readerProfile: "collectionLanding"');
+		expect(curriculumIndex).toContain('readerOutline: "none"');
 		expect(curriculumIndex).toContain("## 本科专业与专业类");
 		expect(curriculumIndex).toContain(
 			"- [计算机类本科人才培养方案](./undergraduate/computer-science)",
@@ -1345,7 +1354,19 @@ describe("public-docs generated-docs checker", () => {
 		temporaryDirectories.push(root);
 		const target = join(root, "apps/public-docs/docs/curriculum-plan/index.md");
 		mkdirSync(join(root, "apps/public-docs/docs/curriculum-plan"), { recursive: true });
-		writeFileSync(target, ["---", "title: 培养方案概览", "---", "", "目录。"].join("\n"), "utf-8");
+		writeFileSync(
+			target,
+			[
+				"---",
+				"title: 培养方案概览",
+				'readerProfile: "collectionLanding"',
+				'readerOutline: "none"',
+				"---",
+				"",
+				"目录。",
+			].join("\n"),
+			"utf-8",
+		);
 
 		expect(validatePublicDocsGeneratedFile(target, { root })).toEqual([]);
 	});

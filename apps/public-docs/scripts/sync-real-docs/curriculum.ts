@@ -14,6 +14,7 @@ import {
 import {
 	buildDocumentMetaPanelBlock,
 	buildDocumentReaderMetadataFromJsonl,
+	buildReaderFrontmatterLines,
 	type CourseMapDocEmbed,
 	CURRICULUM_DOC_SLUG_OVERRIDES,
 	type CurriculumDoc,
@@ -53,6 +54,8 @@ export function buildCurriculumPlanIndex(curriculumDocs: CurriculumDoc[] = []): 
 		"title: 培养方案目录",
 		"description: 中央民族大学公开培养方案目录。",
 		"footer: false",
+		...buildReaderFrontmatterLines({ outlinePolicy: "none", profile: "collectionLanding" }),
+		"outline: false",
 		"---",
 		"",
 		"这里汇总可公开阅读的培养方案、通识课程教学计划与专项培养文件。你可以使用顶部搜索按专业名称、课程类别或关键词快速定位内容。",
@@ -158,7 +161,14 @@ export function buildCurriculumMarkdown(input: {
 	courseMapEmbed?: CourseMapDocEmbed;
 	objectKey?: string;
 }): string {
-	const lines = ["---", `title: ${jsonString(input.title)}`, "footer: false", "---", ""];
+	const lines = [
+		"---",
+		`title: ${jsonString(input.title)}`,
+		"footer: false",
+		...buildReaderFrontmatterLines({ profile: "curriculum" }),
+		"---",
+		"",
+	];
 	if (input.courseMapEmbed) {
 		lines.push(
 			`import CourseMapSection from "${input.courseMapEmbed.componentImportPath}";`,

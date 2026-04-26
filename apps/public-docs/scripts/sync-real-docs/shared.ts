@@ -124,6 +124,25 @@ export interface DocumentReaderMetadata {
 	technicalDetails?: DocumentReaderTechnicalDetail[];
 }
 
+export type DocumentReaderProfile =
+	| "home"
+	| "collectionLanding"
+	| "manual"
+	| "curriculum"
+	| "flow";
+
+export type DocumentReaderOutlinePolicy = "none" | "document" | "compact";
+
+export function buildReaderFrontmatterLines(input: {
+	outlinePolicy?: DocumentReaderOutlinePolicy;
+	profile: DocumentReaderProfile;
+}): string[] {
+	return [
+		`readerProfile: ${jsonString(input.profile)}`,
+		`readerOutline: ${jsonString(input.outlinePolicy ?? "document")}`,
+	];
+}
+
 export const HANDBOOK_DOC_SLUG_OVERRIDES = new Map<string, string>([
 	["handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc", "student-attendance-management"],
 	["handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15", "national-scholarship-evaluation"],

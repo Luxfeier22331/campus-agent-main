@@ -23,6 +23,7 @@ const COLLECTION_GROUP_ROOTS = [
 const CONFLICT_MARKERS = ["<<<<<<<", "=======", ">>>>>>>"];
 const INTERNAL_LOCATOR_MARKERS = ["campusrag://", "campus-rag-derived", "minio://", "s3://"];
 const RESTRICTED_PUBLIC_DOCS_MARKERS = ["institutional_rules", "scoped_rules", "internal_notice"];
+const READER_PROFILES = new Set(["home", "collectionLanding", "manual", "curriculum", "flow"]);
 
 export interface PublicDocsGeneratedIssue {
 	path: string;
@@ -71,6 +72,9 @@ export function validatePublicDocsGeneratedFile(
 	}
 	if (!split.body.trim() && pageType !== "home") {
 		issues.push({ path, message: "missing generated document body" });
+	}
+	if (!metadata.value.readerProfile || !READER_PROFILES.has(metadata.value.readerProfile)) {
+		issues.push({ path, message: "frontmatter must include a valid readerProfile" });
 	}
 	if (
 		isGeneratedDocumentDetailPath(relative(root, path).replaceAll("\\", "/")) &&

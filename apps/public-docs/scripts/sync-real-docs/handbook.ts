@@ -9,6 +9,7 @@ import {
 	asRecord,
 	buildDocumentMetaPanelBlock,
 	buildDocumentReaderMetadataFromFrontmatter,
+	buildReaderFrontmatterLines,
 	escapeHtmlText,
 	HANDBOOK_ARTICLE_HEADING_RE,
 	HANDBOOK_CHAPTER_HEADING_RE,
@@ -71,6 +72,8 @@ export function buildHandbookIndex(): string {
 		"title: 学生手册",
 		"description: 中央民族大学学生手册公开阅读目录。",
 		"footer: false",
+		...buildReaderFrontmatterLines({ outlinePolicy: "none", profile: "collectionLanding" }),
+		"outline: false",
 		"---",
 		"",
 		"这里汇总学生在校学习、生活、资助、纪律、住宿和医疗等常用制度文件。",
@@ -272,6 +275,8 @@ function normalizeHandbookFrontmatter(frontmatterLines: string[]): string[] {
 	let seenCorpus = false;
 	let seenCollection = false;
 	let seenFooter = false;
+	let seenReaderOutline = false;
+	let seenReaderProfile = false;
 	for (const line of frontmatterLines.slice(1, -1)) {
 		const stripped = line.trim();
 		if (stripped.startsWith("corpus:")) {
@@ -289,6 +294,16 @@ function normalizeHandbookFrontmatter(frontmatterLines: string[]): string[] {
 			seenFooter = true;
 			continue;
 		}
+		if (stripped.startsWith("readerProfile:")) {
+			fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(0, 1));
+			seenReaderProfile = true;
+			continue;
+		}
+		if (stripped.startsWith("readerOutline:")) {
+			fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(1));
+			seenReaderOutline = true;
+			continue;
+		}
 		fields.push(line);
 	}
 	if (!seenFooter) {
@@ -300,6 +315,12 @@ function normalizeHandbookFrontmatter(frontmatterLines: string[]): string[] {
 	}
 	if (!seenCollection) {
 		fields.push(`collection: ${HANDBOOK_COLLECTION}`);
+	}
+	if (!seenReaderProfile) {
+		fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(0, 1));
+	}
+	if (!seenReaderOutline) {
+		fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(1));
 	}
 	rewritten.push(...fields);
 	rewritten.push(frontmatterLines.at(-1) ?? "---");
