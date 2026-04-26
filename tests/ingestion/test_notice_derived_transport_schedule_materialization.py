@@ -477,6 +477,29 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
         self.assertIn("乘车人员：学生", departures[0]["operational_comment"])
         self.assertNotIn("；1", departures[0]["operational_comment"])
 
+    def test_does_not_treat_reservation_open_time_as_departure(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="354777",
+            parent_markdown=(
+                "# 关于近期丰台校区周末地铁接驳车运营安排的通知\n\n"
+                "三、“接驳车预约”系统可预约班次将于发车前一天9：00开放预约"
+                "（如：周五9:00释放周六的可预约资源）。\n"
+            ),
+            attachment_document_ids=(),
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(rows, ())
+
     def test_temporary_period_departures_keep_bounded_historical_service_dates(
         self,
     ) -> None:
