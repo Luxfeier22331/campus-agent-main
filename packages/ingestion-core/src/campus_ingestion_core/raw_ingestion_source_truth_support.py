@@ -47,6 +47,9 @@ class _SourceTruthSettingsProtocol(Protocol):
     raw_version_id: str
     corpus: str
     collection: str
+    source_ocr_provider: str
+    source_ocr_fallback_enabled: bool
+    source_ocr_image_routing_strategy: str | None
     online_ocr: OnlineOcrSettings
     mineru_online_ocr: OnlineOcrSettings | None
 
@@ -211,7 +214,8 @@ def _needs_dual_run_image_adjudication(
     raw_asset_record: RawAssetRecord,
 ) -> bool:
     return (
-        _has_route_provider(settings=settings, provider=ONLINE_OCR_PROVIDER_MINERU_API)
+        (settings.source_ocr_image_routing_strategy or "default").strip().lower() == "default"
+        and _has_route_provider(settings=settings, provider=ONLINE_OCR_PROVIDER_MINERU_API)
         and _has_route_provider(settings=settings, provider=ONLINE_OCR_PROVIDER_ASYNC_JOBS)
         and raw_asset_record.asset_kind.strip().lower() == "image"
         and raw_asset_record.asset_subkind.strip().lower() == "generic_image"

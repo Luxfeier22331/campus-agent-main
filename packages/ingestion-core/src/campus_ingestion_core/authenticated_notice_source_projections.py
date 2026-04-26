@@ -51,6 +51,7 @@ def rebuild_authenticated_notice_source_projections(
     document_registry=None,
     raw_asset_registry=None,
     ocr_client=None,
+    ocr_clients=None,
 ) -> AuthenticatedNoticeSourceProjectionReport:
     return rebuild_authenticated_notice_source_projections_impl(
         request=request,
@@ -59,6 +60,7 @@ def rebuild_authenticated_notice_source_projections(
         document_registry=document_registry,
         raw_asset_registry=raw_asset_registry,
         ocr_client=ocr_client,
+        ocr_clients=ocr_clients,
         text_extractable_extractor=extract_text_extractable_file_asset,
         layout_elements_builder=build_text_extractable_layout_elements_bytes,
     )

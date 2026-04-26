@@ -337,6 +337,7 @@ def _execute_source_truth_only_routed_online_ocr(
         mineru_available=_has_route_provider(
             settings=settings, provider=ONLINE_OCR_PROVIDER_MINERU_API
         ),
+        image_routing_strategy=settings.source_ocr_image_routing_strategy,
     )
     if not route_decision.canonical_allowed or route_decision.canonical_provider is None:
         raise ValueError(
@@ -347,6 +348,7 @@ def _execute_source_truth_only_routed_online_ocr(
     allow_fallback_provider = not (
         settings.source_ocr_provider == ONLINE_OCR_PROVIDER_MINERU_API
         and route_decision.canonical_provider == ONLINE_OCR_PROVIDER_MINERU_API
+        and not settings.source_ocr_fallback_enabled
     )
     if (
         allow_fallback_provider

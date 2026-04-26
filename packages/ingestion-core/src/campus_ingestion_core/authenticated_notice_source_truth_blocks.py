@@ -273,10 +273,7 @@ def _html_attrs(tag: str) -> dict[str, str]:
 def _normalize_inline_image_url(value: str) -> str:
     normalized = unescape(value).strip()
     parsed = urlparse(normalized)
-    if parsed.scheme == "http":
-        scheme = "https"
-    else:
-        scheme = parsed.scheme
+    scheme = "https" if parsed.scheme == "http" else parsed.scheme
     netloc = parsed.netloc
     if netloc.endswith(":80"):
         netloc = netloc[:-3]
@@ -292,7 +289,8 @@ def _inline_image_url_dedup_keys(value: str) -> tuple[str, ...]:
         return (normalized,)
     host = parsed.netloc[:-3] if parsed.netloc.endswith(":80") else parsed.netloc
     scheme_agnostic = parsed._replace(scheme="", netloc=host).geturl()
-    return tuple(dict.fromkeys((normalized, scheme_agnostic)))
+    path_only = parsed._replace(scheme="", netloc="").geturl()
+    return tuple(dict.fromkeys((normalized, scheme_agnostic, path_only)))
 
 
 def _filename_from_url(value: str, fallback: str | None = None) -> str:

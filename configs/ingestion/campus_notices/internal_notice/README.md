@@ -63,6 +63,12 @@ Current collection posture is:
 
 - `source_channel=authenticated_notice_portal`
 - `primary_source_unit=notice`
+- source OCR uses `source_ocr_provider=mineru_api`,
+  `source_ocr_model=vlm`, and
+  `source_ocr_image_routing_strategy=mineru_primary`
+- `source_ocr_fallback_enabled=true`; Paddle async OCR remains the fallback
+  provider when a MinerU image/attachment attempt fails and Paddle credentials
+  are configured
 - `serving_stage=offline_preparation`
 - `retrieval_enabled=false`
 - `query_enabled_by_default=false`

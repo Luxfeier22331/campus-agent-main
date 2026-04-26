@@ -316,9 +316,11 @@ def select_online_ocr_routing(
     asset_kind: str,
     asset_subkind: str,
     mineru_available: bool,
+    image_routing_strategy: str | None = None,
 ) -> OnlineOcrRoutingDecision:
     normalized_asset_kind = asset_kind.strip().lower()
     normalized_asset_subkind = asset_subkind.strip().lower()
+    normalized_image_routing_strategy = (image_routing_strategy or "default").strip().lower()
 
     if normalized_asset_subkind == "pdf":
         if mineru_available:
@@ -377,6 +379,20 @@ def select_online_ocr_routing(
         normalized_asset_subkind in _PADDLE_PRIMARY_IMAGE_SUBKINDS
         or normalized_asset_kind == "image"
     ):
+        if normalized_image_routing_strategy == "mineru_primary" and mineru_available:
+            return OnlineOcrRoutingDecision(
+                route_id="generic_image_mineru_primary_with_paddle_fallback",
+                canonical_allowed=True,
+                canonical_provider=MINERU_PROVIDER,
+                fallback_provider=PADDLE_ASYNC_PROVIDER,
+                parser_version=MINERU_ADAPTED_PARSER_VERSION,
+                reason_codes=(
+                    "generic_or_simple_image",
+                    "mineru_primary_strategy",
+                    "mineru_available",
+                ),
+                persist_raw_provider_artifact=True,
+            )
         return OnlineOcrRoutingDecision(
             route_id="generic_image_paddle_primary",
             canonical_allowed=True,

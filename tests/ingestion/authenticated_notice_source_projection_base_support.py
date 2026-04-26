@@ -227,6 +227,19 @@ class _FakeAttachmentMineruOcrClient:
         return OnlineOcrProviderResult(provider_result_bytes=_build_mineru_archive_bytes())
 
 
+class _FailingAttachmentMineruOcrClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def parse_pdf(self, file_path: Path) -> OnlineOcrProviderResult:
+        self.calls.append(f"pdf:{file_path.name}")
+        raise RuntimeError(f"mineru failed for {file_path.name}")
+
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
+        self.calls.append(file_path.name)
+        raise RuntimeError(f"mineru failed for {file_path.name}")
+
+
 class _FailingAttachmentOcrClient:
     def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
         raise RuntimeError(f"provider contract breach for {file_path.name}")

@@ -124,15 +124,15 @@ def _build_mineru_fallback_archive_with_nested_content_bytes() -> bytes:
             },
             {
                 "type": "page_aside_text",
-                "content": {
-                    "page_aside_text_content": [{"type": "text", "content": "学生手册"}]
-                },
+                "content": {"page_aside_text_content": [{"type": "text", "content": "学生手册"}]},
                 "bbox": [36, 180, 72, 332],
             },
             {
                 "type": "paragraph",
                 "content": {
-                    "paragraph_content": [{"type": "text", "content": "第八条 临时困难补助对象包括："}]
+                    "paragraph_content": [
+                        {"type": "text", "content": "第八条 临时困难补助对象包括："}
+                    ]
                 },
                 "bbox": [148, 182, 822, 236],
             },
@@ -152,7 +152,9 @@ def _build_mineru_fallback_archive_with_nested_content_bytes() -> bytes:
                         },
                         {
                             "item_type": "text",
-                            "item_content": [{"type": "text", "content": "（二）无经济来源的孤儿；"}],
+                            "item_content": [
+                                {"type": "text", "content": "（二）无经济来源的孤儿；"}
+                            ],
                         },
                     ],
                 },
@@ -197,7 +199,9 @@ def _build_mineru_archive_prefers_content_list_v2_bytes() -> bytes:
             {
                 "type": "title",
                 "content": {
-                    "title_content": [{"type": "text", "content": "纳米材料与技术本科人才培养方案"}],
+                    "title_content": [
+                        {"type": "text", "content": "纳米材料与技术本科人才培养方案"}
+                    ],
                     "level": 1,
                 },
                 "bbox": [270, 101, 736, 128],
@@ -253,16 +257,17 @@ def _build_mineru_archive_with_paginated_content_list_v2_bytes() -> bytes:
         [
             {
                 "type": "title",
-                "content": {"title_content": [{"type": "text", "content": "第一页标题"}], "level": 1},
+                "content": {
+                    "title_content": [{"type": "text", "content": "第一页标题"}],
+                    "level": 1,
+                },
                 "bbox": [100, 80, 300, 120],
             }
         ],
         [
             {
                 "type": "paragraph",
-                "content": {
-                    "paragraph_content": [{"type": "text", "content": "第二页正文"}]
-                },
+                "content": {"paragraph_content": [{"type": "text", "content": "第二页正文"}]},
                 "bbox": [100, 120, 700, 180],
             }
         ],
@@ -301,6 +306,23 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertEqual(decision.canonical_provider, "paddleocr_async_jobs")
         self.assertIsNone(decision.fallback_provider)
         self.assertEqual(decision.parser_version, "paddleocr-vl-1.5")
+
+    def test_select_online_ocr_routing_uses_mineru_primary_image_strategy_for_generic_image(
+        self,
+    ) -> None:
+        decision = select_online_ocr_routing(
+            asset_kind="image",
+            asset_subkind="generic_image",
+            mineru_available=True,
+            image_routing_strategy="mineru_primary",
+        )
+
+        self.assertTrue(decision.canonical_allowed)
+        self.assertEqual(decision.route_id, "generic_image_mineru_primary_with_paddle_fallback")
+        self.assertEqual(decision.canonical_provider, "mineru_api")
+        self.assertEqual(decision.fallback_provider, "paddleocr_async_jobs")
+        self.assertEqual(decision.parser_version, "mineru-vlm-adapted-v2")
+        self.assertTrue(decision.persist_raw_provider_artifact)
 
     def test_select_online_ocr_routing_defers_office_documents(self) -> None:
         decision = select_online_ocr_routing(

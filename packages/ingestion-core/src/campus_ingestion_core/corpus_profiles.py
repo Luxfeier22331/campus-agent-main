@@ -22,6 +22,7 @@ OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"muc_public_pages", 
 OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"mixed", "stable_reference"})
 ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
 ALLOWED_LISTING_PAGE_ROLES = ("discovery_only", "navigation_fallback", "primary_evidence")
+ALLOWED_SOURCE_OCR_IMAGE_ROUTING_STRATEGIES = ("default", "mineru_primary")
 DEFAULT_DENSE_PREFETCH_LIMIT = 20
 DEFAULT_SPARSE_PREFETCH_LIMIT = 20
 DEFAULT_RRF_K = 60
@@ -52,6 +53,8 @@ class CollectionRuntimeProfile:
     source_ocr_provider: str | None = None
     source_ocr_model: str | None = None
     source_parser_version: str | None = None
+    source_ocr_fallback_enabled: bool = False
+    source_ocr_image_routing_strategy: str | None = None
     serving_surface: str | None = None
     supports_freshness_sensitive_queries: bool = False
     freshness_max_age_hours: int | None = None
@@ -98,6 +101,15 @@ class CollectionRuntimeProfile:
         for mode in self.allowed_artifact_modes:
             if mode not in ALLOWED_ARTIFACT_MODES:
                 raise ValueError(f"unsupported artifact mode: {mode}")
+        if (
+            self.source_ocr_image_routing_strategy is not None
+            and self.source_ocr_image_routing_strategy
+            not in ALLOWED_SOURCE_OCR_IMAGE_ROUTING_STRATEGIES
+        ):
+            raise ValueError(
+                "unsupported source_ocr_image_routing_strategy: "
+                f"{self.source_ocr_image_routing_strategy}"
+            )
         if not self.cleaning_policy_version:
             raise ValueError("cleaning_policy_version is required")
         if not self.chunk_profile_version:
@@ -221,6 +233,10 @@ def load_runtime_profile(
         source_ocr_provider=_optional_text(payload.get("source_ocr_provider")),
         source_ocr_model=_optional_text(payload.get("source_ocr_model")),
         source_parser_version=_optional_text(payload.get("source_parser_version")),
+        source_ocr_fallback_enabled=bool(payload.get("source_ocr_fallback_enabled", False)),
+        source_ocr_image_routing_strategy=_optional_text(
+            payload.get("source_ocr_image_routing_strategy")
+        ),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
         supports_freshness_sensitive_queries=bool(

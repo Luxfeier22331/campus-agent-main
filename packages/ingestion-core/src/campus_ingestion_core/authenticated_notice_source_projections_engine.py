@@ -27,6 +27,7 @@ from campus_ingestion_core.authenticated_notice_source_projections_shared import
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     AuthenticatedNoticeAttachmentProjectionOutcome,
     AuthenticatedNoticeAttachmentProjectionResult,
+    AuthenticatedNoticeOcrProviderRuntime,
     AuthenticatedNoticeOcrRuntime,
     AuthenticatedNoticeProjectedNotice,
     AuthenticatedNoticeProjectionObjectStore,
@@ -58,6 +59,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.file_asset_contract import ExtractionOutcome
 from campus_ingestion_core.raw_ingestion import (
+    ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
     OnlineOcrSettings,
     S3ObjectStoreClient,
@@ -84,6 +86,7 @@ def rebuild_authenticated_notice_source_projections_impl(
     document_registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
     ocr_client: OnlineOcrClient | None = None,
+    ocr_clients: dict[str, OnlineOcrClient] | None = None,
     text_extractable_extractor: TextExtractableExtractor,
     layout_elements_builder: LayoutElementsBuilder,
 ) -> AuthenticatedNoticeSourceProjectionReport:
@@ -132,8 +135,13 @@ def rebuild_authenticated_notice_source_projections_impl(
         )
 
     runtime_ocr = (
-        _resolve_authenticated_notice_ocr_runtime(env=source, ocr_client=ocr_client)
-        if ocr_client
+        _resolve_authenticated_notice_ocr_runtime(
+            env=source,
+            runtime_profile=runtime_profile,
+            ocr_client=ocr_client,
+            ocr_clients=ocr_clients,
+        )
+        if ocr_client or ocr_clients
         else None
     )
     attachment_ref_count = 0
@@ -252,7 +260,12 @@ def _project_parent_source_truth(
             unsupported_binary_attachment_count += 1
             continue
         if classification == "ocr_required" and runtime_ocr is None:
-            runtime_ocr = _resolve_authenticated_notice_ocr_runtime(env=env, ocr_client=None)
+            runtime_ocr = _resolve_authenticated_notice_ocr_runtime(
+                env=env,
+                runtime_profile=runtime_profile,
+                ocr_client=None,
+                ocr_clients=None,
+            )
         result = _build_attachment_projection_result(
             parent_source_truth=parent_source_truth,
             attachment_ref=attachment_ref,
@@ -284,27 +297,86 @@ def _project_parent_source_truth(
 def _resolve_authenticated_notice_ocr_runtime(
     *,
     env: dict[str, str] | None,
+    runtime_profile=None,
     ocr_client: OnlineOcrClient | None,
+    ocr_clients: dict[str, OnlineOcrClient] | None = None,
 ) -> AuthenticatedNoticeOcrRuntime:
     source = env if env is not None else {}
-    has_explicit_ocr_settings = bool((source.get("OCR_BASE_URL") or "").strip()) or bool(
-        (source.get("OCR_API_KEY") or "").strip()
+    active_settings = OnlineOcrSettings.from_env(source, required=False)
+    mineru_settings = OnlineOcrSettings.from_env(
+        source,
+        prefix="OCR_MINERU_",
+        default_provider=ONLINE_OCR_PROVIDER_MINERU_API,
     )
-    settings = (
-        OnlineOcrSettings.from_env(env, required=ocr_client is None)
-        if has_explicit_ocr_settings or ocr_client is None
-        else None
+    settings_by_provider: dict[str, OnlineOcrSettings] = {}
+    if active_settings is not None:
+        settings_by_provider[active_settings.provider] = active_settings
+    if mineru_settings is not None:
+        settings_by_provider[mineru_settings.provider] = mineru_settings
+
+    explicit_clients = dict(ocr_clients or {})
+    single_client_provider = (
+        active_settings.provider if active_settings is not None else ONLINE_OCR_PROVIDER_ASYNC_JOBS
     )
-    if settings is None:
-        if ocr_client is None:  # pragma: no cover
-            raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
-        return AuthenticatedNoticeOcrRuntime(
-            client=ocr_client,
-            provider=ONLINE_OCR_PROVIDER_ASYNC_JOBS,
-        )
+    if ocr_client is not None and single_client_provider not in explicit_clients:
+        explicit_clients[single_client_provider] = ocr_client
+
+    available_providers = set(settings_by_provider) | set(explicit_clients)
+    if not available_providers:
+        OnlineOcrSettings.from_env(source, required=True)
+        raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
+
+    preferred_provider = str(getattr(runtime_profile, "source_ocr_provider", "") or "").strip()
+    active_provider = (
+        active_settings.provider if active_settings is not None else single_client_provider
+    )
+    primary_provider = (
+        preferred_provider if preferred_provider in available_providers else active_provider
+    )
+    if primary_provider not in available_providers:
+        primary_provider = sorted(available_providers)[0]
+
+    primary_runtime = _build_authenticated_notice_ocr_provider_runtime(
+        provider=primary_provider,
+        settings_by_provider=settings_by_provider,
+        explicit_clients=explicit_clients,
+    )
+    fallback_runtimes: list[AuthenticatedNoticeOcrProviderRuntime] = []
+    fallback_enabled = bool(getattr(runtime_profile, "source_ocr_fallback_enabled", False))
+    if fallback_enabled:
+        for provider in (active_provider, ONLINE_OCR_PROVIDER_ASYNC_JOBS):
+            if provider == primary_runtime.provider or provider not in available_providers:
+                continue
+            fallback_runtimes.append(
+                _build_authenticated_notice_ocr_provider_runtime(
+                    provider=provider,
+                    settings_by_provider=settings_by_provider,
+                    explicit_clients=explicit_clients,
+                )
+            )
+            break
     return AuthenticatedNoticeOcrRuntime(
-        client=ocr_client or build_online_ocr_client(settings),
-        provider=settings.provider,
+        client=primary_runtime.client,
+        provider=primary_runtime.provider,
+        fallback_runtimes=tuple(fallback_runtimes),
+    )
+
+
+def _build_authenticated_notice_ocr_provider_runtime(
+    *,
+    provider: str,
+    settings_by_provider: dict[str, OnlineOcrSettings],
+    explicit_clients: dict[str, OnlineOcrClient],
+) -> AuthenticatedNoticeOcrProviderRuntime:
+    client = explicit_clients.get(provider)
+    if client is not None:
+        return AuthenticatedNoticeOcrProviderRuntime(client=client, provider=provider)
+    settings = settings_by_provider.get(provider)
+    if settings is None:
+        raise ValueError(f"{provider} OCR settings are not configured")
+    return AuthenticatedNoticeOcrProviderRuntime(
+        client=build_online_ocr_client(settings),
+        provider=provider,
     )
 
 
@@ -446,20 +518,14 @@ def _build_attachment_projection_result(
         if ocr_provider_response_cache is not None:
             provider_response_bytes = ocr_provider_response_cache.get(actual_attachment_sha256)
         if provider_response_bytes is None:
-            try:
-                provider_result = parse_online_ocr_bytes(
-                    ocr_client=ocr_runtime.client,
-                    file_bytes=attachment_bytes,
-                    filename=filename,
-                    media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
-                )
-            except Exception as exc:
-                raise RuntimeError(
-                    f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed: {exc}"
-                ) from exc
-            provider_response_bytes = _normalize_authenticated_notice_ocr_provider_payload(
-                provider_response_bytes=provider_result.provider_result_bytes,
-                provider=ocr_runtime.provider,
+            provider_response_bytes = _parse_attachment_with_ocr_runtimes(
+                ocr_runtime=ocr_runtime,
+                file_bytes=attachment_bytes,
+                filename=filename,
+                media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+                error_prefix=(
+                    f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed"
+                ),
             )
             if ocr_provider_response_cache is not None:
                 ocr_provider_response_cache[actual_attachment_sha256] = provider_response_bytes
@@ -604,3 +670,36 @@ def _build_attachment_projection_result(
             review_reason=review_reason,
         ),
     )
+
+
+def _parse_attachment_with_ocr_runtimes(
+    *,
+    ocr_runtime: AuthenticatedNoticeOcrRuntime,
+    file_bytes: bytes,
+    filename: str,
+    media_type: str | None,
+    error_prefix: str,
+) -> bytes:
+    runtimes = (
+        AuthenticatedNoticeOcrProviderRuntime(
+            client=ocr_runtime.client,
+            provider=ocr_runtime.provider,
+        ),
+        *ocr_runtime.fallback_runtimes,
+    )
+    errors: list[str] = []
+    for runtime in runtimes:
+        try:
+            provider_result = parse_online_ocr_bytes(
+                ocr_client=runtime.client,
+                file_bytes=file_bytes,
+                filename=filename,
+                media_type=media_type,
+            )
+            return _normalize_authenticated_notice_ocr_provider_payload(
+                provider_response_bytes=provider_result.provider_result_bytes,
+                provider=runtime.provider,
+            )
+        except Exception as exc:
+            errors.append(str(exc) if len(runtimes) == 1 else f"{runtime.provider}: {exc}")
+    raise RuntimeError(f"{error_prefix}: {' | '.join(errors)}")

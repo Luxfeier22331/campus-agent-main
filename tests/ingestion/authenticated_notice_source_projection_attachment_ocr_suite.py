@@ -105,6 +105,93 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
         self.assertEqual(blocks[0]["block_content"], "中央民族大学附件 OCR 标题")
         self.assertIn("字段", blocks[2]["block_content"])
 
+    def test_rebuild_authenticated_notice_source_projections_uses_mineru_primary_with_paddle_fallback_for_ocr_attachments(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_minimal_png_bytes()
+        bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            mineru_client = _FailingAttachmentMineruOcrClient()
+            paddle_client = _FakeAttachmentStructuredOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env={
+                    **_env(),
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "paddle-token",
+                    "OCR_PROVIDER_MODE": "paddleocr_async_jobs",
+                    "OCR_MINERU_BASE_URL": "https://mineru.example/api/v4",
+                    "OCR_MINERU_API_KEY": "mineru-token",
+                    "OCR_MINERU_PROVIDER_MODE": "mineru_api",
+                    "OCR_MINERU_MODEL": "vlm",
+                },
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_clients={
+                    "mineru_api": mineru_client,
+                    "paddleocr_async_jobs": paddle_client,
+                },
+            )
+
+        self.assertEqual(report.projected_attachment_count, 2)
+        self.assertEqual(mineru_client.calls, ["notice.png"])
+        self.assertEqual(paddle_client.calls, ["notice.png"])
+
+        image_child = next(
+            record
+            for record in document_registry.list_by_scope("campus_notices", "internal_notice")
+            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0002"
+        )
+        image_markdown = object_store.get_bytes(
+            bucket=DERIVED_BUCKET,
+            key=str(image_child.canonical_markdown_object_key),
+        ).decode("utf-8")
+        self.assertIn("班车时间安排", image_markdown)
+
     def test_rebuild_authenticated_notice_source_projections_keeps_ocr_no_text_as_relation_only(
         self,
     ) -> None:

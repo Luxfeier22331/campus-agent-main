@@ -161,9 +161,16 @@ class AuthenticatedNoticeProjectedNotice:
 
 
 @dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeOcrProviderRuntime:
+    client: OnlineOcrClient
+    provider: str
+
+
+@dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeOcrRuntime:
     client: OnlineOcrClient
     provider: str
+    fallback_runtimes: tuple[AuthenticatedNoticeOcrProviderRuntime, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
