@@ -398,7 +398,7 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
         cursor = _PagedCursor([[(json.dumps(asdict(attempt)),)]])
 
         with patch(
-            "campus_ingestion_core.internal_notice_multimodal_processing._postgres_connection",
+            "campus_ingestion_core.internal_notice_multimodal_processing_attempts._postgres_connection",
             return_value=_FakeConnectionContextManager(cursor),
         ):
             store.record(attempt)
@@ -423,7 +423,7 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
 
     def test_attempt_store_builder_uses_dedicated_url_before_admission_fallback(self) -> None:
         with patch(
-            "campus_ingestion_core.internal_notice_multimodal_processing.PostgresInternalNoticeMultimodalAttemptStore"
+            "campus_ingestion_core.internal_notice_multimodal_processing_attempts.PostgresInternalNoticeMultimodalAttemptStore"
         ) as store_cls:
             build_internal_notice_multimodal_attempt_store_from_env(
                 {

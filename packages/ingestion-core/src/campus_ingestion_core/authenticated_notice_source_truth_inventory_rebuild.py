@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
+from datetime import UTC, datetime
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_projections import (
@@ -94,10 +95,19 @@ def build_authenticated_notice_source_truth_inventory_entries(
                 "authenticated notice source inventory notice_ids not found in registry scope: "
                 + ", ".join(missing_notice_ids)
             )
+    records = _select_latest_authenticated_notice_parent_records_for_inventory(
+        records=tuple(
+            record
+            for record in records
+            if record.source_channel == "authenticated_notice_portal"
+            and _find_processed_key(record, "source-truth/notice-manifest.json") is not None
+            and _find_processed_key(record, "source-truth/content-blocks.jsonl") is not None
+            and _find_processed_key(record, "source-truth/attachment-refs.jsonl") is not None
+        ),
+        raw_by_key=raw_by_key,
+    )
     entries: list[AuthenticatedNoticeSourceTruthInventoryEntry] = []
     for record in records:
-        if record.source_channel != "authenticated_notice_portal":
-            continue
         notice_manifest_key = _find_processed_key(record, "source-truth/notice-manifest.json")
         content_blocks_key = _find_processed_key(record, "source-truth/content-blocks.jsonl")
         attachment_refs_key = _find_processed_key(record, "source-truth/attachment-refs.jsonl")
@@ -126,6 +136,62 @@ def build_authenticated_notice_source_truth_inventory_entries(
         )
         entries.append(inventory_entry_from_parent_snapshot(parent_snapshot))
     return tuple(sorted(entries, key=lambda entry: entry.notice_id))
+
+
+def _select_latest_authenticated_notice_parent_records_for_inventory(
+    *,
+    records: Sequence[DocumentRegistryRecord],
+    raw_by_key: Mapping[tuple[str, str], RawAssetRecord],
+) -> tuple[DocumentRegistryRecord, ...]:
+    selected_by_notice_id: dict[str, DocumentRegistryRecord] = {}
+    for record in records:
+        notice_id = _extract_notice_id_from_document_id(record.document_id)
+        existing = selected_by_notice_id.get(notice_id)
+        if existing is None or _inventory_parent_sort_key(
+            record=record, raw_by_key=raw_by_key
+        ) > _inventory_parent_sort_key(record=existing, raw_by_key=raw_by_key):
+            selected_by_notice_id[notice_id] = record
+    return tuple(
+        sorted(
+            selected_by_notice_id.values(),
+            key=lambda record: _extract_notice_id_from_document_id(record.document_id),
+        )
+    )
+
+
+def _inventory_parent_sort_key(
+    *,
+    record: DocumentRegistryRecord,
+    raw_by_key: Mapping[tuple[str, str], RawAssetRecord],
+) -> tuple[bool, datetime, datetime, str]:
+    raw_timestamp = datetime.min.replace(tzinfo=UTC)
+    if record.raw_asset is not None:
+        raw_record = raw_by_key.get(
+            (record.raw_asset.raw_asset_id, record.raw_asset.raw_version_id)
+        )
+        if raw_record is not None:
+            raw_timestamp = _parse_inventory_timestamp(raw_record.ingestion_timestamp)
+    return (
+        record.is_current,
+        raw_timestamp,
+        _parse_inventory_timestamp(record.ingestion_timestamp),
+        record.version_id,
+    )
+
+
+def _parse_inventory_timestamp(value: str) -> datetime:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return datetime.min.replace(tzinfo=UTC)
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return datetime.min.replace(tzinfo=UTC)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def rebuild_authenticated_notice_source_truth_inventory(

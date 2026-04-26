@@ -31,13 +31,18 @@ It does not carry:
 - `notice-family-classification.v1.json`
   - read-only notice-family admission metadata used by inventory/replay/operator
     read models
+  - owns explicit family route policy, terminal title rules, residual
+    `review_later` overrides, machine-processing policy, and attachment
+    processing policy
   - current taxonomy covers high-value notice-level query families, service
     status candidate families, procurement/history, regulation candidates, and
     low-value defer/no-adoption families
 - `routing-taxonomy-eval.v1.jsonl`
   - fixed routing taxonomy fixture consumed by the deterministic eval gate for
     `notice_family`, `suggested_consumption_route`, and
-    `machine_processing_policy`
+    `machine_processing_policy`; eval also derives or checks
+    `attachment_processing_policy` so low-value notices do not become an
+    attachment/OCR backlog
 - `promotion-routing.v1.json`
   - downstream routing scaffold for `regulations/institutional_rules` and
     `regulations/scoped_rules`
@@ -84,6 +89,9 @@ Current interpretation is:
   - read-only stratified routing sampler for notice-family taxonomy review; it
     can replay a historical bundle or sample current source-truth inventory, and
     does not create consumption admission
+  - inventory mode reads source-truth `content-blocks.jsonl` when object-store
+    env is available so residual routing can use body text; pass
+    `--skip-content-blocks` for fast title/type-only sampling
   - pass `--audit-output-path <path>` to write a full read-only taxonomy audit
     artifact with all `review_later` notices and deterministic clusters; this
     artifact is operator evidence, not an admission manifest
@@ -112,9 +120,16 @@ Current routing taxonomy groups include:
   cultural publicity activities, and campus news/publicity
 - fallback `other/review_later` remains a bounded low-confidence bucket and uses
   `machine_processing_policy=skip`; deterministic high-confidence clusters are
-  promoted into explicit routes, while clearly unconsumable placeholders such
-  as obituaries or bare "通知/公告" titles close as `no_adoption`. The residual
-  bucket is not a VLM backlog or automatic consumer-admission source
+  promoted into explicit routes, while clearly unconsumable terminal titles
+  such as obituaries close as `no_adoption`. Bare "通知/公告/通告" titles are
+  never terminal by themselves; source-truth body text must be inspected before
+  routing. The residual bucket is not a VLM backlog or automatic
+  consumer-admission source
+- attachment processing policy is derived from route: admitted high-value
+  routes with attachment refs use `process`; body-only admitted routes use
+  `not_required`; `defer`, `review_later`, and `no_adoption` use
+  `metadata_only`, meaning source-truth may retain attachment facts but
+  operator补采不应下载、OCR、materialize, or send them to multimodal processing
 - current source-truth inventory replay can be audited without bundle input;
   historical bundle replay remains supported for wider taxonomy regression
 - `uv run --package campus-ingestion-worker python -m

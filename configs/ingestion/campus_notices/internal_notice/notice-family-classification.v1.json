@@ -6,13 +6,336 @@
 	"default_family": "other",
 	"default_admission_policy": "review_later",
 	"default_priority": 40,
+	"routing_policy": {
+		"family_policies": {
+			"academic_affairs_lifecycle": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"academic_course_exam_operation": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"academic_program_selection": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"campus_news_publicity": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"competition_event": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"course_teaching_arrangement": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"culture_publicity_activity": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"document_collection_deadline": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"event_activity": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"exchange_visit_project": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"facility_service_status": {
+				"consumption_route": "service_status_candidate",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"facility_transport_classroom_status": {
+				"consumption_route": "service_status_candidate",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"finance_payment_action": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"form_template_download": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"general_publicity_culture": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"governance_party_life": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"health_medical_action": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"health_welfare_service_notice": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"internal_governance_party_admin": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"it_platform_operation_notice": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"it_platform_service_status": {
+				"consumption_route": "service_status_candidate",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"job_recruitment": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"lecture_publicity": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"library_acquisition_service": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"library_resource_notice": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"library_service_status": {
+				"consumption_route": "service_status_candidate",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"meeting_training": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"operational_procedure": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"other": {
+				"consumption_route": "review_later",
+				"machine_processing_policy": "skip",
+				"terminal_reason": "low_confidence_residual"
+			},
+			"policy_regulation": {
+				"consumption_route": "regulation_candidate",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"procurement_notice": {
+				"consumption_route": "procurement_notice_history",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"research_project_application": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"research_publicity_call": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"roster_publication": {
+				"consumption_route": "no_adoption",
+				"machine_processing_policy": "skip",
+				"terminal_reason": "time_bound_roster_or_result_publication"
+			},
+			"safety_compliance_notice": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"service_status_override": {
+				"consumption_route": "service_status_candidate",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"staff_internal_admin": {
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip"
+			},
+			"student_affairs_application": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"student_program_award_selection": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"student_status_registration": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"survey_feedback_collection": {
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "process_multimodal"
+			},
+			"transport_commute_status": {
+				"consumption_route": "service_status_candidate",
+				"machine_processing_policy": "process_multimodal"
+			}
+		},
+		"terminal_no_adoption_title_patterns": [
+			"^讣告$"
+		],
+		"review_later_route_overrides": [
+			{
+				"name": "service_status_signal",
+				"consumption_route": "service_status_candidate",
+				"machine_processing_policy": "not_required",
+				"any_terms": [
+					"暂停访问",
+					"暂停使用",
+					"暂停服务",
+					"暂停办理",
+					"暂停营业",
+					"恢复服务",
+					"恢复办理",
+					"恢复正常",
+					"恢复线下",
+					"临时关闭",
+					"升级维护",
+					"线路维护",
+					"停电",
+					"断网",
+					"停诊",
+					"停业",
+					"停供",
+					"闭店",
+					"正常营业",
+					"开放时间",
+					"营业时间",
+					"服务时间",
+					"检测点",
+					"核酸",
+					"校门",
+					"封闭",
+					"供暖",
+					"购电",
+					"食堂",
+					"超市",
+					"医院",
+					"理发店",
+					"洗衣店",
+					"浴室",
+					"班车",
+					"教室",
+					"图书馆",
+					"信息门户",
+					"服务门户",
+					"校园网",
+					"一卡通",
+					"VPN",
+					"一站式服务中心",
+					"吹风机",
+					"洗烘",
+					"羽毛球场",
+					"网球场",
+					"预约外借",
+					"逸夫体育馆",
+					"国库支付",
+					"可信电子成绩单"
+				]
+			},
+			{
+				"name": "notice_level_action_signal",
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "not_required",
+				"any_terms": [
+					"报名",
+					"提交",
+					"报送",
+					"领取",
+					"缴费",
+					"扣款",
+					"办理",
+					"申请",
+					"申报",
+					"确认",
+					"下载",
+					"查询",
+					"考试",
+					"评审",
+					"招录",
+					"选拔",
+					"统计",
+					"返校",
+					"档案",
+					"个人所得税",
+					"汇算清缴",
+					"公租房",
+					"交纳",
+					"缴纳",
+					"火车到站",
+					"资格认证",
+					"资格审核"
+				]
+			},
+			{
+				"name": "defer_publicity_signal",
+				"consumption_route": "defer",
+				"machine_processing_policy": "skip",
+				"any_terms": [
+					"预告",
+					"展映",
+					"活动总结",
+					"倡议",
+					"简报",
+					"喜讯",
+					"讲座",
+					"沙龙",
+					"论坛",
+					"文化节",
+					"征文",
+					"竞赛",
+					"比赛",
+					"开学典礼",
+					"社会实践活动",
+					"主题宣讲会"
+				]
+			}
+		],
+		"machine_processing_value_terms": [
+			"采购",
+			"招标",
+			"比选",
+			"公示",
+			"名单",
+			"结果",
+			"操作手册",
+			"手册",
+			"附件",
+			"材料",
+			"表格",
+			"申请表",
+			"报名表",
+			"二维码",
+			"扫码",
+			"报名",
+			"资格审核",
+			"提交",
+			"报送"
+		]
+	},
 	"rules": [
 		{
 			"family": "lecture_publicity",
 			"admission_policy": "defer",
-			"priority": 10,
+			"priority": 14,
 			"description": "讲座、讲堂、论坛和读书会等宣传型通知，当前不进入优先处理范围。",
-			"title_any_patterns": ["讲座预告", "讲堂", "论坛", "大讲堂", "读书会", "前沿讲堂", "文华讲堂"]
+			"title_any_patterns": [
+				"讲座预告",
+				"讲堂",
+				"论坛",
+				"大讲堂",
+				"读书会",
+				"前沿讲堂",
+				"文华讲堂"
+			]
 		},
 		{
 			"family": "event_activity",
@@ -32,8 +355,20 @@
 				"挑战杯",
 				"读书会"
 			],
-			"body_any_patterns": ["活动主题", "活动时间", "活动内容", "青春返乡行"],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
+			"body_any_patterns": [
+				"活动主题",
+				"活动时间",
+				"活动内容",
+				"青春返乡行"
+			],
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册"
+			]
 		},
 		{
 			"family": "procurement_notice",
@@ -179,6 +514,7 @@
 				"恢复.*信息系统",
 				"信息系统.*校外访问",
 				"学校网站.*恢复",
+				"网络中断",
 				"网费.*充值",
 				"电费.*充值",
 				"系统.*(升级|维护|停用|恢复)"
@@ -328,14 +664,15 @@
 		{
 			"family": "roster_publication",
 			"admission_policy": "admit_after_policy",
-			"priority": 50,
+			"priority": 75,
 			"description": "名单、公示、成绩与结果公告等时效型通知，优先级低于规章制度类。",
 			"title_any_patterns": [
 				"名单公示",
 				"录取名单",
 				"拟接收名单",
 				"入选名单",
-				"候选人",
+				"候选人.*(名单|公示)",
+				"候选名单",
 				"入选人员.*公示",
 				"考察人选.*公示",
 				"信息补充公示",
@@ -362,7 +699,14 @@
 				"排课",
 				"调课"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册"
+			]
 		},
 		{
 			"family": "academic_course_exam_operation",
@@ -406,6 +750,7 @@
 				"教学改革项目",
 				"课程建设",
 				"创新训练计划",
+				"创新训练项目.*(结题|验收)",
 				"公共课助教",
 				"课表"
 			],
@@ -483,7 +828,15 @@
 				"国际合作培养",
 				"派出研究生"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "student_affairs_application",
@@ -548,7 +901,15 @@
 				"户籍业务",
 				"集中住宿"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "student_program_award_selection",
@@ -608,7 +969,15 @@
 				"材料报送",
 				"稿件"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "research_project_application",
@@ -634,14 +1003,29 @@
 				"中期检查",
 				"科研诚信"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "safety_compliance_notice",
 			"admission_policy": "notice_level_query",
 			"priority": 66,
 			"description": "安全、消防、保密、交通安全和专项检查类通知；优先保留 notice-level 查询，不直接 promotion。",
-			"title_any_patterns": ["安全", "消防", "保密", "交通安全", "专项检查", "检查"],
+			"title_any_patterns": [
+				"安全",
+				"消防",
+				"保密",
+				"交通安全",
+				"专项检查",
+				"检查"
+			],
 			"title_exclude_patterns": [
 				"安全管理办法",
 				"安全管理规定",
@@ -755,7 +1139,14 @@
 				"传染病",
 				"HPV"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册"
+			]
 		},
 		{
 			"family": "health_welfare_service_notice",
@@ -772,7 +1163,15 @@
 				"餐厅.*供餐",
 				"晚餐服务"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "form_template_download",
@@ -817,11 +1216,21 @@
 				"调查问卷",
 				"调查工作",
 				"滚动调查",
+				"反馈调查",
+				"状况调查",
 				"征求意见",
 				"满意度",
 				"信息采集"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "library_resource_notice",
@@ -866,6 +1275,8 @@
 				"信息化服务.*指南",
 				"登录操作.*指南",
 				"校园一卡通.*领取",
+				"校园卡.*换卡",
+				"新版校园卡",
 				"AI民大",
 				"民大通",
 				"APP使用手册",
@@ -923,7 +1334,7 @@
 		{
 			"family": "operational_procedure",
 			"admission_policy": "admit_next",
-			"priority": 80,
+			"priority": 51,
 			"description": "办事流程、操作指南和具体事务办理通知，作为规章制度类后的第二批。",
 			"title_any_patterns": [
 				"申请流程",
@@ -938,14 +1349,26 @@
 				"申报",
 				"安排的通知"
 			],
-			"title_exclude_patterns": ["讲座预告", "比赛", "活动预告"]
+			"title_exclude_patterns": [
+				"讲座预告",
+				"比赛",
+				"活动预告"
+			]
 		},
 		{
 			"family": "meeting_training",
 			"admission_policy": "defer",
 			"priority": 30,
 			"description": "培训、会议、说明会、启动会、座谈会和研讨会；默认延后，除非后续样本证明需要行动型查询。",
-			"title_any_patterns": ["培训", "会议", "工作部署会", "说明会", "启动会", "座谈会", "研讨会"],
+			"title_any_patterns": [
+				"培训",
+				"会议",
+				"工作部署会",
+				"说明会",
+				"启动会",
+				"座谈会",
+				"研讨会"
+			],
 			"title_exclude_patterns": [
 				"管理办法",
 				"管理规定",
@@ -990,23 +1413,54 @@
 				"赛事通知",
 				"实战赛"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册"
+			]
 		},
 		{
 			"family": "event_activity",
 			"admission_policy": "defer",
 			"priority": 19,
 			"description": "无需正文配合即可识别的普通主题活动和训练营活动；默认延后并跳过机器处理。",
-			"title_any_patterns": ["主题活动", "训练营活动"],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_any_patterns": [
+				"主题活动",
+				"训练营活动"
+			],
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "job_recruitment",
 			"admission_policy": "defer",
 			"priority": 18,
 			"description": "招聘、实习岗位和勤工助学类通知；当前默认延后，不进入 deep consumption。",
-			"title_any_patterns": ["招聘", "勤工助学", "实习岗位", "就业"],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+			"title_any_patterns": [
+				"招聘",
+				"勤工助学",
+				"实习岗位",
+				"就业"
+			],
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册",
+				"指南"
+			]
 		},
 		{
 			"family": "staff_internal_admin",
@@ -1067,6 +1521,7 @@
 				"党费",
 				"中央八项规定",
 				"廉洁过节",
+				"主题教育",
 				"党委",
 				"团委",
 				"工会",
@@ -1290,6 +1745,9 @@
 				"简报",
 				"成果速报",
 				"成果总结",
+				"高教动态",
+				"教育舆情参考",
+				"民大要情",
 				"顺利举行",
 				"成功举办",
 				"荣获",

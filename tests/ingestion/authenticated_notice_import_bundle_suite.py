@@ -6,6 +6,65 @@ from .authenticated_notice_import_test_support import *
 
 
 class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
+    def test_import_authenticated_notice_bundle_promotes_html_inline_images_to_source_truth_refs(
+        self,
+    ) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_id"] = 354777
+        bundle[0]["notice_id"] = 354777
+        bundle[0]["notice"]["notice_title"] = "关于近期丰台校区周末地铁接驳车运营安排的通知"
+        bundle[0]["notice"]["notice_content"] = (
+            "<p>本周末丰台校区地铁接驳车安排如下。</p>"
+            '<p><img src="http://portal.example.edu/files/weekend-shuttle.png" '
+            'title="周末地铁接驳车安排.png" alt="周末地铁接驳车安排.png"/></p>'
+        )
+        bundle[0]["notice"]["notice_link"] = "https://portal.example.edu/notice/354777"
+        bundle[0]["links"] = []
+        bundle[0]["notice_attachments"] = []
+        bundle[0]["attachments"] = []
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                )
+            )
+
+        imported = result.notice_imports[0]
+        manifest = json.loads(
+            imported.source_truth_artifacts["source-truth/notice-manifest.json"].decode("utf-8")
+        )
+        self.assertEqual(manifest["attachment_ref_count"], 1)
+        attachment_refs = [
+            json.loads(line)
+            for line in imported.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(attachment_refs), 1)
+        self.assertEqual(attachment_refs[0]["resource_role"], "inline_image")
+        self.assertEqual(attachment_refs[0]["relation_source"], "notice_html_img_fallback")
+        self.assertEqual(attachment_refs[0]["original_filename"], "周末地铁接驳车安排.png")
+        self.assertEqual(
+            attachment_refs[0]["source_url"],
+            "http://portal.example.edu/files/weekend-shuttle.png",
+        )
+        self.assertEqual(
+            attachment_refs[0]["normalized_source_url"],
+            "https://portal.example.edu/files/weekend-shuttle.png",
+        )
+        self.assertIsNone(attachment_refs[0]["object_key"])
+
     def test_import_authenticated_notice_bundle_builds_source_truth_and_restricted_document_input(
         self,
     ) -> None:

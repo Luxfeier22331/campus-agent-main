@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from html import unescape
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA,
@@ -32,6 +33,10 @@ _HTML_BLOCK_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_HTML_IMG_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE | re.DOTALL)
+_HTML_ATTR_RE = re.compile(
+    r"""([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))"""
+)
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
@@ -182,7 +187,132 @@ def _build_attachment_refs(
                 "ingest_status": _optional_text(attachment.get("ingest_status")),
             }
         )
+    seen_urls: set[str] = set()
+    for row in rows:
+        for url in (
+            _optional_text(row.get("source_url")),
+            _optional_text(row.get("normalized_source_url")),
+            _optional_text(row.get("final_url")),
+        ):
+            if url is not None:
+                seen_urls.update(_inline_image_url_dedup_keys(url))
+    notice = _notice_payload(bundle_record)
+    for fallback in _html_inline_image_refs(str(notice.get("notice_content") or "")):
+        fallback_keys = set(_inline_image_url_dedup_keys(fallback["source_url"]))
+        fallback_keys.update(_inline_image_url_dedup_keys(fallback["normalized_source_url"]))
+        if seen_urls & fallback_keys:
+            continue
+        rows.append(
+            {
+                "schema_version": AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA,
+                "raw_asset_id": raw_asset_id,
+                "raw_version_id": raw_version_id,
+                "attachment_ref_id": f"attachment-{len(rows) + 1:04d}",
+                "ref_order": len(rows) + 1,
+                "notice_id": notice_id,
+                "relation_source": "notice_html_img_fallback",
+                "resource_role": "inline_image",
+                "content_kind": "inline_image",
+                "anchor_text": fallback["anchor_text"],
+                "original_filename": fallback["original_filename"],
+                "source_url": fallback["source_url"],
+                "normalized_source_url": fallback["normalized_source_url"],
+                "final_url": fallback["normalized_source_url"],
+                "origin_scope": "internal",
+                "object_key": None,
+                "content_sha256": None,
+                "mime_type": _mime_type_for_filename(fallback["original_filename"]),
+                "byte_size": None,
+                "storage_provider": None,
+                "ingest_status": "reference_only",
+            }
+        )
+        seen_urls.update(fallback_keys)
     return tuple(rows)
+
+
+def _html_inline_image_refs(html_value: str) -> tuple[dict[str, str], ...]:
+    rows: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for match in _HTML_IMG_RE.finditer(html_value):
+        attrs = _html_attrs(match.group(0))
+        source_url = _optional_text(attrs.get("src"))
+        if source_url is None or source_url in seen:
+            continue
+        normalized_source_url = _normalize_inline_image_url(source_url)
+        anchor_text = (
+            _optional_text(attrs.get("title"))
+            or _optional_text(attrs.get("alt"))
+            or _filename_from_url(source_url)
+        )
+        filename = _filename_from_url(source_url, fallback=anchor_text)
+        rows.append(
+            {
+                "source_url": source_url,
+                "normalized_source_url": normalized_source_url,
+                "anchor_text": anchor_text,
+                "original_filename": filename,
+            }
+        )
+        seen.add(source_url)
+    return tuple(rows)
+
+
+def _html_attrs(tag: str) -> dict[str, str]:
+    attrs: dict[str, str] = {}
+    for match in _HTML_ATTR_RE.finditer(tag):
+        name = match.group(1).lower()
+        value = next(
+            (group for group in match.groups()[1:] if group is not None),
+            "",
+        )
+        attrs[name] = unescape(value).strip()
+    return attrs
+
+
+def _normalize_inline_image_url(value: str) -> str:
+    normalized = unescape(value).strip()
+    parsed = urlparse(normalized)
+    if parsed.scheme == "http":
+        scheme = "https"
+    else:
+        scheme = parsed.scheme
+    netloc = parsed.netloc
+    if netloc.endswith(":80"):
+        netloc = netloc[:-3]
+    if parsed.scheme and parsed.netloc:
+        return parsed._replace(scheme=scheme, netloc=netloc).geturl()
+    return normalized
+
+
+def _inline_image_url_dedup_keys(value: str) -> tuple[str, ...]:
+    normalized = _normalize_inline_image_url(value)
+    parsed = urlparse(normalized)
+    if not parsed.scheme or not parsed.netloc:
+        return (normalized,)
+    host = parsed.netloc[:-3] if parsed.netloc.endswith(":80") else parsed.netloc
+    scheme_agnostic = parsed._replace(scheme="", netloc=host).geturl()
+    return tuple(dict.fromkeys((normalized, scheme_agnostic)))
+
+
+def _filename_from_url(value: str, fallback: str | None = None) -> str:
+    parsed = urlparse(unescape(value).strip())
+    path_name = unquote(str(parsed.path or "").rstrip("/").split("/")[-1])
+    candidate = _optional_text(fallback) or _optional_text(path_name) or "inline-image"
+    return candidate.split("/")[-1].strip() or "inline-image"
+
+
+def _mime_type_for_filename(filename: str) -> str | None:
+    lowered = filename.lower()
+    if lowered.endswith(".png"):
+        return "image/png"
+    if lowered.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if lowered.endswith(".gif"):
+        return "image/gif"
+    if lowered.endswith(".webp"):
+        return "image/webp"
+    return None
 
 
 def _build_owner_expectations(

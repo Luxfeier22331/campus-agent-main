@@ -2,17 +2,59 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
-from typing import Protocol
+from dataclasses import replace
 
+from campus_ingestion_core import (
+    internal_notice_consumption_projection_multimodal as _multimodal,
+)
+from campus_ingestion_core.authenticated_notice_routing_sampling import (
+    AuthenticatedNoticeRoutingSample,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
     AuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.internal_notice_consumption_projection_models import (
+    InternalNoticeConsumptionProjectionObjectStore,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_models import (
+    InternalNoticeProcessingGapsReport as InternalNoticeProcessingGapsReport,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_models import (
+    InternalNoticeProcessingGapUnit as InternalNoticeProcessingGapUnit,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_models import (
+    NoticeConsumptionProjectionStatus as NoticeConsumptionProjectionStatus,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_models import (
+    NoticeConsumptionProjectionUnitStatus as NoticeConsumptionProjectionUnitStatus,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_multimodal import (
+    NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
+    NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_multimodal import (
+    NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER as NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_routing import (
+    index_notice_attachment_records,
+    resolve_attachment_document_ids,
+    resolve_attachment_ref_ids,
+    resolve_notice_routing_samples_by_notice,
+    resolve_service_status_candidate_kind,
+    routes_to_service_status_candidate,
+    routing_metadata,
+    should_suppress_regulation_promotion,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_status import (
+    check_internal_notice_processing_gaps as check_internal_notice_processing_gaps,
+)
+from campus_ingestion_core.internal_notice_consumption_projection_status import (
+    read_notice_consumption_projection_status as read_notice_consumption_projection_status,
+)
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
     build_internal_notice_regulation_promotion_manifest,
@@ -21,7 +63,6 @@ from campus_ingestion_core.internal_notice_regulation_promotion_artifacts import
     _extract_candidate_promotion_body,
 )
 from campus_ingestion_core.internal_notice_regulation_promotion_shared import (
-    INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
     InternalNoticeRegulationPromotionDocumentReport,
 )
 from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared import (
@@ -44,6 +85,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+    NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_DEFAULT_AGENT_RAG,
     NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
@@ -82,7 +124,6 @@ from campus_ingestion_core.notice_consumption_projection import (
     NoticeConsumptionProjectionStore,
     PostgresNoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
-    is_notice_query_retained_consumption_status,
     normalize_notice_ids,
 )
 from campus_ingestion_core.registry import (
@@ -91,137 +132,16 @@ from campus_ingestion_core.registry import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
-
-class InternalNoticeConsumptionProjectionObjectStore(Protocol):
-    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
-
-
-NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED = "not_required"
-NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS = "process"
-NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP = "skip"
-NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER = "low_value_ephemeral_event_poster"
-_LOW_VALUE_EPHEMERAL_EVENT_POSTER_KEYWORDS = (
-    "讲座预告",
-    "讲座",
-    "讲堂",
-    "大讲堂",
-    "名家讲堂",
-    "论坛",
-    "女教授论坛",
-    "工作坊",
-    "读书会",
-    "宣讲",
-    "项目宣讲",
-    "活动",
-    "体验活动",
-    "行业导师进课堂",
-    "挑战杯",
-    "赛事",
-    "邀请函",
+_MultimodalConsumptionDecision = _multimodal.MultimodalConsumptionDecision
+_build_multimodal_consumption_metadata = _multimodal.build_multimodal_consumption_metadata
+_is_unsupported_machine_processing_reason = _multimodal.is_unsupported_machine_processing_reason
+_requires_multimodal_processing = _multimodal.requires_multimodal_processing
+_resolve_inventory_multimodal_consumption_decision = (
+    _multimodal.resolve_inventory_multimodal_consumption_decision
 )
-_HIGH_VALUE_MULTIMODAL_PROCESSING_KEYWORDS = (
-    "采购",
-    "招标",
-    "比选",
-    "询价",
-    "竞价",
-    "成交",
-    "中标",
-    "中选",
-    "公示",
-    "名单",
-    "结果",
-    "办法",
-    "规定",
-    "细则",
-    "条例",
-    "章程",
-    "准则",
-    "指导意见",
-    "流程",
-    "操作手册",
-    "手册",
-    "附件",
-    "材料",
-    "表格",
-    "申请表",
-    "报名表",
-    "二维码",
-    "扫码",
-    "报名方式",
-    "报名链接",
-    "报名二维码",
-    "下载",
-    "文件发布",
+_resolve_report_multimodal_consumption_decision = (
+    _multimodal.resolve_report_multimodal_consumption_decision
 )
-
-
-@dataclass(frozen=True, slots=True)
-class NoticeConsumptionProjectionUnitStatus:
-    unit_id: str
-    primary_role: str
-    target_surface: str
-    consumption_status: str
-    reasons: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class NoticeConsumptionProjectionStatus:
-    source_corpus: str
-    source_collection: str
-    source_notice_id: str
-    unit_count: int
-    ready_unit_count: int
-    held_unit_count: int
-    pending_multimodal_unit_count: int
-    no_adoption_unit_count: int
-    has_target_ready_units: bool
-    units: tuple[NoticeConsumptionProjectionUnitStatus, ...]
-    source_multimodal_required_count: int = 0
-    multimodal_skipped_low_value_count: int = 0
-    multimodal_action_required_count: int = 0
-
-
-@dataclass(frozen=True, slots=True)
-class InternalNoticeProcessingGapUnit:
-    source_notice_id: str
-    unit_id: str
-    primary_role: str
-    semantic_owner: str
-    target_surface: str
-    consumption_status: str
-    reasons: tuple[str, ...]
-    consumer_admission_batch_id: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class InternalNoticeProcessingGapsReport:
-    source_corpus: str
-    source_collection: str
-    selected_notice_ids: tuple[str, ...]
-    projection_entry_count: int
-    pending_multimodal_processing_count: int
-    authority_pending_count: int
-    unsupported_count: int
-    no_adoption_count: int
-    ready_for_target_count: int
-    retained_for_notice_query_count: int
-    consumption_status_counts: dict[str, int]
-    target_surface_counts: dict[str, int]
-    gap_units: tuple[InternalNoticeProcessingGapUnit, ...]
-    source_multimodal_required_count: int = 0
-    multimodal_skipped_low_value_count: int = 0
-    multimodal_action_required_count: int = 0
-
-
-@dataclass(frozen=True, slots=True)
-class _MultimodalConsumptionDecision:
-    policy: str
-    source_required_count: int = 0
-    pending_attachment_count: int = 0
-    skipped_attachment_count: int = 0
-    action_required: bool = False
-    skip_reason: str = ""
 
 
 def build_internal_notice_consumption_projection_entries(
@@ -247,23 +167,45 @@ def build_internal_notice_consumption_projection_entries(
         source_truth_inventory_store=runtime_inventory,
         object_store=runtime_object_store,
     )
-    notice_ids = tuple(sorted({report.notice_id for report in promotion_report.documents}))
+    selected_notice_ids = normalize_notice_ids(runtime_request.notice_ids)
+    report_notice_ids = tuple(sorted({report.notice_id for report in promotion_report.documents}))
+    notice_ids = selected_notice_ids or report_notice_ids
     inventory_entries = runtime_inventory.list_by_scope(
         runtime_request.corpus,
         runtime_request.collection,
         notice_ids=notice_ids,
     )
     inventory_by_notice = {entry.notice_id: entry for entry in inventory_entries}
-    source_record_by_lineage = _index_latest_scope_records(
-        runtime_registry.list_by_scope(runtime_request.corpus, runtime_request.collection)
+    scope_records = runtime_registry.list_by_scope(
+        runtime_request.corpus, runtime_request.collection
+    )
+    source_record_by_lineage = _index_latest_scope_records(scope_records)
+    attachment_records_by_notice = index_notice_attachment_records(scope_records)
+    routing_samples_by_notice = resolve_notice_routing_samples_by_notice(
+        inventory_entries=inventory_entries,
+        env=source,
+        object_store=runtime_object_store,
     )
     bucket_derived = ObjectStoreSettings.from_env(source).bucket_derived
 
     entries: list[NoticeConsumptionProjectionEntry] = []
     for entry in inventory_entries:
-        entries.extend(_build_notice_level_entries(entry))
+        entries.extend(
+            _build_notice_level_entries(
+                entry,
+                routing_sample=routing_samples_by_notice.get(entry.notice_id),
+                attachment_records=attachment_records_by_notice.get(entry.notice_id, ()),
+            )
+        )
     for report in promotion_report.documents:
         inventory_entry = inventory_by_notice.get(report.notice_id)
+        if should_suppress_regulation_promotion(
+            report=report,
+            inventory_entry=inventory_entry,
+            routing_sample=routing_samples_by_notice.get(report.notice_id),
+            fallback_service_detector=_looks_like_service_status_override_notice,
+        ):
+            continue
         source_record = source_record_by_lineage.get((report.document_id, report.revision_track))
         document_entry = _build_document_consumption_entry(
             report=report,
@@ -383,209 +325,6 @@ def list_existing_internal_notice_consumption_projection_entries(
     )
 
 
-def read_notice_consumption_projection_status(
-    store: NoticeConsumptionProjectionStore,
-    *,
-    source_corpus: str,
-    source_collection: str,
-    source_notice_id: str,
-) -> NoticeConsumptionProjectionStatus:
-    entries = store.list_by_scope(
-        source_corpus,
-        source_collection,
-        notice_ids=(source_notice_id,),
-    )
-    units = tuple(_build_unit_status(entry) for entry in entries)
-    ready_count = sum(
-        1
-        for entry in entries
-        if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
-    )
-    held_count = sum(
-        1
-        for entry in entries
-        if is_notice_query_retained_consumption_status(entry.consumption_status)
-    )
-    pending_multimodal_count = sum(
-        1
-        for entry in entries
-        if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING
-    )
-    no_adoption_count = sum(
-        1 for entry in entries if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
-    )
-    source_multimodal_required_count = _sum_notice_multimodal_metadata(
-        entries,
-        "source_multimodal_processing_required_count",
-    )
-    multimodal_skipped_low_value_count = _sum_notice_multimodal_metadata(
-        entries,
-        "multimodal_skipped_attachment_count",
-    )
-    return NoticeConsumptionProjectionStatus(
-        source_corpus=source_corpus,
-        source_collection=source_collection,
-        source_notice_id=source_notice_id,
-        unit_count=len(entries),
-        ready_unit_count=ready_count,
-        held_unit_count=held_count,
-        pending_multimodal_unit_count=pending_multimodal_count,
-        no_adoption_unit_count=no_adoption_count,
-        has_target_ready_units=ready_count > 0,
-        units=units,
-        source_multimodal_required_count=source_multimodal_required_count,
-        multimodal_skipped_low_value_count=multimodal_skipped_low_value_count,
-        multimodal_action_required_count=pending_multimodal_count,
-    )
-
-
-def check_internal_notice_processing_gaps(
-    *,
-    source_corpus: str = "campus_notices",
-    source_collection: str = "internal_notice",
-    notice_ids: Sequence[str] = (),
-    env: Mapping[str, str] | None = None,
-    projection_store: NoticeConsumptionProjectionStore | None = None,
-) -> InternalNoticeProcessingGapsReport:
-    source = dict(env if env is not None else os.environ)
-    runtime_projection_store = (
-        projection_store or build_notice_consumption_projection_store_from_env(source)
-    )
-    normalized_notice_ids = normalize_notice_ids(notice_ids)
-    entries = runtime_projection_store.list_by_scope(
-        source_corpus,
-        source_collection,
-        notice_ids=normalized_notice_ids,
-    )
-    consumption_status_counts = Counter(entry.consumption_status for entry in entries)
-    target_surface_counts = Counter(entry.target_surface for entry in entries)
-    pending_multimodal_count = consumption_status_counts.get(
-        NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
-        0,
-    )
-    authority_pending_count = sum(
-        1 for entry in entries if entry.semantic_owner == NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING
-    )
-    unsupported_count = target_surface_counts.get(NOTICE_TARGET_SURFACE_UNSUPPORTED, 0)
-    no_adoption_count = consumption_status_counts.get(NOTICE_CONSUMPTION_STATUS_NO_ADOPTION, 0)
-    ready_for_target_count = consumption_status_counts.get(
-        NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
-        0,
-    )
-    retained_for_notice_query_count = sum(
-        1
-        for entry in entries
-        if is_notice_query_retained_consumption_status(entry.consumption_status)
-    )
-    source_multimodal_required_count = _sum_notice_multimodal_metadata(
-        entries,
-        "source_multimodal_processing_required_count",
-    )
-    multimodal_skipped_low_value_count = _sum_notice_multimodal_metadata(
-        entries,
-        "multimodal_skipped_attachment_count",
-    )
-    return InternalNoticeProcessingGapsReport(
-        source_corpus=source_corpus,
-        source_collection=source_collection,
-        selected_notice_ids=normalized_notice_ids,
-        projection_entry_count=len(entries),
-        pending_multimodal_processing_count=pending_multimodal_count,
-        authority_pending_count=authority_pending_count,
-        unsupported_count=unsupported_count,
-        no_adoption_count=no_adoption_count,
-        ready_for_target_count=ready_for_target_count,
-        retained_for_notice_query_count=retained_for_notice_query_count,
-        consumption_status_counts=dict(sorted(consumption_status_counts.items())),
-        target_surface_counts=dict(sorted(target_surface_counts.items())),
-        gap_units=tuple(_build_processing_gap_units(entries)),
-        source_multimodal_required_count=source_multimodal_required_count,
-        multimodal_skipped_low_value_count=multimodal_skipped_low_value_count,
-        multimodal_action_required_count=pending_multimodal_count,
-    )
-
-
-def _sum_notice_multimodal_metadata(
-    entries: Sequence[NoticeConsumptionProjectionEntry],
-    key: str,
-) -> int:
-    values_by_notice_id: dict[str, int] = {}
-    for entry in entries:
-        value = _coerce_int(entry.role_metadata.get(key))
-        if value <= 0:
-            continue
-        values_by_notice_id[entry.source_notice_id] = max(
-            values_by_notice_id.get(entry.source_notice_id, 0),
-            value,
-        )
-    return sum(values_by_notice_id.values())
-
-
-def _build_unit_status(
-    entry: NoticeConsumptionProjectionEntry,
-) -> NoticeConsumptionProjectionUnitStatus:
-    raw_reasons = list(entry.role_metadata.get("reasons") or ())
-    for key in (
-        "owner_source_missing_reason",
-        "no_adoption_reason",
-        "processing_gap_reason",
-        "notice_query_reason",
-        "notice_runtime_reason",
-        "archive_reason",
-    ):
-        value = str(entry.role_metadata.get(key) or "").strip()
-        if value:
-            raw_reasons.append(value)
-    reasons = tuple(dict.fromkeys(str(item).strip() for item in raw_reasons if str(item).strip()))
-    return NoticeConsumptionProjectionUnitStatus(
-        unit_id=entry.unit_id,
-        primary_role=entry.primary_role,
-        target_surface=entry.target_surface,
-        consumption_status=entry.consumption_status,
-        reasons=reasons,
-    )
-
-
-def _build_processing_gap_units(
-    entries: Sequence[NoticeConsumptionProjectionEntry],
-) -> tuple[InternalNoticeProcessingGapUnit, ...]:
-    return tuple(
-        _build_processing_gap_unit(entry)
-        for entry in sorted(entries, key=lambda item: (item.source_notice_id, item.unit_id))
-        if _is_processing_gap_entry(entry)
-    )
-
-
-def _is_processing_gap_entry(entry: NoticeConsumptionProjectionEntry) -> bool:
-    return (
-        entry.consumption_status
-        in {
-            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
-            NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
-        }
-        or entry.semantic_owner == NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING
-        or entry.target_surface == NOTICE_TARGET_SURFACE_UNSUPPORTED
-    )
-
-
-def _build_processing_gap_unit(
-    entry: NoticeConsumptionProjectionEntry,
-) -> InternalNoticeProcessingGapUnit:
-    unit_status = _build_unit_status(entry)
-    return InternalNoticeProcessingGapUnit(
-        source_notice_id=entry.source_notice_id,
-        unit_id=entry.unit_id,
-        primary_role=entry.primary_role,
-        semantic_owner=entry.semantic_owner,
-        target_surface=entry.target_surface,
-        consumption_status=entry.consumption_status,
-        reasons=unit_status.reasons,
-        consumer_admission_batch_id=str(
-            entry.role_metadata.get("consumer_admission_batch_id") or ""
-        ),
-    )
-
-
 def _stamp_consumer_admission_provenance(
     entries: Sequence[NoticeConsumptionProjectionEntry],
     *,
@@ -610,11 +349,24 @@ def _stamp_consumer_admission_provenance(
 
 def _build_notice_level_entries(
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+    *,
+    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
+    attachment_records: Sequence[DocumentRegistryRecord] = (),
 ) -> tuple[NoticeConsumptionProjectionEntry, ...]:
-    entries = [_build_notice_window_entry(inventory_entry)]
-    category_role = _resolve_notice_level_primary_role(inventory_entry)
-    if _looks_like_service_status_override_notice(inventory_entry):
-        entries.append(_build_service_status_override_entry(inventory_entry))
+    entries = [_build_notice_window_entry(inventory_entry, routing_sample=routing_sample)]
+    category_role = _resolve_notice_level_primary_role(inventory_entry, routing_sample)
+    if routes_to_service_status_candidate(
+        inventory_entry=inventory_entry,
+        routing_sample=routing_sample,
+        fallback_service_detector=_looks_like_service_status_override_notice,
+    ):
+        entries.append(
+            _build_service_status_override_entry(
+                inventory_entry,
+                routing_sample=routing_sample,
+                attachment_records=attachment_records,
+            )
+        )
     if _looks_like_special_service_notice(inventory_entry):
         entries.append(_build_special_service_notice_entry(inventory_entry))
     if _looks_like_stable_contact_update_notice(inventory_entry):
@@ -632,6 +384,8 @@ def _build_notice_level_entries(
 
 def _build_notice_window_entry(
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+    *,
+    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
 ) -> NoticeConsumptionProjectionEntry:
     parent_snapshot = dict(inventory_entry.parent_snapshot or {})
     multimodal_decision = _resolve_inventory_multimodal_consumption_decision(inventory_entry)
@@ -666,6 +420,7 @@ def _build_notice_window_entry(
                 multimodal_decision,
                 include_not_required=True,
             ),
+            **routing_metadata(routing_sample),
         },
     )
 
@@ -734,9 +489,24 @@ def _build_no_adoption_notice_entry(
 
 def _build_service_status_override_entry(
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+    *,
+    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
+    attachment_records: Sequence[DocumentRegistryRecord] = (),
 ) -> NoticeConsumptionProjectionEntry:
     parent_snapshot = dict(inventory_entry.parent_snapshot or {})
     notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
+    attachment_document_ids = resolve_attachment_document_ids(
+        inventory_entry=inventory_entry,
+        attachment_records=attachment_records,
+    )
+    attachment_ref_ids = resolve_attachment_ref_ids(
+        inventory_entry=inventory_entry,
+        attachment_document_ids=attachment_document_ids,
+    )
+    service_status_candidate_kind = resolve_service_status_candidate_kind(
+        title_compact=_notice_title_compact(inventory_entry),
+        routing_sample=routing_sample,
+    )
     return NoticeConsumptionProjectionEntry(
         source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
         source_corpus=inventory_entry.corpus,
@@ -745,19 +515,23 @@ def _build_service_status_override_entry(
         unit_id=f"notice_unit:{inventory_entry.document_id}:service_status_override",
         primary_role=NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
         semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
-        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
+        default_agent=NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES,
         target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
         temporal_policy=NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE,
         completeness_status=NOTICE_COMPLETENESS_COMPLETE,
         answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
         source_notice_document_id=inventory_entry.document_id,
         source_document_id=inventory_entry.document_id,
+        source_attachment_ref_ids=attachment_ref_ids,
         source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
         role_metadata={
             "notice_title": notice_title,
             "notice_category": NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
-            "notice_query_reason": "service_status_not_admitted",
+            "notice_query_reason": "service_status_typed_materialization_candidate",
+            "service_status_candidate_kind": service_status_candidate_kind,
+            "attachment_document_ids": attachment_document_ids,
+            **routing_metadata(routing_sample),
         },
     )
 
@@ -1028,114 +802,6 @@ def _build_document_consumption_entry(
     )
 
 
-def _resolve_inventory_multimodal_consumption_decision(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> _MultimodalConsumptionDecision:
-    source_required_count = max(
-        0,
-        int(inventory_entry.multimodal_processing_required_count or 0),
-    )
-    if source_required_count <= 0:
-        return _MultimodalConsumptionDecision(
-            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED
-        )
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
-    if _looks_like_low_value_ephemeral_event_poster(notice_title):
-        return _MultimodalConsumptionDecision(
-            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
-            source_required_count=source_required_count,
-            skipped_attachment_count=source_required_count,
-            skip_reason=NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
-        )
-    return _MultimodalConsumptionDecision(
-        policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
-        source_required_count=source_required_count,
-        pending_attachment_count=source_required_count,
-        action_required=True,
-    )
-
-
-def _resolve_report_multimodal_consumption_decision(
-    *,
-    report: InternalNoticeRegulationPromotionDocumentReport,
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
-    title: str,
-    body: str,
-) -> _MultimodalConsumptionDecision:
-    source_required_count = (
-        max(0, int(inventory_entry.multimodal_processing_required_count or 0))
-        if inventory_entry is not None
-        else 0
-    )
-    if not _requires_multimodal_processing(report):
-        return _MultimodalConsumptionDecision(
-            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED,
-            source_required_count=source_required_count,
-        )
-    parent_title = ""
-    if inventory_entry is not None:
-        parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-        parent_title = str(parent_snapshot.get("notice_title") or "")
-    policy_text = "\n".join(
-        item
-        for item in (
-            report.source_title,
-            title,
-            report.regulation_title_normalized or "",
-            parent_title,
-            body,
-        )
-        if item
-    )
-    if _looks_like_low_value_ephemeral_event_poster(policy_text):
-        skipped_count = source_required_count or 1
-        return _MultimodalConsumptionDecision(
-            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
-            source_required_count=source_required_count,
-            skipped_attachment_count=skipped_count,
-            skip_reason=NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
-        )
-    return _MultimodalConsumptionDecision(
-        policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
-        source_required_count=source_required_count,
-        pending_attachment_count=source_required_count or 1,
-        action_required=True,
-    )
-
-
-def _build_multimodal_consumption_metadata(
-    decision: _MultimodalConsumptionDecision,
-    *,
-    include_not_required: bool = False,
-) -> dict[str, object]:
-    if (
-        not include_not_required
-        and decision.policy == NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED
-        and decision.source_required_count <= 0
-    ):
-        return {}
-    metadata: dict[str, object] = {
-        "source_multimodal_processing_required_count": decision.source_required_count,
-        "pending_multimodal_attachment_count": decision.pending_attachment_count,
-        "multimodal_consumption_policy": decision.policy,
-        "multimodal_action_required": decision.action_required,
-        "multimodal_skipped_attachment_count": decision.skipped_attachment_count,
-    }
-    if decision.skip_reason:
-        metadata["multimodal_skip_reason"] = decision.skip_reason
-    return metadata
-
-
-def _looks_like_low_value_ephemeral_event_poster(text: str) -> bool:
-    normalized = "".join(str(text or "").split())
-    if not normalized:
-        return False
-    if any(keyword in normalized for keyword in _HIGH_VALUE_MULTIMODAL_PROCESSING_KEYWORDS):
-        return False
-    return any(keyword in normalized for keyword in _LOW_VALUE_EPHEMERAL_EVENT_POSTER_KEYWORDS)
-
-
 def _resolve_primary_role(
     report: InternalNoticeRegulationPromotionDocumentReport,
 ) -> str | None:
@@ -1185,10 +851,10 @@ def _resolve_completeness_status(report: InternalNoticeRegulationPromotionDocume
         "input_incomplete_missing_attachment_docs" in set(report.reasons)
     ):
         return NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING
-    if report.action == INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING:
-        if _is_unsupported_machine_processing_reason(report):
-            return NOTICE_COMPLETENESS_REFERENCE_ONLY
+    if _requires_multimodal_processing(report):
         return NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING
+    if _is_unsupported_machine_processing_reason(report):
+        return NOTICE_COMPLETENESS_REFERENCE_ONLY
     return NOTICE_COMPLETENESS_REFERENCE_ONLY
 
 
@@ -1244,32 +910,6 @@ def _resolve_consumption_status(
     if completeness_status == NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING:
         return NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING
     return NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY
-
-
-def _requires_multimodal_processing(
-    report: InternalNoticeRegulationPromotionDocumentReport,
-) -> bool:
-    return (
-        report.action == INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING
-        and report.owner_source_missing_reason is None
-        and not _is_unsupported_machine_processing_reason(report)
-    )
-
-
-def _is_unsupported_machine_processing_reason(
-    report: InternalNoticeRegulationPromotionDocumentReport,
-) -> bool:
-    if report.action != INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING:
-        return False
-    reasons = set(report.reasons)
-    return bool(
-        reasons
-        & {
-            "draft_signal_detected",
-            "input_lane_not_admitted",
-            "unsupported_revision_track",
-        }
-    )
 
 
 def _build_processing_gap_metadata(
@@ -1338,11 +978,19 @@ def _record_sort_key(record: DocumentRegistryRecord) -> tuple[object, ...]:
 
 def _resolve_notice_level_primary_role(
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
 ) -> str | None:
     parent_snapshot = dict(inventory_entry.parent_snapshot or {})
     title = str(parent_snapshot.get("notice_title") or "")
     if _looks_like_procurement_notice(title):
         return NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
+    if routing_sample is not None:
+        if routing_sample.suggested_consumption_route == "procurement_notice_history":
+            return NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
+        if routing_sample.notice_family == "roster_publication":
+            return NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
+        if routing_sample.notice_family == "lecture_publicity":
+            return NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY
     if _looks_like_roster_publication(title):
         return NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
     if _looks_like_lecture_activity(title):
@@ -1671,10 +1319,3 @@ def _looks_like_lecture_activity(title: str) -> bool:
             "文华讲堂",
         )
     )
-
-
-def _coerce_int(value: object) -> int:
-    try:
-        return int(value or 0)
-    except (TypeError, ValueError):
-        return 0

@@ -1,492 +1,56 @@
 from __future__ import annotations
 
-import hashlib
-import os
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass, field, fields
 from datetime import UTC, datetime, timedelta
-from importlib import import_module
-from typing import Any, Protocol
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
+    DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY as DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
+    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY as DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
+    DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY as DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
+    DEFAULT_ATTACHMENT_FETCH_STATUS_SCHEMA as DEFAULT_ATTACHMENT_FETCH_STATUS_SCHEMA,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
+    DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE as DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
+    FETCH_STATUS_COLLECTED_INTERNAL,
+    FETCH_STATUS_TERMINAL_UNAVAILABLE,
+    FETCH_STATUS_TRANSIENT_FAILED,
+    TERMINAL_REASON_HTTP_404,
+    TERMINAL_REASON_HTTP_410,
+    TERMINAL_REASON_PORTAL_FILE_MISSING,
+    AttachmentFetchStatusCoverageReport,
+    AttachmentOwnerExpectationMismatchRow,
+    AuthenticatedNoticeAttachmentFetchStatusRecord,
+    AuthenticatedNoticeControlPlaneStatusReport,
+    AuthenticatedNoticeLiveHistoricalReconcileReport,
+    ReferenceOnlyAttachmentExplanationReport,
+    ReferenceOnlyAttachmentExplanationRow,
+    _utc_now,
+    build_attachment_source_url_hash,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store import (
+    AuthenticatedNoticeAttachmentFetchStatusStore,
+    InMemoryAuthenticatedNoticeAttachmentFetchStatusStore,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store import (
+    PostgresAuthenticatedNoticeAttachmentFetchStatusStore as PostgresAuthenticatedNoticeAttachmentFetchStatusStore,
+)
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store import (
+    build_authenticated_notice_attachment_fetch_status_store_from_env as build_authenticated_notice_attachment_fetch_status_store_from_env,
+)
 from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-    _coerce_json_payload,
-    _ensure_table_schema,
     _postgres_connection,  # noqa: F401 - patched through module facade in tests.
-    _qualified_table_sql,
-    _table_index_suffix,
 )
-
-DEFAULT_ATTACHMENT_FETCH_STATUS_SCHEMA = "ingestion_projection"
-DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE = (
-    f"{DEFAULT_ATTACHMENT_FETCH_STATUS_SCHEMA}.authenticated_notice_attachment_fetch_status"
-)
-DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY = (
-    "AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL"
-)
-DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY = (
-    "AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_OPERATOR_DATABASE_URL"
-)
-DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY = (
-    "AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_MANAGEMENT_DATABASE_URL"
-)
-
-FETCH_STATUS_COLLECTED_INTERNAL = "collected_internal"
-FETCH_STATUS_TERMINAL_UNAVAILABLE = "terminal_unavailable"
-FETCH_STATUS_TRANSIENT_FAILED = "transient_failed"
-TERMINAL_REASON_HTTP_404 = "http_404"
-TERMINAL_REASON_HTTP_410 = "http_410"
-TERMINAL_REASON_PORTAL_FILE_MISSING = "portal_file_missing"
-
-_FETCH_STATUSES = frozenset(
-    {
-        FETCH_STATUS_COLLECTED_INTERNAL,
-        FETCH_STATUS_TERMINAL_UNAVAILABLE,
-        FETCH_STATUS_TRANSIENT_FAILED,
-    }
-)
-_TERMINAL_REASONS = frozenset(
-    {
-        TERMINAL_REASON_HTTP_404,
-        TERMINAL_REASON_HTTP_410,
-        TERMINAL_REASON_PORTAL_FILE_MISSING,
-    }
-)
-
-
-def _utc_now() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeAttachmentFetchStatusRecord:
-    site_id: str
-    notice_id: str
-    attachment_ref_id: str
-    source_url: str
-    source_url_hash: str
-    fetch_status: str
-    portal_attachment_id: str | None = None
-    filename: str | None = None
-    terminal_reason: str | None = None
-    last_http_status: int | None = None
-    last_error: str | None = None
-    attempt_count: int = 0
-    first_seen_at: str = field(default_factory=_utc_now)
-    last_attempted_at: str | None = None
-    next_retry_after: str | None = None
-    object_key: str | None = None
-    content_sha256: str | None = None
-    updated_at: str = field(default_factory=_utc_now)
-
-    def __post_init__(self) -> None:
-        normalized = _normalize_status(self.fetch_status)
-        object.__setattr__(self, "fetch_status", normalized)
-        if self.terminal_reason is not None:
-            reason = str(self.terminal_reason).strip()
-            if reason not in _TERMINAL_REASONS:
-                raise ValueError(f"unsupported terminal_reason: {self.terminal_reason!r}")
-            object.__setattr__(self, "terminal_reason", reason)
-        if normalized == FETCH_STATUS_TERMINAL_UNAVAILABLE and self.terminal_reason is None:
-            raise ValueError("terminal_unavailable records require terminal_reason")
-        if self.source_url_hash != build_attachment_source_url_hash(self.source_url):
-            raise ValueError("source_url_hash does not match source_url")
-        object.__setattr__(self, "attempt_count", max(0, int(self.attempt_count or 0)))
-
-    @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> AuthenticatedNoticeAttachmentFetchStatusRecord:
-        raw = dict(payload)
-        raw["attempt_count"] = int(raw.get("attempt_count") or 0)
-        if raw.get("last_http_status") is not None:
-            raw["last_http_status"] = int(raw["last_http_status"])
-        allowed = {item.name for item in fields(cls)}
-        return cls(**{key: value for key, value in raw.items() if key in allowed})
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass(frozen=True, slots=True)
-class AttachmentFetchStatusCoverageReport:
-    source_notice_count: int
-    source_attachment_ref_count: int
-    fetch_status_record_count: int
-    missing_fetch_status_attachment_refs: tuple[str, ...]
-    extra_fetch_status_attachment_refs: tuple[str, ...]
-    status_counts: dict[str, int]
-    terminal_reason_counts: dict[str, int]
-
-
-@dataclass(frozen=True, slots=True)
-class ReferenceOnlyAttachmentExplanationRow:
-    site_id: str
-    notice_id: str
-    attachment_ref_id: str
-    reason: str
-    action_required: bool
-    resource_role: str | None = None
-    content_kind: str | None = None
-    mime_type: str | None = None
-    object_key: str | None = None
-    content_sha256: str | None = None
-    source_url: str | None = None
-    final_url: str | None = None
-    fetch_status: str | None = None
-    terminal_reason: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ReferenceOnlyAttachmentExplanationReport:
-    source_notice_count: int
-    source_attachment_ref_count: int
-    reference_only_inventory_count: int
-    reference_only_attachment_count: int
-    action_required_count: int
-    reason_counts: dict[str, int]
-    rows: tuple[ReferenceOnlyAttachmentExplanationRow, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class AttachmentOwnerExpectationMismatchRow:
-    site_id: str
-    notice_id: str
-    owner_kind: str
-    relation_type: str
-    owner_title_hint: str | None = None
-    evidence_text: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeLiveHistoricalReconcileReport:
-    source_notice_count: int
-    source_attachment_ref_count: int
-    fetch_status_record_count: int
-    missing_fetch_status_attachment_refs: tuple[str, ...]
-    extra_fetch_status_attachment_refs: tuple[str, ...]
-    status_counts: dict[str, int]
-    terminal_reason_counts: dict[str, int]
-    attachment_owner_expectation_mismatch_count: int
-    attachment_owner_expectation_mismatches: tuple[AttachmentOwnerExpectationMismatchRow, ...]
-    action_required_count: int
-
-
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeControlPlaneStatusReport:
-    source_notice_count: int
-    source_attachment_ref_count: int
-    fetch_status_record_count: int
-    missing_fetch_status_attachment_ref_count: int
-    extra_fetch_status_attachment_ref_count: int
-    reference_only_attachment_count: int
-    reference_only_action_required_count: int
-    reconcile_action_required_count: int
-    unsupported_binary_count: int
-    multimodal_processing_required_count: int
-    notice_risk_counts: dict[str, int]
-    action_required_count: int
-    latest_collector_run: dict[str, Any] | None
-    reconcile_report: AuthenticatedNoticeLiveHistoricalReconcileReport
-    reference_only_report: ReferenceOnlyAttachmentExplanationReport
-
-
-class AuthenticatedNoticeAttachmentFetchStatusStore(Protocol):
-    def upsert_many(
-        self,
-        records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord],
-    ) -> None: ...
-
-    def list_by_notice_ids(
-        self,
-        *,
-        site_id: str,
-        notice_ids: Sequence[str],
-    ) -> tuple[AuthenticatedNoticeAttachmentFetchStatusRecord, ...]: ...
-
-
-class InMemoryAuthenticatedNoticeAttachmentFetchStatusStore:
-    def __init__(
-        self,
-        records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord] = (),
-    ) -> None:
-        self._records: dict[
-            tuple[str, str, str], AuthenticatedNoticeAttachmentFetchStatusRecord
-        ] = {}
-        self.upsert_many(records)
-
-    def upsert_many(
-        self,
-        records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord],
-    ) -> None:
-        for record in records:
-            self._records[(record.site_id, record.notice_id, record.attachment_ref_id)] = record
-
-    def list_by_notice_ids(
-        self,
-        *,
-        site_id: str,
-        notice_ids: Sequence[str],
-    ) -> tuple[AuthenticatedNoticeAttachmentFetchStatusRecord, ...]:
-        normalized_notice_ids = {str(item).strip() for item in notice_ids if str(item).strip()}
-        rows = [
-            record
-            for key, record in self._records.items()
-            if key[0] == site_id and (not normalized_notice_ids or key[1] in normalized_notice_ids)
-        ]
-        return tuple(sorted(rows, key=lambda item: (item.notice_id, item.attachment_ref_id)))
-
-
-class PostgresAuthenticatedNoticeAttachmentFetchStatusStore:
-    def __init__(
-        self,
-        database_url: str,
-        *,
-        table_name: str = DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE,
-    ) -> None:
-        from campus_ingestion_core.postgres_runtime import normalize_postgres_connection_url
-
-        self.database_url = normalize_postgres_connection_url(database_url)
-        if not self.database_url:
-            raise ValueError("attachment fetch-status database url is required")
-        self.table_name = table_name
-        self._ensure_schema()
-
-    def upsert_many(
-        self,
-        records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord],
-    ) -> None:
-        rows = tuple(records)
-        if not rows:
-            return
-        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
-            cursor.execute(self._bulk_upsert_query(), (jsonb_recordset(rows),))
-
-    def list_by_notice_ids(
-        self,
-        *,
-        site_id: str,
-        notice_ids: Sequence[str],
-    ) -> tuple[AuthenticatedNoticeAttachmentFetchStatusRecord, ...]:
-        normalized_notice_ids = tuple(
-            sorted({str(item).strip() for item in notice_ids if str(item).strip()})
-        )
-        table_sql = _qualified_table_sql(self.table_name)
-        query = f"select record from {table_sql} where site_id = %s"
-        params: list[object] = [site_id]
-        if normalized_notice_ids:
-            query += " and notice_id = any(%s)"
-            params.append(list(normalized_notice_ids))
-        query += " order by notice_id asc, attachment_ref_id asc"
-        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
-            cursor.execute(query, tuple(params))
-            rows = cursor.fetchall()
-        return tuple(
-            AuthenticatedNoticeAttachmentFetchStatusRecord.from_dict(_coerce_json_payload(row[0]))
-            for row in rows
-        )
-
-    def _ensure_schema(self) -> None:
-        table_sql = _qualified_table_sql(self.table_name)
-        suffix = _table_index_suffix(self.table_name)
-        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
-            _ensure_table_schema(cursor, table_name=self.table_name)
-            cursor.execute(
-                f"""
-                create table if not exists {table_sql} (
-                    site_id text not null,
-                    notice_id text not null,
-                    attachment_ref_id text not null,
-                    portal_attachment_id text,
-                    source_url text not null,
-                    source_url_hash text not null,
-                    filename text,
-                    fetch_status text not null,
-                    terminal_reason text,
-                    last_http_status integer,
-                    last_error text,
-                    attempt_count integer not null default 0,
-                    first_seen_at timestamptz not null,
-                    last_attempted_at timestamptz,
-                    next_retry_after timestamptz,
-                    object_key text,
-                    content_sha256 text,
-                    updated_at timestamptz not null,
-                    record jsonb not null,
-                    primary key (site_id, notice_id, attachment_ref_id),
-                    check (fetch_status in (
-                        'collected_internal',
-                        'terminal_unavailable',
-                        'transient_failed'
-                    )),
-                    check (
-                        terminal_reason is null or terminal_reason in (
-                            'http_404',
-                            'http_410',
-                            'portal_file_missing'
-                        )
-                    )
-                )
-                """
-            )
-            cursor.execute(
-                f"""
-                create index if not exists idx_{suffix}_terminal
-                on {table_sql} (
-                    site_id,
-                    notice_id,
-                    attachment_ref_id,
-                    source_url_hash
-                )
-                where fetch_status = 'terminal_unavailable'
-                """
-            )
-
-    def _bulk_upsert_query(self) -> str:
-        table_sql = _qualified_table_sql(self.table_name)
-        return f"""
-            with rows as (
-                select
-                    item.site_id,
-                    item.notice_id,
-                    item.attachment_ref_id,
-                    item.portal_attachment_id,
-                    item.source_url,
-                    item.source_url_hash,
-                    item.filename,
-                    item.fetch_status,
-                    item.terminal_reason,
-                    item.last_http_status,
-                    item.last_error,
-                    item.attempt_count,
-                    item.first_seen_at,
-                    item.last_attempted_at,
-                    item.next_retry_after,
-                    item.object_key,
-                    item.content_sha256,
-                    item.updated_at,
-                    item.record
-                from jsonb_to_recordset(%s::jsonb) as item(
-                    site_id text,
-                    notice_id text,
-                    attachment_ref_id text,
-                    portal_attachment_id text,
-                    source_url text,
-                    source_url_hash text,
-                    filename text,
-                    fetch_status text,
-                    terminal_reason text,
-                    last_http_status integer,
-                    last_error text,
-                    attempt_count integer,
-                    first_seen_at timestamptz,
-                    last_attempted_at timestamptz,
-                    next_retry_after timestamptz,
-                    object_key text,
-                    content_sha256 text,
-                    updated_at timestamptz,
-                    record jsonb
-                )
-            )
-            insert into {table_sql} (
-                site_id,
-                notice_id,
-                attachment_ref_id,
-                portal_attachment_id,
-                source_url,
-                source_url_hash,
-                filename,
-                fetch_status,
-                terminal_reason,
-                last_http_status,
-                last_error,
-                attempt_count,
-                first_seen_at,
-                last_attempted_at,
-                next_retry_after,
-                object_key,
-                content_sha256,
-                updated_at,
-                record
-            )
-            select
-                site_id,
-                notice_id,
-                attachment_ref_id,
-                portal_attachment_id,
-                source_url,
-                source_url_hash,
-                filename,
-                fetch_status,
-                terminal_reason,
-                last_http_status,
-                last_error,
-                attempt_count,
-                first_seen_at,
-                last_attempted_at,
-                next_retry_after,
-                object_key,
-                content_sha256,
-                updated_at,
-                record
-            from rows
-            on conflict (site_id, notice_id, attachment_ref_id) do update set
-                portal_attachment_id = excluded.portal_attachment_id,
-                source_url = excluded.source_url,
-                source_url_hash = excluded.source_url_hash,
-                filename = excluded.filename,
-                fetch_status = excluded.fetch_status,
-                terminal_reason = excluded.terminal_reason,
-                last_http_status = excluded.last_http_status,
-                last_error = excluded.last_error,
-                attempt_count = {table_sql}.attempt_count + excluded.attempt_count,
-                first_seen_at = least({table_sql}.first_seen_at, excluded.first_seen_at),
-                last_attempted_at = excluded.last_attempted_at,
-                next_retry_after = excluded.next_retry_after,
-                object_key = excluded.object_key,
-                content_sha256 = excluded.content_sha256,
-                updated_at = excluded.updated_at,
-                record = excluded.record
-        """
-
-
-def build_authenticated_notice_attachment_fetch_status_store_from_env(
-    env: dict[str, str] | None = None,
-    *,
-    prefer_operator: bool = False,
-) -> PostgresAuthenticatedNoticeAttachmentFetchStatusStore:
-    source = env if env is not None else dict(os.environ)
-    if prefer_operator:
-        database_url = (
-            source.get(DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY)
-            or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
-            or ""
-        ).strip()
-        if not database_url:
-            raise ValueError(
-                f"{DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
-            )
-        return PostgresAuthenticatedNoticeAttachmentFetchStatusStore(
-            build_operator_postgres_connection_url(database_url)
-        )
-    database_url = (
-        source.get(DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY)
-        or source.get(SHARED_POSTGRES_ENV_KEY)
-        or ""
-    ).strip()
-    if not database_url:
-        raise ValueError(
-            f"{DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
-        )
-    return PostgresAuthenticatedNoticeAttachmentFetchStatusStore(database_url)
 
 
 def build_attachment_fetch_status_records_from_bundle_records(
@@ -524,10 +88,6 @@ def build_attachment_fetch_status_records_from_bundle_records(
             if record is not None:
                 rows.append(record)
     return tuple(rows)
-
-
-def build_attachment_source_url_hash(source_url: str) -> str:
-    return hashlib.sha256(str(source_url).strip().encode("utf-8")).hexdigest()
 
 
 def build_attachment_fetch_status_coverage_report(
@@ -720,17 +280,6 @@ def build_authenticated_notice_control_plane_status_report(
     )
 
 
-def jsonb_recordset(
-    records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord],
-) -> str:
-    import json
-
-    return json.dumps(
-        [{**record.to_dict(), "record": record.to_dict()} for record in records],
-        ensure_ascii=False,
-    )
-
-
 def _build_status_record_for_attachment(
     *,
     site_id: str,
@@ -840,13 +389,6 @@ def _retry_after(timestamp: str) -> str:
     except ValueError:
         parsed = datetime.now(UTC)
     return (parsed.astimezone(UTC) + timedelta(hours=6)).isoformat()
-
-
-def _normalize_status(value: str) -> str:
-    normalized = str(value).strip()
-    if normalized not in _FETCH_STATUSES:
-        raise ValueError(f"unsupported fetch_status: {value!r}")
-    return normalized
 
 
 def _normalize_optional_text(value: object) -> str | None:
@@ -1022,14 +564,6 @@ def _reference_only_explanation_reason(
     if object_key is not None:
         return "object_backed_missing_checksum", True
     return "missing_object_key", True
-
-
-def _inventory_facade():
-    return import_module("campus_ingestion_core.authenticated_notice_attachment_fetch_status")
-
-
-def _patched_postgres_connection(*args, **kwargs):
-    return _inventory_facade()._postgres_connection(*args, **kwargs)
 
 
 __all__ = [

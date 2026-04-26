@@ -10,6 +10,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     PostgresAuthenticatedNoticeSourceTruthInventoryStore,
     _list_document_registry_scope_records_for_inventory,
     _list_raw_asset_registry_scope_records_for_inventory,
+    _select_latest_authenticated_notice_parent_records_for_inventory,
     document_record_from_authenticated_notice_source_truth_parent_snapshot,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
@@ -322,6 +323,34 @@ class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
         self.assertFalse(records[0].has_text_table_attachment)
         self.assertFalse(records[0].has_spatial_attachment)
         self.assertFalse(records[0].has_reference_only_attachment)
+
+    def test_inventory_parent_selection_keeps_one_latest_parent_per_notice(self) -> None:
+        older = _document_record("notice:muc_internal_portal:355122", "sha256:older")
+        newer = _document_record("notice:muc_internal_portal:355122", "sha256:newer")
+        older_raw = _raw_record(older.raw_asset.raw_asset_id, older.raw_asset.raw_version_id)
+        newer_raw = _raw_record(newer.raw_asset.raw_asset_id, newer.raw_asset.raw_version_id)
+        older_raw = RawAssetRecord(
+            **{
+                **asdict(older_raw),
+                "ingestion_timestamp": "2026-04-01T00:00:00+00:00",
+            }
+        )
+        newer_raw = RawAssetRecord(
+            **{
+                **asdict(newer_raw),
+                "ingestion_timestamp": "2026-04-26T00:00:00+00:00",
+            }
+        )
+
+        selected = _select_latest_authenticated_notice_parent_records_for_inventory(
+            records=(newer, older),
+            raw_by_key={
+                (older_raw.raw_asset_id, older_raw.raw_version_id): older_raw,
+                (newer_raw.raw_asset_id, newer_raw.raw_version_id): newer_raw,
+            },
+        )
+
+        self.assertEqual([record.version_id for record in selected], ["sha256:newer"])
 
 
 class AuthenticatedNoticeSourceTruthReplayPayloadContractTest(unittest.TestCase):

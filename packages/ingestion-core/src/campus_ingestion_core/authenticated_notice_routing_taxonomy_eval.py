@@ -34,6 +34,7 @@ class AuthenticatedNoticeRoutingTaxonomyEvalCase:
     expected_notice_family: str
     expected_consumption_route: str
     expected_machine_processing_policy: str
+    expected_attachment_processing_policy: str
     reason: str = ""
 
 
@@ -60,6 +61,8 @@ class AuthenticatedNoticeRoutingTaxonomyEvalReport:
     predicted_consumption_route_counts: dict[str, int]
     expected_machine_processing_policy_counts: dict[str, int]
     predicted_machine_processing_policy_counts: dict[str, int]
+    expected_attachment_processing_policy_counts: dict[str, int]
+    predicted_attachment_processing_policy_counts: dict[str, int]
     failures: tuple[AuthenticatedNoticeRoutingTaxonomyEvalFailure, ...]
 
 
@@ -103,6 +106,8 @@ def evaluate_authenticated_notice_routing_taxonomy_cases(
     predicted_route_counter: Counter[str] = Counter()
     expected_machine_counter: Counter[str] = Counter()
     predicted_machine_counter: Counter[str] = Counter()
+    expected_attachment_processing_counter: Counter[str] = Counter()
+    predicted_attachment_processing_counter: Counter[str] = Counter()
 
     for case in cases:
         sample = _sample_eval_case(case, config=config)
@@ -112,6 +117,8 @@ def evaluate_authenticated_notice_routing_taxonomy_cases(
         predicted_route_counter[sample.suggested_consumption_route] += 1
         expected_machine_counter[case.expected_machine_processing_policy] += 1
         predicted_machine_counter[sample.machine_processing_policy] += 1
+        expected_attachment_processing_counter[case.expected_attachment_processing_policy] += 1
+        predicted_attachment_processing_counter[sample.attachment_processing_policy] += 1
         mismatches = _compare_case(case, sample)
         if mismatches:
             failures.append(
@@ -142,6 +149,12 @@ def evaluate_authenticated_notice_routing_taxonomy_cases(
         predicted_consumption_route_counts=dict(sorted(predicted_route_counter.items())),
         expected_machine_processing_policy_counts=dict(sorted(expected_machine_counter.items())),
         predicted_machine_processing_policy_counts=dict(sorted(predicted_machine_counter.items())),
+        expected_attachment_processing_policy_counts=dict(
+            sorted(expected_attachment_processing_counter.items())
+        ),
+        predicted_attachment_processing_policy_counts=dict(
+            sorted(predicted_attachment_processing_counter.items())
+        ),
         failures=tuple(failures),
     )
 
@@ -173,6 +186,10 @@ def _compare_case(
         "machine_processing_policy": (
             case.expected_machine_processing_policy,
             sample.machine_processing_policy,
+        ),
+        "attachment_processing_policy": (
+            case.expected_attachment_processing_policy,
+            sample.attachment_processing_policy,
         ),
     }
     return {
@@ -222,8 +239,29 @@ def _eval_case_from_payload(
             "expected_machine_processing_policy",
             line_number=line_number,
         ),
+        expected_attachment_processing_policy=_expected_attachment_processing_policy(
+            raw,
+            line_number=line_number,
+        ),
         reason=str(raw.get("reason") or ""),
     )
+
+
+def _expected_attachment_processing_policy(
+    raw: Mapping[str, Any],
+    *,
+    line_number: int,
+) -> str:
+    explicit = str(raw.get("expected_attachment_processing_policy") or "").strip()
+    if explicit:
+        return explicit
+    route = _required_text(raw, "expected_consumption_route", line_number=line_number)
+    if route in {"defer", "review_later", "no_adoption"}:
+        return "metadata_only"
+    attachment_ref_count = _int_field(raw, "attachment_ref_count")
+    if attachment_ref_count <= 0:
+        return "not_required"
+    return "process"
 
 
 def _inventory_entry_from_case(

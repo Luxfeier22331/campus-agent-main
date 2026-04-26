@@ -36,6 +36,7 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
                             "expected_notice_family": "course_teaching_arrangement",
                             "expected_consumption_route": "notice_level_query",
                             "expected_machine_processing_policy": "not_required",
+                            "expected_attachment_processing_policy": "not_required",
                         },
                         ensure_ascii=False,
                     ),
@@ -47,6 +48,7 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
         self.assertEqual(cases[0].case_id, "course-selection")
         self.assertEqual(cases[0].notice_id, "354192")
         self.assertEqual(cases[0].expected_notice_family, "course_teaching_arrangement")
+        self.assertEqual(cases[0].expected_attachment_processing_policy, "not_required")
 
     def test_evaluates_expected_family_route_and_machine_policy(self) -> None:
         report = evaluate_authenticated_notice_routing_taxonomy_jsonl(
@@ -76,6 +78,22 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
                             "expected_notice_family": "procurement_notice",
                             "expected_consumption_route": "procurement_notice_history",
                             "expected_machine_processing_policy": "process",
+                            "expected_attachment_processing_policy": "process",
+                        },
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        {
+                            "case_id": "lecture-image-skip",
+                            "notice_id": "355546",
+                            "title": "讲座预告丨舞蹈学院名家讲堂",
+                            "notice_type_name": "科研通知",
+                            "attachment_ref_count": 1,
+                            "ocr_required_count": 1,
+                            "expected_notice_family": "lecture_publicity",
+                            "expected_consumption_route": "defer",
+                            "expected_machine_processing_policy": "skip",
+                            "expected_attachment_processing_policy": "metadata_only",
                         },
                         ensure_ascii=False,
                     ),
@@ -85,13 +103,18 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
         )
 
         self.assertTrue(report.ok)
-        self.assertEqual(report.case_count, 2)
-        self.assertEqual(report.passed_count, 2)
+        self.assertEqual(report.case_count, 3)
+        self.assertEqual(report.passed_count, 3)
         self.assertEqual(report.failed_count, 0)
         self.assertEqual(report.accuracy, 1.0)
         self.assertEqual(report.failures, ())
         self.assertEqual(report.predicted_notice_family_counts["procurement_notice"], 1)
         self.assertEqual(report.predicted_machine_processing_policy_counts["process"], 1)
+        self.assertEqual(report.predicted_attachment_processing_policy_counts["process"], 1)
+        self.assertEqual(
+            report.predicted_attachment_processing_policy_counts["metadata_only"],
+            1,
+        )
 
     def test_reports_mismatch_details(self) -> None:
         report = evaluate_authenticated_notice_routing_taxonomy_jsonl(
@@ -104,6 +127,7 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
                     "expected_notice_family": "course_teaching_arrangement",
                     "expected_consumption_route": "notice_level_query",
                     "expected_machine_processing_policy": "not_required",
+                    "expected_attachment_processing_policy": "process",
                 },
                 ensure_ascii=False,
             ),
@@ -127,6 +151,10 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
         self.assertEqual(
             report.failures[0].mismatches["machine_processing_policy"]["actual"],
             "skip",
+        )
+        self.assertEqual(
+            report.failures[0].mismatches["attachment_processing_policy"]["actual"],
+            "metadata_only",
         )
 
 

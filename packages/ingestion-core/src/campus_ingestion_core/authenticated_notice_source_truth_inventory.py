@@ -11,6 +11,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory_postgres 
     _list_raw_asset_registry_scope_records_for_inventory,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory_rebuild import (
+    _select_latest_authenticated_notice_parent_records_for_inventory,
     build_authenticated_notice_source_truth_inventory_entries,
     build_authenticated_notice_source_truth_parent_snapshot,
     build_authenticated_notice_source_truth_parent_snapshot_from_payloads,
@@ -126,6 +127,7 @@ __all__ = [
     "_list_document_registry_scope_records_for_inventory",
     "_list_raw_asset_registry_scope_records_for_inventory",
     "_postgres_connection",
+    "_select_latest_authenticated_notice_parent_records_for_inventory",
     "build_authenticated_notice_source_truth_inventory_entries",
     "build_authenticated_notice_source_truth_inventory_store_from_env",
     "build_authenticated_notice_source_truth_parent_snapshot",

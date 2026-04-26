@@ -313,6 +313,66 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
         )
         self.assertEqual(attachment_refs[0]["resource_role"], "attachment")
 
+    def test_import_authenticated_notice_bundle_deduplicates_inline_image_fallback_refs(
+        self,
+    ) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_title"] = "关于两校区学生通勤班车增加班次的通知"
+        bundle[0]["notice"]["notice_content"] = (
+            "<p>具体见下表：</p>"
+            '<p><img src="http://my.muc.edu.cn:80/comsys-portal-notice-web/upload/'
+            'ueditor/2026318/schedule.jpg" alt="班次表.jpg"/></p>'
+        )
+        bundle[0]["links"][0]["url"] = (
+            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+        )
+        bundle[0]["links"][0]["final_url"] = (
+            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+        )
+        bundle[0]["links"][0]["link_text"] = "班次表.jpg"
+        bundle[0]["links"][0]["content_kind"] = "inline_image"
+        bundle[0]["links"][0]["content_type"] = "image/jpeg"
+        bundle[0]["notice_attachments"][0]["resource_role"] = "inline_image"
+        bundle[0]["notice_attachments"][0]["anchor_text"] = "班次表.jpg"
+        bundle[0]["attachments"][0]["source_url"] = (
+            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+        )
+        bundle[0]["attachments"][0]["normalized_source_url"] = (
+            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+        )
+        bundle[0]["attachments"][0]["final_url"] = (
+            "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/schedule.jpg"
+        )
+        bundle[0]["attachments"][0]["original_filename"] = "schedule.jpg"
+        bundle[0]["attachments"][0]["mime_type"] = "image/jpeg"
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                )
+            )
+
+        imported = result.notice_imports[0]
+        attachment_refs = [
+            json.loads(line)
+            for line in imported.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(attachment_refs), 1)
+        self.assertEqual(attachment_refs[0]["relation_source"], "content")
+
     def test_import_authenticated_notice_export_records_unsupported_binary_attachment_terminal_outcome(
         self,
     ) -> None:

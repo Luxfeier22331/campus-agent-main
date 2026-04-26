@@ -73,7 +73,7 @@ class SampleAuthenticatedNoticeRoutingCandidatesWorkerCliTest(unittest.TestCase)
                 "notice_id": "review-later-1",
                 "notice": {
                     "notice_id": "review-later-1",
-                    "notice_title": "关于领取校庆纪念品的温馨提醒",
+                    "notice_title": "关于校园道路树木修剪温馨提醒",
                     "notice_content": "",
                     "categories": [
                         {"notice_type": "5", "notice_type_name": "办公通知"},
@@ -129,7 +129,7 @@ class SampleAuthenticatedNoticeRoutingCandidatesWorkerCliTest(unittest.TestCase)
             )
             self.assertEqual(
                 audit["review_later_clusters"][0]["recommended_action"],
-                "candidate_notice_level_query_rule",
+                "keep_other_review_later",
             )
 
     def test_main_samples_source_truth_inventory_when_bundle_path_is_absent(self) -> None:

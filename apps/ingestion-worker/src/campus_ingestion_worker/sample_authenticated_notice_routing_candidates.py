@@ -23,6 +23,8 @@ from campus_ingestion_core.authenticated_notice_routing_sampling import (
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
+from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.settings import ObjectStoreSettings
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -39,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sample-limit-per-group", type=int, default=12)
     parser.add_argument("--boundary-sample-limit", type=int, default=30)
     parser.add_argument("--output-path")
+    parser.add_argument(
+        "--skip-content-blocks",
+        action="store_true",
+        help="Skip source-truth content-block reads and classify inventory by title/type only.",
+    )
     parser.add_argument(
         "--audit-output-path",
         help=(
@@ -80,6 +87,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             source,
             prefer_operator=True,
         )
+        object_store, source_bucket = (
+            (None, "")
+            if args.skip_content_blocks
+            else _build_optional_source_truth_object_store(source)
+        )
         inventory_entries = inventory_store.list_by_scope(
             args.corpus,
             args.collection,
@@ -90,11 +102,15 @@ def main(argv: Sequence[str] | None = None) -> None:
             config=config,
             sample_limit_per_group=args.sample_limit_per_group,
             boundary_sample_limit=args.boundary_sample_limit,
+            object_store=object_store,
+            source_bucket=source_bucket,
         )
         audit_report = (
             build_authenticated_notice_routing_audit_report_from_inventory_entries(
                 inventory_entries=inventory_entries,
                 config=config,
+                object_store=object_store,
+                source_bucket=source_bucket,
             )
             if args.audit_output_path
             else None
@@ -111,6 +127,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         Path(args.audit_output_path).write_text(audit_payload, encoding="utf-8")
     print(payload)
+
+
+def _build_optional_source_truth_object_store(
+    source: dict[str, str],
+) -> tuple[S3ObjectStoreAdmin | None, str]:
+    try:
+        settings = ObjectStoreSettings.from_env(source)
+    except ValueError:
+        return None, ""
+    return S3ObjectStoreAdmin(settings), settings.bucket_source
 
 
 __all__ = [
