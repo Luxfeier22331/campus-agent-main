@@ -1,6 +1,7 @@
 package runtimepolicy
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,8 +23,80 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 	if policy.IntentSchemaVersion != IntentSchema {
 		t.Fatalf("intent_schema_version = %q, want %q", policy.IntentSchemaVersion, IntentSchema)
 	}
+	if ClassifierVersion != "go-runtime-policy-v2" {
+		t.Fatalf("classifier version constant = %q, want go-runtime-policy-v2", ClassifierVersion)
+	}
 	if len(policy.SignalGroups["campus_scope"]) == 0 {
 		t.Fatal("campus_scope signal group must not be empty")
+	}
+	for _, group := range []string{
+		"structured_place_lookup_action",
+		"structured_place_entity",
+		"structured_place_location_noun",
+		"structured_non_spatial_where_action",
+		"notice_get_reference",
+		"transport_intent_first_departure",
+		"transport_intent_snapshot_metadata",
+		"transport_intent_timetable",
+		"transport_intent_last_departure",
+		"transport_intent_departure_list",
+		"transport_intent_service_window",
+		"transport_route_metro_shuttle",
+		"transport_route_intercampus_commute",
+		"transport_route_to_fengtai",
+		"transport_route_to_haidian",
+		"temporal_today",
+		"temporal_tomorrow",
+		"temporal_daypart_morning",
+		"temporal_daypart_afternoon",
+		"temporal_daypart_evening",
+		"campus_scope_haidian",
+		"campus_scope_fengtai",
+		"service_guide_focus_required_materials",
+		"service_guide_focus_entry",
+		"service_guide_focus_office_hours",
+		"service_guide_focus_contact",
+		"service_guide_focus_eligibility",
+		"service_guide_focus_full_guide",
+	} {
+		if len(policy.SignalGroups[group]) == 0 {
+			t.Fatalf("policy-backed signal group %q must not be empty", group)
+		}
+	}
+}
+
+func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+	policy.SignalGroups["structured_notice"] = []string{"校内要闻"}
+	policy.SignalGroups["structured_transport"] = []string{"摆渡车"}
+	policy.SignalGroups["structured_place_lookup_action"] = []string{"藏在哪里"}
+	policy.SignalGroups["structured_place_entity"] = []string{"北楼"}
+
+	tests := []struct {
+		name string
+		goal string
+		want string
+	}{
+		{name: "custom notice signal", goal: "查一下校内要闻", want: "notice"},
+		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
+		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolution := ResolveCapability(CapabilityResolutionRequest{
+				UserGoal: tt.goal,
+			}, policy)
+			if resolution.EffectiveCapability != tt.want {
+				t.Fatalf("capability = %q, want %q", resolution.EffectiveCapability, tt.want)
+			}
+			if resolution.Source != "inferred" {
+				t.Fatalf("source = %q, want inferred", resolution.Source)
+			}
+		})
 	}
 }
 
@@ -36,8 +109,8 @@ func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
 	policyPath := filepath.Join(t.TempDir(), "intent-policy.v1.json")
 	envPolicy := strings.Replace(
 		string(raw),
-		`"case_set_version": "intent-case-set-v1"`,
-		`"case_set_version": "env-intent-case-set-v1"`,
+		`"case_set_version": "intent-case-set-v2"`,
+		`"case_set_version": "env-intent-case-set-v2"`,
 		1,
 	)
 	if err := os.WriteFile(policyPath, []byte(envPolicy), 0o600); err != nil {
@@ -49,8 +122,8 @@ func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load env intent policy: %v", err)
 	}
-	if policy.CaseSetVersion != "env-intent-case-set-v1" {
-		t.Fatalf("case_set_version = %q, want env-intent-case-set-v1", policy.CaseSetVersion)
+	if policy.CaseSetVersion != "env-intent-case-set-v2" {
+		t.Fatalf("case_set_version = %q, want env-intent-case-set-v2", policy.CaseSetVersion)
 	}
 }
 
@@ -62,47 +135,22 @@ func TestIntentPolicyArtifactFailsClosedWhenMissing(t *testing.T) {
 }
 
 func TestEvaluateRuntimePolicyUsesExplicitIntentPolicyArtifact(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+	policy.SignalGroups["campus_scope"] = []string{"测试校内信号"}
+	policy.SignalGroups["external_institution"] = []string{"外校信号"}
+	raw, err := json.Marshal(policy)
+	if err != nil {
+		t.Fatalf("marshal policy fixture: %v", err)
+	}
 	policyPath := filepath.Join(t.TempDir(), "intent-policy.v1.json")
-	if err := os.WriteFile(
-		policyPath,
-		[]byte(`{
-			"schema_version":"intent-policy-artifact-v1",
-			"policy_version":"runtime-policy-v1",
-			"classifier_version":"go-runtime-policy-v1",
-			"intent_schema_version":"intent-schema-1.0.0",
-			"case_set_version":"intent-case-set-v1",
-			"reason_codes":["campus_scope_signal","product_scope_boundary","scope_undetermined_delegate"],
-			"signal_groups":{
-				"campus_scope":["测试校内信号"],
-				"external_institution":["外校信号"],
-				"general_world":[],
-				"geopolitical_entity":[],
-				"political_office":[],
-				"structured_transport":[],
-				"structured_service_subject":[],
-				"structured_service_guide_action":[],
-				"structured_service_guide_subject":[],
-				"structured_service_status":[],
-				"structured_notice":[],
-				"contextual_follow_up":[],
-				"notice_context_reference":[],
-				"curriculum_semester":[],
-				"follow_up_leading":[],
-				"delegated_action_prefix":[],
-				"high_risk_transaction_action":[],
-				"political_topic":[],
-				"political_influence_action":[],
-				"political_target_audience":[],
-				"political_position":[],
-				"political_message_writing":[]
-			}
-		}`),
-		0o600,
-	); err != nil {
+	if err := os.WriteFile(policyPath, raw, 0o600); err != nil {
 		t.Fatalf("write policy fixture: %v", err)
 	}
 
-	policy, err := LoadIntentPolicy(policyPath)
+	policy, err = LoadIntentPolicy(policyPath)
 	if err != nil {
 		t.Fatalf("load policy fixture: %v", err)
 	}

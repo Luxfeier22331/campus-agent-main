@@ -38,7 +38,7 @@ class IntentGoRunnerTest(unittest.TestCase):
         )
 
         self.assertEqual(report.failed, 0)
-        self.assertEqual(report.results[0].observed.classifier_version, "go-runtime-policy-v1")
+        self.assertEqual(report.results[0].observed.classifier_version, "go-runtime-policy-v2")
         self.assertEqual(report.results[0].observed.planning_outcome, "preplanned")
         self.assertEqual(report.results[1].observed.terminal_status, "no_answer")
 

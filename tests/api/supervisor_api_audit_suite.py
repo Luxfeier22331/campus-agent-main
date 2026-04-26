@@ -121,7 +121,7 @@ def _bridge_request_payload(
                 "launch_state": "open",
                 "scope_reason": "explicit_requested_scope",
                 "matched_signal": "",
-                "classifier_version": "go-runtime-policy-v1",
+                "classifier_version": "go-runtime-policy-v2",
                 "schema_version": "intent-schema-1.0.0",
                 "routing_confidence": "high",
                 "ambiguity_signal": "",

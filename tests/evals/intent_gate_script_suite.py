@@ -18,9 +18,9 @@ class IntentGateScriptTest(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["runner"], "supervisor-api-go")
-        self.assertEqual(payload["case_set_version"], "intent-case-set-v1")
+        self.assertEqual(payload["case_set_version"], "intent-case-set-v2")
         self.assertEqual(payload["policy_artifact"]["policy_version"], "runtime-policy-v1")
-        self.assertEqual(payload["policy_artifact"]["classifier_version"], "go-runtime-policy-v1")
+        self.assertEqual(payload["policy_artifact"]["classifier_version"], "go-runtime-policy-v2")
         self.assertEqual(payload["policy_artifact"]["intent_schema_version"], "intent-schema-1.0.0")
         self.assertEqual(
             tuple(payload["suites"].keys()),

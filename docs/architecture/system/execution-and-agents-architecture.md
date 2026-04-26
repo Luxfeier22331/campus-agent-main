@@ -102,7 +102,9 @@ Docker-side Go runtime control plane 长期负责：
 - Go `supervisor-api` 已拥有 deterministic effective capability / lane inference：
   当 caller 未显式传 `requested_capability` 时，常见地点、校车/班车、通知/公告/公示
   与 knowledge-family 请求会先被归入对应 runtime lane；versioned / scoped
-  knowledge 请求仍保持 knowledge path
+  knowledge 请求仍保持 knowledge path；capability inference、runtime policy 与
+  structured handoff planner 共用 `configs/runtime/intent-policy.v1.json` 作为 signal
+  taxonomy 单一来源
 - Go `supervisor-api` 已拥有 private bridge v6 canonical request projection：
   Python bridge hardcut 到 `supervisor_bridge_v6`，缺失 Go-owned
   `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
@@ -121,7 +123,8 @@ Docker-side Go runtime control plane 长期负责：
   service status / notice payload
 - planner 实现边界在 `apps/supervisor-api/internal/structuredplanning`；
   `apps/supervisor-api/internal/execution` 只负责 request projection 与 bridge v6
-  `runtime_decisions` 适配
+  `runtime_decisions` 适配；planner 不再维护独立 signal taxonomy，只消费 Go
+  runtime policy artifact 与 typed request
 - Go `supervisor-api` 已拥有 deterministic runtime policy foundation；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，bridge v6 delegate 请求传递
   `scope_gate`、`policy_gate`、`context_preflight`、`tool_policy`、`routing_frame` 与

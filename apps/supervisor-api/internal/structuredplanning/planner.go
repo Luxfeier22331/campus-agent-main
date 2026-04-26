@@ -9,82 +9,6 @@ import (
 
 var yearPattern = regexp.MustCompile(`(20\d{2})年`)
 
-var transportSignals = []string{"校车", "班车", "通勤车", "接驳车"}
-
-var delegatedActionPrefixes = []string{"帮我", "代我", "替我"}
-
-var transactionalActionSignals = []string{
-	"提交",
-	"办理",
-	"申请",
-	"报名",
-	"预约",
-	"缴费",
-	"代办",
-	"帮我办",
-}
-
-var serviceStatusSignals = []string{
-	"开门",
-	"开放",
-	"营业",
-	"办公时间",
-	"开放时间",
-	"开到几点",
-	"状态",
-}
-
-var serviceGuideActionSignals = []string{
-	"怎么申请",
-	"如何申请",
-	"怎么办理",
-	"如何办理",
-	"流程",
-	"手续",
-	"需要什么材料",
-	"材料",
-	"在哪里办",
-	"在哪办",
-	"入口",
-	"办理时间",
-	"联系方式",
-	"联系谁",
-	"电话",
-	"补办",
-	"退宿",
-	"入住",
-	"不住宿",
-	"离校",
-}
-
-var serviceGuideSubjectSignals = []string{
-	"学生公寓",
-	"公寓",
-	"宿舍",
-	"住宿",
-	"入住",
-	"不住宿",
-	"退宿",
-	"离校",
-	"校园卡",
-	"一卡通",
-	"会议室",
-	"校医院",
-	"公费医疗",
-	"医疗报销",
-	"医药费报销",
-	"报修",
-}
-
-var noticeGetSignals = []string{
-	"这条通知",
-	"这则通知",
-	"通知原文",
-	"通知详情",
-	"读取这条通知",
-	"打开这条通知",
-}
-
 type Request struct {
 	EffectiveCapability string
 	UserGoal            string
@@ -119,33 +43,33 @@ type Handoff struct {
 	AllowedTools []string
 }
 
-func Plan(request Request) *Handoff {
-	normalizedGoal := normalizeGoal(request.UserGoal)
-	if normalizedGoal == "" || isDelegatedTransactionAction(normalizedGoal) {
+func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) *Handoff {
+	normalizedGoal := runtimepolicy.NormalizeGoal(request.UserGoal)
+	if normalizedGoal == "" || isDelegatedTransactionAction(normalizedGoal, policy) {
 		return nil
 	}
 	if request.EffectiveCapability == "campus_services" {
-		if containsAny(normalizedGoal, transportSignals) {
+		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
 			return &Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "transport_schedule_lookup",
-				Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+				Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "transport_schedule_lookup"),
 			}
 		}
-		if containsAny(normalizedGoal, serviceStatusSignals) {
+		if containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
 			return &Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_status_lookup",
-				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
 			}
 		}
-		if isServiceGuideLookup(normalizedGoal) {
+		if isServiceGuideLookup(normalizedGoal, policy) {
 			return &Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
-				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
 			}
 		}
@@ -153,7 +77,8 @@ func Plan(request Request) *Handoff {
 	}
 	if request.EffectiveCapability == "notice" {
 		selectedNoticeRef := request.SelectedNoticeRef
-		if selectedNoticeRef.NoticeID != "" && containsAny(normalizedGoal, noticeGetSignals) {
+		if selectedNoticeRef.NoticeID != "" &&
+			containsAny(normalizedGoal, policy.Signals("notice_get_reference")) {
 			payload := map[string]any{
 				"notice_id": selectedNoticeRef.NoticeID,
 			}
@@ -170,7 +95,7 @@ func Plan(request Request) *Handoff {
 		return &Handoff{
 			Target:       "notice-agent",
 			PayloadKind:  "campus_notice_discover",
-			Payload:      noticeDiscoverPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+			Payload:      noticeDiscoverPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_discover"),
 		}
 	}
@@ -185,9 +110,12 @@ func Plan(request Request) *Handoff {
 	return nil
 }
 
-func isDelegatedTransactionAction(normalizedGoal string) bool {
-	return containsAny(normalizedGoal, delegatedActionPrefixes) &&
-		containsAny(normalizedGoal, transactionalActionSignals)
+func isDelegatedTransactionAction(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return containsAny(normalizedGoal, policy.Signals("delegated_action_prefix")) &&
+		containsAny(normalizedGoal, policy.Signals("high_risk_transaction_action"))
 }
 
 func (h Handoff) Map() map[string]any {
@@ -203,16 +131,17 @@ func transportSchedulePayload(
 	userGoal string,
 	normalizedGoal string,
 	versionQuery VersionQuery,
+	policy runtimepolicy.IntentPolicyArtifact,
 ) map[string]any {
 	payload := map[string]any{
 		"query_text":     userGoal,
-		"intent":         classifyTransportIntent(normalizedGoal),
-		"snapshot_query": temporalQueryPayload(versionQuery, normalizedGoal),
+		"intent":         classifyTransportIntent(normalizedGoal, policy),
+		"snapshot_query": temporalQueryPayload(versionQuery, normalizedGoal, policy),
 	}
-	if routeSelector := transportRouteSelectorPayload(normalizedGoal); len(routeSelector) > 0 {
+	if routeSelector := transportRouteSelectorPayload(normalizedGoal, policy); len(routeSelector) > 0 {
 		payload["route_selector"] = routeSelector
 	}
-	if serviceTimeQuery := transportServiceTimeQueryPayload(normalizedGoal); len(serviceTimeQuery) > 0 {
+	if serviceTimeQuery := transportServiceTimeQueryPayload(normalizedGoal, policy); len(serviceTimeQuery) > 0 {
 		payload["service_time_query"] = serviceTimeQuery
 	}
 	return payload
@@ -222,12 +151,13 @@ func serviceStatusPayload(
 	userGoal string,
 	normalizedGoal string,
 	versionQuery VersionQuery,
+	policy runtimepolicy.IntentPolicyArtifact,
 ) map[string]any {
 	payload := map[string]any{
 		"subject_query":  userGoal,
-		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal),
+		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal, policy),
 	}
-	if campusScope := campusScopeFromGoal(normalizedGoal); campusScope != "" {
+	if campusScope := campusScopeFromGoal(normalizedGoal, policy); campusScope != "" {
 		payload["campus_scope"] = campusScope
 	}
 	return payload
@@ -237,14 +167,15 @@ func serviceGuidePayload(
 	userGoal string,
 	normalizedGoal string,
 	versionQuery VersionQuery,
+	policy runtimepolicy.IntentPolicyArtifact,
 ) map[string]any {
 	payload := map[string]any{
 		"service_query":  userGoal,
-		"guide_focus":    classifyServiceGuideFocus(normalizedGoal),
-		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal),
+		"guide_focus":    classifyServiceGuideFocus(normalizedGoal, policy),
+		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal, policy),
 		"audience":       "unknown",
 	}
-	if campusScope := campusScopeFromGoal(normalizedGoal); campusScope != "" {
+	if campusScope := campusScopeFromGoal(normalizedGoal, policy); campusScope != "" {
 		payload["campus_scope"] = campusScope
 	}
 	return payload
@@ -254,10 +185,11 @@ func noticeDiscoverPayload(
 	userGoal string,
 	normalizedGoal string,
 	versionQuery VersionQuery,
+	policy runtimepolicy.IntentPolicyArtifact,
 ) map[string]any {
 	return map[string]any{
 		"query_text":     userGoal,
-		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal),
+		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal, policy),
 	}
 }
 
@@ -291,76 +223,91 @@ func versionQueryPayload(versionQuery VersionQuery) map[string]any {
 	return payload
 }
 
-func classifyTransportIntent(normalizedGoal string) string {
-	if containsAny(normalizedGoal, []string{"时刻表"}) {
-		if containsAny(normalizedGoal, []string{"最新", "最近"}) {
+func classifyTransportIntent(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) string {
+	if containsAny(normalizedGoal, policy.Signals("transport_intent_timetable")) {
+		if containsAny(normalizedGoal, policy.Signals("transport_intent_snapshot_metadata")) {
 			return "schedule_snapshot_metadata"
 		}
 		return "timetable"
 	}
-	if containsAny(normalizedGoal, []string{"最早"}) {
+	if containsAny(normalizedGoal, policy.Signals("transport_intent_first_departure")) {
 		return "first_departure"
 	}
-	if containsAny(normalizedGoal, []string{"最后", "最晚"}) {
+	if containsAny(normalizedGoal, policy.Signals("transport_intent_last_departure")) {
 		return "last_departure"
 	}
-	if containsAny(normalizedGoal, []string{"还有哪些", "哪些班次", "以后有哪些"}) {
+	if containsAny(normalizedGoal, policy.Signals("transport_intent_departure_list")) {
 		return "departure_list"
 	}
-	if containsAny(normalizedGoal, []string{"停运", "还跑不跑", "运营时间"}) {
+	if containsAny(normalizedGoal, policy.Signals("transport_intent_service_window")) {
 		return "service_window"
 	}
 	return "next_departure"
 }
 
-func transportRouteSelectorPayload(normalizedGoal string) map[string]any {
+func transportRouteSelectorPayload(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) map[string]any {
 	selector := map[string]any{}
-	if containsAny(normalizedGoal, []string{"地铁"}) {
+	if containsAny(normalizedGoal, policy.Signals("transport_route_metro_shuttle")) {
 		selector["service_family"] = "metro_shuttle"
-	} else if containsAny(normalizedGoal, []string{"通勤车"}) {
+	} else if containsAny(normalizedGoal, policy.Signals("transport_route_intercampus_commute")) {
 		selector["service_family"] = "intercampus_commute"
 	}
-	if containsAny(normalizedGoal, []string{"去丰台", "到丰台"}) {
+	if containsAny(normalizedGoal, policy.Signals("transport_route_to_fengtai")) {
 		selector["destination_campus"] = "fengtai"
-		if containsAny(normalizedGoal, []string{"海淀"}) {
+		if containsAny(normalizedGoal, policy.Signals("campus_scope_haidian")) {
 			selector["origin_campus"] = "haidian"
 		}
-	} else if containsAny(normalizedGoal, []string{"回海淀", "到海淀"}) {
+	} else if containsAny(normalizedGoal, policy.Signals("transport_route_to_haidian")) {
 		selector["destination_campus"] = "haidian"
-		if containsAny(normalizedGoal, []string{"丰台"}) {
+		if containsAny(normalizedGoal, policy.Signals("campus_scope_fengtai")) {
 			selector["origin_campus"] = "fengtai"
 		}
 	}
 	return selector
 }
 
-func transportServiceTimeQueryPayload(normalizedGoal string) map[string]any {
-	if containsAny(normalizedGoal, []string{"时刻表"}) &&
-		!containsAny(normalizedGoal, []string{"今天", "明天"}) {
+func transportServiceTimeQueryPayload(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) map[string]any {
+	if containsAny(normalizedGoal, policy.Signals("transport_intent_timetable")) &&
+		!containsAny(normalizedGoal, policy.Signals("temporal_today")) &&
+		!containsAny(normalizedGoal, policy.Signals("temporal_tomorrow")) {
 		return nil
 	}
 	if yearPattern.MatchString(normalizedGoal) &&
-		!containsAny(normalizedGoal, []string{"今天", "明天"}) {
+		!containsAny(normalizedGoal, policy.Signals("temporal_today")) &&
+		!containsAny(normalizedGoal, policy.Signals("temporal_tomorrow")) {
 		return nil
 	}
 	query := map[string]any{
 		"date_mode": "today",
 		"daypart":   "all_day",
 	}
-	if containsAny(normalizedGoal, []string{"明天"}) {
+	if containsAny(normalizedGoal, policy.Signals("temporal_tomorrow")) {
 		query["date_mode"] = "tomorrow"
 	}
-	if containsAny(normalizedGoal, []string{"早上", "上午"}) {
+	if containsAny(normalizedGoal, policy.Signals("temporal_daypart_morning")) {
 		query["daypart"] = "morning"
-	} else if containsAny(normalizedGoal, []string{"下午"}) {
+	} else if containsAny(normalizedGoal, policy.Signals("temporal_daypart_afternoon")) {
 		query["daypart"] = "afternoon"
-	} else if containsAny(normalizedGoal, []string{"晚上", "傍晚"}) {
+	} else if containsAny(normalizedGoal, policy.Signals("temporal_daypart_evening")) {
 		query["daypart"] = "evening"
 	}
 	return query
 }
 
-func temporalQueryPayload(versionQuery VersionQuery, normalizedGoal string) map[string]any {
+func temporalQueryPayload(
+	versionQuery VersionQuery,
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) map[string]any {
 	if versionQuery.Mode == "as_of" {
 		return map[string]any{
 			"mode":  "as_of",
@@ -376,50 +323,55 @@ func temporalQueryPayload(versionQuery VersionQuery, normalizedGoal string) map[
 	return map[string]any{"mode": "current"}
 }
 
-func campusScopeFromGoal(normalizedGoal string) string {
-	if containsAny(normalizedGoal, []string{"海淀"}) {
+func campusScopeFromGoal(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) string {
+	if containsAny(normalizedGoal, policy.Signals("campus_scope_haidian")) {
 		return "haidian"
 	}
-	if containsAny(normalizedGoal, []string{"丰台"}) {
+	if containsAny(normalizedGoal, policy.Signals("campus_scope_fengtai")) {
 		return "fengtai"
 	}
 	return ""
 }
 
-func isServiceGuideLookup(normalizedGoal string) bool {
-	return containsAny(normalizedGoal, serviceGuideSubjectSignals) &&
-		containsAny(normalizedGoal, serviceGuideActionSignals)
+func isServiceGuideLookup(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return containsAny(normalizedGoal, policy.Signals("structured_service_guide_subject")) &&
+		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
 }
 
-func classifyServiceGuideFocus(normalizedGoal string) string {
-	if containsAny(normalizedGoal, []string{"材料", "需要什么"}) {
+func classifyServiceGuideFocus(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) string {
+	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_required_materials")) {
 		return "required_materials"
 	}
-	if containsAny(normalizedGoal, []string{"入口", "在哪里办", "在哪办"}) {
+	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_entry")) {
 		return "entry"
 	}
-	if containsAny(normalizedGoal, []string{"办理时间", "办公时间", "开放时间"}) {
+	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_office_hours")) {
 		return "office_hours"
 	}
-	if containsAny(normalizedGoal, []string{"联系方式", "联系谁", "电话"}) {
+	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_contact")) {
 		return "contact"
 	}
-	if containsAny(normalizedGoal, []string{"条件", "资格", "谁能"}) {
+	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_eligibility")) {
 		return "eligibility"
 	}
-	if containsAny(normalizedGoal, []string{"说明", "全部", "完整"}) {
+	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_full_guide")) {
 		return "full_guide"
 	}
 	return "procedure"
 }
 
-func normalizeGoal(userGoal string) string {
-	return strings.ToLower(strings.Join(strings.Fields(userGoal), ""))
-}
-
 func containsAny(value string, signals []string) bool {
 	for _, signal := range signals {
-		normalizedSignal := normalizeGoal(signal)
+		normalizedSignal := runtimepolicy.NormalizeGoal(signal)
 		if normalizedSignal != "" && strings.Contains(value, normalizedSignal) {
 			return true
 		}

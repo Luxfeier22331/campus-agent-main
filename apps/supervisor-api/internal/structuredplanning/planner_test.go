@@ -1,6 +1,10 @@
 package structuredplanning
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+)
 
 func TestPlanGoldenCases(t *testing.T) {
 	tests := []struct {
@@ -207,7 +211,11 @@ func TestPlanGoldenCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handoff := Plan(tt.request)
+			policy, err := runtimepolicy.LoadIntentPolicy("")
+			if err != nil {
+				t.Fatalf("load intent policy: %v", err)
+			}
+			handoff := PlanWithPolicy(tt.request, policy)
 			if handoff == nil {
 				t.Fatal("expected preplanned handoff")
 			}
@@ -225,12 +233,39 @@ func TestPlanGoldenCases(t *testing.T) {
 }
 
 func TestPlanSkipsTransactionalStructuredRequests(t *testing.T) {
-	handoff := Plan(Request{
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load intent policy: %v", err)
+	}
+	handoff := PlanWithPolicy(Request{
 		EffectiveCapability: "notice",
 		UserGoal:            "帮我提交采购公告",
-	})
+	}, policy)
 	if handoff != nil {
 		t.Fatalf("transactional request must not be preplanned: %#v", handoff)
+	}
+}
+
+func TestPlanWithPolicyUsesIntentPolicyArtifactSignals(t *testing.T) {
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load intent policy: %v", err)
+	}
+	policy.SignalGroups["structured_transport"] = []string{"摆渡车"}
+
+	handoff := PlanWithPolicy(Request{
+		EffectiveCapability: "campus_services",
+		UserGoal:            "摆渡车最早几点",
+	}, policy)
+
+	if handoff == nil {
+		t.Fatal("expected policy-backed transport signal to produce handoff")
+	}
+	if handoff.PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("payload kind = %q, want transport_schedule_lookup", handoff.PayloadKind)
+	}
+	if handoff.Payload["intent"] != "first_departure" {
+		t.Fatalf("intent = %v, want first_departure", handoff.Payload["intent"])
 	}
 }
 

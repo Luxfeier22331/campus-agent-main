@@ -102,7 +102,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
                 "launch_state": "closed",
                 "scope_reason": "product_scope_boundary",
                 "matched_signal": "MIT",
-                "classifier_version": "go-runtime-policy-v1",
+                "classifier_version": "go-runtime-policy-v2",
                 "schema_version": "intent-schema-1.0.0",
                 "routing_confidence": "high",
                 "ambiguity_signal": "",

@@ -1,7 +1,7 @@
 {
 	"schema_version": "intent-drift-thresholds-v1",
 	"policy_version": "runtime-policy-v1",
-	"allowed_classifier_versions": ["go-runtime-policy-v1"],
+	"allowed_classifier_versions": ["go-runtime-policy-v2"],
 	"allowed_intent_schema_versions": ["intent-schema-1.0.0"],
 	"max_context_unresolved_rate": 0.05,
 	"max_low_confidence_rate": 0.1,

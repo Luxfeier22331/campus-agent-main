@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -275,6 +276,22 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         for path in forbidden_paths:
             with self.subTest(path=str(path)):
                 self.assertFalse(path.exists())
+
+    def test_go_runtime_intent_signals_are_policy_artifact_backed(self) -> None:
+        forbidden_signal_tables = re.compile(r"(?m)^var\s+\w*Signals\s*=\s*\[\]string")
+        scanned_paths = tuple(
+            path
+            for directory in (
+                Path("apps/supervisor-api/internal/execution"),
+                Path("apps/supervisor-api/internal/structuredplanning"),
+            )
+            for path in directory.glob("*.go")
+            if not path.name.endswith("_test.go")
+        )
+        for path in scanned_paths:
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=str(path)):
+                self.assertIsNone(forbidden_signal_tables.search(source))
 
     def test_supervisor_response_has_no_legacy_intent_observability_helper(self) -> None:
         self.assertFalse((WORKER_CORE / "response.py").exists())

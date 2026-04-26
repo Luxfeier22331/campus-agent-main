@@ -13,7 +13,7 @@ class IntentDriftTest(unittest.TestCase):
         thresholds = load_intent_drift_thresholds()
 
         self.assertEqual(thresholds["schema_version"], "intent-drift-thresholds-v1")
-        self.assertIn("go-runtime-policy-v1", thresholds["allowed_classifier_versions"])
+        self.assertIn("go-runtime-policy-v2", thresholds["allowed_classifier_versions"])
 
     def test_build_report_flags_version_and_behavior_drift_candidates(self) -> None:
         report = build_intent_drift_report(
@@ -29,7 +29,7 @@ class IntentDriftTest(unittest.TestCase):
                 },
                 {
                     "case_id": "observed-002",
-                    "classifier_version": "go-runtime-policy-v1",
+                    "classifier_version": "go-runtime-policy-v2",
                     "schema_version": "intent-schema-1.0.0",
                     "context_resolution_state": "resolved",
                     "routing_confidence": "high",
@@ -37,7 +37,7 @@ class IntentDriftTest(unittest.TestCase):
             ),
             thresholds={
                 "schema_version": "intent-drift-thresholds-v1",
-                "allowed_classifier_versions": ("go-runtime-policy-v1",),
+                "allowed_classifier_versions": ("go-runtime-policy-v2",),
                 "allowed_intent_schema_versions": ("intent-schema-1.0.0",),
                 "max_context_unresolved_rate": 0.25,
                 "max_low_confidence_rate": 0.25,

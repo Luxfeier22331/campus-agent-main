@@ -2,7 +2,7 @@ package runtimepolicy
 
 const (
 	PolicyVersion     = "runtime-policy-v1"
-	ClassifierVersion = "go-runtime-policy-v1"
+	ClassifierVersion = "go-runtime-policy-v2"
 	IntentSchema      = "intent-schema-1.0.0"
 )
 
@@ -47,6 +47,18 @@ type Request struct {
 	HasRequestedScope   bool
 	RequestedScope      Scope
 	Context             Context
+}
+
+type CapabilityResolutionRequest struct {
+	RequestedCapability string
+	UserGoal            string
+	HasRequestedScope   bool
+	VersionQueryMode    string
+}
+
+type CapabilityResolution struct {
+	EffectiveCapability string
+	Source              string
 }
 
 type Decision struct {

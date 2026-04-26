@@ -127,6 +127,10 @@ updated: 2026-04-26
   `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/agent_dispatch.py`。
   Worker Dockerfile、workspace dependency、tests、guard 与 active docs 已同步到
   worker-owned agent dispatch。
+- 2026-04-27 补充：Go runtime intent signal taxonomy 收口到
+  `configs/runtime/intent-policy.v1.json`；capability inference、runtime policy 与
+  structured handoff planner 共用同一份 loaded artifact，`execution` 与
+  `structuredplanning` 不再维护独立 signal 表。
 - 更宽的 Go/Rust/Python split 保留在
   `supervisor-docker-runtime-language-split` backlog。
 

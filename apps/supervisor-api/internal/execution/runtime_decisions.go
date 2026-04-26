@@ -19,8 +19,10 @@ func runtimeDecisions(
 	requestedScope knowledgeScope,
 	versionQuery versionQuery,
 	context contextProjection,
+	intentPolicy runtimepolicy.IntentPolicyArtifact,
+	intentPolicyErr error,
 ) (map[string]any, RuntimeDecisionSummary, *RuntimeHandoff, map[string]any) {
-	policyDecision := runtimepolicy.Evaluate(runtimepolicy.Request{
+	policyRequest := runtimepolicy.Request{
 		EffectiveCapability: effectiveCapability,
 		CapabilitySource:    capabilitySource,
 		UserGoal:            userGoal,
@@ -34,7 +36,14 @@ func runtimeDecisions(
 			SelectedNoticeRef: runtimeSelectedNoticeRef(context.SelectedNoticeRef),
 			ProfileMemory:     runtimeProfileMemory(context.ProfileMemory),
 		},
-	})
+	}
+	var policyDecision runtimepolicy.Decision
+	policyAvailable := intentPolicyErr == nil
+	if policyAvailable {
+		policyDecision = runtimepolicy.EvaluateWithPolicy(policyRequest, intentPolicy)
+	} else {
+		policyDecision = runtimepolicy.IntentPolicyUnavailableDecision(policyRequest)
+	}
 	summary := RuntimeDecisionSummary{
 		ScopeGateDecision:     policyDecision.ScopeGate.Decision,
 		PolicyGateDecision:    policyDecision.PolicyGate.Decision,
@@ -51,26 +60,29 @@ func runtimeDecisions(
 		"tool_policy":          policyDecision.ToolPolicy.Map(),
 		"routing_frame":        policyDecision.RoutingFrame.Map(),
 	}
-	handoff := structuredplanning.Plan(structuredplanning.Request{
-		EffectiveCapability: effectiveCapability,
-		UserGoal:            userGoal,
-		HasRequestedScope:   hasRequestedScope,
-		RequestedScope: structuredplanning.Scope{
-			Corpus:     requestedScope.Corpus,
-			Collection: requestedScope.Collection,
-		},
-		VersionQuery: structuredplanning.VersionQuery{
-			Mode:               versionQuery.Mode,
-			AsOf:               versionQuery.AsOf,
-			VersionID:          versionQuery.VersionID,
-			CompareToVersionID: versionQuery.CompareToVersionID,
-		},
-		SelectedNoticeRef: structuredplanning.SelectedNoticeRef{
-			NoticeID:     context.SelectedNoticeRef.NoticeID,
-			SourceFamily: context.SelectedNoticeRef.SourceFamily,
-			Title:        context.SelectedNoticeRef.Title,
-		},
-	})
+	var handoff *structuredplanning.Handoff
+	if policyAvailable {
+		handoff = structuredplanning.PlanWithPolicy(structuredplanning.Request{
+			EffectiveCapability: effectiveCapability,
+			UserGoal:            userGoal,
+			HasRequestedScope:   hasRequestedScope,
+			RequestedScope: structuredplanning.Scope{
+				Corpus:     requestedScope.Corpus,
+				Collection: requestedScope.Collection,
+			},
+			VersionQuery: structuredplanning.VersionQuery{
+				Mode:               versionQuery.Mode,
+				AsOf:               versionQuery.AsOf,
+				VersionID:          versionQuery.VersionID,
+				CompareToVersionID: versionQuery.CompareToVersionID,
+			},
+			SelectedNoticeRef: structuredplanning.SelectedNoticeRef{
+				NoticeID:     context.SelectedNoticeRef.NoticeID,
+				SourceFamily: context.SelectedNoticeRef.SourceFamily,
+				Title:        context.SelectedNoticeRef.Title,
+			},
+		}, intentPolicy)
+	}
 	if policyDecision.RoutingFrame.SuggestedNextAction == "delegate" && handoff != nil {
 		summary.PlanningOutcome = "preplanned"
 		summary.SelectedTarget = handoff.Target

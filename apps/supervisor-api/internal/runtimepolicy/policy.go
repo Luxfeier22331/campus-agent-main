@@ -3,7 +3,7 @@ package runtimepolicy
 func Evaluate(request Request) Decision {
 	policy, err := LoadIntentPolicy("")
 	if err != nil {
-		return intentPolicyUnavailableDecision(request)
+		return IntentPolicyUnavailableDecision(request)
 	}
 	return EvaluateWithPolicy(request, policy)
 }
@@ -144,7 +144,7 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 	return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
 }
 
-func intentPolicyUnavailableDecision(request Request) Decision {
+func IntentPolicyUnavailableDecision(request Request) Decision {
 	contextPreflight := ContextPreflight{
 		State:         "not_follow_up",
 		ReferenceType: "none",

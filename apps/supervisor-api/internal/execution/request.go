@@ -255,18 +255,18 @@ func ParseAnswerRequest(
 			}
 		}
 	}
-	effectiveRequestedCapability := effectiveCapability(
-		requestedCapability,
-		userGoal,
-		hasRequestedScope,
-		versionQuery,
+	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy("")
+	capabilityResolution := runtimepolicy.ResolveCapability(
+		runtimepolicy.CapabilityResolutionRequest{
+			RequestedCapability: requestedCapability,
+			UserGoal:            userGoal,
+			HasRequestedScope:   hasRequestedScope,
+			VersionQueryMode:    versionQuery.Mode,
+		},
+		intentPolicy,
 	)
-	capabilitySource := effectiveCapabilitySource(
-		requestedCapability,
-		effectiveRequestedCapability,
-		hasRequestedScope,
-		versionQuery,
-	)
+	effectiveRequestedCapability := capabilityResolution.EffectiveCapability
+	capabilitySource := capabilityResolution.Source
 
 	traceID := strings.TrimSpace(headers["x-trace-id"])
 	if traceID == "" {
@@ -287,6 +287,8 @@ func ParseAnswerRequest(
 		requestedScope,
 		versionQuery,
 		context,
+		intentPolicy,
+		intentPolicyErr,
 	)
 
 	bridgePayload := map[string]any{

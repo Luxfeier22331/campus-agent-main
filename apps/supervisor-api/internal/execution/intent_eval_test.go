@@ -27,8 +27,8 @@ func TestObserveIntentForEvalProjectsGoRuntimePolicyAndPlanning(t *testing.T) {
 	if observed.ErrorCode != "" {
 		t.Fatalf("error_code = %q, want empty", observed.ErrorCode)
 	}
-	if observed.ClassifierVersion != "go-runtime-policy-v1" {
-		t.Fatalf("classifier_version = %q, want go-runtime-policy-v1", observed.ClassifierVersion)
+	if observed.ClassifierVersion != "go-runtime-policy-v2" {
+		t.Fatalf("classifier_version = %q, want go-runtime-policy-v2", observed.ClassifierVersion)
 	}
 	if observed.SchemaVersion != "intent-schema-1.0.0" {
 		t.Fatalf("schema_version = %q, want intent-schema-1.0.0", observed.SchemaVersion)
