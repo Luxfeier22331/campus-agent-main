@@ -76,9 +76,16 @@ def merge_operational_comments(existing: str, incoming: str) -> str:
     return "；".join(values)
 
 
+def reservation_open_time_segment(segment: str) -> bool:
+    return "预约" in segment and any(
+        keyword in segment for keyword in ("开放", "释放", "可预约资源", "系统")
+    )
+
+
 __all__ = (
     "build_notice_derived_transport_rejected_sources",
     "merge_operational_comments",
     "merge_service_date_ranges",
     "merge_unique_strings",
+    "reservation_open_time_segment",
 )

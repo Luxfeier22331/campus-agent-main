@@ -18,6 +18,7 @@ from campus_ingestion_core.notice_derived_transport_schedule_support import (
     merge_operational_comments,
     merge_service_date_ranges,
     merge_unique_strings,
+    reservation_open_time_segment,
 )
 from campus_ingestion_core.notice_derived_transport_schedule_tables import (
     iter_notice_derived_transport_table_matrices,
@@ -459,6 +460,8 @@ def _extract_rows_from_parent_text(
 ) -> list[NoticeDerivedTransportScheduleRow]:
     rows: list[NoticeDerivedTransportScheduleRow] = []
     for segment in _text_segments(parent_text):
+        if reservation_open_time_segment(segment):
+            continue
         if not _extract_times(segment):
             continue
         route = _resolve_route(segment)
