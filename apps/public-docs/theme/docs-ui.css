@@ -13,7 +13,11 @@
 	--docs-sidebar-outer-gutter: 16px;
 	--docs-sidebar-gutter: 12px;
 	--docs-reader-padding: 2rem;
-	--docs-outline-width: 11rem;
+	--docs-reader-manual-measure: 58rem;
+	--docs-reader-curriculum-measure: 72rem;
+	--docs-reader-flow-measure: 70rem;
+	--docs-reader-landing-measure: 64rem;
+	--docs-outline-width: 9.75rem;
 	--docs-outline-gutter: 0px;
 	--docs-table-header-bg: color-mix(in srgb, var(--docs-accent) 7%, var(--rp-c-bg, #ffffff));
 	--docs-table-section-bg: color-mix(in srgb, var(--docs-accent) 4%, var(--rp-c-bg, #ffffff));
@@ -34,19 +38,19 @@ main.rp-doc-layout__doc-container {
 }
 
 .rspress-doc.docs-reader-normal {
-	max-width: min(100%, 76rem);
+	max-width: min(100%, var(--docs-reader-manual-measure));
 }
 
 .rspress-doc.docs-reader-home {
-	max-width: min(100%, 62rem);
+	max-width: min(100%, var(--docs-reader-landing-measure));
 }
 
 .rspress-doc.docs-reader-wide {
-	max-width: min(100%, 76rem);
+	max-width: min(100%, var(--docs-reader-curriculum-measure));
 }
 
 .rspress-doc.docs-reader-map {
-	max-width: min(100%, 78rem);
+	max-width: min(100%, var(--docs-reader-curriculum-measure));
 }
 
 .rspress-doc > h1:first-child {
@@ -203,7 +207,7 @@ main.rp-doc-layout__doc-container {
 }
 
 @media (min-width: 900px) {
-	.rp-doc-layout__doc {
+	.rp-doc-layout__container .rp-doc-layout__doc {
 		flex: 1 1 auto;
 		min-width: 0;
 		max-width: none;
@@ -292,7 +296,7 @@ main.rp-doc-layout__doc-container {
 	:root {
 		--docs-sidebar-width: 18rem;
 		--docs-reader-padding: 2.5rem;
-		--docs-outline-width: 11rem;
+		--docs-outline-width: 9.75rem;
 		--docs-outline-gutter: 0px;
 	}
 
