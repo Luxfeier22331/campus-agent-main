@@ -8,6 +8,13 @@ import (
 )
 
 func NewRuntime(options Options) *Runtime {
+	serviceGuideReadModelStore := options.ServiceGuideReadModelStore
+	if serviceGuideReadModelStore == nil {
+		serviceGuideReadModelStore = NewPostgresServiceGuideReadModelStore(ServiceGuidePostgresOptions{
+			DatabaseURL: strings.TrimSpace(options.ServiceGuideReadModelDatabaseURL),
+			TableName:   strings.TrimSpace(options.ServiceGuideReadModelTable),
+		})
+	}
 	noticeReadModelStore := options.NoticeReadModelStore
 	if noticeReadModelStore == nil {
 		noticeReadModelStore = NewPostgresNoticeReadModelStore(NoticePostgresOptions{
@@ -29,6 +36,7 @@ func NewRuntime(options Options) *Runtime {
 	runtime := &Runtime{
 		projectionPath:             strings.TrimSpace(options.ProjectionPath),
 		serviceGuideProjectionPath: strings.TrimSpace(options.ServiceGuideProjectionPath),
+		serviceGuideReadModelStore: serviceGuideReadModelStore,
 		noticeReadModelStore:       noticeReadModelStore,
 		noticeBodyStore:            noticeBodyStore,
 	}
@@ -42,6 +50,9 @@ func NewRuntime(options Options) *Runtime {
 }
 
 func (r *Runtime) Close() {
+	if closer, ok := r.serviceGuideReadModelStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
 	if closer, ok := r.noticeReadModelStore.(interface{ Close() }); ok {
 		closer.Close()
 	}

@@ -113,17 +113,19 @@ func NewServerWithDependencies(
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
-		ProjectionPath:                  cfg.StructuredQueryProjectionPath,
-		ServiceGuideProjectionPath:      cfg.ServiceGuideProjectionPath,
-		TrustedTimeRFC3339:              cfg.StructuredQueryTrustedTimeRFC3339,
-		NoticeReadModelDatabaseURL:      cfg.NoticeReadModelDatabaseURL,
-		NoticeReadModelTable:            cfg.NoticeReadModelTable,
-		NoticeObjectStoreEndpoint:       cfg.NoticeObjectStoreEndpoint,
-		NoticeObjectStoreAccessKey:      cfg.NoticeObjectStoreAccessKey,
-		NoticeObjectStoreSecretKey:      cfg.NoticeObjectStoreSecretKey,
-		NoticeObjectStoreRegion:         cfg.NoticeObjectStoreRegion,
-		NoticeObjectStoreBucketDerived:  cfg.NoticeObjectStoreBucketDerived,
-		NoticeObjectStoreBodyLimitBytes: cfg.NoticeObjectStoreBodyLimitBytes,
+		ProjectionPath:                   cfg.StructuredQueryProjectionPath,
+		ServiceGuideProjectionPath:       cfg.ServiceGuideProjectionPath,
+		ServiceGuideReadModelDatabaseURL: cfg.ServiceGuideReadModelDatabaseURL,
+		ServiceGuideReadModelTable:       cfg.ServiceGuideReadModelTable,
+		TrustedTimeRFC3339:               cfg.StructuredQueryTrustedTimeRFC3339,
+		NoticeReadModelDatabaseURL:       cfg.NoticeReadModelDatabaseURL,
+		NoticeReadModelTable:             cfg.NoticeReadModelTable,
+		NoticeObjectStoreEndpoint:        cfg.NoticeObjectStoreEndpoint,
+		NoticeObjectStoreAccessKey:       cfg.NoticeObjectStoreAccessKey,
+		NoticeObjectStoreSecretKey:       cfg.NoticeObjectStoreSecretKey,
+		NoticeObjectStoreRegion:          cfg.NoticeObjectStoreRegion,
+		NoticeObjectStoreBucketDerived:   cfg.NoticeObjectStoreBucketDerived,
+		NoticeObjectStoreBodyLimitBytes:  cfg.NoticeObjectStoreBodyLimitBytes,
 	})
 
 	return &Server{

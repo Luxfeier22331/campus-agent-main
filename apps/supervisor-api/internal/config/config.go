@@ -58,6 +58,8 @@ type Config struct {
 	ServiceGuideProjectionPath        string
 	StructuredQueryTrustedTimeRFC3339 string
 	StructuredQueryTimeoutMS          int
+	ServiceGuideReadModelDatabaseURL  string
+	ServiceGuideReadModelTable        string
 	PromptRuntimeProvider             string
 	SupervisorPromptModel             string
 	AgentPromptModel                  string
@@ -123,6 +125,7 @@ type envValues struct {
 	StructuredQuerySharedSecret       string  `env:"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"`
 	StructuredQueryProjectionPath     string  `env:"SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH"`
 	ServiceGuideProjectionPath        string  `env:"SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH"`
+	ServiceGuideReadModelTable        string  `env:"SERVICE_GUIDE_READ_MODEL_TABLE" envDefault:"ingestion_projection.service_guide_read_model"`
 	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
 	StructuredQueryTimeoutMS          int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport            string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
@@ -216,6 +219,8 @@ func LoadFromEnv() (Config, error) {
 		ServiceGuideProjectionPath:        strings.TrimSpace(values.ServiceGuideProjectionPath),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
 		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
+		ServiceGuideReadModelDatabaseURL:  readServiceGuideReadModelDatabaseURL(),
+		ServiceGuideReadModelTable:        defaultString(strings.TrimSpace(values.ServiceGuideReadModelTable), "ingestion_projection.service_guide_read_model"),
 		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
 		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
 		AgentPromptModel:                  readPromptModel("AGENT_PROMPT_MODEL"),
@@ -333,6 +338,18 @@ func readNoticeReadModelDatabaseURL() string {
 		"INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
 		"CAMPUS_SHARED_POSTGRES_URL",
 	)
+	return normalizePostgresDatabaseURL(databaseURL)
+}
+
+func readServiceGuideReadModelDatabaseURL() string {
+	databaseURL := readFirstString(
+		"SERVICE_GUIDE_READ_MODEL_DATABASE_URL",
+		"CAMPUS_SHARED_POSTGRES_URL",
+	)
+	return normalizePostgresDatabaseURL(databaseURL)
+}
+
+func normalizePostgresDatabaseURL(databaseURL string) string {
 	if strings.HasPrefix(databaseURL, "postgres://") {
 		return "postgresql://" + strings.TrimPrefix(databaseURL, "postgres://")
 	}

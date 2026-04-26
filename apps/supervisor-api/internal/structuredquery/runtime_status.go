@@ -6,11 +6,14 @@ import (
 
 func (r *Runtime) Status(ctx context.Context) Status {
 	status := Status{
-		Configured:       r.projectionPath != "" || r.serviceGuideProjectionPath != "",
+		Configured:       r.projectionPath != "" || r.serviceGuideProjectionPath != "" || r.serviceGuideReadModelStore != nil,
 		ProjectionSource: "file",
 	}
 	if r.projectionPath == "" && r.serviceGuideProjectionPath == "" {
 		status.ProjectionSource = ""
+		if r.serviceGuideReadModelStore != nil {
+			status.ProjectionSource = "postgres"
+		}
 	}
 	if r.projectionPath != "" {
 		bundle, err := r.loadBundle()
@@ -21,6 +24,13 @@ func (r *Runtime) Status(ctx context.Context) Status {
 		bundle, err := r.loadServiceGuideBundle()
 		status.ServiceGuideProjectionReady = err == nil && len(bundle.ServiceGuideRecords) > 0
 	}
+	status.ServiceGuideReadModelConfigured = r.serviceGuideReadModelStore != nil
+	status.ServiceGuideReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+		ctx,
+		r.serviceGuideReadModelStore,
+		"service_guide_read_model_unhealthy",
+		status.NoticeRuntimeLastError,
+	)
 	status.NoticeReadModelConfigured = r.noticeReadModelStore != nil
 	status.NoticeBodyStoreConfigured = r.noticeBodyStore != nil
 	status.NoticeReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
