@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 # Eval Benchmark Artifact Contract
 
@@ -83,6 +83,8 @@ per-corpus entrypoint 可以不同，但 artifact 语义必须统一。
 - `results[].metric_results`
 - `results[].supplemental_results`
 - `results[].request_correlation`
+- `results[].workflow_trace_summary`
+- `results[].orchestration_case_results`
 
 `request_correlation` 是 operator publish 的 canonical first-party truth：
 
@@ -96,12 +98,46 @@ per-corpus entrypoint 可以不同，但 artifact 语义必须统一。
 
 默认优先读取 inline `request_correlation`；外部 manifest 只作为 fallback。
 
+`workflow_trace_summary` 是 sanitized orchestration trace projection，至少允许承载：
+
+- `routing_frame`
+- `context_resolution`
+- `planning_outcome`
+- `direct_vs_delegate_branch`
+- `handoff`
+- `selected_target`
+- `selected_tools`
+- `tool_argument_summary`
+- `guardrail_outcomes`
+- `fail_close_reason`
+- `runtime_versions`
+- `policy_artifact_versions`
+
+`orchestration_case_results` 是 workflow trace gate 的 per-case verdict summary，至少允许承载：
+
+- `direct_vs_delegate_branch_correctness`
+- `handoff_correctness`
+- `tool_argument_precision`
+- `guardrail_correctness`
+- `fail_close_correctness`
+- `trace_projection_completeness`
+
+固定规则：
+
+- workflow trace artifact 只保存 sanitized summary，不保存 raw prompt、raw transcript、
+  provider raw response、raw retrieval backend dump、JWT、cookies 或 auth envelope
+- external trace ids / grader ids 只能作为 backlink；不能替代 repo-owned case truth 或
+  release verdict
+- direct structured runtime case 与 Python delegate case 都必须可落到同一
+  `workflow_trace_summary` shape，避免形成两套不可比的 artifact
+
 ### Run / Repair Summary
 
 `summary.json` / `gate-report.json` 负责：
 
 - deterministic verdict
 - supplemental verdict
+- workflow trace verdict
 - provider runtime status
 - repair provenance
 

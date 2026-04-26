@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 # 当前架构
 
@@ -31,7 +31,9 @@ updated: 2026-04-26
 `browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
 private bridge -> agent`
 
-`browser -> public-docs`
+`browser -> public-docs static reader assets`
+
+`browser -> public-docs same-site /api/docs/* -> app-api docs control plane`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
@@ -105,8 +107,11 @@ model`
 
 - public-facing Worker docs surface
 - 当前正式拥有公开文档站 shell 与公开文档阅读入口
-- 当前以 `Rspress` 壳提供导航与阅读面，但 document-site workstream 仍在继续收口 published reader
-  assets 与 same-site docs control-plane consumption truth
+- 当前以 `Rspress` 壳提供导航与阅读面，并通过 Worker `APP_API` Service Binding 将
+  same-site `/api/docs/*` 转发到 `apps/app-api`
+- 非 `/api/docs/*` 的 `/api/*` 不开放为通用 app-api proxy；文档站只拥有 docs control-plane
+  consumption seam
+- public reader 静态资产由 Worker `ASSETS` binding 交付，HTML shell 默认 `no-store`
 - 不拥有 auth/session/principal truth，也不自行成为 docs visibility / version 的长期 owner
 
 ### `apps/protected-panel-web`
@@ -120,6 +125,7 @@ model`
 - shared Worker-native application/control-plane backend
 - 拥有 auth、session、principal mapping、conversation truth、request ledger /
   projection input 与 selected operator surfaces
+- 拥有 public-docs same-site `/api/docs/*` 背后的 document reader control-plane truth
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
 - 承接 `official_web` control plane

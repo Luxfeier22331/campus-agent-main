@@ -94,6 +94,36 @@ Evaluation helpers for campus-agent v2.
   contract tests，不打开 campus_services serving surface，也不产生 operator
   observability live case-results publish。
 
+## Orchestration / Workflow Trace Eval Gap
+
+当前 eval 已经覆盖 retrieval qrels、intent gate、observability publish、formal benchmark
+artifact、supplemental judge / ragas adapter 与 `service_guide_lookup` release gate，但还不能
+把 supervisor-led orchestration 的每一步都作为独立 denominator 评估。
+
+需要补齐的 shared suite family：
+
+- `workflow_trace`
+  - 验证 planner、routing frame、handoff、tool call、guardrail、direct runtime branch 与
+    fail-close terminal outcome 的 trace correctness
+- `direct_vs_delegate`
+  - 验证 Go structured runtime / non-delegate terminal / Python delegate 三类分支是否命中
+    expected truth
+- `tool_argument_precision`
+  - 验证 retrieval plan、structured lookup subtype、source channel、temporal
+    scope、doc / version / service id 等参数是否精确
+- `handoff_correctness`
+  - 验证 `AgentRequest` 的 capability family、target、allowed tools、context resolution、
+    missing slots 与 policy reason 是否和 case truth 对齐
+- `agent_escalation_fail_close`
+  - 验证 capability closed、scope disabled、policy unavailable、missing context、ambiguous
+    follow-up 与 unauthorized visibility 的 terminal outcome
+
+这些 suite 的 canonical truth 仍属于 repo-owned fixtures / artifacts；OpenAI Evals /
+Agents SDK traces、RAGAS、Sentry、Axiom 或其他外部系统只能作为 trace/debug sink、
+supplemental grader 或 candidate mining input。accepted artifact 必须只保存 sanitized
+workflow summary、request / trace correlation、版本摘要与 safe links，不保存 raw
+transcript、provider raw response、auth material 或未经裁剪的 restricted payload。
+
 配套文档：
 
 - `docs/reference/student-handbook-eval-metrics.md`

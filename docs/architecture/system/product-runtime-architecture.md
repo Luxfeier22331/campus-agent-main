@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-24
+updated: 2026-04-27
 ---
 # Product Runtime Architecture
 
@@ -25,7 +25,9 @@ supporting architecture。
 `browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
 private bridge`
 
-`browser -> public-docs`
+`browser -> public-docs static reader assets`
+
+`browser -> public-docs same-site /api/docs/* -> app-api`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read
 model`
@@ -54,8 +56,10 @@ model`
 - `public-chat-web`
   - 当前是最成熟的公开助理入口，不再以旧 `public-consumer-chat` 为 forward truth
 - `public-docs`
-  - 已是正式公开文档站 app；当前 docs shell 已落地，但仍在 document-site workstream 下继续收口 published
-    reader assets、same-site docs control-plane 与 canonical reader 对齐
+  - 已是正式公开文档站 app；当前 docs shell 已落地，并通过 Worker `APP_API` Service
+    Binding 消费 shared app-api 的 same-site `/api/docs/*` control-plane
+  - 只代理 docs control-plane endpoints，不作为 public chat、operator 或 generic
+    app-api BFF
 - `protected-panel-web`
   - 当前只承接 app-owned operator domains；`Requests` 与 `Official Web` 已是 accepted
     shape
@@ -86,6 +90,13 @@ model`
 - public chat UI
 - same-site `/api/*` seam into `apps/app-api`
 - 不拥有 auth/session/conversation truth
+
+### `apps/public-docs`
+
+- public docs reader UI
+- static reader asset delivery via Worker `ASSETS`
+- same-site `/api/docs/*` seam into `apps/app-api` via Worker Service Binding
+- 不拥有 auth/session/principal truth、docs visibility truth 或 generic app-api proxy
 
 ### `apps/protected-panel-web`
 

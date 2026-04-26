@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-27
 ---
 # App API Document Reader HTTP Contract
 
@@ -44,9 +44,21 @@ control-plane HTTP contract。
 因此：
 
 - browser 默认不直连 `app-api` public hostname
-- docs site 可以通过 Worker BFF / route proxy 暴露 same-site `/api/docs/*`
+- docs site 通过 `public-docs` Worker `APP_API` Service Binding 暴露 same-site
+  `/api/docs/*`
 - proxy 后的 contract 必须保持与本文一致
 - public published reader 正文默认不应通过这些 API endpoint 逐次返回
+
+`public-docs` delivery rule：
+
+- 只允许代理 `/api/docs/*`；不得把 `/api/chat/*`、operator APIs 或其他 app-api surface
+  经文档站暴露出去
+- proxy response 必须默认 `Cache-Control: no-store`
+- proxy 可以转发 `accept`、`content-type`、`cookie`、conditional cache
+  headers 与 trace id 等最小必要 header；不得转发 spoofable origin / operator headers
+  作为授权依据
+- gated reader asset 的逐请求 admission 仍由 `app-api` 决定，`public-docs` 不缓存或重建
+  visibility truth
 
 ## Cross-Cutting Rules
 

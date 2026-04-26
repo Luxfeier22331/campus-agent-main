@@ -13,11 +13,14 @@ retrieval / ingestion packages。
 ```text
 browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api
 -> supervisor-agent-worker -> agent
+
+browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 ```
 
 当前正式 docs surface 为：
 
-`browser -> public-docs`
+`browser -> public-docs static reader assets` 与
+`browser -> public-docs same-site /api/docs/* -> app-api`
 
 该仓库当前的核心约束包括：
 

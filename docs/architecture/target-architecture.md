@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 # 目标架构
 
@@ -286,6 +286,28 @@ operator observability rollup`
 - `workflow_trace`
   - planner、handoff、tool call、guardrail、fail-close 与 structured runtime branch
     的 trace correctness
+
+`workflow_trace` 是 orchestration 的一等 release gate，不是回答质量 gate 的附属字段。它至少需要覆盖：
+
+- `direct_vs_delegate_branch_correctness`
+  - 应直返 clarification / rejection / structured runtime 的 case 不得误入 Python delegate
+  - 应 delegate 的 semantic case 必须携带完整 `AgentRequest` handoff
+- `handoff_correctness`
+  - capability family、target、allowed tools、missing slots、context resolution 与 policy
+    reason 必须和 expected truth 对齐
+- `tool_argument_precision`
+  - structured tool / retrieval plan 的 corpus、collection、doc/version、service subtype、
+    temporal scope 与 source-channel 参数必须可比对
+- `fail_close_correctness`
+  - policy unavailable、capability closed、query scope disabled、missing context 与
+    unauthorized visibility 必须进入可审计 terminal outcome
+- `trace_projection_completeness`
+  - request correlation、runtime versions、policy artifact versions、planning outcome、
+    selected target / tool 与 source summary 必须进入 sanitized artifact
+
+外部 agent / trace 工具可以降低 trace capture 与 grader adapter 的实现成本，但不能成为
+`workflow_trace` 的 canonical truth；repo-owned case fixture、expected truth、artifact
+projection 与 release verdict 仍由 `packages/evals` 拥有。
 
 长期评分分层固定为：
 

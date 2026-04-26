@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-21
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 # Document Site Architecture
 
@@ -67,6 +67,17 @@ updated: 2026-04-23
 - `app-api` 继续是 shared product/auth/visibility owner
 - chat 回答与 docs 阅读都只能消费 canonical reader truth，不能各自拼一套来源语义
 - docs control plane 与 reader content delivery 必须分层
+
+当前 Worker delivery truth：
+
+- `apps/public-docs` 通过 Wrangler `[[services]] APP_API -> app-api` 调用 shared
+  `apps/app-api`
+- staging 通过 `APP_API -> app-api-staging` 与
+  `APP_API_BASE_URL=https://campus-api-staging.ayafeed.com` 形成同一 contract
+- Worker 只代理 `/api/docs/*`；其他 `/api/*` fail-close，不把 public-docs 变成通用
+  product backend
+- `APP_API_BASE_URL` 只用于构造传给 Service Binding 的 `Request` URL；browser 仍不直接调用
+  app-api public docs endpoint
 
 补充约束：
 
@@ -182,6 +193,10 @@ canonical doc 的正文交付长期采用：
 - browser/runtime 不直连对象存储；docs shell 运行时只消费 same-site `/api/docs/*` 与
   `public-docs` 自己交付的 `/_docs/...` 静态路径
 - 对象存储只属于 publish/deploy pipeline 输入，不属于 browser-facing dependency
+
+当前 `apps/public-docs` 的 deploy-time 资产目录为 `doc_build/`，Worker `ASSETS`
+binding 负责交付静态 reader shell / assets；动态 docs control-plane 请求通过 same-site
+`/api/docs/*` 进入 `app-api`，且 response 默认 `no-store`。
 
 Cloudflare Workers 当前官方 static assets 路由模型允许：
 

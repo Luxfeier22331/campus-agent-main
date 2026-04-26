@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 # Execution And Agents Architecture
 
@@ -242,6 +242,38 @@ agent 是稳定能力边界，不等于某个底层框架对象。
   capability，需要先冻结 family label，再决定其 package/runtime admission 形态
 - 当前 shared contract seam 使用 `AgentRequest` / `AgentResponse` 作为 private
   bridge 的 canonical DTO 名称。
+
+## Agent Framework / Agents SDK Boundary
+
+agent framework 是 domain-agent 内部实现 substrate，不是 repo-level orchestration owner。
+
+Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-agent 的 adapter
+候选，用来补齐：
+
+- code-first tool loop 与 handoff object modeling
+- run / trace capture，便于投影到 repo-owned `workflow_trace_summary`
+- agent 内部 guardrail / approval checkpoint 的实现 ergonomics
+- resumable state 或 next-turn surface 的局部实现
+
+但它不能替代以下 repo-owned truth：
+
+- Go `apps/supervisor-api` 的 deterministic runtime kernel、admission、routing policy、
+  direct structured runtime branch、fail-close envelope 与 finalization
+- `apps/app-api` 的 surface capability policy、auth/session/principal、conversation、
+  request projection 与 operator read model
+- `packages/contracts` 的 `AgentRequest` / `AgentResponse` seam
+- `packages/evals` 的 case truth、workflow trace artifact、release verdict 与 observed
+  regression lifecycle
+- source-truth / projection-backed structured query service 的 data-plane truth
+
+如果引入 Agents SDK，默认路径是 adapter/spike lane：
+
+`Go supervisor-api -> AgentRequest -> Python SDK-backed domain agent -> AgentResponse
+-> Go finalization`
+
+SDK run / trace 只能作为内部 trace/debug input；进入 app-api / panel / eval 的内容必须先
+经过 repo-owned sanitized projection。不得把 SDK-native agent graph、tool schema 或 provider
+trace 直接写入 shared contracts。
 
 ## Structured Runtime Families
 
