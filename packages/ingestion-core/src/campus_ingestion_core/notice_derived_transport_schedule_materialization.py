@@ -13,8 +13,10 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
     NoticeConsumptionProjectionEntry,
 )
+from campus_ingestion_core.notice_derived_transport_schedule_tables import (
+    iter_notice_derived_transport_table_matrices,
+)
 from campus_ingestion_core.registry import DocumentRegistry
-from campus_ingestion_core.source_truth_common import extract_html_table_grid
 from campus_ingestion_core.transport_schedule_projection import (
     DEFAULT_TRANSPORT_SCHEDULE_HORIZON_DAYS,
     TRANSPORT_SCHEDULE_PROJECTION_SCHEMA_VERSION,
@@ -116,7 +118,13 @@ def extract_notice_derived_transport_schedule_rows(
             object_store=object_store,
             derived_bucket=derived_bucket,
         )
-        for matrix in _iter_table_matrices(document_units):
+        for matrix in iter_notice_derived_transport_table_matrices(
+            document_units,
+            clean_cell=_clean_cell,
+            coerce_int=_coerce_int,
+            extract_times=_extract_times,
+            resolve_route=_resolve_route,
+        ):
             rows.extend(
                 _extract_rows_from_table_matrix(
                     matrix=matrix,
@@ -397,102 +405,6 @@ def _read_document_units(
         if isinstance(unit, dict):
             units.append(dict(unit))
     return tuple(units)
-
-
-def _iter_table_matrices(
-    units: Sequence[Mapping[str, Any]],
-) -> tuple[tuple[tuple[str, ...], ...], ...]:
-    matrices: list[tuple[tuple[str, ...], ...]] = []
-    seen: set[tuple[tuple[str, ...], ...]] = set()
-    for unit in units:
-        for matrix in _table_matrices_from_unit(unit):
-            if matrix and matrix not in seen:
-                matrices.append(matrix)
-                seen.add(matrix)
-    return tuple(matrices)
-
-
-def _table_matrices_from_unit(
-    unit: Mapping[str, Any],
-) -> tuple[tuple[tuple[str, ...], ...], ...]:
-    candidates: list[tuple[tuple[str, ...], ...]] = []
-    table_cells_matrix = _normalize_table_cells(unit.get("table_cells"))
-    if table_cells_matrix:
-        candidates.append(table_cells_matrix)
-
-    for html_value in (unit.get("html"), unit.get("table_html")):
-        if isinstance(html_value, str) and html_value.strip():
-            html_matrix = _normalize_table_cells(extract_html_table_grid(html_value))
-            if html_matrix:
-                candidates.append(html_matrix)
-
-    for text_value in (unit.get("clean_text"), unit.get("text"), unit.get("raw_text")):
-        if not isinstance(text_value, str) or not text_value.strip():
-            continue
-        markdown_matrix = _parse_markdown_table_matrix(text_value)
-        if markdown_matrix:
-            candidates.append(markdown_matrix)
-            continue
-        aligned_matrix = _parse_plain_text_schedule_matrix(text_value)
-        if aligned_matrix:
-            candidates.append(aligned_matrix)
-    return tuple(candidates)
-
-
-def _parse_markdown_table_matrix(value: str) -> tuple[tuple[str, ...], ...]:
-    rows: list[tuple[str, ...]] = []
-    for line in value.splitlines():
-        normalized = line.strip()
-        if "|" not in normalized:
-            continue
-        cells = tuple(_clean_cell(cell) for cell in normalized.strip("|").split("|"))
-        if not cells or all(not cell for cell in cells):
-            continue
-        if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells if cell):
-            continue
-        rows.append(cells)
-    return tuple(rows)
-
-
-def _parse_plain_text_schedule_matrix(value: str) -> tuple[tuple[str, ...], ...]:
-    rows: list[tuple[str, ...]] = []
-    for line in value.splitlines():
-        normalized = _clean_cell(line)
-        if not normalized:
-            continue
-        if not _extract_times(normalized) and _resolve_route(normalized) is None:
-            continue
-        cells = tuple(cell for cell in re.split(r"\t+|\s{2,}", normalized) if cell)
-        rows.append(cells or (normalized,))
-    return tuple(rows)
-
-
-def _normalize_table_cells(value: object) -> tuple[tuple[str, ...], ...]:
-    if not isinstance(value, list) or not value:
-        return ()
-    if all(isinstance(row, list) for row in value):
-        return tuple(
-            tuple(_clean_cell(cell) for cell in row)
-            for row in value
-            if any(_clean_cell(cell) for cell in row)
-        )
-    if not all(isinstance(cell, dict) for cell in value):
-        return ()
-    cells = [dict(cell) for cell in value]
-    max_row = max((_coerce_int(cell.get("row")) for cell in cells), default=0)
-    max_col = max((_coerce_int(cell.get("col")) for cell in cells), default=0)
-    if max_row <= 0 or max_col <= 0:
-        return ()
-    matrix = [["" for _column in range(max_col)] for _row in range(max_row)]
-    for cell in cells:
-        row_index = _coerce_int(cell.get("row")) - 1
-        col_index = _coerce_int(cell.get("col")) - 1
-        if row_index < 0 or col_index < 0:
-            continue
-        matrix[row_index][col_index] = _clean_cell(
-            cell.get("text") or cell.get("value") or cell.get("content")
-        )
-    return tuple(tuple(row) for row in matrix if any(row))
 
 
 def _extract_rows_from_table_matrix(

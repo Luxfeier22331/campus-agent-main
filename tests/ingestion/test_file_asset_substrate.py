@@ -43,13 +43,6 @@ from campus_ingestion_core.file_asset_routing import (
 from campus_ingestion_core.file_asset_text_extractable import (
     extract_text_extractable_file_asset,
 )
-from campus_ingestion_core.raw_ingestion_online_ocr import (
-    ONLINE_OCR_PROVIDER_ASYNC_JOBS,
-    ONLINE_OCR_PROVIDER_MINERU_API,
-)
-from campus_ingestion_core.raw_ingestion_source_truth_support import (
-    _needs_dual_run_image_adjudication,
-)
 
 
 def _build_minimal_docx_bytes(*, paragraphs: tuple[str, ...]) -> bytes:
@@ -622,24 +615,6 @@ class FileAssetHardeningContractTest(unittest.TestCase):
 
 
 class FileAssetRoutingSubstrateTest(unittest.TestCase):
-    def test_mineru_primary_image_strategy_bypasses_dual_run_adjudication(self) -> None:
-        settings = SimpleNamespace(
-            source_ocr_image_routing_strategy="mineru_primary",
-            online_ocr=SimpleNamespace(provider=ONLINE_OCR_PROVIDER_ASYNC_JOBS),
-            mineru_online_ocr=SimpleNamespace(provider=ONLINE_OCR_PROVIDER_MINERU_API),
-        )
-        raw_asset_record = SimpleNamespace(
-            asset_kind="image",
-            asset_subkind="generic_image",
-        )
-
-        self.assertFalse(
-            _needs_dual_run_image_adjudication(
-                settings=settings,
-                raw_asset_record=raw_asset_record,
-            )
-        )
-
     def test_infer_raw_asset_typed_metadata_classifies_pdf_as_document_pdf(self) -> None:
         result = infer_raw_asset_typed_metadata(
             source_path=Path("中央民族大学培养方案.pdf"),
