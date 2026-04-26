@@ -10,6 +10,7 @@ SERVICE_GUIDE_PROJECTION_MODELS = INGESTION_CORE / "service_guide_projection_mod
 SERVICE_GUIDE_PROJECTION_VALIDATION = INGESTION_CORE / "service_guide_projection_validation.py"
 SERVICE_GUIDE_PROJECTION_CURATED = INGESTION_CORE / "service_guide_projection_curated.py"
 SERVICE_GUIDE_PROJECTION_FLOW_GRAPH = INGESTION_CORE / "service_guide_projection_flow_graph.py"
+SERVICE_GUIDE_PROJECTION_RELEASE = INGESTION_CORE / "service_guide_projection_release.py"
 NOTICE_CONSUMPTION_PROJECTION = INGESTION_CORE / "internal_notice_consumption_projection.py"
 NOTICE_CONSUMPTION_PROJECTION_MODELS = (
     INGESTION_CORE / "internal_notice_consumption_projection_models.py"
@@ -134,6 +135,12 @@ ATTACHMENT_FETCH_STATUS_WORKER_CONTROL_SUITE = Path(
 ATTACHMENT_FETCH_STATUS_WORKER_TEST_SUPPORT = Path(
     "tests/ingestion/authenticated_notice_attachment_fetch_status_worker_test_support.py"
 )
+INTERNAL_NOTICE_READ_MODEL = INGESTION_CORE / "internal_notice_read_model.py"
+INTERNAL_NOTICE_READ_MODEL_ENTRIES = INGESTION_CORE / "internal_notice_read_model_entries.py"
+INTERNAL_NOTICE_READ_MODEL_CONSISTENCY = (
+    INGESTION_CORE / "internal_notice_read_model_consistency.py"
+)
+INTERNAL_NOTICE_READ_MODEL_ENV = INGESTION_CORE / "internal_notice_read_model_env.py"
 
 
 class IngestionCoreStructureTest(unittest.TestCase):
@@ -145,13 +152,36 @@ class IngestionCoreStructureTest(unittest.TestCase):
         self.assertTrue(SERVICE_GUIDE_PROJECTION_VALIDATION.exists())
         self.assertTrue(SERVICE_GUIDE_PROJECTION_CURATED.exists())
         self.assertTrue(SERVICE_GUIDE_PROJECTION_FLOW_GRAPH.exists())
+        self.assertTrue(SERVICE_GUIDE_PROJECTION_RELEASE.exists())
         self.assertNotIn("class ServiceGuideProjectionBuildResult", projection_source)
         self.assertNotIn("class ServiceGuideSourceTruthManifest", projection_source)
         self.assertNotIn("SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION =", projection_source)
         self.assertNotIn("def validate_service_guide_projection_bundle", projection_source)
         self.assertNotIn("def _coerce_curated_service_guide_records", projection_source)
         self.assertNotIn("def _coerce_handbook_flow_graph_source", projection_source)
-        self.assertLessEqual(len(projection_source.splitlines()), 800)
+        self.assertNotIn(
+            "def assert_service_guide_projection_release_ready(",
+            projection_source,
+        )
+        self.assertNotIn("def write_service_guide_projection_release(", projection_source)
+        self.assertLessEqual(len(projection_source.splitlines()), 680)
+
+    def test_internal_notice_read_model_facade_delegates_entries_env_and_consistency(
+        self,
+    ) -> None:
+        facade_source = INTERNAL_NOTICE_READ_MODEL.read_text(encoding="utf-8")
+
+        self.assertTrue(INTERNAL_NOTICE_READ_MODEL_ENTRIES.exists())
+        self.assertTrue(INTERNAL_NOTICE_READ_MODEL_CONSISTENCY.exists())
+        self.assertTrue(INTERNAL_NOTICE_READ_MODEL_ENV.exists())
+        self.assertNotIn("class InternalNoticeReadModelConsistencyReport", facade_source)
+        self.assertNotIn("class InternalNoticeReadModelRepairReport", facade_source)
+        self.assertNotIn("def build_internal_notice_read_model_entries", facade_source)
+        self.assertNotIn("def rebuild_internal_notice_read_model", facade_source)
+        self.assertNotIn("def check_internal_notice_read_model_consistency", facade_source)
+        self.assertNotIn("def repair_internal_notice_read_model_consistency", facade_source)
+        self.assertNotIn("def build_internal_notice_read_model_store_from_env", facade_source)
+        self.assertLessEqual(len(facade_source.splitlines()), 140)
 
     def test_internal_notice_consumption_projection_has_model_and_multimodal_modules(
         self,
