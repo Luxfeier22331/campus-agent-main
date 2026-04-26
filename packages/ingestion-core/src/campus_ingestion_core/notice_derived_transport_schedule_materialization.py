@@ -13,6 +13,12 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
     NoticeConsumptionProjectionEntry,
 )
+from campus_ingestion_core.notice_derived_transport_schedule_support import (
+    build_notice_derived_transport_rejected_sources,
+    merge_operational_comments,
+    merge_service_date_ranges,
+    merge_unique_strings,
+)
 from campus_ingestion_core.notice_derived_transport_schedule_tables import (
     iter_notice_derived_transport_table_matrices,
 )
@@ -206,17 +212,21 @@ def build_notice_derived_transport_schedule_projection_bundle(
     exceptions_by_notice: dict[str, list[NoticeDerivedTransportServiceException]] = {}
     for exception in exceptions:
         exceptions_by_notice.setdefault(exception.source_notice_id, []).append(exception)
-    rejected_sources = _build_rejected_sources(
+    rejected_sources = build_notice_derived_transport_rejected_sources(
         entries_by_notice=entries_by_notice,
         rows_by_notice=rows_by_notice,
         exceptions_by_notice=exceptions_by_notice,
+        source_ref=_source_ref,
+        schema_version=_REJECTED_SOURCE_SCHEMA_VERSION,
     )
 
     snapshots: list[dict[str, Any]] = []
     for notice_id, notice_rows in rows_by_notice.items():
         entry = entries_by_notice[notice_id]
         published_at = _published_at(entry)
-        service_date_ranges = notice_rows[0].service_date_ranges
+        service_date_ranges = merge_service_date_ranges(
+            row.service_date_ranges for row in notice_rows
+        )
         snapshots.append(
             {
                 "snapshot_id": _snapshot_id(
@@ -224,7 +234,7 @@ def build_notice_derived_transport_schedule_projection_bundle(
                     published_at=published_at,
                 ),
                 "published_at": published_at,
-                "effective_from": _start_of_day(notice_rows[0].effective_from),
+                "effective_from": _start_of_day(min(row.effective_from for row in notice_rows)),
                 "effective_until": _effective_until_for_ranges(service_date_ranges),
                 "source_ref": notice_rows[0].source_ref,
                 "is_current": False,
@@ -233,7 +243,7 @@ def build_notice_derived_transport_schedule_projection_bundle(
                     {"start_date": start_date, "end_date": end_date}
                     for start_date, end_date in service_date_ranges
                 ],
-                "precedence": notice_rows[0].precedence,
+                "precedence": max(row.precedence for row in notice_rows),
             }
         )
     for notice_id, notice_exceptions in exceptions_by_notice.items():
@@ -241,7 +251,9 @@ def build_notice_derived_transport_schedule_projection_bundle(
             continue
         entry = entries_by_notice[notice_id]
         published_at = _published_at(entry)
-        service_date_ranges = notice_exceptions[0].service_date_ranges
+        service_date_ranges = merge_service_date_ranges(
+            exception.service_date_ranges for exception in notice_exceptions
+        )
         snapshots.append(
             {
                 "snapshot_id": _snapshot_id(
@@ -249,7 +261,9 @@ def build_notice_derived_transport_schedule_projection_bundle(
                     published_at=published_at,
                 ),
                 "published_at": published_at,
-                "effective_from": _start_of_day(notice_exceptions[0].effective_from),
+                "effective_from": _start_of_day(
+                    min(exception.effective_from for exception in notice_exceptions)
+                ),
                 "effective_until": _effective_until_for_ranges(service_date_ranges),
                 "source_ref": notice_exceptions[0].source_ref,
                 "is_current": False,
@@ -258,7 +272,7 @@ def build_notice_derived_transport_schedule_projection_bundle(
                     {"start_date": start_date, "end_date": end_date}
                     for start_date, end_date in service_date_ranges
                 ],
-                "precedence": notice_exceptions[0].precedence,
+                "precedence": max(exception.precedence for exception in notice_exceptions),
             }
         )
     snapshots.sort(key=lambda item: str(item["published_at"]))
@@ -306,30 +320,6 @@ def _is_ready_transport_candidate(entry: NoticeConsumptionProjectionEntry) -> bo
         and str(entry.role_metadata.get("service_status_candidate_kind") or "")
         == "transport_schedule"
     )
-
-
-def _build_rejected_sources(
-    *,
-    entries_by_notice: Mapping[str, NoticeConsumptionProjectionEntry],
-    rows_by_notice: Mapping[str, Sequence[NoticeDerivedTransportScheduleRow]],
-    exceptions_by_notice: Mapping[str, Sequence[NoticeDerivedTransportServiceException]],
-) -> list[dict[str, Any]]:
-    rejected: list[dict[str, Any]] = []
-    for notice_id, entry in sorted(entries_by_notice.items()):
-        if rows_by_notice.get(notice_id) or exceptions_by_notice.get(notice_id):
-            continue
-        rejected.append(
-            {
-                "schema_version": _REJECTED_SOURCE_SCHEMA_VERSION,
-                "source_notice_id": notice_id,
-                "source_ref": _source_ref(entry),
-                "reason": "no_supported_transport_schedule_rows",
-                "candidate_kind": str(
-                    entry.role_metadata.get("service_status_candidate_kind") or "transport_schedule"
-                ),
-            }
-        )
-    return rejected
 
 
 def _resolve_attachment_records(
@@ -629,8 +619,10 @@ def _build_scheduled_departures(
     anchor: datetime,
     service_horizon_days: int,
 ) -> list[dict[str, Any]]:
-    departures: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, tuple[str, ...], str, str, str, tuple[str, ...], str]] = set()
+    departures_by_key: dict[
+        tuple[str, str, tuple[str, ...], str, str, str],
+        dict[str, Any],
+    ] = {}
     anchor_date = anchor.date()
     for row in rows:
         snapshot_id = snapshot_id_by_notice.get(row.source_notice_id)
@@ -659,27 +651,31 @@ def _build_scheduled_departures(
             row.departure_time,
             route.origin_stop_id,
             route.destination_stop_id,
-            (row.source_ref,),
-            operational_comment,
         )
-        if key in seen:
+        existing = departures_by_key.get(key)
+        if existing is not None:
+            existing["related_notice_refs"] = merge_unique_strings(
+                existing["related_notice_refs"],
+                (row.source_ref,),
+            )
+            existing["operational_comment"] = merge_operational_comments(
+                str(existing["operational_comment"]),
+                operational_comment,
+            )
             continue
-        seen.add(key)
-        departures.append(
-            {
-                "snapshot_id": snapshot_id,
-                "route_id": route.route_id,
-                "service_dates": service_dates,
-                "departure_time": row.departure_time,
-                "arrival_time": "",
-                "origin_stop_id": route.origin_stop_id,
-                "destination_stop_id": route.destination_stop_id,
-                "related_notice_refs": [row.source_ref],
-                "operational_comment": operational_comment,
-            }
-        )
+        departures_by_key[key] = {
+            "snapshot_id": snapshot_id,
+            "route_id": route.route_id,
+            "service_dates": service_dates,
+            "departure_time": row.departure_time,
+            "arrival_time": "",
+            "origin_stop_id": route.origin_stop_id,
+            "destination_stop_id": route.destination_stop_id,
+            "related_notice_refs": [row.source_ref],
+            "operational_comment": operational_comment,
+        }
     return sorted(
-        departures,
+        departures_by_key.values(),
         key=lambda item: (
             str(item["route_id"]),
             str(item["departure_time"]),
@@ -947,6 +943,7 @@ def _resolve_remarks(row: Sequence[str]) -> str:
         for cell in row
         if cell
         and not _TIME_RE.fullmatch(cell)
+        and not _ORDINAL_RE.fullmatch(cell)
         and cell not in {"工作日", "周末", "每日", "每天"}
         and "校区" not in cell
         and "东门" not in cell

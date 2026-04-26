@@ -335,6 +335,39 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
             ],
         )
 
+    def test_exception_only_snapshot_covers_all_exception_service_dates(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="354505",
+            parent_markdown=(
+                "# 关于近期地铁接驳车运营安排的通知\n\n"
+                "本周末（1月17、18日）地铁接驳车“丰台校区”发往“五棵松地铁站”"
+                "班次正常运行，其余线路暂停运营。\n"
+                "下周一（1月19日）起，地铁接驳车停止运营，恢复运营时间另行通知。\n"
+            ),
+            release_time="2026-01-15 09:58",
+            attachment_document_ids=(),
+        )
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2026-03-20T09:00:00+08:00",
+            service_horizon_days=3,
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        snapshot = result.bundle["transport_schedule_snapshots"][0]
+        self.assertEqual(
+            snapshot["service_date_ranges"],
+            [{"start_date": "2026-01-17", "end_date": "2026-01-19"}],
+        )
+        self.assertEqual(snapshot["effective_until"], "2026-01-20T00:00:00+08:00")
+
     def test_builds_transport_schedule_projection_from_ready_consumption_candidates(
         self,
     ) -> None:
@@ -413,6 +446,36 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
         self.assertEqual(len(departures), 1)
         self.assertEqual(departures[0]["route_id"], "route:haidian-to-fengtai")
         self.assertEqual(departures[0]["departure_time"], "19:30")
+
+    def test_build_merges_same_departure_time_across_rider_comments(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            table_cells=[
+                ["适用日期", "运行方向", "发车地点", "发车时间", "乘车人员", "备注"],
+                ["工作日", "丰台校区至海淀校区", "丰台南门", "6:40", "教师", "1"],
+                ["工作日", "丰台校区至海淀校区", "丰台南门", "6:40", "学生", "新增班次"],
+            ],
+        )
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2026-03-20T09:00:00+08:00",
+            service_horizon_days=3,
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        departures = result.bundle["scheduled_departures"]
+        self.assertEqual(len(departures), 1)
+        self.assertEqual(departures[0]["route_id"], "route:fengtai-to-haidian")
+        self.assertEqual(departures[0]["departure_time"], "06:40")
+        self.assertIn("乘车人员：教师", departures[0]["operational_comment"])
+        self.assertIn("乘车人员：学生", departures[0]["operational_comment"])
+        self.assertNotIn("；1", departures[0]["operational_comment"])
 
     def test_temporary_period_departures_keep_bounded_historical_service_dates(
         self,
