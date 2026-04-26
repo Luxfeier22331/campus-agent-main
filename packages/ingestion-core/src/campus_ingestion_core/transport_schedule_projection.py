@@ -5,9 +5,17 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
 from campus_ingestion_core.object_store import build_index_release_artifact_key
+from campus_ingestion_core.transport_schedule_projection_routes import (
+    TRANSPORT_ROUTES,
+    exception_comment,
+    route_by_id,
+    route_has_alias,
+    route_payload,
+    route_segments,
+)
 
 TRANSPORT_SCHEDULE_PROJECTION_SCHEMA_VERSION = "campus_services_projection_bundle.v1"
 TRANSPORT_SCHEDULE_VALIDATION_REPORT_SCHEMA_VERSION = (
@@ -73,78 +81,12 @@ class TransportScheduleProjectionReleaseReport:
 
 
 @dataclass(frozen=True, slots=True)
-class _RouteSeed:
-    route_id: str
-    display_name: str
-    service_family: str
-    aliases: tuple[str, ...]
-    origin_campus: str
-    destination_campus: str
-    origin_stop_id: str
-    origin_stop_name: str
-    origin_stop_aliases: tuple[str, ...]
-    destination_stop_id: str
-    destination_stop_name: str
-    destination_stop_aliases: tuple[str, ...]
-    default_calendar: Literal["weekdays", "daily"]
-
-
-@dataclass(frozen=True, slots=True)
 class _ScheduleSource:
     source_ref: str
     published_at: str
     effective_from: str
     snapshot_id: str
     route_departures: dict[str, dict[str, Any]]
-
-
-_ROUTES: tuple[_RouteSeed, ...] = (
-    _RouteSeed(
-        route_id="route:haidian-to-fengtai",
-        display_name="海淀到丰台通勤车",
-        service_family="intercampus_commute",
-        aliases=("海淀校区至丰台校区", "海淀至丰台", "海淀到丰台", "去丰台", "丰台线"),
-        origin_campus="haidian",
-        destination_campus="fengtai",
-        origin_stop_id="stop:haidian-east-gate",
-        origin_stop_name="海淀东门",
-        origin_stop_aliases=("海淀东门", "海淀校区"),
-        destination_stop_id="stop:fengtai-main-gate",
-        destination_stop_name="丰台南门",
-        destination_stop_aliases=("丰台南门", "丰台校区"),
-        default_calendar="weekdays",
-    ),
-    _RouteSeed(
-        route_id="route:fengtai-to-haidian",
-        display_name="丰台到海淀通勤车",
-        service_family="intercampus_commute",
-        aliases=("丰台校区至海淀校区", "丰台至海淀", "丰台到海淀", "回海淀", "海淀线"),
-        origin_campus="fengtai",
-        destination_campus="haidian",
-        origin_stop_id="stop:fengtai-main-gate",
-        origin_stop_name="丰台南门",
-        origin_stop_aliases=("丰台南门", "丰台校区"),
-        destination_stop_id="stop:haidian-east-gate",
-        destination_stop_name="海淀东门",
-        destination_stop_aliases=("海淀东门", "海淀校区"),
-        default_calendar="weekdays",
-    ),
-    _RouteSeed(
-        route_id="route:subway-shuttle",
-        display_name="地铁接驳车",
-        service_family="subway_shuttle",
-        aliases=("地铁接驳车", "接驳车", "地铁班车"),
-        origin_campus="haidian",
-        destination_campus="subway",
-        origin_stop_id="stop:haidian-east-gate",
-        origin_stop_name="海淀东门",
-        origin_stop_aliases=("海淀东门", "海淀校区"),
-        destination_stop_id="stop:subway-station",
-        destination_stop_name="地铁站",
-        destination_stop_aliases=("地铁站",),
-        default_calendar="daily",
-    ),
-)
 
 
 def build_transport_schedule_projection_bundle(
@@ -216,7 +158,7 @@ def build_transport_schedule_projection_bundle(
         "schema_version": TRANSPORT_SCHEDULE_PROJECTION_SCHEMA_VERSION,
         "service_status_records": [],
         "transport_schedule_snapshots": snapshots,
-        "transport_routes": [_route_payload(route) for route in _ROUTES],
+        "transport_routes": [route_payload(route) for route in TRANSPORT_ROUTES],
         "scheduled_departures": scheduled_departures,
         "transport_service_exceptions": exceptions,
     }
@@ -269,6 +211,30 @@ def validate_transport_schedule_projection_bundle(
             issues.append(_issue(f"{path}.source_ref", "source_ref is required"))
         else:
             source_refs.add(source_ref)
+        schedule_scope = _required_text(snapshot.get("schedule_scope"))
+        service_date_ranges = _list_of_dicts(snapshot.get("service_date_ranges"))
+        if (
+            schedule_scope in {"temporary_period", "temporary_period_revision"}
+            and not service_date_ranges
+        ):
+            issues.append(
+                _issue(
+                    f"{path}.service_date_ranges",
+                    "bounded transport schedule overlay requires service_date_ranges",
+                )
+            )
+        for range_index, service_date_range in enumerate(service_date_ranges):
+            range_path = f"{path}.service_date_ranges[{range_index}]"
+            _validate_date(
+                service_date_range.get("start_date"),
+                f"{range_path}.start_date",
+                issues,
+            )
+            _validate_date(
+                service_date_range.get("end_date"),
+                f"{range_path}.end_date",
+                issues,
+            )
 
     route_ids = _unique_required(routes, "route_id", "transport_routes", issues)
     stop_ids: set[str] = set()
@@ -447,7 +413,7 @@ def _extract_schedule_source(
     source_ref: str,
 ) -> _ScheduleSource | None:
     route_departures: dict[str, dict[str, Any]] = {}
-    for route, segment in _route_segments(text):
+    for route, segment in route_segments(text):
         times = _extract_times(segment)
         if not times:
             continue
@@ -478,8 +444,8 @@ def _extract_exception_candidates(*, source_ref: str, text: str) -> list[dict[st
     if service_date is None:
         return []
     exceptions: list[dict[str, Any]] = []
-    for route in _ROUTES:
-        if not any(alias in text for alias in route.aliases):
+    for route in TRANSPORT_ROUTES:
+        if not route_has_alias(route, text):
             continue
         exceptions.append(
             {
@@ -489,7 +455,7 @@ def _extract_exception_candidates(*, source_ref: str, text: str) -> list[dict[st
                 if "停运" in text or "暂停" in text
                 else "limited_service",
                 "related_notice_refs": [source_ref],
-                "operational_comment": _exception_comment(text, route)[:200],
+                "operational_comment": exception_comment(text, route)[:200],
             }
         )
     return exceptions
@@ -507,7 +473,7 @@ def _build_departures(
         effective = _parse_rfc3339(schedule_source.effective_from, "effective_from").date()
         start_date = max(anchor_date, effective)
         for route_id, payload in sorted(schedule_source.route_departures.items()):
-            route = _route_by_id(route_id)
+            route = route_by_id(route_id)
             service_dates = [
                 candidate.isoformat()
                 for candidate in _date_range(start_date, service_horizon_days)
@@ -548,50 +514,6 @@ def _build_exceptions(
     ):
         exceptions.append({"snapshot_id": current_snapshot_id, **candidate})
     return exceptions
-
-
-def _route_segments(text: str) -> list[tuple[_RouteSeed, str]]:
-    matches: list[tuple[int, _RouteSeed]] = []
-    for route in _ROUTES:
-        positions = [text.find(alias) for alias in route.aliases if alias in text]
-        if positions:
-            matches.append((min(position for position in positions if position >= 0), route))
-    matches.sort(key=lambda item: item[0])
-    segments: list[tuple[_RouteSeed, str]] = []
-    for index, (start, route) in enumerate(matches):
-        end = matches[index + 1][0] if index + 1 < len(matches) else len(text)
-        segments.append((route, text[start:end]))
-    return segments
-
-
-def _route_payload(route: _RouteSeed) -> dict[str, Any]:
-    return {
-        "route_id": route.route_id,
-        "display_name": route.display_name,
-        "service_family": route.service_family,
-        "aliases": list(route.aliases),
-        "origin_campus": route.origin_campus,
-        "destination_campus": route.destination_campus,
-        "stops": [
-            {
-                "stop_id": route.origin_stop_id,
-                "display_name": route.origin_stop_name,
-                "aliases": list(route.origin_stop_aliases),
-            },
-            {
-                "stop_id": route.destination_stop_id,
-                "display_name": route.destination_stop_name,
-                "aliases": list(route.destination_stop_aliases),
-            },
-        ],
-    }
-
-
-def _exception_comment(text: str, route: _RouteSeed) -> str:
-    for segment in re.split(r"[\n。；;]", text):
-        if any(alias in segment for alias in route.aliases) and _DATE_RE.search(segment):
-            return segment.strip() + "。"
-    return text.strip()
 
 
 def _calendar_from_text(value: str, default: str) -> str:
@@ -670,13 +592,6 @@ def _extract_times(value: str) -> list[str]:
 
 def _date_range(start: date, days: int) -> list[date]:
     return [start + timedelta(days=offset) for offset in range(days)]
-
-
-def _route_by_id(route_id: str) -> _RouteSeed:
-    for route in _ROUTES:
-        if route.route_id == route_id:
-            return route
-    raise ValueError(f"unknown transport route: {route_id}")
 
 
 def _contains_any(value: str, keywords: tuple[str, ...]) -> bool:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
@@ -10,7 +11,16 @@ from typing import Any, Protocol
 
 from campus_ingestion_core import ObjectStoreSettings
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.notice_consumption_projection import (
+    NoticeConsumptionProjectionEntry,
+    build_notice_consumption_projection_store_from_env,
+    normalize_notice_ids,
+)
+from campus_ingestion_core.notice_derived_transport_schedule_materialization import (
+    build_notice_derived_transport_schedule_projection_bundle,
+)
 from campus_ingestion_core.object_store import build_index_release_artifact_key
+from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.transport_schedule_projection import (
     DEFAULT_TRANSPORT_SCHEDULE_HORIZON_DAYS,
     TRANSPORT_SCHEDULE_COLLECTION,
@@ -38,12 +48,27 @@ class _DerivedObjectStore(Protocol):
     ) -> None: ...
 
 
+class _TransportProjectionObjectStore(_SourceObjectStore, _DerivedObjectStore, Protocol):
+    pass
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build campus_services transport_schedule projection from authenticated notice source truth.",
     )
-    parser.add_argument("--source-truth-inventory", required=True)
+    parser.add_argument("--source-truth-inventory")
     parser.add_argument("--source-truth-root")
+    parser.add_argument(
+        "--from-consumption-projection",
+        action="store_true",
+        help="Build from ready internal_notice consumption projection transport candidates.",
+    )
+    parser.add_argument(
+        "--notice-id",
+        action="append",
+        default=[],
+        help="Selected notice id for consumption-projection mode. Repeatable.",
+    )
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--release-id", required=True)
     parser.add_argument("--generated-at")
@@ -114,26 +139,104 @@ def build_transport_schedule_projection_release_from_inventory(
     return report
 
 
+def build_transport_schedule_projection_release_from_consumption_projection(
+    *,
+    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    registry: DocumentRegistry,
+    work_dir: Path,
+    release_id: str,
+    generated_at: str,
+    service_horizon_days: int,
+    object_store: _TransportProjectionObjectStore,
+    derived_bucket: str,
+):
+    build_result = build_notice_derived_transport_schedule_projection_bundle(
+        projection_entries=projection_entries,
+        registry=registry,
+        object_store=object_store,
+        derived_bucket=derived_bucket,
+        generated_at=generated_at,
+        service_horizon_days=service_horizon_days,
+    )
+    if not build_result.validation_report.valid:
+        _write_json(work_dir / "validation-summary.json", asdict(build_result.validation_report))
+        raise ValueError("notice-derived transport schedule projection validation failed")
+    if not build_result.bundle["transport_schedule_snapshots"]:
+        _write_json(work_dir / "manual-review-report.json", build_result.manual_review_sources)
+        raise ValueError("notice-derived transport schedule projection produced no snapshots")
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    manual_review_path = work_dir / "manual-review-report.json"
+    _write_json(manual_review_path, build_result.manual_review_sources)
+    report = write_transport_schedule_projection_release(
+        bundle=build_result.bundle,
+        output_dir=work_dir,
+        release_id=release_id,
+        generated_at=generated_at,
+        object_store=object_store,
+        bucket=derived_bucket,
+    )
+    object_store.put_bytes(
+        bucket=derived_bucket,
+        key=build_index_release_artifact_key(
+            corpus=TRANSPORT_SCHEDULE_CORPUS,
+            collection=TRANSPORT_SCHEDULE_COLLECTION,
+            release_id=release_id,
+            filename="manual-review-report.json",
+        ),
+        data=manual_review_path.read_bytes(),
+        content_type="application/json",
+    )
+    _write_json(work_dir / "build-report.json", asdict(report))
+    return report
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     settings = ObjectStoreSettings.from_env()
     object_store = S3ObjectStoreAdmin(settings)
     generated_at = args.generated_at or _default_generated_at()
-    source_truth_root = Path(args.source_truth_root).resolve() if args.source_truth_root else None
-    source_object_store = None if source_truth_root is not None else object_store
-    report = build_transport_schedule_projection_release_from_inventory(
-        source_truth_inventory_path=Path(args.source_truth_inventory).resolve(),
-        source_truth_root=source_truth_root,
-        work_dir=Path(args.work_dir).resolve(),
-        release_id=args.release_id,
-        generated_at=generated_at,
-        service_horizon_days=args.service_horizon_days,
-        object_store=object_store,
-        derived_bucket=args.derived_bucket or settings.bucket_derived,
-        source_object_store=source_object_store,
-        source_bucket=args.source_bucket or settings.bucket_source,
-    )
+    if args.from_consumption_projection:
+        notice_ids = normalize_notice_ids(tuple(args.notice_id or ()))
+        if not notice_ids:
+            raise ValueError("--notice-id is required with --from-consumption-projection")
+        source = dict(os.environ)
+        projection_store = build_notice_consumption_projection_store_from_env(source)
+        projection_entries = projection_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=notice_ids,
+        )
+        report = build_transport_schedule_projection_release_from_consumption_projection(
+            projection_entries=projection_entries,
+            registry=build_document_registry_from_env(source),
+            work_dir=Path(args.work_dir).resolve(),
+            release_id=args.release_id,
+            generated_at=generated_at,
+            service_horizon_days=args.service_horizon_days,
+            object_store=object_store,
+            derived_bucket=args.derived_bucket or settings.bucket_derived,
+        )
+    else:
+        if not args.source_truth_inventory:
+            raise ValueError("--source-truth-inventory is required without consumption mode")
+        source_truth_root = (
+            Path(args.source_truth_root).resolve() if args.source_truth_root else None
+        )
+        source_object_store = None if source_truth_root is not None else object_store
+        report = build_transport_schedule_projection_release_from_inventory(
+            source_truth_inventory_path=Path(args.source_truth_inventory).resolve(),
+            source_truth_root=source_truth_root,
+            work_dir=Path(args.work_dir).resolve(),
+            release_id=args.release_id,
+            generated_at=generated_at,
+            service_horizon_days=args.service_horizon_days,
+            object_store=object_store,
+            derived_bucket=args.derived_bucket or settings.bucket_derived,
+            source_object_store=source_object_store,
+            source_bucket=args.source_bucket or settings.bucket_source,
+        )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 
@@ -276,6 +379,7 @@ def _default_generated_at() -> str:
 __all__ = [
     "TRANSPORT_SCHEDULE_PROJECTION_FILENAME",
     "build_parser",
+    "build_transport_schedule_projection_release_from_consumption_projection",
     "build_transport_schedule_projection_release_from_inventory",
     "main",
 ]

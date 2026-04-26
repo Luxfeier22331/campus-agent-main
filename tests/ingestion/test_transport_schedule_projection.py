@@ -80,6 +80,8 @@ class TransportScheduleProjectionTest(unittest.TestCase):
                 "route:haidian-to-fengtai",
                 "route:fengtai-to-haidian",
                 "route:subway-shuttle",
+                "route:fengtai-to-wukesong-subway",
+                "route:wukesong-subway-to-fengtai",
             },
         )
         haidian_to_fengtai = [
@@ -135,6 +137,33 @@ class TransportScheduleProjectionTest(unittest.TestCase):
 
         self.assertFalse(report.valid)
         self.assertIn("multiple current transport schedule snapshots", report.issues[0]["message"])
+
+    def test_validation_rejects_bounded_overlay_without_service_date_ranges(self) -> None:
+        report = validate_transport_schedule_projection_bundle(
+            {
+                "schema_version": "campus_services_projection_bundle.v1",
+                "transport_schedule_snapshots": [
+                    {
+                        "snapshot_id": "snapshot:temporary",
+                        "published_at": "2026-01-21T18:00:00+08:00",
+                        "effective_from": "2026-01-23T00:00:00+08:00",
+                        "source_ref": "notice:muc_internal_portal:354578",
+                        "is_current": True,
+                        "schedule_scope": "temporary_period_revision",
+                        "service_date_ranges": [],
+                    },
+                ],
+                "transport_routes": [],
+                "scheduled_departures": [],
+                "transport_service_exceptions": [],
+            }
+        )
+
+        self.assertFalse(report.valid)
+        self.assertIn(
+            "bounded transport schedule overlay requires service_date_ranges",
+            [issue["message"] for issue in report.issues],
+        )
 
     def test_write_release_publishes_versioned_and_current_projection(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -786,6 +786,34 @@ Behavior:
 - Writes local release artifacts and publishes versioned/current projection
   artifacts to the derived bucket.
 
+### `campus-ingestion-build-transport-schedule-projection`
+
+Builds and publishes the `campus_services/transport_schedule` projection.
+
+Preferred notice-derived mode:
+
+- `--from-consumption-projection`
+- `--notice-id` (repeatable; selected notices only)
+- `--work-dir`
+- `--release-id`
+
+Legacy source-truth smoke mode:
+
+- `--source-truth-inventory`
+- `--source-truth-root` or source object-store env
+- `--work-dir`
+- `--release-id`
+
+Behavior:
+
+- Notice-derived mode reads ready
+  `campus_services/service_status_candidate` consumption projection entries.
+- It reads OCR child `document-units.jsonl` from the derived bucket, cleans table
+  context, and publishes `campus_services_projection_bundle.v1`.
+- It writes local release artifacts and publishes versioned/current projection
+  artifacts to the derived bucket.
+- It does not open `transport_schedule_lookup` serving by itself.
+
 ### `migrate_student_handbook_source_faithful`
 
 Worker shell for the handbook source-faithful migration.
