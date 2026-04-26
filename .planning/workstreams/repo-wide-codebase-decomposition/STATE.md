@@ -1,24 +1,26 @@
 ---
 workstream: repo-wide-codebase-decomposition
 created: 2026-04-21
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Active
+**Status:** Completed
 **Current Phase:** 10
-**Current Phase Name:** Reopened Regression Inventory Follow-up
+**Current Phase Name:** Reopened Regression Inventory Closeout
 **Current Plan:** `<none>`
 **Total Phases:** 10
 **Total Plans in Phase:** 0
-**Progress:** 9/10 phases complete
-**Last Activity:** 2026-04-23
-**Last Activity Description:** Reopened inventory reappeared after recent notice
-projection / MinerU / public-docs edits; three `800+` handwritten files are now
-explicitly admitted in the baseline until the next isolated split tranche.
+**Progress:** 10/10 phases complete
+**Last Activity:** 2026-04-27
+**Last Activity Description:** Completed the reopened 19-file admission closeout,
+including app-api, authenticated-notice collector tests, ingestion projection
+modules, Python bridge/ingestion test suites, and `scripts/workstream_harness.py`;
+`configs/lint/decomposition-baseline.json` is now empty and `pnpm
+decomposition:lint` passes.
 
 ## Current Slice
 
@@ -32,6 +34,26 @@ explicitly admitted in the baseline until the next isolated split tranche.
   - `<none>`
 - admitted oversized handwritten test/app files currently mapped into later phases:
   - `<none>`
+- completed reopened closeout files:
+  - `apps/app-api/src/modules/integration/supervisor.ts`
+  - `apps/app-api/src/modules/operator-query/store/metrics.ts`
+  - `apps/app-api/test/chat-command.service.core.suite.ts`
+  - `apps/app-api/test/operator-query.store.test.ts`
+  - `apps/app-api/test/supervisor-adapter.test.ts`
+  - `apps/authenticated-notice-collector/test/bootstrap-export.collection.suite.ts`
+  - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections_classification.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/curriculum_course_map_docs_surface.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/handbook_cleanup_projection_events.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_consumption_projection.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/notice_derived_transport_schedule_materialization.py`
+  - `scripts/workstream_harness.py`
+  - `tests/api/supervisor_api_bridge_suite.py`
+  - `tests/ingestion/authenticated_notice_source_projection_attachment_extractable_suite.py`
+  - `tests/ingestion/curriculum_provider_normalize_structure_suite.py`
+  - `tests/ingestion/handbook_cleanup_form_and_header_filter_suite.py`
+  - `tests/ingestion/process_raw_ingestion_job_handbook_projection_suite.py`
+  - `tests/ingestion/test_file_asset_substrate.py`
 - recently completed clean-tranche decompositions now below threshold:
   - `packages/rag-agent/src/campus_rag_agent/service.py`
   - `packages/retrieval-core/src/campus_retrieval_core/evidence_ranking.py`
@@ -119,14 +141,12 @@ explicitly admitted in the baseline until the next isolated split tranche.
   - every phase must keep behavior stable and run targeted regressions before claiming completion
 
 - reopened regression inventory:
-  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_materialization.py`
-  - `tests/ingestion/test_curriculum_provider_normalize.py`
-  - `tests/test_public_docs_sync.py`
+  - `<none>`
 
 ## Blockers
 
-- no hard external blocker; current blocker is work not yet split
-- these three files must be decomposed in a dedicated follow-up tranche instead of remaining as silent drift
+- no hard external blocker
+- no remaining admitted oversized handwritten code/test files
 
 ## Verification
 
@@ -153,7 +173,6 @@ explicitly admitted in the baseline until the next isolated split tranche.
 
 ## Session Continuity
 
-**Stopped At:** reopened decomposition inventory has been re-admitted in the
-baseline; next step is a dedicated split tranche for the three remaining
-oversized files.
+**Stopped At:** reopened decomposition inventory is fully closed; baseline is
+empty and the canonical decomposition gate passes.
 **Resume File:** .planning/workstreams/repo-wide-codebase-decomposition/STATE.md

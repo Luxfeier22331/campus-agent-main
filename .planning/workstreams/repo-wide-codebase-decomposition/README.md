@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-22
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 
 # Workstream: Repo-wide Codebase Decomposition
@@ -12,14 +12,14 @@ updated: 2026-04-23
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 10`
-- current focus: reopened regression inventory 仍在进行；当前
-  `internal_notice_regulation_materialization.py`、
-  `tests/ingestion/test_curriculum_provider_normalize.py` 与
-  `tests/test_public_docs_sync.py` 重新进入 admitted baseline，
-  `pnpm decomposition:lint` 继续作为 canonical follow-up gate。
-- governance gate: repo 现已新增 tracked handwritten code/test decomposition audit；`configs/lint/decomposition-baseline.json` 冻结当前存量 `800+` debt，新增超阈值文件、baseline 文件继续膨胀、或已降到阈值内仍留在 baseline，都会在独立 CI lane 中 fail-close。
+- status: `completed`
+- current phase: `Phase 10` complete
+- current focus: reopened regression inventory 已清零；19 个 admitted
+  handwritten code/test files 均已完成 facade/support/suite/runtime split 并降到
+  `800` 行阈值内。
+- governance gate: `configs/lint/decomposition-baseline.json` 已清空；`pnpm
+  decomposition:lint` 继续作为 canonical fail-close gate，阻止新增超阈值 tracked
+  handwritten code/test file、baseline 回流或 resolved 文件滞留。
 
 ## Native Planning Truth
 
