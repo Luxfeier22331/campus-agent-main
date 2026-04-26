@@ -375,7 +375,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 								traceLink: "https://sentry.example/traces/trace_01",
 							},
 							requestId: "req_01",
-							selectedTarget: "supervisor-core",
+							selectedTarget: "navigation-agent",
 							summary: "Intent classifier selected the wrong target",
 							surface: "public_chat_web",
 							traceId: "trace_01",
@@ -492,7 +492,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 
 		await expect(
 			protectedPanelDataProvider.getOperatorIntentSummary({
-				selectedTarget: "supervisor-core",
+				selectedTarget: "navigation-agent",
 				surface: "public_chat_web",
 				window: "24h",
 			}),
@@ -509,7 +509,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		});
 
 		expect(fetchSpy).toHaveBeenCalledWith(
-			"/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedTarget=supervisor-core",
+			"/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedTarget=navigation-agent",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",

@@ -373,7 +373,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedTarget=supervisor-core",
+					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedTarget=navigation-agent",
 				),
 			);
 
@@ -394,7 +394,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					modelName: null,
 					principalType: null,
 					requestedCapability: null,
-					selectedTarget: "supervisor-core",
+					selectedTarget: "navigation-agent",
 					surface: "public_chat_web",
 					window: "24h",
 				},

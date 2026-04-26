@@ -138,7 +138,7 @@ export function registerWorkerOperatorDomainsSuite() {
 													suggestedEvalFamily: "intent",
 												},
 												requestId: "req_01HR",
-												selectedTarget: "supervisor-core",
+												selectedTarget: "navigation-agent",
 												summary: "intent classifier selected the wrong handoff target",
 												surface: "public_chat_web",
 												traceId: "trace_01HR",
