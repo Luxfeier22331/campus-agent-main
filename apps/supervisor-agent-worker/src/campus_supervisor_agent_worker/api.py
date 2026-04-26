@@ -130,6 +130,7 @@ def handle_bridge_answer(
         )
 
     runtime_cancel_flags = cancel_flags or CancelFlagStore()
+    runtime_cancel_flags.prune_stale(max_age_seconds=settings.cancel_flag_ttl_seconds)
     runtime_cancel_flags.register(request)
     try:
         if runtime_cancel_flags.is_cancel_requested(request.request_id):

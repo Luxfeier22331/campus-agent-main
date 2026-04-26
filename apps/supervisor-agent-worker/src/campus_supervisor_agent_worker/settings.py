@@ -53,6 +53,13 @@ def _read_float(name: str, *, default: float) -> float:
     return float(normalized)
 
 
+def _read_positive_float(name: str, *, default: float) -> float:
+    value = _read_float(name, default=default)
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class ApiSettings:
     app_name: str = APP_NAME
@@ -79,6 +86,7 @@ class ApiSettings:
     structured_query_base_url: str = ""
     structured_query_shared_secret: str = ""
     structured_query_timeout_seconds: float = 1.0
+    cancel_flag_ttl_seconds: float = 900.0
 
     @classmethod
     def from_env(cls) -> ApiSettings:
@@ -161,5 +169,9 @@ class ApiSettings:
             structured_query_timeout_seconds=_read_float(
                 "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
                 default=1.0,
+            ),
+            cancel_flag_ttl_seconds=_read_positive_float(
+                "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS",
+                default=900.0,
             ),
         )

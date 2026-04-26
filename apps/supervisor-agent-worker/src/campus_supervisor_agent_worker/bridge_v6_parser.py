@@ -8,12 +8,9 @@ from campus_contracts import (
     SupervisorRequest,
 )
 
-from campus_supervisor_agent_worker.bridge_context_codecs import (
-    parse_actor_context,
+from campus_supervisor_agent_worker.bridge_actor_codecs import parse_actor_context
+from campus_supervisor_agent_worker.bridge_context_projection_codecs import (
     parse_bridge_context_projection,
-    parse_requested_scope,
-    parse_trace_context,
-    parse_version_query,
 )
 from campus_supervisor_agent_worker.bridge_parse_utils import (
     parse_optional_string,
@@ -25,12 +22,18 @@ from campus_supervisor_agent_worker.bridge_parse_utils import (
     require_string,
 )
 from campus_supervisor_agent_worker.bridge_payload_codecs import parse_agent_payload_by_kind
+from campus_supervisor_agent_worker.bridge_trace_codecs import (
+    parse_requested_scope,
+    parse_trace_context,
+    parse_version_query,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class BridgeSupervisorEnvelope:
     request: SupervisorRequest
     agent_request: AgentRequest | None = None
+    routing_frame: dict[str, object] | None = None
 
 
 def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSupervisorEnvelope:
@@ -52,14 +55,16 @@ def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuperv
             require_object(payload.get("version_query"), field_name="version_query")
         ),
     )
+    agent_request, routing_frame = _parse_runtime_decisions(
+        payload.get("runtime_decisions"),
+        effective_capability=effective_capability,
+        lane=lane,
+        request=request,
+    )
     return BridgeSupervisorEnvelope(
         request=request,
-        agent_request=_parse_runtime_decisions(
-            payload.get("runtime_decisions"),
-            effective_capability=effective_capability,
-            lane=lane,
-            request=request,
-        ),
+        agent_request=agent_request,
+        routing_frame=routing_frame,
     )
 
 
@@ -93,7 +98,7 @@ def _parse_runtime_decisions(
     effective_capability: str,
     lane: str,
     request: SupervisorRequest,
-) -> AgentRequest:
+) -> tuple[AgentRequest, dict[str, object]]:
     decisions = require_object(raw_decisions, field_name="runtime_decisions")
     decision_capability = require_string(
         decisions.get("effective_capability"),
@@ -107,7 +112,7 @@ def _parse_runtime_decisions(
         raise ValueError("runtime_decisions.effective_capability must match effective_capability")
     if decision_lane != lane:
         raise ValueError("runtime_decisions.lane must match lane")
-    suggested_next_action = _parse_routing_frame(
+    routing_frame, suggested_next_action = _parse_routing_frame(
         decisions.get("routing_frame"),
         effective_capability=effective_capability,
     )
@@ -134,10 +139,12 @@ def _parse_runtime_decisions(
         expected_allowed_tools=allowed_tools,
     )
     _assert_agent_request_matches_supervisor_request(agent_request, request)
-    return agent_request
+    return agent_request, routing_frame
 
 
-def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> str:
+def _parse_routing_frame(
+    raw_frame: object, *, effective_capability: str
+) -> tuple[dict[str, object], str]:
     frame = require_object(raw_frame, field_name="runtime_decisions.routing_frame")
     capability = require_string(
         frame.get("capability"),
@@ -175,7 +182,7 @@ def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> str
         frame.get("resolved_slots"),
         field_name="runtime_decisions.routing_frame.resolved_slots",
     )
-    return suggested_next_action
+    return dict(frame), suggested_next_action
 
 
 def _parse_agent_handoff_request(

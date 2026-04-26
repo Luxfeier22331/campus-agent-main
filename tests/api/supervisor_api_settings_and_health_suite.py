@@ -95,6 +95,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "19",
             "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": "bridge-secret",
             "SUPERVISOR_AGENT_WORKER_THREADS": "7",
+            "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "123",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -116,7 +117,19 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.prompt_runtime_keepalive_expiry_seconds, 19)
         self.assertEqual(settings.bridge_shared_secret, "bridge-secret")
         self.assertEqual(settings.bridge_worker_threads, 7)
+        self.assertEqual(settings.cancel_flag_ttl_seconds, 123)
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
+
+    def test_api_settings_from_env_rejects_non_positive_cancel_flag_ttl(self) -> None:
+        with (
+            patch.dict(
+                os.environ,
+                {"SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "0"},
+                clear=True,
+            ),
+            self.assertRaises(ValueError),
+        ):
+            ApiSettings.from_env()
 
     def test_api_settings_from_env_uses_shared_prompt_runtime_model_when_role_overrides_are_absent(
         self,

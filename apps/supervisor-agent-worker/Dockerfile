@@ -39,7 +39,7 @@ members = [
 ]
 PYPROJECT
 
-uv sync --project /app --package campus-supervisor-agent-worker --no-dev
+uv sync --project /app --all-packages --no-dev
 EOF
 
 FROM python:3.12-slim-bookworm AS runtime
