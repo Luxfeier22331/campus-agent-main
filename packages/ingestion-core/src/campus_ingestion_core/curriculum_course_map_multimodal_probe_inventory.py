@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (
     _COURSE_MAP_HINT_RE,
@@ -33,6 +34,8 @@ def build_curriculum_course_map_inventory(
     provider_page_widths = _derive_layout_page_widths(layout_rows)
     inventory: list[CurriculumCourseMapInventoryEntry] = []
     active_course_map_headings_by_document: dict[str, str] = {}
+    recent_course_map_caption_by_document: dict[str, tuple[int, str]] = {}
+    pending_pre_heading_images_by_document: dict[str, list[dict[str, object]]] = {}
     for row in layout_rows:
         page_number = int(row.get("page_start") or 0)
         if page_number <= 0:
@@ -47,9 +50,38 @@ def build_curriculum_course_map_inventory(
         row_heading_text = _row_text(row)
         if row_type == "heading":
             if _is_curriculum_course_map_candidate(row_heading_text):
+                for pending_image in _drain_pending_images_before_heading(
+                    pending_pre_heading_images_by_document,
+                    document_id=owner_document_id,
+                    heading_row=row,
+                    page_number=page_number,
+                ):
+                    inventory.append(
+                        _build_inventory_entry(
+                            row=pending_image,
+                            owner_document_id=owner_document_id,
+                            owner_document_title=owner_document_title,
+                            parent_heading_hint=row_heading_text,
+                            provider_page_heights=provider_page_heights,
+                            provider_page_widths=provider_page_widths,
+                            raw_asset_id=raw_asset_id,
+                            raw_version_id=raw_version_id,
+                            source_pdf_key=source_pdf_key,
+                            provider_response_key=provider_response_key,
+                            layout_elements_key=layout_elements_key,
+                        )
+                    )
                 active_course_map_headings_by_document[owner_document_id] = row_heading_text
             elif _is_curriculum_section_boundary(row):
                 active_course_map_headings_by_document.pop(owner_document_id, None)
+                recent_course_map_caption_by_document.pop(owner_document_id, None)
+                pending_pre_heading_images_by_document.pop(owner_document_id, None)
+            continue
+        if _is_curriculum_course_map_caption_hint(row):
+            recent_course_map_caption_by_document[owner_document_id] = (
+                page_number,
+                row_heading_text,
+            )
             continue
         if row_type != "image":
             continue
@@ -58,29 +90,69 @@ def build_curriculum_course_map_inventory(
             parent_heading_hint = active_course_map_headings_by_document.get(
                 owner_document_id, ""
             )
+        recent_caption_page, recent_caption_hint = recent_course_map_caption_by_document.get(
+            owner_document_id, (0, "")
+        )
+        if (
+            not _is_curriculum_course_map_candidate(parent_heading_hint)
+            and recent_caption_page == page_number
+        ):
+            parent_heading_hint = recent_caption_hint
         if not _is_curriculum_course_map_candidate(parent_heading_hint):
+            pending_pre_heading_images_by_document.setdefault(owner_document_id, []).append(row)
             continue
-        provider_page_height = float(provider_page_heights.get(page_number) or 0.0)
-        if provider_page_height <= 0:
-            raise ValueError(f"missing provider page height for page {page_number}")
+        recent_course_map_caption_by_document.pop(owner_document_id, None)
         inventory.append(
-            CurriculumCourseMapInventoryEntry(
-                document_id=owner_document_id,
-                document_title=owner_document_title,
-                page_number=page_number,
-                row_id=str(row.get("row_id") or "").strip(),
+            _build_inventory_entry(
+                row=row,
+                owner_document_id=owner_document_id,
+                owner_document_title=owner_document_title,
                 parent_heading_hint=parent_heading_hint,
-                bbox_provider=_coerce_bbox(row.get("bbox")),
-                provider_page_height=provider_page_height,
+                provider_page_heights=provider_page_heights,
+                provider_page_widths=provider_page_widths,
                 raw_asset_id=raw_asset_id,
                 raw_version_id=raw_version_id,
                 source_pdf_key=source_pdf_key,
                 provider_response_key=provider_response_key,
                 layout_elements_key=layout_elements_key,
-                provider_page_width=provider_page_widths.get(page_number),
             )
         )
     return tuple(sorted(inventory, key=lambda item: (item.page_number, item.row_id)))
+
+
+def _build_inventory_entry(
+    *,
+    row: dict[str, object],
+    owner_document_id: str,
+    owner_document_title: str,
+    parent_heading_hint: str,
+    provider_page_heights: dict[int, float],
+    provider_page_widths: dict[int, float],
+    raw_asset_id: str,
+    raw_version_id: str,
+    source_pdf_key: str,
+    provider_response_key: str,
+    layout_elements_key: str,
+) -> CurriculumCourseMapInventoryEntry:
+    page_number = int(row.get("page_start") or 0)
+    provider_page_height = float(provider_page_heights.get(page_number) or 0.0)
+    if provider_page_height <= 0:
+        raise ValueError(f"missing provider page height for page {page_number}")
+    return CurriculumCourseMapInventoryEntry(
+        document_id=owner_document_id,
+        document_title=owner_document_title,
+        page_number=page_number,
+        row_id=str(row.get("row_id") or "").strip(),
+        parent_heading_hint=parent_heading_hint,
+        bbox_provider=_coerce_bbox(row.get("bbox")),
+        provider_page_height=provider_page_height,
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        source_pdf_key=source_pdf_key,
+        provider_response_key=provider_response_key,
+        layout_elements_key=layout_elements_key,
+        provider_page_width=provider_page_widths.get(page_number),
+    )
 
 
 def load_provider_page_heights(provider_response_bytes: bytes) -> dict[int, float]:
@@ -285,6 +357,62 @@ def _is_curriculum_course_map_candidate(parent_heading_hint: str) -> bool:
     return bool(_COURSE_MAP_HINT_RE.search(parent_heading_hint.strip()))
 
 
+def _is_curriculum_course_map_caption_hint(row: dict[str, object]) -> bool:
+    row_type = str(row.get("row_type") or "").strip()
+    block_role = str(row.get("block_role") or "").strip()
+    if row_type not in {"table_caption", "paragraph"} and block_role not in {
+        "figure_title",
+        "figure_caption",
+    }:
+        return False
+    return _is_curriculum_course_map_candidate(_row_text(row))
+
+
+def _drain_pending_images_before_heading(
+    pending_images_by_document: dict[str, list[dict[str, object]]],
+    *,
+    document_id: str,
+    heading_row: dict[str, object],
+    page_number: int,
+) -> tuple[dict[str, object], ...]:
+    pending_images = pending_images_by_document.pop(document_id, [])
+    if not pending_images:
+        return ()
+    return tuple(
+        image_row
+        for image_row in pending_images
+        if _is_pending_image_before_heading(
+            image_row=image_row,
+            heading_row=heading_row,
+            page_number=page_number,
+        )
+    )
+
+
+def _is_pending_image_before_heading(
+    *,
+    image_row: dict[str, object],
+    heading_row: dict[str, object],
+    page_number: int,
+) -> bool:
+    if int(image_row.get("page_start") or 0) != page_number:
+        return False
+    image_bbox = _coerce_optional_bbox(image_row.get("bbox"))
+    heading_bbox = _coerce_optional_bbox(heading_row.get("bbox"))
+    if image_bbox is None or heading_bbox is None:
+        return False
+    image_bottom = image_bbox[3]
+    heading_top = heading_bbox[1]
+    return image_bottom <= heading_top + 32
+
+
+def _coerce_optional_bbox(value: Any) -> tuple[float, float, float, float] | None:
+    try:
+        return _coerce_bbox(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _is_curriculum_section_boundary(row: dict[str, object]) -> bool:
     section_hint = str(row.get("section_hint") or "").strip()
     return section_hint in {"section", "chapter"}
@@ -313,6 +441,8 @@ def _load_jsonl_bytes(payload: bytes) -> tuple[dict[str, object], ...]:
 
 __all__ = [
     "_is_curriculum_course_map_candidate",
+    "_is_curriculum_course_map_caption_hint",
+    "_drain_pending_images_before_heading",
     "_derive_layout_page_widths",
     "_load_jsonl_bytes",
     "_load_split_manifest_document_ranges",

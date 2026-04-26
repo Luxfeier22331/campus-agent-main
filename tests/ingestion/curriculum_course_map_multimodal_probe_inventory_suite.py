@@ -167,6 +167,158 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
         self.assertEqual([item.page_number for item in inventory], [1, 2])
         self.assertEqual([item.parent_heading_hint for item in inventory], ["六、课程地图"] * 2)
 
+    def test_build_inventory_infers_course_map_from_preceding_figure_title_when_heading_follows_image(
+        self,
+    ) -> None:
+        layout_rows = [
+            {
+                "page_start": 1,
+                "row_id": "page-0001-caption-0001",
+                "row_type": "table_caption",
+                "block_role": "figure_title",
+                "text_normalized": "中国少数民族语言文学专业强基计划本科课程结构拓扑图",
+                "bbox": [40, 100, 760, 130],
+                "parent_heading_hint": "3. 创新创业实践",
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-image-0002",
+                "row_type": "image",
+                "bbox": [40, 130, 760, 600],
+                "parent_heading_hint": "3. 创新创业实践",
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-heading-0003",
+                "row_type": "heading",
+                "text_normalized": "六、课程地图",
+                "section_hint": "section",
+                "bbox": [40, 620, 220, 660],
+                "parent_heading_hint": None,
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-heading-0004",
+                "row_type": "heading",
+                "text_normalized": "七、其他说明",
+                "section_hint": "section",
+                "bbox": [40, 680, 220, 720],
+                "parent_heading_hint": None,
+            },
+        ]
+
+        inventory = build_curriculum_course_map_inventory(
+            split_manifest_bytes=json.dumps(
+                {
+                    "manifest_version": "curriculum_plan_split_manifest_v1",
+                    "documents": [
+                        {
+                            "document_id": "curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                            "title": "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                            "page_start": 1,
+                            "page_end": 1,
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+            provider_response_bytes=_provider_response_bytes(page_count=1),
+            layout_elements_bytes="\n".join(
+                json.dumps(row, ensure_ascii=False) for row in layout_rows
+            ).encode("utf-8"),
+            source_pdf_key="source.pdf",
+            provider_response_key="provider-response.jsonl",
+            layout_elements_key="layout-elements.jsonl",
+            raw_asset_id="asset:curriculum-plan-2022",
+            raw_version_id="sha256:test",
+        )
+
+        self.assertEqual([item.page_number for item in inventory], [1])
+        self.assertEqual(inventory[0].row_id, "page-0001-image-0002")
+        self.assertEqual(
+            inventory[0].parent_heading_hint,
+            "中国少数民族语言文学专业强基计划本科课程结构拓扑图",
+        )
+
+    def test_build_inventory_backfills_images_immediately_before_course_map_heading(
+        self,
+    ) -> None:
+        layout_rows = [
+            {
+                "page_start": 1,
+                "row_id": "page-0001-paragraph-0001",
+                "row_type": "paragraph",
+                "block_role": "text",
+                "text_normalized": "创新创业实践说明。",
+                "bbox": [40, 80, 760, 110],
+                "parent_heading_hint": "3. 创新创业实践",
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-image-0002",
+                "row_type": "image",
+                "bbox": [40, 120, 320, 360],
+                "parent_heading_hint": "3. 创新创业实践",
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-image-0003",
+                "row_type": "image",
+                "bbox": [330, 120, 610, 360],
+                "parent_heading_hint": "3. 创新创业实践",
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-heading-0004",
+                "row_type": "heading",
+                "text_normalized": "六、课程地图",
+                "section_hint": "section",
+                "bbox": [40, 370, 220, 400],
+                "parent_heading_hint": None,
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-heading-0005",
+                "row_type": "heading",
+                "text_normalized": "七、其他说明",
+                "section_hint": "section",
+                "bbox": [40, 430, 220, 460],
+                "parent_heading_hint": None,
+            },
+        ]
+
+        inventory = build_curriculum_course_map_inventory(
+            split_manifest_bytes=json.dumps(
+                {
+                    "manifest_version": "curriculum_plan_split_manifest_v1",
+                    "documents": [
+                        {
+                            "document_id": "curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                            "title": "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                            "page_start": 1,
+                            "page_end": 1,
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+            provider_response_bytes=_provider_response_bytes(page_count=1),
+            layout_elements_bytes="\n".join(
+                json.dumps(row, ensure_ascii=False) for row in layout_rows
+            ).encode("utf-8"),
+            source_pdf_key="source.pdf",
+            provider_response_key="provider-response.jsonl",
+            layout_elements_key="layout-elements.jsonl",
+            raw_asset_id="asset:curriculum-plan-2022",
+            raw_version_id="sha256:test",
+        )
+
+        self.assertEqual(
+            [item.row_id for item in inventory],
+            ["page-0001-image-0002", "page-0001-image-0003"],
+        )
+        self.assertEqual([item.parent_heading_hint for item in inventory], ["六、课程地图"] * 2)
+
     def test_provider_bbox_projection_scales_against_pdf_canvas(self) -> None:
         provider_canvas = derive_provider_canvas(
             pdf_page_width=595,

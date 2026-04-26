@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
 from campus_ingestion_core.campusrag_ingestion_support import (
@@ -20,6 +19,11 @@ from campus_ingestion_core.handbook_service_navigation_hybrid_materialization im
     build_handbook_service_navigation_hybrid_document_from_projection_artifact,
     is_handbook_service_navigation_projection,
 )
+from campus_ingestion_core.handbook_source_projection_models import (
+    HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION,
+    HandbookSourceProjection,
+    HandbookSourceProjectionsConfig,
+)
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_processed_artifact_key,
@@ -27,36 +31,6 @@ from campus_ingestion_core.object_store import (
     infer_year_label,
 )
 from campus_ingestion_core.split_manifest import SplitManifestDocument
-
-HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION = "student_rules_source_projections_v1"
-
-
-@dataclass(frozen=True, slots=True)
-class HandbookSourceProjection:
-    projection_name: str
-    target_corpus: str
-    target_collection: str
-    projection_family: str
-    replay_from_source_truth: bool
-    derived_from: str
-    derived_from_document_id: str | None
-    parent_document_id: str | None
-    attachment_kind: str | None
-    attachment_role: str | None
-    target_title: str | None = None
-    migration_reason: str | None = None
-    source_title: str | None = None
-    source_handbook_section: str | None = None
-    source_page_start: int | None = None
-    source_page_end: int | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class HandbookSourceProjectionsConfig:
-    source_corpus: str
-    source_collection: str
-    raw_asset_id: str
-    projections: tuple[HandbookSourceProjection, ...]
 
 
 def read_handbook_source_projections_config_path(source: dict[str, str]) -> Path:
