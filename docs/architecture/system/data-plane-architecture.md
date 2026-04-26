@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-20
+updated: 2026-04-26
 ---
 # Data Plane Architecture
 
@@ -218,7 +218,14 @@ registry / control-plane database 与对象存储长期分层。
 固定规则：
 
 - Postgres 只承载 registry、run/progress truth 与其他关系型 metadata
+- 对 structured projection，Postgres 还承载 release catalog、current pointer
+  与 typed read model；这属于关系型 metadata / query projection，不等于把对象 bytes
+  迁入 Postgres
 - 对象 bytes 不迁入 Postgres，也不改变 `S3-compatible object storage` 的长期语义
+- 对象存储继续保存 immutable release artifact、manifest、validation summary 与 replay
+  所需 payload
+- Redis 只允许作为 cache / invalidation adjunct，不拥有 source truth、release catalog、
+  current pointer 或 typed read model
 - 当共享 Postgres 由 Supabase 承载且 repo-owned runtime 采用 IPv4-only 姿态时，运行时连接规则以
   `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md` 为准
 

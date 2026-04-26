@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-03-29
+updated: 2026-04-26
 ---
 # ADR-0010 观测与遥测栈决策
 
@@ -14,7 +14,8 @@ updated: 2026-03-29
 `campus-agent` 的长期运行形态不是单一 HTTP 服务，而是至少包含：
 
 - `apps/supervisor-api` 入口边界
-- `packages/supervisor-core` 编排与审计投影
+- `apps/supervisor-api` execution runtime、runtime policy、finalization 与审计投影
+- `apps/supervisor-agent-worker` private agent bridge
 - `packages/rag-agent` / `packages/retrieval-core` 的在线回答链路
 - `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
 - 后续 Cloudflare public entry、consumer app 与其他 agent 的运行时壳

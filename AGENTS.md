@@ -4,7 +4,7 @@
 
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
-- 当前主路径是 `supervisor-api -> supervisor-core -> rag-agent -> retrieval-core`
+- 当前主路径是 `supervisor-api -> supervisor-agent-worker -> agent -> retrieval-core`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平
   tool
 - 当前 accepted merged truth 已具备 `student_rules` 与 `curriculum_plan` 两条受控
@@ -202,7 +202,8 @@
 
 以下规则只在“用户原意已经被准确理解之后”生效。
 
-- 不要把 retrieval 实现细节、索引构建逻辑或向量数据库特定代码拉回 `packages/supervisor-core`
+- 不要把 retrieval 实现细节、索引构建逻辑或向量数据库特定代码拉进 supervisor execution /
+  agent-worker 层
 - 不要把 `campusRAG` 再建模成入口 agent 直接调用的扁平 tool；v2 的主模型是 supervisor -> agent handoff
 - 不要让 `Agno`、`LlamaIndex`、`Qdrant`、`MinIO` 或其他具体基础设施类型泄漏进 `packages/contracts`
 - 不要把 online query path 和 offline ingestion/data plane 混在同一层
@@ -259,8 +260,8 @@
 优先把可独立处理的子任务拆开处理，但前提是任务天然可并行、边界清晰、责任可分配。
 
 - 先判断是否存在独立子任务；如果可以拆开，优先按模块边界委派，而不是把所有工作串行堆给主代理
-- 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、`rag-agent` /
-  `supervisor-core`、`evals`
+- 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、
+  `supervisor-agent-worker` / `rag-agent`、`evals`
 - 按依赖顺序并行，不要无视 contract 和强耦合关系；当前执行分批以 `.planning/` 中的 active phase/context/plan
   为准
 - 并行工作时避免共享写集；每个 subagent 应拥有明确的文件或模块责任
@@ -352,9 +353,13 @@ pnpm web:build:affected
 
 ## Repo Map
 
-- `apps/supervisor-api`: 对外服务边界与 transport adapter；不要把核心编排逻辑塞进这里
+- `apps/supervisor-api`: Go-owned deterministic runtime/control-plane；负责
+  execution admission、capability / policy gate、structured runtime planning、
+  Go finalization 与 runtime observability，不接管 agent semantic reasoning、
+  prompt/provider execution 或 retrieval backend 细节
+- `apps/supervisor-agent-worker`: Python private semantic worker；负责 bridge DTO
+  防御性校验、prompt runtime assembly 与 agent delegate dispatch
 - `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排
-- `packages/supervisor-core`: supervisor 的路由、委派、答案组装与升级逻辑
 - `packages/rag-agent`: 知识域 agent 入口；负责 retrieval 导向的 query/answer/confidence 逻辑
 - `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径
 - `packages/ingestion-core`: ingestion/data plane

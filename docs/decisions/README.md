@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-23
+updated: 2026-04-26
 ---
 
 # Decisions
@@ -59,6 +59,7 @@ updated: 2026-04-23
 - `adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
 - `adr-0029-ipv4-session-pooler-postgres-connectivity.md`
+- `adr-0044-structured-projection-release-catalog-and-read-model.md`
 
 ## Navigation 与 institution semantics
 

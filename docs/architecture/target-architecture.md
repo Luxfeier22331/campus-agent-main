@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 # 目标架构
 
@@ -135,6 +135,9 @@ raw/source-truth/projection/document/chunk/index`
   `app-api` loopback HTTP
 - projection-backed internal query service 可优先采用 Go 实现，以降低 Docker-side runtime
   latency / memory cost；这不改变 domain-agent 的 capability owner 角色
+- 对 structured projection capability，长期 online consumption 固定为 PostgreSQL
+  release catalog / current pointer / typed read model；对象存储保存 immutable release
+  artifacts，Redis 只能作为 cache / invalidation adjunct，不拥有 current truth
 
 如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 agent 接入，并拥有单独的
 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。

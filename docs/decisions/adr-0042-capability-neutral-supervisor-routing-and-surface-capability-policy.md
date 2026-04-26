@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0042
 status: accepted
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-26
 ---
 # ADR-0042 Capability-Neutral Supervisor Routing And Surface Capability Policy
 
@@ -16,7 +16,7 @@ Accepted on 2026-04-23.
 `campus-agent` 当前已经冻结了以下方向：
 
 - `campus-agent` 是 institution-scoped campus assistant，而不是开放域 generalist
-- `apps/app-api -> apps/supervisor-api -> packages/supervisor-core -> agent`
+- `apps/app-api -> apps/supervisor-api -> apps/supervisor-agent-worker -> agent`
   是长期执行主链
 - `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent` 已作为当前或前向
   capability family 落盘
@@ -139,7 +139,7 @@ knowledge/RAG 问题。
 - 后续 architecture 文档必须把 capability-neutral routing 与 knowledge-family retrieval
   分开书写
 - `requested_scope` 的长期语义必须收窄为 knowledge-family-specific field
-- `apps/app-api`、`apps/supervisor-api`、`packages/supervisor-core` 与 agent
+- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker` 与 agent
   的边界说明必须围绕 `surface policy -> admission -> routing -> agent` 收口
 - 当前 browser-facing / internal execution contract 若还保留 `requested_capability +
   requested_scope`，必须显式区分 current truth 与 forward evolution

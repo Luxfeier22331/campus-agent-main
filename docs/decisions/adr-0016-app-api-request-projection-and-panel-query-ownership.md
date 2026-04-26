@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-04-10
+updated: 2026-04-26
 ---
 # ADR-0016 App API Request Projection And Panel Query Ownership
 
@@ -16,8 +16,7 @@ projection、panel `Requests` domain 的长期 ownership
 
 - `apps/supervisor-api` 是 execution engine boundary
 - `apps/app-api` 已被接受并实现为 shared application/control-plane backend
-- `packages/supervisor-core` 已能产出最小 audit record
-- `apps/supervisor-api` 当前仍会把该 audit record 持久化到 JSONL
+- `apps/supervisor-api` 当前拥有 execution audit summary 与 response observability projection
 - chat conversation history 会记录 `request_id`
 - protected panel 已冻结为 `runtime APIs only` 的 protected Worker shell；forward
   web-surface 名称为 `apps/protected-panel-web`
@@ -30,7 +29,7 @@ projection、panel `Requests` domain 的长期 ownership
 
 - panel 直接读 audit log 或 telemetry sink
 - conversation store 被误当成 request truth
-- `packages/supervisor-core` 被反向扩成 request read-model host
+- `apps/supervisor-agent-worker` 被反向扩成 request read-model host
 - `apps/supervisor-api` 顺手继续长成 panel query backend
 
 ## 决策 1：canonical request facts 与 projection input 一次产出
@@ -80,17 +79,19 @@ projection、panel `Requests` domain 的长期 ownership
 - execution engine 与 operator query 是不同产品边界
 - 否则会重新把 `supervisor-api` 扩回产品 backend
 
-## 决策 4：`packages/supervisor-core` 只拥有最小 audit / trace projector
+## 决策 4：agent worker 不拥有 panel read model host
 
 结论：
 
-- `packages/supervisor-core` 继续拥有最小 audit / trace 语义投影
+- `apps/supervisor-agent-worker` 只返回 private `AgentResponse`
 - 不拥有 request projection store、list/detail API 或面向 panel 的 read model host
+- execution audit summary、response observability projection 与 public
+  finalization 由 `apps/supervisor-api` 拥有
 
 原因：
 
-- supervisor-core 的职责是编排与最小治理语义，而不是产品 surface 数据面
-- 这样可以保持 `packages/*` 与 `apps/*` 的长期边界清晰
+- agent worker 的职责是 private semantic worker，而不是产品 surface 数据面
+- 这样可以保持 product-layer、execution runtime 与 agent semantic worker 的边界清晰
 
 ## 决策 5：以下数据面不是 canonical request projection truth
 
@@ -136,7 +137,7 @@ projection、panel `Requests` domain 的长期 ownership
 
 - 不让 panel 直接读取 JSONL audit
 - 不让 telemetry sink 兼任 panel 主数据面
-- 不把 request projection read-model host 做进 `packages/supervisor-core`
+- 不把 request projection read-model host 做进 `apps/supervisor-agent-worker`
 - 不让 `apps/supervisor-api` 顺手扩成 panel 查询后端
 
 ## 相关文档

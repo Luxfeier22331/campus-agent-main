@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0015
 status: accepted
 created: 2026-03-28
-updated: 2026-04-03
+updated: 2026-04-26
 ---
 # ADR-0015 用户身份、长期记忆与个性化边界
 
@@ -40,7 +40,7 @@ Accepted on 2026-03-28.
 - canonical app identity 由 `apps/app-api` 拥有
 - browser cookie、Access JWT、Worker admission 或 edge trust material 只属于
   runtime-boundary input
-- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 只消费
+- `apps/supervisor-api`、`apps/supervisor-agent-worker`、`packages/rag-agent` 只消费
   `app-api` 投影后的 typed actor context
 
 这意味着：

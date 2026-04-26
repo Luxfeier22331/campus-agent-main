@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-21
-updated: 2026-04-22
+updated: 2026-04-26
 ---
 # RAG Agent Retrieval Plan Contract
 
@@ -60,7 +60,8 @@ seam。
 固定规则：
 
 - `packages/contracts` 当前不承载 `RetrievalPlan / RetrievalStep / StepResult`
-- `app-api`、`supervisor-core`、browser surface 不得依赖这组内部类型
+- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker` 与
+  browser surface 不得依赖这组内部类型
 - operator / browser 最终只应看到衍生后的 supporting evidence 或 operator-safe execution
   summary，而不是 raw plan / raw vendor payload
 

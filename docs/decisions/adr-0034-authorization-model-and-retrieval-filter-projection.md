@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0034
 status: accepted
 created: 2026-03-29
-updated: 2026-04-10
+updated: 2026-04-26
 ---
 # ADR-0034 授权模型与检索过滤投影
 
@@ -35,7 +35,7 @@ Accepted on 2026-03-29.
 
 - `apps/app-api` 拥有 canonical principal mapping、entitlement truth、resource
   ownership truth 与 approval truth
-- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 与
+- `apps/supervisor-api`、`apps/supervisor-agent-worker`、`packages/rag-agent` 与
   `packages/retrieval-core` 只消费最小化 typed authz projection
 - edge / Worker / Cloudflare Access 侧身份材料只属于 boundary input，不等于 canonical
   authorization truth

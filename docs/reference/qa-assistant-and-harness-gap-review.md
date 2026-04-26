@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-26
 ---
 
 # QA Assistant And Harness Gap Review
@@ -46,7 +46,7 @@ accepted merged truth，也不把 deferred / backlog 能力冒充为已上线。
 ## Summary
 
 当前方向正确：产品问答仍应保持
-`public-chat-web -> app-api -> supervisor-api -> supervisor-core -> agent`
+`public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker -> agent`
 的 supervisor-led 主链路。这里讨论的 harness 指校园问答助手产品自身的
 quality harness：eval、trace、guardrail、review 与 badcase 回流闭环；
 它不是 repo-owned workstream execution harness。
@@ -269,9 +269,10 @@ offline / deferred / fail-close posture。
 ### QA-002: Capability Routing Still Has Heuristic Edges
 
 目标态要求先判 capability family，再进入 family 内部 execution path。
-当前 `packages/supervisor-core/src/campus_supervisor_core/routing.py`
-已经有 structured runtime candidate 识别，但 transport / service /
-notice 仍主要靠关键词判断，其他 delegate 默认进入 `rag-agent`。
+当前 Go `apps/supervisor-api/internal/runtimepolicy` 与
+`apps/supervisor-api/internal/structuredplanning` 已拥有 runtime policy /
+structured planning；后续缺口应继续在 Go-owned admission / policy artifact /
+handoff observability 上收口，而不是恢复 Python-side routing。
 
 影响：
 

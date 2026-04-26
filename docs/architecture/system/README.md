@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-26
 ---
 # System Architecture
 
@@ -23,6 +23,7 @@ execution、retrieval、data-plane、observability 等系统级边界。
 - `data-plane-architecture.md`
 - `file-asset-loader-architecture.md`
 - `operator-observability-architecture.md`
+- `python-capability-boundaries.md`
 
 ## 使用规则
 

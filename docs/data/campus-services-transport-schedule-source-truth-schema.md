@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-26
 ---
 # Campus Services Transport Schedule Source-Truth Schema
 
@@ -29,23 +29,52 @@ artifact schema。
 ## Core Conclusion
 
 第一版真实 transport schedule projection 只消费
-`authenticated_notice_portal` notice source truth。
+`authenticated_notice_portal` notice 经过 `notice_consumption_projection` 显式准入后的
+ready transport candidates。
 
 固定规则：
 
 - `authenticated_notice_portal` 仍是 source-channel owner；本文不创建新的 source
   channel
+- `notice_consumption_projection` 是 transport schedule 下游物化的准入边界；builder
+  不得在下游重新扫描全部 notice inventory
 - `campus_services/transport_schedule` 是下游 structured projection owner，不是
   generic retrieval collection
 - 班次时间、停运、临时调整必须有 notice provenance
 - route / stop canonical seed 由 repo config/code 持有；具体班次事实不得无来源手写
-- builder 离线展开 90 天服务日；Go runtime 不持有 recurrence parser
-- 对象存储保存 versioned/current projection truth；Docker runtime 只读 mounted current
-  file
+- builder 离线展开 baseline 的 90 天服务日；bounded temporary overlay 按显式服务日期范围展开，
+  Go runtime 不持有 recurrence parser
+- 对象存储保存 immutable versioned projection artifact；长期 online consumption 通过
+  PostgreSQL release catalog、current pointer 与 typed transport schedule read model
+  完成
+- mounted current file 只属于 bootstrap / smoke compatibility，不是长期 production
+  consumption truth
 
 ## Input Source Truth
 
-输入来自 authenticated notice source-truth inventory 中的 parent notice。
+输入来自 authenticated notice consumption projection 中的 ready transport candidate：
+
+- `target_surface=campus_services/service_status_candidate`
+- `consumption_status=ready_for_target_materialization`
+- `role_metadata.service_status_candidate_kind=transport_schedule`
+
+每个 projection entry 必须保留 parent notice provenance，并可携带 OCR 子文档引用：
+
+- `source_notice_document_id`
+- `source_notice_id`
+- `source_attachment_ref_ids`
+- `role_metadata.attachment_document_ids`
+
+OCR 子文档只从 derived canonical artifacts 读取：
+
+- `document-units.jsonl`
+- `canonical.md`
+
+其中表格抽取以 `document-units.jsonl` 的 `table_cells` 为准，允许 builder 对 OCR
+表格做领域清洗，例如 merged-cell fill-down、方向归一化、时间归一化和年内生效日补齐。
+
+legacy inventory 模式仍可用于早期 source-truth parent smoke，但不是首选生产路径。
+该模式输入来自 authenticated notice source-truth inventory 中的 parent notice。
 
 每个 parent 至少需要：
 
@@ -69,7 +98,7 @@ export、raw HTML 或附件 OCR 输出。
 
 ## Route Canonical Seed
 
-第一版固定三条 route identity：
+第一版固定五条 route identity：
 
 - `route:haidian-to-fengtai`
   - display name: `海淀到丰台通勤车`
@@ -83,12 +112,22 @@ export、raw HTML 或附件 OCR 输出。
   - display name: `地铁接驳车`
   - service family: `subway_shuttle`
   - default calendar: daily
+- `route:fengtai-to-wukesong-subway`
+  - display name: `丰台到五棵松地铁接驳车`
+  - service family: `subway_shuttle`
+  - default calendar: daily
+- `route:wukesong-subway-to-fengtai`
+  - display name: `五棵松到丰台地铁接驳车`
+  - service family: `subway_shuttle`
+  - default calendar: daily
 
 站点第一版只保留 route-level stop refs，用于回答与后续 navigation handoff：
 
 - `stop:haidian-east-gate`
 - `stop:fengtai-main-gate`
 - `stop:subway-station`
+- `stop:fengtai-juyacanting-parking-lot`
+- `stop:wukesong-subway-a-north`
 
 如果 notice 文本中的路线、方向或站点无法稳定映射到上述 identity，builder 必须把该
 source 写入 manual-review report，不得猜测写入 current projection。
@@ -114,6 +153,20 @@ source 写入 manual-review report，不得猜测写入 current projection。
 - `effective_until`
 - `source_ref`
 - `is_current`
+- `schedule_scope`
+  - `baseline_revision`
+  - `temporary_period`
+  - `temporary_period_revision`
+  - `exception_status`
+- `service_date_ranges`
+  - `start_date`
+  - `end_date`
+- `precedence`
+
+`is_current=true` 只表示当前 baseline snapshot。临时调整、寒暑假班次、周末接驳等
+bounded overlay 不通过 `is_current` 表示有效性，而是通过
+`service_date_ranges + precedence` 在 `transport_schedule_lookup` 中按 requested
+service date 覆盖 baseline。范围外查询必须回落到 current baseline。
 
 `scheduled_departures` 保存已展开的服务日：
 
@@ -142,7 +195,7 @@ versioned artifact：
 
 `campus_services/releases/transport_schedule/{release_id}/campus-services-projection.json`
 
-current artifact：
+compatibility current artifact：
 
 `campus_services/releases/transport_schedule/current/campus-services-projection.json`
 
@@ -152,8 +205,21 @@ current artifact：
 - `release-manifest.json`
 - `manual-review-report.json`
 
-`SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` 指向 Docker runtime 内 mounted readonly
-current projection file。Go `apps/supervisor-api` 不直接读对象存储，不持有对象存储凭据。
+第一版 local / smoke runtime 可以通过 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`
+读取 mounted readonly current projection file。该路径只表示 compatibility consumption
+surface，不代表长期 production truth。
+
+长期 production publication 必须同时写入 PostgreSQL：
+
+- release catalog：记录 `release_id`、schema、artifact object key、checksum、counts、
+  validation status 与 source notice provenance
+- current pointer：事务性指向当前 `(campus_services, transport_schedule)` release
+- typed read model：按 `release_id` 保存 routes、snapshots、scheduled departures、
+  service exceptions 与 release-notice provenance
+
+Go `apps/supervisor-api` 长期不直接读对象存储、不持有对象存储凭据，也不在 query-time
+解析 projection JSON。它通过 projection-backed internal query service 读取 PG current
+release 与 typed read model。
 
 ## Validation
 
@@ -168,6 +234,7 @@ current projection file。Go `apps/supervisor-api` 不直接读对象存储，�
 - service date 不是 `YYYY-MM-DD`
 - exception 引用不存在的 snapshot / route
 - related notice ref 无法回链到 snapshot source refs
+- bounded overlay 缺 `service_date_ranges`
 
 以下情况进入 manual review，不写入 current projection：
 

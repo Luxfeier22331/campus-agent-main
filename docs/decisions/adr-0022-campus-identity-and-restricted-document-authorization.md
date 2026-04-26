@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0022
 status: accepted
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-26
 ---
 # ADR-0022 Campus Identity And Restricted Document Authorization
 
@@ -43,7 +43,7 @@ updated: 2026-04-02
 - resource ownership truth
 - approval truth
 
-`apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 与
+`apps/supervisor-api`、`apps/supervisor-agent-worker`、`packages/rag-agent` 与
 `packages/retrieval-core` 只消费 typed projection，不自行重建最终权限结论。
 
 ### 决策 2：restricted document authorization 采用 ABAC 为主、ownership 为辅的模型
