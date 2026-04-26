@@ -26,7 +26,7 @@
 	--docs-reader-page-max-full: 88rem;
 	--docs-reader-page-max: var(--docs-reader-page-max-wide);
 	--docs-prose-measure: 64rem;
-	--docs-outline-width: 9.75rem;
+	--docs-outline-width: 14rem;
 	--docs-outline-gutter: 24px;
 	--docs-table-header-bg: var(--docs-surface-soft);
 	--docs-table-section-bg: color-mix(in srgb, var(--rp-c-text-1) 3%, var(--rp-c-bg, #ffffff));
@@ -474,8 +474,8 @@ main.rp-doc-layout__doc-container {
 	:root {
 		--docs-sidebar-width: 18rem;
 		--docs-reader-padding: 2.5rem;
-		--docs-outline-width: 9.75rem;
-		--docs-outline-gutter: 32px;
+		--docs-outline-width: 14rem;
+		--docs-outline-gutter: 40px;
 	}
 
 	.rp-doc-layout__container .rp-doc-layout__outline,
@@ -487,7 +487,9 @@ main.rp-doc-layout__doc-container {
 	}
 
 	.rp-doc-layout__container .rp-doc-layout__outline {
-		overflow-wrap: anywhere;
+		overflow-wrap: break-word;
+		word-break: normal;
+		text-wrap: pretty;
 	}
 }
 

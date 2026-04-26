@@ -66,14 +66,20 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("--docs-table-hint-bg: var(--docs-surface-soft);");
 		expect(css).not.toContain("--docs-table-header-bg: color-mix(in srgb, var(--docs-accent)");
 		expect(css).not.toContain("--docs-table-section-bg: color-mix(in srgb, var(--docs-accent)");
-		expect(css).toContain("--docs-outline-width: 9.75rem;");
+		expect(css).toContain("--docs-outline-width: 14rem;");
 		expect(css).toContain("--docs-outline-gutter: 24px;");
-		expect(css).toContain("--docs-outline-gutter: 32px;");
+		expect(css).toContain("--docs-outline-gutter: 40px;");
 		expect(css).toContain("--rp-sidebar-margin-left: var(--docs-sidebar-gutter);");
 		expect(css).toContain("--rp-outline-width: var(--docs-outline-width);");
 		expect(css).toContain("--rp-outline-margin-right: var(--docs-outline-gutter);");
 		expect(css).toContain("width: var(--docs-outline-width);");
 		expect(css).toContain("margin-right: var(--docs-outline-gutter);");
+		expect(css).toContain(
+			".rp-doc-layout__container .rp-doc-layout__outline {\n\t\toverflow-wrap: break-word;\n\t\tword-break: normal;\n\t\ttext-wrap: pretty;\n\t}",
+		);
+		expect(css).not.toContain(
+			".rp-doc-layout__container .rp-doc-layout__outline {\n\t\toverflow-wrap: anywhere;",
+		);
 		expect(css).not.toContain("position: fixed !important;");
 		expect(css).not.toContain("right: max(16px, env(safe-area-inset-right)) !important;");
 		expect(css).not.toContain("height: calc(100dvh - var(--rp-nav-height, 64px)) !important;");
