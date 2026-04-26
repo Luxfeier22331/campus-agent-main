@@ -1,7 +1,7 @@
 ---
 workstream: document-site-and-canonical-reader
 created: 2026-04-21
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # Project State
@@ -15,14 +15,12 @@ updated: 2026-04-25
 **Total Phases:** 6
 **Total Plans in Phase:** 1
 **Progress:** 1/6 phases complete
-**Last Activity:** 2026-04-25
-**Last Activity Description:** Closed the public-docs IA/layout and generated
-content governance slice: student-handbook and curriculum-plan now generate
-grouped directories, generated canonical docs/assets are ignored and rejected
-if re-tracked, runtime components live under `src/components`, local clean-shell
-builds materialize only empty scaffold dirs, generated detail pages disable
-framework prev/next footers, and desktop/mobile live smoke passed on local
-Rspress.
+**Last Activity:** 2026-04-26
+**Last Activity Description:** Reverted the failed custom reader shell and
+restored the native Rspress `OriginalLayout`; generated pages still carry
+explicit `readerProfile` / `readerOutline` frontmatter, but those fields now
+drive only the legacy reader classes and content-width styling, not a replacement
+layout shell.
 
 ## Current Slice
 
@@ -81,6 +79,14 @@ Rspress.
     密集枚举分段与宽表横向滚动
   - `apps/public-docs` 课程地图组件已使用 occurrence key 处理同名同学期
     节点和重复边，避免 live smoke 中出现 React duplicate-key 渲染告警
+  - `apps/public-docs` 已恢复原生 Rspress `OriginalLayout`，不再自建
+    `Nav` / `Sidebar` / `DocContent` / `Outline` 组合；`readerProfile`
+    区分 `home` / `collectionLanding` / `manual` / `curriculum` / `flow`，
+    只映射到 `.rspress-doc` 上的 legacy reader classes，用于正文宽度与
+    reader styling
+  - `apps/public-docs` 已撤回上一轮 custom doc layout shell；该错误实现会
+    破坏 Rspress 原生 topnav 与 sidebar positioning，不得作为后续 shell
+    收口方向
   - `packages/ingestion-core/src/campus_ingestion_core/document_reader_assets.py`
     已存在 reader asset package builder 与 `public_docs` sync manifest builder
   - `apps/app-api/src/app/routes/docs.ts` 已注册 docs route shell
@@ -96,7 +102,9 @@ Rspress.
     不是 published reader assets + same-site `/api/docs/*` consumption
   - `public-docs` 当前 shell 还没有把 navigation / resolve / version /
     search 全部切到 `app-api` docs control-plane
-  - phase 文档此前仍把 docs app 写成“尚未存在”，这已不符合当前 repo 真相
+  - Rspress build 仍提示 theme export 迁移 warning；当前 build 可通过，
+    后续若要消除 warning，应单独收口 theme export shape，而不是替换原生
+    shell
 
 ## Blockers
 
@@ -112,11 +120,16 @@ Rspress.
 - `pnpm --filter public-docs typecheck`
 - `pnpm --filter public-docs lint:generated`
 - `pnpm --filter public-docs build`
+- `pnpm --filter public-docs sync:real-docs`
 - `pnpm web:lint`
 - `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_provider_normalize`
 - static scans for dense `(1)` / `1)` enumerations, unstyled course-list lead-ins,
   stale global-competence slash, stale cross-discipline split, stale sample docs
   directories, and unstyled weak curriculum subsection labels
+- Chrome DevTools MCP smoke on `http://127.0.0.1:4178` for home,
+  curriculum landing, student-handbook manual page, curriculum page, desktop
+  native topnav/sidebar positioning, sidebar/outline geometry, mobile native
+  menu behavior, and horizontal overflow
 - Playwright smoke on `http://127.0.0.1:5177` for home, student-handbook
   index/grouped workflow page, curriculum index, computer/design curriculum pages,
   desktop sidebar IA, mobile search/menu presence, wide-table behavior,
@@ -124,9 +137,10 @@ Rspress.
 
 ## Session Continuity
 
-**Stopped At:** `public-docs` canonical rendering and IA/layout slices 已收口并
-通过本地 gate / live smoke；生成内容 ignore / re-track gate / clean-shell
-scaffold 也已落地。下一次恢复应回到 `Phase 2` 的 runtime-backed docs
-service、published reader assets、same-site `/api/docs/*` shell consumption
-收口项，而不是继续扩展本轮生成器/目录修复。
+**Stopped At:** `public-docs` canonical rendering、IA/layout、generated
+content governance 已收口；错误的 custom reader shell 已撤回并恢复原生
+Rspress shell。下一次恢复应回到 `Phase 2` 的 runtime-backed docs service、
+published reader assets、same-site `/api/docs/*` shell consumption 收口项；
+如果继续做 shell，只允许在原生 Rspress shell 上做受控样式/metadata 扩展，
+不得再替换 topnav/sidebar/layout primitives。
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/PLAN.md
