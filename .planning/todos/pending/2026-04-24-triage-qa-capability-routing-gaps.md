@@ -2,14 +2,16 @@
 created: 2026-04-24T08:57:38+08:00
 title: 梳理问答能力面与路由缺口
 area: planning
-owner: supervisor-core
+owner: supervisor-api
 priority: backlog-after-app-api
 files:
   - docs/reference/qa-assistant-and-harness-gap-review.md
   - docs/architecture/current-architecture.md
   - docs/architecture/target-architecture.md
   - docs/architecture/system/execution-and-agents-architecture.md
-  - packages/supervisor-core/src/campus_supervisor_core/routing.py
+  - apps/supervisor-api/internal/runtimepolicy/
+  - apps/supervisor-api/internal/structuredplanning/
+  - configs/runtime/intent-policy.v1.json
   - .planning/workstreams/campus-services-notices-runtime-admission/STATE.md
   - .planning/workstreams/restricted-document-rollout-verification/README.md
 ---
@@ -22,12 +24,11 @@ query-enabled surface 只有 `regulations/student_rules` 与
 fresh news 与 live-assisted retrieval 仍处于 offline / deferred /
 fail-close posture。
 
-同时，`packages/supervisor-core/src/campus_supervisor_core/routing.py`
-已经具备 structured runtime candidate 识别，但 transport / service /
-notice 仍主要靠关键词判断，其他 delegate 默认回 `rag-agent`。这与长期
-capability-neutral routing 目标还有距离。
+当前 Go `apps/supervisor-api` 已拥有 runtime policy 与 structured planner；
+后续缺口不应恢复 Python-side routing，而应围绕 Go-owned policy artifact、
+structured runtime opening gate 与 agent handoff observability 做 triage。
 
-当前不进入 app-api-first scope；保留为 supervisor / capability routing backlog。
+当前不进入 app-api-first scope；保留为 supervisor-api / capability routing backlog。
 
 ## Solution
 
@@ -40,7 +41,9 @@ capability-neutral routing 目标还有距离。
    - restricted document rollout
    - campus navigation rollout
    - official-web news opening
-3. 对 `routing.py` 做 fail-close audit，确认哪些关键词路径只是 admission
-   helper，哪些需要升级成 code-owned policy / typed routing artifact。
+3. 对 `apps/supervisor-api/internal/runtimepolicy` 与
+   `apps/supervisor-api/internal/structuredplanning` 做 fail-close audit，确认哪些
+   signal 只是 admission helper，哪些需要升级成 code-owned policy / typed routing
+   artifact。
 4. 不把 query-disabled surface 临时打开；只有 backing query implementation、
    release-gate evidence 与 typed observability 同时成立时才进入 opening。

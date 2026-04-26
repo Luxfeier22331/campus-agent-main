@@ -9,7 +9,8 @@ files:
   - docs/architecture/system/operator-observability-architecture.md
   - docs/data/retrieval-query-activity-model.md
   - apps/app-api/src/modules/runtime-command/
-  - packages/supervisor-core/src/campus_supervisor_core/
+  - apps/supervisor-api/internal/httpapi/
+  - apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/
   - packages/rag-agent/src/campus_rag_agent/
 ---
 
@@ -29,8 +30,8 @@ projection。当前这些信息还没有一个足够稳定的产品 harness 视�
 prompt / 敏感 memory / restricted evidence 的前提下推进：
 
 1. 定义 answer trace replay 的最小字段与脱敏规则。
-2. 让 supervisor、rag-agent、retrieval activity 与 app-api projection 共享
-   stable correlation id。
+2. 让 Go supervisor runtime、Python agent worker、rag-agent、retrieval activity
+   与 app-api projection 共享 stable correlation id。
 3. 给 no-answer、clarification、policy refusal、unsupported-by-evidence 与
    deterministic answer path 各补一个 replay sample。
 4. 把 replay sample 接入 operator-safe observability，而不是返回给 public chat。
@@ -44,5 +45,5 @@ backlog；本任务先确认 app-api 如何接收、归一化、持久化和投�
   context、routing、execution、retrieval、answerQuality、prompt。
 - `replay` 只重组 operator-safe typed summary，不返回 raw prompt、raw answer、
   raw transcript、raw retrieved snippet、raw auth material 或 raw vendor payload。
-- supervisor / rag-agent / retrieval 侧更细的 route、handoff 与 retrieval diagnostic
-  生成逻辑仍作为非 app-api 后续任务处理。
+- supervisor-api / agent worker / rag-agent / retrieval 侧更细的 route、handoff 与
+  retrieval diagnostic 生成逻辑仍作为非 app-api 后续任务处理。

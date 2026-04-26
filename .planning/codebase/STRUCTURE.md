@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-31
+**Analysis Date:** 2026-04-26
 
 ## Directory Layout
 
@@ -13,7 +13,9 @@
 │   ├── ingestion-worker/     # Ingestion shells (`src/campus_ingestion_worker/`)
 │   ├── protected-panel-web/  # Protected panel Worker surface
 │   ├── public-chat-web/      # Public chat Worker surface
-│   └── supervisor-api/       # API routes + execution engine glue (`src/campus_supervisor_api/`)
+│   ├── public-docs/          # Public docs Worker surface
+│   ├── supervisor-agent-worker/ # Private Python bridge worker
+│   └── supervisor-api/       # Go execution engine
 ├── configs/                  # Static corpus/runtime profiles for ingestion
 │   └── ingestion/
 │       ├── campus_services/
@@ -32,18 +34,17 @@
 │   └── runbooks/
 ├── infra/                    # Local infrastructure descriptors
 │   └── local/
-├── packages/                 # Core capability packages (supervisor, specialist, retrieval, ingestion)
+├── packages/                 # Stable capability/data packages
 │   ├── campus-services-agent/
 │   ├── contracts/
 │   ├── evals/
 │   ├── ingestion-core/
-│   ├── navigation-specialist/
+│   ├── navigation-agent/
 │   ├── notice-agent/
 │   ├── official-web-core/
-│   ├── rag-specialist/
+│   ├── rag-agent/
 │   ├── retrieval-core/
-│   ├── shared/
-│   └── supervisor-core/
+│   └── shared/
 ├── tests/                    # Domain-targeted unit/regression suites
 ├── var/                      # Runtime artifacts (registries, import reports, backups)
 ├── pyproject.toml            # workspace + build configuration
@@ -59,8 +60,13 @@
 
 **apps/**
 - Purpose: surface runtime adapters plus the current shared Worker/web product surfaces.
-- Contains: `apps/supervisor-api/src/campus_supervisor_api/*`, `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/*`, `apps/public-chat-web/src/*`, and `apps/protected-panel-web/src/*`.
-- Key files: `build_routes` + `handle_answer` route definitions, ingestion worker shells that call `campus_ingestion_core.process_raw_ingestion_job`, `apps/app-api/src/app.ts`, `apps/app-api/src/index.ts`, `apps/public-chat-web/src/index.ts`, and `apps/protected-panel-web/src/index.ts`.
+- Contains: Go `apps/supervisor-api/internal/*`, Python
+  `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*`,
+  ingestion worker shells, `apps/app-api/src/*`, `apps/public-chat-web/src/*`,
+  `apps/public-docs/*`, and `apps/protected-panel-web/src/*`.
+- Key files: Go supervisor HTTP/runtime packages, Python bridge app/parser/delegate
+  modules, ingestion worker shells that call `campus_ingestion_core` entrypoints,
+  `apps/app-api/src/app.ts`, `apps/app-api/src/index.ts`, and Worker web entries.
 - Subdirectories: treat only tracked app directories as current merged-truth boundaries; historical 04.6/04.7 app references now live in docs/planning history rather than current `apps/` inventory.
 
 **configs/**
@@ -79,23 +85,27 @@
 - Contains: `infra/local/...` (monitor for environment-specific samples).
 
 **packages/**
-- Purpose: grouped capability packages where most business logic lives (contracts, supervisor, specialist, retrieval, ingestion, evals, shared utilities).
+- Purpose: grouped capability packages where most business logic lives (contracts,
+  agents, retrieval, ingestion, evals, shared utilities).
 - Contains: Python packages under `packages/*/src/<module>`.
 - Key files:
   - `packages/campus-services-agent/src/campus_services_agent/*.py` for structured campus-services tool orchestration.
   - `packages/contracts/src/campus_contracts/*.py` for request/response/evidence schemas.
-  - `packages/supervisor-core/src/campus_supervisor_core/*.py` for routing/agent coordination.
-  - `packages/navigation-specialist/src/campus_navigation_specialist/*.py` for place lookup behavior.
+  - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*.py` for
+    private bridge parsing and injected agent dispatch.
+  - `packages/navigation-agent/src/campus_navigation_agent/*.py` for place lookup behavior.
   - `packages/notice-agent/src/campus_notice_agent/*.py` for notice-tool orchestration.
   - `packages/official-web-core/src/campus_official_web_core/*.py` for official-web domain logic below app shells.
-  - `packages/rag-specialist/src/campus_rag_specialist/*.py` for specialist logic.
+  - `packages/rag-agent/src/campus_rag_agent/*.py` for agent logic.
   - `packages/retrieval-core/src/campus_retrieval_core/*.py` for vector retrieval backends.
   - `packages/ingestion-core/src/campus_ingestion_core/*.py` for ingestion pipelines, object store, and registries.
   - `packages/evals` for regression/eval scaffolding and `packages/shared` for immutable constants.
 - Subdirectories: each package carries its own `pyproject.toml` and README; extend within the appropriate package rather than creating new root-level directories.
 
 **tests/**
-- Purpose: unit and functional suites grouped by domain (`tests/supervisor`, `tests/specialist`, `tests/retrieval`, `tests/ingestion`, `tests/api`, `tests/contracts`, `tests/evals`).
+- Purpose: unit and functional suites grouped by domain (`tests/supervisor`,
+  `tests/agent`, `tests/retrieval`, `tests/ingestion`, `tests/api`, `tests/contracts`,
+  `tests/evals`).
 - Contains: `tests/test_workspace_layout.py` plus domain-specific fixtures (e.g., `tests/retrieval/test_backend_qdrant.py`).
 - Key files: domain tests mirror package layout and exercise the same boundaries as the runtime code.
 
@@ -112,27 +122,35 @@
 ## Key File Locations
 
 **Entry Points:**
-- `apps/supervisor-api/src/campus_supervisor_api/app.py` – builds `SupervisorApiApp` and wires HTTP/AgentOS runtime.
-- `apps/supervisor-api/src/campus_supervisor_api/api.py` – defines `/api/v1/answer`, `/healthz`, `/readyz`, error handling, and tracing.
+- `apps/supervisor-api/cmd/supervisor-api/main.go` – Go supervisor runtime entry.
+- `apps/supervisor-api/internal/httpapi/*.go` – `/api/v1/answer`, streaming,
+  readiness, metrics, cancellation, finalization, and bridge response handling.
 - `apps/app-api/src/index.ts` – Worker fetch/scheduled entrypoint for the shared app backend.
 - `apps/app-api/src/app.ts` – HTTP route composition for auth/chat/operator/official-web/runtime modules.
 - `apps/app-api/src/campus_app_api/projection.py` – retained Python `ContextProjection` seam used by shared contract-alignment tests.
 - `apps/public-chat-web/src/index.ts` – public Worker shell that proxies browser chat traffic into `app-api`.
 - `apps/protected-panel-web/src/index.ts` – protected Worker shell and internal bridge into `app-api`.
-- `packages/supervisor-core/src/campus_supervisor_core/agent.py` – supervisor handle loop that delegates to specialists.
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/app.py` – builds the
+  private bridge worker with injected agent delegates.
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/api.py` – private
+  bridge routes that return `AgentResponse`.
 - `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py` – ingestion worker shell that prints `ImportReport`.
 
 **Configuration:**
 - `pyproject.toml` – root uv workspace setup and workspace membership (`apps/*`, `packages/*`).
 - `uv.lock` – pinned dependencies for uv.
 - `packages/retrieval-core/src/campus_retrieval_core/settings.py` – Qdrant/document registry/embedding config.
-- `apps/supervisor-api/src/campus_supervisor_api/settings.py` – bearer token, runtime metadata, and audit logging path.
+- `apps/supervisor-api/internal/config/*.go` – supervisor runtime config.
 
 **Core Logic:**
 - `packages/contracts/src/campus_contracts/models.py` – type-level contracts shared across packages.
-- `packages/supervisor-core/src/campus_supervisor_core/*.py` – routing, policy, audit, response composition, and context creation.
-- `packages/rag-specialist/src/campus_rag_specialist/*.py` – specialist entrypoint/composition and confidence heuristics.
-- `packages/navigation-specialist/src/campus_navigation_specialist/*.py` – place-finding specialist behavior.
+- `apps/supervisor-api/internal/runtimepolicy` and
+  `apps/supervisor-api/internal/structuredplanning` – deterministic runtime policy and
+  structured planner.
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*.py` – bridge v6
+  parsing, prompt runtime setup, and injected agent dispatch.
+- `packages/rag-agent/src/campus_rag_agent/*.py` – agent entrypoint/composition and confidence heuristics.
+- `packages/navigation-agent/src/campus_navigation_agent/*.py` – place-finding agent behavior.
 - `packages/campus-services-agent/src/campus_services_agent/*.py` – structured campus-services runtime orchestration.
 - `packages/notice-agent/src/campus_notice_agent/*.py` – notice runtime orchestration.
 - `packages/official-web-core/src/campus_official_web_core/*.py` – official-web control-plane and source-truth logic.
@@ -153,7 +171,7 @@
 
 **Files:**
 - `snake_case.py` for modules and helper scripts (e.g., `process_raw_ingestion_job.py`, `backend_qdrant.py`).
-- `kebab-case` for runtime directories (e.g., `apps/supervisor-api`, `packages/supervisor-core`).
+- `kebab-case` for runtime directories (e.g., `apps/supervisor-api`, `apps/supervisor-agent-worker`).
 - `test_*.py` for unit tests under `tests/` mirroring package names.
 
 **Directories:**
@@ -168,14 +186,19 @@
 ## Where to Add New Code
 
 **New Feature (query path):**
-- Primary code: `packages/supervisor-core/src/campus_supervisor_core` (agent, routing, response) and `packages/contracts` if schema changes are required.
-- Tests: `tests/supervisor/` plus relevant domain suites (e.g., `tests/contracts/` for schema validation).
+- Primary deterministic/runtime code: `apps/supervisor-api/internal/*`.
+- Primary semantic agent code: the relevant `packages/*-agent` package.
+- Bridge-only Python code: `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
+  when private bridge parsing or agent delegate injection changes.
+- Tests: `tests/supervisor/`, Go package tests under `apps/supervisor-api`, plus relevant
+  domain suites.
 - Config: update `configs/ingestion` only when a new corpus or runtime profile is introduced.
 
-**New Specialist or Retrieval Module:**
-- Implementation: `packages/rag-specialist/src/campus_rag_specialist` for specialist orchestration, `packages/retrieval-core/src/campus_retrieval_core` for backend adapters.
+**New Agent or Retrieval Module:**
+- Implementation: `packages/rag-agent/src/campus_rag_agent` for knowledge-agent
+  orchestration, `packages/retrieval-core/src/campus_retrieval_core` for backend adapters.
 - Types: `packages/contracts/src/campus_contracts/models.py` when adding new handoff fields or statuses.
-- Tests: `tests/specialist/` and `tests/retrieval/` for the new behavior/backends.
+- Tests: `tests/agent/` and `tests/retrieval/` for the new behavior/backends.
 
 **New Ingestion Capability:**
 - Implementation: `packages/ingestion-core/src/campus_ingestion_core` (raw ingestion, chunking, registry helpers).
@@ -188,7 +211,7 @@
 - Tests: `tests/contracts/` or package-specific suites as necessary.
 
 **Runtime Shells & Scripts:**
-- API adjustments: `apps/supervisor-api/src/campus_supervisor_api/`.
+- API adjustments: `apps/supervisor-api/internal/*`.
 - Ingestion shells: `apps/ingestion-worker/src/campus_ingestion_worker/`.
 - Shared app/backend runtime: `apps/app-api/src/`.
 - Worker web surfaces: `apps/public-chat-web/src/` and `apps/protected-panel-web/src/`.

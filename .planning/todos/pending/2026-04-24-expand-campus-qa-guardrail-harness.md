@@ -9,7 +9,8 @@ files:
   - docs/architecture/system/prompt-and-instruction-architecture.md
   - docs/architecture/system/identity-and-authorization-architecture.md
   - packages/evals/
-  - packages/supervisor-core/src/campus_supervisor_core/
+  - apps/supervisor-api/internal/runtimepolicy/
+  - apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/
   - packages/rag-agent/src/campus_rag_agent/
 ---
 

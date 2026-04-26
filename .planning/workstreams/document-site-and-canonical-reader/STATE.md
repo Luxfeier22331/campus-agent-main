@@ -16,11 +16,10 @@ updated: 2026-04-26
 **Total Plans in Phase:** 1
 **Progress:** 1/6 phases complete
 **Last Activity:** 2026-04-26
-**Last Activity Description:** Reverted the failed custom reader shell and
-restored the native Rspress `OriginalLayout`; generated pages still carry
-explicit `readerProfile` / `readerOutline` frontmatter, but those fields now
-drive only the legacy reader classes and content-width styling, not a replacement
-layout shell.
+**Last Activity Description:** Scoped the desktop `public-docs` sidebar
+collapse control to the Rspress document body: collapse no longer mutates global
+Rspress sidebar variables or shifts the topnav, collapsed reading mode keeps a
+larger left content inset, and mobile keeps the native Rspress menu path.
 
 ## Current Slice
 
@@ -80,10 +79,50 @@ layout shell.
   - `apps/public-docs` 课程地图组件已使用 occurrence key 处理同名同学期
     节点和重复边，避免 live smoke 中出现 React duplicate-key 渲染告警
   - `apps/public-docs` 已恢复原生 Rspress `OriginalLayout`，不再自建
-    `Nav` / `Sidebar` / `DocContent` / `Outline` 组合；`readerProfile`
-    区分 `home` / `collectionLanding` / `manual` / `curriculum` / `flow`，
-    只映射到 `.rspress-doc` 上的 legacy reader classes，用于正文宽度与
-    reader styling
+    `Nav` / `Sidebar` / `DocContent` / `Outline` 组合；reader frontmatter
+    已从 `readerProfile` 收口为 `documentKind` / `readerLayout` /
+    `readerMeasure` / `readerOutline`，其中文档来源类型不再直接决定正文
+    宽度
+  - `apps/public-docs` reader CSS 已改为 page measure 与 prose measure
+    分离：页面容器按 `standard` / `wide` / `full` 占用正文区，普通段落
+    独立限制行长，表格、流程图等结构化块允许在同一页面内展开
+  - `apps/public-docs` 文档来源与版本元信息已收口为低打扰摘要：
+    默认只显示面向用户的版本、原文页码与来源标签，raw PDF filename、
+    `doc_id` / `version_id` / collection 等审计字段进入 `来源详情`
+    fixed disclosure，默认 `当前展示版` 状态不再暴露
+  - `apps/public-docs` collection sidebar 已去掉 `学生手册概览` /
+    `培养方案概览` 子入口；顶层 `学生手册` / `培养方案` 仍链接到各自
+    index 页面，左侧目录直接进入实际分类
+  - `apps/public-docs` desktop reader padding 已拆为
+    `--docs-reader-padding-left` / `--docs-reader-padding-right`，左侧比右侧
+    多 `0.5rem`；移动端仍使用原有窄屏 padding，避免牺牲正文宽度
+  - `apps/public-docs` 已在原生 Rspress shell 上新增桌面整栏目录收起/
+    展开控件：通过 global UI component 写入 `data-docs-sidebar` 状态，
+    CSS 收起 native sidebar shell，localStorage 记忆用户选择；收起状态
+    同步 `aria-hidden` / `inert`，避免隐藏目录继续进入键盘与可访问树；
+    `<900px` 移动断点会清除桌面状态并继续走 Rspress 原生移动菜单；收起
+    状态只作用于 `.rp-doc-layout__container` 内部，不再覆盖
+    `--rp-sidebar-width` / `--rp-sidebar-margin-left` 等全局 Rspress 变量，
+    因此 topnav 在展开/收起时保持固定坐标；正文通过
+    `--docs-reader-collapsed-padding-left` 获得更大的左侧阅读留白
+  - `apps/public-docs` canonical document tables 保持静态文档阅读模型，不引入
+    TanStack Table 这类交互 data-grid；表头、分组、sticky 首列与横向滚动
+    提示已改用中性白灰 tokens，避免把学校绿色 accent 扩散到整张表格
+  - `packages/ingestion-core` 课程地图 inventory 已适配 MinerU 的图文顺序：
+    支持 `figure_title` / `figure_caption` / `table_caption` 中出现
+    `课程地图` / `拓扑图` hint 后的图片块，也支持图片块紧邻且位于后续
+    `课程地图` heading 之前的版式；这修复了
+    `中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案`
+    page 125 的漏识别
+  - 当前课程地图覆盖率为 `47/70` 个培养方案页面；全部本科专业与专业类
+    已有课程地图，剩余 `23` 个无课程地图页面分布在通识课程、第二学士
+    学位、大学生社会实践环节实施方案、少数民族预科教育人才培养方案，以及
+    理工科交叉创新人才培养实验班本科人才培养方案
+  - 剩余 `23` 个无课程地图页面已回查当前 MinerU layout：
+    `22` 个没有课程地图 hint 与图片；理工科交叉创新实验班仅包含
+    `参见各专业培养方案的课程地图` 文本，没有图像块；通识课程“大学体育”
+    有 1 个 image row，但没有课程地图 hint，父级为 `1. 第5—7学期`，
+    不应作为课程地图发布
   - `apps/public-docs` 已撤回上一轮 custom doc layout shell；该错误实现会
     破坏 Rspress 原生 topnav 与 sidebar positioning，不得作为后续 shell
     收口方向
@@ -134,13 +173,43 @@ layout shell.
   index/grouped workflow page, curriculum index, computer/design curriculum pages,
   desktop sidebar IA, mobile search/menu presence, wide-table behavior,
   course-map render/image loading, and generated footer suppression
+- Chrome DevTools MCP smoke on `http://127.0.0.1:4178` design curriculum page
+  for neutral desktop table colors, no console messages, and mobile row-card
+  table reading behavior
+- `uv run --all-packages python -m unittest
+  tests.ingestion.curriculum_course_map_multimodal_probe_inventory_suite
+  tests.ingestion.test_curriculum_course_map_docs_surface
+  tests.ingestion.test_materialize_curriculum_course_map_docs_surface_worker`
+- `pnpm --filter public-docs exec vitest run test/sync-real-docs.test.ts -t
+  "CourseMap|course map|course-map|课程地图" --testTimeout=30000`
+- `pnpm --filter public-docs exec vitest run test/sync-real-docs.test.ts
+  --testTimeout=120000`
+- `pnpm --filter public-docs typecheck`
+- `pnpm --filter public-docs lint:generated`
+- `pnpm --filter public-docs build`
+- Chrome DevTools MCP smoke on `http://127.0.0.1:4177` strong-base ancient-script
+  curriculum page: `六、课程地图` renders, 3 course-map tabs are present, current
+  course-map image loads with HTTP 200, and console has no messages
+- `pnpm --filter public-docs exec vitest run test/sync-real-docs-reader-ui.test.ts`
+- `pnpm --filter public-docs typecheck`
+- `pnpm --filter public-docs build`
+- Chrome DevTools MCP smoke on `http://127.0.0.1:4177` curriculum pages:
+  desktop sidebar collapse/expand changes the whole native left sidebar width
+  between `288px` and `0px`, keeps topnav brand/search/nav coordinates unchanged,
+  increases desktop collapsed main left padding from `48px` to `64px`, persists
+  across reload, removes collapsed sidebar from a11y/keyboard flow via
+  `aria-hidden` / `inert`, does not overlap the document title, leaves mobile
+  `<900px` without the desktop toggle, and emits no console messages
 
 ## Session Continuity
 
 **Stopped At:** `public-docs` canonical rendering、IA/layout、generated
-content governance 已收口；错误的 custom reader shell 已撤回并恢复原生
-Rspress shell。下一次恢复应回到 `Phase 2` 的 runtime-backed docs service、
-published reader assets、same-site `/api/docs/*` shell consumption 收口项；
-如果继续做 shell，只允许在原生 Rspress shell 上做受控样式/metadata 扩展，
-不得再替换 topnav/sidebar/layout primitives。
+content governance、reader layout contract、source/version metadata display
+、强基计划古文字方向课程地图漏识别与桌面整栏目录收起/展开已收口；
+当前真实课程地图覆盖率为 `47/70`，剩余缺口均已按源文档无课程地图分类。
+错误的 custom reader shell 已撤回并恢复原生 Rspress shell；后续 shell
+改动只能在原生 Rspress shell 上做受控样式/metadata/interaction 扩展，不得
+再替换 topnav/sidebar/layout primitives。下一次恢复应回到 `Phase 2` 的
+runtime-backed docs service、published reader assets、same-site `/api/docs/*`
+shell consumption 收口项。
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/PLAN.md

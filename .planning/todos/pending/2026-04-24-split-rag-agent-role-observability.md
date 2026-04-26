@@ -37,7 +37,7 @@ contract 需要改写时才重开。
 
 1. 把 `delegate_to_rag_agent(...)` 的 scope / planning / synthesis /
    grounding 分段提成 package-internal role functions 或 classes。
-2. 保持 `SpecialistRequest -> SpecialistResponse` 对外 seam 不变。
+2. 保持 `AgentRequest -> AgentResponse` 对外 seam 不变。
 3. 为每个 role 输出 compact diagnostic summary，继续进入 app-api operator-safe
    observability，而不是暴露 raw trace。
 4. 增加 role-level regression，覆盖 no-answer、clarification、compare、

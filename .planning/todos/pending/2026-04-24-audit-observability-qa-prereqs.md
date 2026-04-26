@@ -9,7 +9,9 @@ files:
   - docs/architecture/system/operator-observability-architecture.md
   - .planning/workstreams/operator-observability-control-plane/STATE.md
   - apps/app-api/src/
-  - packages/supervisor-core/src/campus_supervisor_core/
+  - apps/supervisor-api/internal/httpapi/
+  - apps/supervisor-api/internal/executionaudit/
+  - apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/
   - packages/rag-agent/src/campus_rag_agent/
   - packages/retrieval-core/src/campus_retrieval_core/
 ---
@@ -33,8 +35,8 @@ follow-up。
 
 后续恢复时做 targeted audit，不新增第二套 operator truth：
 
-1. 列出一次回答 replay 所需的最小字段，并核对 app-api、supervisor、
-   rag-agent、retrieval activity 是否都有稳定 correlation。
+1. 列出一次回答 replay 所需的最小字段，并核对 app-api、supervisor-api、
+   agent worker、rag-agent、retrieval activity 是否都有稳定 correlation。
 2. 核对 badcase queue 是否携带 route、handoff、guardrail、evidence 与
    answer verdict 的归因字段。
 3. 核对 sampled grading backflow 是否足以生成 eval candidate intake。
