@@ -19,15 +19,6 @@
 		"apps/authenticated-notice-collector/test/bootstrap-export.collection.suite.ts": {
 			"max_lines": 1118
 		},
-		"apps/public-docs/scripts/sync-real-docs/curriculum.ts": {
-			"max_lines": 924
-		},
-		"apps/public-docs/test/sync-real-docs.test.ts": {
-			"max_lines": 1374
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_attachment_fetch_status.py": {
-			"max_lines": 1059
-		},
 		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py": {
 			"max_lines": 854
 		},
@@ -37,35 +28,11 @@
 		"packages/ingestion-core/src/campus_ingestion_core/curriculum_course_map_docs_surface.py": {
 			"max_lines": 893
 		},
-		"packages/ingestion-core/src/campus_ingestion_core/curriculum_provider_normalize_relationships.py": {
-			"max_lines": 1021
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/curriculum_provider_normalize_shared.py": {
-			"max_lines": 1171
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/handbook_cleanup_normalize.py": {
-			"max_lines": 1005
-		},
 		"packages/ingestion-core/src/campus_ingestion_core/handbook_cleanup_projection_events.py": {
 			"max_lines": 918
 		},
-		"packages/ingestion-core/src/campus_ingestion_core/handbook_source_projections.py": {
-			"max_lines": 806
-		},
 		"packages/ingestion-core/src/campus_ingestion_core/internal_notice_consumption_projection.py": {
 			"max_lines": 1680
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/internal_notice_multimodal_processing.py": {
-			"max_lines": 1261
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_materialization.py": {
-			"max_lines": 1060
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/service_guide_projection.py": {
-			"max_lines": 1478
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/transport_schedule_projection.py": {
-			"max_lines": 849
 		},
 		"scripts/workstream_harness.py": {
 			"max_lines": 874
@@ -85,23 +52,8 @@
 		"tests/ingestion/process_raw_ingestion_job_handbook_projection_suite.py": {
 			"max_lines": 846
 		},
-		"tests/ingestion/test_authenticated_notice_attachment_fetch_status_worker.py": {
-			"max_lines": 865
-		},
-		"tests/ingestion/test_authenticated_notice_notice_family.py": {
-			"max_lines": 1331
-		},
-		"tests/ingestion/test_curriculum_provider_normalize.py": {
-			"max_lines": 2278
-		},
 		"tests/ingestion/test_file_asset_substrate.py": {
 			"max_lines": 813
-		},
-		"tests/ingestion/test_internal_notice_consumption_projection.py": {
-			"max_lines": 1508
-		},
-		"tests/ingestion/test_internal_notice_regulation_materialization.py": {
-			"max_lines": 991
 		}
 	}
 }

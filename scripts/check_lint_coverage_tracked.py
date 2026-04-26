@@ -21,6 +21,7 @@ _ENV_SUFFIXES = (".env.example", ".dev.vars.example")
 _EXCLUDED_GENERATED_FILES: dict[str, str] = {}
 _HANDWRITTEN_DECOMPOSITION_SUFFIXES = {
     ".cjs",
+    ".go",
     ".js",
     ".jsx",
     ".mjs",
@@ -60,6 +61,7 @@ _TEXT_LIKE_SUFFIXES = {
     ".css",
     ".env",
     ".example",
+    ".go",
     ".gitignore",
     ".html",
     ".java",
@@ -153,6 +155,8 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
         families.append("docs:lint")
     if _is_python_tracked_file(path):
         families.extend(("py:lint", "py:format:check"))
+    if _is_go_tracked_file(path):
+        families.append("go:static:check")
     if path.endswith((".yaml", ".yml")):
         families.append("yaml:lint")
     if path.endswith(".toml"):
@@ -231,6 +235,10 @@ def _is_python_tracked_file(path: str) -> bool:
             "apps/app-api/drizzle/meta/",
         )
     )
+
+
+def _is_go_tracked_file(path: str) -> bool:
+    return path.startswith("apps/supervisor-api/") and path.endswith(".go")
 
 
 def _is_docker_tracked_file(path: str) -> bool:

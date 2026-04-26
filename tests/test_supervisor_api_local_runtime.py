@@ -19,6 +19,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("host.docker.internal", script)
         self.assertIn("read -r -d '' env_key", script)
         self.assertNotIn("eval ", script)
+        self.assertIn("SUPERVISOR_RUNTIME_COMPOSE_PARALLEL_LIMIT", script)
+        self.assertIn('COMPOSE_PARALLEL_LIMIT="${compose_parallel_limit}"', script)
         self.assertIn('"${docker_bin}" compose', script)
         self.assertIn("docker-compose.supervisor-runtime.yml", script)
 
@@ -40,6 +42,18 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertLess(
             dockerfile.index("RUN go mod download"),
             dockerfile.index("COPY apps/supervisor-api ./"),
+        )
+        self.assertIn(
+            "COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "SUPERVISOR_API_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json",
+            dockerfile,
         )
 
         self.assertIn("SUPERVISOR_API_DOCKER_GOPROXY", compose)
@@ -65,6 +79,66 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("OBJECT_STORE_ENDPOINT", compose)
         self.assertIn('"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"', script)
         self.assertIn('"OBJECT_STORE_ENDPOINT"', script)
+
+    def test_local_runtime_passes_prompt_gate_inputs_to_worker_and_go_api(self) -> None:
+        compose_path = ROOT / "infra/local/docker-compose.supervisor-runtime.yml"
+        script_path = ROOT / "infra/local/smoke-supervisor-runtime.sh"
+
+        compose = compose_path.read_text(encoding="utf-8")
+        script = script_path.read_text(encoding="utf-8")
+
+        for key in (
+            "PROMPT_RUNTIME_PROVIDER:",
+            "PROMPT_RUNTIME_TRANSPORT:",
+            "PROMPT_RUNTIME_MODEL:",
+            "SUPERVISOR_PROMPT_MODEL:",
+            "AGENT_PROMPT_MODEL:",
+            "PROMPT_RUNTIME_API_KEY:",
+            "PROMPT_RUNTIME_BASE_URL:",
+            "PROMPT_STRICT_STRUCTURED_OUTPUTS:",
+        ):
+            with self.subTest(key=key):
+                self.assertEqual(compose.count(f"      {key}"), 2)
+        self.assertIn('PROMPT_RUNTIME_PROVIDER="${PROMPT_RUNTIME_PROVIDER:-mock-runtime}"', script)
+
+    def test_supervisor_agent_worker_docker_installs_agent_workspace_dependencies(self) -> None:
+        dockerfile_path = ROOT / "apps/supervisor-agent-worker/Dockerfile"
+        dockerfile = dockerfile_path.read_text(encoding="utf-8")
+
+        self.assertIn("uv sync --project /app --all-packages --no-dev", dockerfile)
+        self.assertNotIn("--package campus-supervisor-agent-worker --no-dev", dockerfile)
+
+    def test_local_runtime_smoke_script_exercises_mock_runtime_readiness_and_terminal_gate(
+        self,
+    ) -> None:
+        script_path = ROOT / "infra/local/smoke-supervisor-runtime.sh"
+        self.assertTrue(script_path.exists())
+
+        script = script_path.read_text(encoding="utf-8")
+
+        self.assertIn("start-supervisor-runtime.sh", script)
+        self.assertIn("AGENT_RUNTIME_PROVIDER", script)
+        self.assertIn("mock-runtime", script)
+        self.assertIn("PROMPT_RUNTIME_MODEL", script)
+        self.assertIn("PROMPT_RUNTIME_API_KEY", script)
+        self.assertIn("/healthz", script)
+        self.assertIn("/readyz", script)
+        self.assertIn("/metrics", script)
+        self.assertIn("/api/v1/answer", script)
+        self.assertIn("x-worker-origin-auth", script)
+        self.assertIn('"context"', script)
+        self.assertIn('"principal_type":"student"', script)
+        self.assertIn('"policy_projection_version":"phase1-authorization-projection-v1"', script)
+        self.assertIn("structured_runtime_closed", script)
+        self.assertIn("SUPERVISOR_RUNTIME_SMOKE_SKIP_START", script)
+        self.assertIn("SUPERVISOR_RUNTIME_SMOKE_KEEP_RUNNING", script)
+        self.assertIn("closed_gate", script)
+        self.assertIn("bridge_semantic", script)
+        self.assertIn("open_structured", script)
+        self.assertIn("readyz_degraded", script)
+        self.assertIn("SUPERVISOR_API_OPEN_CAPABILITIES=campus_services", script)
+        self.assertIn("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH", script)
+        self.assertIn("docker compose", script)
 
 
 if __name__ == "__main__":

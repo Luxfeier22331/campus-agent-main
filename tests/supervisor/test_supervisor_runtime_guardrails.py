@@ -16,6 +16,12 @@ WORKER_AGENT_DELEGATES = WORKER_CORE / "agent_delegates.py"
 WORKER_AGENT_RUNTIME = WORKER_CORE / "agent_runtime.py"
 WORKER_BRIDGE_READINESS = WORKER_CORE / "bridge_readiness.py"
 WORKER_CANCEL_FLAGS = WORKER_CORE / "cancel_flags.py"
+WORKER_BRIDGE_ACTOR_CODECS = WORKER_CORE / "bridge_actor_codecs.py"
+WORKER_BRIDGE_AUTHORIZATION_CODECS = WORKER_CORE / "bridge_authorization_codecs.py"
+WORKER_BRIDGE_MEMORY_CODECS = WORKER_CORE / "bridge_memory_codecs.py"
+WORKER_BRIDGE_SESSION_CODECS = WORKER_CORE / "bridge_session_codecs.py"
+WORKER_BRIDGE_TRACE_CODECS = WORKER_CORE / "bridge_trace_codecs.py"
+SUPERVISOR_API_GO = Path("apps/supervisor-api/internal")
 
 
 class SupervisorRuntimeGuardrailTest(unittest.TestCase):
@@ -116,6 +122,55 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         for fragment in forbidden_fragments:
             with self.subTest(fragment=fragment):
                 self.assertNotIn(fragment, dispatch_source)
+
+    def test_python_worker_only_imports_agent_facades_and_prompt_runtime(self) -> None:
+        allowed_imports_by_path = {
+            WORKER_CORE / "agent_delegates.py": (
+                "campus_navigation_agent",
+                "campus_notice_agent",
+                "campus_rag_agent.service",
+                "campus_services_agent",
+            ),
+            WORKER_CORE / "prompt_executor.py": (
+                "campus_rag_agent.prompt_execution",
+                "campus_rag_agent.prompt_packets",
+                "campus_rag_agent.prompts.registry",
+            ),
+            WORKER_CORE / "prompt_stack.py": (
+                "campus_rag_agent.prompt_packets",
+                "campus_rag_agent.prompts.registry",
+            ),
+        }
+        forbidden_fragments = (
+            "campus_retrieval_core",
+            "campus_ingestion_core",
+            "campus_rag_agent.agent",
+            "campus_rag_agent.retrieval_plan",
+            "campus_rag_agent.service_retrieval",
+        )
+
+        for path in WORKER_CORE.rglob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            allowed_imports = allowed_imports_by_path.get(path, ())
+            with self.subTest(path=str(path)):
+                for fragment in forbidden_fragments:
+                    if fragment in allowed_imports:
+                        continue
+                    self.assertNotIn(fragment, source)
+
+    def test_go_supervisor_api_runtime_modules_remain_split_by_concern(self) -> None:
+        line_limits = {
+            SUPERVISOR_API_GO / "runtimepolicy" / "policy.go": 260,
+            SUPERVISOR_API_GO / "structuredquery" / "service_guide.go": 220,
+            SUPERVISOR_API_GO / "structuredquery" / "runtime.go": 360,
+            SUPERVISOR_API_GO / "httpapi" / "structured_direct.go": 380,
+            SUPERVISOR_API_GO / "executionaudit" / "emitter.go": 380,
+            SUPERVISOR_API_GO / "observability" / "metrics_prometheus.go": 360,
+        }
+        for path, limit in line_limits.items():
+            with self.subTest(path=str(path)):
+                self.assertTrue(path.exists())
+                self.assertLessEqual(len(path.read_text(encoding="utf-8").splitlines()), limit)
 
     def test_supervisor_core_legacy_agent_entrypoint_is_deleted(self) -> None:
         self.assertFalse(
@@ -259,6 +314,57 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
                 self.assertNotIn("from campus_supervisor_core.", source)
                 self.assertNotIn("import campus_supervisor_core", source)
 
+    def test_active_docs_and_codebase_maps_do_not_reference_retired_supervisor_aliases(
+        self,
+    ) -> None:
+        scanned_paths = (
+            *Path("docs/contracts").glob("*.md"),
+            *Path("docs/decisions").glob("*.md"),
+            Path("docs/reference/qa-assistant-and-harness-gap-review.md"),
+            *Path(".planning/codebase").glob("*.md"),
+            *Path(".planning/todos/pending").glob("*.md"),
+        )
+
+        for path in scanned_paths:
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=str(path)):
+                self.assertNotIn("supervisor-core", source)
+                self.assertNotIn("packages/supervisor-core", source)
+                self.assertNotIn("campus_supervisor_core", source)
+                self.assertNotIn("rag-specialist", source)
+                self.assertNotIn("navigation-specialist", source)
+                self.assertNotIn("availability-specialist", source)
+                self.assertNotIn("SpecialistRequest", source)
+                self.assertNotIn("SpecialistResponse", source)
+
+    def test_active_agent_instructions_do_not_reference_retired_supervisor_core(self) -> None:
+        scanned_paths = (
+            Path("AGENTS.md"),
+            Path("apps/supervisor-api/AGENTS.md"),
+            Path("apps/supervisor-agent-worker/AGENTS.md"),
+            Path("packages/rag-agent/AGENTS.md"),
+        )
+
+        for path in scanned_paths:
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=str(path)):
+                self.assertNotIn("supervisor-core", source)
+                self.assertNotIn("packages/supervisor-core", source)
+
+    def test_operator_selected_target_fixtures_do_not_use_retired_supervisor_core(
+        self,
+    ) -> None:
+        scanned_paths = (
+            *Path("apps/app-api/test").rglob("*.ts"),
+            *Path("apps/protected-panel-web/test").rglob("*.ts"),
+        )
+
+        for path in scanned_paths:
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=str(path)):
+                self.assertNotIn('selectedTarget: "supervisor-core"', source)
+                self.assertNotIn("selectedTarget=supervisor-core", source)
+
     def test_python_bridge_does_not_publish_cancel_runtime_counters(self) -> None:
         api_source = WORKER_API.read_text(encoding="utf-8")
 
@@ -298,6 +404,24 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         self.assertNotIn("def _parse_bridge_supervisor_request", parser_source)
         self.assertNotIn("def _task_kind_for_capability", parser_source)
         self.assertNotIn("def _domain_candidates_for_target", parser_source)
+
+    def test_bridge_context_codecs_are_split_by_projection_family(self) -> None:
+        context_source = (WORKER_CORE / "bridge_context_codecs.py").read_text(encoding="utf-8")
+        parser_source = BRIDGE_V6_PARSER.read_text(encoding="utf-8")
+
+        self.assertTrue(WORKER_BRIDGE_ACTOR_CODECS.exists())
+        self.assertTrue(WORKER_BRIDGE_AUTHORIZATION_CODECS.exists())
+        self.assertTrue(WORKER_BRIDGE_MEMORY_CODECS.exists())
+        self.assertTrue(WORKER_BRIDGE_SESSION_CODECS.exists())
+        self.assertTrue(WORKER_BRIDGE_TRACE_CODECS.exists())
+        self.assertLessEqual(len(context_source.splitlines()), 120)
+        self.assertNotIn("class ProfileMemoryItem", context_source)
+        self.assertNotIn("def _parse_profile_memory_summary", context_source)
+        self.assertNotIn("def _parse_session_summary", context_source)
+        self.assertNotIn("def _parse_authorization_projection", context_source)
+        self.assertNotIn(
+            "from campus_supervisor_agent_worker.bridge_context_codecs import", parser_source
+        )
 
     def test_worker_app_runtime_assembly_is_split_from_bridge_app_factory(self) -> None:
         app_source = WORKER_APP.read_text(encoding="utf-8")

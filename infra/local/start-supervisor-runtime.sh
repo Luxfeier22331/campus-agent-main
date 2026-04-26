@@ -5,6 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../.." && pwd)"
 compose_file="${SUPERVISOR_RUNTIME_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.supervisor-runtime.yml}"
 compose_project_name="${SUPERVISOR_RUNTIME_COMPOSE_PROJECT_NAME:-campus-supervisor-runtime-local}"
+compose_parallel_limit="${SUPERVISOR_RUNTIME_COMPOSE_PARALLEL_LIMIT:-1}"
 api_host_port="${SUPERVISOR_API_HOST_PORT:-18080}"
 
 require_command() {
@@ -177,6 +178,7 @@ main() {
   (
     cd "${repo_root}" || exit
     COMPOSE_PROJECT_NAME="${compose_project_name}" \
+    COMPOSE_PARALLEL_LIMIT="${compose_parallel_limit}" \
     SUPERVISOR_API_HOST_PORT="${api_host_port}" \
     API_AUTH_MODE="${API_AUTH_MODE:-trusted-worker}" \
     "${docker_bin}" compose -f "${compose_file}" "$@"

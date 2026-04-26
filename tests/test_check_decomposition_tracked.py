@@ -25,6 +25,7 @@ class CheckDecompositionTrackedTest(unittest.TestCase):
         self.assertIn("scripts/check_sql_tracked.py", candidates)
         self.assertIn("tests/test_check_yaml_tracked.py", candidates)
         self.assertIn("apps/app-api/src/app/request-scope.ts", candidates)
+        self.assertIn("apps/supervisor-api/internal/execution/request.go", candidates)
         self.assertNotIn("docs/architecture/current-architecture.md", candidates)
         self.assertNotIn("package.json", candidates)
 
