@@ -65,7 +65,8 @@ class TransportScheduleProjectionTest(unittest.TestCase):
             service_horizon_days=4,
         )
 
-        self.assertEqual(result.manual_review_sources, [])
+        self.assertEqual(result.rejected_source_records, [])
+        self.assertFalse(hasattr(result, "manual_review_sources"))
         self.assertTrue(result.validation_report.valid, result.validation_report.issues)
         bundle = result.bundle
         self.assertEqual(bundle["schema_version"], "campus_services_projection_bundle.v1")

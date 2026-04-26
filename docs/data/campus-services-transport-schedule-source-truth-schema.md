@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-24
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 # Campus Services Transport Schedule Source-Truth Schema
 
@@ -70,8 +70,10 @@ OCR 子文档只从 derived canonical artifacts 读取：
 - `document-units.jsonl`
 - `canonical.md`
 
-其中表格抽取以 `document-units.jsonl` 的 `table_cells` 为准，允许 builder 对 OCR
-表格做领域清洗，例如 merged-cell fill-down、方向归一化、时间归一化和年内生效日补齐。
+其中表格抽取优先使用 `document-units.jsonl` 的结构化 `table_cells`；当 OCR/provider
+只产出 `html` / `table_html`、Markdown pipe table 或以制表符 / 多空格对齐的正文表格时，
+builder 可以把这些形态规范化为同一 table matrix 后再做领域清洗，例如 merged-cell
+fill-down、方向归一化、时间归一化和年内生效日补齐。
 
 legacy inventory 模式仍可用于早期 source-truth parent smoke，但不是首选生产路径。
 该模式输入来自 authenticated notice source-truth inventory 中的 parent notice。
@@ -130,7 +132,7 @@ export、raw HTML 或附件 OCR 输出。
 - `stop:wukesong-subway-a-north`
 
 如果 notice 文本中的路线、方向或站点无法稳定映射到上述 identity，builder 必须把该
-source 写入 manual-review report，不得猜测写入 current projection。
+source 写入 rejected-source report，不得猜测写入 current projection。
 
 ## Projection Bundle
 
@@ -203,7 +205,7 @@ compatibility current artifact：
 
 - `validation-summary.json`
 - `release-manifest.json`
-- `manual-review-report.json`
+- `rejected-source-report.json`
 
 第一版 local / smoke runtime 可以通过 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`
 读取 mounted readonly current projection file。该路径只表示 compatibility consumption
@@ -236,7 +238,7 @@ release 与 typed read model。
 - related notice ref 无法回链到 snapshot source refs
 - bounded overlay 缺 `service_date_ranges`
 
-以下情况进入 manual review，不写入 current projection：
+以下情况进入 rejected-source report，不写入 current projection：
 
 - notice 含校车/班车关键词但缺生效日
 - route / direction 无法映射到 canonical route seed

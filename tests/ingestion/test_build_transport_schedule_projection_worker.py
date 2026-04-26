@@ -116,7 +116,7 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
         self.assertIn(
             (
                 "campus-rag-derived",
-                "campus_services/releases/transport_schedule/transport-schedule-20260424T090000/manual-review-report.json",
+                "campus_services/releases/transport_schedule/transport-schedule-20260424T090000/rejected-source-report.json",
             ),
             object_store.objects,
         )
@@ -158,6 +158,13 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                 ("route:haidian-to-fengtai", "19:30"),
                 ("route:fengtai-to-haidian", "07:30"),
             },
+        )
+        self.assertIn(
+            (
+                "campus-rag-derived",
+                "campus_services/releases/transport_schedule/transport-schedule-20260320T090000/rejected-source-report.json",
+            ),
+            object_store.objects,
         )
 
 

@@ -26,6 +26,7 @@ from campus_ingestion_core.transport_schedule_projection import (
     TRANSPORT_SCHEDULE_COLLECTION,
     TRANSPORT_SCHEDULE_CORPUS,
     TRANSPORT_SCHEDULE_PROJECTION_FILENAME,
+    TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
     build_transport_schedule_projection_bundle,
     write_transport_schedule_projection_release,
 )
@@ -110,12 +111,15 @@ def build_transport_schedule_projection_release_from_inventory(
         _write_json(work_dir / "validation-summary.json", asdict(build_result.validation_report))
         raise ValueError("transport schedule projection validation failed")
     if not build_result.bundle["transport_schedule_snapshots"]:
-        _write_json(work_dir / "manual-review-report.json", build_result.manual_review_sources)
+        _write_json(
+            work_dir / TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
+            build_result.rejected_source_records,
+        )
         raise ValueError("transport schedule projection produced no schedule snapshots")
 
     work_dir.mkdir(parents=True, exist_ok=True)
-    manual_review_path = work_dir / "manual-review-report.json"
-    _write_json(manual_review_path, build_result.manual_review_sources)
+    rejected_source_path = work_dir / TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME
+    _write_json(rejected_source_path, build_result.rejected_source_records)
     report = write_transport_schedule_projection_release(
         bundle=build_result.bundle,
         output_dir=work_dir,
@@ -130,9 +134,9 @@ def build_transport_schedule_projection_release_from_inventory(
             corpus=TRANSPORT_SCHEDULE_CORPUS,
             collection=TRANSPORT_SCHEDULE_COLLECTION,
             release_id=release_id,
-            filename="manual-review-report.json",
+            filename=TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
         ),
-        data=manual_review_path.read_bytes(),
+        data=rejected_source_path.read_bytes(),
         content_type="application/json",
     )
     _write_json(work_dir / "build-report.json", asdict(report))
@@ -162,12 +166,15 @@ def build_transport_schedule_projection_release_from_consumption_projection(
         _write_json(work_dir / "validation-summary.json", asdict(build_result.validation_report))
         raise ValueError("notice-derived transport schedule projection validation failed")
     if not build_result.bundle["transport_schedule_snapshots"]:
-        _write_json(work_dir / "manual-review-report.json", build_result.manual_review_sources)
+        _write_json(
+            work_dir / TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
+            build_result.rejected_source_records,
+        )
         raise ValueError("notice-derived transport schedule projection produced no snapshots")
 
     work_dir.mkdir(parents=True, exist_ok=True)
-    manual_review_path = work_dir / "manual-review-report.json"
-    _write_json(manual_review_path, build_result.manual_review_sources)
+    rejected_source_path = work_dir / TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME
+    _write_json(rejected_source_path, build_result.rejected_source_records)
     report = write_transport_schedule_projection_release(
         bundle=build_result.bundle,
         output_dir=work_dir,
@@ -182,9 +189,9 @@ def build_transport_schedule_projection_release_from_consumption_projection(
             corpus=TRANSPORT_SCHEDULE_CORPUS,
             collection=TRANSPORT_SCHEDULE_COLLECTION,
             release_id=release_id,
-            filename="manual-review-report.json",
+            filename=TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
         ),
-        data=manual_review_path.read_bytes(),
+        data=rejected_source_path.read_bytes(),
         content_type="application/json",
     )
     _write_json(work_dir / "build-report.json", asdict(report))

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0044
 status: accepted
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 # ADR-0044 Structured Projection Release Catalog And Read Model
 
@@ -39,7 +39,7 @@ runtime consumption 形态，会造成几个问题：
 - projection bundle
 - release manifest
 - validation summary
-- manual-review / rejected-source report
+- rejected-source report
 
 对象存储负责审计、回滚、checksum 校验、离线 replay 与 release artifact retention。
 它不再作为长期 online runtime 的唯一 current source。

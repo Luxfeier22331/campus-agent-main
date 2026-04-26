@@ -14,6 +14,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NoticeConsumptionProjectionEntry,
 )
 from campus_ingestion_core.registry import DocumentRegistry
+from campus_ingestion_core.source_truth_common import extract_html_table_grid
 from campus_ingestion_core.transport_schedule_projection import (
     DEFAULT_TRANSPORT_SCHEDULE_HORIZON_DAYS,
     TRANSPORT_SCHEDULE_PROJECTION_SCHEMA_VERSION,
@@ -43,6 +44,7 @@ _ORDINAL_RE = re.compile(r"^\d+[\.、]?$")
 _BODY_TEXT_SPLIT_RE = re.compile(r"[\n。；;]")
 _ONE_OFF_DATE_HINTS = ("本周", "周末", "临时", "当天", "当日")
 _SERVICE_STOP_KEYWORDS = ("停运", "暂停", "停止运营", "不运行")
+_REJECTED_SOURCE_SCHEMA_VERSION = "transport_schedule_rejected_sources.v1"
 
 
 class NoticeDerivedTransportScheduleObjectStore(Protocol):
@@ -196,6 +198,11 @@ def build_notice_derived_transport_schedule_projection_bundle(
     exceptions_by_notice: dict[str, list[NoticeDerivedTransportServiceException]] = {}
     for exception in exceptions:
         exceptions_by_notice.setdefault(exception.source_notice_id, []).append(exception)
+    rejected_sources = _build_rejected_sources(
+        entries_by_notice=entries_by_notice,
+        rows_by_notice=rows_by_notice,
+        exceptions_by_notice=exceptions_by_notice,
+    )
 
     snapshots: list[dict[str, Any]] = []
     for notice_id, notice_rows in rows_by_notice.items():
@@ -280,7 +287,7 @@ def build_notice_derived_transport_schedule_projection_bundle(
     return TransportScheduleProjectionBuildResult(
         bundle=bundle,
         validation_report=validation_report,
-        manual_review_sources=[],
+        rejected_source_records=rejected_sources,
     )
 
 
@@ -291,6 +298,30 @@ def _is_ready_transport_candidate(entry: NoticeConsumptionProjectionEntry) -> bo
         and str(entry.role_metadata.get("service_status_candidate_kind") or "")
         == "transport_schedule"
     )
+
+
+def _build_rejected_sources(
+    *,
+    entries_by_notice: Mapping[str, NoticeConsumptionProjectionEntry],
+    rows_by_notice: Mapping[str, Sequence[NoticeDerivedTransportScheduleRow]],
+    exceptions_by_notice: Mapping[str, Sequence[NoticeDerivedTransportServiceException]],
+) -> list[dict[str, Any]]:
+    rejected: list[dict[str, Any]] = []
+    for notice_id, entry in sorted(entries_by_notice.items()):
+        if rows_by_notice.get(notice_id) or exceptions_by_notice.get(notice_id):
+            continue
+        rejected.append(
+            {
+                "schema_version": _REJECTED_SOURCE_SCHEMA_VERSION,
+                "source_notice_id": notice_id,
+                "source_ref": _source_ref(entry),
+                "reason": "no_supported_transport_schedule_rows",
+                "candidate_kind": str(
+                    entry.role_metadata.get("service_status_candidate_kind") or "transport_schedule"
+                ),
+            }
+        )
+    return rejected
 
 
 def _resolve_attachment_records(
@@ -374,12 +405,66 @@ def _iter_table_matrices(
     matrices: list[tuple[tuple[str, ...], ...]] = []
     seen: set[tuple[tuple[str, ...], ...]] = set()
     for unit in units:
-        table_cells = unit.get("table_cells")
-        matrix = _normalize_table_cells(table_cells)
-        if matrix and matrix not in seen:
-            matrices.append(matrix)
-            seen.add(matrix)
+        for matrix in _table_matrices_from_unit(unit):
+            if matrix and matrix not in seen:
+                matrices.append(matrix)
+                seen.add(matrix)
     return tuple(matrices)
+
+
+def _table_matrices_from_unit(
+    unit: Mapping[str, Any],
+) -> tuple[tuple[tuple[str, ...], ...], ...]:
+    candidates: list[tuple[tuple[str, ...], ...]] = []
+    table_cells_matrix = _normalize_table_cells(unit.get("table_cells"))
+    if table_cells_matrix:
+        candidates.append(table_cells_matrix)
+
+    for html_value in (unit.get("html"), unit.get("table_html")):
+        if isinstance(html_value, str) and html_value.strip():
+            html_matrix = _normalize_table_cells(extract_html_table_grid(html_value))
+            if html_matrix:
+                candidates.append(html_matrix)
+
+    for text_value in (unit.get("clean_text"), unit.get("text"), unit.get("raw_text")):
+        if not isinstance(text_value, str) or not text_value.strip():
+            continue
+        markdown_matrix = _parse_markdown_table_matrix(text_value)
+        if markdown_matrix:
+            candidates.append(markdown_matrix)
+            continue
+        aligned_matrix = _parse_plain_text_schedule_matrix(text_value)
+        if aligned_matrix:
+            candidates.append(aligned_matrix)
+    return tuple(candidates)
+
+
+def _parse_markdown_table_matrix(value: str) -> tuple[tuple[str, ...], ...]:
+    rows: list[tuple[str, ...]] = []
+    for line in value.splitlines():
+        normalized = line.strip()
+        if "|" not in normalized:
+            continue
+        cells = tuple(_clean_cell(cell) for cell in normalized.strip("|").split("|"))
+        if not cells or all(not cell for cell in cells):
+            continue
+        if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells if cell):
+            continue
+        rows.append(cells)
+    return tuple(rows)
+
+
+def _parse_plain_text_schedule_matrix(value: str) -> tuple[tuple[str, ...], ...]:
+    rows: list[tuple[str, ...]] = []
+    for line in value.splitlines():
+        normalized = _clean_cell(line)
+        if not normalized:
+            continue
+        if not _extract_times(normalized) and _resolve_route(normalized) is None:
+            continue
+        cells = tuple(cell for cell in re.split(r"\t+|\s{2,}", normalized) if cell)
+        rows.append(cells or (normalized,))
+    return tuple(rows)
 
 
 def _normalize_table_cells(value: object) -> tuple[tuple[str, ...], ...]:

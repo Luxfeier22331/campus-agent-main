@@ -29,6 +29,7 @@ TRANSPORT_SCHEDULE_COLLECTION = "transport_schedule"
 TRANSPORT_SCHEDULE_PROJECTION_FILENAME = "campus-services-projection.json"
 TRANSPORT_SCHEDULE_VALIDATION_FILENAME = "validation-summary.json"
 TRANSPORT_SCHEDULE_RELEASE_MANIFEST_FILENAME = "release-manifest.json"
+TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME = "rejected-source-report.json"
 DEFAULT_TRANSPORT_SCHEDULE_HORIZON_DAYS = 90
 
 _SHANGHAI_TZ = timezone(timedelta(hours=8))
@@ -56,7 +57,7 @@ class TransportScheduleProjectionObjectStore(Protocol):
 class TransportScheduleProjectionBuildResult:
     bundle: dict[str, Any]
     validation_report: TransportScheduleProjectionValidationReport
-    manual_review_sources: list[dict[str, Any]]
+    rejected_source_records: list[dict[str, Any]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,7 +100,7 @@ def build_transport_schedule_projection_bundle(
     if service_horizon_days <= 0:
         raise ValueError("service_horizon_days must be positive")
 
-    manual_review_sources: list[dict[str, Any]] = []
+    rejected_source_records: list[dict[str, Any]] = []
     schedule_sources: list[_ScheduleSource] = []
     exception_candidates: list[dict[str, Any]] = []
     for parent in source_truth_parents:
@@ -123,7 +124,7 @@ def build_transport_schedule_projection_bundle(
             source_ref=source_ref,
         )
         if parsed is None:
-            manual_review_sources.append(
+            rejected_source_records.append(
                 {
                     "source_ref": source_ref,
                     "reason": "unsupported_transport_schedule_notice_shape",
@@ -166,7 +167,7 @@ def build_transport_schedule_projection_bundle(
     return TransportScheduleProjectionBuildResult(
         bundle=bundle,
         validation_report=validation_report,
-        manual_review_sources=manual_review_sources,
+        rejected_source_records=rejected_source_records,
     )
 
 

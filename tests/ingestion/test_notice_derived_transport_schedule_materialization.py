@@ -154,6 +154,92 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
             [("route:haidian-to-fengtai", "19:30")],
         )
 
+    def test_extracts_transport_rows_from_markdown_table_units(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            document_units=[
+                {
+                    "unit_id": "table-md",
+                    "unit_type": "table_unit",
+                    "clean_text": (
+                        "| 运行方向 | 发车时间 | 乘车人员 |\n"
+                        "| --- | --- | --- |\n"
+                        "| 丰台校区至五棵松地铁站 | 08:00 | 师生 |\n"
+                    ),
+                }
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            [(row.route_id, row.departure_time, row.rider_type) for row in rows],
+            [("route:fengtai-to-wukesong-subway", "08:00", "师生")],
+        )
+
+    def test_extracts_transport_rows_from_html_table_units(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            document_units=[
+                {
+                    "unit_id": "table-html",
+                    "unit_type": "table_unit",
+                    "html": (
+                        "<table><tr><th>运行方向</th><th>发车时间</th><th>乘车人员</th></tr>"
+                        "<tr><td>五棵松地铁站至丰台校区</td><td>17:30</td><td>师生</td></tr>"
+                        "</table>"
+                    ),
+                }
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            [(row.route_id, row.departure_time, row.rider_type) for row in rows],
+            [("route:wukesong-subway-to-fengtai", "17:30", "师生")],
+        )
+
+    def test_extracts_transport_rows_from_plain_text_schedule_units(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            document_units=[
+                {
+                    "unit_id": "table-text",
+                    "unit_type": "table_unit",
+                    "clean_text": "运行方向  发车时间  乘车人员\n丰台校区至海淀校区  07:45  教师\n",
+                }
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            [(row.route_id, row.departure_time, row.rider_type) for row in rows],
+            [("route:fengtai-to-haidian", "07:45", "教师")],
+        )
+
     def test_extracts_body_only_temporary_extra_departure(self) -> None:
         module = _load_module()
         self.assertIsNotNone(module, "notice-derived transport materializer module is required")
@@ -423,6 +509,41 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
         snapshot = result.bundle["transport_schedule_snapshots"][0]
         self.assertEqual(snapshot["schedule_scope"], "baseline_revision")
         self.assertEqual(snapshot["service_date_ranges"], [])
+
+    def test_build_reports_rejected_transport_candidates_without_supported_schedule_rows(
+        self,
+    ) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            parent_markdown="# 关于班车候车秩序的通知\n\n请在指定区域排队候车。\n",
+            attachment_document_ids=(),
+        )
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2026-03-20T09:00:00+08:00",
+            service_horizon_days=3,
+        )
+
+        self.assertEqual(result.bundle["transport_schedule_snapshots"], [])
+        self.assertEqual(
+            result.rejected_source_records,
+            [
+                {
+                    "schema_version": "transport_schedule_rejected_sources.v1",
+                    "source_notice_id": "355122",
+                    "source_ref": "notice:muc_internal_portal:355122",
+                    "reason": "no_supported_transport_schedule_rows",
+                    "candidate_kind": "transport_schedule",
+                }
+            ],
+        )
+        self.assertFalse(hasattr(result, "manual_review_sources"))
 
 
 def _load_module():
