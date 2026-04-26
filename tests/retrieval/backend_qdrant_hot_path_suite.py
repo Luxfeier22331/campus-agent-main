@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from campus_retrieval_core.backend_qdrant_embeddings import get_dense_query_embedding
+from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
+
 from tests.retrieval.backend_qdrant_test_support import (
     InMemoryDocumentRegistry,
     Mock,
@@ -78,17 +81,15 @@ class BackendQdrantHotPathTest(unittest.TestCase):
         )
         profile = _make_runtime_profile()
 
-        backend._get_dense_query_embedding("first", profile=profile)
-        backend._get_dense_query_embedding("second", profile=profile)
-        backend._get_dense_query_embedding("first", profile=profile)
-        backend._get_dense_query_embedding("third", profile=profile)
+        get_dense_query_embedding(backend, "first", profile=profile)
+        get_dense_query_embedding(backend, "second", profile=profile)
+        get_dense_query_embedding(backend, "first", profile=profile)
+        get_dense_query_embedding(backend, "third", profile=profile)
 
         self.assertLessEqual(len(backend._dense_query_cache), 2)
         self.assertEqual(len(embedding_model.calls), 3)
         self.assertNotIn(
-            "Instruct: "
-            + profile.embedding_query_instruction
-            + "\nQuery: second",
+            "Instruct: " + profile.embedding_query_instruction + "\nQuery: second",
             backend._dense_query_cache,
         )
 
@@ -145,7 +146,8 @@ class BackendQdrantHotPathTest(unittest.TestCase):
             "chunk_id": "chunk-library",
         }
 
-        sources = backend._build_evidence_sources(
+        sources = build_evidence_sources(
+            backend,
             (
                 qdrant_models.ScoredPoint(
                     id="point-1",
@@ -161,7 +163,7 @@ class BackendQdrantHotPathTest(unittest.TestCase):
                     payload={**payload, "chunk_id": "chunk-library-2"},
                     vector=None,
                 ),
-            )
+            ),
         )
 
         self.assertEqual(len(sources), 2)

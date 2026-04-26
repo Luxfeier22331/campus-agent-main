@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
+
 from tests.retrieval.backend_qdrant_test_support import (
     InMemoryDocumentRegistry,
     Mock,
@@ -177,7 +179,8 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
-        sources = backend._build_evidence_sources(
+        sources = build_evidence_sources(
+            backend,
             (
                 qdrant_models.ScoredPoint(
                     id="point-student-card",
@@ -205,7 +208,7 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
                         "text": "学生证遗失后，应及时到学院挂失，填写补办申请表。",
                     },
                 ),
-            )
+            ),
         )
 
         self.assertEqual(len(sources), 1)
@@ -230,7 +233,8 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
-        sources = backend._build_evidence_sources(
+        sources = build_evidence_sources(
+            backend,
             (
                 qdrant_models.ScoredPoint(
                     id="point-program-semester-fact",
@@ -264,7 +268,7 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
                         "text": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
                     },
                 ),
-            )
+            ),
         )
 
         self.assertEqual(len(sources), 1)
@@ -295,7 +299,8 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
-        sources = backend._build_evidence_sources(
+        sources = build_evidence_sources(
+            backend,
             (
                 qdrant_models.ScoredPoint(
                     id="point-curriculum-table",
@@ -331,7 +336,7 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
                         ),
                     },
                 ),
-            )
+            ),
         )
 
         self.assertEqual(len(sources), 1)

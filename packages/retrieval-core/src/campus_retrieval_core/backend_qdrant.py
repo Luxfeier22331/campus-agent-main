@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import time
 from collections import OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from threading import RLock
 
@@ -23,10 +22,19 @@ from campus_ingestion_core.sparse import (
     SparseEmbeddingSettings,
     build_sparse_embedding_model,
 )
-from llama_index.core.schema import MetadataMode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
+from campus_retrieval_core.backend_qdrant_embeddings import get_dense_query_embedding
+from campus_retrieval_core.backend_qdrant_errors import (
+    CorpusQueryDisabledError,
+    RestrictedDocumentAccessDeniedError,
+    RetrievalBackendError,
+)
+from campus_retrieval_core.backend_qdrant_evidence import (
+    build_evidence_sources,
+    build_evidence_sources_from_records,
+)
 from campus_retrieval_core.backend_qdrant_filters import (
     _apply_preferred_document_bias,
     _build_metadata_filters,
@@ -43,13 +51,13 @@ from campus_retrieval_core.backend_qdrant_policies import (
     _official_web_source_chunk_ordinal,
 )
 from campus_retrieval_core.backend_qdrant_query import (
-    _build_dense_query_text,
     _build_document_support_query_text,
     _build_rrf_query,
     _curriculum_support_section_key,
     _merge_evidence_sources,
     _prefer_curriculum_semester_course_list_sources,
 )
+from campus_retrieval_core.backend_qdrant_registry import get_current_registry_version
 from campus_retrieval_core.backend_qdrant_runtime import (
     DEFAULT_DENSE_QUERY_CACHE_MAX_ENTRIES,
     DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS,
@@ -61,21 +69,7 @@ from campus_retrieval_core.backend_qdrant_runtime import (
     _retry_qdrant_read,
 )
 from campus_retrieval_core.backend_qdrant_source_metadata import (
-    _coerce_dict,
-    _coerce_structural_path,
     _is_curriculum_course_list_table_source,
-    _optional_bool,
-    _optional_text,
-    _record_to_text_node,
-    _resolve_canonical_source_id,
-    _resolve_canonical_source_title,
-    _resolve_content_kind,
-    _resolve_content_role,
-    _resolve_detail_label,
-    _resolve_is_answer_bearing,
-    _resolve_source_title,
-    _resolve_source_unit_key,
-    _resolve_source_unit_kind,
 )
 from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
@@ -93,18 +87,6 @@ DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-fait
 _SCORE_TIE_EPSILON = 1e-6
 _SAME_DOC_SCROLL_BATCH_LIMIT = 64
 _SAME_DOC_SCROLL_MAX_RECORDS = 256
-
-
-class RetrievalBackendError(RuntimeError):
-    pass
-
-
-class CorpusQueryDisabledError(RetrievalBackendError):
-    pass
-
-
-class RestrictedDocumentAccessDeniedError(RetrievalBackendError):
-    pass
 
 
 @dataclass
@@ -184,7 +166,7 @@ class QdrantRetrievalBackend:
                         collection=request.collection,
                     )
                 self._known_collection_names.add(qdrant_collection_name)
-            dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
+            dense_query_embedding = get_dense_query_embedding(self, query_text, profile=profile)
             initial_query_limit = self._resolve_initial_query_limit(
                 request=request, profile=profile
             )
@@ -213,7 +195,7 @@ class QdrantRetrievalBackend:
         initial_sources = _apply_no_hit_policy(
             profile=profile,
             query_text=query_text,
-            sources=self._build_evidence_sources(response.points or ()),
+            sources=build_evidence_sources(self, response.points or ()),
         )
         initial_sources = _apply_official_web_low_signal_policy(
             profile=profile,
@@ -267,125 +249,6 @@ class QdrantRetrievalBackend:
             )[: request.top_k],
         )
 
-    def _build_evidence_sources(
-        self, points: Sequence[qdrant_models.ScoredPoint]
-    ) -> tuple[EvidenceSource, ...]:
-        sources: list[EvidenceSource] = []
-        for point in points:
-            payload = dict(point.payload or {})
-            node = _record_to_text_node(point.id, payload)
-            if node is None:
-                continue
-            metadata = dict(node.metadata)
-            document_id = str(metadata.get("document_id") or "")
-            revision_track = str(metadata.get("revision_track") or "")
-            version_id = str(metadata.get("version_id") or "")
-            if not document_id or not revision_track or not version_id:
-                continue
-            anchor = _coerce_dict(metadata.get("anchor"))
-            canonical_url = _optional_text(metadata.get("canonical_url")) or _optional_text(
-                metadata.get("source_uri")
-            )
-            latest_url = _optional_text(metadata.get("latest_url")) or canonical_url
-            source_channel = _optional_text(metadata.get("source_channel"))
-            collection = _optional_text(metadata.get("collection"))
-            is_current = _optional_bool(metadata.get("is_current"))
-            if (
-                canonical_url is None
-                or latest_url is None
-                or source_channel is None
-                or collection is None
-                or is_current is None
-            ):
-                record = self._get_registry_record(document_id, revision_track, version_id)
-                if record is None:
-                    continue
-                runtime_profile = load_runtime_profile(record.corpus, record.collection)
-                latest_record = self._get_current_registry_version(
-                    document_id,
-                    preferred_revision_tracks=runtime_profile.serving_revision_tracks
-                    or DEFAULT_LATEST_REVISION_TRACKS,
-                )
-                canonical_url = canonical_url or record.source_uri
-                latest_url = latest_url or (
-                    latest_record.source_uri if latest_record is not None else record.source_uri
-                )
-                source_channel = source_channel or record.source_channel
-                collection = collection or record.collection
-                if is_current is None:
-                    is_current = record.is_current
-            source_title = _resolve_source_title(metadata, document_id=document_id, anchor=anchor)
-            sources.append(
-                EvidenceSource(
-                    doc_id=document_id,
-                    revision_track=revision_track,
-                    version_id=version_id,
-                    chunk_id=str(metadata.get("chunk_id") or node.node_id),
-                    anchor=anchor,
-                    canonical_url=canonical_url,
-                    latest_url=latest_url,
-                    source_channel=source_channel,
-                    collection=collection,
-                    is_current=is_current,
-                    snippet=node.get_content(metadata_mode=MetadataMode.NONE),
-                    score=float(point.score),
-                    source_title=source_title,
-                    structural_path=_coerce_structural_path(anchor.get("section_path")),
-                    content_kind=_resolve_content_kind(
-                        metadata,
-                        collection=collection,
-                        snippet=node.get_content(metadata_mode=MetadataMode.NONE),
-                        anchor=anchor,
-                    ),
-                    content_role=_resolve_content_role(
-                        metadata,
-                        collection=collection,
-                        snippet=node.get_content(metadata_mode=MetadataMode.NONE),
-                        anchor=anchor,
-                    ),
-                    detail_label=_resolve_detail_label(metadata, anchor=anchor),
-                    is_answer_bearing=_resolve_is_answer_bearing(
-                        metadata,
-                        collection=collection,
-                        snippet=node.get_content(metadata_mode=MetadataMode.NONE),
-                        anchor=anchor,
-                    ),
-                    canonical_source_id=_resolve_canonical_source_id(metadata),
-                    canonical_source_title=_resolve_canonical_source_title(metadata),
-                    source_unit_kind=_resolve_source_unit_kind(
-                        metadata,
-                        collection=collection,
-                        anchor=anchor,
-                    ),
-                    source_unit_key=_resolve_source_unit_key(
-                        metadata,
-                        collection=collection,
-                    ),
-                )
-            )
-        return tuple(sources)
-
-    def _build_evidence_sources_from_records(
-        self,
-        records: Sequence[qdrant_models.Record],
-        *,
-        default_score: float,
-    ) -> tuple[EvidenceSource, ...]:
-        return self._build_evidence_sources(
-            tuple(
-                qdrant_models.ScoredPoint(
-                    id=record.id,
-                    version=0,
-                    score=default_score,
-                    payload=record.payload,
-                    vector=record.vector,
-                    shard_key=record.shard_key,
-                    order_value=record.order_value,
-                )
-                for record in records
-            )
-        )
-
     def _fail_closed_on_denied_target_documents(
         self,
         *,
@@ -397,7 +260,8 @@ class QdrantRetrievalBackend:
 
         denied_target_found = False
         for document_id in request.target_document_ids:
-            record = self._get_current_registry_version(
+            record = get_current_registry_version(
+                self,
                 document_id,
                 preferred_revision_tracks=profile.serving_revision_tracks
                 or DEFAULT_LATEST_REVISION_TRACKS,
@@ -415,102 +279,6 @@ class QdrantRetrievalBackend:
 
         if denied_target_found:
             raise RestrictedDocumentAccessDeniedError("restricted document access denied")
-
-    def _get_dense_query_embedding(
-        self,
-        query_text: str,
-        *,
-        profile: CollectionRuntimeProfile,
-    ) -> tuple[float, ...]:
-        normalized_query = _build_dense_query_text(
-            query_text=query_text,
-            instruction=profile.embedding_query_instruction,
-        )
-        now = time.monotonic()
-        with self._dense_query_cache_lock:
-            cached = self._dense_query_cache.get(normalized_query)
-            if cached is not None:
-                expires_at, embedding = cached
-                if expires_at > now:
-                    self._dense_query_cache.move_to_end(normalized_query)
-                    return embedding
-                self._dense_query_cache.pop(normalized_query, None)
-        embedding = tuple(
-            float(item) for item in self.embedding_model.get_query_embedding(normalized_query)
-        )
-        if self.dense_query_cache_ttl_seconds > 0 and self.dense_query_cache_max_entries > 0:
-            with self._dense_query_cache_lock:
-                self._dense_query_cache[normalized_query] = (
-                    now + self.dense_query_cache_ttl_seconds,
-                    embedding,
-                )
-                self._dense_query_cache.move_to_end(normalized_query)
-                self._trim_dense_query_cache(now=now)
-        return embedding
-
-    def _trim_dense_query_cache(self, *, now: float) -> None:
-        expired_keys = [
-            key for key, (expires_at, _) in self._dense_query_cache.items() if expires_at <= now
-        ]
-        for key in expired_keys:
-            self._dense_query_cache.pop(key, None)
-        while len(self._dense_query_cache) > self.dense_query_cache_max_entries:
-            self._dense_query_cache.popitem(last=False)
-
-    def _get_registry_record(
-        self,
-        document_id: str,
-        revision_track: str,
-        version_id: str,
-    ) -> DocumentRegistryRecord | None:
-        key = (document_id, revision_track, version_id)
-        return self._get_cached_registry_lookup(
-            cache=self._registry_record_cache,
-            key=key,
-            loader=lambda: self.registry.get(document_id, revision_track, version_id),
-        )
-
-    def _get_current_registry_version(
-        self,
-        document_id: str,
-        *,
-        preferred_revision_tracks: tuple[str, ...] = (),
-    ) -> DocumentRegistryRecord | None:
-        key = (document_id, preferred_revision_tracks)
-        return self._get_cached_registry_lookup(
-            cache=self._registry_current_version_cache,
-            key=key,
-            loader=lambda: self.registry.current_version(
-                document_id,
-                preferred_revision_tracks=preferred_revision_tracks,
-            ),
-        )
-
-    def _get_cached_registry_lookup(
-        self,
-        *,
-        cache: OrderedDict[object, tuple[float, DocumentRegistryRecord | None]],
-        key: object,
-        loader: Callable[[], DocumentRegistryRecord | None],
-    ) -> DocumentRegistryRecord | None:
-        if self.registry_lookup_cache_ttl_seconds <= 0:
-            return loader()
-        now = time.monotonic()
-        with self._registry_cache_lock:
-            cached = cache.get(key)
-            if cached is not None:
-                expires_at, record = cached
-                if expires_at > now:
-                    cache.move_to_end(key)
-                    return record
-                cache.pop(key, None)
-        record = loader()
-        with self._registry_cache_lock:
-            cache[key] = (now + self.registry_lookup_cache_ttl_seconds, record)
-            cache.move_to_end(key)
-            while len(cache) > self.registry_lookup_cache_max_entries:
-                cache.popitem(last=False)
-        return record
 
     def _resolve_initial_query_limit(
         self,
@@ -609,7 +377,8 @@ class QdrantRetrievalBackend:
         )
         support_request = replace(request, query_text=support_query_text)
         try:
-            support_dense_query_embedding = self._get_dense_query_embedding(
+            support_dense_query_embedding = get_dense_query_embedding(
+                self,
                 support_request.query_text,
                 profile=profile,
             )
@@ -642,7 +411,7 @@ class QdrantRetrievalBackend:
             return tuple(sources)
         if deadline.is_expired():
             return tuple(sources)
-        additional_sources = self._build_evidence_sources(response.points or ())
+        additional_sources = build_evidence_sources(self, response.points or ())
         curriculum_semester_sources = self._supplement_curriculum_same_doc_semester_sources(
             request=request,
             qdrant_collection_name=qdrant_collection_name,
@@ -711,7 +480,8 @@ class QdrantRetrievalBackend:
             if offset is None:
                 break
 
-        same_doc_sources = self._build_evidence_sources_from_records(
+        same_doc_sources = build_evidence_sources_from_records(
+            self,
             records,
             default_score=default_score,
         )
@@ -774,7 +544,8 @@ class QdrantRetrievalBackend:
             return sources
         lead_sources = tuple(
             sorted(
-                self._build_evidence_sources(
+                build_evidence_sources(
+                    self,
                     tuple(
                         qdrant_models.ScoredPoint(
                             id=record.id,
@@ -786,7 +557,7 @@ class QdrantRetrievalBackend:
                             order_value=getattr(record, "order_value", None),
                         )
                         for record in scrolled_records
-                    )
+                    ),
                 ),
                 key=lambda source: (
                     _official_web_source_chunk_ordinal(source) or 10_000,

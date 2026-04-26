@@ -1,6 +1,6 @@
-from campus_retrieval_core.backend_qdrant import (
+from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend
+from campus_retrieval_core.backend_qdrant_errors import (
     CorpusQueryDisabledError,
-    QdrantRetrievalBackend,
     RestrictedDocumentAccessDeniedError,
     RetrievalBackendError,
 )
