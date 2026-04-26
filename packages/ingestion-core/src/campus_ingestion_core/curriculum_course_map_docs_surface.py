@@ -3,10 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Protocol
 
 from campus_ingestion_core.artifacts import DOCUMENT_UNITS_FILENAME
 from campus_ingestion_core.curriculum_course_map_docs_ids import (
@@ -14,6 +13,24 @@ from campus_ingestion_core.curriculum_course_map_docs_ids import (
     resolve_node_id,
     resolve_stage_id,
     resolve_unique_node_id_for_label,
+)
+from campus_ingestion_core.curriculum_course_map_docs_surface_models import (
+    CURRICULUM_COURSE_MAP_DOCS_SURFACE_SCHEMA_VERSION,
+    CurriculumCourseMapDocsBlock,
+    CurriculumCourseMapDocsImageObject,
+    CurriculumCourseMapDocsSurface,
+    CurriculumCourseMapDocsSurfaceArtifact,
+    CurriculumCourseMapDocsSurfaceMaterializationReport,
+    ObjectStoreAdmin,
+    PublishedCourseMapEdge,
+    PublishedCourseMapNode,
+    _PublishedCourseMapPayload,
+)
+from campus_ingestion_core.curriculum_course_map_docs_surface_runtime import (
+    _build_inventory_sample_id,
+    _build_object_store_from_env,
+    _normalize_document_ids,
+    _resolve_curriculum_plan_document_units_keys,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     DEFAULT_CURRICULUM_RAW_ASSET_ID,
@@ -23,7 +40,6 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     DEFAULT_PROMPT_RUNTIME_TRANSPORT,
     DEFAULT_SPLIT_MANIFEST_PATH,
     CourseMapFinding,
-    CurriculumCourseMapInventoryEntry,
     CurriculumCourseMapPageProbe,
     CurriculumCourseMapRenderedSample,
     DetectedCourseMapRegion,
@@ -38,168 +54,8 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
 )
 from campus_ingestion_core.readable_text_normalization import normalize_readable_text
 
-CURRICULUM_COURSE_MAP_DOCS_SURFACE_SCHEMA_VERSION = "curriculum_course_map_docs_surface_v2"
 CURRICULUM_COURSE_MAP_DOCS_SURFACE_FILENAME = "course-maps.json"
 CURRICULUM_COURSE_MAP_DOCS_IMAGE_DIRECTORY = "course-maps"
-
-
-class ObjectStoreByteReader(Protocol):
-    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
-
-
-class ObjectStoreAdmin(ObjectStoreByteReader, Protocol):
-    def put_bytes(
-        self,
-        *,
-        bucket: str,
-        key: str,
-        data: bytes,
-        content_type: str,
-    ) -> None: ...
-
-    def delete_prefix(
-        self, *, bucket: str, prefix: str, exclude_keys: tuple[str, ...] = ()
-    ) -> None: ...
-
-    def list_keys(self, *, bucket: str, prefix: str) -> tuple[str, ...]: ...
-
-
-@dataclass(frozen=True, slots=True)
-class PublishedCourseMapNode:
-    node_id: str
-    node_label: str
-    stage_id: str = ""
-    stage_label: str = ""
-    category_label: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.node_id.strip():
-            raise ValueError("node_id is required")
-        if not self.node_label.strip():
-            raise ValueError("node_label is required")
-
-
-@dataclass(frozen=True, slots=True)
-class PublishedCourseMapEdge:
-    edge_id: str
-    source_node_id: str
-    source_label: str
-    target_node_id: str
-    target_label: str
-
-    def __post_init__(self) -> None:
-        if not self.edge_id.strip():
-            raise ValueError("edge_id is required")
-        if not self.source_node_id.strip():
-            raise ValueError("source_node_id is required")
-        if not self.target_node_id.strip():
-            raise ValueError("target_node_id is required")
-        if not self.source_label.strip():
-            raise ValueError("source_label is required")
-        if not self.target_label.strip():
-            raise ValueError("target_label is required")
-
-
-@dataclass(frozen=True, slots=True)
-class CurriculumCourseMapDocsBlock:
-    block_id: str
-    page_number: int
-    row_id: str
-    map_index: int
-    title: str
-    status: str
-    title_confidence: str
-    parent_heading_hint: str
-    display_stage_labels: tuple[str, ...]
-    nodes: tuple[PublishedCourseMapNode, ...]
-    edges: tuple[PublishedCourseMapEdge, ...]
-    extraction_notes: tuple[str, ...]
-    image_object_key: str
-    region_bbox_provider: tuple[float, float, float, float]
-
-    def __post_init__(self) -> None:
-        if not self.block_id.strip():
-            raise ValueError("block_id is required")
-        if self.page_number <= 0:
-            raise ValueError("page_number must be greater than zero")
-        if self.map_index <= 0:
-            raise ValueError("map_index must be greater than zero")
-        if not self.title.strip():
-            raise ValueError("title is required")
-        if self.status not in {"ready", "partial", "failed"}:
-            raise ValueError("unsupported status")
-        if self.title_confidence not in {"visible", "partial", "absent"}:
-            raise ValueError("unsupported title_confidence")
-        if len(self.region_bbox_provider) != 4:
-            raise ValueError("region_bbox_provider must contain four values")
-        if not self.image_object_key.strip():
-            raise ValueError("image_object_key is required")
-
-
-@dataclass(frozen=True, slots=True)
-class CurriculumCourseMapDocsSurface:
-    schema_version: str
-    generated_at: str
-    document_id: str
-    document_title: str
-    raw_asset_id: str
-    raw_version_id: str
-    blocks: tuple[CurriculumCourseMapDocsBlock, ...]
-
-    def __post_init__(self) -> None:
-        if self.schema_version != CURRICULUM_COURSE_MAP_DOCS_SURFACE_SCHEMA_VERSION:
-            raise ValueError("unsupported curriculum course-map docs surface version")
-        if not self.generated_at.strip():
-            raise ValueError("generated_at is required")
-        if not self.document_id.strip():
-            raise ValueError("document_id is required")
-        if not self.document_title.strip():
-            raise ValueError("document_title is required")
-        if not self.raw_asset_id.strip():
-            raise ValueError("raw_asset_id is required")
-        if not self.raw_version_id.strip():
-            raise ValueError("raw_version_id is required")
-
-
-@dataclass(frozen=True, slots=True)
-class CurriculumCourseMapDocsImageObject:
-    key: str
-    image_bytes: bytes
-
-    def __post_init__(self) -> None:
-        if not self.key.strip():
-            raise ValueError("key is required")
-        if not self.image_bytes:
-            raise ValueError("image_bytes is required")
-
-
-@dataclass(frozen=True, slots=True)
-class _PublishedCourseMapPayload:
-    nodes: tuple[PublishedCourseMapNode, ...]
-    edges: tuple[PublishedCourseMapEdge, ...]
-    notes: tuple[str, ...]
-    has_stage_buckets: bool
-
-
-@dataclass(frozen=True, slots=True)
-class CurriculumCourseMapDocsSurfaceArtifact:
-    surface: CurriculumCourseMapDocsSurface
-    image_objects: tuple[CurriculumCourseMapDocsImageObject, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class CurriculumCourseMapDocsSurfaceMaterializationReport:
-    source_document_count: int
-    materialized_document_count: int
-    source_bucket: str
-    derived_bucket: str
-    raw_asset_id: str
-    raw_version_id: str
-    source_pdf_key: str
-    provider_response_key: str
-    layout_elements_key: str
-    materialized_document_ids: tuple[str, ...]
-    purged_document_ids: tuple[str, ...]
 
 
 def build_curriculum_course_map_docs_surface_object_key(document_units_key: str) -> str:
@@ -786,48 +642,3 @@ def _coerce_docs_block(payload: object) -> CurriculumCourseMapDocsBlock:
             float(value) for value in payload.get("regionBBoxProvider") or ()
         ),
     )
-
-
-def _build_object_store_from_env(source: Mapping[str, str]) -> ObjectStoreAdmin:
-    from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
-    from campus_ingestion_core.settings import ObjectStoreSettings
-
-    return S3ObjectStoreAdmin(ObjectStoreSettings.from_env(dict(source)))
-
-
-def _resolve_curriculum_plan_document_units_keys(
-    *,
-    object_store: ObjectStoreAdmin,
-    bucket: str,
-) -> dict[str, str]:
-    keys = object_store.list_keys(bucket=bucket, prefix="curriculum/documents/curriculum_plan/")
-    resolved: dict[str, str] = {}
-    for key in keys:
-        if not key.endswith(f"/{DOCUMENT_UNITS_FILENAME}"):
-            continue
-        document_units = object_store.get_bytes(bucket=bucket, key=key)
-        document_id = _parse_doc_id_from_document_units_rows(document_units)
-        resolved[document_id] = key
-    return resolved
-
-
-def _parse_doc_id_from_document_units_rows(document_units_bytes: bytes) -> str:
-    for line in document_units_bytes.decode("utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        payload = json.loads(stripped)
-        document_id = str(payload.get("doc_id") or "").strip()
-        if document_id:
-            return document_id
-    raise ValueError("doc_id is required in canonical document-units")
-
-
-def _build_inventory_sample_id(entry: CurriculumCourseMapInventoryEntry) -> str:
-    return f"course-map-p{entry.page_number:04d}-{entry.row_id}"
-
-
-def _normalize_document_ids(source_document_ids: Sequence[str] | None) -> tuple[str, ...]:
-    if source_document_ids is None:
-        return ()
-    return tuple(dict.fromkeys(document_id for document_id in source_document_ids if document_id))

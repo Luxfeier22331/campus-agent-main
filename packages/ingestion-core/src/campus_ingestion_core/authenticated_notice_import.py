@@ -9,12 +9,8 @@ from typing import Any
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
-    DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
-    DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     AuthenticatedNoticeAttachmentFetchStatusStore,
     build_attachment_fetch_status_records_from_bundle_records,
-    build_authenticated_notice_attachment_fetch_status_store_from_env,
 )
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
@@ -24,6 +20,16 @@ from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE,
     DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION,
     DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
+)
+from campus_ingestion_core.authenticated_notice_import_assets import (
+    _assert_attachment_blob_root_precondition,
+    _content_type_for_artifact,
+    _maybe_backfill_attachment_objects_for_import,
+)
+from campus_ingestion_core.authenticated_notice_import_env import (
+    _build_attachment_fetch_status_store_from_env_if_configured,
+    _build_consumption_projection_store_from_env_if_configured,
+    _build_read_model_store_from_env_if_configured,
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
     _load_json_payload,
@@ -41,9 +47,11 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
     AuthenticatedNoticeSourceTruthInventoryStore,
-    build_authenticated_notice_source_truth_inventory_store_from_env,
     build_authenticated_notice_source_truth_parent_snapshot_from_payloads,
     inventory_entry_from_parent_snapshot,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    build_authenticated_notice_source_truth_inventory_store_from_env as build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
@@ -55,15 +63,10 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NoticeConsumptionProjectionStore,
-    build_notice_consumption_projection_store_from_env,
     rebuild_internal_notice_consumption_projection,
 )
 from campus_ingestion_core.internal_notice_read_model import (
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
     InternalNoticeReadModelStore,
-    build_internal_notice_read_model_store_from_env,
     rebuild_internal_notice_read_model,
 )
 from campus_ingestion_core.internal_notice_regulation_promotion import (
@@ -439,66 +442,6 @@ def _build_inventory_store_from_env_if_configured(
     return None
 
 
-def _build_attachment_fetch_status_store_from_env_if_configured(
-    env: dict[str, str],
-) -> AuthenticatedNoticeAttachmentFetchStatusStore | None:
-    operator_env_keys = (
-        DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
-        DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
-        SHARED_POSTGRES_OPERATOR_ENV_KEY,
-        SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-    )
-    if any(env.get(key) for key in operator_env_keys):
-        return build_authenticated_notice_attachment_fetch_status_store_from_env(
-            env,
-            prefer_operator=True,
-        )
-    runtime_env_keys = (
-        DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
-        SHARED_POSTGRES_ENV_KEY,
-    )
-    if any(env.get(key) for key in runtime_env_keys):
-        return build_authenticated_notice_attachment_fetch_status_store_from_env(env)
-    return None
-
-
-def _build_consumption_projection_store_from_env_if_configured(
-    env: dict[str, str],
-) -> NoticeConsumptionProjectionStore | None:
-    projection_env_keys = (
-        "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-        "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
-        "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
-    )
-    if not any(env.get(key) for key in projection_env_keys):
-        return None
-    return build_notice_consumption_projection_store_from_env(
-        env,
-        prefer_operator=any(
-            env.get(key)
-            for key in (
-                "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
-            )
-        ),
-    )
-
-
-def _build_read_model_store_from_env_if_configured(
-    env: dict[str, str],
-) -> InternalNoticeReadModelStore | None:
-    read_model_operator_env_keys = (
-        DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
-        DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
-    )
-    if any(env.get(key) for key in read_model_operator_env_keys):
-        return build_internal_notice_read_model_store_from_env(env, prefer_operator=True)
-    read_model_runtime_env_keys = (DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,)
-    if any(env.get(key) for key in read_model_runtime_env_keys):
-        return build_internal_notice_read_model_store_from_env(env)
-    return None
-
-
 def _should_preserve_authenticated_notice_scope_record(
     record: DocumentRegistryRecord,
 ) -> bool:
@@ -577,86 +520,6 @@ def _manifest_declares_full_scope_replace(export_manifest: dict[str, Any] | None
                 "replace",
                 "full-scope",
             }:
-                return True
-    return False
-
-
-def _assert_attachment_blob_root_precondition(
-    *,
-    request: AuthenticatedNoticeImportRequest,
-    export_manifest: dict[str, Any] | None,
-    bundle_records: tuple[dict[str, Any], ...] | list[dict[str, Any]],
-) -> None:
-    if request.attachment_blob_root is not None:
-        return
-    if not _manifest_uses_blob_store_reference(export_manifest):
-        return
-    if not _bundle_contains_object_backed_attachments(bundle_records):
-        return
-    raise ValueError(
-        "authenticated notice import requires attachment_blob_root when "
-        "collector.attachment_storage_mode=blob_store_reference and the selected bundle "
-        "contains object-backed attachments"
-    )
-
-
-def _maybe_backfill_attachment_objects_for_import(
-    *,
-    request: AuthenticatedNoticeImportRequest,
-    source: dict[str, str],
-    object_store: S3ObjectStoreWriter | object,
-    notice_ids: tuple[str, ...],
-) -> dict[str, Any] | None:
-    attachment_blob_root = request.attachment_blob_root
-    if attachment_blob_root is None:
-        return None
-    from campus_ingestion_core.authenticated_notice_attachment_object_backfill import (
-        AuthenticatedNoticeAttachmentObjectBackfillRequest,
-        backfill_authenticated_notice_attachment_objects,
-    )
-
-    return backfill_authenticated_notice_attachment_objects(
-        request=AuthenticatedNoticeAttachmentObjectBackfillRequest(
-            bundle_path=request.bundle_path,
-            blob_root=attachment_blob_root,
-            notice_ids=notice_ids,
-        ),
-        env=source,
-        object_store=object_store,
-    )
-
-
-def _manifest_uses_blob_store_reference(
-    export_manifest: dict[str, Any] | None,
-) -> bool:
-    if not isinstance(export_manifest, dict):
-        return False
-    collector = export_manifest.get("collector")
-    if not isinstance(collector, dict):
-        return False
-    storage_mode = str(collector.get("attachment_storage_mode") or "").strip().lower()
-    return storage_mode == "blob_store_reference"
-
-
-def _bundle_contains_object_backed_attachments(
-    bundle_records: tuple[dict[str, Any], ...] | list[dict[str, Any]],
-) -> bool:
-    for record in bundle_records:
-        if not isinstance(record, dict):
-            continue
-        attachments = {
-            item.get("attachment_id"): item
-            for item in list(record.get("attachments") or ())
-            if isinstance(item, dict) and item.get("attachment_id") is not None
-        }
-        for relation in list(record.get("notice_attachments") or ()):
-            if not isinstance(relation, dict):
-                continue
-            attachment = attachments.get(relation.get("attachment_id"))
-            if not isinstance(attachment, dict):
-                continue
-            object_key = str(attachment.get("object_key") or "").strip()
-            if object_key:
                 return True
     return False
 
@@ -829,16 +692,6 @@ def _load_optional_json(path: Path | None) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         raise ValueError("export manifest must be a JSON object")
     return payload
-
-
-def _content_type_for_artifact(path: str) -> str:
-    if path.endswith(".jsonl"):
-        return "application/x-ndjson"
-    if path.endswith(".json"):
-        return "application/json"
-    if path.endswith(".md"):
-        return "text/markdown; charset=utf-8"
-    return "application/octet-stream"
 
 
 __all__ = [

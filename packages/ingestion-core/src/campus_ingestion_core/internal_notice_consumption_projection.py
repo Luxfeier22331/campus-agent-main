@@ -8,15 +8,18 @@ from dataclasses import replace
 from campus_ingestion_core import (
     internal_notice_consumption_projection_multimodal as _multimodal,
 )
-from campus_ingestion_core.authenticated_notice_routing_sampling import (
-    AuthenticatedNoticeRoutingSample,
-)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
     AuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.internal_notice_consumption_notice_entries import (
+    _build_notice_level_entries,
+)
+from campus_ingestion_core.internal_notice_consumption_notice_heuristics import (
+    _looks_like_service_status_override_notice,
+)
 from campus_ingestion_core.internal_notice_consumption_projection_models import (
     InternalNoticeConsumptionProjectionObjectStore,
 )
@@ -41,12 +44,7 @@ from campus_ingestion_core.internal_notice_consumption_projection_multimodal imp
 )
 from campus_ingestion_core.internal_notice_consumption_projection_routing import (
     index_notice_attachment_records,
-    resolve_attachment_document_ids,
-    resolve_attachment_ref_ids,
     resolve_notice_routing_samples_by_notice,
-    resolve_service_status_candidate_kind,
-    routes_to_service_status_candidate,
-    routing_metadata,
     should_suppress_regulation_promotion,
 )
 from campus_ingestion_core.internal_notice_consumption_projection_status import (
@@ -74,7 +72,6 @@ from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared im
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_ANSWERABLE,
-    NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
     NOTICE_ANSWERABILITY_NOT_ANSWERABLE,
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING,
@@ -85,19 +82,10 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-    NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_DEFAULT_AGENT_RAG,
     NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
-    NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
-    NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY,
-    NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
-    NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
-    NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
-    NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
-    NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
-    NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
     NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
     NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT,
     NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING,
@@ -107,16 +95,9 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
     NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-    NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
-    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
-    NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
-    NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
     NOTICE_TARGET_SURFACE_UNSUPPORTED,
-    NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
-    NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE,
     NOTICE_TEMPORAL_POLICY_EXPLICIT_YEAR_ONLY,
-    NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
     NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
     NOTICE_TEMPORAL_POLICY_TIME_WINDOWED,
     InMemoryNoticeConsumptionProjectionStore,
@@ -125,6 +106,54 @@ from campus_ingestion_core.notice_consumption_projection import (
     PostgresNoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
     normalize_notice_ids,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES as NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE as NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY as NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_NOTICE_WINDOW as NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE as NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION as NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE as NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE as NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE as NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY as NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE as NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE as NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE as NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW as NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE as NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION as NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -186,7 +215,9 @@ def build_internal_notice_consumption_projection_entries(
         env=source,
         object_store=runtime_object_store,
     )
-    bucket_derived = ObjectStoreSettings.from_env(source).bucket_derived
+    object_store_settings = ObjectStoreSettings.from_env(source)
+    bucket_derived = object_store_settings.bucket_derived
+    bucket_source = object_store_settings.bucket_source
 
     entries: list[NoticeConsumptionProjectionEntry] = []
     for entry in inventory_entries:
@@ -195,6 +226,8 @@ def build_internal_notice_consumption_projection_entries(
                 entry,
                 routing_sample=routing_samples_by_notice.get(entry.notice_id),
                 attachment_records=attachment_records_by_notice.get(entry.notice_id, ()),
+                object_store=runtime_object_store,
+                source_bucket=bucket_source,
             )
         )
     for report in promotion_report.documents:
@@ -345,352 +378,6 @@ def _stamp_consumer_admission_provenance(
             metadata["consumer_admission_created_at"] = admission_created_at
         stamped.append(replace(entry, role_metadata=metadata))
     return tuple(stamped)
-
-
-def _build_notice_level_entries(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-    *,
-    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
-    attachment_records: Sequence[DocumentRegistryRecord] = (),
-) -> tuple[NoticeConsumptionProjectionEntry, ...]:
-    entries = [_build_notice_window_entry(inventory_entry, routing_sample=routing_sample)]
-    category_role = _resolve_notice_level_primary_role(inventory_entry, routing_sample)
-    if routes_to_service_status_candidate(
-        inventory_entry=inventory_entry,
-        routing_sample=routing_sample,
-        fallback_service_detector=_looks_like_service_status_override_notice,
-    ):
-        entries.append(
-            _build_service_status_override_entry(
-                inventory_entry,
-                routing_sample=routing_sample,
-                attachment_records=attachment_records,
-            )
-        )
-    if _looks_like_special_service_notice(inventory_entry):
-        entries.append(_build_special_service_notice_entry(inventory_entry))
-    if _looks_like_stable_contact_update_notice(inventory_entry):
-        entries.append(_build_stable_contact_update_entry(inventory_entry))
-    if category_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE:
-        entries.append(_build_procurement_notice_entry(inventory_entry))
-    elif category_role in {
-        NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
-        NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY,
-    }:
-        entries.append(_build_no_adoption_notice_entry(inventory_entry, primary_role=category_role))
-    entries.extend(_build_attachment_form_template_entries(inventory_entry))
-    return tuple(entries)
-
-
-def _build_notice_window_entry(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-    *,
-    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
-) -> NoticeConsumptionProjectionEntry:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    multimodal_decision = _resolve_inventory_multimodal_consumption_decision(inventory_entry)
-    return NoticeConsumptionProjectionEntry(
-        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-        source_corpus=inventory_entry.corpus,
-        source_collection=inventory_entry.collection,
-        source_notice_id=inventory_entry.notice_id,
-        unit_id=f"notice_unit:{inventory_entry.document_id}:notice_window",
-        primary_role=NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
-        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
-        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-        temporal_policy=NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
-        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
-        answerability=NOTICE_ANSWERABILITY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-        source_notice_document_id=inventory_entry.document_id,
-        source_document_id=inventory_entry.document_id,
-        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
-        role_metadata={
-            "notice_title": str(parent_snapshot.get("notice_title") or inventory_entry.document_id),
-            "notice_type_names": tuple(parent_snapshot.get("notice_type_names") or ()),
-            "notice_risk_label": inventory_entry.notice_risk_label,
-            "attachment_ref_count": inventory_entry.attachment_ref_count,
-            "attachment_document_count": inventory_entry.attachment_document_count,
-            "text_extractable_count": inventory_entry.text_extractable_count,
-            "ocr_required_count": inventory_entry.ocr_required_count,
-            "reference_only_count": inventory_entry.reference_only_count,
-            "owner_expectation_count": int(parent_snapshot.get("owner_expectation_count") or 0),
-            **_build_multimodal_consumption_metadata(
-                multimodal_decision,
-                include_not_required=True,
-            ),
-            **routing_metadata(routing_sample),
-        },
-    )
-
-
-def _build_procurement_notice_entry(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> NoticeConsumptionProjectionEntry:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
-    return NoticeConsumptionProjectionEntry(
-        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-        source_corpus=inventory_entry.corpus,
-        source_collection=inventory_entry.collection,
-        source_notice_id=inventory_entry.notice_id,
-        unit_id=f"notice_unit:{inventory_entry.document_id}:procurement_notice",
-        primary_role=NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
-        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
-        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
-        temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
-        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
-        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-        source_notice_document_id=inventory_entry.document_id,
-        source_document_id=inventory_entry.document_id,
-        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
-        role_metadata={
-            "notice_title": notice_title,
-            "notice_category": NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
-            "notice_query_reason": "internal_procurement_notice_history",
-        },
-    )
-
-
-def _build_no_adoption_notice_entry(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-    *,
-    primary_role: str,
-) -> NoticeConsumptionProjectionEntry:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
-    return NoticeConsumptionProjectionEntry(
-        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-        source_corpus=inventory_entry.corpus,
-        source_collection=inventory_entry.collection,
-        source_notice_id=inventory_entry.notice_id,
-        unit_id=f"notice_unit:{inventory_entry.document_id}:{primary_role}",
-        primary_role=primary_role,
-        semantic_owner=NOTICE_SEMANTIC_OWNER_WRAPPER_NOTICE,
-        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_UNSUPPORTED,
-        temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
-        completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
-        answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
-        source_notice_document_id=inventory_entry.document_id,
-        source_document_id=inventory_entry.document_id,
-        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
-        role_metadata={
-            "notice_title": notice_title,
-            "notice_category": primary_role,
-            "no_adoption_reason": "internal_restricted_publication_not_admitted",
-        },
-    )
-
-
-def _build_service_status_override_entry(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-    *,
-    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
-    attachment_records: Sequence[DocumentRegistryRecord] = (),
-) -> NoticeConsumptionProjectionEntry:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
-    attachment_document_ids = resolve_attachment_document_ids(
-        inventory_entry=inventory_entry,
-        attachment_records=attachment_records,
-    )
-    attachment_ref_ids = resolve_attachment_ref_ids(
-        inventory_entry=inventory_entry,
-        attachment_document_ids=attachment_document_ids,
-    )
-    service_status_candidate_kind = resolve_service_status_candidate_kind(
-        title_compact=_notice_title_compact(inventory_entry),
-        routing_sample=routing_sample,
-    )
-    return NoticeConsumptionProjectionEntry(
-        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-        source_corpus=inventory_entry.corpus,
-        source_collection=inventory_entry.collection,
-        source_notice_id=inventory_entry.notice_id,
-        unit_id=f"notice_unit:{inventory_entry.document_id}:service_status_override",
-        primary_role=NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
-        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
-        default_agent=NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES,
-        target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
-        temporal_policy=NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE,
-        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
-        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
-        source_notice_document_id=inventory_entry.document_id,
-        source_document_id=inventory_entry.document_id,
-        source_attachment_ref_ids=attachment_ref_ids,
-        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
-        role_metadata={
-            "notice_title": notice_title,
-            "notice_category": NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
-            "notice_query_reason": "service_status_typed_materialization_candidate",
-            "service_status_candidate_kind": service_status_candidate_kind,
-            "attachment_document_ids": attachment_document_ids,
-            **routing_metadata(routing_sample),
-        },
-    )
-
-
-def _build_special_service_notice_entry(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> NoticeConsumptionProjectionEntry:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
-    return NoticeConsumptionProjectionEntry(
-        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-        source_corpus=inventory_entry.corpus,
-        source_collection=inventory_entry.collection,
-        source_notice_id=inventory_entry.notice_id,
-        unit_id=f"notice_unit:{inventory_entry.document_id}:special_service_notice",
-        primary_role=NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
-        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
-        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
-        temporal_policy=NOTICE_TEMPORAL_POLICY_TIME_WINDOWED,
-        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
-        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-        source_notice_document_id=inventory_entry.document_id,
-        source_document_id=inventory_entry.document_id,
-        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
-        role_metadata={
-            "notice_title": notice_title,
-            "notice_category": NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE,
-            "notice_query_reason": "special_service_not_admitted",
-        },
-    )
-
-
-def _build_stable_contact_update_entry(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> NoticeConsumptionProjectionEntry:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
-    return NoticeConsumptionProjectionEntry(
-        source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-        source_corpus=inventory_entry.corpus,
-        source_collection=inventory_entry.collection,
-        source_notice_id=inventory_entry.notice_id,
-        unit_id=f"notice_unit:{inventory_entry.document_id}:stable_contact_update",
-        primary_role=NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
-        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
-        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
-        temporal_policy=NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
-        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
-        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-        source_notice_document_id=inventory_entry.document_id,
-        source_document_id=inventory_entry.document_id,
-        source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
-        role_metadata={
-            "notice_title": notice_title,
-            "notice_category": NOTICE_PRIMARY_ROLE_STABLE_CONTACT_UPDATE,
-            "notice_query_reason": "stable_contact_not_admitted",
-        },
-    )
-
-
-def _build_attachment_form_template_entries(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> tuple[NoticeConsumptionProjectionEntry, ...]:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
-    plans = tuple(
-        dict(plan)
-        for plan in parent_snapshot.get("attachment_projection_plans") or ()
-        if isinstance(plan, dict)
-    )
-    entries: list[NoticeConsumptionProjectionEntry] = []
-    for plan in plans:
-        if not _looks_like_attachment_form_template_plan(plan):
-            continue
-        attachment_ref_id = str(plan.get("attachment_ref_id") or "").strip()
-        if not attachment_ref_id:
-            continue
-        attachment_document_id = str(plan.get("document_id") or "").strip()
-        filename = str(
-            plan.get("attachment_filename")
-            or plan.get("original_filename")
-            or plan.get("filename")
-            or ""
-        ).strip()
-        entries.append(
-            NoticeConsumptionProjectionEntry(
-                source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-                source_corpus=inventory_entry.corpus,
-                source_collection=inventory_entry.collection,
-                source_notice_id=inventory_entry.notice_id,
-                unit_id=(
-                    f"notice_unit:{inventory_entry.document_id}:"
-                    f"attachment_form_template:{attachment_ref_id}"
-                ),
-                primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
-                semantic_owner=NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT,
-                default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-                target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-                temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
-                completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
-                answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
-                consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-                source_notice_document_id=inventory_entry.document_id,
-                source_document_id=attachment_document_id or inventory_entry.document_id,
-                source_attachment_ref_ids=(attachment_ref_id,),
-                source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "")
-                or None,
-                role_metadata={
-                    "notice_title": str(
-                        parent_snapshot.get("notice_title") or inventory_entry.document_id
-                    ),
-                    "attachment_ref_id": attachment_ref_id,
-                    "attachment_document_id": attachment_document_id or None,
-                    "attachment_filename": filename or None,
-                    "notice_query_reason": "attachment_form_template_query_hint_only",
-                },
-            )
-        )
-    if entries or inventory_entry.text_extractable_count <= 0:
-        return tuple(entries)
-    if not _looks_like_attachment_form_template_notice_title(notice_title):
-        return tuple(entries)
-    fallback_plan = plans[0] if plans else {}
-    attachment_ref_id = str(fallback_plan.get("attachment_ref_id") or "").strip()
-    attachment_document_id = str(fallback_plan.get("document_id") or "").strip()
-    entries.append(
-        NoticeConsumptionProjectionEntry(
-            source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-            source_corpus=inventory_entry.corpus,
-            source_collection=inventory_entry.collection,
-            source_notice_id=inventory_entry.notice_id,
-            unit_id=f"notice_unit:{inventory_entry.document_id}:attachment_form_template",
-            primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
-            semantic_owner=NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT,
-            default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-            target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-            temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
-            completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
-            answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
-            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-            source_notice_document_id=inventory_entry.document_id,
-            source_document_id=attachment_document_id or inventory_entry.document_id,
-            source_attachment_ref_ids=(attachment_ref_id,) if attachment_ref_id else (),
-            source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "")
-            or None,
-            role_metadata={
-                "notice_title": notice_title,
-                "attachment_ref_id": attachment_ref_id or None,
-                "attachment_document_id": attachment_document_id or None,
-                "notice_query_reason": "attachment_form_template_query_hint_only",
-                "template_signal": "notice_title_with_text_attachment",
-            },
-        )
-    )
-    return tuple(entries)
 
 
 def _build_document_consumption_entry(
@@ -974,348 +661,3 @@ def _index_latest_scope_records(
 
 def _record_sort_key(record: DocumentRegistryRecord) -> tuple[object, ...]:
     return (1 if record.is_current else 0, record.ingestion_timestamp, record.version_id)
-
-
-def _resolve_notice_level_primary_role(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-    routing_sample: AuthenticatedNoticeRoutingSample | None = None,
-) -> str | None:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    title = str(parent_snapshot.get("notice_title") or "")
-    if _looks_like_procurement_notice(title):
-        return NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
-    if routing_sample is not None:
-        if routing_sample.suggested_consumption_route == "procurement_notice_history":
-            return NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
-        if routing_sample.notice_family == "roster_publication":
-            return NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
-        if routing_sample.notice_family == "lecture_publicity":
-            return NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY
-    if _looks_like_roster_publication(title):
-        return NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
-    if _looks_like_lecture_activity(title):
-        return NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY
-    return None
-
-
-def _looks_like_procurement_notice(title: str) -> bool:
-    normalized = "".join(str(title or "").split())
-    if not normalized:
-        return False
-    if any(
-        keyword in normalized
-        for keyword in (
-            "管理办法",
-            "管理规定",
-            "实施细则",
-            "制度",
-            "工作规程",
-            "条例",
-            "章程",
-            "准则",
-            "指导意见",
-        )
-    ):
-        return False
-    return any(
-        keyword in normalized
-        for keyword in (
-            "采购公告",
-            "采购通知",
-            "采购项目",
-            "招标公告",
-            "招标项目",
-            "比选公告",
-            "比选结果",
-            "询价公告",
-            "竞价公告",
-            "成交公告",
-            "中标公告",
-            "中选结果",
-            "谈判结果",
-        )
-    )
-
-
-def _looks_like_service_status_override_notice(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> bool:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    title = str(parent_snapshot.get("notice_title") or "")
-    normalized = "".join(title.split())
-    if not normalized:
-        return False
-    if any(
-        keyword in normalized
-        for keyword in (
-            "管理办法",
-            "管理规定",
-            "实施细则",
-            "工作规程",
-            "制度",
-            "条例",
-            "章程",
-            "准则",
-            "指导意见",
-        )
-    ):
-        return False
-    service_signal = any(
-        keyword in normalized
-        for keyword in (
-            "办理",
-            "服务",
-            "开放",
-            "暂停",
-            "恢复",
-            "调整",
-            "闭馆",
-            "停办",
-            "开通",
-            "运行",
-        )
-    )
-    bounded_time_signal = any(
-        keyword in normalized
-        for keyword in (
-            "暑假期间",
-            "寒假期间",
-            "假期期间",
-            "临时",
-            "试运行",
-            "运营时间",
-            "服务时间",
-            "开放时间",
-        )
-    )
-    service_owner_signal = any(
-        keyword in normalized
-        for keyword in (
-            "就业",
-            "图书馆",
-            "档案",
-            "校车",
-            "食堂",
-            "浴室",
-            "体育馆",
-            "办事大厅",
-            "业务",
-            "窗口",
-        )
-    )
-    return service_signal and (bounded_time_signal or service_owner_signal)
-
-
-def _looks_like_special_service_notice(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> bool:
-    title = _notice_title_compact(inventory_entry)
-    if not title:
-        return False
-    medical_special_signal = any(
-        keyword in title
-        for keyword in (
-            "HPV",
-            "hpv",
-            "九价",
-            "四价",
-            "二价",
-            "叶酸",
-        )
-    )
-    service_action_signal = any(
-        keyword in title
-        for keyword in (
-            "预约",
-            "接种",
-            "领取",
-            "开放",
-            "办理",
-            "登记",
-        )
-    )
-    return medical_special_signal and service_action_signal
-
-
-def _looks_like_stable_contact_update_notice(
-    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
-) -> bool:
-    title = _notice_title_compact(inventory_entry)
-    if not title:
-        return False
-    if _looks_like_activity_or_ephemeral_contact_notice_title(title):
-        return False
-    contact_signal = any(
-        keyword in title
-        for keyword in (
-            "联系方式",
-            "联系电话",
-            "办公电话",
-            "咨询电话",
-            "服务热线",
-            "服务电话",
-            "联系邮箱",
-            "办公地点",
-        )
-    )
-    stable_change_signal = any(
-        keyword in title
-        for keyword in (
-            "调整",
-            "变更",
-            "更新",
-            "启用",
-            "公布",
-            "公告",
-            "迁址",
-            "搬迁",
-        )
-    )
-    return contact_signal and stable_change_signal
-
-
-def _looks_like_activity_or_ephemeral_contact_notice_title(title: str) -> bool:
-    return any(
-        keyword in title
-        for keyword in (
-            "活动",
-            "讲座",
-            "会议",
-            "培训",
-            "比赛",
-            "竞赛",
-            "征集",
-            "招募",
-            "志愿者",
-            "报名",
-            "论坛",
-            "展览",
-            "演出",
-        )
-    )
-
-
-def _notice_title_compact(inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry) -> str:
-    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    return "".join(str(parent_snapshot.get("notice_title") or "").split())
-
-
-def _looks_like_attachment_form_template_plan(plan: Mapping[str, object]) -> bool:
-    materialization_policy = str(plan.get("materialization_policy") or "").strip()
-    classification = str(plan.get("classification") or "").strip()
-    if materialization_policy not in {"required_document", "conditional_on_extracted_text"} and (
-        classification not in {"text_extractable", "ocr_required"}
-    ):
-        return False
-    text = "".join(
-        str(plan.get(key) or "")
-        for key in (
-            "attachment_filename",
-            "original_filename",
-            "filename",
-            "title",
-            "document_id",
-        )
-    )
-    normalized = "".join(text.split())
-    if not normalized:
-        return False
-    if any(
-        keyword in normalized
-        for keyword in (
-            "管理办法",
-            "管理规定",
-            "实施细则",
-            "工作规程",
-            "制度",
-            "条例",
-            "章程",
-            "准则",
-            "指导意见",
-        )
-    ):
-        return False
-    return any(
-        keyword in normalized
-        for keyword in (
-            "报名表",
-            "申请表",
-            "登记表",
-            "汇总表",
-            "统计表",
-            "信息表",
-            "审批表",
-            "模板",
-            "表格",
-            "回执",
-            "承诺书",
-            "材料清单",
-            "附件表",
-        )
-    )
-
-
-def _looks_like_attachment_form_template_notice_title(title: str) -> bool:
-    normalized = "".join(str(title or "").split())
-    if not normalized:
-        return False
-    if any(
-        keyword in normalized
-        for keyword in (
-            "管理办法",
-            "管理规定",
-            "实施细则",
-            "工作规程",
-            "制度",
-            "条例",
-            "章程",
-            "准则",
-            "指导意见",
-        )
-    ):
-        return False
-    return any(
-        keyword in normalized
-        for keyword in (
-            "报名",
-            "申请",
-            "申报",
-            "登记",
-            "审核",
-            "资格审查",
-            "材料提交",
-            "材料报送",
-        )
-    )
-
-
-def _looks_like_roster_publication(title: str) -> bool:
-    normalized = "".join(str(title or "").split())
-    return any(
-        keyword in normalized
-        for keyword in (
-            "名单公示",
-            "录取名单",
-            "拟接收名单",
-            "入选名单",
-            "候选人",
-            "成绩公示",
-            "最终公示",
-        )
-    )
-
-
-def _looks_like_lecture_activity(title: str) -> bool:
-    normalized = "".join(str(title or "").split())
-    return any(
-        keyword in normalized
-        for keyword in (
-            "讲座预告",
-            "讲堂",
-            "论坛",
-            "大讲堂",
-            "读书会",
-            "前沿讲堂",
-            "文华讲堂",
-        )
-    )
