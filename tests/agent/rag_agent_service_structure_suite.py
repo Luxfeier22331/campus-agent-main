@@ -18,6 +18,16 @@ RAG_SERVICE_VERSIONING = RAG_AGENT_PACKAGE / "service_versioning.py"
 RAG_SERVICE_VERSIONING_CONTEXT = RAG_AGENT_PACKAGE / "service_versioning_context.py"
 RAG_SERVICE_VERSIONING_EVIDENCE = RAG_AGENT_PACKAGE / "service_versioning_evidence.py"
 RAG_SERVICE_VERSIONING_RESPONSE = RAG_AGENT_PACKAGE / "service_versioning_response.py"
+RAG_SERVICE_SCOPE = RAG_AGENT_PACKAGE / "service_scope.py"
+RAG_SERVICE_SCOPE_CURRICULUM = RAG_AGENT_PACKAGE / "service_scope_curriculum.py"
+RAG_SERVICE_SCOPE_HANDBOOK = RAG_AGENT_PACKAGE / "service_scope_handbook.py"
+RAG_SERVICE_SCOPE_PLANS = RAG_AGENT_PACKAGE / "service_scope_plans.py"
+RAG_SERVICE_PIPELINE = RAG_AGENT_PACKAGE / "service_pipeline.py"
+RAG_SERVICE_PREFLIGHT_RESPONSES = RAG_AGENT_PACKAGE / "service_preflight_responses.py"
+RAG_AGENT_ANSWERING = RAG_AGENT_PACKAGE / "agent_answering.py"
+RAG_AGENT_ANSWERING_GENERIC = RAG_AGENT_PACKAGE / "agent_answering_generic.py"
+RAG_AGENT_ANSWERING_PROCEDURE = RAG_AGENT_PACKAGE / "agent_answering_procedure.py"
+RAG_AGENT_ANSWERING_SUPPORT = RAG_AGENT_PACKAGE / "agent_answering_support.py"
 RAG_AGENT_CURRICULUM = RAG_AGENT_PACKAGE / "agent_curriculum.py"
 RAG_AGENT_CURRICULUM_ANSWERING = RAG_AGENT_PACKAGE / "agent_curriculum_answering.py"
 RAG_AGENT_CURRICULUM_TABLES = RAG_AGENT_PACKAGE / "agent_curriculum_tables.py"
@@ -46,6 +56,13 @@ RAG_GROUNDING_CLAIM_NORMALIZATION = (
 RAG_GROUNDING_CLAIM_PATTERNS = RAG_AGENT_PACKAGE / "grounding_validation_claim_patterns.py"
 RAG_GROUNDING_CLAIM_REQUIREMENTS = RAG_AGENT_PACKAGE / "grounding_validation_claim_requirements.py"
 RAG_GROUNDING_CLAIM_SENSITIVE = RAG_AGENT_PACKAGE / "grounding_validation_claim_sensitive.py"
+RAG_GROUNDING_VALIDATION = RAG_AGENT_PACKAGE / "grounding_validation.py"
+RAG_GROUNDING_VALIDATION_RESULT = RAG_AGENT_PACKAGE / "grounding_validation_result.py"
+RAG_GROUNDING_VALIDATION_SOURCE_TRUST = RAG_AGENT_PACKAGE / "grounding_validation_source_trust.py"
+RAG_GROUNDING_VALIDATION_SUPPORT_POLICY = (
+    RAG_AGENT_PACKAGE / "grounding_validation_support_policy.py"
+)
+RAG_GROUNDING_VALIDATION_TRUST_POLICY = RAG_AGENT_PACKAGE / "grounding_validation_trust_policy.py"
 RAG_CURRICULUM_QUERY_PLANNING = RAG_AGENT_PACKAGE / "curriculum_query_planning.py"
 RAG_CURRICULUM_QUERY_CONFIG = RAG_AGENT_PACKAGE / "curriculum_query_config.py"
 RAG_CURRICULUM_QUERY_COURSES = RAG_AGENT_PACKAGE / "curriculum_query_courses.py"
@@ -59,10 +76,15 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         service_source = RAG_SERVICE.read_text(encoding="utf-8")
 
         self.assertTrue(RAG_SERVICE_RETRIEVAL.exists())
+        self.assertTrue(RAG_SERVICE_PIPELINE.exists())
         self.assertNotIn("execute_retrieval_plan", service_source)
         self.assertNotIn("build_ordered_retrieval_plan", service_source)
         self.assertNotIn("load_runtime_profile", service_source)
         self.assertNotIn("interpret_curriculum_query", service_source)
+        self.assertNotIn("build_document_registry_from_env", service_source)
+        self.assertNotIn("resolve_version_query", service_source)
+        self.assertNotIn("campus_ingestion_core", service_source)
+        self.assertNotIn("campus_retrieval_core", service_source)
 
     def test_delegate_service_keeps_answer_synthesis_in_dedicated_module(self) -> None:
         service_source = RAG_SERVICE.read_text(encoding="utf-8")
@@ -77,10 +99,20 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         service_source = RAG_SERVICE.read_text(encoding="utf-8")
 
         self.assertTrue(RAG_SERVICE_OUTCOMES.exists())
+        self.assertTrue(RAG_SERVICE_PREFLIGHT_RESPONSES.exists())
         self.assertNotIn("_compose_no_answer_response", service_source)
         self.assertNotIn("_compose_clarification_response", service_source)
         self.assertNotIn('status="no_answer"', service_source)
-        self.assertLessEqual(len(service_source.splitlines()), 380)
+        self.assertLessEqual(len(service_source.splitlines()), 300)
+
+    def test_preflight_response_composition_is_split_from_branch_decisions(self) -> None:
+        preflight_source = RAG_SERVICE_PREFLIGHT_RESPONSES.read_text(encoding="utf-8")
+        branch_source = (RAG_AGENT_PACKAGE / "service_preflight.py").read_text(encoding="utf-8")
+
+        self.assertIn("def build_pre_retrieval_clarification_response", preflight_source)
+        self.assertIn("def build_pre_retrieval_no_answer_response", preflight_source)
+        self.assertNotIn("_compose_clarification_response(", branch_source)
+        self.assertNotIn("_compose_no_answer_response(", branch_source)
 
     def test_official_web_answering_is_split_from_facade(self) -> None:
         facade_source = RAG_OFFICIAL_WEB.read_text(encoding="utf-8")
@@ -121,6 +153,19 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         self.assertNotIn("def _expand_audience_claim", facade_source)
         self.assertLessEqual(len(facade_source.splitlines()), 120)
 
+    def test_grounding_validation_policy_is_split_from_public_facade(self) -> None:
+        facade_source = RAG_GROUNDING_VALIDATION.read_text(encoding="utf-8")
+
+        self.assertTrue(RAG_GROUNDING_VALIDATION_RESULT.exists())
+        self.assertTrue(RAG_GROUNDING_VALIDATION_TRUST_POLICY.exists())
+        self.assertTrue(RAG_GROUNDING_VALIDATION_SUPPORT_POLICY.exists())
+        self.assertTrue(RAG_GROUNDING_VALIDATION_SOURCE_TRUST.exists())
+        self.assertNotIn("class GroundingValidationResult", facade_source)
+        self.assertNotIn("def _build_claim_support", facade_source)
+        self.assertNotIn("def _required_source_trust_tier_for_claim_type", facade_source)
+        self.assertNotIn("def build_source_trust_summary", facade_source)
+        self.assertLessEqual(len(facade_source.splitlines()), 140)
+
     def test_curriculum_answering_is_split_from_facade(self) -> None:
         facade_source = RAG_AGENT_CURRICULUM.read_text(encoding="utf-8")
 
@@ -145,6 +190,18 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         self.assertNotIn("def _select_answer_support_rows", facade_source)
         self.assertNotIn("def _should_stop_after_official_web_reference_rows", facade_source)
         self.assertLessEqual(len(facade_source.splitlines()), 120)
+
+    def test_answering_modes_are_split_from_public_answering_module(self) -> None:
+        answering_source = RAG_AGENT_ANSWERING.read_text(encoding="utf-8")
+
+        self.assertTrue(RAG_AGENT_ANSWERING_GENERIC.exists())
+        self.assertTrue(RAG_AGENT_ANSWERING_PROCEDURE.exists())
+        self.assertTrue(RAG_AGENT_ANSWERING_SUPPORT.exists())
+        self.assertNotIn("def _build_procedure_answer_parts", answering_source)
+        self.assertNotIn("def _normalize_procedure_fragment", answering_source)
+        self.assertNotIn("def _query_topic_label", answering_source)
+        self.assertNotIn("def _render_supporting_context", answering_source)
+        self.assertLessEqual(len(answering_source.splitlines()), 180)
 
     def test_service_diagnostics_is_split_from_facade(self) -> None:
         facade_source = RAG_SERVICE_DIAGNOSTICS.read_text(encoding="utf-8")
@@ -171,12 +228,24 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         self.assertNotIn("def _resolve_retrieval_query_mode", facade_source)
         self.assertLessEqual(len(facade_source.splitlines()), 120)
 
+    def test_service_scope_is_split_by_handbook_and_curriculum_concerns(self) -> None:
+        scope_source = RAG_SERVICE_SCOPE.read_text(encoding="utf-8")
+
+        self.assertTrue(RAG_SERVICE_SCOPE_CURRICULUM.exists())
+        self.assertTrue(RAG_SERVICE_SCOPE_HANDBOOK.exists())
+        self.assertTrue(RAG_SERVICE_SCOPE_PLANS.exists())
+        self.assertNotIn("def _rewrite_curriculum_follow_up_goal", scope_source)
+        self.assertNotIn("def _extract_curriculum_follow_up_program_fragment", scope_source)
+        self.assertNotIn("def _plan_handbook_query", scope_source)
+        self.assertLessEqual(len(scope_source.splitlines()), 160)
+
     def test_runtime_modules_import_concrete_split_modules_not_facades(self) -> None:
         facade_modules = (
             "agent_curriculum",
             "agent_selection",
             "agent_official_web_reference",
             "grounding_validation_claims",
+            "service_scope",
             "service_diagnostics",
             "service_versioning",
         )

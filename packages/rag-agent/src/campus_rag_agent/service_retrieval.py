@@ -4,8 +4,27 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from campus_contracts import AgentRequest, EvidenceBundle, KnowledgeScope
-from campus_ingestion_core import load_runtime_profile
-from campus_retrieval_core import RetrievalExecutionResult, execute_retrieval_plan
+from campus_ingestion_core import (
+    build_document_registry_from_env,
+    load_runtime_profile,
+    resolve_version_query,
+)
+from campus_retrieval_core import (
+    CorpusQueryDisabledError as _CorpusQueryDisabledError,
+)
+from campus_retrieval_core import (
+    RestrictedDocumentAccessDeniedError as _RestrictedDocumentAccessDeniedError,
+)
+from campus_retrieval_core import (
+    RetrievalBackendError as _RetrievalBackendError,
+)
+from campus_retrieval_core import (
+    RetrievalExecutionResult,
+    execute_retrieval_plan,
+)
+from campus_retrieval_core import (
+    retrieve_sources as _retrieve_sources,
+)
 from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
 
 from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
@@ -16,7 +35,7 @@ from .service_common import (
     _with_query_text,
 )
 from .service_curriculum import _resolve_curriculum_course_fact_target_document_ids
-from .service_scope import (
+from .service_scope_curriculum import (
     _resolve_curriculum_program_semester_fact_target_document_ids,
     _should_use_curriculum_program_semester_facts,
 )
@@ -27,6 +46,10 @@ from .service_versioning_context import (
 )
 
 Retriever = Callable[..., object]
+CorpusQueryDisabledError = _CorpusQueryDisabledError
+RestrictedDocumentAccessDeniedError = _RestrictedDocumentAccessDeniedError
+RetrievalBackendError = _RetrievalBackendError
+retrieve_sources = _retrieve_sources
 _COURSE_FAMILY_SCHEDULE_TOP_K = 8
 
 
@@ -59,8 +82,8 @@ def build_rag_retrieval_context(
     curriculum_plan,
     curriculum_course_plan,
     curriculum_program_family_plan,
-    build_document_registry_from_env_fn: Callable[[], object],
-    resolve_version_query_fn: Callable[..., object],
+    build_document_registry_from_env_fn: Callable[[], object] | None = None,
+    resolve_version_query_fn: Callable[..., object] | None = None,
 ) -> RagRetrievalContext | None:
     retrieval_goal = user_goal
     target_document_ids: tuple[str, ...] = ()
@@ -131,8 +154,10 @@ def build_rag_retrieval_context(
         resolved_scope=effective_scope,
         retrieval_collection=retrieval_collection,
         target_document_ids=target_document_ids,
-        build_document_registry_from_env_fn=build_document_registry_from_env_fn,
-        resolve_version_query_fn=resolve_version_query_fn,
+        build_document_registry_from_env_fn=(
+            build_document_registry_from_env_fn or build_document_registry_from_env
+        ),
+        resolve_version_query_fn=resolve_version_query_fn or resolve_version_query,
     )
     if version_answer_context is None:
         return None

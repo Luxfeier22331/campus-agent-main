@@ -3,24 +3,16 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from campus_contracts import AgentRequest, AgentResponse, ErrorInfo, RagRequestPayload
-from campus_ingestion_core import build_document_registry_from_env, resolve_version_query
-from campus_retrieval_core import (
-    CorpusQueryDisabledError,
-    RestrictedDocumentAccessDeniedError,
-    RetrievalBackendError,
-    retrieve_sources,
-)
 
 from campus_rag_agent.confidence import derive_confidence
-from campus_rag_agent.intent import build_personalization_hint, frame_rag_intent
-from campus_rag_agent.prompt_execution import RagPromptExecutor, wrap_rag_prompt_executor
+from campus_rag_agent.prompt_execution import RagPromptExecutor
 from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
 
 from .service_answer_synthesis import build_grounded_answer_response
 from .service_common import _build_empty_evidence
 from .service_diagnostics_payload import _build_rag_result_payload
+from .service_outcome_context import build_outcome_context
 from .service_outcomes import (
-    RagOutcomeContext,
     build_empty_retrieval_no_answer_response,
     build_low_confidence_no_answer_response,
     build_no_supporting_evidence_response,
@@ -28,19 +20,16 @@ from .service_outcomes import (
     maybe_build_evidence_clarification_response,
     maybe_build_resolved_policy_clause_fail_closed_response,
 )
+from .service_pipeline import build_rag_pipeline_context
 from .service_preflight import _maybe_return_pre_retrieval_response
 from .service_response_text import _resolve_no_answer_semantics
 from .service_retrieval import (
+    CorpusQueryDisabledError,
+    RestrictedDocumentAccessDeniedError,
+    RetrievalBackendError,
     build_rag_retrieval_context,
     execute_rag_retrieval_context,
-)
-from .service_scope import (
-    _plan_curriculum_course_query,
-    _plan_curriculum_program_family_query,
-    _plan_curriculum_query,
-    _plan_handbook_query,
-    _resolve_effective_curriculum_user_goal,
-    _resolve_request_scope,
+    retrieve_sources,
 )
 from .service_versioning_evidence import (
     _build_version_aware_supporting_evidence,
@@ -65,12 +54,8 @@ def delegate_to_rag_agent(
         raise ValueError("delegate_to_rag_agent only accepts target='rag-agent'")
     if not isinstance(request.payload, RagRequestPayload):
         raise TypeError("rag-agent requires RagRequestPayload")
-    prompt_executor = wrap_rag_prompt_executor(prompt_executor)
-
-    user_goal = request.user_goal.strip()
-    intent_frame = frame_rag_intent(request)
-    personalization_hint = build_personalization_hint(request)
-    effective_scope = _resolve_request_scope(request, user_goal=user_goal)
+    pipeline = build_rag_pipeline_context(request, prompt_executor=prompt_executor)
+    effective_scope = pipeline.effective_scope
     if effective_scope is None:
         return AgentResponse(
             target="rag-agent",
@@ -78,19 +63,15 @@ def delegate_to_rag_agent(
             confidence="low",
             follow_up_question="请先说明你想查询的校内知识范围或资料集合。",
         )
-    effective_user_goal = _resolve_effective_curriculum_user_goal(
-        effective_scope,
-        user_goal=user_goal,
-        curriculum_follow_up=personalization_hint.curriculum_follow_up,
-        recent_goal=personalization_hint.recent_goal,
-    )
-    handbook_plan = _plan_handbook_query(effective_scope, user_goal)
-    curriculum_plan = _plan_curriculum_query(request, effective_scope, effective_user_goal)
-    curriculum_course_plan = _plan_curriculum_course_query(effective_scope, effective_user_goal)
-    curriculum_program_family_plan = _plan_curriculum_program_family_query(
-        effective_scope,
-        effective_user_goal,
-    )
+    prompt_executor = pipeline.prompt_executor
+    user_goal = pipeline.user_goal
+    intent_frame = pipeline.intent_frame
+    personalization_hint = pipeline.personalization_hint
+    effective_user_goal = pipeline.effective_user_goal
+    handbook_plan = pipeline.handbook_plan
+    curriculum_plan = pipeline.curriculum_plan
+    curriculum_course_plan = pipeline.curriculum_course_plan
+    curriculum_program_family_plan = pipeline.curriculum_program_family_plan
     pre_retrieval_response = _maybe_return_pre_retrieval_response(
         request=request,
         effective_scope=effective_scope,
@@ -118,8 +99,6 @@ def delegate_to_rag_agent(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
-            build_document_registry_from_env_fn=build_document_registry_from_env,
-            resolve_version_query_fn=resolve_version_query,
         )
         if retrieval_context is None:
             return _build_version_filter_unresolved_response(
@@ -163,7 +142,7 @@ def delegate_to_rag_agent(
         )
     except RestrictedDocumentAccessDeniedError:
         return build_restricted_access_denied_response(
-            _build_outcome_context(
+            build_outcome_context(
                 request=request,
                 effective_scope=effective_scope,
                 user_goal=user_goal,
@@ -197,7 +176,7 @@ def delegate_to_rag_agent(
         )
 
     version_answer_context = retrieval_context.version_answer_context
-    outcome_context = _build_outcome_context(
+    outcome_context = build_outcome_context(
         request=request,
         effective_scope=effective_scope,
         user_goal=user_goal,
@@ -304,35 +283,4 @@ def delegate_to_rag_agent(
         confidence=confidence,
         prompt_executor=prompt_executor,
         intent_frame=intent_frame,
-    )
-
-
-def _build_outcome_context(
-    *,
-    request: AgentRequest,
-    effective_scope,
-    user_goal: str,
-    personalization_hint,
-    intent_frame,
-    prompt_executor,
-    handbook_plan,
-    curriculum_plan,
-    curriculum_course_plan,
-    curriculum_program_family_plan,
-    evidence,
-    retrieval_execution_result,
-) -> RagOutcomeContext:
-    return RagOutcomeContext(
-        request=request,
-        resolved_scope=effective_scope,
-        user_goal=user_goal,
-        personalization_hint=personalization_hint,
-        intent_frame=intent_frame,
-        prompt_executor=prompt_executor,
-        handbook_plan=handbook_plan,
-        curriculum_plan=curriculum_plan,
-        curriculum_course_plan=curriculum_course_plan,
-        curriculum_program_family_plan=curriculum_program_family_plan,
-        retrieved_evidence=evidence,
-        retrieval_execution_result=retrieval_execution_result,
     )

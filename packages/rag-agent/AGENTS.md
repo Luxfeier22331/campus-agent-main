@@ -6,7 +6,8 @@
 
 这个目录承载 `RAG agent` 的局部实现边界。
 
-- 接收来自 `supervisor-core` 的稳定 handoff，而不是继续暴露旧 `campusRAG` tool 风格接口
+- 接收来自 `apps/supervisor-agent-worker` 的稳定 `AgentRequest` handoff，而不是继续暴露旧
+  `campusRAG` tool 风格接口
 - 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence
   collection`、`evidence normalization`、`confidence` 返回
 - 返回 `AgentResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去
@@ -14,6 +15,16 @@
 
 当前 bootstrap 入口是 `src/campus_rag_agent/service.py` 中的
 `delegate_to_rag_agent(...)`。优先沿着这个 service 边界演进，不要把 agent 逻辑散落到别处。
+
+当前内部 facade 边界：
+
+- `service.py` 保持 agent service facade
+- scope-specific logic 放在 `service_scope_curriculum.py`、`service_scope_handbook.py`、
+  `service_scope_plans.py`
+- direct answer composition 放在 `agent_answering_generic.py`、
+  `agent_answering_procedure.py`、`agent_answering_support.py`
+- grounding validation 的 result、trust policy、support policy、
+  source-trust summary 分文件维护
 
 ## Source Of Truth
 
@@ -59,6 +70,7 @@
 - 不要在此目录提前引入多 corpus fan-out 或并行检索逻辑
 - 不要提前引入多 retrieval backend 并行
 - 不要把 agent 写成 retrieval backend 的薄壳；这里负责 contract 化和结果整形
+- 不要把已经拆出的 scope、answering、grounding validation 大块逻辑放回 facade
 
 ## Contract Over Compatibility
 
@@ -89,6 +101,8 @@
 优先使用这些命令验证本目录相关变更：
 
 ```bash
-uv run --all-packages python -m pytest tests/agent/test_rag_agent.py -q
+uv run --all-packages python -m unittest \
+  tests.agent.rag_agent_service_structure_suite \
+  tests.agent.test_rag_agent -q
 uv run --all-packages python -m unittest discover -s tests -t .
 ```

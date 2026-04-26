@@ -401,11 +401,11 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_rag_agent.service.build_document_registry_from_env",
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
                 return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service.resolve_version_query",
+                "campus_rag_agent.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="historical",
                     status="resolved",
@@ -452,11 +452,11 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_rag_agent.service.build_document_registry_from_env",
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
                 return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service.resolve_version_query",
+                "campus_rag_agent.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="historical",
                     status="unresolved",
@@ -483,11 +483,11 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
     def test_historical_answer_explicitly_marks_non_current_version(self) -> None:
         with (
             patch(
-                "campus_rag_agent.service.build_document_registry_from_env",
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
                 return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service.resolve_version_query",
+                "campus_rag_agent.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="historical",
                     status="resolved",
@@ -525,11 +525,11 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
     def test_as_of_answer_explicitly_marks_time_anchor(self) -> None:
         with (
             patch(
-                "campus_rag_agent.service.build_document_registry_from_env",
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
                 return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service.resolve_version_query",
+                "campus_rag_agent.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="as_of",
                     status="resolved",
@@ -566,11 +566,11 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
     def test_compare_answer_distinguishes_old_and_new_versions(self) -> None:
         with (
             patch(
-                "campus_rag_agent.service.build_document_registry_from_env",
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
                 return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service.resolve_version_query",
+                "campus_rag_agent.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="compare",
                     status="resolved",
@@ -617,11 +617,11 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
     def test_compare_answer_fails_closed_when_one_side_support_is_missing(self) -> None:
         with (
             patch(
-                "campus_rag_agent.service.build_document_registry_from_env",
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
                 return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service.resolve_version_query",
+                "campus_rag_agent.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="compare",
                     status="resolved",

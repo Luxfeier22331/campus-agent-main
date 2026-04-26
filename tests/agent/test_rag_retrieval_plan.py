@@ -136,10 +136,11 @@ class RagRetrievalPlanTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_rag_agent.service.build_document_registry_from_env", return_value=object()
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
+                return_value=object(),
             ),
             patch(
-                "campus_rag_agent.service.resolve_version_query",
+                "campus_rag_agent.service_retrieval.resolve_version_query",
                 return_value=ResolvedVersionQuery(
                     mode="compare",
                     status="resolved",
