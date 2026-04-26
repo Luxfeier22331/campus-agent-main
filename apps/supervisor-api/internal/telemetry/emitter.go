@@ -20,6 +20,7 @@ import (
 
 type Event struct {
 	BridgeDuration        time.Duration
+	BridgeCancelStatus    string
 	ContextPreflightState string
 	Name                  string
 	RequestID             string
@@ -138,6 +139,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) {
 
 	attributes := []attribute.KeyValue{
 		attribute.Int64("bridge_duration_ms", event.BridgeDuration.Milliseconds()),
+		attribute.String("bridge_cancel_status", event.BridgeCancelStatus),
 		attribute.String("context_preflight_state", event.ContextPreflightState),
 		attribute.String("request_id", event.RequestID),
 		attribute.String("trace_id", event.TraceID),

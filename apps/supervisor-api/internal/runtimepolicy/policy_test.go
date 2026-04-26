@@ -3,6 +3,7 @@ package runtimepolicy
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,33 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 	}
 	if len(policy.SignalGroups["campus_scope"]) == 0 {
 		t.Fatal("campus_scope signal group must not be empty")
+	}
+}
+
+func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
+	defaultPath := resolveIntentPolicyPath("")
+	raw, err := os.ReadFile(defaultPath)
+	if err != nil {
+		t.Fatalf("read default intent policy: %v", err)
+	}
+	policyPath := filepath.Join(t.TempDir(), "intent-policy.v1.json")
+	envPolicy := strings.Replace(
+		string(raw),
+		`"case_set_version": "intent-case-set-v1"`,
+		`"case_set_version": "env-intent-case-set-v1"`,
+		1,
+	)
+	if err := os.WriteFile(policyPath, []byte(envPolicy), 0o600); err != nil {
+		t.Fatalf("write env intent policy: %v", err)
+	}
+	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", policyPath)
+
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load env intent policy: %v", err)
+	}
+	if policy.CaseSetVersion != "env-intent-case-set-v1" {
+		t.Fatalf("case_set_version = %q, want env-intent-case-set-v1", policy.CaseSetVersion)
 	}
 }
 

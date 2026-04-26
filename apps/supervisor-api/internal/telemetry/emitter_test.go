@@ -136,6 +136,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		Decision:              "admitted_immediate",
 		Duration:              50 * time.Millisecond,
 		FailureCode:           "timeout",
+		BridgeCancelStatus:    "accepted",
 		Lane:                  "rag",
 		Name:                  "answer.failed",
 		Outcome:               "supervisor_bridge_timeout",
@@ -159,6 +160,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	attrs := spans[0].Attributes()
 	allowed := map[string]bool{
 		"bridge_duration_ms":      true,
+		"bridge_cancel_status":    true,
 		"context_preflight_state": true,
 		"decision":                true,
 		"duration_ms":             true,
@@ -194,6 +196,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"planning_outcome":        "not_preplanned",
 		"terminal_outcome":        "no_answer",
 		"fail_close_reason":       "product_scope_boundary",
+		"bridge_cancel_status":    "accepted",
 	}
 	for key, want := range expectedValues {
 		if found[key] != want {

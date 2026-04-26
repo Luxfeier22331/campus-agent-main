@@ -1,0 +1,393 @@
+package httpapi
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+)
+
+func TestAnswerStreamExecutesTerminalEnvelopeDirectlyInGo(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			t.Fatal("terminal runtime policy stream response must not call Python bridge")
+			return bridge.ExecuteResponse{}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"MIT的校长是谁","request_id":"req-terminal-stream-direct"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-terminal-stream-direct")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, snippet := range []string{
+		"event: execution.started",
+		"event: execution.completed",
+		`"request_id":"req-terminal-stream-direct"`,
+		`"trace_id":"trace-terminal-stream-direct"`,
+		`"status":"completed"`,
+		`"outcome":"supervisor_response"`,
+		`"status":"no_answer"`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("stream body missing %q:\n%s", snippet, body)
+		}
+	}
+}
+
+func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
+	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:bus-schedule-2026-04-20",
+				"is_current":true
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:haidian-to-fengtai",
+				"display_name":"海淀到丰台通勤车",
+				"service_family":"intercampus_commute",
+				"origin_campus":"haidian",
+				"destination_campus":"fengtai",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:haidian-to-fengtai",
+				"service_dates":["2026-04-25"],
+				"departure_time":"06:50",
+				"arrival_time":"08:05",
+				"origin_stop_id":"stop:haidian-east-gate",
+				"destination_stop_id":"stop:fengtai-main-gate"
+			}
+		]
+	}`)
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:                          "bearer",
+		BearerToken:                       "secret-token",
+		DefaultActorID:                    "runtime-bearer-user",
+		RequestBodyLimitBytes:             1_048_576,
+		MaxConcurrentAnswers:              8,
+		OpenCapabilities:                  []string{"campus_services"},
+		StructuredQueryProjectionPath:     projectionPath,
+		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "agent_response",
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
+			}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"我明天早上要去丰台上课，最早的班车是几点","request_id":"req-structured-stream-direct"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-structured-stream-direct")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := response.Body.String()
+	for _, snippet := range []string{
+		"event: execution.started",
+		"event: execution.running",
+		"event: execution.completed",
+		`"request_id":"req-structured-stream-direct"`,
+		`"trace_id":"trace-structured-stream-direct"`,
+		`"selected_target":"campus-services-agent"`,
+		`"status":"completed"`,
+		`"outcome":"supervisor_response"`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("stream body missing %q:\n%s", snippet, body)
+		}
+	}
+}
+
+func TestAnswerStreamEmitsLifecycleEvents(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "agent_response",
+			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		delegateAnswerBody("req-stream-success"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-stream-1")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Header().Get("content-type"), "text/event-stream") {
+		t.Fatalf("content-type = %q", response.Header().Get("content-type"))
+	}
+	body := response.Body.String()
+	for _, snippet := range []string{
+		"event: execution.started",
+		"event: execution.running",
+		"event: execution.completed",
+		`"request_id":"req-stream-success"`,
+		`"trace_id":"trace-stream-1"`,
+		`"response":{"answer_text":"ok"`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("stream body missing %q:\n%s", snippet, body)
+		}
+	}
+}
+
+func TestAnswerStreamRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusInternalServerError,
+			Kind:       "agent_response",
+			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		delegateAnswerBody("req-stream-response-status-mismatch"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"supervisor_bridge_invalid_response"`) ||
+		strings.Contains(body, "event: execution.completed") {
+		t.Fatalf("stream body missing invalid bridge response failure:\n%s", body)
+	}
+}
+
+func TestAnswerStreamRejectsSupervisorErrorWith2xxStatus(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "supervisor_error",
+			Body:       json.RawMessage(`{"error":{"code":"bad_bridge","message":"bad","retryable":true}}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		delegateAnswerBody("req-stream-error-status-mismatch"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"supervisor_bridge_invalid_response"`) ||
+		strings.Contains(body, "event: execution.completed") {
+		t.Fatalf("stream body missing invalid bridge error failure:\n%s", body)
+	}
+}
+
+func TestAnswerStreamRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "agent_response",
+				Body:       json.RawMessage(`{"selected_target":"notice-agent","status":"completed","answer_text":"ok"}`),
+			}, nil
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"找一下春假通知","request_id":"req-stream-structured-closed"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"structured_runtime_closed"`) ||
+		!strings.Contains(body, `"outcome":"structured_runtime_closed"`) {
+		t.Fatalf("stream body missing structured runtime closed failure:\n%s", body)
+	}
+}
+
+func TestAnswerStreamClosedStructuredRuntimeEmitsTelemetry(t *testing.T) {
+	otelServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(otelServer.Close)
+
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+		OTelEnabled:           true,
+		OTelEndpoint:          otelServer.URL,
+		OTelSampleRatio:       1,
+	}, &fakeBridge{configured: true})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"找一下春假通知","request_id":"req-stream-structured-closed-telemetry"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	status := server.telemetry.Status()
+	if status.ExportedCount != 1 {
+		t.Fatalf("telemetry exported count = %d, want 1", status.ExportedCount)
+	}
+}
+
+func TestAnswerStreamEmitsFailureWhenBridgeCircuitIsOpen(t *testing.T) {
+	calls := 0
+	server := NewServer(config.Config{
+		AuthMode:                      "bearer",
+		BearerToken:                   "secret-token",
+		DefaultActorID:                "runtime-bearer-user",
+		RequestBodyLimitBytes:         1_048_576,
+		MaxConcurrentAnswers:          8,
+		BridgeBreakerFailureThreshold: 1,
+		BridgeBreakerOpenMS:           60_000,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			calls++
+			return bridge.ExecuteResponse{}, context.DeadlineExceeded
+		},
+	})
+
+	firstRequest := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-stream-breaker-first"),
+	)
+	firstRequest.Header.Set("authorization", "Bearer secret-token")
+	firstResponse := httptest.NewRecorder()
+	server.ServeHTTP(firstResponse, firstRequest)
+	assertError(t, firstResponse, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
+
+	streamRequest := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		delegateAnswerBody("req-stream-breaker-open"),
+	)
+	streamRequest.Header.Set("authorization", "Bearer secret-token")
+	streamResponse := httptest.NewRecorder()
+	server.ServeHTTP(streamResponse, streamRequest)
+
+	if streamResponse.Code != http.StatusOK {
+		t.Fatalf("stream status = %d, want 200; body: %s", streamResponse.Code, streamResponse.Body.String())
+	}
+	if calls != 1 {
+		t.Fatalf("bridge calls = %d, want 1", calls)
+	}
+	body := streamResponse.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"supervisor_bridge_circuit_open"`) {
+		t.Fatalf("stream body missing circuit-open failure:\n%s", body)
+	}
+}

@@ -45,17 +45,19 @@ func (s *Server) handleCancel(response http.ResponseWriter, request *http.Reques
 	bridgeCancelStatus := s.propagateBridgeCancel(requestID, strings.TrimSpace(reason))
 	setOutcome(response, "cancel_requested")
 	s.telemetry.Emit(request.Context(), telemetry.Event{
-		Name:      "execution.cancel_requested",
-		RequestID: result.RequestID,
-		TraceID:   result.TraceID,
-		Outcome:   result.Status,
+		Name:               "execution.cancel_requested",
+		RequestID:          result.RequestID,
+		TraceID:            result.TraceID,
+		Outcome:            result.Status,
+		BridgeCancelStatus: bridgeCancelStatus,
 	})
 	s.emitExecutionAudit(request.Context(), executionaudit.Event{
-		EventType:  "execution.cancel_requested",
-		HTTPStatus: http.StatusAccepted,
-		RequestID:  result.RequestID,
-		Retryable:  false,
-		TraceID:    result.TraceID,
+		EventType:          "execution.cancel_requested",
+		HTTPStatus:         http.StatusAccepted,
+		RequestID:          result.RequestID,
+		Retryable:          false,
+		TraceID:            result.TraceID,
+		BridgeCancelStatus: bridgeCancelStatus,
 	})
 	writeJSON(response, http.StatusAccepted, map[string]any{
 		"request_id":           result.RequestID,
