@@ -218,7 +218,11 @@ export function buildCourseMapDataPayload(input: {
 		rawAssetId: input.surface.rawAssetId,
 		rawVersionId: input.surface.rawVersionId,
 		blocks: input.surface.blocks.map((block) =>
-			buildCourseMapBlockPayload({ block, publicSlug: input.publicSlug }),
+			buildCourseMapBlockPayload({
+				block,
+				documentTitle: input.surface.documentTitle,
+				publicSlug: input.publicSlug,
+			}),
 		),
 	};
 }
@@ -257,8 +261,34 @@ export function normalizeCourseMapStageLabel(stageLabel: string): string {
 	return normalized;
 }
 
+export function resolveCourseMapPublicTitle(input: {
+	documentTitle: string;
+	mapIndex: number;
+	title: string;
+	titleConfidence?: string;
+}): { title: string; titleConfidence: string } {
+	const title = input.title.trim();
+	if (!title || isGenericCourseMapTitle(title)) {
+		const suffix = input.mapIndex > 1 ? `（第 ${input.mapIndex} 张）` : "";
+		return {
+			title: `${input.documentTitle.trim()}课程地图${suffix}`,
+			titleConfidence: "absent",
+		};
+	}
+	return {
+		title,
+		titleConfidence: input.titleConfidence ?? "visible",
+	};
+}
+
+function isGenericCourseMapTitle(title: string): boolean {
+	const normalized = title.replace(/\s+/g, "");
+	return /^(?:[一二三四五六七八九十]+、)?课程地图$/.test(normalized);
+}
+
 function buildCourseMapBlockPayload(input: {
 	block: CourseMapBlock;
+	documentTitle: string;
 	publicSlug: string;
 }): NormalizedCourseMapBlockPayload {
 	const normalizedNodes = buildNormalizedCourseMapNodes(input.block.nodes);
@@ -286,11 +316,17 @@ function buildCourseMapBlockPayload(input: {
 				? ["未识别到可用于阅读分组的阶段信息，当前仅发布原始区域图。"]
 				: []),
 	];
+	const publicTitle = resolveCourseMapPublicTitle({
+		documentTitle: input.documentTitle,
+		mapIndex: input.block.mapIndex,
+		title: input.block.title,
+		titleConfidence: input.block.titleConfidence,
+	});
 	return {
 		blockId: input.block.blockId,
-		title: input.block.title,
+		title: publicTitle.title,
 		status: structurePublishable ? input.block.status : "failed",
-		titleConfidence: input.block.titleConfidence,
+		titleConfidence: publicTitle.titleConfidence,
 		pageNumber: input.block.pageNumber,
 		rowId: input.block.rowId,
 		mapIndex: input.block.mapIndex,

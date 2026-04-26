@@ -23,7 +23,19 @@ const COLLECTION_GROUP_ROOTS = [
 const CONFLICT_MARKERS = ["<<<<<<<", "=======", ">>>>>>>"];
 const INTERNAL_LOCATOR_MARKERS = ["campusrag://", "campus-rag-derived", "minio://", "s3://"];
 const RESTRICTED_PUBLIC_DOCS_MARKERS = ["institutional_rules", "scoped_rules", "internal_notice"];
-const READER_PROFILES = new Set(["home", "collectionLanding", "manual", "curriculum", "flow"]);
+const DOCUMENT_KINDS = new Set([
+	"home",
+	"collectionLanding",
+	"studentHandbookArticle",
+	"publicRegulation",
+	"curriculumPlan",
+	"workflow",
+]);
+const READER_LAYOUTS = new Set(["landing", "article", "reference", "tabular", "graph"]);
+const READER_MEASURES = new Set(["standard", "wide", "full"]);
+const READER_OUTLINES = new Set(["none", "document", "compact"]);
+const OBSOLETE_READER_PROFILE_MESSAGE =
+	"frontmatter must use documentKind, readerLayout, readerMeasure, and readerOutline; readerProfile is obsolete";
 
 export interface PublicDocsGeneratedIssue {
 	path: string;
@@ -73,8 +85,20 @@ export function validatePublicDocsGeneratedFile(
 	if (!split.body.trim() && pageType !== "home") {
 		issues.push({ path, message: "missing generated document body" });
 	}
-	if (!metadata.value.readerProfile || !READER_PROFILES.has(metadata.value.readerProfile)) {
-		issues.push({ path, message: "frontmatter must include a valid readerProfile" });
+	if (metadata.value.readerProfile) {
+		issues.push({ path, message: OBSOLETE_READER_PROFILE_MESSAGE });
+	}
+	if (!(metadata.value.documentKind && DOCUMENT_KINDS.has(metadata.value.documentKind))) {
+		issues.push({ path, message: "frontmatter must include a valid documentKind" });
+	}
+	if (!(metadata.value.readerLayout && READER_LAYOUTS.has(metadata.value.readerLayout))) {
+		issues.push({ path, message: "frontmatter must include a valid readerLayout" });
+	}
+	if (!(metadata.value.readerMeasure && READER_MEASURES.has(metadata.value.readerMeasure))) {
+		issues.push({ path, message: "frontmatter must include a valid readerMeasure" });
+	}
+	if (!(metadata.value.readerOutline && READER_OUTLINES.has(metadata.value.readerOutline))) {
+		issues.push({ path, message: "frontmatter must include a valid readerOutline" });
 	}
 	if (
 		isGeneratedDocumentDetailPath(relative(root, path).replaceAll("\\", "/")) &&

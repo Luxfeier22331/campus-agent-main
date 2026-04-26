@@ -6,10 +6,14 @@ import { useEffect } from "react";
 export * from "@rspress/core/theme-original";
 
 const READER_LAYOUT_CLASSES = [
-	"docs-reader-normal",
-	"docs-reader-wide",
-	"docs-reader-map",
-	"docs-reader-home",
+	"docs-reader-layout-landing",
+	"docs-reader-layout-article",
+	"docs-reader-layout-reference",
+	"docs-reader-layout-tabular",
+	"docs-reader-layout-graph",
+	"docs-reader-measure-standard",
+	"docs-reader-measure-wide",
+	"docs-reader-measure-full",
 ];
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -27,30 +31,44 @@ function resolveReaderLayoutClasses(
 	frontmatter: Record<string, unknown>,
 	routePath: string,
 ): string[] {
-	const readerProfile = stringField(frontmatter, "readerProfile");
-	if (readerProfile === "home" || readerProfile === "collectionLanding") {
-		return ["docs-reader-home"];
-	}
-	if (readerProfile === "curriculum") {
-		return ["docs-reader-wide", "docs-reader-map"];
-	}
-	if (readerProfile === "flow") {
-		return ["docs-reader-wide"];
-	}
-	if (readerProfile === "manual") {
-		return ["docs-reader-normal"];
-	}
+	const readerLayout = resolveReaderLayout(stringField(frontmatter, "readerLayout"), routePath);
+	const readerMeasure = resolveReaderMeasure(stringField(frontmatter, "readerMeasure"), routePath);
+	return [`docs-reader-layout-${readerLayout}`, `docs-reader-measure-${readerMeasure}`];
+}
 
+function resolveReaderLayout(value: string | undefined, routePath: string): string {
+	if (
+		value === "landing" ||
+		value === "article" ||
+		value === "reference" ||
+		value === "tabular" ||
+		value === "graph"
+	) {
+		return value;
+	}
 	if (routePath === "/" || routePath.endsWith("/index") || routePath.endsWith("/index.html")) {
-		return ["docs-reader-home"];
+		return "landing";
 	}
 	if (routePath.includes("/curriculum-plan/") && !routePath.endsWith("/curriculum-plan/")) {
-		return ["docs-reader-wide", "docs-reader-map"];
+		return "tabular";
 	}
 	if (routePath.includes("/student-handbook/workflows/")) {
-		return ["docs-reader-wide"];
+		return "graph";
 	}
-	return ["docs-reader-normal"];
+	return "reference";
+}
+
+function resolveReaderMeasure(value: string | undefined, routePath: string): string {
+	if (value === "standard" || value === "wide" || value === "full") {
+		return value;
+	}
+	if (routePath === "/" || routePath.endsWith("/index") || routePath.endsWith("/index.html")) {
+		return "standard";
+	}
+	if (routePath.includes("/student-handbook/workflows/")) {
+		return "full";
+	}
+	return "wide";
 }
 
 function useDocsReaderLayoutClass(): void {
@@ -59,7 +77,8 @@ function useDocsReaderLayoutClass(): void {
 		page: { routePath },
 	} = usePageData();
 	const frontmatter = asRecord(rawFrontmatter);
-	const readerProfile = stringField(frontmatter, "readerProfile");
+	const readerLayout = stringField(frontmatter, "readerLayout");
+	const readerMeasure = stringField(frontmatter, "readerMeasure");
 
 	useEffect(() => {
 		const docRoot = document.querySelector(".rspress-doc");
@@ -67,11 +86,13 @@ function useDocsReaderLayoutClass(): void {
 			return;
 		}
 		docRoot.classList.remove(...READER_LAYOUT_CLASSES);
-		docRoot.classList.add(...resolveReaderLayoutClasses({ readerProfile }, routePath));
+		docRoot.classList.add(
+			...resolveReaderLayoutClasses({ readerLayout, readerMeasure }, routePath),
+		);
 		return () => {
 			docRoot.classList.remove(...READER_LAYOUT_CLASSES);
 		};
-	}, [readerProfile, routePath]);
+	}, [readerLayout, readerMeasure, routePath]);
 }
 
 export function Layout(props: LayoutProps) {

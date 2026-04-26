@@ -22,8 +22,32 @@ function findSearchResultLink(): HTMLAnchorElement | null {
 	return null;
 }
 
+function enhanceSearchInputAccessibility(root: ParentNode = document): void {
+	for (const input of Array.from(root.querySelectorAll<HTMLInputElement>(SEARCH_INPUT_SELECTOR))) {
+		if (input.id !== "public-docs-search-input") {
+			input.id = "public-docs-search-input";
+		}
+		if (input.name !== "public-docs-search") {
+			input.name = "public-docs-search";
+		}
+		if (input.getAttribute("aria-label") !== "搜索公开文档") {
+			input.setAttribute("aria-label", "搜索公开文档");
+		}
+		if (!input.autocomplete) {
+			input.autocomplete = "off";
+		}
+	}
+}
+
 export default function SearchKeyboardGuard(): null {
 	useEffect(() => {
+		let frame = window.requestAnimationFrame(() => enhanceSearchInputAccessibility());
+		const scheduleEnhancement = () => {
+			window.cancelAnimationFrame(frame);
+			frame = window.requestAnimationFrame(() => enhanceSearchInputAccessibility());
+		};
+		const observer = new MutationObserver(scheduleEnhancement);
+		observer.observe(document.body, { childList: true, subtree: true });
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Enter" || event.isComposing || !isSearchInput(document.activeElement)) {
 				return;
@@ -40,6 +64,8 @@ export default function SearchKeyboardGuard(): null {
 
 		document.addEventListener("keydown", handleKeyDown, { capture: true });
 		return () => {
+			window.cancelAnimationFrame(frame);
+			observer.disconnect();
 			document.removeEventListener("keydown", handleKeyDown, { capture: true });
 		};
 	}, []);

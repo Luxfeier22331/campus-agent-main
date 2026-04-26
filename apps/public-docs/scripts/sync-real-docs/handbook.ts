@@ -72,7 +72,12 @@ export function buildHandbookIndex(): string {
 		"title: 学生手册",
 		"description: 中央民族大学学生手册公开阅读目录。",
 		"footer: false",
-		...buildReaderFrontmatterLines({ outlinePolicy: "none", profile: "collectionLanding" }),
+		...buildReaderFrontmatterLines({
+			kind: "collectionLanding",
+			layout: "landing",
+			measure: "standard",
+			outlinePolicy: "none",
+		}),
 		"outline: false",
 		"---",
 		"",
@@ -270,13 +275,20 @@ function normalizeHandbookFrontmatter(frontmatterLines: string[]): string[] {
 	if (frontmatterLines.length < 2) {
 		return frontmatterLines;
 	}
+	const handbookReaderFrontmatter = buildReaderFrontmatterLines({
+		kind: "studentHandbookArticle",
+		layout: "reference",
+		measure: "wide",
+	});
 	const rewritten = [frontmatterLines[0] ?? "---"];
 	const fields: string[] = [];
 	let seenCorpus = false;
 	let seenCollection = false;
+	let seenDocumentKind = false;
 	let seenFooter = false;
+	let seenReaderLayout = false;
+	let seenReaderMeasure = false;
 	let seenReaderOutline = false;
-	let seenReaderProfile = false;
 	for (const line of frontmatterLines.slice(1, -1)) {
 		const stripped = line.trim();
 		if (stripped.startsWith("corpus:")) {
@@ -294,13 +306,26 @@ function normalizeHandbookFrontmatter(frontmatterLines: string[]): string[] {
 			seenFooter = true;
 			continue;
 		}
+		if (stripped.startsWith("documentKind:")) {
+			fields.push(...handbookReaderFrontmatter.slice(0, 1));
+			seenDocumentKind = true;
+			continue;
+		}
+		if (stripped.startsWith("readerLayout:")) {
+			fields.push(...handbookReaderFrontmatter.slice(1, 2));
+			seenReaderLayout = true;
+			continue;
+		}
+		if (stripped.startsWith("readerMeasure:")) {
+			fields.push(...handbookReaderFrontmatter.slice(2, 3));
+			seenReaderMeasure = true;
+			continue;
+		}
 		if (stripped.startsWith("readerProfile:")) {
-			fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(0, 1));
-			seenReaderProfile = true;
 			continue;
 		}
 		if (stripped.startsWith("readerOutline:")) {
-			fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(1));
+			fields.push(...handbookReaderFrontmatter.slice(3));
 			seenReaderOutline = true;
 			continue;
 		}
@@ -316,11 +341,17 @@ function normalizeHandbookFrontmatter(frontmatterLines: string[]): string[] {
 	if (!seenCollection) {
 		fields.push(`collection: ${HANDBOOK_COLLECTION}`);
 	}
-	if (!seenReaderProfile) {
-		fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(0, 1));
+	if (!seenDocumentKind) {
+		fields.push(...handbookReaderFrontmatter.slice(0, 1));
+	}
+	if (!seenReaderLayout) {
+		fields.push(...handbookReaderFrontmatter.slice(1, 2));
+	}
+	if (!seenReaderMeasure) {
+		fields.push(...handbookReaderFrontmatter.slice(2, 3));
 	}
 	if (!seenReaderOutline) {
-		fields.push(...buildReaderFrontmatterLines({ profile: "manual" }).slice(1));
+		fields.push(...handbookReaderFrontmatter.slice(3));
 	}
 	rewritten.push(...fields);
 	rewritten.push(frontmatterLines.at(-1) ?? "---");

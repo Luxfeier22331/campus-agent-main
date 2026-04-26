@@ -1,7 +1,9 @@
 ---
 title: "文档首页"
 footer: false
-readerProfile: "home"
+documentKind: "home"
+readerLayout: "landing"
+readerMeasure: "standard"
 readerOutline: "none"
 outline: false
 ---

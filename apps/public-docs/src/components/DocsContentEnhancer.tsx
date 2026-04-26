@@ -1,9 +1,14 @@
 import { useEffect } from "react";
 
 const TABLE_CONTAINER_SELECTOR = ".docs-table-scroll, .rp-table-scroll-container";
-const HEADER_ANCHOR_SELECTOR = ".rspress-doc a.header-anchor";
+const HEADER_ANCHOR_SELECTOR = ".rspress-doc a.rp-header-anchor, .rspress-doc a.header-anchor";
 const ENHANCED_TABLE_ATTRIBUTE = "data-docs-enhanced-table";
 const SCROLLABLE_TABLE_ATTRIBUTE = "data-docs-scrollable";
+
+export interface MobileTableRowPair {
+	header: string;
+	value: string;
+}
 
 function normalizeText(value: string | null | undefined): string {
 	return (value ?? "").replace(/\s+/g, " ").trim();
@@ -53,6 +58,15 @@ function expandTable(table: HTMLTableElement): string[][] {
 			}
 			columnIndex += colspan;
 		}
+		const expectedColumnCount = rows[0]?.length ?? expandedRow.length;
+		while (columnIndex < expectedColumnCount) {
+			if (activeRowspans.has(columnIndex)) {
+				consumeActiveRowspans();
+				continue;
+			}
+			expandedRow.push("");
+			columnIndex += 1;
+		}
 
 		while (expandedRow.length > 0 && !expandedRow.at(-1)) {
 			expandedRow.pop();
@@ -68,6 +82,34 @@ function expandTable(table: HTMLTableElement): string[][] {
 function buildRowTitle(row: string[], rowIndex: number): string {
 	const titleParts = row.slice(0, 3).filter(Boolean);
 	return titleParts.length > 0 ? titleParts.join(" / ") : `第 ${rowIndex + 1} 行`;
+}
+
+function resolveFallbackTableHeader(headers: string[], columnIndex: number): string {
+	const previousHeader = normalizeText(headers[columnIndex - 1]);
+	if (/备注|说明|要求|建议/.test(previousHeader)) {
+		return "补充说明";
+	}
+	return "补充说明";
+}
+
+export function buildMobileTableRowPairs(headers: string[], row: string[]): MobileTableRowPair[] {
+	const pairs: MobileTableRowPair[] = [];
+	const seenPairs = new Set<string>();
+	for (const [columnIndex, rawValue] of row.entries()) {
+		const value = normalizeText(rawValue);
+		const rawHeader = normalizeText(headers[columnIndex]);
+		if (!(value || rawHeader)) {
+			continue;
+		}
+		const header = rawHeader || resolveFallbackTableHeader(headers, columnIndex);
+		const pairKey = `${header}\u0000${value}`;
+		if (seenPairs.has(pairKey)) {
+			continue;
+		}
+		seenPairs.add(pairKey);
+		pairs.push({ header, value: value || "空" });
+	}
+	return pairs;
 }
 
 function buildMobileTableCards(table: HTMLTableElement): HTMLElement | null {
@@ -109,22 +151,13 @@ function buildMobileTableCards(table: HTMLTableElement): HTMLElement | null {
 		const card = document.createElement("article");
 		card.className = "docs-table-mobile-card";
 
-		const title = document.createElement("h4");
+		const title = document.createElement("p");
+		title.className = "docs-table-mobile-card-title";
 		title.textContent = buildRowTitle(row, rowIndex);
 		card.append(title);
 
 		const definitionList = document.createElement("dl");
-		const seenPairs = new Set<string>();
-		for (const [columnIndex, value] of row.entries()) {
-			const header = normalizeText(headers[columnIndex]) || `第 ${columnIndex + 1} 列`;
-			if (!(value || header)) {
-				continue;
-			}
-			const pairKey = `${header}\u0000${value}`;
-			if (seenPairs.has(pairKey)) {
-				continue;
-			}
-			seenPairs.add(pairKey);
+		for (const { header, value } of buildMobileTableRowPairs(headers, row)) {
 			const item = document.createElement("div");
 			const term = document.createElement("dt");
 			const description = document.createElement("dd");

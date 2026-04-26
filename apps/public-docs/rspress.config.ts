@@ -9,6 +9,7 @@ export default defineConfig({
 	globalUIComponents: [
 		path.join(__dirname, "src/components/SearchKeyboardGuard.tsx"),
 		path.join(__dirname, "src/components/MobileSidebarGuard.tsx"),
+		path.join(__dirname, "src/components/DesktopSidebarCollapseToggle.tsx"),
 		path.join(__dirname, "src/components/DocsContentEnhancer.tsx"),
 	],
 	search: {

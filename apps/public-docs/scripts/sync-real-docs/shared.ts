@@ -124,21 +124,30 @@ export interface DocumentReaderMetadata {
 	technicalDetails?: DocumentReaderTechnicalDetail[];
 }
 
-export type DocumentReaderProfile =
+export type DocumentKind =
 	| "home"
 	| "collectionLanding"
-	| "manual"
-	| "curriculum"
-	| "flow";
+	| "studentHandbookArticle"
+	| "publicRegulation"
+	| "curriculumPlan"
+	| "workflow";
+
+export type DocumentReaderLayout = "landing" | "article" | "reference" | "tabular" | "graph";
+
+export type DocumentReaderMeasure = "standard" | "wide" | "full";
 
 export type DocumentReaderOutlinePolicy = "none" | "document" | "compact";
 
 export function buildReaderFrontmatterLines(input: {
+	kind: DocumentKind;
+	layout: DocumentReaderLayout;
+	measure: DocumentReaderMeasure;
 	outlinePolicy?: DocumentReaderOutlinePolicy;
-	profile: DocumentReaderProfile;
 }): string[] {
 	return [
-		`readerProfile: ${jsonString(input.profile)}`,
+		`documentKind: ${jsonString(input.kind)}`,
+		`readerLayout: ${jsonString(input.layout)}`,
+		`readerMeasure: ${jsonString(input.measure)}`,
 		`readerOutline: ${jsonString(input.outlinePolicy ?? "document")}`,
 	];
 }
@@ -232,38 +241,44 @@ export function buildDocumentMetaPanelBlock(
 ): string {
 	const classAttr = options.mdx ? "className" : "class";
 	const compactMetadata = compactDocumentReaderMetadata(metadata);
-	const rows = [
-		["集合", compactMetadata.collectionLabel],
-		["来源", compactMetadata.sourceLabel],
-		["位置", compactMetadata.pageLabel],
+	const visibleSourceLabel = resolvePublicDocumentSourceLabel(compactMetadata);
+	const summaryItems = [
+		compactMetadata.versionLabel,
+		compactMetadata.pageLabel,
+		visibleSourceLabel ? `来源：${visibleSourceLabel}` : undefined,
+	].filter((value): value is string => Boolean(value));
+	const detailRows = [
+		["文档集合", compactMetadata.collectionLabel],
+		["原始文件", compactMetadata.sourceLabel],
+		["原文位置", compactMetadata.pageLabel],
 		["版本", compactMetadata.versionLabel],
-		["状态", compactMetadata.statusLabel],
+		[
+			"状态",
+			compactMetadata.statusLabel && !isDefaultStatusLabel(compactMetadata.statusLabel)
+				? compactMetadata.statusLabel
+				: undefined,
+		],
+		...(compactMetadata.technicalDetails ?? []).map((detail) => [detail.label, detail.value]),
 	].filter((row): row is [string, string] => Boolean(row[1]));
-	const technicalDetails = compactMetadata.technicalDetails ?? [];
 	const lines = [
 		`<section ${classAttr}="document-meta-panel" aria-label="文档来源与版本">`,
-		`\t<dl ${classAttr}="document-meta-grid">`,
+		`\t<p ${classAttr}="document-meta-summary">`,
 	];
-	for (const [label, value] of rows) {
-		lines.push(
-			"\t\t<div>",
-			`\t\t\t<dt>${escapeHtmlText(label)}</dt>`,
-			`\t\t\t<dd>${escapeHtmlText(value)}</dd>`,
-			"\t\t</div>",
-		);
+	for (const item of summaryItems) {
+		lines.push(`\t\t<span>${escapeHtmlText(item)}</span>`);
 	}
-	lines.push("\t</dl>");
-	if (technicalDetails.length > 0) {
+	lines.push("\t</p>");
+	if (detailRows.length > 0) {
 		lines.push(
-			`\t<details ${classAttr}="document-meta-technical">`,
-			"\t\t<summary>技术详情</summary>",
+			`\t<details ${classAttr}="document-meta-details">`,
+			"\t\t<summary>来源详情</summary>",
 			"\t\t<dl>",
 		);
-		for (const detail of technicalDetails) {
+		for (const [label, value] of detailRows) {
 			lines.push(
 				"\t\t\t<div>",
-				`\t\t\t\t<dt>${escapeHtmlText(detail.label)}</dt>`,
-				`\t\t\t\t<dd>${escapeHtmlText(detail.value)}</dd>`,
+				`\t\t\t\t<dt>${escapeHtmlText(label)}</dt>`,
+				`\t\t\t\t<dd>${escapeHtmlText(value)}</dd>`,
 				"\t\t\t</div>",
 			);
 		}
@@ -271,6 +286,29 @@ export function buildDocumentMetaPanelBlock(
 	}
 	lines.push("</section>");
 	return lines.join("\n");
+}
+
+function resolvePublicDocumentSourceLabel(metadata: DocumentReaderMetadata): string | undefined {
+	if (metadata.collectionLabel === "培养方案") {
+		return "培养方案汇编";
+	}
+	if (metadata.collectionLabel === "学生手册") {
+		return "学生手册";
+	}
+	if (metadata.collectionLabel) {
+		return metadata.collectionLabel;
+	}
+	return metadata.sourceLabel && !looksLikeSourceFilename(metadata.sourceLabel)
+		? metadata.sourceLabel
+		: undefined;
+}
+
+function looksLikeSourceFilename(value: string): boolean {
+	return /\.[A-Za-z0-9]{2,8}$/.test(value.trim());
+}
+
+function isDefaultStatusLabel(value: string): boolean {
+	return value.trim() === "当前展示版";
 }
 
 export function buildDocumentReaderMetadataFromJsonl(input: {

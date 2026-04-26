@@ -63,6 +63,15 @@ function resolveRenderableStageLabel(stageLabel: string): string {
 	return normalized;
 }
 
+function resolveRenderableCourseMapTitle(block: CourseMapBlock, documentTitle: string): string {
+	const normalized = block.title.trim().replace(/\s+/g, "");
+	if (/^(?:[一二三四五六七八九十]+、)?课程地图$/.test(normalized)) {
+		const suffix = block.mapIndex > 1 ? `（第 ${block.mapIndex} 张）` : "";
+		return `${documentTitle.trim()}课程地图${suffix}`;
+	}
+	return block.title;
+}
+
 function resolveStageLabels(data: CourseMapBlock): string[] {
 	const stageLabels =
 		data.displayStageLabels.length > 0
@@ -340,7 +349,13 @@ function CourseRouteMapView({
 	);
 }
 
-function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
+function CourseMapBlockSection({
+	block,
+	documentTitle,
+}: {
+	block: CourseMapBlock;
+	documentTitle: string;
+}) {
 	const indexedNodes = buildIndexedNodes(block);
 	const keyedExtractionNotes = buildKeyedExtractionNotes(block.extractionNotes);
 	const [courseQuery, setCourseQuery] = useState("");
@@ -353,6 +368,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 	).length;
 	const relationLookup = buildRelationLookup(block);
 	const summary = buildCourseMapSummary(block, effectiveStatus);
+	const title = resolveRenderableCourseMapTitle(block, documentTitle);
 
 	return (
 		<section className={`course-map-shell status-${effectiveStatus}`}>
@@ -365,7 +381,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 						</span>
 					)}
 				</div>
-				<h3>{block.title}</h3>
+				<h3>{title}</h3>
 				<p className="course-map-meta">{summary}</p>
 				{effectiveStatus === "ready" ? null : (
 					<p className="course-map-status-copy">{STATUS_DESCRIPTIONS[effectiveStatus]}</p>
@@ -404,7 +420,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 						单独打开原图
 					</a>
 				</div>
-				<img alt={`${block.title} 原始区域图`} src={block.imageSrc} />
+				<img alt={`${title} 原始区域图`} src={block.imageSrc} />
 			</details>
 
 			{block.extractionNotes.length > 0 ? (
@@ -424,10 +440,12 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 function CourseMapDocumentNav({
 	blocks,
 	activeBlockId,
+	documentTitle,
 	onSelectBlock,
 }: {
 	blocks: CourseMapBlock[];
 	activeBlockId: string | null;
+	documentTitle: string;
 	onSelectBlock: (blockId: string) => void;
 }) {
 	return (
@@ -454,7 +472,7 @@ function CourseMapDocumentNav({
 							}
 							onClick={() => onSelectBlock(block.blockId)}
 						>
-							<strong>{block.title}</strong>
+							<strong>{resolveRenderableCourseMapTitle(block, documentTitle)}</strong>
 							<small>{buildCourseMapSummary(block, effectiveStatus)}</small>
 						</button>
 					);
@@ -480,10 +498,15 @@ export default function CourseMapSection({ data }: Props) {
 				<CourseMapDocumentNav
 					blocks={data.blocks}
 					activeBlockId={activeBlock.blockId}
+					documentTitle={data.documentTitle}
 					onSelectBlock={setActiveBlockId}
 				/>
 			) : null}
-			<CourseMapBlockSection key={activeBlock.blockId} block={activeBlock} />
+			<CourseMapBlockSection
+				key={activeBlock.blockId}
+				block={activeBlock}
+				documentTitle={data.documentTitle}
+			/>
 		</section>
 	);
 }

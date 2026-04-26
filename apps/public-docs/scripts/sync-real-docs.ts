@@ -94,7 +94,7 @@ export function buildHandbookMetaEntries(input: {
 	flowGraphDocs: HandbookFlowGraphDoc[];
 	handbookDocs: HandbookDoc[];
 }): SidebarMetaEntry[] {
-	const entries: SidebarMetaEntry[] = [{ type: "file", name: "index", label: "学生手册概览" }];
+	const entries: SidebarMetaEntry[] = [];
 	for (const group of groupHandbookDocs(input)) {
 		if (group.docs.length === 0) {
 			continue;
@@ -105,7 +105,7 @@ export function buildHandbookMetaEntries(input: {
 }
 
 export function buildCurriculumMetaEntries(curriculumDocs: CurriculumDoc[]): SidebarMetaEntry[] {
-	const entries: SidebarMetaEntry[] = [{ type: "file", name: "index", label: "培养方案概览" }];
+	const entries: SidebarMetaEntry[] = [];
 	for (const group of groupCurriculumDocs(curriculumDocs)) {
 		if (group.docs.length === 0) {
 			continue;

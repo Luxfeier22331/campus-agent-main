@@ -314,7 +314,11 @@ function buildHandbookFlowGraphMarkdown(input: {
 		`title: ${jsonString(input.title)}`,
 		"description: 学生手册中服务流程图的结构化阅读页。",
 		"footer: false",
-		...buildReaderFrontmatterLines({ profile: "flow" }),
+		...buildReaderFrontmatterLines({
+			kind: "workflow",
+			layout: "graph",
+			measure: "full",
+		}),
 		"---",
 		"",
 		`import HandbookFlowGraphSection from "${input.componentImportPath}";`,
