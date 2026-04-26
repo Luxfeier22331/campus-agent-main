@@ -166,6 +166,23 @@ class HandbookCanonicalTest(unittest.TestCase):
         self.assertIn("corpus: regulations", result.canonical_markdown)
         self.assertIn("collection: student_rules", result.canonical_markdown)
 
+    def test_cleanup_publishes_readable_chinese_punctuation_in_canonical_markdown(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(20, "heading", "中央民族大学测试办法", block_role="title"),
+                _source_row(20, "paragraph", "(一)学院(系)负责审核,并提交材料。"),
+                _source_row(
+                    20, "paragraph", "备注:网址 https://example.edu/a?b=1, doc_id:handbook:test"
+                ),
+            ],
+            manifest_document=_manifest_document("中央民族大学测试办法"),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertIn("（一）学院（系）负责审核，并提交材料。", result.canonical_markdown)
+        self.assertIn("备注：网址 https://example.edu/a?b=1", result.canonical_markdown)
+        self.assertIn("doc_id:handbook:test", result.canonical_markdown)
+
     def test_cleanup_normalizes_square_bracket_policy_doc_no(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[

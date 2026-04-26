@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from campus_ingestion_core.readable_text_normalization import normalize_readable_text
 from campus_ingestion_core.source_truth_common import serialize_layout_rows
 
 from .curriculum_provider_normalize_relationships import _enrich_source_truth_rows
@@ -75,5 +76,16 @@ def normalize_curriculum_provider_result(
         raise ValueError("curriculum provider normalization produced no rows")
 
     _enrich_source_truth_rows(rows)
+    _enrich_readable_text(rows)
     validate_curriculum_source_truth_rows(rows)
     return serialize_layout_rows(rows)
+
+
+def _enrich_readable_text(rows: list[dict[str, object]]) -> None:
+    for row in rows:
+        text = str(row.get("clean_text") or row.get("text_normalized") or "").strip()
+        if text:
+            row["text_readable"] = normalize_readable_text(text)
+        html = str(row.get("html") or "").strip()
+        if html:
+            row["html_readable"] = normalize_readable_text(html)

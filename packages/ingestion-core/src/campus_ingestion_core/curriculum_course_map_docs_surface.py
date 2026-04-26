@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
@@ -10,6 +9,12 @@ from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 from campus_ingestion_core.artifacts import DOCUMENT_UNITS_FILENAME
+from campus_ingestion_core.curriculum_course_map_docs_ids import (
+    resolve_edge_id,
+    resolve_node_id,
+    resolve_stage_id,
+    resolve_unique_node_id_for_label,
+)
 from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     DEFAULT_CURRICULUM_RAW_ASSET_ID,
     DEFAULT_CURRICULUM_RAW_VERSION_ID,
@@ -31,6 +36,7 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     default_curriculum_source_pdf_key,
     render_curriculum_course_map_sample,
 )
+from campus_ingestion_core.readable_text_normalization import normalize_readable_text
 
 CURRICULUM_COURSE_MAP_DOCS_SURFACE_SCHEMA_VERSION = "curriculum_course_map_docs_surface_v2"
 CURRICULUM_COURSE_MAP_DOCS_SURFACE_FILENAME = "course-maps.json"
@@ -543,21 +549,24 @@ def _build_published_course_map_payload(
     notes: list[str] = []
     nodes: list[PublishedCourseMapNode] = []
     for index, node in enumerate(finding.nodes):
-        stage_id = _resolve_stage_id(stage_id=node.stage_id, stage_label=node.stage_label)
-        node_id = _resolve_node_id(
+        node_label = normalize_readable_text(node.node_label.strip())
+        stage_label = normalize_readable_text(node.stage_label.strip())
+        category_label = normalize_readable_text(node.category_label.strip())
+        stage_id = resolve_stage_id(stage_id=node.stage_id, stage_label=stage_label)
+        node_id = resolve_node_id(
             node_id=node.node_id,
             stage_id=stage_id,
-            stage_label=node.stage_label,
-            node_label=node.node_label,
+            stage_label=stage_label,
+            node_label=node_label,
             occurrence_index=index,
         )
         nodes.append(
             PublishedCourseMapNode(
                 node_id=node_id,
-                node_label=node.node_label,
+                node_label=node_label,
                 stage_id=stage_id,
-                stage_label=node.stage_label,
-                category_label=node.category_label,
+                stage_label=stage_label,
+                category_label=category_label,
             )
         )
     node_by_id = {node.node_id: node for node in nodes}
@@ -569,16 +578,18 @@ def _build_published_course_map_payload(
     for index, edge in enumerate(finding.edges):
         source_node_id = edge.source_node_id.strip()
         target_node_id = edge.target_node_id.strip()
+        source_label = normalize_readable_text(edge.source_label.strip())
+        target_label = normalize_readable_text(edge.target_label.strip())
         if not source_node_id:
-            source_node_id = _resolve_unique_node_id_for_label(
-                label=edge.source_label,
+            source_node_id = resolve_unique_node_id_for_label(
+                label=source_label,
                 node_ids_by_label=node_ids_by_label,
                 notes=notes,
                 endpoint_name="source",
             )
         if not target_node_id:
-            target_node_id = _resolve_unique_node_id_for_label(
-                label=edge.target_label,
+            target_node_id = resolve_unique_node_id_for_label(
+                label=target_label,
                 node_ids_by_label=node_ids_by_label,
                 notes=notes,
                 endpoint_name="target",
@@ -590,16 +601,16 @@ def _build_published_course_map_payload(
             continue
         edges.append(
             PublishedCourseMapEdge(
-                edge_id=_resolve_edge_id(
+                edge_id=resolve_edge_id(
                     edge_id=edge.edge_id,
                     source_node_id=source_node_id,
                     target_node_id=target_node_id,
                     occurrence_index=index,
                 ),
                 source_node_id=source_node_id,
-                source_label=edge.source_label or source_node.node_label,
+                source_label=source_label or source_node.node_label,
                 target_node_id=target_node_id,
-                target_label=edge.target_label or target_node.node_label,
+                target_label=target_label or target_node.node_label,
             )
         )
     has_stage_buckets = any(node.stage_label.strip() for node in nodes)
@@ -648,18 +659,26 @@ def _resolve_block_title(
     ):
         text = str(value or "").strip()
         if text:
-            return text
-    return f"课程地图（第 {page_number} 页）"
+            return normalize_readable_text(text)
+    return normalize_readable_text(f"课程地图（第 {page_number} 页）")
 
 
 def _resolve_stage_labels(*, finding: CourseMapFinding | None) -> tuple[str, ...]:
     if finding is None:
         return ()
     if finding.stage_labels:
-        return tuple(dict.fromkeys(label for label in finding.stage_labels if label.strip()))
+        return tuple(
+            dict.fromkeys(
+                normalize_readable_text(label.strip())
+                for label in finding.stage_labels
+                if label.strip()
+            )
+        )
     return tuple(
         dict.fromkeys(
-            node.stage_label.strip() for node in finding.nodes if node.stage_label.strip()
+            normalize_readable_text(node.stage_label.strip())
+            for node in finding.nodes
+            if node.stage_label.strip()
         )
     )
 
@@ -694,7 +713,7 @@ def _normalize_review_note(note: str) -> str:
     if "detected map region" in lowered and "clearly visible title" in lowered:
         return "至少有一个检测到的课程地图区域标题不够清晰。"
     if _contains_cjk(text):
-        return text
+        return normalize_readable_text(text)
     return ""
 
 
@@ -716,85 +735,6 @@ def _resolve_block_status(
     if detected_region.title_confidence != "visible" or extraction_notes:
         return "partial"
     return "ready"
-
-
-def _resolve_stage_id(*, stage_id: str, stage_label: str) -> str:
-    text = stage_id.strip()
-    if text:
-        return _normalize_identifier(text)
-    stage_text = stage_label.strip()
-    if stage_text:
-        return f"stage-{_hash_identifier(stage_text)[:10]}"
-    return "stage-unknown"
-
-
-def _resolve_node_id(
-    *,
-    node_id: str,
-    stage_id: str,
-    stage_label: str,
-    node_label: str,
-    occurrence_index: int,
-) -> str:
-    text = node_id.strip()
-    if text:
-        return _normalize_identifier(text)
-    identity = f"{stage_id}|{stage_label.strip()}|{node_label.strip()}|{occurrence_index}"
-    return f"node-{_hash_identifier(identity)[:12]}"
-
-
-def _resolve_edge_id(
-    *,
-    edge_id: str,
-    source_node_id: str,
-    target_node_id: str,
-    occurrence_index: int,
-) -> str:
-    text = edge_id.strip()
-    if text:
-        return _normalize_identifier(text)
-    identity = f"{source_node_id}->{target_node_id}#{occurrence_index}"
-    return f"edge-{_hash_identifier(identity)[:12]}"
-
-
-def _resolve_unique_node_id_for_label(
-    *,
-    label: str,
-    node_ids_by_label: Mapping[str, Sequence[str]],
-    notes: list[str],
-    endpoint_name: str,
-) -> str:
-    text = label.strip()
-    if not text:
-        notes.append("存在端点为空的课程关系，已从结构化关系中移除。")
-        return ""
-    node_ids = tuple(node_ids_by_label.get(text) or ())
-    if len(node_ids) == 1:
-        return node_ids[0]
-    if not node_ids:
-        notes.append(f"存在引用未发布课程节点的关系，已从结构化关系中移除：{text}。")
-        return ""
-    notes.append(
-        f"存在同名课程节点导致无法唯一定位的关系端点，已从结构化关系中移除：{text}（{endpoint_name}）。"
-    )
-    return ""
-
-
-def _normalize_identifier(value: str) -> str:
-    text = value.strip()
-    if not text:
-        return ""
-    normalized = "".join(
-        ch if ch.isascii() and (ch.isalnum() or ch in "_.:-") else "-" for ch in text
-    )
-    normalized = "-".join(part for part in normalized.split("-") if part)
-    if normalized:
-        return normalized
-    return f"id-{_hash_identifier(text)[:12]}"
-
-
-def _hash_identifier(value: str) -> str:
-    return hashlib.sha1(value.encode("utf-8")).hexdigest()
 
 
 def _coerce_docs_block(payload: object) -> CurriculumCourseMapDocsBlock:

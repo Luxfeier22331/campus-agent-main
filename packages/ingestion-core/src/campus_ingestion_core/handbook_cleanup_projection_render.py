@@ -9,6 +9,7 @@ from campus_ingestion_core.handbook_cleanup_tables import (
     _build_table_unit_semantics,
     _normalize_table_matrix,
 )
+from campus_ingestion_core.readable_text_normalization import normalize_readable_text
 
 
 def serialize_handbook_document_units(
@@ -51,7 +52,7 @@ def build_canonical_body(
             table_text = str(event.get("text") or "")
             parts.append(f"[表格]\n{table_text}" if table_text else "[表格]")
             continue
-    return "\n\n".join(part for part in parts if part)
+    return normalize_readable_text("\n\n".join(part for part in parts if part))
 
 
 def _should_render_policy_page_as_canonical_heading(event: dict[str, object]) -> bool:

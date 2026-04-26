@@ -320,6 +320,102 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
             block.extraction_notes,
         )
 
+    def test_build_surface_artifact_normalizes_readable_course_map_labels(self) -> None:
+        rendered_sample = CurriculumCourseMapRenderedSample(
+            sample_id="course-map-p0513-row-1",
+            page_number=513,
+            document_id="curriculum:test",
+            document_title="示例培养方案",
+            row_id="page-0513-block-2-0003",
+            parent_heading_hint="六、课程地图",
+            provider_bbox=(100.0, 200.0, 900.0, 1000.0),
+            provider_canvas=(1200.0, 1600.0),
+            pdf_bbox=(50.0, 80.0, 450.0, 480.0),
+            full_page_png=b"full-page-png",
+            crop_png=b"crop-png",
+        )
+        page_probe = CurriculumCourseMapPageProbe(
+            sample_id=rendered_sample.sample_id,
+            page_number=513,
+            document_id="curriculum:test",
+            document_title="示例培养方案",
+            parent_heading_hint="六、课程地图",
+            detected_maps=(
+                DetectedCourseMapRegion(
+                    map_index=1,
+                    map_title="课程地图(计算机类)",
+                    title_confidence="visible",
+                    region_bbox_normalized=(0.0, 0.0, 0.5, 0.5),
+                    region_bbox_pdf=(1.0, 2.0, 3.0, 4.0),
+                    region_bbox_provider=(10.0, 20.0, 30.0, 40.0),
+                    manual_review_notes=(),
+                ),
+            ),
+            course_maps=(
+                CourseMapFinding(
+                    map_index=1,
+                    map_title="课程地图(计算机类)",
+                    stage_labels=("一年级(上)",),
+                    nodes=(
+                        CourseMapNode(
+                            node_label="高等数学(下)",
+                            stage_label="一年级(上)",
+                            category_label="公共基础课",
+                        ),
+                        CourseMapNode(
+                            node_label="程序设计基础,实验",
+                            stage_label="一年级(上)",
+                            category_label="专业核心课",
+                        ),
+                    ),
+                    edges=(
+                        CourseMapEdge(
+                            source_label="高等数学(下)",
+                            target_label="程序设计基础,实验",
+                        ),
+                    ),
+                    manual_review_notes=("存在少量遮挡,需结合原图确认",),
+                ),
+            ),
+            manual_review_required=False,
+            global_manual_review_notes=(),
+        )
+        surface_key = build_curriculum_course_map_docs_surface_object_key(
+            "curriculum/documents/curriculum_plan/example/current-effective/2022/document-units.jsonl"
+        )
+
+        with patch.object(
+            _docs_surface_module,
+            "_build_rendered_region",
+            return_value=_probe_module.CurriculumCourseMapRenderedRegion(
+                detected_region=page_probe.detected_maps[0],
+                crop_png=b"map-01",
+                tile_pngs=(),
+            ),
+        ):
+            artifact = build_curriculum_course_map_docs_surface_artifact(
+                document_id="curriculum:test",
+                document_title="示例培养方案",
+                raw_asset_id="asset:test",
+                raw_version_id="sha256:test",
+                page_probes=(page_probe,),
+                rendered_samples={rendered_sample.sample_id: rendered_sample},
+                surface_object_key=surface_key,
+                generated_at="2026-04-22T12:00:00+00:00",
+            )
+
+        block = artifact.surface.blocks[0]
+        self.assertEqual(block.title, "课程地图（计算机类）")
+        self.assertEqual(block.display_stage_labels, ("一年级（上）",))
+        self.assertEqual(
+            [node.node_label for node in block.nodes],
+            ["高等数学（下）", "程序设计基础，实验"],
+        )
+        self.assertEqual(block.nodes[0].stage_label, "一年级（上）")
+        self.assertEqual(block.edges[0].source_label, "高等数学（下）")
+        self.assertEqual(block.edges[0].target_label, "程序设计基础，实验")
+        self.assertIn("存在少量遮挡，需结合原图确认", block.extraction_notes)
+
     def test_build_surface_artifact_marks_nodes_without_stage_buckets_failed(self) -> None:
         rendered_sample = CurriculumCourseMapRenderedSample(
             sample_id="course-map-p0513-row-1",

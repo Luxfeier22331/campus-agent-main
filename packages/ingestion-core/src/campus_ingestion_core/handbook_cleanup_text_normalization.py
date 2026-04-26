@@ -39,8 +39,6 @@ from campus_ingestion_core.handbook_cleanup_shared import (
     STRUCTURAL_LINE_RE,
     TOP_LEVEL_ENUMERATED_RE,
 )
-
-
 def normalize_handbook_body_text(value: str) -> str:
     normalized = _normalize_body_fragment(value)
     lines = [" ".join(line.split()).strip() for line in normalized.split("\n")]

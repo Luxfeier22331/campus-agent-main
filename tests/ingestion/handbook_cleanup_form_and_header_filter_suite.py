@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from campus_ingestion_core.readable_text_normalization import normalize_readable_text
+
 from .handbook_cleanup_test_support import *
 
 
@@ -212,7 +214,7 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "二、学生证是学生的身份证明,学生应妥善保管,爱护使用,谨防丢失。",
+            "二、学生证是学生的身份证明，学生应妥善保管，爱护使用，谨防丢失。",
             result.canonical_markdown,
         )
         self.assertNotIn("## 二、学生证是", result.canonical_markdown)
@@ -307,7 +309,10 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
                     source_doc="学生手册_2018.pdf",
                 )
 
-                self.assertIn(f"## {final_heading}", result.canonical_markdown)
+                self.assertIn(
+                    f"## {normalize_readable_text(final_heading)}",
+                    result.canonical_markdown,
+                )
 
     def test_cleanup_preserves_article_table_interleaving_for_credit_reward_rules(
         self,
@@ -364,10 +369,17 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
 
         canonical = result.canonical_markdown
         self.assertLess(canonical.index("### 第十一条"), canonical.index("作者排名"))
-        self.assertLess(canonical.index("(1)学生在学术期刊发表论文奖励学分标准:"), canonical.index("作者排名"))
-        self.assertLess(canonical.index("作者排名"), canonical.index("(2)学生参加科研课题奖励学分标准:"))
+        self.assertLess(
+            canonical.index("（1）学生在学术期刊发表论文奖励学分标准："),
+            canonical.index("作者排名"),
+        )
+        self.assertLess(
+            canonical.index("作者排名"), canonical.index("（2）学生参加科研课题奖励学分标准：")
+        )
         research_table_index = canonical.index("<td>排名</td><td>国家级</td>")
-        self.assertLess(canonical.index("(2)学生参加科研课题奖励学分标准:"), research_table_index)
+        self.assertLess(
+            canonical.index("（2）学生参加科研课题奖励学分标准："), research_table_index
+        )
         self.assertLess(
             research_table_index,
             canonical.index("2. 各类活动的纪念奖不能申报创新奖励学分。"),
@@ -378,7 +390,9 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
         )
         self.assertEqual(canonical.count("### 第十一条"), 1)
         article_units = [row for row in result.document_units if row["unit_type"] == "article_body"]
-        self.assertTrue(all(row["anchor"]["article_label"] == "第十一条" for row in article_units[:3]))
+        self.assertTrue(
+            all(row["anchor"]["article_label"] == "第十一条" for row in article_units[:3])
+        )
 
     def test_cleanup_attaches_form_cover_line_to_following_table_instead_of_policy_page(
         self,
@@ -454,9 +468,9 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
         )
 
         self.assertIn("## 一、周查月报的主要内容", result.canonical_markdown)
-        self.assertIn("(二)有无学籍状态异常学生", result.canonical_markdown)
-        self.assertIn("(四)有无心理健康状况异常学生", result.canonical_markdown)
-        self.assertIn("(五)其他需要报告的学生事务管理相关重要事项", result.canonical_markdown)
+        self.assertIn("（二）有无学籍状态异常学生", result.canonical_markdown)
+        self.assertIn("（四）有无心理健康状况异常学生", result.canonical_markdown)
+        self.assertIn("（五）其他需要报告的学生事务管理相关重要事项", result.canonical_markdown)
         self.assertIn("## 二、周查月报的基本程序", result.canonical_markdown)
         self.assertNotIn("## (二)有无学籍状态异常学生", result.canonical_markdown)
         self.assertNotIn("## (四)有无心理健康状况异常学生", result.canonical_markdown)
@@ -500,10 +514,12 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "## 附件1:中央民族大学本(预)科生基本情况周查月报表",
+            "## 附件1：中央民族大学本（预）科生基本情况周查月报表",
             result.canonical_markdown,
         )
-        self.assertNotIn("## 1:《中央民族大学本(预)科生基本情况周查月报表》", result.canonical_markdown)
+        self.assertNotIn(
+            "## 1:《中央民族大学本(预)科生基本情况周查月报表》", result.canonical_markdown
+        )
         table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
         self.assertEqual(
             table_unit["anchor"]["section_path"],
@@ -547,12 +563,12 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            result.canonical_markdown.count(
-                "## 附件1:中央民族大学本(预)科生基本情况周查月报表"
-            ),
+            result.canonical_markdown.count("## 附件1：中央民族大学本（预）科生基本情况周查月报表"),
             1,
         )
-        self.assertNotIn("## 1:《中央民族大学本(预)科生基本情况周查月报表》", result.canonical_markdown)
+        self.assertNotIn(
+            "## 1:《中央民族大学本(预)科生基本情况周查月报表》", result.canonical_markdown
+        )
         self.assertNotIn(
             "## 附表1:中央民族大学本(预)科生基本情况周查月报表",
             result.canonical_markdown,
@@ -618,11 +634,15 @@ class HandbookCleanupFormAndHeaderFilterTest(unittest.TestCase):
         )
 
         canonical = result.canonical_markdown
-        first_heading_index = canonical.index("## 附表一:中央民族大学本科生家庭经济困难学生认定申请表")
+        first_heading_index = canonical.index(
+            "## 附表一：中央民族大学本科生家庭经济困难学生认定申请表"
+        )
         first_table_index = canonical.index("学生陈述申请认定理由")
-        second_heading_index = canonical.index("## 附表二:中央民族大学本科学生及家庭情况调查表")
+        second_heading_index = canonical.index("## 附表二：中央民族大学本科学生及家庭情况调查表")
         second_table_index = canonical.index("家庭成员情况")
-        third_heading_index = canonical.index("## 附表三:中央民族大学本科生家庭经济困难学生认定统计表")
+        third_heading_index = canonical.index(
+            "## 附表三：中央民族大学本科生家庭经济困难学生认定统计表"
+        )
         third_table_index = canonical.index("序号")
         self.assertLess(first_heading_index, first_table_index)
         self.assertLess(first_table_index, second_heading_index)

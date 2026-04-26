@@ -117,6 +117,7 @@ class CurriculumProviderNormalizeTextRepairsTest(CurriculumProviderNormalizeTest
         self.assertEqual(rows[8]["page_start"], 2)
         self.assertEqual(rows[3]["html"], "<table><tr><td>课程</td><td>学分</td></tr></table>")
         self.assertEqual(rows[5]["text_normalized"], "备注:正常转入研究生阶段学生免修。")
+        self.assertEqual(rows[5]["text_readable"], "备注：正常转入研究生阶段学生免修。")
         self.assertTrue(rows[0]["row_id"].startswith("page-0001-block-"))
         self.assertTrue(rows[7]["row_id"].startswith("page-0002-block-"))
         self.assertEqual(rows[2]["provider_block_id"], "13")
@@ -136,6 +137,65 @@ class CurriculumProviderNormalizeTextRepairsTest(CurriculumProviderNormalizeTest
         self.assertIn("table_column_count", rows[0])
         self.assertIn("table_has_merged_cells", rows[0])
         self.assertIn("table_caption_hint", rows[0])
+
+    def test_normalize_curriculum_provider_result_publishes_readable_chinese_punctuation(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-readable-punctuation",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "paragraph_title",
+                                    "block_content": "(一)课程内容",
+                                    "block_id": 1,
+                                    "block_order": 1,
+                                },
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "主线,坚持分层培养;学院(系)负责审核。"
+                                        "课程绩点为2.5,代码SE-101不应改变。"
+                                    ),
+                                    "block_id": 2,
+                                    "block_order": 2,
+                                },
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>备注:课程类</td><td>高等数学(下)</td></tr>"
+                                        "<tr><td>网址</td><td>https://example.edu/a?b=1</td></tr></table>"
+                                    ),
+                                    "block_id": 3,
+                                    "block_order": 3,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+        texts = [str(row.get("text_readable") or "") for row in rows]
+
+        self.assertIn("（一）课程内容", texts)
+        self.assertIn(
+            "主线，坚持分层培养；学院（系）负责审核。课程绩点为2.5，代码SE-101不应改变。",
+            texts,
+        )
+        self.assertIn(
+            "<table><tr><td>备注：课程类</td><td>高等数学（下）</td></tr>"
+            "<tr><td>网址</td><td>https://example.edu/a?b=1</td></tr></table>",
+            texts,
+        )
+        self.assertEqual(rows[0]["text_normalized"], "(一)课程内容")
 
     def test_normalize_curriculum_provider_result_repairs_museum_second_bachelor_terms(
         self,

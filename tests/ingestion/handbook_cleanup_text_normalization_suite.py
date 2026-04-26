@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from campus_ingestion_core.readable_text_normalization import normalize_readable_text
+
 from .handbook_cleanup_test_support import *
 
 
@@ -44,6 +46,40 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertNotIn("[0]", normalized)
         self.assertIn("国家励志奖学金名额和学校二年级以上", normalized)
         self.assertIn("总人数,先计算出", normalized)
+
+    def test_normalize_readable_text_publishes_chinese_punctuation_without_touching_machine_tokens(
+        self,
+    ) -> None:
+        normalized = normalize_readable_text(
+            "\n".join(
+                [
+                    "(一)申请条件:学生应符合规定,并在2.5年内完成。",
+                    "材料上传至https://example.edu/a?b=1, doc_id:handbook:abc123。",
+                    "学院(系)审核通过后,进入下一环节。",
+                    "总评成绩=平时考核(30%)+期中考核(30%)+期末考核(40%); 1.平时考核。",
+                    "A.家庭经济特别困难。",
+                    "远程修习(具体要求参照《中央民族大学关于本科生交流出国(境)留学期间思想政治理论课研修实施办法》)。",
+                    "2. 夏翠翠。大学生心理健康教育[M].人民邮电出版社，2019.",
+                ]
+            )
+        )
+
+        self.assertIn("（一）申请条件：学生应符合规定，并在2.5年内完成。", normalized)
+        self.assertIn("学院（系）审核通过后，进入下一环节。", normalized)
+        self.assertIn(
+            "总评成绩=平时考核（30%）+期中考核（30%）+期末考核（40%）； 1. 平时考核。",
+            normalized,
+        )
+        self.assertIn("A. 家庭经济特别困难。", normalized)
+        self.assertIn(
+            "远程修习（具体要求参照《中央民族大学关于本科生交流出国（境）留学期间思想政治理论课研修实施办法》）。",
+            normalized,
+        )
+        self.assertIn("2. 夏翠翠。大学生心理健康教育[M]. 人民邮电出版社，2019.", normalized)
+        self.assertIn("https://example.edu/a?b=1", normalized)
+        self.assertIn("doc_id:handbook:abc123", normalized)
+        self.assertNotIn("(一)", normalized)
+        self.assertNotIn("申请条件:", normalized)
 
     def test_normalize_handbook_body_text_does_not_merge_heading_tail_with_following_note_line(
         self,
@@ -541,7 +577,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
 
         markdown = result.canonical_markdown
         self.assertLess(markdown.index("### 第二条"), markdown.index("### 第三条"))
-        self.assertLess(markdown.index("各专业学分要求如下:"), markdown.index("[表格]"))
+        self.assertLess(markdown.index("各专业学分要求如下："), markdown.index("[表格]"))
         self.assertLess(markdown.index("[表格]"), markdown.index("### 第四条"))
 
     def test_cleanup_merges_broken_policy_doc_no_citation_lines(self) -> None:
