@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from campus_supervisor_agent_worker.api_request_parsing import parse_bridge_supervisor_envelope
+from campus_supervisor_agent_worker.bridge_v6_parser import parse_bridge_supervisor_envelope
 
 
 class SupervisorApiBridgeGoFixtureTest(unittest.TestCase):

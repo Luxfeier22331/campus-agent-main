@@ -11,16 +11,16 @@ from campus_contracts import (
     TransportServiceTimeQuery,
 )
 
-from campus_supervisor_agent_worker.bridge_context_codecs import (
-    parse_requested_scope,
-    parse_version_query,
-)
 from campus_supervisor_agent_worker.bridge_parse_utils import (
     parse_optional_int,
     parse_optional_string,
     parse_string_tuple,
     require_object,
     require_string,
+)
+from campus_supervisor_agent_worker.bridge_trace_codecs import (
+    parse_requested_scope,
+    parse_version_query,
 )
 
 AgentPayload = (

@@ -12,8 +12,8 @@ from campus_contracts import (
     VersionQuery,
 )
 from campus_supervisor_agent_worker.agent_dispatch import MissingAgentDelegateError
-from campus_supervisor_agent_worker.api_request_parsing import parse_bridge_supervisor_envelope
 from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.bridge_v6_parser import parse_bridge_supervisor_envelope
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 

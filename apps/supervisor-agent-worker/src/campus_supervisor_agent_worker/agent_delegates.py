@@ -32,8 +32,8 @@ def bind_agent_handler(
         notice_query_service=notice_query_service,
     )
 
-    return lambda request, preplanned_agent_request: dispatch_agent_request(
-        preplanned_agent_request,
+    return lambda request, runtime_agent_request: dispatch_agent_request(
+        runtime_agent_request,
         agent_delegates=agent_delegates,
         cancellation_checker=lambda: cancel_flags.is_cancel_requested(request.request_id),
     )
@@ -72,11 +72,11 @@ def _build_agent_delegates(
 def _wrap_with_cancel_checks(agent_handler, cancel_flags: CancelFlagStore):
     def guarded_agent_handler(
         request,
-        preplanned_agent_request,
+        runtime_agent_request,
     ):
         if cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
-        response = agent_handler(preplanned_agent_request)
+        response = agent_handler(runtime_agent_request)
         if cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
         return response

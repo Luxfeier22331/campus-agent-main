@@ -10,14 +10,14 @@ from campus_supervisor_agent_worker.agent_dispatch import (
     ExecutionCancelledError,
     dispatch_agent_request,
 )
-from campus_supervisor_agent_worker.api_request_parsing import (
-    parse_bridge_supervisor_envelope,
-)
 from campus_supervisor_agent_worker.bridge_auth import error_response, require_bridge_auth
 from campus_supervisor_agent_worker.bridge_readiness import (
     RuntimeStatusProvider,
     handle_bridge_healthz,
     handle_bridge_readyz,
+)
+from campus_supervisor_agent_worker.bridge_v6_parser import (
+    parse_bridge_supervisor_envelope,
 )
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 from campus_supervisor_agent_worker.http_types import HttpResponse, HttpRoute
@@ -86,10 +86,10 @@ def build_bridge_routes(
 
 def _default_agent_envelope_handler(
     request: SupervisorRequest,
-    preplanned_agent_request: AgentRequest,
+    runtime_agent_request: AgentRequest,
 ) -> AgentResponse:
     _ = request
-    return dispatch_agent_request(preplanned_agent_request)
+    return dispatch_agent_request(runtime_agent_request)
 
 
 def handle_bridge_answer(

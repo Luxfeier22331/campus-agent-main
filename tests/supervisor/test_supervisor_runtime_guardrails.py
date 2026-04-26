@@ -4,9 +4,6 @@ import unittest
 from pathlib import Path
 
 SUPERVISOR_CORE_PACKAGE = Path("packages/supervisor-core")
-BRIDGE_REQUEST_FACADE = Path(
-    "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/api_request_parsing.py"
-)
 WORKER_CORE = Path("apps/supervisor-agent-worker/src/campus_supervisor_agent_worker")
 BRIDGE_V6_PARSER = WORKER_CORE / "bridge_v6_parser.py"
 AGENT_DISPATCH = WORKER_CORE / "agent_dispatch.py"
@@ -201,19 +198,23 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
     def test_worker_internal_agent_handoff_names_do_not_use_specialist_aliases(self) -> None:
         forbidden_fragments_by_path = {
             WORKER_CORE / "api.py": (
+                "preplanned_agent_request",
                 "preplanned_specialist_request",
                 "runtime_specialist_request",
             ),
-            WORKER_CORE / "api_request_parsing.py": (
+            WORKER_CORE / "bridge_v6_parser.py": (
+                "preplanned_agent_request",
                 "runtime_specialist_request",
                 "def _parse_specialist_request",
                 "def _assert_specialist_request_matches_supervisor_request",
             ),
             WORKER_CORE / "app.py": (
+                "preplanned_agent_request",
                 "preplanned_specialist_request",
                 "specialist_request:",
                 "lambda specialist_request",
             ),
+            WORKER_CORE / "agent_delegates.py": ("preplanned_agent_request",),
         }
         for path, forbidden_fragments in forbidden_fragments_by_path.items():
             source = path.read_text(encoding="utf-8")
@@ -394,31 +395,25 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         self.assertNotIn("CancelRecord", cancel_source)
         self.assertNotIn("CancelRecord", app_source)
 
-    def test_bridge_v6_parser_is_split_from_api_request_facade(self) -> None:
-        parser_source = BRIDGE_REQUEST_FACADE.read_text(encoding="utf-8")
-
-        self.assertLessEqual(len(parser_source.splitlines()), 80)
+    def test_bridge_v6_parser_is_the_direct_worker_request_parser(self) -> None:
+        self.assertFalse((WORKER_CORE / "api_request_parsing.py").exists())
         self.assertTrue(BRIDGE_V6_PARSER.exists())
         self.assertTrue((WORKER_CORE / "bridge_payload_codecs.py").exists())
-        self.assertTrue((WORKER_CORE / "bridge_context_codecs.py").exists())
+        self.assertFalse((WORKER_CORE / "bridge_context_codecs.py").exists())
+        parser_source = BRIDGE_V6_PARSER.read_text(encoding="utf-8")
         self.assertNotIn("def _parse_bridge_supervisor_request", parser_source)
         self.assertNotIn("def _task_kind_for_capability", parser_source)
         self.assertNotIn("def _domain_candidates_for_target", parser_source)
 
     def test_bridge_context_codecs_are_split_by_projection_family(self) -> None:
-        context_source = (WORKER_CORE / "bridge_context_codecs.py").read_text(encoding="utf-8")
         parser_source = BRIDGE_V6_PARSER.read_text(encoding="utf-8")
 
+        self.assertFalse((WORKER_CORE / "bridge_context_codecs.py").exists())
         self.assertTrue(WORKER_BRIDGE_ACTOR_CODECS.exists())
         self.assertTrue(WORKER_BRIDGE_AUTHORIZATION_CODECS.exists())
         self.assertTrue(WORKER_BRIDGE_MEMORY_CODECS.exists())
         self.assertTrue(WORKER_BRIDGE_SESSION_CODECS.exists())
         self.assertTrue(WORKER_BRIDGE_TRACE_CODECS.exists())
-        self.assertLessEqual(len(context_source.splitlines()), 120)
-        self.assertNotIn("class ProfileMemoryItem", context_source)
-        self.assertNotIn("def _parse_profile_memory_summary", context_source)
-        self.assertNotIn("def _parse_session_summary", context_source)
-        self.assertNotIn("def _parse_authorization_projection", context_source)
         self.assertNotIn(
             "from campus_supervisor_agent_worker.bridge_context_codecs import", parser_source
         )
