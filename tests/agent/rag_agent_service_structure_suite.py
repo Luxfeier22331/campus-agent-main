@@ -7,6 +7,9 @@ RAG_AGENT_PACKAGE = Path("packages/rag-agent/src/campus_rag_agent")
 RAG_SERVICE = RAG_AGENT_PACKAGE / "service.py"
 RAG_SERVICE_COMMON = RAG_AGENT_PACKAGE / "service_common.py"
 RAG_SERVICE_OUTCOMES = RAG_AGENT_PACKAGE / "service_outcomes.py"
+RAG_SERVICE_PROMPTING = RAG_AGENT_PACKAGE / "service_prompting.py"
+RAG_SERVICE_PROMPT_RUNTIME = RAG_AGENT_PACKAGE / "service_prompt_runtime.py"
+RAG_SERVICE_CLARIFICATION = RAG_AGENT_PACKAGE / "service_clarification.py"
 RAG_SERVICE_RETRIEVAL = RAG_AGENT_PACKAGE / "service_retrieval.py"
 RAG_SERVICE_SYNTHESIS = RAG_AGENT_PACKAGE / "service_answer_synthesis.py"
 RAG_SERVICE_DIAGNOSTICS = RAG_AGENT_PACKAGE / "service_diagnostics.py"
@@ -215,6 +218,17 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         self.assertNotIn("def _clarification_retrieval_adequacy", facade_source)
         self.assertNotIn("def _resolve_curriculum_diagnostics_follow_up", facade_source)
         self.assertLessEqual(len(facade_source.splitlines()), 120)
+
+    def test_prompting_facade_is_split_by_runtime_and_clarification_concerns(self) -> None:
+        facade_source = RAG_SERVICE_PROMPTING.read_text(encoding="utf-8")
+
+        self.assertTrue(RAG_SERVICE_PROMPT_RUNTIME.exists())
+        self.assertTrue(RAG_SERVICE_CLARIFICATION.exists())
+        self.assertNotIn("def _compose_clarification_response", facade_source)
+        self.assertNotIn("def _with_prompt_trace", facade_source)
+        self.assertNotIn("def _retrieval_ambiguity_reason", facade_source)
+        self.assertNotIn("_GENERIC_AMBIGUOUS_TOPICS =", facade_source)
+        self.assertLessEqual(len(facade_source.splitlines()), 80)
 
     def test_versioning_flow_is_split_from_facade(self) -> None:
         facade_source = RAG_SERVICE_VERSIONING.read_text(encoding="utf-8")

@@ -7,7 +7,7 @@ from campus_rag_agent.prompt_execution import RagPromptExecutor
 
 from .service_common import _build_empty_evidence
 from .service_diagnostics_payload import _build_rag_result_payload
-from .service_prompting import (
+from .service_prompt_runtime import (
     _compose_clarification_response,
     _compose_no_answer_response,
     _with_prompt_trace,

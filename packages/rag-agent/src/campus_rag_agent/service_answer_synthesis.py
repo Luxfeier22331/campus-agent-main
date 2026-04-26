@@ -16,14 +16,14 @@ from campus_rag_agent.remote_content_hardening import (
 )
 from campus_rag_agent.retrieval_adequacy import sufficient_retrieval_adequacy
 
+from .service_clarification import _should_keep_deterministic_completed_answer
 from .service_curriculum import (
     _build_curriculum_course_answer,
     _build_curriculum_program_family_answer,
 )
 from .service_diagnostics_payload import _build_rag_result_payload
-from .service_prompting import (
+from .service_prompt_runtime import (
     _compose_no_answer_response,
-    _should_keep_deterministic_completed_answer,
     _with_prompt_trace,
 )
 from .service_response_text import _build_no_answer_response, _resolved_policy_title

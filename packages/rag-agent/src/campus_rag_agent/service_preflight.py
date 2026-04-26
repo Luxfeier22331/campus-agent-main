@@ -9,14 +9,14 @@ from campus_rag_agent.retrieval_adequacy import (
     insufficient_retrieval_adequacy,
 )
 
+from .service_clarification import (
+    _build_clarification_question,
+)
 from .service_common import _build_empty_evidence
 from .service_diagnostics_adequacy import _clarification_retrieval_adequacy
 from .service_preflight_responses import (
     build_pre_retrieval_clarification_response,
     build_pre_retrieval_no_answer_response,
-)
-from .service_prompting import (
-    _build_clarification_question,
 )
 from .service_response_text import _build_curriculum_unsupported_response
 from .service_scope_plans import _has_resolved_query_plan
