@@ -1,154 +1,154 @@
 {
-  "bridge_version": "supervisor_bridge_v6",
-  "response_contract": "agent_response",
-  "user_goal": "保研政策怎么准备？",
-  "conversation_id": "conv-go-fixture-001",
-  "request_id": "req-go-fixture-001",
-  "safety_identifier": null,
-  "trace": {
-    "trace_id": "trace-go-fixture-001"
-  },
-  "actor": {
-    "user_id": "student@example.edu",
-    "principal_id": "principal-go-fixture-001",
-    "principal_type": "student",
-    "roles": ["student"],
-    "departments": []
-  },
-  "context": {
-    "actor": {
-      "user_id": "student@example.edu",
-      "principal_id": "principal-go-fixture-001",
-      "principal_type": "student",
-      "roles": ["student"],
-      "departments": []
-    },
-    "authorization": {
-      "principal_id": "principal-go-fixture-001",
-      "entitlement_groups": ["students"],
-      "visibility_scope": "",
-      "retrieval_filter": {
-        "entitlement_groups": ["students"],
-        "visibility_level": "public",
-        "visibility_scope": "",
-        "policy_projection_version": "phase1-authorization-projection-v1"
-      }
-    }
-  },
-  "requested_capability": "knowledge",
-  "effective_capability": "knowledge",
-  "lane": "rag",
-  "requested_scope": null,
-  "version_query": {
-    "mode": "current"
-  },
-  "runtime_decisions": {
-    "effective_capability": "knowledge",
-    "lane": "rag",
-    "scope_gate": {
-      "decision": "in_scope",
-      "reason": "scope_undetermined_delegate",
-      "matched_signal": ""
-    },
-    "policy_gate": {
-      "decision": "delegate",
-      "reason": "",
-      "risk_level": "low",
-      "matched_signal": ""
-    },
-    "context_preflight": {
-      "state": "not_follow_up",
-      "reference_type": "none",
-      "missing_slots": [],
-      "resolved_slots": {},
-      "matched_signal": "",
-      "ambiguity_reason": ""
-    },
-    "tool_policy": {
-      "policy_version": "runtime-policy-v1"
-    },
-    "runtime_decision_summary": {
-      "scope_gate_decision": "in_scope",
-      "policy_gate_decision": "delegate",
-      "context_preflight_state": "not_follow_up",
-      "routing_next_action": "delegate",
-      "planning_outcome": "preplanned"
-    },
-    "routing_frame": {
-      "capability": "knowledge",
-      "task_kind": "knowledge_lookup",
-      "domain_candidates": ["knowledge"],
-      "missing_slots": [],
-      "risk_level": "low",
-      "needs_clarification": false,
-      "suggested_next_action": "delegate",
-      "personalization_mode": "generic",
-      "clarification_subject": "",
-      "scope_class": "in_scope",
-      "policy_reason": "",
-      "launch_state": "open",
-      "scope_reason": "scope_undetermined_delegate",
-      "matched_signal": "",
-      "classifier_version": "go-runtime-policy-v2",
-      "schema_version": "intent-schema-1.0.0",
-      "routing_confidence": "high",
-      "ambiguity_signal": "",
-      "context_resolution_state": "not_follow_up",
-      "context_reference_type": "none",
-      "resolved_slots": {},
-      "ambiguity_reason": ""
-    },
-    "handoff": {
-      "planning_outcome": "preplanned",
-      "target": "rag-agent",
-      "allowed_tools": [],
-      "agent_request": {
-        "target": "rag-agent",
-        "user_goal": "保研政策怎么准备？",
-        "conversation_id": "conv-go-fixture-001",
-        "request_id": "req-go-fixture-001",
-        "safety_identifier": null,
-        "trace": {
-          "trace_id": "trace-go-fixture-001"
-        },
-        "actor": {
-          "user_id": "student@example.edu",
-          "principal_id": "principal-go-fixture-001",
-          "principal_type": "student",
-          "roles": ["student"],
-          "departments": []
-        },
-        "context": {
-          "actor": {
-            "user_id": "student@example.edu",
-            "principal_id": "principal-go-fixture-001",
-            "principal_type": "student",
-            "roles": ["student"],
-            "departments": []
-          },
-          "authorization": {
-            "principal_id": "principal-go-fixture-001",
-            "entitlement_groups": ["students"],
-            "visibility_scope": "",
-            "retrieval_filter": {
-              "entitlement_groups": ["students"],
-              "visibility_level": "public",
-              "visibility_scope": "",
-              "policy_projection_version": "phase1-authorization-projection-v1"
-            }
-          }
-        },
-        "payload": {
-          "kind": "rag_request",
-          "payload": {
-            "scope": null,
-            "version_query": {
-              "mode": "current"
-            }
-          }
-        },
-        "allowed_tools": []
-      }
-    }
-  }
+	"bridge_version": "supervisor_bridge_v6",
+	"response_contract": "agent_response",
+	"user_goal": "保研政策怎么准备？",
+	"conversation_id": "conv-go-fixture-001",
+	"request_id": "req-go-fixture-001",
+	"safety_identifier": null,
+	"trace": {
+		"trace_id": "trace-go-fixture-001"
+	},
+	"actor": {
+		"user_id": "student@example.edu",
+		"principal_id": "principal-go-fixture-001",
+		"principal_type": "student",
+		"roles": ["student"],
+		"departments": []
+	},
+	"context": {
+		"actor": {
+			"user_id": "student@example.edu",
+			"principal_id": "principal-go-fixture-001",
+			"principal_type": "student",
+			"roles": ["student"],
+			"departments": []
+		},
+		"authorization": {
+			"principal_id": "principal-go-fixture-001",
+			"entitlement_groups": ["students"],
+			"visibility_scope": "",
+			"retrieval_filter": {
+				"entitlement_groups": ["students"],
+				"visibility_level": "public",
+				"visibility_scope": "",
+				"policy_projection_version": "phase1-authorization-projection-v1"
+			}
+		}
+	},
+	"requested_capability": "knowledge",
+	"effective_capability": "knowledge",
+	"lane": "rag",
+	"requested_scope": null,
+	"version_query": {
+		"mode": "current"
+	},
+	"runtime_decisions": {
+		"effective_capability": "knowledge",
+		"lane": "rag",
+		"scope_gate": {
+			"decision": "in_scope",
+			"reason": "scope_undetermined_delegate",
+			"matched_signal": ""
+		},
+		"policy_gate": {
+			"decision": "delegate",
+			"reason": "",
+			"risk_level": "low",
+			"matched_signal": ""
+		},
+		"context_preflight": {
+			"state": "not_follow_up",
+			"reference_type": "none",
+			"missing_slots": [],
+			"resolved_slots": {},
+			"matched_signal": "",
+			"ambiguity_reason": ""
+		},
+		"tool_policy": {
+			"policy_version": "runtime-policy-v1"
+		},
+		"runtime_decision_summary": {
+			"scope_gate_decision": "in_scope",
+			"policy_gate_decision": "delegate",
+			"context_preflight_state": "not_follow_up",
+			"routing_next_action": "delegate",
+			"planning_outcome": "preplanned"
+		},
+		"routing_frame": {
+			"capability": "knowledge",
+			"task_kind": "knowledge_lookup",
+			"domain_candidates": ["knowledge"],
+			"missing_slots": [],
+			"risk_level": "low",
+			"needs_clarification": false,
+			"suggested_next_action": "delegate",
+			"personalization_mode": "generic",
+			"clarification_subject": "",
+			"scope_class": "in_scope",
+			"policy_reason": "",
+			"launch_state": "open",
+			"scope_reason": "scope_undetermined_delegate",
+			"matched_signal": "",
+			"classifier_version": "go-runtime-policy-v2",
+			"schema_version": "intent-schema-1.0.0",
+			"routing_confidence": "high",
+			"ambiguity_signal": "",
+			"context_resolution_state": "not_follow_up",
+			"context_reference_type": "none",
+			"resolved_slots": {},
+			"ambiguity_reason": ""
+		},
+		"handoff": {
+			"planning_outcome": "preplanned",
+			"target": "rag-agent",
+			"allowed_tools": [],
+			"agent_request": {
+				"target": "rag-agent",
+				"user_goal": "保研政策怎么准备？",
+				"conversation_id": "conv-go-fixture-001",
+				"request_id": "req-go-fixture-001",
+				"safety_identifier": null,
+				"trace": {
+					"trace_id": "trace-go-fixture-001"
+				},
+				"actor": {
+					"user_id": "student@example.edu",
+					"principal_id": "principal-go-fixture-001",
+					"principal_type": "student",
+					"roles": ["student"],
+					"departments": []
+				},
+				"context": {
+					"actor": {
+						"user_id": "student@example.edu",
+						"principal_id": "principal-go-fixture-001",
+						"principal_type": "student",
+						"roles": ["student"],
+						"departments": []
+					},
+					"authorization": {
+						"principal_id": "principal-go-fixture-001",
+						"entitlement_groups": ["students"],
+						"visibility_scope": "",
+						"retrieval_filter": {
+							"entitlement_groups": ["students"],
+							"visibility_level": "public",
+							"visibility_scope": "",
+							"policy_projection_version": "phase1-authorization-projection-v1"
+						}
+					}
+				},
+				"payload": {
+					"kind": "rag_request",
+					"payload": {
+						"scope": null,
+						"version_query": {
+							"mode": "current"
+						}
+					}
+				},
+				"allowed_tools": []
+			}
+		}
+	}
 }
