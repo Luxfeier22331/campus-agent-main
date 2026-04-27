@@ -39,6 +39,18 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			if snapshotID != "" && publishedAt != "" {
 				return "当前有效时刻表版本：" + snapshotID + "，发布时间：" + publishedAt + "。"
 			}
+		case structuredquery.ToolContactDirectoryLookup:
+			contact := stringValue(nestedMap(result, "resolved_contact")["display_name"])
+			contactText := contactDirectoryAnswerContents(result)
+			if contact != "" && contactText != "" {
+				return contact + "：\n" + contactText
+			}
+			if contactText != "" {
+				return contactText
+			}
+			if contact != "" {
+				return contact
+			}
 		case structuredquery.ToolCampusNoticeDiscover:
 			titles := noticeTitles(result["notice_cards"])
 			if titles != "" {
@@ -71,6 +83,14 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			return "当前没有找到对应的校车线路或班次。"
 		}
 		return "当前还不能稳定确认校车时刻。"
+	case structuredquery.ToolContactDirectoryLookup:
+		if stringValue(result["outcome"]) == "not_found" {
+			return "当前没有找到对应的联系方式。"
+		}
+		if stringValue(result["outcome"]) == "clarification_required" {
+			return "请明确你要查询的部门或联系对象。"
+		}
+		return "当前还不能稳定确认这项联系方式。"
 	case structuredquery.ToolCampusNoticeDiscover:
 		if stringValue(result["outcome"]) == "not_found" {
 			return "当前没有找到对应通知。"
@@ -245,6 +265,107 @@ func serviceGuideContactText(contact map[string]any) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+func contactDirectoryAnswerContents(result map[string]any) string {
+	if points := contactDirectoryPointContents(result["contact_points"]); points != "" {
+		return points
+	}
+	if locations := contactDirectoryLocationContents(result["location_refs"]); locations != "" {
+		return locations
+	}
+	if hours := contactDirectoryHoursContents(result["office_hours"]); hours != "" {
+		return hours
+	}
+	return ""
+}
+
+func contactDirectoryPointContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		point, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		label := stringValue(point["label"])
+		value := stringValue(point["value"])
+		channel := stringValue(point["channel_type"])
+		if value == "" {
+			continue
+		}
+		text := value
+		if label != "" {
+			text = label + " " + value
+		} else if channel != "" {
+			text = channel + " " + value
+		}
+		contents = append(contents, strings.TrimSpace(text))
+	}
+	return strings.Join(contents, "、")
+}
+
+func contactDirectoryLocationContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		location, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		label := stringValue(location["label"])
+		locationRef := stringValue(location["location_ref"])
+		address := stringValue(location["address_text"])
+		text := label
+		if text == "" {
+			text = locationRef
+		}
+		if address != "" {
+			if text != "" {
+				text = text + " " + address
+			} else {
+				text = address
+			}
+		}
+		if strings.TrimSpace(text) != "" {
+			contents = append(contents, strings.TrimSpace(text))
+		}
+	}
+	return strings.Join(contents, "、")
+}
+
+func contactDirectoryHoursContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		hours, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		label := stringValue(hours["label"])
+		timeRange := stringValue(hours["time_range"])
+		note := stringValue(hours["effective_note"])
+		text := timeRange
+		if text == "" {
+			text = note
+		}
+		if label != "" && text != "" {
+			text = label + " " + text
+		}
+		if strings.TrimSpace(text) != "" {
+			contents = append(contents, strings.TrimSpace(text))
+		}
+	}
+	return strings.Join(contents, "、")
 }
 
 func stringSliceValue(raw any) []string {

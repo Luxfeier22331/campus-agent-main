@@ -37,6 +37,8 @@ from campus_contracts.models_tools import (
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
+    ContactDirectoryLookupPayload,
+    ContactDirectoryLookupResult,
     PlaceLookupPayload,
     PlaceLookupResult,
     ServiceGuideLookupPayload,
@@ -174,6 +176,7 @@ class AgentRequest:
         | ServiceGuideLookupPayload
         | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
+        | ContactDirectoryLookupPayload
         | CampusNoticeDiscoverPayload
         | CampusNoticeGetPayload
     )
@@ -212,6 +215,7 @@ class AgentResponse:
         | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
+        | ContactDirectoryLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticeGetResult
         | None
@@ -240,6 +244,7 @@ class SupervisorResponse:
         | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
+        | ContactDirectoryLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticeGetResult
         | None

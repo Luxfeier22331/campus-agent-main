@@ -3,6 +3,8 @@ from __future__ import annotations
 from campus_contracts import (
     AgentRequest,
     AgentResponse,
+    ContactDirectoryLookupPayload,
+    ContactDirectoryLookupResult,
     ErrorInfo,
     ServiceGuideLookupPayload,
     ServiceGuideLookupResult,
@@ -15,6 +17,7 @@ from campus_contracts import (
 from campus_services_agent.query_service import (
     CampusServicesAccessContext,
     CampusServicesQueryService,
+    ContactDirectoryQuery,
     ServiceGuideQuery,
     ServiceStatusQuery,
     TransportScheduleQuery,
@@ -32,6 +35,8 @@ def dispatch_tool_request(
         return _handle_service_guide_lookup(request, query_service=query_service)
     if isinstance(request.payload, TransportScheduleLookupPayload):
         return _handle_transport_schedule_lookup(request, query_service=query_service)
+    if isinstance(request.payload, ContactDirectoryLookupPayload):
+        return _handle_contact_directory_lookup(request, query_service=query_service)
     return AgentResponse(
         target="campus-services-agent",
         status="error",
@@ -40,7 +45,7 @@ def dispatch_tool_request(
             code="invalid_payload",
             message=(
                 "campus-services-agent requires service status, service guide, "
-                "or transport schedule payload"
+                "transport schedule, or contact directory payload"
             ),
         ),
     )
@@ -104,6 +109,26 @@ def _handle_transport_schedule_lookup(
     except Exception as exc:
         return _query_service_failed(str(exc))
     return _transport_schedule_response(result)
+
+
+def _handle_contact_directory_lookup(
+    request: AgentRequest,
+    *,
+    query_service: CampusServicesQueryService,
+) -> AgentResponse:
+    tool_name = "contact_directory_lookup"
+    if tool_name not in request.allowed_tools:
+        return _tool_not_allowed(tool_name)
+    try:
+        result = query_service.lookup_contact_directory(
+            ContactDirectoryQuery(
+                payload=request.payload,
+                access_context=_access_context_from_request(request),
+            )
+        )
+    except Exception as exc:
+        return _query_service_failed(str(exc))
+    return _contact_directory_response(result)
 
 
 def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
@@ -316,6 +341,48 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
     )
 
 
+def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentResponse:
+    if result.outcome == "resolved_current":
+        contact_name = (
+            result.resolved_contact.display_name
+            if result.resolved_contact is not None
+            else result.query_text
+        )
+        contact_text = _contact_directory_text(result)
+        return AgentResponse(
+            target="campus-services-agent",
+            status="completed",
+            answer_text=f"{contact_name}：\n{contact_text}" if contact_text else contact_name,
+            confidence="high",
+            result=result,
+        )
+    if result.outcome == "clarification_required":
+        follow_up = "请明确你要查询的部门或联系对象。"
+        return AgentResponse(
+            target="campus-services-agent",
+            status="needs_clarification",
+            answer_text=follow_up,
+            follow_up_question=follow_up,
+            confidence="medium",
+            result=result,
+        )
+    if result.outcome == "temporarily_unverifiable":
+        return AgentResponse(
+            target="campus-services-agent",
+            status="no_answer",
+            answer_text="当前还不能稳定确认这项联系方式。",
+            confidence="low",
+            result=result,
+        )
+    return AgentResponse(
+        target="campus-services-agent",
+        status="no_answer",
+        answer_text="当前没有找到对应的联系方式。",
+        confidence="low",
+        result=result,
+    )
+
+
 def _service_guide_text(result: ServiceGuideLookupResult) -> str:
     if result.guide_sections:
         return "\n".join(section.content for section in result.guide_sections if section.content)
@@ -330,6 +397,51 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
     if result.eligibility_notes:
         return "、".join(result.eligibility_notes)
     return ""
+
+
+def _contact_directory_text(result: ContactDirectoryLookupResult) -> str:
+    if result.contact_points:
+        return "、".join(_contact_directory_point_text(point) for point in result.contact_points)
+    if result.location_refs:
+        return "、".join(_contact_directory_location_text(location) for location in result.location_refs)
+    if result.office_hours:
+        return "、".join(
+            _contact_directory_hours_text(hours)
+            for hours in result.office_hours
+            if _contact_directory_hours_text(hours)
+        )
+    return ""
+
+
+def _contact_directory_point_text(point) -> str:
+    parts = []
+    if point.label:
+        parts.append(point.label)
+    if point.value:
+        parts.append(point.value)
+    return " ".join(parts).strip() or point.value
+
+
+def _contact_directory_location_text(location) -> str:
+    parts = []
+    if location.label:
+        parts.append(location.label)
+    if location.address_text:
+        parts.append(location.address_text)
+    elif location.location_ref and location.location_ref != location.label:
+        parts.append(location.location_ref)
+    return " ".join(parts).strip() or location.location_ref
+
+
+def _contact_directory_hours_text(hours) -> str:
+    parts = []
+    if hours.label:
+        parts.append(hours.label)
+    if hours.time_range:
+        parts.append(hours.time_range)
+    elif hours.effective_note:
+        parts.append(hours.effective_note)
+    return " ".join(parts).strip()
 
 
 def _transport_operational_suffix(result: TransportScheduleLookupResult) -> str:

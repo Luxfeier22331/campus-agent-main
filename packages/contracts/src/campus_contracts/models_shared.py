@@ -26,6 +26,7 @@ AgentToolName = Literal[
     "service_status_lookup",
     "service_guide_lookup",
     "transport_schedule_lookup",
+    "contact_directory_lookup",
     "campus_notice_discover",
     "campus_notice_get",
 ]
@@ -60,6 +61,8 @@ ToolFailCloseReason = Literal[
     "source_family_unavailable",
     "source_conflict",
     "manual_review_required",
+    "privacy_policy_restricted",
+    "stable_contact_unavailable",
 ]
 ServiceGuideFocus = Literal[
     "overview",
@@ -77,6 +80,31 @@ ServiceGuideClarificationReason = Literal[
     "campus_scope_required",
     "audience_required",
     "guide_focus_required",
+]
+ContactDirectoryFocus = Literal[
+    "phone",
+    "email",
+    "location",
+    "office_hours",
+    "contact_person",
+    "all_contacts",
+]
+ContactDirectoryEntityType = Literal[
+    "department",
+    "office",
+    "service_point",
+    "role_contact",
+    "public_person_role",
+    "hotline",
+]
+ContactDirectoryChannelType = Literal["phone", "email", "fax", "website"]
+ContactDirectoryClarificationReason = Literal[
+    "contact_entity_ambiguous",
+    "contact_focus_required",
+    "department_required",
+    "campus_scope_required",
+    "audience_required",
+    "purpose_required",
 ]
 HistoricalDowngradeReason = Literal["current_year_miss", "current_effective_miss"]
 NoticeSourceFamily = Literal[
@@ -148,6 +176,7 @@ ALLOWED_AGENT_TOOL_NAMES = (
     "service_status_lookup",
     "service_guide_lookup",
     "transport_schedule_lookup",
+    "contact_directory_lookup",
     "campus_notice_discover",
     "campus_notice_get",
 )
@@ -184,6 +213,8 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
     "source_family_unavailable",
     "source_conflict",
     "manual_review_required",
+    "privacy_policy_restricted",
+    "stable_contact_unavailable",
 )
 ALLOWED_SERVICE_GUIDE_FOCUSES = (
     "overview",
@@ -201,6 +232,36 @@ ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS = (
     "campus_scope_required",
     "audience_required",
     "guide_focus_required",
+)
+ALLOWED_CONTACT_DIRECTORY_FOCUSES = (
+    "phone",
+    "email",
+    "location",
+    "office_hours",
+    "contact_person",
+    "all_contacts",
+)
+ALLOWED_CONTACT_DIRECTORY_ENTITY_TYPES = (
+    "department",
+    "office",
+    "service_point",
+    "role_contact",
+    "public_person_role",
+    "hotline",
+)
+ALLOWED_CONTACT_DIRECTORY_CHANNEL_TYPES = (
+    "phone",
+    "email",
+    "fax",
+    "website",
+)
+ALLOWED_CONTACT_DIRECTORY_CLARIFICATION_REASONS = (
+    "contact_entity_ambiguous",
+    "contact_focus_required",
+    "department_required",
+    "campus_scope_required",
+    "audience_required",
+    "purpose_required",
 )
 ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
 ALLOWED_NOTICE_SOURCE_FAMILIES = (
@@ -320,6 +381,26 @@ def _validate_service_guide_audience(audience: str) -> None:
 def _validate_service_guide_clarification_reason(reason: str) -> None:
     if reason not in ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS:
         raise ValueError(f"unsupported service guide clarification reason: {reason}")
+
+
+def _validate_contact_directory_focus(focus: str) -> None:
+    if focus not in ALLOWED_CONTACT_DIRECTORY_FOCUSES:
+        raise ValueError(f"unsupported contact directory focus: {focus}")
+
+
+def _validate_contact_directory_entity_type(entity_type: str) -> None:
+    if entity_type not in ALLOWED_CONTACT_DIRECTORY_ENTITY_TYPES:
+        raise ValueError(f"unsupported contact directory entity_type: {entity_type}")
+
+
+def _validate_contact_directory_channel_type(channel_type: str) -> None:
+    if channel_type not in ALLOWED_CONTACT_DIRECTORY_CHANNEL_TYPES:
+        raise ValueError(f"unsupported contact directory channel_type: {channel_type}")
+
+
+def _validate_contact_directory_clarification_reason(reason: str) -> None:
+    if reason not in ALLOWED_CONTACT_DIRECTORY_CLARIFICATION_REASONS:
+        raise ValueError(f"unsupported contact directory clarification reason: {reason}")
 
 
 def _validate_historical_downgrade_reason(reason: str) -> None:

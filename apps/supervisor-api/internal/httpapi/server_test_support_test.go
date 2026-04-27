@@ -107,6 +107,9 @@ func useStructuredQueryRuntimeFixture(
 		ServiceGuideReadModelStore: &fakeStructuredReadModelStore{
 			bundle: bundle,
 		},
+		ContactDirectoryReadModelStore: &fakeStructuredReadModelStore{
+			bundle: bundle,
+		},
 		TrustedTimeRFC3339: trustedTime,
 	})
 }
@@ -128,6 +131,9 @@ func useStructuredQueryRuntimeFixtures(
 			bundle: decodeProjectionBundleFixture(t, transportScheduleBody),
 		},
 		ServiceGuideReadModelStore: &fakeStructuredReadModelStore{
+			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
+		},
+		ContactDirectoryReadModelStore: &fakeStructuredReadModelStore{
 			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
 		},
 		TrustedTimeRFC3339: trustedTime,

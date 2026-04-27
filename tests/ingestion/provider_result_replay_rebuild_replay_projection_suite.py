@@ -5,6 +5,15 @@ import unittest
 from .provider_result_replay_rebuild_test_support import *
 
 
+class _FakeStructuredProjectionPublisher:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def publish_release(self, **kwargs: object) -> object:
+        self.calls.append(dict(kwargs))
+        return {"current": True}
+
+
 class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
     def test_replay_provider_response_rebuild_reconstructs_declared_downstream_projections_from_source_truth(
         self,
@@ -174,30 +183,35 @@ class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "raw-assets.json"
             )
+            publisher = _FakeStructuredProjectionPublisher()
 
-            report = replay_provider_response_rebuild(
-                env={
-                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
-                    "REBUILD_CORPUS": "regulations",
-                    "REBUILD_COLLECTION": "student_rules",
-                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
-                    "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_PATH": str(
-                        service_guide_source_truth_path
-                    ),
-                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                    "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
-                    "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
-                    "EMBEDDING_PROVIDER": "mock",
-                },
-                object_store=object_store,
-                registry=registry,
-                raw_asset_registry=raw_asset_registry,
-            )
+            with patch(
+                "campus_ingestion_core.local_rebuild_replay.build_structured_projection_publisher_from_env",
+                return_value=publisher,
+            ):
+                report = replay_provider_response_rebuild(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "REBUILD_CORPUS": "regulations",
+                        "REBUILD_COLLECTION": "student_rules",
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                        "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_PATH": str(
+                            service_guide_source_truth_path
+                        ),
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                    },
+                    object_store=object_store,
+                    registry=registry,
+                    raw_asset_registry=raw_asset_registry,
+                )
 
             self.assertEqual(report.import_mode, "provider_response_replay")
             self.assertEqual(report.success_count, 3)
@@ -291,6 +305,12 @@ class ProviderResultReplayRebuildProjectionTest(unittest.TestCase):
             self.assertIn(
                 "公费医疗报销办理指南",
                 {entry["display_name"] for entry in service_catalog_projection["service_entries"]},
+            )
+            self.assertEqual(len(publisher.calls), 1)
+            self.assertEqual(publisher.calls[0]["collection"], "contact_directory")
+            self.assertEqual(
+                publisher.calls[0]["schema_version"],
+                "campus_services_contact_directory_projection.v1",
             )
 
     def test_replay_provider_response_rebuild_reconstructs_handbook_documents_without_indexing_by_default(

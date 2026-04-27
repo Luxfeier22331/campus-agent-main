@@ -31,6 +31,14 @@ func NewRuntime(options Options) *Runtime {
 			DatabaseURL: structuredProjectionDatabaseURL,
 		})
 	}
+	contactDirectoryReadModelStore := options.ContactDirectoryReadModelStore
+	if contactDirectoryReadModelStore == nil {
+		contactDirectoryReadModelStore = NewPostgresContactDirectoryReadModelStore(
+			ContactDirectoryPostgresOptions{
+				DatabaseURL: structuredProjectionDatabaseURL,
+			},
+		)
+	}
 	noticeReadModelStore := options.NoticeReadModelStore
 	if noticeReadModelStore == nil {
 		noticeReadModelStore = NewPostgresNoticeReadModelStore(NoticePostgresOptions{
@@ -53,6 +61,7 @@ func NewRuntime(options Options) *Runtime {
 		serviceStatusReadModelStore:     serviceStatusReadModelStore,
 		transportScheduleReadModelStore: transportScheduleReadModelStore,
 		serviceGuideReadModelStore:      serviceGuideReadModelStore,
+		contactDirectoryReadModelStore:  contactDirectoryReadModelStore,
 		noticeReadModelStore:            noticeReadModelStore,
 		noticeBodyStore:                 noticeBodyStore,
 	}
@@ -73,6 +82,9 @@ func (r *Runtime) Close() {
 		closer.Close()
 	}
 	if closer, ok := r.serviceGuideReadModelStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := r.contactDirectoryReadModelStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	if closer, ok := r.noticeReadModelStore.(interface{ Close() }); ok {

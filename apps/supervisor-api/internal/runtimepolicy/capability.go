@@ -41,6 +41,10 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 	if containsAny(normalized, policy.Signals("structured_transport")) {
 		return "campus_services"
 	}
+	if containsAny(normalized, policy.Signals("structured_contact_directory")) &&
+		containsAny(normalized, policy.Signals("structured_contact_directory_action")) {
+		return "campus_services"
+	}
 	if containsAny(normalized, policy.Signals("structured_service_status")) &&
 		containsAny(normalized, policy.Signals("structured_service_subject")) {
 		return "campus_services"

@@ -287,8 +287,9 @@ query。
 当前已冻结的前向 family 包括：
 
 - `campus-services-agent`
-  - 承接 `transport_schedule_lookup`、`service_status_lookup`，以及 later-wave
-    `service_guide_lookup`、`contact_directory_lookup`
+  - 承接 `transport_schedule_lookup`、`service_status_lookup` 与
+    `service_guide_lookup`、`contact_directory_lookup`，以及 later-wave
+    `service_process_lookup`
   - `service_guide_lookup` 只回答只读办理指南、材料、入口说明、服务时间、联系方式与来源引用；
     不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
   - 详细领域边界、projection owner 与 opening gate 统一看

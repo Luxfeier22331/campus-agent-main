@@ -55,3 +55,29 @@ func TestStructuredAnswerTextUsesServiceGuideContactRefs(t *testing.T) {
 		}
 	}
 }
+
+func TestStructuredAnswerTextUsesContactDirectoryPoints(t *testing.T) {
+	answerText := structuredAnswerText(
+		structuredquery.ToolContactDirectoryLookup,
+		map[string]any{
+			"outcome": "resolved_current",
+			"resolved_contact": map[string]any{
+				"display_name": "研究生院招生办公室",
+			},
+			"contact_points": []any{
+				map[string]any{
+					"channel_type": "phone",
+					"label":        "招生咨询",
+					"value":        "010-68930001",
+				},
+			},
+		},
+		"completed",
+	)
+
+	for _, snippet := range []string{"研究生院招生办公室", "010-68930001"} {
+		if !strings.Contains(answerText, snippet) {
+			t.Fatalf("answer_text = %q, want snippet %q", answerText, snippet)
+		}
+	}
+}

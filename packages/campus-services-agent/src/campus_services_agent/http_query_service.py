@@ -7,6 +7,12 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from campus_contracts import (
+    ContactDirectoryCandidate,
+    ContactDirectoryContactPoint,
+    ContactDirectoryContactRef,
+    ContactDirectoryLocationRef,
+    ContactDirectoryLookupResult,
+    ContactDirectoryOfficeHours,
     ScheduledDeparture,
     ServiceGuideCandidate,
     ServiceGuideContactRef,
@@ -27,6 +33,7 @@ from campus_contracts import (
 )
 
 from campus_services_agent.query_service import (
+    ContactDirectoryQuery,
     ServiceGuideQuery,
     ServiceStatusQuery,
     TransportScheduleQuery,
@@ -81,6 +88,20 @@ class CampusServicesHTTPQueryService:
             body,
             fallback_service_query=query.payload.service_query,
             fallback_guide_focus=str(query.payload.guide_focus),
+        )
+
+    def lookup_contact_directory(
+        self,
+        query: ContactDirectoryQuery,
+    ) -> ContactDirectoryLookupResult:
+        body = self._post(
+            "/internal/query/campus-services/contact-directory",
+            asdict(query.payload),
+        )
+        return _contact_directory_result_from_dict(
+            body,
+            fallback_query_text=query.payload.query_text,
+            fallback_contact_focus=str(query.payload.contact_focus),
         )
 
     def lookup_transport_schedule(
@@ -219,6 +240,46 @@ def _service_guide_result_from_dict(
     )
 
 
+def _contact_directory_result_from_dict(
+    body: dict[str, object],
+    *,
+    fallback_query_text: str,
+    fallback_contact_focus: str,
+) -> ContactDirectoryLookupResult:
+    return ContactDirectoryLookupResult(
+        query_text=_string(body.get("query_text")) or fallback_query_text,
+        contact_focus=_string(body.get("contact_focus")) or fallback_contact_focus,
+        outcome=_string(body.get("outcome")),
+        resolved_contact=_contact_directory_contact_ref(body.get("resolved_contact")),
+        contact_points=tuple(
+            point
+            for item in _list(body.get("contact_points"))
+            if (point := _contact_directory_contact_point(item)) is not None
+        ),
+        location_refs=tuple(
+            location
+            for item in _list(body.get("location_refs"))
+            if (location := _contact_directory_location_ref(item)) is not None
+        ),
+        office_hours=tuple(
+            hours
+            for item in _list(body.get("office_hours"))
+            if (hours := _contact_directory_office_hours(item)) is not None
+        ),
+        candidate_contacts=tuple(
+            candidate
+            for item in _list(body.get("candidate_contacts"))
+            if (candidate := _contact_directory_candidate(item)) is not None
+        ),
+        source_refs=_string_tuple(body.get("source_refs")),
+        queried_time_anchor=_string(body.get("queried_time_anchor")),
+        effective_from=_string(body.get("effective_from")),
+        effective_until=_string(body.get("effective_until")),
+        clarification_reason=_string(body.get("clarification_reason")),
+        fail_close_reason=_string(body.get("fail_close_reason")),
+    )
+
+
 def _transport_schedule_result_from_dict(
     body: dict[str, object],
     *,
@@ -353,6 +414,78 @@ def _service_guide_candidate(value: object) -> ServiceGuideCandidate | None:
         return None
     return ServiceGuideCandidate(
         service=service,
+        clarification_hint=_string(item.get("clarification_hint")),
+    )
+
+
+def _contact_directory_contact_ref(value: object) -> ContactDirectoryContactRef | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ContactDirectoryContactRef(
+        contact_id=_string(item.get("contact_id")),
+        display_name=_string(item.get("display_name")),
+        aliases=_string_tuple(item.get("aliases")),
+        entity_type=_string(item.get("entity_type")) or "department",
+        department=_string(item.get("department")),
+        contact_group=_string(item.get("contact_group")),
+        campus_scope=_string(item.get("campus_scope")),
+        audience=_string_tuple(item.get("audience")),
+    )
+
+
+def _contact_directory_contact_point(value: object) -> ContactDirectoryContactPoint | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ContactDirectoryContactPoint(
+        channel_type=_string(item.get("channel_type")),
+        label=_string(item.get("label")),
+        value=_string(item.get("value")),
+        normalized_value=_string(item.get("normalized_value")),
+        contact_type=_string(item.get("contact_type")),
+        area_served=_string(item.get("area_served")),
+        available_language=_string(item.get("available_language")),
+        hours_ref=_string(item.get("hours_ref")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _contact_directory_location_ref(value: object) -> ContactDirectoryLocationRef | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ContactDirectoryLocationRef(
+        label=_string(item.get("label")),
+        location_ref=_string(item.get("location_ref")),
+        address_text=_string(item.get("address_text")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _contact_directory_office_hours(value: object) -> ContactDirectoryOfficeHours | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ContactDirectoryOfficeHours(
+        hours_id=_string(item.get("hours_id")),
+        label=_string(item.get("label")),
+        day_pattern=_string(item.get("day_pattern")),
+        time_range=_string(item.get("time_range")),
+        effective_note=_string(item.get("effective_note")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _contact_directory_candidate(value: object) -> ContactDirectoryCandidate | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    contact = _contact_directory_contact_ref(item.get("contact"))
+    if contact is None:
+        return None
+    return ContactDirectoryCandidate(
+        contact=contact,
         clarification_hint=_string(item.get("clarification_hint")),
     )
 

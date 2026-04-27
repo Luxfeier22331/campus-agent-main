@@ -3,6 +3,8 @@ from __future__ import annotations
 from campus_contracts import (
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
+    ContactDirectoryEntitySelector,
+    ContactDirectoryLookupPayload,
     RagRequestPayload,
     ServiceStatusLookupPayload,
     TemporalQuery,
@@ -26,6 +28,7 @@ from campus_supervisor_agent_worker.bridge_trace_codecs import (
 AgentPayload = (
     TransportScheduleLookupPayload
     | ServiceStatusLookupPayload
+    | ContactDirectoryLookupPayload
     | CampusNoticeDiscoverPayload
     | CampusNoticeGetPayload
     | RagRequestPayload
@@ -66,6 +69,23 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
             subject_query=require_string(payload.get("subject_query"), field_name="subject_query"),
             temporal_query=parse_temporal_query(payload.get("temporal_query")),
             campus_scope=parse_optional_string(payload.get("campus_scope")) or "",
+        )
+    if payload_kind == "contact_directory_lookup":
+        entity_selector = payload.get("entity_selector")
+        return ContactDirectoryLookupPayload(
+            query_text=require_string(payload.get("query_text"), field_name="query_text"),
+            contact_focus=require_string(payload.get("contact_focus"), field_name="contact_focus"),
+            entity_selector=(
+                None
+                if entity_selector is None
+                else ContactDirectoryEntitySelector(
+                    **require_object(entity_selector, field_name="entity_selector")
+                )
+            ),
+            temporal_query=parse_temporal_query(payload.get("temporal_query")),
+            campus_scope=parse_optional_string(payload.get("campus_scope")) or "",
+            audience=parse_optional_string(payload.get("audience")) or "unknown",
+            result_limit=parse_optional_int(payload.get("result_limit")),
         )
     if payload_kind == "campus_notice_discover":
         return CampusNoticeDiscoverPayload(

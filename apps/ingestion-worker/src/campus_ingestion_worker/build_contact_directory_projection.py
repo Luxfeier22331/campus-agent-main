@@ -2,22 +2,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from campus_ingestion_core import ObjectStoreSettings
 from campus_ingestion_core.contact_directory_projection import (
     CONTACT_DIRECTORY_COLLECTION,
     CONTACT_DIRECTORY_CORPUS,
     CONTACT_DIRECTORY_MANUAL_REVIEW_FILENAME,
+    CONTACT_DIRECTORY_PROJECTION_SCHEMA_VERSION,
     assert_contact_directory_projection_release_ready,
     build_contact_directory_projection_bundle_from_handbook_document_units,
     write_contact_directory_projection_release,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.structured_projection_postgres import (
+    build_structured_projection_publisher_from_env,
+    projection_artifact_checksum,
+)
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -31,6 +37,27 @@ class _DerivedObjectStore(Protocol):
         data: bytes,
         content_type: str,
     ) -> None: ...
+
+
+class _StructuredProjectionPublisher(Protocol):
+    def publish_release(
+        self,
+        *,
+        corpus: str,
+        collection: str,
+        release_id: str,
+        generated_at: str,
+        schema_version: str,
+        artifact_object_key: str,
+        artifact_checksum: str,
+        bundle: Mapping[str, Any],
+        validation_status: str,
+    ) -> object: ...
+
+
+class _ProjectionReleaseReport(Protocol):
+    release_id: str
+    release_object_key: str
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,6 +88,7 @@ def build_contact_directory_projection_release_from_document_units(
     object_store: _DerivedObjectStore,
     derived_bucket: str,
     expected_ready_records: int | None = None,
+    structured_projection_publisher: _StructuredProjectionPublisher | None = None,
 ):
     document_units = _read_jsonl(document_units_path)
     build_result = build_contact_directory_projection_bundle_from_handbook_document_units(
@@ -88,6 +116,12 @@ def build_contact_directory_projection_release_from_document_units(
         object_store=object_store,
         bucket=derived_bucket,
     )
+    _publish_structured_projection_release(
+        structured_projection_publisher=structured_projection_publisher,
+        bundle=build_result.bundle,
+        report=report,
+        generated_at=generated_at,
+    )
     _write_json(
         work_dir / "build-report.json",
         {
@@ -102,6 +136,7 @@ def build_contact_directory_projection_release_from_document_units(
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
+    source = dict(os.environ)
     settings = ObjectStoreSettings.from_env()
     object_store = S3ObjectStoreAdmin(settings)
     report = build_contact_directory_projection_release_from_document_units(
@@ -115,8 +150,34 @@ def main(argv: Sequence[str] | None = None) -> None:
         object_store=object_store,
         derived_bucket=args.derived_bucket or settings.bucket_derived,
         expected_ready_records=args.expected_ready_records,
+        structured_projection_publisher=build_structured_projection_publisher_from_env(source),
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
+
+
+def _publish_structured_projection_release(
+    *,
+    structured_projection_publisher: _StructuredProjectionPublisher | None,
+    bundle: Mapping[str, Any],
+    report: _ProjectionReleaseReport,
+    generated_at: str,
+) -> None:
+    if structured_projection_publisher is None:
+        return
+    schema_version = str(bundle.get("schema_version") or "").strip()
+    if schema_version != CONTACT_DIRECTORY_PROJECTION_SCHEMA_VERSION:
+        raise ValueError("contact directory projection bundle schema_version is invalid")
+    structured_projection_publisher.publish_release(
+        corpus=CONTACT_DIRECTORY_CORPUS,
+        collection=CONTACT_DIRECTORY_COLLECTION,
+        release_id=report.release_id,
+        generated_at=generated_at,
+        schema_version=schema_version,
+        artifact_object_key=report.release_object_key,
+        artifact_checksum=projection_artifact_checksum(bundle),
+        bundle=bundle,
+        validation_status="valid",
+    )
 
 
 def _read_jsonl(path: Path) -> list[dict[str, object]]:

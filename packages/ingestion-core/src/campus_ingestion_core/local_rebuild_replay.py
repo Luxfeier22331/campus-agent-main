@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -9,6 +10,8 @@ from qdrant_client import QdrantClient
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport, write_import_report
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.contact_directory_projection import (
+    CONTACT_DIRECTORY_COLLECTION,
+    CONTACT_DIRECTORY_CORPUS,
     write_contact_directory_projection_release_from_import_documents,
 )
 from campus_ingestion_core.local_rebuild_documents import (
@@ -42,6 +45,10 @@ from campus_ingestion_core.service_guide_projection import (
     write_service_guide_projection_release_from_manifest_if_available,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.structured_projection_postgres import (
+    build_structured_projection_publisher_from_env,
+    projection_artifact_checksum,
+)
 
 
 def replay_provider_response_rebuild(
@@ -54,6 +61,7 @@ def replay_provider_response_rebuild(
     qdrant_client: QdrantClient | None = None,
 ) -> ImportReport:
     source = dict(env if env is not None else os.environ)
+    structured_projection_publisher = build_structured_projection_publisher_from_env(source)
     trace_recorder = _build_rebuild_trace_recorder(source)
     runtime_request = request or _build_replay_request_from_env(source)
     corpus = runtime_request.corpus
@@ -177,6 +185,11 @@ def replay_provider_response_rebuild(
                     bucket=object_store_settings.bucket_derived,
                 )
             )
+            _publish_contact_directory_structured_projection_releases(
+                structured_projection_publisher=structured_projection_publisher,
+                reports=contact_directory_reports,
+                generated_at=stats.timestamp,
+            )
         except Exception as exc:
             failed_count += 1
             errors.append(f"contact directory projection failed: {exc}")
@@ -262,3 +275,29 @@ def _read_embedding_model_name(source: dict[str, str]) -> str:
     if not model:
         raise ValueError("INGESTION_EMBEDDING_MODEL or EMBEDDING_MODEL is required")
     return model
+
+
+def _publish_contact_directory_structured_projection_releases(
+    *,
+    structured_projection_publisher,
+    reports,
+    generated_at: str,
+) -> None:
+    if structured_projection_publisher is None:
+        return
+    for report in reports:
+        bundle = json.loads(Path(report.projection_path).read_text(encoding="utf-8"))
+        schema_version = str(bundle.get("schema_version") or "").strip()
+        if not schema_version:
+            raise ValueError("contact directory projection bundle schema_version is required")
+        structured_projection_publisher.publish_release(
+            corpus=CONTACT_DIRECTORY_CORPUS,
+            collection=CONTACT_DIRECTORY_COLLECTION,
+            release_id=report.release_id,
+            generated_at=generated_at,
+            schema_version=schema_version,
+            artifact_object_key=report.release_object_key,
+            artifact_checksum=projection_artifact_checksum(bundle),
+            bundle=bundle,
+            validation_status="valid",
+        )

@@ -39,6 +39,9 @@ func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyA
 	if signal := firstMatch(normalizedGoal, policy.Signals("structured_transport")); signal != "" {
 		return signal
 	}
+	if signal := matchStructuredContactDirectoryCandidate(normalizedGoal, policy); signal != "" {
+		return signal
+	}
 	if signal := firstMatch(normalizedGoal, policy.Signals("structured_notice")); signal != "" {
 		return signal
 	}
@@ -57,6 +60,9 @@ func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyA
 
 func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
 	if firstMatch(normalizedGoal, policy.Signals("structured_transport")) != "" {
+		return true
+	}
+	if matchStructuredContactDirectoryCandidate(normalizedGoal, policy) != "" {
 		return true
 	}
 	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
@@ -79,6 +85,20 @@ func matchStructuredServiceGuideCandidate(
 		return ""
 	}
 	return serviceGuideSubject
+}
+
+func matchStructuredContactDirectoryCandidate(
+	normalizedGoal string,
+	policy IntentPolicyArtifact,
+) string {
+	contactSubject := firstMatch(normalizedGoal, policy.Signals("structured_contact_directory"))
+	if contactSubject == "" {
+		return ""
+	}
+	if !containsAny(normalizedGoal, policy.Signals("structured_contact_directory_action")) {
+		return ""
+	}
+	return contactSubject
 }
 
 func matchOpenDomainPoliticalFact(normalizedGoal string, policy IntentPolicyArtifact) string {

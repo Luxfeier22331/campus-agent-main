@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 # Campus Services Domain
 
@@ -19,6 +19,7 @@ updated: 2026-04-23
 - `../contracts/service-status-lookup-contract.md`
 - `../contracts/service-guide-lookup-contract.md`
 - `../contracts/transport-schedule-lookup-contract.md`
+- `../contracts/contact-directory-lookup-contract.md`
 - `../decisions/adr-0005-campus-services-taxonomy.md`
 - `../decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 - `../reference/runtime-serving-and-index-terms.md`
@@ -26,6 +27,8 @@ updated: 2026-04-23
 ## Data / Reference
 
 - `../data/campus-services-service-guide-source-truth-schema.md`
+- `../data/campus-services-contact-directory-source-truth-schema.md`
+- `../data/campus-services-service-catalog-source-truth-schema.md`
 - `../reference/student-handbook-normalization-strategy.md`
 - `../reference/runtime-serving-and-index-terms.md`
 - `../runbooks/index-release-runbook.md`

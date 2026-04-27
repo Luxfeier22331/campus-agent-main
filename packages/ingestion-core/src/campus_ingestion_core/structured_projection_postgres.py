@@ -122,6 +122,30 @@ _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
         _TypedColumn("service_id", "text", "text not null default ''"),
         _TypedColumn("source_refs", "text_array", "text[] not null default '{}'"),
     ),
+    "contact_directory_read_model": (
+        _TypedColumn("contact_id", "text", "text not null default ''"),
+        _TypedColumn("display_name", "text", "text not null default ''"),
+        _TypedColumn("aliases", "text_array", "text[] not null default '{}'"),
+        _TypedColumn("contact_group", "text", "text not null default ''"),
+        _TypedColumn("department", "text", "text not null default ''"),
+        _TypedColumn("phones", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("emails", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("location_refs", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("source_refs", "text_array", "text[] not null default '{}'"),
+        _TypedColumn("extraction_status", "text", "text not null default ''"),
+        _COMMON_SEARCH_COLUMN,
+    ),
+    "contact_directory_conflicts": (
+        _TypedColumn("contact_id", "text", "text not null default ''"),
+        _TypedColumn("source_refs", "text_array", "text[] not null default '{}'"),
+        _TypedColumn("reason", "text", "text not null default ''"),
+        _COMMON_SEARCH_COLUMN,
+    ),
+    "contact_directory_manual_review_sources": (
+        _TypedColumn("reason", "text", "text not null default ''"),
+        _TypedColumn("line", "text", "text not null default ''"),
+        _COMMON_SEARCH_COLUMN,
+    ),
     "transport_schedule_snapshots": (
         _TypedColumn("snapshot_id", "text", "text not null default ''"),
         _TypedColumn("published_at", "timestamptz", "timestamptz"),
@@ -373,6 +397,9 @@ class PostgresStructuredProjectionPublisher:
             "service_guide_read_model",
             "service_guide_conflicts",
             "service_guide_manual_review_sources",
+            "contact_directory_read_model",
+            "contact_directory_conflicts",
+            "contact_directory_manual_review_sources",
         ):
             _ensure_table_schema(cursor, table_name=f"{self.schema}.{table_name}")
         cursor.execute(
@@ -685,6 +712,39 @@ def _typed_recordsets(
                 ),
             ),
         )
+    if collection == "contact_directory":
+        return (
+            (
+                "contact_directory_read_model",
+                _records(
+                    release_id,
+                    bundle.get("contact_records"),
+                    id_fields=("contact_id",),
+                    source_ref_field="source_refs",
+                    table_name="contact_directory_read_model",
+                ),
+            ),
+            (
+                "contact_directory_conflicts",
+                _records(
+                    release_id,
+                    bundle.get("conflict_records"),
+                    id_fields=("contact_id", "reason"),
+                    source_ref_field="source_refs",
+                    table_name="contact_directory_conflicts",
+                ),
+            ),
+            (
+                "contact_directory_manual_review_sources",
+                _records(
+                    release_id,
+                    bundle.get("manual_review_sources"),
+                    id_fields=("source_ref", "reason", "line"),
+                    source_ref_field="source_ref",
+                    table_name="contact_directory_manual_review_sources",
+                ),
+            ),
+        )
     raise ValueError(f"unsupported structured projection collection: {collection}")
 
 
@@ -774,6 +834,12 @@ def _projection_counts(collection: str, bundle: Mapping[str, Any]) -> dict[str, 
             "conflict_records": len(_list(bundle.get("conflict_records"))),
             "manual_review_sources": len(_list(bundle.get("manual_review_sources"))),
         }
+    if collection == "contact_directory":
+        return {
+            "contact_records": len(_list(bundle.get("contact_records"))),
+            "conflict_records": len(_list(bundle.get("conflict_records"))),
+            "manual_review_sources": len(_list(bundle.get("manual_review_sources"))),
+        }
     raise ValueError(f"unsupported structured projection collection: {collection}")
 
 
@@ -795,6 +861,12 @@ def _collection_table_names(collection: str) -> tuple[str, ...]:
             "service_guide_read_model",
             "service_guide_conflicts",
             "service_guide_manual_review_sources",
+        )
+    if collection == "contact_directory":
+        return (
+            "contact_directory_read_model",
+            "contact_directory_conflicts",
+            "contact_directory_manual_review_sources",
         )
     raise ValueError(f"unsupported structured projection collection: {collection}")
 

@@ -262,6 +262,97 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 	}
 }
 
+func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testing.T) {
+	contactProjectionFixture := `{
+		"schema_version":"campus_services_contact_directory_projection.v1",
+		"contact_records":[
+			{
+				"contact_id":"contact:grad-admission-office",
+				"display_name":"研究生院招生办公室",
+				"aliases":["研究生招生办","招生办公室"],
+				"contact_group":"招生咨询",
+				"department":"研究生院",
+				"phones":[
+					{
+						"phone_id":"phone:grad-admission-office:01068930001",
+						"label":"招生咨询",
+						"number":"010-68930001",
+						"source_refs":["handbook:contact-directory:2026#page=261"]
+					}
+				],
+				"emails":[
+					{
+						"email_id":"email:grad-admission-office:admission@muc.edu.cn",
+						"label":"招生邮箱",
+						"address":"admission@muc.edu.cn",
+						"source_refs":["handbook:contact-directory:2026#page=261"]
+					}
+				],
+				"location_refs":["海淀校区行政楼201"],
+				"source_refs":["handbook:contact-directory:2026#page=261"],
+				"extraction_status":"ready"
+			}
+		],
+		"contact_conflict_records":[],
+		"contact_manual_review_sources":[]
+	}`
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers:              8,
+		RequestBodyLimitBytes:             1_048_576,
+		StructuredQuerySharedSecret:       "query-secret",
+		StructuredQueryTrustedTimeRFC3339: "2026-04-27T10:30:00+08:00",
+	}, nil)
+	useStructuredQueryRuntimeFixture(
+		t,
+		server,
+		contactProjectionFixture,
+		"2026-04-27T10:30:00+08:00",
+	)
+
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/query/campus-services/contact-directory",
+		strings.NewReader(`{
+			"query_text":"研究生院招生办公室电话是多少",
+			"contact_focus":"phone",
+			"temporal_query":{"mode":"current"},
+			"audience":"student"
+		}`),
+	)
+	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	if body["outcome"] != "resolved_current" {
+		t.Fatalf("outcome = %v, want resolved_current", body["outcome"])
+	}
+	resolvedContact := expectRecord(t, body["resolved_contact"], "resolved_contact")
+	if resolvedContact["display_name"] != "研究生院招生办公室" {
+		t.Fatalf("resolved_contact.display_name = %v", resolvedContact["display_name"])
+	}
+	contactPoints, ok := body["contact_points"].([]any)
+	if !ok || len(contactPoints) != 1 {
+		t.Fatalf("contact_points = %#v", body["contact_points"])
+	}
+	firstPoint := expectRecord(t, contactPoints[0], "contact_point")
+	if firstPoint["value"] != "010-68930001" {
+		t.Fatalf("contact point value = %v", firstPoint["value"])
+	}
+
+	metricsResponse := httptest.NewRecorder()
+	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(
+		metricsResponse.Body.String(),
+		`campus_supervisor_api_structured_query_requests_total{tool="contact_directory_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+	) {
+		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
+	}
+}
+
 func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t *testing.T) {
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,

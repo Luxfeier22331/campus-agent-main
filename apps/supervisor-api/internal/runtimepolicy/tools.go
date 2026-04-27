@@ -7,6 +7,7 @@ var allowedToolsByTarget = map[string][]string{
 		"service_status_lookup",
 		"service_guide_lookup",
 		"transport_schedule_lookup",
+		"contact_directory_lookup",
 	},
 	"notice-agent": {
 		"campus_notice_discover",

@@ -2,6 +2,8 @@ from campus_services_agent.http_query_service import CampusServicesHTTPQueryServ
 from campus_services_agent.query_service import (
     CampusServicesAccessContext,
     CampusServicesQueryService,
+    ContactDirectoryQuery,
+    ServiceGuideQuery,
     ServiceStatusQuery,
     TransportScheduleQuery,
 )
@@ -11,6 +13,8 @@ __all__ = [
     "CampusServicesAccessContext",
     "CampusServicesHTTPQueryService",
     "CampusServicesQueryService",
+    "ContactDirectoryQuery",
+    "ServiceGuideQuery",
     "ServiceStatusQuery",
     "TransportScheduleQuery",
     "delegate_to_campus_services_agent",

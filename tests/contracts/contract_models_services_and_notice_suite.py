@@ -50,6 +50,19 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 allowed_tools=("transport_notice_latest",),  # type: ignore[arg-type]
             )
 
+    def test_agent_request_accepts_contact_directory_allowed_tool(self) -> None:
+        request = AgentRequest(
+            target="campus-services-agent",
+            user_goal="招生办电话是多少",
+            payload=ContactDirectoryLookupPayload(
+                query_text="招生办电话是多少",
+                contact_focus="phone",
+            ),
+            allowed_tools=("contact_directory_lookup",),
+        )
+
+        self.assertEqual(request.allowed_tools, ("contact_directory_lookup",))
+
     def test_temporal_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when temporal mode is as_of"):
             TemporalQuery(mode="as_of")
@@ -150,6 +163,63 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             ServiceGuideLookupResult(
                 service_query="宿舍入住怎么办理",
                 guide_focus="procedure",
+                outcome="temporarily_unverifiable",
+            )
+
+    def test_contact_directory_payload_and_result_serialize(self) -> None:
+        payload = ContactDirectoryLookupPayload(
+            query_text="招生办电话是多少",
+            contact_focus="phone",
+            campus_scope="haidian",
+            audience="student",
+            result_limit=3,
+        )
+        result = ContactDirectoryLookupResult(
+            query_text="招生办电话是多少",
+            contact_focus="phone",
+            outcome="resolved_current",
+            resolved_contact=ContactDirectoryContactRef(
+                contact_id="contact:admission-office",
+                display_name="招生办公室",
+                aliases=("招生办",),
+                entity_type="office",
+                department="本科招生办公室",
+                contact_group="招生",
+                campus_scope="haidian",
+                audience=("student",),
+            ),
+            contact_points=(
+                ContactDirectoryContactPoint(
+                    channel_type="phone",
+                    label="咨询电话",
+                    value="010-68930001",
+                    source_refs=("handbook:student_rules:pages:261-261#page=261",),
+                ),
+            ),
+            office_hours=(
+                ContactDirectoryOfficeHours(
+                    hours_id="hours:admission-office",
+                    label="办公时间",
+                    day_pattern="工作日",
+                    time_range="08:30-11:30,14:00-17:00",
+                    source_refs=("handbook:student_rules:pages:261-261#page=261",),
+                ),
+            ),
+            source_refs=("handbook:student_rules:pages:261-261#page=261",),
+        )
+
+        self.assertEqual(asdict(payload)["contact_focus"], "phone")
+        self.assertEqual(asdict(result)["resolved_contact"]["display_name"], "招生办公室")
+        self.assertEqual(asdict(result)["contact_points"][0]["channel_type"], "phone")
+
+    def test_contact_directory_result_requires_fail_close_reason(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "fail_close_reason must not be empty for fail-closed contact directory results",
+        ):
+            ContactDirectoryLookupResult(
+                query_text="招生办电话是多少",
+                contact_focus="phone",
                 outcome="temporarily_unverifiable",
             )
 

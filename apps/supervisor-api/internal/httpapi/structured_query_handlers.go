@@ -38,6 +38,8 @@ func (s *Server) handleStructuredQuery(
 		result = s.structuredQuery.LookupServiceGuide(ctx, body)
 	case structuredquery.ToolTransportScheduleLookup:
 		result = s.structuredQuery.LookupTransportSchedule(ctx, body)
+	case structuredquery.ToolContactDirectoryLookup:
+		result = s.structuredQuery.LookupContactDirectory(ctx, body)
 	case structuredquery.ToolCampusNoticeDiscover:
 		result = s.structuredQuery.LookupCampusNoticeDiscover(ctx, body)
 	case structuredquery.ToolCampusNoticeGet:

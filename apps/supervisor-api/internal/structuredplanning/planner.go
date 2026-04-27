@@ -65,6 +65,14 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
 			}
 		}
+		if isContactDirectoryLookup(normalizedGoal, policy) {
+			return &Handoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "contact_directory_lookup",
+				Payload:      contactDirectoryPayload(request.UserGoal, normalizedGoal, policy),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup"),
+			}
+		}
 		if isServiceGuideLookup(normalizedGoal, policy) {
 			return &Handoff{
 				Target:       "campus-services-agent",
@@ -174,6 +182,25 @@ func serviceGuidePayload(
 		"guide_focus":    classifyServiceGuideFocus(normalizedGoal, policy),
 		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal, policy),
 		"audience":       "unknown",
+	}
+	if campusScope := campusScopeFromGoal(normalizedGoal, policy); campusScope != "" {
+		payload["campus_scope"] = campusScope
+	}
+	return payload
+}
+
+func contactDirectoryPayload(
+	userGoal string,
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) map[string]any {
+	payload := map[string]any{
+		"query_text":    userGoal,
+		"contact_focus": classifyContactDirectoryFocus(normalizedGoal, policy),
+		"temporal_query": map[string]any{
+			"mode": "current",
+		},
+		"audience": "unknown",
 	}
 	if campusScope := campusScopeFromGoal(normalizedGoal, policy); campusScope != "" {
 		payload["campus_scope"] = campusScope
@@ -344,6 +371,14 @@ func isServiceGuideLookup(
 		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
 }
 
+func isContactDirectoryLookup(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return containsAny(normalizedGoal, policy.Signals("structured_contact_directory")) &&
+		containsAny(normalizedGoal, policy.Signals("structured_contact_directory_action"))
+}
+
 func classifyServiceGuideFocus(
 	normalizedGoal string,
 	policy runtimepolicy.IntentPolicyArtifact,
@@ -367,6 +402,28 @@ func classifyServiceGuideFocus(
 		return "full_guide"
 	}
 	return "procedure"
+}
+
+func classifyContactDirectoryFocus(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) string {
+	if containsAny(normalizedGoal, policy.Signals("contact_directory_focus_email")) {
+		return "email"
+	}
+	if containsAny(normalizedGoal, policy.Signals("contact_directory_focus_location")) {
+		return "location"
+	}
+	if containsAny(normalizedGoal, policy.Signals("contact_directory_focus_office_hours")) {
+		return "office_hours"
+	}
+	if containsAny(normalizedGoal, policy.Signals("contact_directory_focus_contact_person")) {
+		return "contact_person"
+	}
+	if containsAny(normalizedGoal, policy.Signals("contact_directory_focus_phone")) {
+		return "phone"
+	}
+	return "all_contacts"
 }
 
 func containsAny(value string, signals []string) bool {

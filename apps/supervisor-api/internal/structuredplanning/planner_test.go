@@ -111,6 +111,33 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{"campus_scope": "fengtai"},
 		},
 		{
+			name: "contact directory phone",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "研究生院招生办公室电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "研究生院招生办公室电话是多少",
+				"contact_focus": "phone",
+			},
+		},
+		{
+			name: "contact directory email",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "国际合作处邮箱是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"contact_focus": "email",
+			},
+		},
+		{
 			name: "service guide procedure",
 			request: Request{
 				EffectiveCapability: "campus_services",

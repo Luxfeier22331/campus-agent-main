@@ -258,6 +258,75 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
         typed_payload = json.loads(cursor.execute_calls[typed_insert_index][1][0])
         self.assertEqual(typed_payload[0]["record_id"], "library-haidian")
 
+    def test_publish_contact_directory_release_writes_pg_read_model_and_aux_tables(self) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        bundle = {
+            "schema_version": "campus_services_contact_directory_projection.v1",
+            "contact_records": [
+                {
+                    "contact_id": "contact:handbook:1234",
+                    "display_name": "保卫处",
+                    "aliases": ["保卫处"],
+                    "contact_group": "校级办公与公共服务",
+                    "department": "保卫处",
+                    "phones": [{"phone_id": "contact:handbook:1234:phone:1", "number": "68930010"}],
+                    "emails": [],
+                    "location_refs": [],
+                    "source_refs": ["handbook:student_rules:pages:261-261#page=261"],
+                    "extraction_status": "ready",
+                }
+            ],
+            "conflict_records": [
+                {
+                    "contact_id": "contact:handbook:conflicted",
+                    "source_refs": ["handbook:student_rules:pages:261-261#page=261"],
+                    "reason": "duplicate_phone_number",
+                }
+            ],
+            "manual_review_sources": [
+                {
+                    "source_ref": "handbook:student_rules:pages:261-261#page=261",
+                    "reason": "unparsed_handbook_phone_line",
+                    "line": "招生办 6893-0001 ext.201",
+                }
+            ],
+        }
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            publisher.publish_release(
+                corpus="campus_services",
+                collection="contact_directory",
+                release_id="contact-directory-20260427T090000",
+                generated_at="2026-04-27T09:00:00+08:00",
+                schema_version="campus_services_contact_directory_projection.v1",
+                artifact_object_key=(
+                    "campus_services/releases/contact_directory/contact-directory-"
+                    "20260427T090000/contact-directory-projection.json"
+                ),
+                artifact_checksum="sha256:test",
+                bundle=bundle,
+                validation_status="valid",
+            )
+
+        executed_sql = "\n".join(query for query, _params in cursor.execute_calls)
+        self.assertIn("contact_directory_read_model", executed_sql)
+        self.assertIn("contact_directory_conflicts", executed_sql)
+        self.assertIn("contact_directory_manual_review_sources", executed_sql)
+        contact_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "contact_directory_read_model" in query and "jsonb_to_recordset" in query
+        )
+        contact_payload = json.loads(cursor.execute_calls[contact_insert_index][1][0])
+        self.assertEqual(contact_payload[0]["record_id"], "contact:handbook:1234")
+        self.assertEqual(contact_payload[0]["display_name"], "保卫处")
+
     def test_typed_insert_outer_select_reads_cte_columns_not_recordset_alias(self) -> None:
         query = PostgresStructuredProjectionPublisher._recordset_insert_query(
             "service_status_read_model",

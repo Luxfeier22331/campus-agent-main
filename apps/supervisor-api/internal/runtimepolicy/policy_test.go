@@ -58,6 +58,13 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 		"service_guide_focus_contact",
 		"service_guide_focus_eligibility",
 		"service_guide_focus_full_guide",
+		"structured_contact_directory",
+		"structured_contact_directory_action",
+		"contact_directory_focus_phone",
+		"contact_directory_focus_email",
+		"contact_directory_focus_location",
+		"contact_directory_focus_office_hours",
+		"contact_directory_focus_contact_person",
 	} {
 		if len(policy.SignalGroups[group]) == 0 {
 			t.Fatalf("policy-backed signal group %q must not be empty", group)
@@ -83,6 +90,7 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 		{name: "custom notice signal", goal: "查一下校内要闻", want: "notice"},
 		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
 		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
+		{name: "contact directory signal", goal: "招生办电话是多少", want: "campus_services"},
 	}
 
 	for _, tt := range tests {
@@ -270,6 +278,16 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 			request: Request{
 				EffectiveCapability: "knowledge",
 				UserGoal:            "公费医疗报销联系电话是多少",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured contact directory candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "研究生院招生办公室电话是多少",
 			},
 			wantAction: "delegate",
 			wantReason: "structured_runtime_candidate_signal",
@@ -498,6 +516,10 @@ func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
 	serviceGuideAllowed := AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup")
 	if len(serviceGuideAllowed) != 1 || serviceGuideAllowed[0] != "service_guide_lookup" {
 		t.Fatalf("service guide allowed = %#v, want service_guide_lookup", serviceGuideAllowed)
+	}
+	contactAllowed := AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup")
+	if len(contactAllowed) != 1 || contactAllowed[0] != "contact_directory_lookup" {
+		t.Fatalf("contact allowed = %#v, want contact_directory_lookup", contactAllowed)
 	}
 	if AllowedToolsForPayloadKind("navigation-agent", "place_lookup") != nil {
 		t.Fatal("navigation-agent must not allow place_lookup before map rollout")

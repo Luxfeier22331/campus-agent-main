@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts.models_shared import (
+    ContactDirectoryChannelType,
+    ContactDirectoryClarificationReason,
+    ContactDirectoryEntityType,
+    ContactDirectoryFocus,
     CoordinateReferenceSystem,
     HistoricalDowngradeReason,
     NoticeSourceFamily,
@@ -20,6 +24,10 @@ from campus_contracts.models_shared import (
     TransportScheduleIntent,
     TransportServiceDateMode,
     TransportServiceStatusValue,
+    _validate_contact_directory_channel_type,
+    _validate_contact_directory_clarification_reason,
+    _validate_contact_directory_entity_type,
+    _validate_contact_directory_focus,
     _validate_historical_downgrade_reason,
     _validate_notice_source_family,
     _validate_notice_target_surface,
@@ -140,6 +148,170 @@ class TemporalQuery:
                 raise ValueError("year_hint is required when temporal mode is current_year")
         elif normalized_year_hint:
             raise ValueError("year_hint is only allowed when temporal mode is current_year")
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryEntitySelector:
+    contact_id: str = ""
+    department_query: str = ""
+    office_query: str = ""
+    service_query: str = ""
+    person_query: str = ""
+    role_query: str = ""
+    purpose_query: str = ""
+    contact_group_query: str = ""
+    location_query: str = ""
+
+    def __post_init__(self) -> None:
+        if self.contact_id and not self.contact_id.strip():
+            raise ValueError("contact_id must not be empty when provided")
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryContactRef:
+    contact_id: str
+    display_name: str
+    aliases: tuple[str, ...] = field(default_factory=tuple)
+    entity_type: ContactDirectoryEntityType | str = "department"
+    department: str = ""
+    contact_group: str = ""
+    campus_scope: str = ""
+    audience: tuple[ServiceGuideAudience | str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.contact_id.strip():
+            raise ValueError("contact_id must not be empty")
+        if not self.display_name.strip():
+            raise ValueError("display_name must not be empty")
+        _validate_contact_directory_entity_type(self.entity_type)
+        for item in self.audience:
+            _validate_service_guide_audience(item)
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryContactPoint:
+    channel_type: ContactDirectoryChannelType | str
+    label: str
+    value: str
+    normalized_value: str = ""
+    contact_type: str = ""
+    area_served: str = ""
+    available_language: str = ""
+    hours_ref: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        _validate_contact_directory_channel_type(self.channel_type)
+        if not self.label.strip():
+            raise ValueError("label must not be empty")
+        if not self.value.strip():
+            raise ValueError("value must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryLocationRef:
+    label: str
+    location_ref: str = ""
+    address_text: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.label.strip():
+            raise ValueError("label must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryOfficeHours:
+    hours_id: str
+    label: str
+    day_pattern: str = ""
+    time_range: str = ""
+    effective_note: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.hours_id.strip():
+            raise ValueError("hours_id must not be empty")
+        if not self.label.strip():
+            raise ValueError("label must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryCandidate:
+    contact: ContactDirectoryContactRef
+    clarification_hint: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryLookupPayload:
+    query_text: str
+    contact_focus: ContactDirectoryFocus | str
+    entity_selector: ContactDirectoryEntitySelector | None = None
+    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
+    campus_scope: str = ""
+    audience: ServiceGuideAudience | str = "unknown"
+    result_limit: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+        _validate_contact_directory_focus(self.contact_focus)
+        _validate_service_guide_audience(self.audience)
+        if self.result_limit is not None and self.result_limit <= 0:
+            raise ValueError("result_limit must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryLookupResult:
+    query_text: str
+    contact_focus: ContactDirectoryFocus | str
+    outcome: ToolBusinessOutcome
+    resolved_contact: ContactDirectoryContactRef | None = None
+    contact_points: tuple[ContactDirectoryContactPoint, ...] = field(default_factory=tuple)
+    location_refs: tuple[ContactDirectoryLocationRef, ...] = field(default_factory=tuple)
+    office_hours: tuple[ContactDirectoryOfficeHours, ...] = field(default_factory=tuple)
+    candidate_contacts: tuple[ContactDirectoryCandidate, ...] = field(default_factory=tuple)
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+    queried_time_anchor: str = ""
+    effective_from: str = ""
+    effective_until: str = ""
+    clarification_reason: ContactDirectoryClarificationReason | str = field(
+        default="", compare=False
+    )
+    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+        _validate_contact_directory_focus(self.contact_focus)
+        _validate_tool_business_outcome(self.outcome)
+        if self.clarification_reason:
+            _validate_contact_directory_clarification_reason(self.clarification_reason)
+        if self.fail_close_reason:
+            _validate_tool_fail_close_reason(self.fail_close_reason)
+        if self.outcome == "resolved_current":
+            if self.resolved_contact is None:
+                raise ValueError("resolved_contact must not be empty for resolved contact directory")
+            if not (self.contact_points or self.location_refs or self.office_hours):
+                raise ValueError(
+                    "resolved contact directory results must include contact_points, location_refs, or office_hours"
+                )
+            if not self.source_refs:
+                raise ValueError("source_refs must not be empty for resolved contact directory")
+        if self.outcome == "clarification_required" and not self.clarification_reason:
+            raise ValueError(
+                "clarification_reason must not be empty for clarification-required contact directory results"
+            )
+        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
+            raise ValueError(
+                "fail_close_reason must not be empty for fail-closed contact directory results"
+            )
 
 
 @dataclass(frozen=True, slots=True)

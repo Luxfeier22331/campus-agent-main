@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,8 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.contact_directory_projection import (
+    CONTACT_DIRECTORY_COLLECTION,
+    CONTACT_DIRECTORY_CORPUS,
     write_contact_directory_projection_release_from_import_documents,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
@@ -62,6 +65,10 @@ from campus_ingestion_core.service_guide_projection import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.split_manifest import load_split_manifest
+from campus_ingestion_core.structured_projection_postgres import (
+    build_structured_projection_publisher_from_env,
+    projection_artifact_checksum,
+)
 
 DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
 ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "source_truth_only")
@@ -206,6 +213,7 @@ def process_raw_ingestion_job(
     raw_asset_registry: RawAssetRegistry | None = None,
 ) -> ImportReport:
     source = dict(env if env is not None else os.environ)
+    structured_projection_publisher = build_structured_projection_publisher_from_env(source)
     settings = RawIngestionProcessSettings.from_request(request, source)
     raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     writer = object_store or S3ObjectStoreClient(settings.object_store)
@@ -340,6 +348,11 @@ def process_raw_ingestion_job(
                 bucket=settings.object_store.bucket_derived,
             )
         )
+        _publish_contact_directory_structured_projection_releases(
+            structured_projection_publisher=structured_projection_publisher,
+            reports=contact_directory_reports,
+            generated_at=generated_at,
+        )
         service_guide_report = write_service_guide_projection_release_from_manifest_if_available(
             source=source,
             upstream_corpus=settings.corpus,
@@ -364,3 +377,29 @@ def process_raw_ingestion_job(
                 bucket=settings.object_store.bucket_derived,
             )
     return report
+
+
+def _publish_contact_directory_structured_projection_releases(
+    *,
+    structured_projection_publisher,
+    reports,
+    generated_at: str,
+) -> None:
+    if structured_projection_publisher is None:
+        return
+    for report in reports:
+        bundle = json.loads(Path(report.projection_path).read_text(encoding="utf-8"))
+        schema_version = str(bundle.get("schema_version") or "").strip()
+        if not schema_version:
+            raise ValueError("contact directory projection bundle schema_version is required")
+        structured_projection_publisher.publish_release(
+            corpus=CONTACT_DIRECTORY_CORPUS,
+            collection=CONTACT_DIRECTORY_COLLECTION,
+            release_id=report.release_id,
+            generated_at=generated_at,
+            schema_version=schema_version,
+            artifact_object_key=report.release_object_key,
+            artifact_checksum=projection_artifact_checksum(bundle),
+            bundle=bundle,
+            validation_status="valid",
+        )

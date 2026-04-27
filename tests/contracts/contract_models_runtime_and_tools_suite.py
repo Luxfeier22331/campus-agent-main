@@ -150,6 +150,37 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
         self.assertEqual(request.context.actor, ActorContext())
 
+    def test_agent_response_serializes_contact_directory_result_shape(self) -> None:
+        response = AgentResponse(
+            target="campus-services-agent",
+            status="completed",
+            answer_text="招生办公室电话是010-68930001。",
+            confidence="high",
+            result=ContactDirectoryLookupResult(
+                query_text="招生办电话是多少",
+                contact_focus="phone",
+                outcome="resolved_current",
+                resolved_contact=ContactDirectoryContactRef(
+                    contact_id="contact:admission-office",
+                    display_name="招生办公室",
+                    entity_type="office",
+                ),
+                contact_points=(
+                    ContactDirectoryContactPoint(
+                        channel_type="phone",
+                        label="咨询电话",
+                        value="010-68930001",
+                        source_refs=("handbook:student_rules:pages:261-261#page=261",),
+                    ),
+                ),
+                source_refs=("handbook:student_rules:pages:261-261#page=261",),
+            ),
+        )
+
+        payload = asdict(response)
+        self.assertEqual(payload["result"]["contact_focus"], "phone")
+        self.assertEqual(payload["result"]["resolved_contact"]["contact_id"], "contact:admission-office")
+
     def test_version_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when version mode is as_of"):
             VersionQuery(mode="as_of")

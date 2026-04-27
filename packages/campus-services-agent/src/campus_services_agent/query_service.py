@@ -6,6 +6,8 @@ from typing import Protocol
 from campus_contracts import (
     ActorContext,
     AuthorizationProjection,
+    ContactDirectoryLookupPayload,
+    ContactDirectoryLookupResult,
     ServiceGuideLookupPayload,
     ServiceGuideLookupResult,
     ServiceStatusLookupPayload,
@@ -39,6 +41,12 @@ class TransportScheduleQuery:
     access_context: CampusServicesAccessContext = field(default_factory=CampusServicesAccessContext)
 
 
+@dataclass(frozen=True, slots=True)
+class ContactDirectoryQuery:
+    payload: ContactDirectoryLookupPayload
+    access_context: CampusServicesAccessContext = field(default_factory=CampusServicesAccessContext)
+
+
 class CampusServicesQueryService(Protocol):
     def lookup_service_status(self, query: ServiceStatusQuery) -> ServiceStatusLookupResult: ...
 
@@ -48,3 +56,8 @@ class CampusServicesQueryService(Protocol):
         self,
         query: TransportScheduleQuery,
     ) -> TransportScheduleLookupResult: ...
+
+    def lookup_contact_directory(
+        self,
+        query: ContactDirectoryQuery,
+    ) -> ContactDirectoryLookupResult: ...

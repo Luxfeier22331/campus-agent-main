@@ -197,6 +197,8 @@ func inferSelectedTool(target string, result map[string]any) string {
 		return "campus_notice_get"
 	case target == "notice-agent":
 		return "campus_notice_discover"
+	case stringValue(result["contact_focus"]) != "":
+		return "contact_directory_lookup"
 	case stringValue(result["guide_focus"]) != "":
 		return "service_guide_lookup"
 	case stringValue(result["intent"]) != "":
@@ -216,6 +218,8 @@ func candidateCountForTool(tool string, result map[string]any) int {
 		return len(arrayValue(result["candidate_routes"]))
 	case "service_guide_lookup":
 		return len(arrayValue(result["candidate_services"]))
+	case "contact_directory_lookup":
+		return len(arrayValue(result["candidate_contacts"]))
 	case "place_lookup":
 		return len(arrayValue(result["candidate_places"]))
 	default:

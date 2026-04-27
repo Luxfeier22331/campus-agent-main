@@ -46,6 +46,17 @@ func (r *Runtime) loadServiceGuideBundle(ctx context.Context) (projectionBundle,
 	return loadProjectionBundleFromStore(ctx, r.serviceGuideReadModelStore, &r.serviceGuideBundleCache)
 }
 
+func (r *Runtime) loadContactDirectoryBundle(ctx context.Context) (projectionBundle, error) {
+	if r.contactDirectoryReadModelStore == nil {
+		return projectionBundle{}, errors.New("contact directory read model store is not configured")
+	}
+	return loadProjectionBundleFromStore(
+		ctx,
+		r.contactDirectoryReadModelStore,
+		&r.contactDirectoryBundleCache,
+	)
+}
+
 func loadProjectionBundleFromStore(
 	ctx context.Context,
 	store projectionReleaseStore,

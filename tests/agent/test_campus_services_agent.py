@@ -6,6 +6,10 @@ from campus_contracts import (
     ActorContext,
     AgentRequest,
     AuthorizationProjection,
+    ContactDirectoryContactPoint,
+    ContactDirectoryContactRef,
+    ContactDirectoryLookupPayload,
+    ContactDirectoryLookupResult,
     ContextProjection,
     ScheduledDeparture,
     ServiceGuideContactRef,
@@ -28,6 +32,7 @@ from campus_services_agent import tool_adapter as campus_services_tool_adapter
 from campus_services_agent.http_query_service import CampusServicesHTTPQueryService
 from campus_services_agent.query_service import (
     CampusServicesAccessContext,
+    ContactDirectoryQuery,
     ServiceGuideQuery,
     ServiceStatusQuery,
     TransportScheduleQuery,
@@ -40,6 +45,7 @@ class _FakeCampusServicesQueryService:
         self.last_service_status_query: ServiceStatusQuery | None = None
         self.last_service_guide_query: ServiceGuideQuery | None = None
         self.last_transport_schedule_query: TransportScheduleQuery | None = None
+        self.last_contact_directory_query: ContactDirectoryQuery | None = None
 
     def lookup_service_status(self, query: ServiceStatusQuery) -> ServiceStatusLookupResult:
         self.last_service_status_query = query
@@ -127,6 +133,38 @@ class _FakeCampusServicesQueryService:
                     operational_comment="海淀校区乘车点临时调整至图书馆站",
                 ),
             ),
+        )
+
+    def lookup_contact_directory(
+        self,
+        query: ContactDirectoryQuery,
+    ) -> ContactDirectoryLookupResult:
+        self.last_contact_directory_query = query
+        return ContactDirectoryLookupResult(
+            query_text=query.payload.query_text,
+            contact_focus=query.payload.contact_focus,
+            outcome="resolved_current",
+            resolved_contact=ContactDirectoryContactRef(
+                contact_id="contact:grad-admission-office",
+                display_name="研究生院招生办公室",
+                aliases=("研究生招生办",),
+                entity_type="department",
+                department="研究生院",
+                contact_group="招生咨询",
+                campus_scope="haidian",
+                audience=("student", "faculty"),
+            ),
+            contact_points=(
+                ContactDirectoryContactPoint(
+                    channel_type="phone",
+                    label="招生咨询",
+                    value="010-68930001",
+                    normalized_value="01068930001",
+                    source_refs=("handbook:contact-directory:2026#page=261",),
+                ),
+            ),
+            source_refs=("handbook:contact-directory:2026#page=261",),
+            queried_time_anchor="2026-04-27T10:30:00+08:00",
         )
 
 
@@ -229,6 +267,33 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(
             query_service.last_service_guide_query.payload.service_query,
             "宿舍入住怎么办理",
+        )
+
+    def test_contact_directory_payload_routes_through_internal_query_service(self) -> None:
+        query_service = _FakeCampusServicesQueryService()
+        request = AgentRequest(
+            target="campus-services-agent",
+            user_goal="研究生院招生办公室电话是多少",
+            payload=ContactDirectoryLookupPayload(
+                query_text="研究生院招生办公室电话是多少",
+                contact_focus="phone",
+            ),
+            allowed_tools=("contact_directory_lookup",),
+            actor=ActorContext(user_id="student-001"),
+            context=ContextProjection(
+                actor=ActorContext(user_id="student-001"),
+                authorization=AuthorizationProjection(principal_id="principal-001"),
+            ),
+        )
+
+        response = delegate_to_campus_services_agent(request, query_service=query_service)
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("研究生院招生办公室", response.answer_text)
+        self.assertIn("010-68930001", response.answer_text)
+        self.assertEqual(
+            query_service.last_contact_directory_query.payload.query_text,
+            "研究生院招生办公室电话是多少",
         )
 
     def test_service_guide_contact_response_includes_contact_channels(self) -> None:
@@ -602,6 +667,60 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_service.display_name, "公寓楼新生办理入住手续流程")
         self.assertEqual(result.matched_service_category, "student_housing")
+
+    def test_http_query_service_posts_contact_directory_payload_and_decodes_result(self) -> None:
+        transport = _RecordingQueryHTTPTransport(
+            {
+                "query_text": "研究生院招生办公室电话是多少",
+                "contact_focus": "phone",
+                "outcome": "resolved_current",
+                "resolved_contact": {
+                    "contact_id": "contact:grad-admission-office",
+                    "display_name": "研究生院招生办公室",
+                    "aliases": ["研究生招生办"],
+                    "entity_type": "department",
+                    "department": "研究生院",
+                    "contact_group": "招生咨询",
+                    "campus_scope": "haidian",
+                    "audience": ["student", "faculty"],
+                },
+                "contact_points": [
+                    {
+                        "channel_type": "phone",
+                        "label": "招生咨询",
+                        "value": "010-68930001",
+                        "normalized_value": "01068930001",
+                        "source_refs": ["handbook:contact-directory:2026#page=261"],
+                    }
+                ],
+                "source_refs": ["handbook:contact-directory:2026#page=261"],
+                "queried_time_anchor": "2026-04-27T10:30:00+08:00",
+            }
+        )
+        query_service = CampusServicesHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            timeout_seconds=0.75,
+            transport=transport,
+        )
+
+        result = query_service.lookup_contact_directory(
+            ContactDirectoryQuery(
+                payload=ContactDirectoryLookupPayload(
+                    query_text="研究生院招生办公室电话是多少",
+                    contact_focus="phone",
+                )
+            )
+        )
+
+        self.assertEqual(
+            transport.calls[0][0],
+            "http://supervisor-api.internal/internal/query/campus-services/contact-directory",
+        )
+        self.assertEqual(transport.calls[0][2]["contact_focus"], "phone")
+        self.assertEqual(result.outcome, "resolved_current")
+        self.assertEqual(result.resolved_contact.display_name, "研究生院招生办公室")
+        self.assertEqual(result.contact_points[0].value, "010-68930001")
 
     def test_http_query_service_decodes_service_guide_materials_and_fail_close_reason(
         self,

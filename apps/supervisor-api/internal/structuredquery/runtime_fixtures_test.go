@@ -543,6 +543,42 @@ func serviceGuideContactProjectionFixture() string {
 	)
 }
 
+func contactDirectoryProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_contact_directory_projection.v1",
+		"contact_records":[
+			{
+				"contact_id":"contact:grad-admission-office",
+				"display_name":"研究生院招生办公室",
+				"aliases":["研究生招生办","招生办公室"],
+				"contact_group":"招生咨询",
+				"department":"研究生院",
+				"phones":[
+					{
+						"phone_id":"phone:grad-admission-office:01068930001",
+						"label":"招生咨询",
+						"number":"010-68930001",
+						"source_refs":["handbook:contact-directory:2026#page=261"]
+					}
+				],
+				"emails":[
+					{
+						"email_id":"email:grad-admission-office:admission@muc.edu.cn",
+						"label":"招生邮箱",
+						"address":"admission@muc.edu.cn",
+						"source_refs":["handbook:contact-directory:2026#page=261"]
+					}
+				],
+				"location_refs":["海淀校区行政楼201"],
+				"source_refs":["handbook:contact-directory:2026#page=261"],
+				"extraction_status":"ready"
+			}
+		],
+		"contact_conflict_records":[],
+		"contact_manual_review_sources":[]
+	}`
+}
+
 func testStringSliceContains(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {

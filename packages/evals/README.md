@@ -95,6 +95,12 @@ Evaluation helpers for campus-agent v2.
   supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
   contract tests，不打开 campus_services serving surface，也不产生 operator
   observability live case-results publish。
+- `contact_directory_lookup` release gate 也是确定性组合 gate，入口为：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  contact-directory-lookup`；
+  它验证 contact directory projection eval、contact intent 子集、
+  supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
+  contract tests，同样不产生 operator observability live case-results publish。
 
 ## Orchestration / Workflow Trace Eval Gap
 
@@ -150,6 +156,8 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
   --report-only --output .tmp/evals/intent-synthetic-exploratory.json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup
   --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  contact-directory-lookup --json`
 
 retrieval benchmark CLI：
 

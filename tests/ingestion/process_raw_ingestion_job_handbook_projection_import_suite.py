@@ -1,6 +1,15 @@
 from .process_raw_ingestion_job_handbook_projection_support import *
 
 
+class _FakeStructuredProjectionPublisher:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def publish_release(self, **kwargs: object) -> object:
+        self.calls.append(dict(kwargs))
+        return {"current": True}
+
+
 class ProcessRawIngestionJobHandbookProjectionImportTest(
     ProcessRawIngestionJobHandbookProjectionBaseTest
 ):
@@ -102,31 +111,36 @@ class ProcessRawIngestionJobHandbookProjectionImportTest(
                     object_key=raw_key,
                 )
             )
+            publisher = _FakeStructuredProjectionPublisher()
 
-            report = process_raw_ingestion_job(
-                env={
-                    "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
-                    "RAW_VERSION_ID": raw_version_id,
-                    "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_rules",
-                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
-                    "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_PATH": str(
-                        service_guide_source_truth_path
-                    ),
-                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
-                    "OCR_API_KEY": "token",
-                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
-                },
-                object_store=object_store,
-                online_ocr=_PhoneDirectoryOnlineOcrClient(),
-                registry=registry,
-                raw_asset_registry=raw_asset_registry,
-            )
+            with patch(
+                "campus_ingestion_core.raw_ingestion.build_structured_projection_publisher_from_env",
+                return_value=publisher,
+            ):
+                report = process_raw_ingestion_job(
+                    env={
+                        "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
+                        "RAW_VERSION_ID": raw_version_id,
+                        "INGESTION_CORPUS": "regulations",
+                        "INGESTION_COLLECTION": "student_rules",
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                        "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_PATH": str(
+                            service_guide_source_truth_path
+                        ),
+                        "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                        "OCR_API_KEY": "token",
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                    },
+                    object_store=object_store,
+                    online_ocr=_PhoneDirectoryOnlineOcrClient(),
+                    registry=registry,
+                    raw_asset_registry=raw_asset_registry,
+                )
 
             self.assertEqual(report.success_count, 2)
             self.assertEqual(
@@ -194,6 +208,12 @@ class ProcessRawIngestionJobHandbookProjectionImportTest(
             self.assertIn(
                 "公费医疗报销办理指南",
                 {entry["display_name"] for entry in service_catalog_projection["service_entries"]},
+            )
+            self.assertEqual(len(publisher.calls), 1)
+            self.assertEqual(publisher.calls[0]["collection"], "contact_directory")
+            self.assertEqual(
+                publisher.calls[0]["schema_version"],
+                "campus_services_contact_directory_projection.v1",
             )
 
     def test_student_handbook_normalized_raw_ingestion_requires_split_manifest(self) -> None:

@@ -7,7 +7,8 @@ import (
 func (r *Runtime) Status(ctx context.Context) Status {
 	hasPostgresProjection := r.serviceStatusReadModelStore != nil ||
 		r.transportScheduleReadModelStore != nil ||
-		r.serviceGuideReadModelStore != nil
+		r.serviceGuideReadModelStore != nil ||
+		r.contactDirectoryReadModelStore != nil
 	status := Status{
 		Configured:       hasPostgresProjection,
 		ProjectionSource: projectionSourceLabel(hasPostgresProjection),
@@ -23,6 +24,10 @@ func (r *Runtime) Status(ctx context.Context) Status {
 	if r.serviceGuideReadModelStore != nil {
 		bundle, err := r.loadServiceGuideBundle(ctx)
 		status.ServiceGuideProjectionReady = err == nil && len(bundle.ServiceGuideRecords) > 0
+	}
+	if r.contactDirectoryReadModelStore != nil {
+		bundle, err := r.loadContactDirectoryBundle(ctx)
+		status.ContactDirectoryProjectionReady = err == nil && len(bundle.ContactDirectoryRecords) > 0
 	}
 	status.ServiceStatusReadModelConfigured = r.serviceStatusReadModelStore != nil
 	status.ServiceStatusReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
@@ -43,6 +48,13 @@ func (r *Runtime) Status(ctx context.Context) Status {
 		ctx,
 		r.serviceGuideReadModelStore,
 		"service_guide_read_model_unhealthy",
+		status.NoticeRuntimeLastError,
+	)
+	status.ContactDirectoryReadModelConfigured = r.contactDirectoryReadModelStore != nil
+	status.ContactDirectoryReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+		ctx,
+		r.contactDirectoryReadModelStore,
+		"contact_directory_read_model_unhealthy",
 		status.NoticeRuntimeLastError,
 	)
 	status.NoticeReadModelConfigured = r.noticeReadModelStore != nil

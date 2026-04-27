@@ -57,6 +57,12 @@ _PROFILE_SPECS = {
         output_prefix="service-guide-lookup-release-gate-accept",
         supports_publish_dry_run=False,
     ),
+    "contact-directory-lookup": EvalGateProfileSpec(
+        name="contact-directory-lookup",
+        default_reruns=1,
+        output_prefix="contact-directory-lookup-release-gate-accept",
+        supports_publish_dry_run=False,
+    ),
 }
 
 
@@ -368,6 +374,10 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         return runner
     if normalized == "service-guide-lookup":
         from campus_evals.service_guide_lookup_release_gate import main as runner
+
+        return runner
+    if normalized == "contact-directory-lookup":
+        from campus_evals.contact_directory_lookup_release_gate import main as runner
 
         return runner
     raise ValueError(f"unsupported eval profile runner: {profile}")

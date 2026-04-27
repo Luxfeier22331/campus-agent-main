@@ -24,6 +24,15 @@ class _FakeObjectStore:
         self.objects[(bucket, key)] = data
 
 
+class _FakeStructuredProjectionPublisher:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def publish_release(self, **kwargs: object) -> object:
+        self.calls.append(dict(kwargs))
+        return {"current": True}
+
+
 class BuildContactDirectoryProjectionWorkerTest(unittest.TestCase):
     def test_worker_builds_projection_release_from_handbook_document_units(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -44,6 +53,7 @@ class BuildContactDirectoryProjectionWorkerTest(unittest.TestCase):
                 ],
             )
             object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
 
             report = worker.build_contact_directory_projection_release_from_document_units(
                 document_units_path=document_units_path,
@@ -56,9 +66,17 @@ class BuildContactDirectoryProjectionWorkerTest(unittest.TestCase):
                 object_store=object_store,
                 derived_bucket="campus-rag-derived",
                 expected_ready_records=2,
+                structured_projection_publisher=publisher,
             )
 
         self.assertEqual(report.release_id, "contact-directory-handbook-20260426T100000")
+        self.assertEqual(len(publisher.calls), 1)
+        self.assertEqual(publisher.calls[0]["corpus"], "campus_services")
+        self.assertEqual(publisher.calls[0]["collection"], "contact_directory")
+        self.assertEqual(
+            publisher.calls[0]["schema_version"],
+            "campus_services_contact_directory_projection.v1",
+        )
         current_payload = json.loads(
             object_store.objects[
                 (

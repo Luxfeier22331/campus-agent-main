@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 # Contracts
 
@@ -33,6 +33,7 @@ updated: 2026-04-23
 - `service-status-lookup-contract.md`
 - `service-guide-lookup-contract.md`
 - `transport-schedule-lookup-contract.md`
+- `contact-directory-lookup-contract.md`
 
 ## Notice runtime contract
 

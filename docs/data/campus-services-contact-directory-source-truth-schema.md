@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 # Campus Services Contact Directory Source-Truth Schema
 
@@ -186,11 +186,15 @@ authenticated notice 中出现的电话不默认进入稳定 contact directory�
 
 打开 `contact_directory_lookup` 前还需要：
 
-- request/result contract
+- `packages/contracts` 内的 request/result model implementation
 - Go structured query runtime
 - campus-services-agent thin adapter
 - admission/eval/observability gate
 - panel/operator 可见的 release evidence
+
+forward runtime contract direction 见
+`docs/contracts/contact-directory-lookup-contract.md`。该 contract 文档存在不代表产品主路径已
+打开，也不代表 shared model / Go runtime / Python adapter 已实现。
 
 在此之前，纯电话问题不应由 `service_guide_lookup` 冒充回答；service guide 只能在其
 projection 已内嵌 source-linked contact refs 时展示这些 contact facts。
