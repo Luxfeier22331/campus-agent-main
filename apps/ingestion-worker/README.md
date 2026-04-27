@@ -64,6 +64,8 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
   internal-notice-multimodal-drain \
   --limit 100 \
   --batch-size 20 \
+  --consumer-admission-manifest-path \
+  /etc/campus-agent/internal-notice-consumer-admission-manifest.json \
   --report-path .tmp/ingestion-reports/internal-notice-multimodal.json
 ```
 

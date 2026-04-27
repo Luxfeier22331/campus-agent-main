@@ -59,25 +59,32 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
         self.assertIn("INGESTION_ON_DEMAND_DRAIN_LIMIT:-100", script)
         self.assertIn("INGESTION_ON_DEMAND_DRAIN_BATCH_SIZE:-20", script)
         self.assertIn("INGESTION_ON_DEMAND_DRAIN_MAX_ATTEMPTS:-3", script)
+        self.assertIn("INGESTION_ON_DEMAND_DRAIN_CONSUMER_ADMISSION_MANIFEST_PATH", script)
+        self.assertIn("--consumer-admission-manifest-path", script)
         self.assertIn("INGESTION_ON_DEMAND_REPORT_DIR:-.tmp/ingestion-reports", batch_script)
         self.assertIn("flock -n 9", batch_script)
         self.assertIn("campus-ingestion-preflight", batch_script)
         self.assertIn("campus_ingestion_worker.on_demand_batch_runner", batch_script)
         self.assertIn("campus-ingestion-prune-reports", batch_script)
-        self.assertIn(
-            "if uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner",
-            batch_script,
-        )
+        self.assertIn("retention_keep_failed_flag", batch_script)
+        self.assertIn("--no-keep-failed", batch_script)
+        self.assertIn("batch_command=(", batch_script)
+        self.assertIn("uv", batch_script)
+        self.assertIn("--all-packages", batch_script)
         self.assertIn("batch_exit_code=$?", batch_script)
         self.assertGreater(
             batch_script.index("campus-ingestion-prune-reports"),
-            batch_script.index(
-                "if uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner"
-            ),
+            batch_script.index("batch_command=("),
         )
         self.assertIn("official-web-handoffs", official_web_script)
         self.assertIn("authenticated-notice-closeout", closeout_script)
         self.assertIn("wechat-public-notices", wechat_script)
+        self.assertIn("wechat-public-notice-multimodal-drain", wechat_script)
+        self.assertIn("INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN:-1", wechat_script)
+        self.assertIn(
+            "INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN_BATCH_SIZE:-20",
+            wechat_script,
+        )
         self.assertNotIn("--promote", script)
 
     def test_systemd_units_are_hardened_for_oneshot_batch_execution(self) -> None:
@@ -92,10 +99,12 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
         self.assertIn("Type=oneshot", service)
         self.assertIn("User=campus-agent", service)
         self.assertIn("EnvironmentFile=-/etc/campus-agent/ingestion-worker.env", service)
+        self.assertIn("Environment=UV_CACHE_DIR=/srv/campus-agent/.tmp/uv-cache", service)
         self.assertIn("NoNewPrivileges=true", service)
         self.assertIn("PrivateTmp=true", service)
         self.assertIn("ProtectSystem=strict", service)
         self.assertIn("ProtectHome=true", service)
+        self.assertIn("/srv/campus-agent/.tmp/uv-cache", service)
         self.assertIn("MemoryMax=768M", service)
         self.assertIn("CPUQuota=100%", service)
         self.assertIn("WorkingDirectory=/srv/campus-agent", service)

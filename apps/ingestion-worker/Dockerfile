@@ -7,6 +7,7 @@ COPY apps/ingestion-worker ./apps/ingestion-worker
 COPY configs/ingestion ./configs/ingestion
 COPY packages/contracts ./packages/contracts
 COPY packages/ingestion-core ./packages/ingestion-core
+COPY packages/retrieval-core ./packages/retrieval-core
 COPY packages/shared ./packages/shared
 COPY scripts ./scripts
 
@@ -26,6 +27,7 @@ members = [
   "apps/ingestion-worker",
   "packages/contracts",
   "packages/ingestion-core",
+  "packages/retrieval-core",
   "packages/shared",
 ]
 PYPROJECT
@@ -48,7 +50,7 @@ ENV INGESTION_ON_DEMAND_BATCH_KIND=internal-notice-multimodal-drain
 ENV INGESTION_ON_DEMAND_REPORT_DIR=/var/lib/campus-agent/ingestion/reports
 ENV INGESTION_ON_DEMAND_LOCK_DIR=/var/lib/campus-agent/ingestion/locks
 
-COPY --from=build /app /app
+COPY --from=build --chown=appuser:appuser /app /app
 
 RUN chmod +x /app/apps/ingestion-worker/docker-entrypoint.sh \
   /app/scripts/run-ingestion-worker-batch.sh \
@@ -58,7 +60,7 @@ RUN chmod +x /app/apps/ingestion-worker/docker-entrypoint.sh \
   /app/scripts/run-wechat-public-notices.sh
 
 RUN mkdir -p /var/lib/campus-agent/ingestion/reports /var/lib/campus-agent/ingestion/locks \
-  && chown -R appuser:appuser /var/lib/campus-agent /app
+  && chown -R appuser:appuser /var/lib/campus-agent
 
 USER appuser
 

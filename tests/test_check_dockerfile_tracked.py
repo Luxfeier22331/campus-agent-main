@@ -14,6 +14,14 @@ from scripts.check_dockerfile_tracked import (
 )
 
 
+def _dockerignore_patterns(repo_root: Path) -> set[str]:
+    return {
+        line.strip()
+        for line in (repo_root / ".dockerignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+
 class CheckDockerfileTrackedTest(unittest.TestCase):
     def test_tracked_dockerfiles_match_repo_inventory(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -85,6 +93,20 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "/work/.hadolint.yaml",
                 "apps/legacy-office-conversion-service/Dockerfile",
             ],
+        )
+
+    def test_dockerignore_keeps_authenticated_notice_collector_build_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!package.json",
+                "!pnpm-lock.yaml",
+                "!pnpm-workspace.yaml",
+                "!apps/authenticated-notice-collector/",
+                "!apps/authenticated-notice-collector/**",
+            }.issubset(patterns)
         )
 
     @patch("scripts.check_dockerfile_tracked.shutil.which")

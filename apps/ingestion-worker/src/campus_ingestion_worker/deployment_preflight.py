@@ -28,6 +28,7 @@ SUPPORTED_BATCH_KINDS = (
     "official-web-handoffs",
     "authenticated-notice-closeout",
     "wechat-public-notices",
+    "wechat-public-notice-multimodal-drain",
 )
 
 SHARED_POSTGRES_KEY = "CAMPUS_SHARED_POSTGRES_URL"
@@ -245,6 +246,38 @@ def _check_batch_specific_env(
                     "wechat_capture_ledger_config",
                     "WeChat capture ledger URL is not configured; required only for capture-run selection.",
                     details={"env_key": "WECHAT_OFFICIAL_ACCOUNT_CAPTURE_LEDGER_DATABASE_URL"},
+                )
+            )
+    if "wechat-public-notice-multimodal-drain" in batch_kinds:
+        api_key = (
+            _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY")
+            or _env_text(env, "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY")
+            or _env_text(env, "PROMPT_RUNTIME_API_KEY")
+            or _env_text(env, "LLM_API_KEY")
+        )
+        model = (
+            _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL")
+            or _env_text(env, "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL")
+            or _env_text(env, "PROMPT_RUNTIME_MODEL")
+        )
+        if not api_key or not model:
+            checks.append(
+                _failed(
+                    "wechat_public_notice_multimodal_runtime",
+                    "Missing WeChat multimodal OCR runtime env: "
+                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY/WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL "
+                    "or admitted fallback envs.",
+                )
+            )
+        else:
+            checks.append(
+                _passed(
+                    "wechat_public_notice_multimodal_runtime",
+                    "WeChat multimodal OCR runtime env is configured.",
+                    details={
+                        "api_key_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY or fallback",
+                        "model_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL or fallback",
+                    },
                 )
             )
     return checks

@@ -157,6 +157,26 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         self.assertEqual(steps[3].args, ("--run-id", "notice-20260427"))
         self.assertEqual(report["status"], "succeeded")
 
+    def test_internal_notice_batch_passes_consumer_admission_manifest_path(self) -> None:
+        with patch(
+            "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
+            return_value={"name": "drain_multimodal_pending", "status": "succeeded"},
+        ) as run_step:
+            report = runner.run_internal_notice_multimodal_drain_batch(
+                limit=1,
+                batch_size=1,
+                max_attempts=1,
+                skip_read_model_rebuild=True,
+                consumer_admission_manifest_path="/tmp/admission-manifest.json",
+            )
+
+        step = run_step.call_args.args[0]
+        self.assertEqual(step.name, "drain_multimodal_pending")
+        self.assertIn("--consumer-admission-manifest-path", step.args)
+        self.assertIn("/tmp/admission-manifest.json", step.args)
+        self.assertEqual(report["batch_kind"], "internal_notice_multimodal_drain")
+        self.assertEqual(report["status"], "succeeded")
+
     def test_authenticated_notice_closeout_batch_stops_after_failed_step(self) -> None:
         with patch(
             "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
@@ -203,6 +223,42 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         self.assertEqual(report["batch_kind"], "wechat_public_notices")
         self.assertEqual(report["status"], "succeeded")
 
+    def test_wechat_multimodal_drain_batch_builds_pending_drain_step(self) -> None:
+        with patch(
+            "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
+            return_value={
+                "name": "drain_wechat_public_notice_pending_multimodal",
+                "status": "succeeded",
+            },
+        ) as run_step:
+            report = runner.run_wechat_public_notice_multimodal_drain_batch(
+                limit=12,
+                batch_size=4,
+                max_attempts=2,
+                skip_read_model_rebuild=True,
+            )
+
+        step = run_step.call_args.args[0]
+        self.assertEqual(step.name, "drain_wechat_public_notice_pending_multimodal")
+        self.assertEqual(
+            step.module,
+            "campus_ingestion_worker.drain_wechat_public_notice_pending_multimodal",
+        )
+        self.assertEqual(
+            step.args,
+            (
+                "--limit",
+                "12",
+                "--batch-size",
+                "4",
+                "--max-attempts",
+                "2",
+                "--skip-read-model-rebuild",
+            ),
+        )
+        self.assertEqual(report["batch_kind"], "wechat_public_notice_multimodal_drain")
+        self.assertEqual(report["status"], "succeeded")
+
     def test_run_steps_includes_policy_and_budget_summary(self) -> None:
         policy = runner.OnDemandBatchPolicy(
             max_batch_items=50,
@@ -247,6 +303,15 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, 1)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["status"], "failed")
+
+    def test_cli_requires_consumer_admission_manifest_for_internal_notice_drain(self) -> None:
+        with (
+            patch("campus_ingestion_worker.on_demand_batch_runner.load_worker_env"),
+            self.assertRaises(SystemExit) as raised,
+        ):
+            runner.main(["internal-notice-multimodal-drain", "--limit", "1"])
+
+        self.assertEqual(raised.exception.code, 2)
 
 
 if __name__ == "__main__":

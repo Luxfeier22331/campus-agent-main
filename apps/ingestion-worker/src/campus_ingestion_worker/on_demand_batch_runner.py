@@ -175,6 +175,7 @@ def run_internal_notice_multimodal_drain_batch(
     batch_size: int = 20,
     max_attempts: int = 3,
     skip_read_model_rebuild: bool = False,
+    consumer_admission_manifest_path: str | None = None,
     policy: OnDemandBatchPolicy | None = None,
 ) -> dict[str, Any]:
     runtime_policy = policy or load_batch_policy()
@@ -190,6 +191,13 @@ def run_internal_notice_multimodal_drain_batch(
     ]
     if skip_read_model_rebuild:
         args.append("--skip-read-model-rebuild")
+    if consumer_admission_manifest_path:
+        args.extend(
+            (
+                "--consumer-admission-manifest-path",
+                consumer_admission_manifest_path,
+            )
+        )
     return _run_steps(
         batch_kind="internal_notice_multimodal_drain",
         policy=runtime_policy,
@@ -350,6 +358,46 @@ def run_wechat_public_notice_batch(
     )
 
 
+def run_wechat_public_notice_multimodal_drain_batch(
+    *,
+    notice_ids: tuple[str, ...] = (),
+    selection_path: str | None = None,
+    limit: int = 100,
+    batch_size: int = 20,
+    max_attempts: int = 3,
+    skip_read_model_rebuild: bool = False,
+    policy: OnDemandBatchPolicy | None = None,
+) -> dict[str, Any]:
+    runtime_policy = policy or load_batch_policy()
+    _require_within_batch_limit(name="limit", value=limit, policy=runtime_policy)
+    _require_within_batch_limit(name="batch-size", value=batch_size, policy=runtime_policy)
+    args = [
+        "--limit",
+        str(limit),
+        "--batch-size",
+        str(batch_size),
+        "--max-attempts",
+        str(max_attempts),
+    ]
+    if selection_path:
+        args.extend(("--selection-path", selection_path))
+    for notice_id in notice_ids:
+        args.extend(("--notice-id", notice_id))
+    if skip_read_model_rebuild:
+        args.append("--skip-read-model-rebuild")
+    return _run_steps(
+        batch_kind="wechat_public_notice_multimodal_drain",
+        policy=runtime_policy,
+        steps=(
+            IngestionBatchStep(
+                name="drain_wechat_public_notice_pending_multimodal",
+                module="campus_ingestion_worker.drain_wechat_public_notice_pending_multimodal",
+                args=tuple(args),
+            ),
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run bounded ingestion batches on demand and exit with a resource report."
@@ -374,6 +422,14 @@ def build_parser() -> argparse.ArgumentParser:
     multimodal.add_argument("--batch-size", type=_positive_int, default=20)
     multimodal.add_argument("--max-attempts", type=_positive_int, default=3)
     multimodal.add_argument("--skip-read-model-rebuild", action="store_true")
+    multimodal.add_argument(
+        "--consumer-admission-manifest-path",
+        default=(
+            os.getenv("INGESTION_ON_DEMAND_DRAIN_CONSUMER_ADMISSION_MANIFEST_PATH", "").strip()
+            or None
+        ),
+        help=("Path to internal notice consumer admission manifest required by multimodal drain."),
+    )
     _add_common_runtime_args(multimodal)
 
     closeout = subparsers.add_parser(
@@ -411,6 +467,18 @@ def build_parser() -> argparse.ArgumentParser:
     wechat.add_argument("--emit-read-model-evidence", action="store_true")
     _add_common_runtime_args(wechat)
 
+    wechat_multimodal = subparsers.add_parser(
+        "wechat-public-notice-multimodal-drain",
+        help="Drain pending WeChat public-notice multimodal projection rows.",
+    )
+    wechat_multimodal.add_argument("--notice-id", action="append", default=[])
+    wechat_multimodal.add_argument("--selection-path")
+    wechat_multimodal.add_argument("--limit", type=_positive_int, default=100)
+    wechat_multimodal.add_argument("--batch-size", type=_positive_int, default=20)
+    wechat_multimodal.add_argument("--max-attempts", type=_positive_int, default=3)
+    wechat_multimodal.add_argument("--skip-read-model-rebuild", action="store_true")
+    _add_common_runtime_args(wechat_multimodal)
+
     return parser
 
 
@@ -437,11 +505,18 @@ def main(argv: Sequence[str] | None = None) -> None:
                 policy=policy,
             )
         elif args.batch_kind == "internal-notice-multimodal-drain":
+            if not args.consumer_admission_manifest_path:
+                parser.error(
+                    "internal-notice-multimodal-drain requires "
+                    "--consumer-admission-manifest-path or "
+                    "INGESTION_ON_DEMAND_DRAIN_CONSUMER_ADMISSION_MANIFEST_PATH"
+                )
             report = run_internal_notice_multimodal_drain_batch(
                 limit=args.limit,
                 batch_size=args.batch_size,
                 max_attempts=args.max_attempts,
                 skip_read_model_rebuild=args.skip_read_model_rebuild,
+                consumer_admission_manifest_path=args.consumer_admission_manifest_path,
                 policy=policy,
             )
         elif args.batch_kind == "authenticated-notice-closeout":
@@ -473,6 +548,16 @@ def main(argv: Sequence[str] | None = None) -> None:
                 capture_account_slug=args.capture_account_slug,
                 dry_run=bool(args.dry_run),
                 emit_read_model_evidence=bool(args.emit_read_model_evidence),
+                policy=policy,
+            )
+        elif args.batch_kind == "wechat-public-notice-multimodal-drain":
+            report = run_wechat_public_notice_multimodal_drain_batch(
+                notice_ids=tuple(args.notice_id or ()),
+                selection_path=args.selection_path,
+                limit=args.limit,
+                batch_size=args.batch_size,
+                max_attempts=args.max_attempts,
+                skip_read_model_rebuild=bool(args.skip_read_model_rebuild),
                 policy=policy,
             )
         else:

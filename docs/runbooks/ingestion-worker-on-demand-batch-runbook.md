@@ -127,6 +127,8 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
   --limit 1 \
   --batch-size 1 \
   --max-attempts 1 \
+  --consumer-admission-manifest-path \
+  /path/to/internal-notice-consumer-admission-manifest.json \
   --skip-read-model-rebuild \
   --report-path .tmp/ingestion-reports/internal-notice-multimodal-local-smoke.json
 ```
@@ -147,6 +149,8 @@ scripts/run-ingestion-worker-batch.sh internal-notice-multimodal-drain \
   --limit 1 \
   --batch-size 1 \
   --max-attempts 1 \
+  --consumer-admission-manifest-path \
+  /path/to/internal-notice-consumer-admission-manifest.json \
   --skip-read-model-rebuild
 ```
 
@@ -249,6 +253,8 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
   internal-notice-multimodal-drain \
   --limit 100 \
   --batch-size 20 \
+  --consumer-admission-manifest-path \
+  /etc/campus-agent/internal-notice-consumer-admission-manifest.json \
   --max-attempts 3 \
   --report-path .tmp/ingestion-reports/internal-notice-multimodal-$(date +%Y%m%d).json
 ```
@@ -295,6 +301,7 @@ ExecStart=/srv/campus-agent/scripts/run-internal-notice-multimodal-drain.sh
 INGESTION_ON_DEMAND_DRAIN_LIMIT=100
 INGESTION_ON_DEMAND_DRAIN_BATCH_SIZE=20
 INGESTION_ON_DEMAND_DRAIN_MAX_ATTEMPTS=3
+INGESTION_ON_DEMAND_DRAIN_CONSUMER_ADMISSION_MANIFEST_PATH=/etc/campus-agent/internal-notice-consumer-admission-manifest.json
 INGESTION_ON_DEMAND_REPORT_DIR=.tmp/ingestion-reports
 ```
 
@@ -313,6 +320,8 @@ INGESTION_ON_DEMAND_REPORT_DIR=.tmp/ingestion-reports
 - `ExecStartPre` 先跑 `campus-ingestion-preflight --live`
 - `TimeoutStartSec` 必须大于最大 batch 预算，但不能无限等待
 - run script 使用 `flock` 或等价锁，避免 timer overlap
+- `Environment=UV_CACHE_DIR=...` 并把 cache 目录放进 `ReadWritePaths`，避免
+  `ProtectSystem=strict` 下 uv cache 初始化失败
 - report dir、lock dir、working tree 权限只开放给 ingestion 用户
 - journal tag / service name 固定，便于 failure alert 与 log lookup
 
