@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-21
+updated: 2026-04-27
 ---
 # Internal Notice Offline Preparation Strategy
 
@@ -171,6 +171,85 @@ operator read model。
   - embedding
   - Qdrant write
   - release / alias publish
+
+## Consumer Admission Decision Matrix
+
+`internal_notice` 的 consumer admission 目标是把 source-truth 留档、projection
+候选、read model 与 typed materializer 输入分开。它运行在 import dry-run / source-truth
+inventory 之后、projection/read-model/materializer 写入之前。
+
+第一版 decision matrix 固定如下：
+
+- 正文非空、notice family 属于高价值信息查询、无 unresolved owner gap：
+  `target_surface=notice_level_query`，
+  `consumption_status=retained_for_notice_query`，写入 consumption
+  projection + notice read model
+- 采购、招标、成交、公示等历史查询类通知：
+  `target_surface=procurement_notice_history`，
+  `consumption_status=retained_for_notice_query`，写入 consumption
+  projection；是否生成专用 read model 由后续 target owner 冻结
+- 服务开放、停运、临时调整、可用性变化：
+  `target_surface=campus_services/service_status_candidate`，
+  `consumption_status=candidate_for_typed_materialization`，写入 consumption
+  projection；typed service materializer 后续消费
+- 办理指南、预约入口、领取方式、使用约束：
+  `target_surface=campus_services/special_service_candidate`，
+  `consumption_status=candidate_for_typed_materialization`，写入 consumption
+  projection；`service_guide_lookup` 只读记录后续生成
+- 稳定部门电话、办公地址、办公时间变化：
+  `target_surface=campus_services/stable_contact_candidate`，
+  `consumption_status=candidate_for_typed_materialization`，写入 consumption
+  projection；contact directory owner 后续消费
+- 可机器处理的视觉/非线性缺口，且 notice 价值足以处理：
+  `target_surface=multimodal_processing_candidate`，
+  `consumption_status=pending_multimodal_processing`，写入 consumption
+  projection + multimodal attempt lifecycle
+- 空正文、低价值短生命周期宣传、owner gap 无法恢复、unsupported route：
+  `target_surface=unsupported`，`consumption_status=no_adoption`，只写入
+  consumption projection
+
+固定约束：
+
+- `candidate_for_typed_materialization` 不打开 runtime lookup；它只给后续 typed
+  materializer 提供稳定输入集合
+- notice read model 只能消费 `target_surface=notice_level_query` 且
+  `consumption_status=retained_for_notice_query` 的 rows
+- service guide / contact / transport 等 typed materializer 只读 projection truth，不得在
+  query time 或 materialization time 回扫 source-truth inventory 扩张范围
+- `unsupported/no_adoption` 也必须落 reason code，避免再次被历史批量流程无差别捞起
+- 任何需要 owner recovery、attachment recovery 或 multimodal processing 的 notice，都不得在
+  完成对应 lane 前进入 ready read model
+
+## Consumer Admission Manifest And Gate
+
+每次 consumer admission 必须生成 manifest 与 gate report。manifest 是本次 admitted
+scope 的唯一写入授权；gate report 是写入前的阻断证据。
+
+manifest 必须记录：
+
+- selection source、selection path、selection sha256
+- policy version 与 routing taxonomy version
+- selected notice ids 与每条 notice 的 decision record
+- target surface / consumption status / reason code
+- body quality、attachment ref、owner expectation、reference-only、unsupported、
+  pending multimodal 计数
+- scope write mode，尤其是 `replace_scope` 是否被显式允许
+
+gate 必须阻断：
+
+- 没有 manifest 的 full-scope / historical materialization
+- manifest 与 bundle/source-truth inventory 的 notice ids 不一致
+- 未显式声明却试图 replace scope
+- 空正文、owner gap、unsupported binary、pending multimodal 比例超过 policy 阈值
+- read model rebuild 试图消费非 `notice_level_query/retained_for_notice_query` rows
+- typed materializer 试图消费非自身 `target_surface` rows
+
+gate 通过只表示本批可以进入对应 offline write target，不表示：
+
+- `internal_notice` 已经打开 query-serving
+- chatbot / panel 已经能直接查询该 surface
+- typed campus-services runtime 已经完成
+- index release / alias publish 已经完成
 
 ## Related Docs
 

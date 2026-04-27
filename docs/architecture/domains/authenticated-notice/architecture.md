@@ -384,6 +384,101 @@ shared Postgres metadata truth`
 - 在 source current scope 仍持续采集和修整时，正确姿态是继续保持 `offline_preparation` /
   promotion-prep，而不是抢先开放 query-serving
 
+## Downstream Consumer Admission Target
+
+authenticated notice 的下游 consumer admission 是 source-channel foundation 之后、任何
+projection/read-model/materializer 写入之前的独立闸门。它不是 collector run admission，也不是
+taxonomy review：
+
+- collector run admission 只决定是否允许抓取 portal surface
+- bootstrap import admission 只决定是否允许把 export/source-truth 写入 repo-owned storage
+  与 registry
+- taxonomy review 只产出可复核的 family / route 建议
+- downstream consumer admission 才决定某条 notice 是否进入 consumption
+  projection、notice read model、campus-services typed candidate 或 no-adoption
+
+目标态固定为 fail-close：
+
+- `import_authenticated_notice_export` 默认只能产出 plan / dry-run report
+- 任何 source-truth / registry / projection / read-model 写入，都必须显式选择写入 mode
+- full-scope 或历史批量 materialization 还必须携带 repo-owned admission manifest；不能只靠
+  `--mode admit-and-materialize` 打开全量写入
+- admission manifest 之外的 notice ids 不允许被后续 projection rebuild、read-model
+  rebuild、multimodal drain 或 typed materializer 通过重新扫描 source-truth inventory 扩张
+- 缺少 projection store、read model store 或 typed candidate target store 时，对应阶段
+  fail closed，不回退到临时内存 projection 或 raw/source-truth bundle scan
+
+consumer admission manifest 的最小 contract：
+
+- `schema_version`
+- `admission_run_id`
+- `source_channel`
+- `corpus`
+- `collection`
+- `policy_version`
+- `selection_source`
+- `selection_path`
+- `selection_sha256`
+- `created_at`
+- `scope_write_mode`
+- `selected_notice_ids`
+- `decision_counts`
+- `decision_records`
+
+每条 `decision_records` 至少包含：
+
+- `notice_id`
+- `source_notice_id` / `site_id`
+- `raw_asset_id`
+- `raw_version_id`
+- `notice_family`
+- `suggested_consumption_route`
+- `target_surface`
+- `consumption_status`
+- `admission_decision`
+- `admission_reason_codes`
+- `body_quality`
+- `attachment_ref_count`
+- `reference_only_attachment_ref_count`
+- `owner_expectation_count`
+- `pending_multimodal_attachment_count`
+
+目标 surface 的第一版允许集合固定为：
+
+- `notice_level_query`
+- `procurement_notice_history`
+- `campus_services/service_status_candidate`
+- `campus_services/special_service_candidate`
+- `campus_services/stable_contact_candidate`
+- `multimodal_processing_candidate`
+- `unsupported`
+
+固定决策语义：
+
+- `notice_level_query` 只能进入 notice read model；它不等于 chatbot / panel 已开放 serving
+- `campus_services/*_candidate` 只表示 typed materialization 输入；对应 service
+  runtime 不得在 query time 回扫 notice body
+- `multimodal_processing_candidate` 只允许从 projection 的 pending units 产生，不允许由 worker
+  重新扫描 source-truth inventory 扩张候选集
+- `unsupported` 必须携带 no-adoption reason，不能作为人工待办池无限保留
+- owner/source relation 不完整、正文只指向附件或文件发布但 owner 未恢复、正文为空或只有标题的
+  notice，默认不得进入 ready read model；只能进入 no-adoption、owner-recovery gap 或明确的
+  pending multimodal lane
+
+consumer admission release gate 必须在写入前生成可审计报告，至少校验：
+
+- selected notice 数与 manifest 一致
+- admission manifest 中的 notice ids 均可从 source-truth inventory 或当前 bundle plan 解析
+- 空正文、reference-only attachment、owner expectation、unsupported binary、pending multimodal
+  等计数没有超过本次 policy 阈值
+- `replace_scope` / full-scope refresh 只能由 manifest 显式声明
+- projection/read-model/campus-services materializer 只会消费 manifest admitted ids
+- gate 输出同时包含 allow / block verdict 与阻断 reason codes
+
+这条目标态的作用是把“历史通知源数据是否可信”和“哪些通知可以服务下游”分开。source-truth
+可以作为受限 upstream 留档；query/read-model/campus-services 只能消费已 admission 的
+projection truth。
+
 ## Source-Triage Collection And Regulation Owner Boundary
 
 对 authenticated notice source channel，`campus_notices/internal_notice` 的角色固定为：
