@@ -19,12 +19,23 @@ export {
 	WeChatOfficialAccountControlPlaneTransportError,
 } from "./control-plane.ts";
 export {
+	type FeedWeArticlesPage,
+	type FeedWeArticlesRequest,
+	type FeedWeAuthenticatedSession,
+	type FeedWeAuthMe,
 	type FeedWeHistoryPage,
 	type FeedWeHistoryRequest,
 	type FeedWeProviderConfig,
 	FeedWeRequestError,
+	type FeedWeSubscription,
+	fetchFeedWeArticlesPage,
+	fetchFeedWeAuthMe,
 	fetchFeedWeHistoryPage,
+	fetchFeedWeSubscriptions,
+	loginFeedWe,
+	normalizeFeedWeArticlesPage,
 	normalizeFeedWeHistoryPage,
+	resolveFeedWeSubscription,
 } from "./feedwe-client.ts";
 export {
 	replayFeedWeProviderResponseSourceTruth,

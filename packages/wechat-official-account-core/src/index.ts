@@ -8,6 +8,7 @@ export type WeChatArticleBodyState = "captured" | "not_captured" | "fetch_failed
 export type WeChatArticleAvailabilityState = "observed";
 export type WeChatArticleBlockRole = "title" | "summary" | "body_paragraph";
 export type WeChatArticleMediaResourceRole = "cover_image" | "inline_image";
+export type WeChatArticlePageKind = "article" | "verification" | "non_article" | "fetch_error";
 
 export interface WeChatOfficialAccountArticleManifest {
 	schemaVersion: "wechat_official_account_article_manifest.v1";
@@ -95,9 +96,11 @@ export interface CapturedWeChatOfficialAccountArticlePage {
 	bodyBlocks: string[];
 	contentType: string | null;
 	coverImageUrl: string | null;
+	fetchErrorMessage?: string | null;
 	fetchedAt: string;
 	finalUrl: string;
 	inlineImageUrls: string[];
+	pageKind: WeChatArticlePageKind;
 	parserVersion: string;
 	publishTime: string | null;
 	publishTimeSource: string | null;
@@ -148,8 +151,10 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterial(
 		: "provider_article_id";
 	const identityValue = normalizedArticleUrl ?? providerArticleId ?? "";
 	const publish = normalizePublishTime(article);
-	const coverImageUrl = optionalText(article.coverUrl);
+	const coverImageUrl = resolveArticleCoverUrl(article);
 	const normalizedCoverImageUrl = coverImageUrl ? normalizeUrl(coverImageUrl) : null;
+	const summaryRaw = resolveArticleSummary(article);
+	const summaryNormalized = summaryRaw ? normalizeText(summaryRaw) : null;
 	const articleStableId = prefixedHash("woa_article", `${accountSlug}\n${identityValue}`, 24);
 	const rawAssetId = prefixedHash("woa_asset", `${accountSlug}\n${identityValue}`, 24);
 	const metadataHash = hashJson({
@@ -159,6 +164,7 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterial(
 		normalizedArticleUrl,
 		providerArticleId,
 		publishTime: publish.value,
+		summary: summaryNormalized,
 		titleNormalized,
 	});
 	const rawVersionId = prefixedHash("woa_ver", metadataHash, 24);
@@ -173,17 +179,30 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterial(
 			textNormalized: titleNormalized,
 		}),
 	];
+	if (summaryRaw) {
+		contentBlocks.push(
+			buildContentBlock({
+				blockOrder: contentBlocks.length,
+				blockRole: "summary",
+				rawAssetId,
+				rawVersionId,
+				rowIndex: contentBlocks.length,
+				textRaw: summaryRaw,
+				textNormalized: summaryNormalized ?? normalizeText(summaryRaw),
+			}),
+		);
+	}
 	const mediaRefs = normalizedCoverImageUrl
 		? [
 				buildMediaRef({
 					normalizedSourceUrl: normalizedCoverImageUrl,
 					rawAssetId,
 					rawVersionId,
-			refOrder: 0,
-			resourceRole: "cover_image",
-			sourceUrl: coverImageUrl ?? normalizedCoverImageUrl,
-		}),
-	]
+					refOrder: 0,
+					resourceRole: "cover_image",
+					sourceUrl: coverImageUrl ?? normalizedCoverImageUrl,
+				}),
+			]
 		: [];
 	const manifest: WeChatOfficialAccountArticleManifest = {
 		schemaVersion: "wechat_official_account_article_manifest.v1",
@@ -254,7 +273,7 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 	const fallbackTitle = requireText(article.title, "title");
 	const titleRaw = firstText(page.title, fallbackTitle);
 	const titleNormalized = normalizeText(titleRaw);
-	const summaryRaw = optionalText(page.summary);
+	const summaryRaw = firstText(page.summary, resolveArticleSummary(article));
 	const bodyBlocksRaw = page.bodyBlocks.map((item) => item.trim()).filter(Boolean);
 	const bodyState = resolveCapturedPageBodyState(page, bodyBlocksRaw.length);
 	const articleIdentityBasis: WeChatArticleIdentityBasis = normalizedArticleUrl
@@ -276,8 +295,10 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 		bodyState,
 		contentType: page.contentType,
 		coverImageUrl: normalizedCoverImageUrl,
+		fetchErrorMessage: optionalText(page.fetchErrorMessage),
 		inlineImageUrls,
 		normalizedArticleUrl,
+		pageKind: page.pageKind,
 		pageFinalUrl: page.finalUrl ? normalizeUrl(page.finalUrl) : null,
 		parserVersion: page.parserVersion,
 		providerArticleId,
@@ -395,7 +416,23 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 	};
 }
 
-export function buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWePage(input: {
+export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromFeedWeDiscoveryArticle(
+	input: BuildWeChatOfficialAccountArticleSourceTruthInput,
+): WeChatOfficialAccountArticleSourceTruthMaterial {
+	const article = normalizeArticleRecord(input.article);
+	return buildWeChatOfficialAccountArticleSourceTruthMaterial({
+		accountName: input.accountName,
+		accountSlug: input.accountSlug,
+		article: {
+			...article,
+			coverUrl: resolveArticleCoverUrl(article),
+			summary: resolveArticleSummary(article),
+		},
+		capturedAt: input.capturedAt,
+	});
+}
+
+export function buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWeDiscoveryPage(input: {
 	accountName: string;
 	accountSlug: string;
 	capturedAt: string;
@@ -408,7 +445,7 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWeP
 				? input.page.raw.articles
 				: [];
 	return rawArticles.map((article) =>
-		buildWeChatOfficialAccountArticleSourceTruthMaterial({
+		buildWeChatOfficialAccountArticleSourceTruthMaterialFromFeedWeDiscoveryArticle({
 			accountName: input.accountName,
 			accountSlug: input.accountSlug,
 			article,
@@ -459,6 +496,15 @@ export function validateWeChatOfficialAccountArticleSourceTruth(
 		issues.push({
 			code: "captured_body_missing_blocks",
 			message: "captured article source-truth must contain body_paragraph blocks",
+		});
+	}
+	if (
+		material.manifest.bodyState !== "captured" &&
+		material.contentBlocks.some((item) => item.blockRole === "body_paragraph")
+	) {
+		issues.push({
+			code: "uncaptured_body_contains_blocks",
+			message: "uncaptured article source-truth must not contain body_paragraph blocks",
 		});
 	}
 	for (const key of findForbiddenKeys(material)) {
@@ -573,9 +619,11 @@ function normalizeCapturedPage(value: CapturedWeChatOfficialAccountArticlePage) 
 		bodyBlocks: Array.isArray(value.bodyBlocks) ? value.bodyBlocks.filter(Boolean) : [],
 		contentType: optionalText(value.contentType),
 		coverImageUrl: optionalText(value.coverImageUrl),
+		fetchErrorMessage: optionalText(value.fetchErrorMessage),
 		fetchedAt: normalizeIsoTimestamp(value.fetchedAt, "page.fetchedAt"),
 		finalUrl: optionalText(value.finalUrl) ? normalizeUrl(value.finalUrl) : "",
 		inlineImageUrls: Array.isArray(value.inlineImageUrls) ? value.inlineImageUrls : [],
+		pageKind: normalizePageKind(value.pageKind),
 		parserVersion: requireText(value.parserVersion, "page.parserVersion"),
 		publishTime: normalizeOptionalIsoTimestamp(value.publishTime),
 		publishTimeSource: optionalText(value.publishTimeSource),
@@ -589,7 +637,7 @@ function resolveCapturedPageBodyState(
 	page: ReturnType<typeof normalizeCapturedPage>,
 	bodyBlockCount: number,
 ): WeChatArticleBodyState {
-	if (page.statusCode < 200 || page.statusCode >= 300) {
+	if (page.statusCode < 200 || page.statusCode >= 300 || page.pageKind !== "article") {
 		return "fetch_failed";
 	}
 	return bodyBlockCount > 0 ? "captured" : "not_captured";
@@ -668,6 +716,34 @@ function requireText(value: unknown, field: string): string {
 
 function optionalText(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizePageKind(value: unknown): WeChatArticlePageKind {
+	if (
+		value === "article" ||
+		value === "verification" ||
+		value === "non_article" ||
+		value === "fetch_error"
+	) {
+		return value;
+	}
+	return "non_article";
+}
+
+function resolveArticleCoverUrl(article: Record<string, unknown>): string | null {
+	return (
+		optionalText(article.coverImage) ??
+		optionalText(article.cover_image) ??
+		optionalText(article.coverUrl)
+	);
+}
+
+function resolveArticleSummary(article: Record<string, unknown>): string | null {
+	return (
+		optionalText(article.summary) ??
+		optionalText(article.description) ??
+		optionalText(article.digest)
+	);
 }
 
 function normalizeText(value: string): string {

@@ -12,8 +12,9 @@ import {
 } from "./index.ts";
 
 interface CaptureCliEnvironment extends WeChatOfficialAccountObjectStoreEnvironment {
-	FEEDWE_API_KEY?: string;
 	FEEDWE_BASE_URL?: string;
+	FEEDWE_EMAIL?: string;
+	FEEDWE_PASSWORD?: string;
 	WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL?: string;
 	WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN?: string;
 	WECHAT_OFFICIAL_ACCOUNT_TRACE_ID?: string;
@@ -64,8 +65,9 @@ export async function runCaptureCli(
 		},
 	});
 	const accountName = required(values.account, "--account");
-	const apiKey = required(env.FEEDWE_API_KEY, "FEEDWE_API_KEY");
-	const baseUrl = env.FEEDWE_BASE_URL?.trim() || "https://feedwe.cloud";
+	const email = required(env.FEEDWE_EMAIL, "FEEDWE_EMAIL");
+	const password = required(env.FEEDWE_PASSWORD, "FEEDWE_PASSWORD");
+	const baseUrl = env.FEEDWE_BASE_URL?.trim() || "https://www.feedwe.top";
 	const maxArticles = parsePositiveInt(values["max-articles"], 100);
 	const maxPages = parsePositiveInt(values["max-pages"], 10);
 	const size = parsePositiveInt(values.size, 20);
@@ -129,7 +131,7 @@ export async function runCaptureCli(
 			begin: values.begin,
 			maxArticles,
 			maxPages,
-			provider: { apiKey, baseUrl },
+			provider: { baseUrl, email, password },
 			size,
 		});
 
@@ -159,7 +161,8 @@ export async function runCaptureCli(
 		);
 	} catch (error) {
 		const terminalError = redactTerminalError(error, [
-			apiKey,
+			email,
+			password,
 			values["service-token"],
 			env.WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN,
 		]);

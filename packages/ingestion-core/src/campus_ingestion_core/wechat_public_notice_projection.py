@@ -17,14 +17,19 @@ from campus_ingestion_core.internal_notice_read_model_shared import (
 )
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
+    NOTICE_COMPLETENESS_COMPLETE,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
+    NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+    NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
     NOTICE_SOURCE_FAMILY_OFFICIAL_WEB_PUBLIC,
     NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
+    NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NOTICE_TARGET_SURFACE_UNSUPPORTED,
     NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
@@ -36,6 +41,12 @@ from campus_ingestion_core.notice_consumption_projection import (
 )
 from campus_ingestion_core.object_store import build_document_artifact_key
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.wechat_public_notice_multimodal import (
+    WeChatPublicNoticeInlineImageOutcome,
+    WeChatPublicNoticeInlineImageRef,
+    list_wechat_public_notice_inline_image_refs,
+    load_wechat_public_notice_inline_image_outcome,
+)
 
 WECHAT_PUBLIC_NOTICE_SOURCE_CHANNEL = "wechat_official_account"
 WECHAT_PUBLIC_NOTICE_SOURCE_FAMILY = NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC
@@ -123,6 +134,9 @@ class WeChatArticleSourceTruth:
     body_state: str
     content_block_count: int
     media_ref_count: int
+    inline_image_count: int
+    inline_image_refs: tuple[WeChatPublicNoticeInlineImageRef, ...]
+    inline_image_outcomes: tuple[WeChatPublicNoticeInlineImageOutcome, ...]
     summary_text: str
     body_paragraphs: tuple[str, ...]
     metadata_hash: str
@@ -254,14 +268,21 @@ def build_wechat_public_notice_projection_entries(
             local_entries=tuple(retained_entries),
         )
         if duplicate_hit is None:
-            entry = _build_retained_notice_entry(
-                article=article,
-                source_corpus=source_corpus,
-                source_collection=source_collection,
-            )
+            if _is_query_admitted_article(article):
+                entry = _build_retained_notice_entry(
+                    article=article,
+                    source_corpus=source_corpus,
+                    source_collection=source_collection,
+                )
+                retained_count += 1
+            else:
+                entry = _build_capture_pending_reference_entry(
+                    article=article,
+                    source_corpus=source_corpus,
+                    source_collection=source_collection,
+                )
             output_entries.append(entry)
             retained_entries.append(entry)
-            retained_count += 1
             continue
 
         duplicate_suppressed_count += 1
@@ -599,6 +620,17 @@ def _load_wechat_article_source_truth(
         raise ValueError("wechat source-truth mediaRefCount does not match media-ref rows")
     summary_text = _extract_wechat_summary_text(content_blocks)
     body_paragraphs = _extract_wechat_body_paragraphs(content_blocks)
+    inline_image_refs = list_wechat_public_notice_inline_image_refs(media_refs)
+    inline_image_outcomes = tuple(
+        load_wechat_public_notice_inline_image_outcome(
+            object_store=object_store,
+            bucket=artifact_refs.bucket,
+            media_refs_key=artifact_refs.media_refs_key,
+            inline_ref=inline_ref,
+        )
+        for inline_ref in inline_image_refs
+    )
+    inline_image_count = len(inline_image_refs)
 
     return WeChatArticleSourceTruth(
         article_stable_id=article_stable_id,
@@ -619,6 +651,9 @@ def _load_wechat_article_source_truth(
         body_state=body_state,
         content_block_count=len(content_blocks),
         media_ref_count=len(media_refs),
+        inline_image_count=inline_image_count,
+        inline_image_refs=inline_image_refs,
+        inline_image_outcomes=inline_image_outcomes,
         summary_text=summary_text,
         body_paragraphs=body_paragraphs,
         metadata_hash=metadata_hash,
@@ -739,12 +774,192 @@ def _dedupe_signals_for_projection_entry(
     return tuple(dict.fromkeys(signals))
 
 
+def _is_query_admitted_article(article: WeChatArticleSourceTruth) -> bool:
+    if article.body_state != "captured":
+        return False
+    if not article.inline_image_outcomes:
+        return bool(article.body_paragraphs)
+    if _has_pending_inline_image_outcome(article):
+        return False
+    if _has_terminal_inline_image_failure(article):
+        return False
+    return bool(article.body_paragraphs) or bool(
+        _aggregate_multimodal_text(article) or _aggregate_multimodal_summary(article)
+    )
+
+
+def _article_ocr_required(article: WeChatArticleSourceTruth) -> bool:
+    return article.body_state == "captured" and article.inline_image_count > 0
+
+
+def _capture_gate_status(article: WeChatArticleSourceTruth) -> str:
+    if article.body_state == "fetch_failed":
+        return "fetch_failed"
+    if article.body_state != "captured":
+        return "body_not_captured"
+    if article.inline_image_outcomes:
+        if _has_pending_inline_image_outcome(article):
+            return "multimodal_pending"
+        if _has_terminal_inline_image_failure(article):
+            return "multimodal_terminal_failure"
+        if bool(article.body_paragraphs) or bool(
+            _aggregate_multimodal_text(article) or _aggregate_multimodal_summary(article)
+        ):
+            return "multimodal_completed"
+        return "multimodal_no_text"
+    if article.body_paragraphs:
+        return "captured_body"
+    return "captured_without_text"
+
+
+def _build_article_role_metadata(article: WeChatArticleSourceTruth) -> dict[str, object]:
+    ocr_required = _article_ocr_required(article)
+    multimodal_summary = _aggregate_multimodal_summary(article)
+    multimodal_extracted_text = _aggregate_multimodal_text(article)
+    inline_image_ref_ids = tuple(item.media_ref_id for item in article.inline_image_refs)
+    status_counts = _inline_image_status_counts(article)
+    ocr_status = _article_ocr_status(article)
+    processing_status = _multimodal_processing_status(article)
+    processing_gap_reason = _processing_gap_reason(article)
+    return {
+        "projection_source_label": WECHAT_PUBLIC_NOTICE_SOURCE_LABEL,
+        "notice_title": article.title_raw,
+        "title": article.title_raw,
+        "title_normalized": article.title_normalized,
+        "body_state": article.body_state,
+        "source_channel": WECHAT_PUBLIC_NOTICE_SOURCE_CHANNEL,
+        "provider": article.provider,
+        "account_name": article.account_name,
+        "account_slug": article.account_slug,
+        "source_url": article.normalized_article_url or article.article_url,
+        "normalized_article_url": article.normalized_article_url,
+        "article_url": article.article_url,
+        "provider_article_id": article.provider_article_id,
+        "publish_time": article.publish_time,
+        "publish_time_source": article.publish_time_source,
+        "publish_day": article.publish_day,
+        "cover_image_url": article.cover_image_url,
+        "summary_text": article.summary_text,
+        "body_excerpt": _build_article_body_excerpt(article),
+        "body_paragraph_count": len(article.body_paragraphs),
+        "content_block_count": article.content_block_count,
+        "media_ref_count": article.media_ref_count,
+        "inline_image_count": article.inline_image_count,
+        "inline_image_ref_ids": inline_image_ref_ids,
+        "ocr_required": ocr_required,
+        "ocr_status": ocr_status,
+        "capture_gate_status": _capture_gate_status(article),
+        "multimodal_processing_status": processing_status,
+        "processing_gap_reason": processing_gap_reason,
+        "inline_image_status_counts": status_counts,
+        "fetch_manifest_keys": tuple(
+            item.fetch_manifest_key
+            for item in article.inline_image_outcomes
+            if item.fetch_manifest_key
+        ),
+        "ocr_manifest_keys": tuple(
+            item.ocr_manifest_key for item in article.inline_image_outcomes if item.ocr_manifest_key
+        ),
+        "multimodal_summary": multimodal_summary,
+        "multimodal_extracted_text": multimodal_extracted_text,
+        "multimodal_child_document_ids": tuple(
+            item.child_document_id
+            for item in article.inline_image_outcomes
+            if item.child_document_id
+        ),
+        "metadata_hash": article.metadata_hash,
+        "manifest_key": article.manifest_key,
+        "content_blocks_key": article.content_blocks_key,
+        "media_refs_key": article.media_refs_key,
+        "source_bucket": article.bucket,
+    }
+
+
+def _has_pending_inline_image_outcome(article: WeChatArticleSourceTruth) -> bool:
+    return any(item.status == "pending" for item in article.inline_image_outcomes)
+
+
+def _has_terminal_inline_image_failure(article: WeChatArticleSourceTruth) -> bool:
+    return any(
+        item.status in {"fetch_failed", "ocr_failed"} for item in article.inline_image_outcomes
+    )
+
+
+def _inline_image_status_counts(article: WeChatArticleSourceTruth) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in article.inline_image_outcomes:
+        counts[item.status] = counts.get(item.status, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _aggregate_multimodal_summary(article: WeChatArticleSourceTruth) -> str:
+    parts = [item.summary.strip() for item in article.inline_image_outcomes if item.summary.strip()]
+    return "\n\n".join(dict.fromkeys(parts))
+
+
+def _aggregate_multimodal_text(article: WeChatArticleSourceTruth) -> str:
+    parts = [
+        item.extracted_text.strip()
+        for item in article.inline_image_outcomes
+        if item.extracted_text.strip()
+    ]
+    return "\n\n".join(dict.fromkeys(parts))
+
+
+def _article_ocr_status(article: WeChatArticleSourceTruth) -> str:
+    if not article.inline_image_outcomes:
+        return "not_needed"
+    if article.body_state != "captured":
+        return "not_admitted"
+    if _has_pending_inline_image_outcome(article):
+        return "pending"
+    if _has_terminal_inline_image_failure(article):
+        return "terminal_failure"
+    if bool(_aggregate_multimodal_summary(article) or _aggregate_multimodal_text(article)):
+        return "admitted"
+    return "no_extractable_text"
+
+
+def _multimodal_processing_status(article: WeChatArticleSourceTruth) -> str:
+    if not article.inline_image_outcomes:
+        return "not_needed"
+    if article.body_state != "captured":
+        return "not_admitted"
+    if _has_pending_inline_image_outcome(article):
+        return "pending"
+    if _has_terminal_inline_image_failure(article):
+        return "terminal_failure"
+    if bool(_aggregate_multimodal_summary(article) or _aggregate_multimodal_text(article)):
+        return "completed"
+    return "no_extractable_text"
+
+
+def _processing_gap_reason(article: WeChatArticleSourceTruth) -> str:
+    if article.body_state == "fetch_failed":
+        return "fetch_failed"
+    if article.body_state != "captured":
+        return "body_not_captured"
+    if article.inline_image_outcomes:
+        if _has_pending_inline_image_outcome(article):
+            return "multimodal_pending"
+        if _has_terminal_inline_image_failure(article):
+            return "multimodal_terminal_failure"
+        if (
+            not article.body_paragraphs
+            and not _aggregate_multimodal_text(article)
+            and not _aggregate_multimodal_summary(article)
+        ):
+            return "multimodal_no_extractable_text"
+    return ""
+
+
 def _build_retained_notice_entry(
     *,
     article: WeChatArticleSourceTruth,
     source_corpus: str,
     source_collection: str,
 ) -> NoticeConsumptionProjectionEntry:
+    metadata = _build_article_role_metadata(article)
     notice_document_id = f"wechat_notice:{article.account_slug}:{article.article_stable_id}"
     unit_digest = hashlib.sha256(
         "\n".join(
@@ -762,42 +977,14 @@ def _build_retained_notice_entry(
         default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
         target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
         temporal_policy=NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
-        completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
-        answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
+        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
+        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
         consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
         source_notice_document_id=notice_document_id,
         source_document_id=notice_document_id,
+        source_attachment_ref_ids=tuple(item.media_ref_id for item in article.inline_image_refs),
         source_notice_release_time=article.publish_time or None,
-        role_metadata={
-            "projection_source_label": WECHAT_PUBLIC_NOTICE_SOURCE_LABEL,
-            "notice_title": article.title_raw,
-            "title": article.title_raw,
-            "title_normalized": article.title_normalized,
-            "body_state": article.body_state,
-            "source_channel": WECHAT_PUBLIC_NOTICE_SOURCE_CHANNEL,
-            "provider": article.provider,
-            "account_name": article.account_name,
-            "account_slug": article.account_slug,
-            "source_url": article.normalized_article_url or article.article_url,
-            "normalized_article_url": article.normalized_article_url,
-            "article_url": article.article_url,
-            "provider_article_id": article.provider_article_id,
-            "publish_time": article.publish_time,
-            "publish_time_source": article.publish_time_source,
-            "publish_day": article.publish_day,
-            "cover_image_url": article.cover_image_url,
-            "summary_text": article.summary_text,
-            "body_excerpt": _build_article_body_excerpt(article),
-            "body_paragraph_count": len(article.body_paragraphs),
-            "content_block_count": article.content_block_count,
-            "media_ref_count": article.media_ref_count,
-            "metadata_hash": article.metadata_hash,
-            "manifest_key": article.manifest_key,
-            "content_blocks_key": article.content_blocks_key,
-            "media_refs_key": article.media_refs_key,
-            "source_bucket": article.bucket,
-            "dedupe_status": "unique",
-        },
+        role_metadata={**metadata, "dedupe_status": "unique"},
     )
 
 
@@ -838,6 +1025,54 @@ def _build_suppressed_duplicate_entry(
         completeness_status=retained_entry.completeness_status,
         answerability=retained_entry.answerability,
         consumption_status=NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+        source_notice_document_id=retained_entry.source_notice_document_id,
+        source_document_id=retained_entry.source_document_id,
+        source_attachment_ref_ids=retained_entry.source_attachment_ref_ids,
+        source_notice_release_time=retained_entry.source_notice_release_time,
+        role_metadata=metadata,
+    )
+
+
+def _build_capture_pending_reference_entry(
+    *,
+    article: WeChatArticleSourceTruth,
+    source_corpus: str,
+    source_collection: str,
+) -> NoticeConsumptionProjectionEntry:
+    retained_entry = _build_retained_notice_entry(
+        article=article,
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+    )
+    metadata = dict(retained_entry.role_metadata)
+    metadata.update({"dedupe_status": "capture_pending"})
+    target_surface = NOTICE_TARGET_SURFACE_UNSUPPORTED
+    completeness_status = NOTICE_COMPLETENESS_REFERENCE_ONLY
+    answerability = NOTICE_ANSWERABILITY_REFERENCE_ONLY
+    consumption_status = NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
+    if (
+        article.body_state == "captured"
+        and article.inline_image_outcomes
+        and not _has_terminal_inline_image_failure(article)
+        and _has_pending_inline_image_outcome(article)
+    ):
+        target_surface = NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE
+        completeness_status = NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING
+        consumption_status = NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING
+    return NoticeConsumptionProjectionEntry(
+        source_family=retained_entry.source_family,
+        source_corpus=retained_entry.source_corpus,
+        source_collection=retained_entry.source_collection,
+        source_notice_id=retained_entry.source_notice_id,
+        unit_id=retained_entry.unit_id,
+        primary_role=retained_entry.primary_role,
+        semantic_owner=retained_entry.semantic_owner,
+        default_agent=retained_entry.default_agent,
+        target_surface=target_surface,
+        temporal_policy=retained_entry.temporal_policy,
+        completeness_status=completeness_status,
+        answerability=answerability,
+        consumption_status=consumption_status,
         source_notice_document_id=retained_entry.source_notice_document_id,
         source_document_id=retained_entry.source_document_id,
         source_attachment_ref_ids=retained_entry.source_attachment_ref_ids,
@@ -902,7 +1137,9 @@ def _build_wechat_read_model_body_excerpt(
     title: str,
 ) -> str:
     excerpt = (
-        _text(metadata.get("body_excerpt"))
+        _text(metadata.get("multimodal_extracted_text"))
+        or _text(metadata.get("multimodal_summary"))
+        or _text(metadata.get("body_excerpt"))
         or _text(metadata.get("summary_text"))
         or _text(metadata.get("title_normalized"))
         or _text(metadata.get("title"))
@@ -926,6 +1163,9 @@ def _build_wechat_read_model_provenance_refs(
             metadata.get("manifest_key"),
             metadata.get("content_blocks_key"),
             metadata.get("media_refs_key"),
+            *tuple(metadata.get("fetch_manifest_keys") or ()),
+            *tuple(metadata.get("ocr_manifest_keys") or ()),
+            *tuple(metadata.get("multimodal_child_document_ids") or ()),
             entry.unit_id,
         )
     )
@@ -948,6 +1188,8 @@ def _build_wechat_read_model_search_text(
         _text(metadata.get("account_name")),
         _text(metadata.get("account_slug")),
         _text(metadata.get("provider_article_id")),
+        _text(metadata.get("multimodal_summary")),
+        _text(metadata.get("multimodal_extracted_text")),
         body_excerpt,
     )
     return "\n".join(part for part in parts if part).strip()[
@@ -976,9 +1218,11 @@ def _write_wechat_canonical_markdown(
         field_name="content-blocks",
     )
     body_paragraphs = _extract_wechat_body_paragraphs(content_blocks)
-    if not body_paragraphs:
-        raise ValueError("captured wechat article is missing body_paragraph blocks")
     body = "\n\n".join(body_paragraphs).strip()
+    multimodal_summary = _text(metadata.get("multimodal_summary"))
+    multimodal_extracted_text = _text(metadata.get("multimodal_extracted_text"))
+    if not body and not multimodal_summary and not multimodal_extracted_text:
+        raise ValueError("captured wechat article is missing body and multimodal text")
     canonical_key = build_document_artifact_key(
         corpus=entry.source_corpus,
         collection=entry.source_collection,
@@ -986,13 +1230,17 @@ def _write_wechat_canonical_markdown(
         or entry.source_notice_document_id
         or entry.source_notice_id,
         revision_track="source-faithful",
-        version_id=_text(metadata.get("metadata_hash")) or entry.source_notice_id,
+        version_id=_canonical_version_token(metadata, fallback=entry.source_notice_id),
         filename="canonical.md",
         title=title,
         year=_text(metadata.get("publish_day")) or "",
     )
     canonical_markdown = _render_wechat_canonical_markdown(
-        metadata=metadata, title=title, body=body
+        metadata=metadata,
+        title=title,
+        body=body,
+        multimodal_summary=multimodal_summary,
+        multimodal_extracted_text=multimodal_extracted_text,
     )
     derived_object_store.put_bytes(
         bucket=derived_bucket,
@@ -1000,7 +1248,13 @@ def _write_wechat_canonical_markdown(
         data=canonical_markdown.encode("utf-8"),
         content_type="text/markdown; charset=utf-8",
     )
-    return canonical_key, _build_body_excerpt_from_text(body)
+    excerpt_source = (
+        multimodal_extracted_text
+        or multimodal_summary
+        or body
+        or _text(metadata.get("summary_text"))
+    )
+    return canonical_key, _build_body_excerpt_from_text(excerpt_source)
 
 
 def _extract_wechat_summary_text(content_blocks: Sequence[Mapping[str, Any]]) -> str:
@@ -1026,9 +1280,21 @@ def _extract_wechat_body_paragraphs(
     return tuple(rows)
 
 
+def _count_wechat_inline_images(media_refs: Sequence[Mapping[str, Any]]) -> int:
+    count = 0
+    for row in media_refs:
+        if _text(row.get("resourceRole")) == "inline_image":
+            count += 1
+    return count
+
+
 def _build_article_body_excerpt(article: WeChatArticleSourceTruth) -> str:
     if article.summary_text:
         return article.summary_text[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
+    if _aggregate_multimodal_text(article):
+        return _build_body_excerpt_from_text(_aggregate_multimodal_text(article))
+    if _aggregate_multimodal_summary(article):
+        return _build_body_excerpt_from_text(_aggregate_multimodal_summary(article))
     if article.body_paragraphs:
         return _build_body_excerpt_from_text("\n\n".join(article.body_paragraphs))
     return article.title_normalized[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
@@ -1036,6 +1302,19 @@ def _build_article_body_excerpt(article: WeChatArticleSourceTruth) -> str:
 
 def _build_body_excerpt_from_text(value: str) -> str:
     return value.strip()[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
+
+
+def _canonical_version_token(metadata: Mapping[str, object], *, fallback: str) -> str:
+    base = _text(metadata.get("metadata_hash")) or fallback
+    fingerprint = "\n".join(
+        (
+            base,
+            _text(metadata.get("multimodal_summary")),
+            _text(metadata.get("multimodal_extracted_text")),
+            _text(metadata.get("ocr_status")),
+        )
+    )
+    return "sha256:" + hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
 
 
 def _is_wechat_body_captured(metadata: Mapping[str, object]) -> bool:
@@ -1047,6 +1326,8 @@ def _render_wechat_canonical_markdown(
     metadata: Mapping[str, object],
     title: str,
     body: str,
+    multimodal_summary: str,
+    multimodal_extracted_text: str,
 ) -> str:
     front_matter: dict[str, object] = {
         "source_family": WECHAT_PUBLIC_NOTICE_SOURCE_FAMILY,
@@ -1064,7 +1345,14 @@ def _render_wechat_canonical_markdown(
         if value is None or value == "":
             continue
         lines.append(f"{key}: {_format_front_matter_value(value)}")
-    lines.extend(["---", "", f"# {title}", "", body.strip(), ""])
+    lines.extend(["---", "", f"# {title}", ""])
+    if body.strip():
+        lines.extend(["", body.strip()])
+    if multimodal_summary:
+        lines.extend(["", "## OCR Summary", "", multimodal_summary])
+    if multimodal_extracted_text:
+        lines.extend(["", "## OCR Extracted Text", "", multimodal_extracted_text])
+    lines.append("")
     return "\n".join(lines)
 
 

@@ -1,5 +1,8 @@
-import { load } from "cheerio";
-import type { CapturedWeChatOfficialAccountArticlePage } from "wechat-official-account-core";
+import { type Cheerio, type CheerioAPI, type Element, load } from "cheerio";
+import type {
+	CapturedWeChatOfficialAccountArticlePage,
+	WeChatArticlePageKind,
+} from "wechat-official-account-core";
 
 export const WECHAT_ARTICLE_PAGE_PARSER_VERSION = "wechat-page-parser.v1";
 
@@ -7,11 +10,14 @@ export interface ParsedWeChatOfficialAccountArticlePage {
 	bodyBlocks: string[];
 	coverImageUrl: string | null;
 	inlineImageUrls: string[];
+	pageKind: WeChatArticlePageKind;
 	publishTime: string | null;
 	publishTimeSource: string | null;
 	summary: string | null;
 	title: string | null;
 }
+
+type CheerioElementSelection = Cheerio<Element>;
 
 export async function fetchWeChatOfficialAccountArticlePage(input: {
 	articleUrl: string;
@@ -23,6 +29,7 @@ export async function fetchWeChatOfficialAccountArticlePage(input: {
 	const response = await fetchImplementation(input.articleUrl, {
 		headers: {
 			accept: "text/html,application/xhtml+xml",
+			"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
 			"user-agent":
 				"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0 Safari/537.36",
 		},
@@ -36,9 +43,11 @@ export async function fetchWeChatOfficialAccountArticlePage(input: {
 			bodyBlocks: [],
 			contentType,
 			coverImageUrl: null,
+			fetchErrorMessage: null,
 			fetchedAt,
 			finalUrl,
 			inlineImageUrls: [],
+			pageKind: "fetch_error",
 			parserVersion: WECHAT_ARTICLE_PAGE_PARSER_VERSION,
 			publishTime: null,
 			publishTimeSource: null,
@@ -69,9 +78,10 @@ export function parseWeChatOfficialAccountArticlePageHtml(input: {
 	html: string;
 }): ParsedWeChatOfficialAccountArticlePage {
 	const $ = load(input.html);
-	const contentRoot = $("#js_content").first().length
-		? $("#js_content").first()
-		: $(".rich_media_content").first();
+	const contentRoot =
+		$("#js_content").first().length > 0
+			? $("#js_content").first()
+			: $(".rich_media_content").first();
 	const title = firstText(
 		normalizeBlockText($("#activity-name").first().text()),
 		attributeContent($, 'meta[property="og:title"]', "content"),
@@ -91,10 +101,15 @@ export function parseWeChatOfficialAccountArticlePageHtml(input: {
 	const bodyBlocks = extractBodyBlocks($, contentRoot);
 	const inlineImageUrls = extractInlineImageUrls($, contentRoot);
 	const publishTime = extractPublishTime(input.html);
+	const pageKind = classifyWeChatArticlePage({
+		contentRootPresent: contentRoot.length > 0,
+		html: input.html,
+	});
 	return {
 		bodyBlocks,
 		coverImageUrl,
 		inlineImageUrls,
+		pageKind,
 		publishTime: publishTime?.value ?? null,
 		publishTimeSource: publishTime?.source ?? null,
 		summary,
@@ -102,13 +117,24 @@ export function parseWeChatOfficialAccountArticlePageHtml(input: {
 	};
 }
 
-function extractBodyBlocks($: ReturnType<typeof load>, contentRoot: any) {
-	if (!contentRoot.length) {
+function classifyWeChatArticlePage(input: {
+	contentRootPresent: boolean;
+	html: string;
+}): WeChatArticlePageKind {
+	const verificationMarkers = ["环境异常", "去验证", "wappoc_appmsgcaptcha", "验证后可继续访问"];
+	if (verificationMarkers.some((marker) => input.html.includes(marker))) {
+		return "verification";
+	}
+	return input.contentRootPresent ? "article" : "non_article";
+}
+
+function extractBodyBlocks($: CheerioAPI, contentRoot: CheerioElementSelection) {
+	if (contentRoot.length === 0) {
 		return [];
 	}
 	const blocks: string[] = [];
 	const seen = new Set<string>();
-	contentRoot.find("p,li,h1,h2,h3,h4,h5,h6,blockquote,pre").each((_: number, element: any) => {
+	contentRoot.find("p,li,h1,h2,h3,h4,h5,h6,blockquote,pre").each((_: number, element: Element) => {
 		const text = normalizeBlockText($(element).text());
 		if (!text || seen.has(text)) {
 			return;
@@ -119,7 +145,7 @@ function extractBodyBlocks($: ReturnType<typeof load>, contentRoot: any) {
 	if (blocks.length > 0) {
 		return blocks;
 	}
-	contentRoot.find("section").each((_: number, element: any) => {
+	contentRoot.find("section").each((_: number, element: Element) => {
 		const section = $(element);
 		if (section.find("p,li,h1,h2,h3,h4,h5,h6,blockquote,pre").length > 0) {
 			return;
@@ -134,13 +160,13 @@ function extractBodyBlocks($: ReturnType<typeof load>, contentRoot: any) {
 	return blocks;
 }
 
-function extractInlineImageUrls($: ReturnType<typeof load>, contentRoot: any) {
-	if (!contentRoot.length) {
+function extractInlineImageUrls($: CheerioAPI, contentRoot: CheerioElementSelection) {
+	if (contentRoot.length === 0) {
 		return [];
 	}
 	const urls: string[] = [];
 	const seen = new Set<string>();
-	contentRoot.find("img").each((_: number, element: any) => {
+	contentRoot.find("img").each((_: number, element: Element) => {
 		const image = $(element);
 		const source = firstText(image.attr("data-src"), image.attr("src"));
 		const normalized = normalizeOptionalUrl(source);
@@ -154,7 +180,7 @@ function extractInlineImageUrls($: ReturnType<typeof load>, contentRoot: any) {
 }
 
 function extractPublishTime(html: string): { source: string; value: string } | null {
-	const directMatches: Array<[RegExp, string]> = [
+	const directMatches: [RegExp, string][] = [
 		[/window\.ct\s*=\s*["']?(?<seconds>\d{10})["']?/u, "window.ct"],
 		[/var\s+ct\s*=\s*["']?(?<seconds>\d{10})["']?/u, "var ct"],
 	];

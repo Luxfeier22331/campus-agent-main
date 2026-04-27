@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
 	buildWeChatOfficialAccountArticleSourceTruthMaterial,
 	buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage,
+	buildWeChatOfficialAccountArticleSourceTruthMaterialFromFeedWeDiscoveryArticle,
+	buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWeDiscoveryPage,
 	validateWeChatOfficialAccountArticleSourceTruth,
 } from "../src";
 
@@ -128,6 +130,78 @@ describe("WeChat official-account article source-truth", () => {
 		expect(material.artifacts[1]?.contentType).toBe("application/x-ndjson");
 	});
 
+	it("keeps FeedWe discovery summary as fallback metadata without promoting it into captured body", () => {
+		const material = buildWeChatOfficialAccountArticleSourceTruthMaterialFromFeedWeDiscoveryArticle(
+			{
+				accountName: "中央民族大学学生会",
+				accountSlug: "中央民族大学学生会",
+				article: {
+					author: "中央民族大学学生会",
+					coverImage: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/feedwe-cover/0?wx_fmt=jpeg",
+					id: "feedwe-auth-article-1",
+					publishDate: "2026-04-26T01:14:40.000Z",
+					summary:
+						"有乘车需求的MUCer注意啦\n4月27日—5月5日期间\n通勤车辆有所调整\n\n🚌通勤班车运营安排\n【4月27日】实行工作日时间表",
+					title: "MUC出行快讯｜加车！实践周班车合集来啦～",
+					url: "https://mp.weixin.qq.com/s/I_0ji-iVJWm_ukb6UNDMiw",
+				},
+				capturedAt: "2026-04-27T08:00:00.000Z",
+			},
+		);
+
+		expect(material.manifest.bodyState).toBe("not_captured");
+		expect(material.manifest.publishTime).toBe("2026-04-26T01:14:40.000Z");
+		expect(material.manifest.publishTimeSource).toBe("publishDate");
+		expect(material.manifest.coverImageUrl).toBe(
+			"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/feedwe-cover/0?wx_fmt=jpeg",
+		);
+		expect(material.contentBlocks).toEqual([
+			expect.objectContaining({
+				blockRole: "title",
+				textRaw: "MUC出行快讯｜加车！实践周班车合集来啦～",
+			}),
+			expect.objectContaining({
+				blockRole: "summary",
+				textRaw:
+					"有乘车需求的MUCer注意啦\n4月27日—5月5日期间\n通勤车辆有所调整\n\n🚌通勤班车运营安排\n【4月27日】实行工作日时间表",
+			}),
+		]);
+		expect(material.contentBlocks.some((item) => item.blockRole === "body_paragraph")).toBe(false);
+		expect(validateWeChatOfficialAccountArticleSourceTruth(material)).toEqual([]);
+	});
+
+	it("replays FeedWe provider pages as metadata-only source-truth even when summary text is present", () => {
+		const materials = buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWeDiscoveryPage({
+			accountName: "中央民族大学学生会",
+			accountSlug: "中央民族大学学生会",
+			capturedAt: "2026-04-27T08:00:00.000Z",
+			page: {
+				raw: {
+					articles: [
+						{
+							id: "feedwe-auth-article-1",
+							publishDate: "2026-04-26T01:14:40.000Z",
+							summary: "第一段\n第二段",
+							title: "正文来自 FeedWe",
+							url: "https://mp.weixin.qq.com/s/provider-article",
+						},
+					],
+				},
+			},
+		});
+
+		expect(materials).toHaveLength(1);
+		expect(materials[0]?.manifest.bodyState).toBe("not_captured");
+		expect(materials[0]?.contentBlocks).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ blockRole: "summary", textRaw: "第一段\n第二段" }),
+			]),
+		);
+		expect(materials[0]?.contentBlocks.some((item) => item.blockRole === "body_paragraph")).toBe(
+			false,
+		);
+	});
+
 	it("builds captured-body source-truth from the real WeChat article page", () => {
 		const material = buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage({
 			accountName: "中央民族大学学生会",
@@ -148,14 +222,14 @@ describe("WeChat official-account article source-truth", () => {
 					"🚌通勤班车运营安排",
 				],
 				contentType: "text/html; charset=utf-8",
-				coverImageUrl:
-					"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/page-cover/0?wx_fmt=jpeg",
+				coverImageUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/page-cover/0?wx_fmt=jpeg",
 				fetchedAt: "2026-04-27T08:01:00.000Z",
 				finalUrl: "https://mp.weixin.qq.com/s/I_0ji-iVJWm_ukb6UNDMiw",
 				inlineImageUrls: [
 					"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
 					"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
 				],
+				pageKind: "article",
 				parserVersion: "wechat-page-parser.v1",
 				publishTime: "2026-04-26T01:15:01.000Z",
 				publishTimeSource: "window.ct",
@@ -195,11 +269,48 @@ describe("WeChat official-account article source-truth", () => {
 				}),
 				expect.objectContaining({
 					resourceRole: "inline_image",
-					normalizedSourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
+					normalizedSourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
 				}),
 			]),
 		);
+		expect(validateWeChatOfficialAccountArticleSourceTruth(material)).toEqual([]);
+	});
+
+	it("fails closed when the fetched page is a verification wall and preserves only fallback summary metadata", () => {
+		const material = buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage({
+			accountName: "中央民族大学学生会",
+			accountSlug: "中央民族大学学生会",
+			article: {
+				id: "feedwe-article-verify",
+				publishDate: "2026-04-26 09:15:01",
+				summary: "详情见图片",
+				title: "验证页样例",
+				url: "https://mp.weixin.qq.com/s/verify-wall",
+			},
+			capturedAt: "2026-04-27T08:00:00.000Z",
+			page: {
+				bodyBlocks: [],
+				contentType: "text/html; charset=utf-8",
+				coverImageUrl: null,
+				fetchedAt: "2026-04-27T08:01:00.000Z",
+				finalUrl: "https://mp.weixin.qq.com/s/verify-wall",
+				inlineImageUrls: [],
+				pageKind: "verification",
+				parserVersion: "wechat-page-parser.v1",
+				publishTime: null,
+				publishTimeSource: null,
+				statusCode: 200,
+				summary: null,
+				title: null,
+			},
+		});
+
+		expect(material.manifest.bodyState).toBe("fetch_failed");
+		expect(material.contentBlocks).toEqual([
+			expect.objectContaining({ blockRole: "title", textRaw: "验证页样例" }),
+			expect.objectContaining({ blockRole: "summary", textRaw: "详情见图片" }),
+		]);
+		expect(material.contentBlocks.some((item) => item.blockRole === "body_paragraph")).toBe(false);
 		expect(validateWeChatOfficialAccountArticleSourceTruth(material)).toEqual([]);
 	});
 });

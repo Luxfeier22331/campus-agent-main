@@ -4,11 +4,16 @@ Collector runtime shell for the `wechat_official_account` public source channel.
 
 Phase 2 responsibilities:
 
-- call FeedWe `GET /api/v1/articles/history`
-- mirror provider responses into the existing source bucket
+- call FeedWe authenticated web APIs:
+  - `POST /api/auth/login`
+  - `GET /api/auth/me`
+  - `GET /api/subscriptions`
+  - `GET /api/articles`
+- mirror article-list provider responses into the existing source bucket
 - write ADR-0002 artifact families under:
   - `wechat_official_account/{account_slug}/{year}/{raw_version_id}/provider/feedwe/provider-response.jsonl`
   - `wechat_official_account/{account_slug}/{year}/{raw_version_id}/capture/feedwe-request-summary.json`
+- materialize source-truth directly from authenticated article payloads
 - report run metadata and artifact refs to `app-api`
 
 It does not write source-truth, projections, document registry, Qdrant, release
@@ -25,7 +30,8 @@ pnpm --filter wechat-official-account-collector capture -- \
 
 Required runtime config:
 
-- `FEEDWE_API_KEY`
+- `FEEDWE_EMAIL`
+- `FEEDWE_PASSWORD`
 - `FEEDWE_BASE_URL`
 - existing `OBJECT_STORE_*` source-bucket config
 

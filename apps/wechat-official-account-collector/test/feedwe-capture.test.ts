@@ -14,24 +14,70 @@ describe("FeedWe capture", () => {
 	});
 
 	it("paginates FeedWe history into ADR-0002 provider and capture artifacts", async () => {
-		const apiKey = "feedwe-secret-token";
+		const email = "collector@example.com";
+		const password = "super-secret-password";
 		const fetchImplementation = vi
 			.fn()
 			.mockResolvedValueOnce(
 				new Response(
 					JSON.stringify({
-						articles: [
+						success: true,
+						token: "jwt-token-1",
+						user: {
+							email,
+							id: "feedwe-user-1",
+						},
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						user: {
+							email,
+							id: "feedwe-user-1",
+							isActive: true,
+						},
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						subscriptions: [
 							{
-								title: "2026 春季通知",
-								url: "https://mp.weixin.qq.com/s/article-a",
-								publishTime: "2026-04-26T12:00:00+08:00",
+								id: "subscription-1",
+								wechatAccountId: "account-1",
+								wechatAccount: {
+									alias: "MUC_xiaohui",
+									id: "account-1",
+									name: "中央民族大学学生会",
+								},
 							},
 						],
-						begin: "0",
-						count: 1,
-						hasMore: true,
-						size: 1,
-						total: 2,
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						articles: [
+							{
+								id: "article-a",
+								summary: "春季通知摘要第一段\n春季通知摘要第二段",
+								title: "2026 春季通知",
+								url: "https://mp.weixin.qq.com/s/article-a",
+								publishDate: "2026-04-26T12:00:00+08:00",
+							},
+						],
+						pagination: {
+							hasMore: true,
+							nextCursor: "cursor-1",
+							total: 2,
+						},
 					}),
 					{ status: 200 },
 				),
@@ -39,22 +85,20 @@ describe("FeedWe capture", () => {
 			.mockResolvedValueOnce(
 				new Response(
 					`<!doctype html>
-					<html>
-					  <head>
-					    <meta property="og:title" content="2026 春季通知" />
-					    <meta property="og:description" content="春季通知正文第一段&#10;春季通知正文第二段" />
-					    <meta property="og:image" content="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/spring-cover/0?wx_fmt=jpeg" />
-					  </head>
-					  <body>
-					    <h1 id="activity-name">2026 春季通知</h1>
-					    <div id="js_content">
-					      <section><p>春季通知正文第一段</p></section>
-					      <section><p>春季通知正文第二段</p></section>
-					      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/spring-inline/0?wx_fmt=jpeg" />
-					    </div>
-					    <script>window.ct = 1777166101;</script>
-					  </body>
-					</html>`,
+<html>
+  <head>
+    <meta property="og:title" content="2026 春季通知" />
+    <meta property="og:description" content="春季通知摘要第一段&#10;春季通知摘要第二段" />
+  </head>
+  <body>
+    <h1 id="activity-name">2026 春季通知</h1>
+    <div id="js_content">
+      <section><p>春季通知正文第一段</p></section>
+      <section><p>春季通知正文第二段</p></section>
+    </div>
+    <script>window.ct = 1777166101;</script>
+  </body>
+</html>`,
 					{
 						headers: { "content-type": "text/html; charset=utf-8" },
 						status: 200,
@@ -66,16 +110,18 @@ describe("FeedWe capture", () => {
 					JSON.stringify({
 						articles: [
 							{
+								id: "article-b",
+								summary: "夏季通知摘要第一段\n\n夏季通知摘要第二段",
 								title: "2026 夏季通知",
 								url: "https://mp.weixin.qq.com/s/article-b",
-								publishTime: "2026-04-27T12:00:00+08:00",
+								publishDate: "2026-04-27T12:00:00+08:00",
 							},
 						],
-						begin: "1",
-						count: 1,
-						hasMore: false,
-						size: 1,
-						total: 2,
+						pagination: {
+							hasMore: false,
+							nextCursor: null,
+							total: 2,
+						},
 					}),
 					{ status: 200 },
 				),
@@ -83,20 +129,20 @@ describe("FeedWe capture", () => {
 			.mockResolvedValueOnce(
 				new Response(
 					`<!doctype html>
-					<html>
-					  <head>
-					    <meta property="og:title" content="2026 夏季通知" />
-					    <meta property="og:description" content="夏季通知正文第一段&#10;夏季通知正文第二段" />
-					  </head>
-					  <body>
-					    <h1 id="activity-name">2026 夏季通知</h1>
-					    <div id="js_content">
-					      <section><p>夏季通知正文第一段</p></section>
-					      <section><p>夏季通知正文第二段</p></section>
-					    </div>
-					    <script>window.ct = 1777252501;</script>
-					  </body>
-					</html>`,
+<html>
+  <head>
+    <meta property="og:title" content="2026 夏季通知" />
+    <meta property="og:description" content="夏季通知摘要第一段&#10;夏季通知摘要第二段" />
+  </head>
+  <body>
+    <h1 id="activity-name">2026 夏季通知</h1>
+    <div id="js_content">
+      <section><p>夏季通知正文第一段</p></section>
+      <section><p>夏季通知正文第二段</p></section>
+    </div>
+    <script>window.ct = 1777252501;</script>
+  </body>
+</html>`,
 					{
 						headers: { "content-type": "text/html; charset=utf-8" },
 						status: 200,
@@ -125,17 +171,85 @@ describe("FeedWe capture", () => {
 			maxPages: 3,
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			provider: {
-				apiKey,
-				baseUrl: "https://feedwe.cloud",
+				baseUrl: "https://www.feedwe.top",
+				email,
+				password,
 			},
 			size: 1,
 		});
 
-		expect(fetchImplementation).toHaveBeenCalledTimes(4);
+		expect(fetchImplementation).toHaveBeenCalledTimes(7);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			1,
+			"https://www.feedwe.top/api/auth/login",
+			expect.objectContaining({
+				body: JSON.stringify({ email, password }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+		);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			2,
+			"https://www.feedwe.top/api/auth/me",
+			expect.objectContaining({
+				headers: { Authorization: "Bearer jwt-token-1" },
+				method: "GET",
+			}),
+		);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			3,
+			"https://www.feedwe.top/api/subscriptions",
+			expect.objectContaining({
+				headers: { Authorization: "Bearer jwt-token-1" },
+				method: "GET",
+			}),
+		);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			4,
+			"https://www.feedwe.top/api/articles?accountId=account-1&limit=1",
+			expect.objectContaining({
+				headers: { Authorization: "Bearer jwt-token-1" },
+				method: "GET",
+			}),
+		);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			5,
+			"https://mp.weixin.qq.com/s/article-a",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					accept: "text/html,application/xhtml+xml",
+					"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+					"user-agent": expect.stringContaining("Mozilla/5.0"),
+				}),
+				redirect: "follow",
+			}),
+		);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			6,
+			"https://www.feedwe.top/api/articles?accountId=account-1&cursor=cursor-1&limit=1",
+			expect.objectContaining({
+				headers: { Authorization: "Bearer jwt-token-1" },
+				method: "GET",
+			}),
+		);
+		expect(fetchImplementation).toHaveBeenNthCalledWith(
+			7,
+			"https://mp.weixin.qq.com/s/article-b",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					accept: "text/html,application/xhtml+xml",
+					"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+					"user-agent": expect.stringContaining("Mozilla/5.0"),
+				}),
+				redirect: "follow",
+			}),
+		);
 		expect(result.summary).toEqual({
 			artifactUploads: 14,
 			articlesMaterialized: 2,
 			articlesSeen: 2,
+			bodyCapturedArticles: 2,
+			bodyMissingArticles: 0,
 			failures: 0,
 			pagesFetched: 2,
 			pageCaptureArtifacts: 4,
@@ -153,12 +267,6 @@ describe("FeedWe capture", () => {
 					/^wechat_official_account\/中央民族大学学生会\/2026\/raw_[a-f0-9]{16}\/capture\/feedwe-request-summary\.json$/,
 				),
 				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-fetch-metadata\.json$/,
-				),
-				expect.stringMatching(
-					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-page\.html$/,
-				),
-				expect.stringMatching(
 					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/article-manifest\.json$/,
 				),
 				expect.stringMatching(
@@ -169,13 +277,26 @@ describe("FeedWe capture", () => {
 				),
 			]),
 		);
+		expect(objectKeys).toEqual(
+			expect.arrayContaining([
+				expect.stringMatching(
+					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-page\.html$/,
+				),
+				expect.stringMatching(
+					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-fetch-metadata\.json$/,
+				),
+			]),
+		);
 		expect(objectKeys).toHaveLength(14);
 		expect(writes.some((item) => item.objectKey.includes("/source-truth/"))).toBe(true);
-		expect(writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-page.html"))).toBe(
-			true,
-		);
+		expect(
+			writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-page.html")),
+		).toBe(true);
+		expect(
+			writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-fetch-metadata.json")),
+		).toBe(true);
 		expect(writes.some((item) => item.objectKey.includes("/projection/"))).toBe(false);
-		expect(JSON.stringify(writes)).not.toContain(apiKey);
+		expect(JSON.stringify(writes)).not.toContain(password);
 	});
 
 	it("enforces page and article budgets before downstream processing", async () => {
@@ -184,25 +305,62 @@ describe("FeedWe capture", () => {
 			.mockResolvedValueOnce(
 				new Response(
 					JSON.stringify({
+						success: true,
+						token: "jwt-token-1",
+						user: { id: "feedwe-user-1" },
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						user: { id: "feedwe-user-1", isActive: true },
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						subscriptions: [
+							{
+								wechatAccountId: "account-1",
+								wechatAccount: {
+									alias: "MUC_xiaohui",
+									id: "account-1",
+									name: "中央民族大学学生会",
+								},
+							},
+						],
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
 						articles: [
 							{
 								id: "article-a",
+								summary: "A 摘要",
 								title: "A",
 								url: "https://mp.weixin.qq.com/s/article-a",
-								publishTime: "2026-04-27T12:00:00+08:00",
+								publishDate: "2026-04-27T12:00:00+08:00",
 							},
 							{
 								id: "article-b",
+								summary: "B 正文",
 								title: "B",
 								url: "https://mp.weixin.qq.com/s/article-b",
-								publishTime: "2026-04-27T12:01:00+08:00",
+								publishDate: "2026-04-27T12:01:00+08:00",
 							},
 						],
-						begin: "0",
-						count: 2,
-						hasMore: true,
-						size: 2,
-						total: 100,
+						pagination: {
+							hasMore: true,
+							nextCursor: "cursor-1",
+							total: 100,
+						},
 					}),
 					{ status: 200 },
 				),
@@ -210,12 +368,12 @@ describe("FeedWe capture", () => {
 			.mockResolvedValueOnce(
 				new Response(
 					`<!doctype html>
-					<html>
-					  <body>
-					    <h1 id="activity-name">A</h1>
-					    <div id="js_content"><section><p>A 正文</p></section></div>
-					  </body>
-					</html>`,
+<html>
+  <body>
+    <h1 id="activity-name">A</h1>
+    <div id="js_content"><section><p>A 正文</p></section></div>
+  </body>
+</html>`,
 					{
 						headers: { "content-type": "text/html; charset=utf-8" },
 						status: 200,
@@ -241,16 +399,148 @@ describe("FeedWe capture", () => {
 			maxPages: 5,
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			provider: {
-				apiKey: "feedwe-secret-token",
-				baseUrl: "https://feedwe.cloud",
+				baseUrl: "https://www.feedwe.top",
+				email: "collector@example.com",
+				password: "super-secret-password",
 			},
 			size: 2,
 		});
 
-		expect(fetchImplementation).toHaveBeenCalledTimes(2);
+		expect(fetchImplementation).toHaveBeenCalledTimes(5);
 		expect(result.planningOutcome).toBe("article_budget_exhausted");
 		expect(result.summary.articlesSeen).toBe(2);
 		expect(result.summary.articlesMaterialized).toBe(1);
+	});
+
+	it("fails closed for verification pages while still persisting page capture evidence", async () => {
+		const fetchImplementation = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						success: true,
+						token: "jwt-token-1",
+						user: { id: "feedwe-user-1" },
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						user: { id: "feedwe-user-1", isActive: true },
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						subscriptions: [
+							{
+								wechatAccountId: "account-1",
+								wechatAccount: {
+									alias: "MUC_xiaohui",
+									id: "account-1",
+									name: "中央民族大学学生会",
+								},
+							},
+						],
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						articles: [
+							{
+								id: "article-verify",
+								summary: "详情见图片",
+								title: "验证页样例",
+								url: "https://mp.weixin.qq.com/s/article-verify",
+								publishDate: "2026-04-27T12:00:00+08:00",
+							},
+						],
+						pagination: {
+							hasMore: false,
+							nextCursor: null,
+							total: 1,
+						},
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					`<!doctype html>
+<html>
+  <body>
+    <div id="wappoc_appmsgcaptcha">环境异常</div>
+    <button>去验证</button>
+  </body>
+</html>`,
+					{
+						headers: { "content-type": "text/html; charset=utf-8" },
+						status: 200,
+					},
+				),
+			);
+		const writes: Array<{ objectKey: string; text: string }> = [];
+		const artifactStore: WeChatOfficialAccountArtifactStore = {
+			async putObject(input) {
+				const text = new TextDecoder().decode(input.data);
+				writes.push({ objectKey: input.objectKey, text });
+				return {
+					byteSize: input.data.byteLength,
+					contentSha256: "e".repeat(64),
+					objectKey: input.objectKey,
+					recordCount: input.recordCount,
+				};
+			},
+		};
+
+		const result = await captureFeedWeHistory({
+			accountName: "中央民族大学学生会",
+			artifactStore,
+			fetchImplementation,
+			maxArticles: 5,
+			maxPages: 1,
+			now: () => new Date("2026-04-27T08:00:00.000Z"),
+			provider: {
+				baseUrl: "https://www.feedwe.top",
+				email: "collector@example.com",
+				password: "super-secret-password",
+			},
+			size: 10,
+		});
+
+		expect(result.summary).toEqual({
+			artifactUploads: 7,
+			articlesMaterialized: 1,
+			articlesSeen: 1,
+			bodyCapturedArticles: 0,
+			bodyMissingArticles: 1,
+			failures: 1,
+			pagesFetched: 1,
+			pageCaptureArtifacts: 2,
+			pageCapturesFailed: 1,
+			pageCapturesSucceeded: 0,
+			sourceTruthArtifacts: 3,
+		});
+		expect(
+			writes.find((item) => item.objectKey.endsWith("/capture/wechat-article-fetch-metadata.json"))
+				?.text,
+		).toContain('"pageKind": "verification"');
+		expect(
+			writes.find((item) => item.objectKey.endsWith("/capture/wechat-article-page.html"))?.text,
+		).toContain("环境异常");
+		expect(
+			writes.find((item) => item.objectKey.endsWith("/source-truth/article-manifest.json"))?.text,
+		).toContain('"bodyState": "fetch_failed"');
+		expect(
+			writes.find((item) => item.objectKey.endsWith("/source-truth/content-blocks.jsonl"))?.text,
+		).toContain('"blockRole":"summary"');
 	});
 
 	it("replays source-truth artifacts from provider-response JSONL", async () => {
@@ -274,6 +564,7 @@ describe("FeedWe capture", () => {
 					coverUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/0?wx_fmt=jpeg",
 					id: "feedwe-article-1",
 					publishDate: "2026-04-27 12:00:00",
+					summary: "2026 春季通知正文第一段\n\n2026 春季通知正文第二段",
 					title: "2026 春季通知",
 					url: "https://mp.weixin.qq.com/s/article-a#wechat_redirect",
 				},
@@ -306,17 +597,18 @@ describe("FeedWe capture", () => {
 		expect(writes[0]?.text).toContain(
 			'"normalizedArticleUrl": "https://mp.weixin.qq.com/s/article-a"',
 		);
+		expect(writes[1]?.text).toContain('"blockRole":"summary"');
 	});
 
 	it("finalizes failed app-api runs with redacted terminal errors", async () => {
-		const apiKey = "feedwe-live-secret";
+		const password = "feedwe-live-password";
 		const serviceToken = "collector-service-secret";
 		const startRun = vi.fn().mockResolvedValue({
 			run: { runId: "wcrun_01JQ" },
 		});
 		const finalizeRun = vi.fn().mockResolvedValue({});
 		const capture = vi.fn().mockRejectedValue(
-			Object.assign(new Error(`FeedWe denied token ${apiKey}`), {
+			Object.assign(new Error(`FeedWe denied password ${password}`), {
 				code: "provider_http_error",
 			}),
 		);
@@ -337,7 +629,8 @@ describe("FeedWe capture", () => {
 			runCaptureCli(
 				["--account", "中央民族大学学生会"],
 				{
-					FEEDWE_API_KEY: apiKey,
+					FEEDWE_EMAIL: "collector@example.com",
+					FEEDWE_PASSWORD: password,
 					WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL: "https://app-api.internal",
 					WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN: serviceToken,
 				},
@@ -353,20 +646,20 @@ describe("FeedWe capture", () => {
 					writeOutput: vi.fn(),
 				},
 			),
-		).rejects.toThrow("FeedWe denied token [REDACTED]");
+		).rejects.toThrow("FeedWe denied password [REDACTED]");
 
 		expect(startRun).toHaveBeenCalledWith(
 			expect.objectContaining({
 				accountName: "中央民族大学学生会",
 				accountSlug: "中央民族大学学生会",
-				providerBaseUrl: "https://feedwe.cloud",
+				providerBaseUrl: "https://www.feedwe.top",
 			}),
 		);
 		expect(finalizeRun).toHaveBeenCalledWith({
 			artifacts: [],
 			error: {
 				code: "provider_http_error",
-				message: "FeedWe denied token [REDACTED]",
+				message: "FeedWe denied password [REDACTED]",
 			},
 			finishedAt: "2026-04-27T08:01:00.000Z",
 			runId: "wcrun_01JQ",
@@ -379,7 +672,7 @@ describe("FeedWe capture", () => {
 			terminalStatus: "failed",
 			traceId: undefined,
 		});
-		expect(JSON.stringify(finalizeRun.mock.calls)).not.toContain(apiKey);
+		expect(JSON.stringify(finalizeRun.mock.calls)).not.toContain(password);
 		expect(JSON.stringify(finalizeRun.mock.calls)).not.toContain(serviceToken);
 	});
 
@@ -400,7 +693,8 @@ describe("FeedWe capture", () => {
 			runCaptureCli(
 				["--account", "中央民族大学学生会", "--require-control-plane"],
 				{
-					FEEDWE_API_KEY: "feedwe-live-secret",
+					FEEDWE_EMAIL: "collector@example.com",
+					FEEDWE_PASSWORD: "feedwe-live-password",
 				},
 				{
 					capture,

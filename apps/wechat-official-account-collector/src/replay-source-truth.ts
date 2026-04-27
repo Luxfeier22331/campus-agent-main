@@ -1,5 +1,5 @@
 import {
-	buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWePage,
+	buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWeDiscoveryPage,
 	type WeChatOfficialAccountArticleSourceTruthMaterial,
 } from "wechat-official-account-core";
 
@@ -26,7 +26,7 @@ export async function replayFeedWeProviderResponseSourceTruth(
 	input: ReplayFeedWeProviderResponseSourceTruthInput,
 ): Promise<ReplayFeedWeProviderResponseSourceTruthResult> {
 	const materials = parseProviderResponsePages(input.providerResponseJsonl).flatMap((rawPage) =>
-		buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWePage({
+		buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWeDiscoveryPage({
 			accountName: input.accountName,
 			accountSlug: input.accountSlug,
 			capturedAt: input.capturedAt,
