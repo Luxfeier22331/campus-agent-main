@@ -39,8 +39,9 @@ updated: 2026-04-27
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 5` | `Phase 4` 已完成 docs search enhancement、current/historical static reader version routes、reader anchor/highlight state 与低打扰版本切换；下一步规划 public chat source cards 与 canonical reader jump integration |
+| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 6` | `Phase 6` 已完成 restricted / historical reader handoff 与 gated delivery acceptance 的本地实现；下一步只剩 staging reader asset sync 与 live smoke |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
+| `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `yes` | `.planning/workstreams/wechat-official-account-public-source-channel/README.md` | `Phase 4` | `Phase 3` 已完成 metadata-first article source-truth / replay contract；下一步规划 `wechat_public_notice` projection、dedupe 与 read-model opening |
 
 ## Completed
 
@@ -70,7 +71,7 @@ updated: 2026-04-27
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
 | `curriculum course-map docs presentation refinement` | `curriculum-course-map-docs-presentation-refinement` | `yes` | `.planning/workstreams/curriculum-course-map-docs-presentation-refinement/README.md` | 当前 docs 课程地图展示可先保留 baseline；当产品范围决定继续打磨课程地图在文档站中的真实显示效果时恢复 |
-| `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `.planning/workstreams/restricted-document-rollout-verification/README.md` | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |
+| `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `.planning/workstreams/restricted-document-rollout-verification/README.md` | 只有在产品范围显式决定打开 restricted 用户可见 surface、发布 restricted collection/query serving alias，或推进 authenticated document center / restricted reader / restricted retrieval 到真实用户路径时恢复 |
 
 ## Backlog
 
@@ -78,11 +79,11 @@ updated: 2026-04-27
 |------------|------|------------|-------|-------------|
 | `official-web source channel / news opening` | `official-web-source-channel-news-opening` | `no` | `docs/plans/archive/historical/official-web-source-channel-news-opening.md` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
 | `campus navigation rollout / place_card / map consumption` | `campus-navigation-rollout-map-consumption` | `no` | `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md` | 等待校园地图实际上线后再恢复 |
-| `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `no` | `docs/plans/archive/historical/wechat-official-account-public-source-channel.md` | 只有在产品范围显式 admission 校园公众号公开内容采集，且 `notice` / `official_web` downstream consumption 已准备好时才恢复 |
 | `internal-notice procurement notice classification` | `internal-notice-procurement-publication-history` | `yes` | `.planning/workstreams/internal-notice-procurement-publication-history/README.md` | 只有在产品范围显式 admission 为 restricted notice / publication storage 新增稳定 `procurement_notice` 分类，或基于该分类继续做历史查询时才恢复 |
 | `chat capacity and cancellation hardening` | `chat-capacity-and-cancellation-hardening` | `yes` | `.planning/workstreams/chat-capacity-and-cancellation-hardening/README.md` | 只有在产品范围决定为 public chat 正式收口 100 人同时提问、热点削峰、ChatGPT 式提交/中止体验或 K8s/多实例容量治理时恢复 |
 | `public-chat profile memory management UI` | `public-chat-profile-memory-management-ui` | `yes` | `.planning/workstreams/public-chat-profile-memory-management-ui/README.md` | 只有在产品范围决定为 public-chat-web 暴露 end-user profile memory 列表、开关、删除与新增入口时恢复；不得重新打开 `app-api` owned memory truth、authorization semantics 或 serving-surface policy |
 | `supervisor Docker runtime language split` | `supervisor-docker-runtime-language-split` | `yes` | `.planning/workstreams/supervisor-docker-runtime-language-split/README.md` | 只有在 Docker 侧性能预算、服务器成本或 profiling 结果显示 Python execution runtime / CPU-heavy kernel 成为正式迁移瓶颈时恢复 |
+| `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | 只有在 product path 准备验证 `campus-services-agent` 从 public/chat 入口到 structured tool 消费的真实用户路径时恢复；不得替代 internal structured query unit/integration tests |
 
 ## Legacy / Follow-up References
 

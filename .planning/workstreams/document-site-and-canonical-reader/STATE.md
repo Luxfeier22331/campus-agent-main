@@ -9,18 +9,14 @@ updated: 2026-04-27
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 5
-**Current Phase Name:** Chat Source Cards And Canonical Jump Integration
-**Current Plan:** pending
+**Current Phase:** 6
+**Current Phase Name:** Restricted / Historical Reader Handoff And Acceptance
+**Current Plan:** `.planning/workstreams/document-site-and-canonical-reader/phases/phase-6-restricted-historical-reader-handoff-and-acceptance/PLAN.md`
 **Total Phases:** 6
 **Total Plans in Phase:** 0
-**Progress:** 4/6 phases complete
+**Progress:** 6/6 phases complete
 **Last Activity:** 2026-04-27
-**Last Activity Description:** Completed Phase 4 closeout: docs search
-enhancement, current/historical static reader version routes, anchor/highlight
-reader state and low-disturbance version switcher now share the
-`/docs/:corpus/:collection/:documentSlug` information architecture without
-replacing the native Rspress shell.
+**Last Activity Description:** Implemented Phase 6 restricted / historical reader handoff: `app-api` now enforces principal-visible docs resolve and gated asset delivery, `public-docs` now has a missing-static reader fallback shell, Cloudflare staging has `campus-agent-reader-assets-staging` bound as `DOCS_READER_ASSETS`, and local app-api/public-docs verification passes; real staging restricted bytes still require syncing gated reader assets into that bucket before live smoke.
 
 ## Current Slice
 
@@ -46,8 +42,14 @@ replacing the native Rspress shell.
   - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-4-docs-search-version-navigation-and-static-reader-state/PLAN.md`
   - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-4-docs-search-version-navigation-and-static-reader-state/SUMMARY.md`
 
-- next `Phase 5` artifacts:
-  - planning pending
+- completed `Phase 5` artifacts:
+  - context: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-5-chat-source-cards-and-canonical-jump-integration/CONTEXT.md`
+  - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-5-chat-source-cards-and-canonical-jump-integration/PLAN.md`
+  - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-5-chat-source-cards-and-canonical-jump-integration/SUMMARY.md`
+
+- current `Phase 6` artifacts:
+  - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-6-restricted-historical-reader-handoff-and-acceptance/PLAN.md`
+  - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-6-restricted-historical-reader-handoff-and-acceptance/SUMMARY.md`
 
 - 当前已冻结的决策：
   - 文档站采用独立 `public-docs` browser surface
@@ -185,6 +187,17 @@ replacing the native Rspress shell.
     version source
   - `apps/public-docs` ReaderStateEnhancer 已在 native Rspress layout 上注入
     reader highlight 与低打扰版本切换，不替换 topnav/sidebar/layout
+  - `apps/app-api` chat response model 已支持 `source_cards` structured part；
+    runtime-command finalization 只会为 completed `rag-agent` answer 从
+    `result.evidence.sources` 投影 browser-safe canonical source cards，且只接受
+    `/docs/` 相对 reader URL
+  - `apps/app-api` source card projection 已按 canonical reader target 去重，最多
+    返回 5 张卡；browser payload 只复制 title、sectionTitle、snippet、href、
+    collectionLabel、versionLabel、pageLabel，不复制 `chunk_id`、
+    `source_unit_key`、object storage key 或 raw source locator
+  - `apps/public-chat-web` 已把 shell `source_cards` 映射为 AI SDK
+    `data-source-cards` part，并在 Vercel Chatbot donor message renderer 中以低打扰
+    “参考来源”卡片展示 “查看原文” 链接
   - `apps/public-docs/scripts/_sync_real_docs/regulations.py` 已新增 public-only
     regulation 同步入口；当前对象存储没有显式 public 的 notice-derived
     regulation，因此不会生成 `campus-regulations` 公开目录
@@ -208,9 +221,8 @@ replacing the native Rspress shell.
 
 - staging 仍需要执行一次真实 publish/import/export/build 链路，把对象存储 reader
   assets 与 staging Postgres `docs.*` read model 填成 live 数据。
-- Phase 5 需要规划并实现 public chat source cards 到 canonical reader jump 的
-  browser integration。
-- Phase 6 继续保留 restricted / historical reader handoff 与 gated delivery acceptance。
+- staging restricted reader 仍需要把 gated reader asset objects 同步进
+  `campus-agent-reader-assets-staging` 后再做 live acceptance。
 
 ## Verification
 
@@ -218,6 +230,10 @@ replacing the native Rspress shell.
 - `pnpm --filter public-docs test -- test/sync-real-docs.test.ts`
 - `pnpm --filter public-docs typecheck`
 - `pnpm --filter public-docs lint:generated`
+- `pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/chat-command.service.test.ts test/chat-structured-parts.test.ts`
+- `pnpm --filter public-chat-web exec vitest run test/platform-chat-message-parts.test.ts test/platform-chat-mappers.test.ts test/vendor-chat-message.test.ts`
+- `pnpm --filter app-api typecheck`
+- `pnpm --filter public-chat-web typecheck`
 - `pnpm --filter public-docs build`
 - `pnpm --filter public-docs exec vitest run
   test/sync-published-reader-docs.test.ts test/generated-docs-checker.test.ts

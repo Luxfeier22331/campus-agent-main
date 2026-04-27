@@ -13,8 +13,8 @@ updated: 2026-04-27
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 5`
-- current focus: `Phase 4` 已完成 docs search enhancement、current/historical static reader version routes、reader anchor/highlight state 与低打扰版本切换；下一步规划 public chat source cards 与 canonical reader jump integration
+- current phase: `Phase 6`
+- current focus: `Phase 6` 已完成 restricted / historical reader handoff 与 gated delivery acceptance 的本地实现；下一步只剩 staging reader asset sync 与 live smoke。
 
 ## Native Planning Truth
 

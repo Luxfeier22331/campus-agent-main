@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-19
+updated: 2026-04-27
 ---
 # Provider And Secret Inventory
 
@@ -105,6 +105,15 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   放置位置: root `.env`
   何时必需: 只有 eval 不想复用 shared provider 时
   获取方式: 在对应供应商控制台单独申请；默认不需要
+
+- Provider / system: FeedWe public WeChat article acquisition
+  作用: `wechat_official_account` source channel 的公开公众号文章 acquisition
+  主要 env keys: `FEEDWE_API_KEY` `FEEDWE_BASE_URL`
+  `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`
+  `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`
+  放置位置: root `.env` 或 command-scoped env；生产调度使用 deploy-side secret store
+  何时必需: 只有运行 FeedWe capture / provider contract verification 时需要
+  获取方式: 从 FeedWe 控制台或 operator-managed key store 获取；API key 不得提交到 repo
 
 ### App-local / deploy provider
 
@@ -402,6 +411,19 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 1. 生成 access key / secret key。
 1. 填写 endpoint 与 bucket 名。
 
+Worker gated reader 交付：
+
+- `apps/app-api` 的 restricted reader asset endpoint 通过 Worker binding
+  `DOCS_READER_ASSETS` 读取 derived reader asset bytes
+- 该 binding 指向承载 `reader-assets/*` 的 derived object bucket；browser response 不暴露
+  bucket / object key
+- 当前 staging binding bucket 为 `campus-agent-reader-assets-staging`
+- `apps/public-docs` 的 `sync:gated-reader-assets` 使用
+  `DOCS_READ_MODEL_MANIFEST_PATH` 与 `DOCS_READER_ASSETS_R2_*` 把 gated reader source
+  objects 复制进该 bucket；该同步不把 restricted 内容写入 Worker static assets
+- 本地 ingestion / publish 命令仍使用上面的 `OBJECT_STORE_*` S3-compatible 配置写入同一 object
+  key 体系
+
 凭据姿态：
 
 - 默认优先使用一套 shared `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY` 访问两只
@@ -539,6 +561,49 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 - MinerU 官方文档虽然支持 Office 类型，但当前 repo 的 canonical raw-ingestion 归一化和
   split-manifest 仍是 PDF/image-first，因此 Office 接入继续归入 follow-up，不在当前默认 canonical
   scope
+
+## 6A. FeedWe Public WeChat Article Acquisition
+
+当前 owner：
+
+- `wechat-official-account-public-source-channel` workstream
+
+当前冻结用途：
+
+- `wechat_official_account` public source channel acquisition
+- 公众号公开文章进入 notice consumption 的上游采集
+
+默认放置位置：
+
+- root `.env`
+- command-scoped env
+- production scheduler / deploy-side secret store
+
+相关键：
+
+- `FEEDWE_API_KEY`
+- `FEEDWE_BASE_URL`（默认 `https://feedwe.cloud`）
+- `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`
+- `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`
+
+获取方式：
+
+1. 从 FeedWe 控制台或 operator-managed key store 获取 API key。
+1. 本地验证时只把 key 放到未跟踪的 `.env` 或命令级环境变量。
+1. 生产调度时放入 deploy-side secret store，不写入 tracked config。
+
+外部参考：
+
+- FeedWe Apifox docs: <https://feedwe.apifox.cn/390426961e0>
+
+说明：
+
+- FeedWe 是 acquisition provider，不是 canonical truth owner。
+- Provider response 必须先镜像进现有 MinIO-backed source bucket，并只通过 app-api
+  control-plane 记录 artifact refs，再进入 notice consumption。
+- 当前已验证 endpoint 为 `GET /api/v1/articles/history`，鉴权 header 为
+  `x-api-key`。
+- `FEEDWE_API_KEY` 是高敏感 secret，不得进入 logs、planning docs、fixture 或 sample output。
 
 ## 7. Better Auth
 
