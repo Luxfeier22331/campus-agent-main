@@ -8,22 +8,19 @@ updated: 2026-04-27
 # Workstream: Notice Consumption Layer
 
 这是 `notice-consumption-layer` 的本地 workstream 入口。
-这条线的 `Phase 1-8` 已完成 projection / read-model / runtime closeout，但
-authenticated notice historical materialization 暴露出新的 admission 缺口：下游
-consumer projection、read model、typed candidate 与 multimodal drain 需要由显式
-manifest + release gate 约束，不能再从 source-truth inventory 或 historical bundle
-隐式扩张范围。因此本 workstream 重新打开 `Phase 9`。
+这条线的 `Phase 1-8` 已完成 projection / read-model / runtime closeout。
+`Phase 9` 补齐了 consumer admission manifest + release gate；
+`Phase 10` 将同一 admission 边界扩展到 notice-derived campus-services typed
+materializer，并补齐 stable-contact candidate 的最小离线构建路径。
 
 ## Current Status
 
 - status: `completed`
-- current phase: `Phase 9 complete`
+- current phase: `Phase 10 complete`
 - closeout focus:
-  - 补齐 consumer admission manifest 与 release gate
-  - 将 import dry-run / source-truth inventory 之后的 downstream 写入范围固定到
-    selected ids、target surface 与 reason code
-  - 防止 `admit_and_materialize`、projection rebuild、read-model rebuild、
-    typed materializer 或 multimodal drain 绕过 manifest
+  - campus-services typed materializer 统一 fail-close admission gate
+  - notice-only service-guide release 显式 override guard
+  - stable-contact candidate 离线 artifact 路径
 - completed closeout retained truth:
   - `source_notice -> derived consumption unit` projection store / rebuild path
     已落地
@@ -137,6 +134,13 @@ manifest + release gate 约束，不能再从 source-truth inventory 或 histori
     source-truth inventory replay 返回 282 条，`other/review_later` 从 66 收敛到
     1；保留的 1 条为低置信“为师生办实事清单”。历史 3000 条 bundle 回放中
     `other/review_later` 从 205 收敛到 198，eval fixture 扩到 127 cases。
+  - 2026-04-27 Phase 10 closeout：`build_service_status_projection` 与
+    `build_service_guide_projection` 的 notice-derived typed materialization 必须携带
+    consumer admission manifest，并通过 `typed_materialization` gate。`service_guide`
+    notice-only release 默认阻断，必须显式 `--allow-notice-derived-only-release`；
+    新增 `build_notice_stable_contact_candidates` worker CLI 和
+    `notice_derived_contact_candidate.py`，用于输出 stable-contact candidate 离线
+    artifact，不直接晋升到 contact directory current release。
 
 ## Native Planning Truth
 

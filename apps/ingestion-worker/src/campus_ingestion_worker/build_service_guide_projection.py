@@ -4,16 +4,27 @@ import argparse
 import json
 import os
 from collections.abc import Mapping, Sequence
+from collections import Counter
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Protocol
 
 from campus_ingestion_core import ObjectStoreSettings
+from campus_ingestion_core.internal_notice_consumer_admission_gate import (
+    CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
+    ConsumerAdmissionGateRequest,
+    check_internal_notice_consumer_admission_gate,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    load_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
     NoticeConsumptionProjectionEntry,
     build_notice_consumption_projection_store_from_env,
+    normalize_notice_ids,
 )
 from campus_ingestion_core.notice_derived_service_guide_materialization import (
     build_notice_derived_service_guide_projection_bundle,
@@ -93,6 +104,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Build notice-derived service guide records from ready consumption projection candidates.",
     )
+    parser.add_argument("--consumer-admission-manifest-path")
+    parser.add_argument("--allow-notice-derived-only-release", action="store_true")
     parser.add_argument(
         "--notice-id",
         action="append",
@@ -188,6 +201,8 @@ def build_service_guide_projection_release_from_notice_consumption_projection(
     expected_ready_records: int | None = None,
     extra_build_results: Sequence[ServiceGuideProjectionBuildResult] = (),
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
+    selected_notice_ids: Sequence[str] = (),
+    consumer_admission_gate_report: Mapping[str, object] | None = None,
 ):
     notice_build_result = build_notice_derived_service_guide_projection_bundle(
         projection_entries=projection_entries,
@@ -232,11 +247,14 @@ def build_service_guide_projection_release_from_notice_consumption_projection(
     )
     _write_json(
         work_dir / "build-report.json",
-        {
+        _build_notice_derived_report_payload(
             **asdict(report),
-            "corpus": SERVICE_GUIDE_CORPUS,
-            "collection": SERVICE_GUIDE_COLLECTION,
-        },
+            corpus=SERVICE_GUIDE_CORPUS,
+            collection=SERVICE_GUIDE_COLLECTION,
+            selected_notice_ids=selected_notice_ids,
+            build_result=build_result,
+            consumer_admission_gate_report=consumer_admission_gate_report,
+        ),
     )
     return report
 
@@ -322,14 +340,20 @@ def build_service_guide_projection_release_from_curated_sources(
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    settings = ObjectStoreSettings.from_env()
-    object_store = S3ObjectStoreAdmin(settings)
     generated_at = args.generated_at or _default_generated_at()
     source = dict(os.environ)
     structured_projection_publisher = build_structured_projection_publisher_from_env(source)
     if args.from_notice_consumption_projection:
+        if not args.consumer_admission_manifest_path:
+            raise ValueError(
+                "consumer admission manifest is required before service_guide typed "
+                "materialization"
+            )
         if not args.release_id:
             raise ValueError("--release-id is required with --from-notice-consumption-projection")
+        consumer_manifest = load_internal_notice_consumer_admission_manifest(
+            Path(args.consumer_admission_manifest_path).resolve()
+        )
         selection = build_internal_notice_selection_provenance(
             explicit_notice_ids=args.notice_ids,
             selection_path=args.selection_path,
@@ -339,16 +363,40 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "--notice-id or --selection-path is required with "
                 "--from-notice-consumption-projection"
             )
-        projection_store = build_notice_consumption_projection_store_from_env(source)
-        projection_entries = projection_store.list_by_scope(
-            "campus_notices",
-            "internal_notice",
-            notice_ids=selection.notice_ids,
+        selected_notice_ids = normalize_notice_ids(selection.notice_ids)
+        consumer_admission_gate_report = check_internal_notice_consumer_admission_gate(
+            manifest=consumer_manifest,
+            request=ConsumerAdmissionGateRequest(
+                operation=CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
+                source_corpus="campus_notices",
+                source_collection="internal_notice",
+                selected_notice_ids=selected_notice_ids,
+                scope_write_mode="upsert_selected",
+                target_surface=NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
+            ),
         )
+        if not consumer_admission_gate_report.allowed:
+            raise ValueError(
+                "consumer admission manifest gate blocked service_guide materialization: "
+                + ", ".join(consumer_admission_gate_report.reason_codes)
+            )
         extra_build_results = _build_extra_service_guide_results_from_args(
             args=args,
             generated_at=generated_at,
         )
+        if not extra_build_results and not args.allow_notice_derived_only_release:
+            raise ValueError(
+                "notice-derived-only release is blocked; pass "
+                "--allow-notice-derived-only-release or merge curated/source-truth inputs"
+            )
+        projection_store = build_notice_consumption_projection_store_from_env(source)
+        projection_entries = projection_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=selected_notice_ids,
+        )
+        settings = ObjectStoreSettings.from_env()
+        object_store = S3ObjectStoreAdmin(settings)
         report = build_service_guide_projection_release_from_notice_consumption_projection(
             projection_entries=projection_entries,
             registry=build_document_registry_from_env(source),
@@ -360,8 +408,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             expected_ready_records=args.expected_ready_records,
             extra_build_results=extra_build_results,
             structured_projection_publisher=structured_projection_publisher,
+            selected_notice_ids=selected_notice_ids,
+            consumer_admission_gate_report=asdict(consumer_admission_gate_report),
         )
     elif args.source_truth_manifest:
+        settings = ObjectStoreSettings.from_env()
+        object_store = S3ObjectStoreAdmin(settings)
         report = build_service_guide_projection_release_from_source_truth_manifest(
             source_truth_manifest_path=Path(args.source_truth_manifest).resolve(),
             work_dir=Path(args.work_dir).resolve(),
@@ -379,6 +431,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "--effective-from and --effective-until are required when not using "
                 "--source-truth-manifest"
             )
+        settings = ObjectStoreSettings.from_env()
+        object_store = S3ObjectStoreAdmin(settings)
         report = build_service_guide_projection_release_from_curated_sources(
             curated_flow_graph_paths=[Path(path).resolve() for path in args.curated_flow_graph],
             curated_service_guide_paths=[
@@ -473,6 +527,56 @@ def _build_extra_service_guide_results_from_args(
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _build_notice_derived_report_payload(
+    *,
+    selected_notice_ids: Sequence[str],
+    build_result: ServiceGuideProjectionBuildResult,
+    consumer_admission_gate_report: Mapping[str, object] | None,
+    **base_payload: object,
+) -> dict[str, object]:
+    normalized_selected_notice_ids = normalize_notice_ids(selected_notice_ids)
+    accepted_notice_ids = normalize_notice_ids(
+        tuple(
+            _notice_id_from_service_guide_record(record)
+            for record in build_result.bundle.get("service_guide_records", [])
+            if _notice_id_from_service_guide_record(record)
+        )
+    )
+    extraction_status_counts = dict(
+        sorted(
+            Counter(
+                str(record.get("extraction_status") or "").strip()
+                for record in build_result.bundle.get("service_guide_records", [])
+            ).items()
+        )
+    )
+    payload: dict[str, object] = {
+        **base_payload,
+        "selected_notice_ids": list(normalized_selected_notice_ids),
+        "accepted_notice_ids": list(accepted_notice_ids),
+        "accepted_count": len(accepted_notice_ids),
+        "rejected_count": max(0, len(normalized_selected_notice_ids) - len(accepted_notice_ids)),
+        "manual_review_count": len(build_result.manual_review_sources),
+        "extraction_status_counts": extraction_status_counts,
+    }
+    if consumer_admission_gate_report is not None:
+        payload["consumer_admission_gate"] = dict(consumer_admission_gate_report)
+    return payload
+
+
+def _notice_id_from_service_guide_record(record: Mapping[str, object]) -> str:
+    direct_notice_id = str(record.get("source_notice_id") or "").strip()
+    if direct_notice_id:
+        return direct_notice_id
+    for source_ref in record.get("source_refs") or ():
+        ref = str(source_ref or "").strip()
+        if ref.startswith("notice:"):
+            parts = ref.split(":")
+            if parts:
+                return str(parts[-1]).strip()
+    return ""
 
 
 def _default_generated_at() -> str:

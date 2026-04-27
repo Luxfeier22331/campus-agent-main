@@ -4,12 +4,23 @@ import argparse
 import json
 import os
 from collections.abc import Mapping, Sequence
+from collections import Counter
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
 from campus_ingestion_core import ObjectStoreSettings
+from campus_ingestion_core.internal_notice_consumer_admission_gate import (
+    CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
+    ConsumerAdmissionGateRequest,
+    admitted_notice_ids_for_target_surface,
+    check_internal_notice_consumer_admission_gate,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    CONSUMER_ADMISSION_SCOPE_WRITE_MODE_REPLACE_SCOPE,
+    load_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
@@ -98,6 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--release-id", required=True)
     parser.add_argument("--generated-at")
     parser.add_argument("--derived-bucket")
+    parser.add_argument("--consumer-admission-manifest-path")
     return parser
 
 
@@ -111,6 +123,8 @@ def build_service_status_projection_release_from_consumption_projection(
     object_store: _ServiceStatusProjectionObjectStore,
     derived_bucket: str,
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
+    selected_notice_ids: Sequence[str] = (),
+    consumer_admission_gate_report: Mapping[str, Any] | None = None,
 ):
     build_result = build_notice_derived_service_status_projection_bundle(
         projection_entries=projection_entries,
@@ -141,11 +155,14 @@ def build_service_status_projection_release_from_consumption_projection(
     )
     _write_json(
         work_dir / "build-report.json",
-        {
+        _build_report_payload(
             **asdict(report),
-            "corpus": SERVICE_STATUS_CORPUS,
-            "collection": SERVICE_STATUS_COLLECTION,
-        },
+            corpus=SERVICE_STATUS_CORPUS,
+            collection=SERVICE_STATUS_COLLECTION,
+            selected_notice_ids=selected_notice_ids,
+            projection_entries=projection_entries,
+            consumer_admission_gate_report=consumer_admission_gate_report,
+        ),
     )
     return report
 
@@ -155,8 +172,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     if not args.from_consumption_projection:
         raise ValueError("--from-consumption-projection is required")
+    if not args.consumer_admission_manifest_path:
+        raise ValueError(
+            "consumer admission manifest is required before service_status typed materialization"
+        )
     generated_at = args.generated_at or _default_generated_at()
     source = dict(os.environ)
+    consumer_manifest = load_internal_notice_consumer_admission_manifest(
+        Path(args.consumer_admission_manifest_path).resolve()
+    )
     selection = build_internal_notice_selection_provenance(
         explicit_notice_ids=args.notice_id or (),
         selection_path=args.selection_path,
@@ -164,11 +188,43 @@ def main(argv: Sequence[str] | None = None) -> None:
             "all_ready_service_status_candidates": bool(args.all_ready_service_status_candidates),
         },
     )
-    notice_ids = normalize_notice_ids(selection.notice_ids)
-    if not notice_ids and not args.all_ready_service_status_candidates:
+    selected_notice_ids = normalize_notice_ids(selection.notice_ids)
+    admitted_notice_ids = admitted_notice_ids_for_target_surface(
+        consumer_manifest,
+        target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+    )
+    notice_ids = selected_notice_ids
+    if args.all_ready_service_status_candidates:
+        if consumer_manifest.scope_write_mode != CONSUMER_ADMISSION_SCOPE_WRITE_MODE_REPLACE_SCOPE:
+            raise ValueError(
+                "--all-ready-service-status-candidates requires consumer admission manifest "
+                "scope_write_mode=replace_scope"
+            )
+        notice_ids = notice_ids or admitted_notice_ids
+    if not notice_ids:
         raise ValueError(
             "--notice-id, --selection-path, or --all-ready-service-status-candidates is "
             "required with --from-consumption-projection"
+        )
+    consumer_admission_gate_report = check_internal_notice_consumer_admission_gate(
+        manifest=consumer_manifest,
+        request=ConsumerAdmissionGateRequest(
+            operation=CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            selected_notice_ids=notice_ids,
+            scope_write_mode=(
+                "replace_scope"
+                if args.all_ready_service_status_candidates
+                else "upsert_selected"
+            ),
+            target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+        ),
+    )
+    if not consumer_admission_gate_report.allowed:
+        raise ValueError(
+            "consumer admission manifest gate blocked service_status materialization: "
+            + ", ".join(consumer_admission_gate_report.reason_codes)
         )
     settings = ObjectStoreSettings.from_env()
     object_store = S3ObjectStoreAdmin(settings)
@@ -178,8 +234,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "internal_notice",
         notice_ids=notice_ids,
     )
-    if args.all_ready_service_status_candidates:
-        projection_entries = _ready_service_status_projection_entries(projection_entries)
+    projection_entries = _ready_service_status_projection_entries(projection_entries)
     report = build_service_status_projection_release_from_consumption_projection(
         projection_entries=projection_entries,
         registry=build_document_registry_from_env(source),
@@ -189,6 +244,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         object_store=object_store,
         derived_bucket=args.derived_bucket or settings.bucket_derived,
         structured_projection_publisher=build_structured_projection_publisher_from_env(source),
+        selected_notice_ids=notice_ids,
+        consumer_admission_gate_report=asdict(consumer_admission_gate_report),
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
@@ -227,6 +284,33 @@ def _ready_service_status_projection_entries(
         if entry.target_surface == NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE
         and entry.consumption_status == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
     )
+
+
+def _build_report_payload(
+    *,
+    selected_notice_ids: Sequence[str],
+    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    consumer_admission_gate_report: Mapping[str, Any] | None,
+    **base_payload: object,
+) -> dict[str, object]:
+    normalized_selected_notice_ids = normalize_notice_ids(selected_notice_ids)
+    accepted_notice_ids = normalize_notice_ids(
+        tuple(entry.source_notice_id for entry in projection_entries if entry.source_notice_id)
+    )
+    target_surface_counts = dict(
+        sorted(Counter(entry.target_surface for entry in projection_entries).items())
+    )
+    payload: dict[str, object] = {
+        **base_payload,
+        "selected_notice_ids": list(normalized_selected_notice_ids),
+        "accepted_notice_ids": list(accepted_notice_ids),
+        "accepted_count": len(accepted_notice_ids),
+        "rejected_count": max(0, len(normalized_selected_notice_ids) - len(accepted_notice_ids)),
+        "target_surface_counts": target_surface_counts,
+    }
+    if consumer_admission_gate_report is not None:
+        payload["consumer_admission_gate"] = dict(consumer_admission_gate_report)
+    return payload
 
 
 def _write_json(path: Path, payload: object) -> None:

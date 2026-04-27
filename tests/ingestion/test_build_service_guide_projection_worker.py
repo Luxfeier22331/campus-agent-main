@@ -9,6 +9,15 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    CONSUMER_ADMISSION_DECISION_ADMIT,
+    CONSUMER_ADMISSION_SCOPE_WRITE_MODE_UPSERT_SELECTED,
+    CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
+    ConsumerAdmissionDecisionRecord,
+    InternalNoticeConsumerAdmissionManifest,
+    compute_consumer_admission_selection_sha256,
+    write_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
     NOTICE_COMPLETENESS_COMPLETE,
@@ -317,9 +326,15 @@ class BuildServiceGuideProjectionWorkerTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             selection_path = root / "selected-notices.json"
+            manifest_path = root / "consumer-admission-manifest.json"
             selection_path.write_text(
                 json.dumps({"selected_notice_ids": ["354777"]}),
                 encoding="utf-8",
+            )
+            _write_consumer_manifest(
+                manifest_path,
+                notice_ids=("354777",),
+                target_surface=NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
             )
             object_store = _FakeObjectStore()
             registry, projection_entry = _notice_projection_runtime(object_store)
@@ -355,6 +370,9 @@ class BuildServiceGuideProjectionWorkerTest(unittest.TestCase):
                         "--from-notice-consumption-projection",
                         "--selection-path",
                         str(selection_path),
+                        "--consumer-admission-manifest-path",
+                        str(manifest_path),
+                        "--allow-notice-derived-only-release",
                         "--work-dir",
                         str(root / "work"),
                         "--release-id",
@@ -390,6 +408,116 @@ class BuildServiceGuideProjectionWorkerTest(unittest.TestCase):
             current_payload["service_guide_records"][0]["service_id"],
             "service:transport-reservation:subway-shuttle",
         )
+
+    def test_main_requires_consumer_manifest_for_notice_projection_mode(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            selection_path = root / "selected-notices.json"
+            selection_path.write_text(
+                json.dumps({"selected_notice_ids": ["354777"]}),
+                encoding="utf-8",
+            )
+            with (
+                patch("campus_ingestion_worker.build_service_guide_projection.load_worker_env"),
+                self.assertRaisesRegex(ValueError, "consumer admission manifest"),
+            ):
+                worker.main(
+                    [
+                        "--from-notice-consumption-projection",
+                        "--selection-path",
+                        str(selection_path),
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "service-guide-notice-cli-20260427T090000",
+                    ]
+                )
+
+    def test_main_blocks_when_consumer_manifest_gate_rejects_target_surface(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            selection_path = root / "selected-notices.json"
+            manifest_path = root / "consumer-admission-manifest.json"
+            selection_path.write_text(
+                json.dumps({"selected_notice_ids": ["354777"]}),
+                encoding="utf-8",
+            )
+            _write_consumer_manifest(
+                manifest_path,
+                notice_ids=("354777",),
+                target_surface="campus_services/service_status_candidate",
+            )
+            object_store = _FakeObjectStore()
+            registry, projection_entry = _notice_projection_runtime(object_store)
+            projection_store = _FakeProjectionStore((projection_entry,))
+
+            with (
+                patch("campus_ingestion_worker.build_service_guide_projection.load_worker_env"),
+                patch(
+                    "campus_ingestion_worker.build_service_guide_projection.ObjectStoreSettings.from_env",
+                    return_value=SimpleNamespace(bucket_derived="campus-rag-derived"),
+                ),
+                patch(
+                    "campus_ingestion_worker.build_service_guide_projection.S3ObjectStoreAdmin",
+                    return_value=object_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_service_guide_projection.build_notice_consumption_projection_store_from_env",
+                    return_value=projection_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_service_guide_projection.build_document_registry_from_env",
+                    return_value=registry,
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+                self.assertRaisesRegex(ValueError, "consumer admission manifest gate blocked"),
+            ):
+                worker.main(
+                    [
+                        "--from-notice-consumption-projection",
+                        "--selection-path",
+                        str(selection_path),
+                        "--consumer-admission-manifest-path",
+                        str(manifest_path),
+                        "--allow-notice-derived-only-release",
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "service-guide-notice-cli-20260427T090000",
+                    ]
+                )
+
+    def test_main_blocks_notice_only_release_without_explicit_override(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            selection_path = root / "selected-notices.json"
+            manifest_path = root / "consumer-admission-manifest.json"
+            selection_path.write_text(
+                json.dumps({"selected_notice_ids": ["354777"]}),
+                encoding="utf-8",
+            )
+            _write_consumer_manifest(
+                manifest_path,
+                notice_ids=("354777",),
+                target_surface=NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE,
+            )
+            with (
+                patch("campus_ingestion_worker.build_service_guide_projection.load_worker_env"),
+                self.assertRaisesRegex(ValueError, "allow-notice-derived-only-release"),
+            ):
+                worker.main(
+                    [
+                        "--from-notice-consumption-projection",
+                        "--selection-path",
+                        str(selection_path),
+                        "--consumer-admission-manifest-path",
+                        str(manifest_path),
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "service-guide-notice-cli-20260427T090000",
+                    ]
+                )
 
 
 def _curated_handbook_flow_graph_artifact() -> dict[str, object]:
@@ -443,6 +571,48 @@ def _curated_handbook_flow_graph_artifact() -> dict[str, object]:
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _write_consumer_manifest(
+    path: Path,
+    *,
+    notice_ids: tuple[str, ...],
+    target_surface: str,
+) -> None:
+    manifest = InternalNoticeConsumerAdmissionManifest(
+        admission_run_id="consumer-admission-test",
+        source_channel="authenticated_notice_portal",
+        corpus="campus_notices",
+        collection="internal_notice",
+        selection_source="bundle_dry_run",
+        selection_path="bundle.json",
+        selection_sha256=compute_consumer_admission_selection_sha256(notice_ids),
+        scope_write_mode=CONSUMER_ADMISSION_SCOPE_WRITE_MODE_UPSERT_SELECTED,
+        selected_notice_ids=notice_ids,
+        decision_records=tuple(
+            ConsumerAdmissionDecisionRecord(
+                notice_id=notice_id,
+                source_notice_id=notice_id,
+                site_id="muc_internal_portal",
+                raw_asset_id=f"asset:authenticated-notice:muc_internal_portal:{notice_id}",
+                raw_version_id=f"sha256:bundle:{notice_id}",
+                notice_family="special_service_notice",
+                suggested_consumption_route="special_service_candidate",
+                target_surface=target_surface,
+                consumption_status=CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
+                admission_decision=CONSUMER_ADMISSION_DECISION_ADMIT,
+                admission_reason_codes=("special_service_candidate",),
+                body_quality="body_present",
+                attachment_ref_count=0,
+                reference_only_attachment_ref_count=0,
+                owner_expectation_count=0,
+                pending_multimodal_attachment_count=0,
+            )
+            for notice_id in notice_ids
+        ),
+        created_at="2026-04-27T00:00:00+00:00",
+    )
+    write_internal_notice_consumer_admission_manifest(path, manifest)
 
 
 def _notice_projection_runtime(
