@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -102,6 +102,7 @@ def materialize_institutional_regulations_from_internal_notice_scope(
             source
         )
     object_store_settings = ObjectStoreSettings.from_env(source)
+    selected_request = bool(runtime_request.notice_ids or runtime_request.document_ids)
     projection_entries = list_existing_internal_notice_consumption_projection_entries(
         runtime_consumption_projection_store,
         request=runtime_request,
@@ -124,7 +125,8 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         bucket_derived=object_store_settings.bucket_derived,
     )
     if not aggregations:
-        runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
+        if not selected_request:
+            runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
         return InstitutionalRegulationMaterializationReport(
             promotion_candidate_count=0,
             materialized_document_count=0,
@@ -144,6 +146,9 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         object_store=runtime_object_store,
         bucket_derived=object_store_settings.bucket_derived,
     )
+    materialized_document_ids = tuple(
+        str(document.metadata["document_id"]) for document in documents
+    )
     stats = collect_import_document_stats(
         documents=documents,
         registry=runtime_registry,
@@ -155,6 +160,11 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         cleaning_policy_version=load_runtime_profile(*_TARGET_SCOPE).cleaning_policy_version,
         default_visibility_scope=None,
         scope_refresh=_TARGET_SCOPE,
+        scope_refresh_preserve_existing=_build_selected_scope_preserve_predicate(
+            materialized_document_ids
+        )
+        if selected_request
+        else None,
     )
     return InstitutionalRegulationMaterializationReport(
         promotion_candidate_count=len(aggregations),
@@ -405,6 +415,13 @@ def _aggregate_notice_ids(aggregation: _CandidateAggregation) -> tuple[str, ...]
             }
         )
     )
+
+
+def _build_selected_scope_preserve_predicate(
+    materialized_document_ids: Sequence[str],
+) -> Callable[[DocumentRegistryRecord], bool]:
+    materialized_document_id_set = set(materialized_document_ids)
+    return lambda record: record.document_id not in materialized_document_id_set
 
 
 def _load_source_page_bounds(

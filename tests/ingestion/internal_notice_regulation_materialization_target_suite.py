@@ -437,3 +437,105 @@ class InternalNoticeRegulationMaterializationTargetTest(unittest.TestCase):
         self.assertTrue(regulation_markdown.startswith("# 中央民族大学实验室安全管理规定"))
         self.assertNotIn("特此通知", regulation_markdown)
         self.assertIn("第一条 为加强实验室安全管理", regulation_markdown)
+
+    def test_selected_materialize_preserves_existing_target_scope_records(self) -> None:
+        materialize = getattr(
+            regulation_materialization,
+            "materialize_institutional_regulations_from_internal_notice_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        parent = _record(
+            document_id="notice:muc_internal_portal:100003",
+            source_uri="https://portal.example.edu/notices/100003",
+            canonical_key="campus_notices/documents/internal_notice/100003/canonical.md",
+            units_key="campus_notices/documents/internal_notice/100003/document-units.jsonl",
+            content_hash="sha256:parent-100003",
+            is_current=True,
+        )
+        existing_target = _regulation_record(
+            "institutional_regulation:muc:existing-regulation:existing1234"
+        )
+        registry = InMemoryDocumentRegistry((parent, existing_target))
+        raw_asset_registry = InMemoryRawAssetRegistry(())
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="100003",
+                    notice_title="关于修订《中央民族大学实验室安全管理规定》的通知",
+                    published_date="2026-02-01",
+                ),
+            )
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于修订《中央民族大学实验室安全管理规定》的通知\n\n"
+                    "第一条 为加强实验室安全管理，制定本规定。\n"
+                    "第二条 实验室实行分级分类安全管理。\n"
+                    "2026年2月1日起施行。\n"
+                ),
+                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": parent.document_id,
+                            "version_id": parent.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "关于修订《中央民族大学实验室安全管理规定》的通知",
+                            "source_url": parent.source_uri,
+                            "page_start": 1,
+                            "page_end": 1,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {
+                                "title": "关于修订《中央民族大学实验室安全管理规定》的通知"
+                            },
+                        }
+                    ]
+                ),
+            }
+        )
+
+        report = materialize(
+            request=regulation_materialization.InternalNoticeRegulationPromotionRequest(
+                notice_ids=("100003",)
+            ),
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "EMBEDDING_PROVIDER": "mock",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+                "SPARSE_PROVIDER": "mock",
+            },
+            object_store=object_store,
+            registry=registry,
+            raw_asset_registry=raw_asset_registry,
+            source_truth_inventory_store=inventory_store,
+            consumption_projection_store=InMemoryNoticeConsumptionProjectionStore(
+                (
+                    _ready_institutional_projection_entry(
+                        notice_id="100003",
+                        source_document_id=parent.document_id,
+                    ),
+                )
+            ),
+        )
+
+        self.assertEqual(report.materialized_document_count, 1)
+        target_document_ids = {
+            record.document_id
+            for record in registry.list_by_scope("regulations", "institutional_rules")
+        }
+        self.assertIn(existing_target.document_id, target_document_ids)
+        self.assertTrue(
+            any("实验室安全管理规定" in document_id for document_id in target_document_ids)
+        )
