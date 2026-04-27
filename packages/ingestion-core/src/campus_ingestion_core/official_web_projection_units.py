@@ -117,6 +117,13 @@ def _build_projection_units(
                 buffered_line_navigation_flags,
                 buffered_line_boilerplate_flags,
                 buffered_section_path,
+                title=title,
+            )
+        elif buffered_unit_type == "directory_entry":
+            final_entries = _finalize_directory_buffer_entries(
+                buffered_lines,
+                title=title,
+                section_path=buffered_section_path,
             )
         clean_text = "\n".join(text for _, text in final_entries if text).strip()
         final_row_ids = [
@@ -266,6 +273,13 @@ def _build_projection_units(
         if declaration.document_kind == "directory" and block_role == "paragraph":
             flush_buffer()
             current_section_path = list(section_path)
+            clean_text = _clean_directory_entry_text(
+                text,
+                title=title,
+                section_path=section_path,
+            )
+            if not clean_text:
+                continue
             unit_index = len(units) + 1
             units.append(
                 _build_structured_unit_row(
@@ -274,7 +288,7 @@ def _build_projection_units(
                     chunk_id=f"{document_id}:unit-{unit_index:04d}",
                     root_unit_id=f"{document_id}:root-{unit_index:04d}",
                     unit_type="directory_entry",
-                    clean_text=text,
+                    clean_text=clean_text,
                     source_pdf=f"official_web:{manifest['siteId']}",
                     source_url=str(manifest["normalizedCanonicalUrl"]),
                     anchor={
@@ -355,6 +369,125 @@ def _build_projection_units(
         if isinstance(metadata, dict):
             metadata["semantic_content_hash"] = semantic_content_hash
     return units
+
+
+def _clean_directory_entry_text(
+    text: str,
+    *,
+    title: str,
+    section_path: list[str],
+) -> str:
+    entries = _finalize_directory_buffer_entries(
+        [line.strip() for line in text.splitlines() if line.strip()],
+        title=title,
+        section_path=section_path,
+    )
+    return "\n".join(line for _, line in entries).strip()
+
+
+def _finalize_directory_buffer_entries(
+    lines: list[str],
+    *,
+    title: str,
+    section_path: list[str],
+) -> list[tuple[int, str]]:
+    normalized_entries = [
+        (index, " ".join(line.split()).strip()) for index, line in enumerate(lines)
+    ]
+    normalized_entries = [(index, line) for index, line in normalized_entries if line]
+    if len(normalized_entries) < 2:
+        return normalized_entries
+
+    label_indexes = _directory_heading_label_indexes(
+        [line for _, line in normalized_entries],
+        title=title,
+        section_path=section_path,
+    )
+    had_heading_labels = bool(label_indexes)
+    filtered_entries = [
+        (source_index, line)
+        for normalized_index, (source_index, line) in enumerate(normalized_entries)
+        if normalized_index not in label_indexes
+    ]
+    before_aggregate_count = len(filtered_entries)
+    filtered_entries = _drop_directory_aggregate_label_entries(filtered_entries)
+    had_aggregate_label = len(filtered_entries) != before_aggregate_count
+    if (had_heading_labels or had_aggregate_label) and _looks_like_directory_navigation_label_stack(
+        [line for _, line in filtered_entries]
+    ):
+        return []
+    return filtered_entries
+
+
+def _directory_heading_label_indexes(
+    lines: list[str],
+    *,
+    title: str,
+    section_path: list[str],
+) -> set[int]:
+    title_label = " ".join(title.split()).strip()
+    section_labels = {" ".join(item.split()).strip() for item in section_path if item.strip()}
+    section_labels.discard("")
+    explicit_labels = set(section_labels)
+    if title_label:
+        explicit_labels.add(title_label)
+
+    label_indexes = {
+        index
+        for index, line in enumerate(lines)
+        if line in explicit_labels and _has_non_label_directory_line(lines, explicit_labels)
+    }
+    if title_label in lines:
+        title_index = lines.index(title_label)
+        leading = lines[: title_index + 1]
+        if (
+            title_index < len(lines) - 1
+            and len(leading) >= 2
+            and all(_looks_like_directory_section_tab_label(line) for line in leading)
+        ):
+            label_indexes.update(range(title_index + 1))
+    return label_indexes
+
+
+def _has_non_label_directory_line(lines: list[str], labels: set[str]) -> bool:
+    return any(line not in labels for line in lines)
+
+
+def _looks_like_directory_section_tab_label(text: str) -> bool:
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return False
+    if len(normalized) > 10:
+        return False
+    if any(
+        punctuation in normalized for punctuation in {"。", "！", "？", "；", "：", ":", "，", ","}
+    ):
+        return False
+    return not any(character.isdigit() for character in normalized)
+
+
+def _drop_directory_aggregate_label_entries(
+    entries: list[tuple[int, str]],
+) -> list[tuple[int, str]]:
+    lines = [line for _, line in entries]
+    filtered_entries: list[tuple[int, str]] = []
+    for index, entry in enumerate(entries):
+        line = entry[1]
+        matching_shorter_lines = {
+            other
+            for other_index, other in enumerate(lines)
+            if other_index != index and len(other) >= 2 and len(other) < len(line) and other in line
+        }
+        if len(matching_shorter_lines) >= 2 and line.count(" ") >= 2:
+            continue
+        filtered_entries.append(entry)
+    return filtered_entries
+
+
+def _looks_like_directory_navigation_label_stack(lines: list[str]) -> bool:
+    if len(lines) < 3:
+        return False
+    return all(_looks_like_directory_section_tab_label(line) for line in lines)
 
 
 def _resolve_document_title(*, manifest: dict[str, object], blocks: list[dict[str, object]]) -> str:
@@ -476,6 +609,8 @@ def _should_flush_article_section_text_buffer(
         "source_attribution_line",
         "terminal_boilerplate_line",
         "media_caption_line",
+        "attachment_reference_line",
+        "terminal_signature_line",
     }:
         return False
     if buffered_content_role == "notice_fact":

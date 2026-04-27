@@ -24,9 +24,9 @@ updated: 2026-04-28
   院级/topic 通过 disabled single-host lane template 逐个 operator-triggered 验证。
 - [x] **Phase 2B: Fresh Rollout Crawl Evidence** — 完成 enabled
   university-core 三 host bounded crawl 与 `law.muc.edu.cn` single-host crawl；
-  两批 crawl / validator / QC / projection validator 均通过，但 chunk audit
-  未通过，因此只作为 fresh evidence，不作为 promotion 或 recurring coverage
-  widening 依据。
+  两批 crawl / validator / QC 均通过；fixed projection replay 的 projection
+  validator 与 chunk audit 均通过。当前 evidence 仍是 artifact-only local
+  evidence，不代表已 import/promote 或改变 query-serving surface。
 - [ ] **Phase 2: Dev Scheduler And Preflight Closeout** — 补齐 dev/local scheduler entry、
   worker 专属 preflight 检查项和 repeated-run 操作口径。
 - [ ] **Phase 3: Report Retention And Alert Closeout** — 明确 batch report retention、

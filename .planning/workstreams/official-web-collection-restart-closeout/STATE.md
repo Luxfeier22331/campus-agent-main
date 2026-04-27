@@ -39,9 +39,8 @@ updated: 2026-04-28
   `college_web`, reopen `fresh_news` / `news_archive`, or change product routing
   gates.
 - Fresh rollout evidence now exists for enabled university-core hosts and one
-  college single-host run. Both runs passed crawl artifact validation, QC, and
-  projection validation, but both are blocked from promotion by chunk audit
-  findings.
+  college single-host run. Both runs passed crawl artifact validation and QC.
+  Replayed fixed projections now pass projection validation and chunk audit.
 
 ## Latest Evidence
 
@@ -76,16 +75,20 @@ University-core bounded crawl:
 - hosts: `www.muc.edu.cn`, `news.muc.edu.cn`, `xxgk.muc.edu.cn`
 - output root:
   `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/university-core`
-- projection root:
+- original projection root:
   `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/university-core-projection`
+- fixed projection root:
+  `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/university-core-projection-fixed`
 - crawl counters: `60` fetched, `0` failures, `3` hosts completed
 - validator: `bundlePages = 60`, `errors = 0`, `warnings = 0`
 - QC: `passPages = 60`, `reviewPages = 0`, `failPages = 0`
 - projection: `60` emitted documents: `52` `muc_public_pages`, `8`
   `stable_reference`
 - projection validator: `valid = true`, `errors = 0`, `warnings = 0`
-- chunk audit: `passed = false`, with `stacked_short_label_lines = 17` and
-  `article_section_over_aggregation = 1`
+- chunk audit on original projection: `passed = false`, with
+  `stacked_short_label_lines = 17` and `article_section_over_aggregation = 1`
+- chunk audit on fixed projection: `passed = true`, `issue_counts = {}`,
+  `total_units = 431`, `total_chunks = 472`
 
 College single-host crawl:
 
@@ -93,14 +96,26 @@ College single-host crawl:
 - host: `law.muc.edu.cn`
 - output root:
   `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/college-law`
-- projection root:
+- original projection root:
   `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/college-law-projection`
+- fixed projection root:
+  `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/college-law-projection-fixed`
 - crawl counters: `26` fetched, `0` failures, `1` host completed
 - validator: `bundlePages = 26`, `errors = 0`, `warnings = 0`
 - QC: `passPages = 26`, `reviewPages = 0`, `failPages = 0`
 - projection: `26` emitted documents, all `muc_public_pages`
 - projection validator: `valid = true`, `errors = 0`, `warnings = 0`
-- chunk audit: `passed = false`, with `stacked_short_label_lines = 5`
+- chunk audit on original projection: `passed = false`, with
+  `stacked_short_label_lines = 5`
+- chunk audit on fixed projection: `passed = true`, `issue_counts = {}`,
+  `total_units = 27`, `total_chunks = 46`
+
+## Completed Gaps
+
+- `OFFICIAL-WEB-OPS-00A`: fixed official-web projection cleanup and chunk audit
+  classification for the 20260427T223542Z university-core and `law.muc.edu.cn`
+  runs. Evidence remains artifact-only local replay; it did not import/promote
+  registry truth and did not change query-serving surface.
 
 ## Repo-Tracked Seed Manifests
 
@@ -111,11 +126,10 @@ College single-host crawl:
 
 ## Remaining Gaps
 
-- `OFFICIAL-WEB-OPS-00`: fresh bounded crawl evidence exists, but promotion /
-  recurring coverage widening is blocked until chunk audit findings are fixed or
-  explicitly reclassified.
-- `OFFICIAL-WEB-OPS-00A`: resolve official-web chunk audit findings from the
-  20260427T223542Z university-core and `law.muc.edu.cn` runs.
+- `OFFICIAL-WEB-OPS-00`: fresh bounded crawl evidence exists, and fixed
+  projection chunk audit now passes. Promotion / recurring coverage widening is
+  still pending import/promote handoff, scheduler, repeated-run, retention, and
+  alert closeout.
 - `OFFICIAL-WEB-OPS-01`: dev/local scheduler entry still needs a documented command and repeated-run
   cadence.
 - `OFFICIAL-WEB-OPS-02`: worker preflight should explicitly verify official web source channel
@@ -134,5 +148,5 @@ College single-host crawl:
 - Keep `official-web-source-channel-news-opening` in backlog until product scope explicitly reopens
   news query-serving.
 - Do not use this workstream to change retrieval runtime profile or product routing gates.
-- Next implementation should start with `OFFICIAL-WEB-OPS-00A` through
+- Next implementation should start with `OFFICIAL-WEB-OPS-01` through
   `OFFICIAL-WEB-OPS-03` before adding alert/retention policy.

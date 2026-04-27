@@ -6,6 +6,148 @@ from .official_web_projection_test_support import *
 
 
 class OfficialWebProjectionArticleUnitsTest(unittest.TestCase):
+    def test_article_projection_marks_terminal_attachment_and_signature_lines_support_only(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_attachment_tail_001",
+                    "generatedAt": "2026-04-27T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_article_attachment_tail_001",
+                            raw_version_id="owver_article_attachment_tail_001",
+                            normalized_canonical_url="https://xxgk.example.edu/info/1358/29241.htm",
+                            page_family="article_detail",
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="xxgk.example.edu",
+                raw_asset_id="owasset_article_attachment_tail_001",
+                raw_version_id="owver_article_attachment_tail_001",
+                normalized_canonical_url="https://xxgk.example.edu/info/1358/29241.htm",
+                page_title="中央民族大学公开招聘经济学院院长启事",
+                page_family="article_detail",
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_article_attachment_tail_001",
+                        raw_version_id="owver_article_attachment_tail_001",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学公开招聘经济学院院长启事",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_article_attachment_tail_001",
+                        raw_version_id="owver_article_attachment_tail_001",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="请于2026年6月30日前将以上材料电子版及扫描件发送至指定邮箱。",
+                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                    ),
+                    _block(
+                        raw_asset_id="owasset_article_attachment_tail_001",
+                        raw_version_id="owver_article_attachment_tail_001",
+                        row_id="attachment-label",
+                        row_index=2,
+                        block_order=2,
+                        block_role="paragraph",
+                        text="附件：中央民族大学公开招聘经济学院院长自荐表",
+                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                    ),
+                    _block(
+                        raw_asset_id="owasset_article_attachment_tail_001",
+                        raw_version_id="owver_article_attachment_tail_001",
+                        row_id="signature-org",
+                        row_index=3,
+                        block_order=3,
+                        block_role="paragraph",
+                        text="中央民族大学",
+                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                    ),
+                    _block(
+                        raw_asset_id="owasset_article_attachment_tail_001",
+                        raw_version_id="owver_article_attachment_tail_001",
+                        row_id="signature-date",
+                        row_index=4,
+                        block_order=4,
+                        block_role="paragraph",
+                        text="2026年4月24日",
+                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                    ),
+                    _block(
+                        raw_asset_id="owasset_article_attachment_tail_001",
+                        raw_version_id="owver_article_attachment_tail_001",
+                        row_id="attachment-download",
+                        row_index=5,
+                        block_order=5,
+                        block_role="list_item",
+                        text="附件【中央民族大学公开招聘经济学院院长自荐表.docx】已下载次",
+                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                    ),
+                    _block(
+                        raw_asset_id="owasset_article_attachment_tail_001",
+                        raw_version_id="owver_article_attachment_tail_001",
+                        row_id="attachment-file",
+                        row_index=6,
+                        block_order=6,
+                        block_role="link",
+                        text="中央民族大学公开招聘经济学院院长自荐表.docx",
+                        parent_heading_path=["中央民族大学公开招聘经济学院院长启事"],
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+            units = [
+                json.loads(line)
+                for line in Path(report.documents[0]["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
+
+        self.assertEqual(
+            [unit["metadata"]["content_role"] for unit in units],
+            [
+                "primary_content",
+                "attachment_reference",
+                "terminal_signature",
+                "attachment_reference",
+            ],
+        )
+        self.assertEqual(
+            [unit["metadata"]["is_answer_bearing"] for unit in units],
+            [True, False, False, False],
+        )
+        self.assertIn("请于2026年6月30日前", canonical)
+        self.assertNotIn("附件：中央民族大学公开招聘经济学院院长自荐表", canonical)
+        self.assertNotIn("中央民族大学公开招聘经济学院院长自荐表.docx", canonical)
+
     def test_article_projection_skips_leading_listing_noise_before_first_paragraph(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

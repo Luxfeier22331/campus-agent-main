@@ -170,10 +170,16 @@ def _audit_document(
             "unit_index": index,
             "text": text,
         }
-        for index, text in enumerate(
-            (_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1
+        for index, row in enumerate(rows, start=1)
+        for text in [_require_text(row.get("clean_text"), "clean_text")]
+        for content_role in [_resolve_content_role(row)]
+        if _looks_like_stacked_short_label_lines(
+            text,
+            page_family=page_family,
+            content_role=content_role,
+            title=title,
+            section_path=_require_section_path(row),
         )
-        if _looks_like_stacked_short_label_lines(text)
     ]
     ellipsis_examples = [
         {
@@ -362,12 +368,74 @@ def _contains_ellipsis_truncation(text: str) -> bool:
     return "..." in normalized or "…" in normalized
 
 
-def _looks_like_stacked_short_label_lines(text: str) -> bool:
+def _looks_like_stacked_short_label_lines(
+    text: str,
+    *,
+    page_family: str,
+    content_role: str,
+    title: str,
+    section_path: tuple[str, ...],
+) -> bool:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if len(lines) < 3:
         return False
+    if content_role in {
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+        "attachment_reference",
+        "terminal_signature",
+    }:
+        return False
+    if content_role == "directory_reference" and _looks_like_directory_reference_stack(
+        lines,
+        title=title,
+        section_path=section_path,
+    ):
+        return False
+    if page_family == "article_detail" and _has_substantive_article_line(lines):
+        return False
+    if _looks_like_source_link_or_signature_stack(lines):
+        return False
     short_line_count = sum(1 for line in lines if len(line) <= _SHORT_LABEL_MAX_CHARS)
     return short_line_count >= 2
+
+
+def _looks_like_directory_reference_stack(
+    lines: list[str],
+    *,
+    title: str,
+    section_path: tuple[str, ...],
+) -> bool:
+    labels = {_normalize_text(title)}
+    labels.update(_normalize_text(item) for item in section_path)
+    labels.discard("")
+    if any(_normalize_text(line) in labels for line in lines):
+        return False
+    if not all(_looks_like_directory_reference_line(line) for line in lines):
+        return False
+    short_line_count = sum(1 for line in lines if len(line) <= _SHORT_LABEL_MAX_CHARS)
+    return short_line_count >= 2
+
+
+def _looks_like_directory_reference_line(text: str) -> bool:
+    normalized = _normalize_text(text)
+    if not normalized:
+        return False
+    if len(normalized) > 32:
+        return False
+    return not any(punctuation in normalized for punctuation in {"。", "！", "？", "；", ";"})
+
+
+def _has_substantive_article_line(lines: list[str]) -> bool:
+    return any(
+        len(line) > 32 or any(punctuation in line for punctuation in {"。", "！", "？", "；"})
+        for line in lines
+    )
+
+
+def _looks_like_source_link_or_signature_stack(lines: list[str]) -> bool:
+    return any(line.startswith(("http://", "https://")) for line in lines)
 
 
 def _looks_like_headline_only_fragment(text: str) -> bool:
@@ -463,7 +531,14 @@ def _looks_like_article_section_over_aggregation(
     *,
     content_role: str,
 ) -> bool:
-    if content_role == "notice_fact":
+    if content_role in {
+        "notice_fact",
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+        "attachment_reference",
+        "terminal_signature",
+    }:
         return False
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     content_lines = _trim_terminal_boilerplate_lines(lines)

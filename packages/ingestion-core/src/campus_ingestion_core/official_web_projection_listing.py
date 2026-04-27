@@ -6,6 +6,7 @@ from campus_ingestion_core.official_web_projection_shared import _normalize_bloc
 
 LISTING_DATE_ONLY_PATTERN = re.compile(r"^20\d{2}([./-])\d{1,2}\1\d{1,2}$")
 LISTING_COMPACTED_ISO_DATE_PREFIX_PATTERN = re.compile(r"^(20\d{2})[-./](\d{2})[-./](\d{2})(\S.+)$")
+LISTING_COMPACTED_ISO_DATE_SUFFIX_PATTERN = re.compile(r"^(.+?)(20\d{2}[-./]\d{2}[-./]\d{2})$")
 LISTING_COMPACTED_DAY_YEAR_MONTH_PREFIX_PATTERN = re.compile(
     r"^(\d{2})(20\d{2})[./-](\d{2})(\S.+)$"
 )
@@ -89,6 +90,8 @@ def _finalize_listing_buffer_entries(
     navigation_flags: list[bool],
     boilerplate_flags: list[bool],
     section_path: list[str],
+    *,
+    title: str,
 ) -> list[ListingBufferEntry]:
     section_heading = section_path[-1] if section_path else ""
     normalized_input_lines = [_normalize_listing_line(line) for line in lines]
@@ -129,6 +132,8 @@ def _finalize_listing_buffer_entries(
             title_text, date_text = title_date_pair
             if title_text in seen_listing_title_lines and date_text in seen_listing_date_lines:
                 continue
+        elif normalized in seen_listing_title_lines:
+            continue
         if normalized in seen_non_date_lines:
             continue
         seen_non_date_lines.add(normalized)
@@ -138,7 +143,10 @@ def _finalize_listing_buffer_entries(
         if title_date_pair is not None:
             seen_listing_date_lines.add(title_date_pair[1])
         deduped_entries.append((index, normalized))
-    return _drop_listing_teaser_cluster_entries(_drop_listing_aggregate_entries(deduped_entries))
+    return _drop_listing_navigation_label_stack_entries(
+        _drop_listing_teaser_cluster_entries(_drop_listing_aggregate_entries(deduped_entries)),
+        title=title,
+    )
 
 
 def _normalize_listing_line(text: str) -> str:
@@ -174,7 +182,9 @@ def _should_skip_listing_line(text: str, section_heading: str) -> bool:
         return True
     if _contains_terminal_ellipsis(text):
         return True
-    return bool(LISTING_UPPERCASE_BADGE_PATTERN.fullmatch(text) and text.upper() in section_heading.upper())
+    return bool(
+        LISTING_UPPERCASE_BADGE_PATTERN.fullmatch(text) and text.upper() in section_heading.upper()
+    )
 
 
 def _is_listing_pagination_token(text: str) -> bool:
@@ -234,6 +244,74 @@ def _drop_listing_teaser_cluster_entries(
     return entries
 
 
+def _drop_listing_navigation_label_stack_entries(
+    entries: list[ListingBufferEntry],
+    *,
+    title: str,
+) -> list[ListingBufferEntry]:
+    if len(entries) < 3:
+        return entries
+    title_label = _normalize_listing_context_label(title)
+    lines = [line for _, line in entries]
+    if not title_label or title_label not in lines:
+        return entries
+    title_index = lines.index(title_label)
+    if title_index >= len(entries) - 1:
+        return entries
+    leading_lines = lines[: title_index + 1]
+    if not all(_looks_like_navigation_label_line(line) for line in leading_lines):
+        return entries
+    remaining_entries = entries[title_index + 1 :]
+    before_aggregate_count = len(remaining_entries)
+    remaining_entries = _drop_listing_navigation_aggregate_entries(remaining_entries)
+    if len(remaining_entries) != before_aggregate_count and _looks_like_navigation_label_stack(
+        [line for _, line in remaining_entries]
+    ):
+        return []
+    if _looks_like_navigation_label_stack([line for _, line in remaining_entries]):
+        return []
+    return remaining_entries
+
+
+def _drop_listing_navigation_aggregate_entries(
+    entries: list[ListingBufferEntry],
+) -> list[ListingBufferEntry]:
+    lines = [line for _, line in entries]
+    filtered_entries: list[ListingBufferEntry] = []
+    for index, entry in enumerate(entries):
+        line = entry[1]
+        matching_shorter_lines = {
+            other
+            for other_index, other in enumerate(lines)
+            if other_index != index and len(other) >= 2 and len(other) < len(line) and other in line
+        }
+        if len(matching_shorter_lines) >= 2 and line.count(" ") >= 2:
+            continue
+        filtered_entries.append(entry)
+    return filtered_entries
+
+
+def _looks_like_navigation_label_stack(lines: list[str]) -> bool:
+    if len(lines) < 3:
+        return False
+    return all(_looks_like_navigation_label_line(line) for line in lines)
+
+
+def _looks_like_navigation_label_line(text: str) -> bool:
+    normalized = _normalize_listing_context_label(text)
+    if not normalized:
+        return False
+    if len(normalized) > 20:
+        return False
+    if _is_listing_date_only_line(normalized) or _split_listing_title_date_pair(normalized):
+        return False
+    if any(
+        punctuation in normalized for punctuation in {"。", "！", "？", "；", "：", ":", "，", ","}
+    ):
+        return False
+    return not any(character.isdigit() for character in normalized)
+
+
 def _is_listing_date_only_line(text: str) -> bool:
     return LISTING_DATE_ONLY_PATTERN.fullmatch(text) is not None
 
@@ -265,6 +343,10 @@ def _split_listing_title_date_pair(text: str) -> tuple[str, str] | None:
     prefix_match = re.match(r"^(20\d{2}[./-]\d{2}[./-]\d{2})\s+(.+)$", text)
     if prefix_match is not None:
         date_text, title_text = prefix_match.groups()
+        return title_text.strip(), date_text
+    compacted_suffix_match = LISTING_COMPACTED_ISO_DATE_SUFFIX_PATTERN.match(text)
+    if compacted_suffix_match is not None:
+        title_text, date_text = compacted_suffix_match.groups()
         return title_text.strip(), date_text
     return None
 
@@ -481,7 +563,12 @@ def _should_skip_generic_noise_line(
         return True
     if _contains_terminal_ellipsis(normalized):
         return True
-    return bool(portal_like_generic_page and seen_primary_narrative and block_role in {"paragraph", "link", "list_item"} and _looks_like_headline_only_fragment(normalized))
+    return bool(
+        portal_like_generic_page
+        and seen_primary_narrative
+        and block_role in {"paragraph", "link", "list_item"}
+        and _looks_like_headline_only_fragment(normalized)
+    )
 
 
 def _looks_like_low_value_article_tail_line(text: str) -> bool:

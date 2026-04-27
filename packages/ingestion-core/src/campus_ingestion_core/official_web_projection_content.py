@@ -26,8 +26,22 @@ _OFFICIAL_WEB_REFERENCE_PAGE_TITLES = frozenset(
 _OFFICIAL_WEB_SOURCE_ATTRIBUTION_PATTERN = re.compile(r"^[（(]?\s*来源[:：]\s*[^（）()]+[)）]?$")
 _OFFICIAL_WEB_LABELED_FACT_LINE_PATTERN = re.compile(r"^(?P<label>[^：:\n]{1,16})[:：]\s*\S.+$")
 _OFFICIAL_WEB_MEDIA_CAPTION_PATTERN = re.compile(r"^[\u4e00-\u9fffA-Za-z·]{1,24}\s*摄$")
+_OFFICIAL_WEB_ATTACHMENT_REFERENCE_PATTERN = re.compile(
+    r"^(?:附件[:：]\s*\S.+|附件【.+】已下载次|.+\.(?:doc|docx|xls|xlsx|ppt|pptx|pdf|zip|rar))$",
+    re.IGNORECASE,
+)
+_OFFICIAL_WEB_TERMINAL_SIGNATURE_PATTERN = re.compile(
+    r"^中央民族大学(?:[\u4e00-\u9fff（）()、]{0,24})?$"
+)
+_OFFICIAL_WEB_CHINESE_DATE_LINE_PATTERN = re.compile(r"^\d{4}年\d{1,2}月\d{1,2}日$")
 _OFFICIAL_WEB_SUPPORT_ONLY_CONTENT_ROLES = frozenset(
-    {"source_attribution", "boilerplate", "media_caption"}
+    {
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+        "attachment_reference",
+        "terminal_signature",
+    }
 )
 _OFFICIAL_WEB_NOTICE_FACT_LABELS = frozenset(
     {
@@ -65,6 +79,8 @@ class _ArticleLineSemantics:
         "source_attribution_line",
         "terminal_boilerplate_line",
         "media_caption_line",
+        "attachment_reference_line",
+        "terminal_signature_line",
     ]
     content_role: str
 
@@ -152,6 +168,10 @@ def _resolve_projection_content_role(
         return "boilerplate"
     if line_class == "media_caption_line":
         return "media_caption"
+    if line_class == "attachment_reference_line":
+        return "attachment_reference"
+    if line_class == "terminal_signature_line":
+        return "terminal_signature"
     if _is_reference_like_article_title(title):
         return "reference_fact"
     if _is_notice_like_article_title(title) and line_class == "labeled_fact_line":
@@ -239,6 +259,26 @@ def _classify_article_line(*, title: str, document_kind: str, text: str) -> _Art
                 line_class="terminal_boilerplate_line",
             ),
         )
+    if _looks_like_attachment_reference_line(normalized):
+        return _ArticleLineSemantics(
+            line_class="attachment_reference_line",
+            content_role=_resolve_projection_content_role(
+                page_family="article_detail",
+                document_kind=document_kind,
+                title=title,
+                line_class="attachment_reference_line",
+            ),
+        )
+    if _looks_like_terminal_signature_line(normalized):
+        return _ArticleLineSemantics(
+            line_class="terminal_signature_line",
+            content_role=_resolve_projection_content_role(
+                page_family="article_detail",
+                document_kind=document_kind,
+                title=title,
+                line_class="terminal_signature_line",
+            ),
+        )
     if _looks_like_source_attribution_line(normalized):
         return _ArticleLineSemantics(
             line_class="source_attribution_line",
@@ -304,6 +344,17 @@ def _looks_like_notice_fact_line(text: str) -> bool:
 
 def _looks_like_media_caption_line(text: str) -> bool:
     return _OFFICIAL_WEB_MEDIA_CAPTION_PATTERN.match(text) is not None
+
+
+def _looks_like_attachment_reference_line(text: str) -> bool:
+    return _OFFICIAL_WEB_ATTACHMENT_REFERENCE_PATTERN.match(text) is not None
+
+
+def _looks_like_terminal_signature_line(text: str) -> bool:
+    return (
+        _OFFICIAL_WEB_TERMINAL_SIGNATURE_PATTERN.match(text) is not None
+        or _OFFICIAL_WEB_CHINESE_DATE_LINE_PATTERN.match(text) is not None
+    )
 
 
 def _is_semantic_hash_terminal_boilerplate_line(text: str) -> bool:

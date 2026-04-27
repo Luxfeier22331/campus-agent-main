@@ -4,7 +4,14 @@ import importlib
 import json
 from pathlib import Path
 
+from campus_ingestion_core.official_web_chunking_audit import (
+    OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION,
+    OfficialWebProjectionChunkingAuditDocumentReport,
+    OfficialWebProjectionChunkingAuditReport,
+)
+
 worker = importlib.import_module("campus_ingestion_worker.audit_official_web_projection_chunking")
+audit_official_web_projection_chunking = worker.audit_official_web_projection_chunking
 
 
 def _write_json(path: Path, payload: object) -> None:

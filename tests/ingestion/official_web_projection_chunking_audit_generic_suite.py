@@ -13,6 +13,177 @@ from .official_web_projection_chunking_audit_test_support import (
 
 
 class OfficialWebProjectionChunkingAuditGenericTest(unittest.TestCase):
+    def test_audit_allows_directory_name_rosters_but_flags_directory_navigation_label_stacks(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_output_dir = root / "projection-output"
+            roster_dir = (
+                projection_output_dir
+                / "documents"
+                / "official_web"
+                / "muc_public_pages"
+                / "directory--roster001"
+            )
+            navigation_dir = (
+                projection_output_dir
+                / "documents"
+                / "official_web"
+                / "muc_public_pages"
+                / "directory--nav001"
+            )
+            roster_canonical_path = roster_dir / "canonical.md"
+            roster_units_path = roster_dir / "document-units.jsonl"
+            navigation_canonical_path = navigation_dir / "canonical.md"
+            navigation_units_path = navigation_dir / "document-units.jsonl"
+            roster_canonical_path.parent.mkdir(parents=True, exist_ok=True)
+            navigation_canonical_path.parent.mkdir(parents=True, exist_ok=True)
+            roster_canonical_path.write_text(
+                "# 专任教师\n\n> Source URL: https://law.example.edu/teachers.htm\n\n- 张步峰\n",
+                encoding="utf-8",
+            )
+            navigation_canonical_path.write_text(
+                "# 教学和科研单位\n\n> Source URL: https://www.example.edu/zzjg.htm\n\n- 职能部门\n",
+                encoding="utf-8",
+            )
+
+            def directory_unit(
+                *,
+                doc_id: str,
+                clean_text: str,
+                title: str,
+                source_url: str,
+                row_ids: list[str],
+            ) -> dict[str, object]:
+                return {
+                    "doc_id": doc_id,
+                    "version_id": f"owdocver:{doc_id}",
+                    "chunk_id": f"{doc_id}:unit-0001",
+                    "root_unit_id": f"{doc_id}:root-0001",
+                    "unit_type": "directory_entry",
+                    "clean_text": clean_text,
+                    "source_pdf": "official_web:muc_public",
+                    "source_url": source_url,
+                    "source_md": None,
+                    "source": {"id": source_url},
+                    "page_start": 1,
+                    "page_end": 1,
+                    "anchor": {
+                        "page_start": 1,
+                        "page_end": 1,
+                        "normalized_canonical_url": source_url,
+                        "page_family": "directory_page",
+                        "section_path": [title],
+                        "row_ids": row_ids,
+                    },
+                    "metadata": {
+                        "title": title,
+                        "site_id": "muc_public",
+                        "host": source_url.split("/")[2],
+                        "page_family": "directory_page",
+                        "projection_family": "directory_document",
+                        "document_kind": "directory",
+                        "declaration_id": "muc_public_directory_page_v1",
+                        "content_role": "directory_reference",
+                    },
+                    "acl": {"level": "public", "allow_groups": []},
+                    "table_cells": None,
+                }
+
+            roster_doc_id = "official_web:muc_public:directory_page:doc-roster"
+            navigation_doc_id = "official_web:muc_public:directory_page:doc-navigation"
+            _write_jsonl(
+                roster_units_path,
+                [
+                    directory_unit(
+                        doc_id=roster_doc_id,
+                        title="专任教师",
+                        source_url="https://law.example.edu/teachers.htm",
+                        clean_text="张步峰\n邵六益\n阿依古丽\n范依畴",
+                        row_ids=["row-1", "row-2", "row-3", "row-4"],
+                    )
+                ],
+            )
+            _write_jsonl(
+                navigation_units_path,
+                [
+                    directory_unit(
+                        doc_id=navigation_doc_id,
+                        title="教学和科研单位",
+                        source_url="https://www.example.edu/zzjg.htm",
+                        clean_text="职能部门\n校属机构\n教学和科研单位\n中华民族共同体学院",
+                        row_ids=["row-5", "row-6", "row-7", "row-8"],
+                    )
+                ],
+            )
+            _write_json(
+                projection_output_dir / "projection-report.json",
+                {
+                    "schema_version": "official_web_projection_replay_report.v1",
+                    "site_id": "muc_public",
+                    "crawl_run_id": "owrun_test_directory_stacks",
+                    "output_dir": str(root / "collector-output"),
+                    "projection_output_dir": str(projection_output_dir),
+                    "generated_at": "2026-04-27T08:00:00+00:00",
+                    "counts": {
+                        "pages_seen": 2,
+                        "emitted_documents": 2,
+                        "manual_review_pages": 0,
+                    },
+                    "documents": [
+                        {
+                            "document_id": roster_doc_id,
+                            "version_id": f"owdocver:{roster_doc_id}",
+                            "title": "专任教师",
+                            "declaration_id": "muc_public_directory_page_v1",
+                            "page_family": "directory_page",
+                            "projection_family": "directory_document",
+                            "document_kind": "directory",
+                            "target_corpus": "official_web",
+                            "target_collection": "muc_public_pages",
+                            "normalized_canonical_url": "https://law.example.edu/teachers.htm",
+                            "raw_asset_id": "owasset_roster",
+                            "raw_version_id": "owver_roster",
+                            "unit_count": 1,
+                            "canonical_markdown_path": str(roster_canonical_path),
+                            "document_units_path": str(roster_units_path),
+                        },
+                        {
+                            "document_id": navigation_doc_id,
+                            "version_id": f"owdocver:{navigation_doc_id}",
+                            "title": "教学和科研单位",
+                            "declaration_id": "muc_public_directory_page_v1",
+                            "page_family": "directory_page",
+                            "projection_family": "directory_document",
+                            "document_kind": "directory",
+                            "target_corpus": "official_web",
+                            "target_collection": "muc_public_pages",
+                            "normalized_canonical_url": "https://www.example.edu/zzjg.htm",
+                            "raw_asset_id": "owasset_navigation",
+                            "raw_version_id": "owver_navigation",
+                            "unit_count": 1,
+                            "canonical_markdown_path": str(navigation_canonical_path),
+                            "document_units_path": str(navigation_units_path),
+                        },
+                    ],
+                    "manual_review_pages": [],
+                },
+            )
+
+            report = audit_official_web_projection_chunking(projection_output_dir)
+
+        self.assertFalse(report.passed)
+        self.assertEqual(report.issue_counts["stacked_short_label_lines"], 1)
+        roster_report = next(
+            document for document in report.documents if document.title == "专任教师"
+        )
+        navigation_report = next(
+            document for document in report.documents if document.title == "教学和科研单位"
+        )
+        self.assertNotIn("stacked_short_label_lines", roster_report.issue_codes)
+        self.assertIn("stacked_short_label_lines", navigation_report.issue_codes)
+
     def test_audit_projection_output_surfaces_cleaning_and_chunking_warnings(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
