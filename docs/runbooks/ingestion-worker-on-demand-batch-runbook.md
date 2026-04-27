@@ -104,6 +104,28 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
 - 不把 `--promote` 纳入本地首跑
 - report 统一落到 `.tmp/ingestion-reports/`
 
+本地 DB env 默认只需要 shared dev Postgres：
+
+```bash
+CAMPUS_SHARED_POSTGRES_URL=postgresql://...dev...
+CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgresql://...dev...
+# legacy alias accepted by current worker builders:
+CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgresql://...dev...
+```
+
+internal notice 的 projection、admission、attempt 与 read model 是不同 logical ownership
+surface；本地不需要为它们创建多套数据库。只有明确要隔离某个 logical store 时，才在当前
+worktree `.env` 或命令级 env 中使用这些 override：
+
+- `NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL`
+- `NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL`
+- `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL`
+- `INTERNAL_NOTICE_READ_MODEL_TABLE`
+- `INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL`
+- `INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL`
+- `INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL`
+- `INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL`
+
 ## Authenticated Notice Closeout
 
 首次从 export bundle 计划并执行：

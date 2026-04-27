@@ -8,6 +8,18 @@ RUN_SCRIPT = REPO_ROOT / "scripts/run-internal-notice-multimodal-drain.sh"
 SERVICE_UNIT = REPO_ROOT / "infra/local/systemd/campus-ingestion-internal-notice.service"
 TIMER_UNIT = REPO_ROOT / "infra/local/systemd/campus-ingestion-internal-notice.timer"
 RUNBOOK = REPO_ROOT / "docs/runbooks/ingestion-worker-on-demand-batch-runbook.md"
+ROOT_ENV_EXAMPLE = REPO_ROOT / ".env.example"
+
+INTERNAL_NOTICE_DB_ENV_KEYS = (
+    "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+    "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+    "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+    "INTERNAL_NOTICE_READ_MODEL_TABLE",
+    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
+    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
+    "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL",
+    "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
+)
 
 
 class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
@@ -55,6 +67,18 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
         self.assertIn("--max-attempts 1", runbook)
         self.assertIn("--skip-read-model-rebuild", runbook)
         self.assertIn(".tmp/ingestion-reports", runbook)
+        self.assertIn("CAMPUS_SHARED_POSTGRES_URL=postgresql://...dev...", runbook)
+        self.assertIn("CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgresql://...dev...", runbook)
+        self.assertIn("CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgresql://...dev...", runbook)
+        for env_key in INTERNAL_NOTICE_DB_ENV_KEYS:
+            self.assertIn(env_key, runbook)
+
+    def test_root_env_example_does_not_carry_internal_notice_db_overrides(self) -> None:
+        env_example = ROOT_ENV_EXAMPLE.read_text(encoding="utf-8")
+
+        self.assertIn("CAMPUS_SHARED_POSTGRES_URL=", env_example)
+        for env_key in INTERNAL_NOTICE_DB_ENV_KEYS:
+            self.assertNotIn(f"{env_key}=", env_example)
 
 
 if __name__ == "__main__":
