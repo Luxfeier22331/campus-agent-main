@@ -29,8 +29,8 @@ docker build -f apps/legacy-office-conversion-service/Dockerfile --target lint \
   -t campus-legacy-office-conversion:lint .
 docker build -f apps/legacy-office-conversion-service/Dockerfile --target \
   unit-tests -t campus-legacy-office-conversion:test .
-docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up \
-  -d --build
+docker compose --env-file .env \
+  -f infra/local/docker-compose.legacy-office-conversion.yml up -d --build
 ```
 
 Docker targets:

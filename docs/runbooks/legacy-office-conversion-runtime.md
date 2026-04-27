@@ -57,8 +57,8 @@ Canonical override template:
 1. Start the repo-owned runtime:
 
 ```bash
-docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up \
-  -d --build
+docker compose --env-file .env \
+  -f infra/local/docker-compose.legacy-office-conversion.yml up -d --build
 ```
 
 1. Probe health:
@@ -126,5 +126,6 @@ the legacy Office conversion seam are all present.
 ## Shutdown
 
 ```bash
-docker compose -f infra/local/docker-compose.legacy-office-conversion.yml down
+docker compose --env-file .env \
+  -f infra/local/docker-compose.legacy-office-conversion.yml down
 ```
