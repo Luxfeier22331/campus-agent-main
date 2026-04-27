@@ -37,6 +37,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("ARG GOSUMDB=sum.golang.org", dockerfile)
         self.assertIn("ENV GOPROXY=${GOPROXY}", dockerfile)
         self.assertIn("GOSUMDB=${GOSUMDB}", dockerfile)
+        self.assertIn("apt-get install -y --no-install-recommends ca-certificates curl", dockerfile)
         self.assertIn("COPY apps/supervisor-api/go.mod apps/supervisor-api/go.sum ./", dockerfile)
         self.assertIn("RUN go mod download", dockerfile)
         self.assertLess(
@@ -60,6 +61,11 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("https://goproxy.cn,direct", compose)
         self.assertIn("SUPERVISOR_API_DOCKER_GOSUMDB", compose)
         self.assertNotIn("GOSUMDB=off", compose)
+        self.assertIn("healthcheck:", compose)
+        self.assertIn("condition: service_healthy", compose)
+        self.assertIn("restart: unless-stopped", compose)
+        self.assertIn("no-new-privileges:true", compose)
+        self.assertIn("max-size: \"10m\"", compose)
 
         self.assertIn('"SUPERVISOR_API_DOCKER_GOPROXY"', script)
         self.assertIn('"SUPERVISOR_API_DOCKER_GOSUMDB"', script)

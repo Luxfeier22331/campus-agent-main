@@ -21,6 +21,9 @@ RUN go test ./... \
 FROM debian:bookworm-slim
 
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/supervisor-api /usr/local/bin/supervisor-api
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
