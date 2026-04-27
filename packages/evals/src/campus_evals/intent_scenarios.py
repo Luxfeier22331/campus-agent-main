@@ -63,6 +63,20 @@ def intent_synthetic_exploratory_cases() -> tuple[IntentCase, ...]:
 
 
 def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
+    if any(
+        signal in goal
+        for signal in (
+            "在哪里上车",
+            "在哪上车",
+            "在哪儿上车",
+            "上车地点",
+            "乘车点",
+            "候车点",
+            "乘车地点",
+            "乘车位置",
+        )
+    ) and any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
+        return ("service_status_lookup",)
     if any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
         return ("transport_schedule_lookup",)
     if any(
@@ -208,6 +222,10 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
         "校医院办公时间",
         "校园卡服务开放吗",
         "宿舍报修状态怎么查",
+        "卡务中心今天开不开",
+        "校医院今天停诊了吗",
+        "食堂现在关门了吗",
+        "丰台校区通勤班车在哪里上车",
         "宿舍入住怎么办理",
         "毕业生离校流程是什么",
         "本科生申请不住宿需要什么材料",
@@ -292,6 +310,8 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
         "公费医疗报销联系电话是多少",
         "校园卡丢了怎么办",
         "一卡通挂失电话是多少",
+        "卡务中心今天开不开",
+        "丰台校区通勤班车在哪里上车",
     )
     notice_goals = (
         "找一下春假通知",

@@ -11,7 +11,7 @@ updated: 2026-04-27
 
 - status: `active`
 - current phase: `Phase 1`
-- current slice: `service_status_lookup` readiness closeout
+- current slice: `service_status_lookup` precedence / conflict regression follow-up
 - owner: current Codex session
 - active implementation: yes
 
@@ -34,9 +34,13 @@ Phase 6 已完成 `campus-services-product-path` opening verdict。当前四个�
 ### `service_status_lookup`
 
 - subject alias 覆盖继续扩展：自然说法需要稳定映射到 canonical service / subject
+  - 2026-04-27 slice 已补：`卡务中心今天开不开`、`校医院今天停诊了吗`、
+    `食堂现在关门了吗`、`丰台校区通勤班车在哪里上车`
 - status precedence regression 继续补强：临时调整、常规状态、历史记录、source conflict
   优先级
 - `status_note` 的回答表达继续压测，确保只暴露用户可执行事实，不泄露内部字段
+  - 2026-04-27 slice 已补：Python agent 与 app-api browser-facing answer 不再暴露
+    `open` / `limited_service` 等内部枚举
 
 ### `transport_schedule_lookup`
 
@@ -67,3 +71,15 @@ Phase 6 已完成 `campus-services-product-path` opening verdict。当前四个�
 - 不得通过 generic RAG 或 notice text search 顶替 structured tools。
 - 不得让 runtime 在 query time 回扫 raw notice / handbook / portal HTML。
 - 恢复时先补 deterministic tool denominator，再接 public/chat E2E。
+
+## Latest Verification (2026-04-27)
+
+- `go test ./internal/structuredplanning ./internal/runtimepolicy`：pass
+- `go test ./internal/structuredquery ./internal/structuredplanning ./internal/runtimepolicy ./internal/httpapi -run 'ServiceGuide|ContactDirectory|TransportSchedule|ServiceStatus|StructuredPlan|AllowedTools|StructuredAnswerText|Readyz'`：pass
+- `uv run --all-packages python -m unittest tests.agent.test_campus_services_agent tests.evals.intent_synthetic_suite`：pass
+- `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/chat-command.service.test.ts test/chat-command.service.core.suite.ts`：pass
+- `uv run --all-packages python -m scripts.eval_gate accept --profile campus-services-product-path --json`：pass；artifact
+  `.tmp/evals/campus-services-product-path-opening-gate-accept-20260427T235353/campus-services-product-path-opening-gate.json`
+- `pnpm docs:lint`：pass
+- `git diff --check`：pass
+- `pnpm web:lint`：仍因当前 worktree 中非本 slice 文件的既有 Biome diagnostics 失败；本 slice touched TS/JSON targeted Biome check 已 pass

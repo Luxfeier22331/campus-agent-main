@@ -16,9 +16,10 @@ from campus_ingestion_core.notice_consumption_projection import (
 from campus_ingestion_core.notice_derived_contact_candidate import (
     build_notice_derived_contact_candidate_bundle,
 )
+
 from tests.ingestion.internal_notice_scoped_rule_materialization_test_support import (
-    _FakeObjectStore,
     _canonical_markdown,
+    _FakeObjectStore,
     _record,
 )
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
@@ -56,10 +57,7 @@ class NoticeDerivedContactCandidateTest(unittest.TestCase):
         registry, object_store, entry = _runtime(
             notice_id="355901",
             notice_title="关于创新创业讲座报名及联系人通知",
-            body=(
-                "# 关于创新创业讲座报名及联系人通知\n\n"
-                "联系人 张老师：13800000000\n"
-            ),
+            body=("# 关于创新创业讲座报名及联系人通知\n\n联系人 张老师：13800000000\n"),
         )
 
         result = build_notice_derived_contact_candidate_bundle(

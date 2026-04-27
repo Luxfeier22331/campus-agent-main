@@ -19,11 +19,11 @@ from campus_ingestion_core.internal_notice_consumption_admission import (
 from campus_ingestion_core.internal_notice_read_model import (
     build_internal_notice_read_model_store_from_env,
 )
+from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
 )
 from campus_ingestion_core.postgres_runtime import open_postgres_connection
-from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,

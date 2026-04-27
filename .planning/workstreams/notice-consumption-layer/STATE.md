@@ -9,19 +9,18 @@ updated: 2026-04-27
 ## Current Position
 
 **Status:** Completed
-**Current Phase:** Phase 9
-**Current Phase Name:** Consumer Admission Manifest And Release Gate
-**Current Plan:** `.planning/workstreams/notice-consumption-layer/phases/phase-9-consumer-admission-manifest-and-release-gate/PLAN.md`
-**Total Phases:** 9
+**Current Phase:** Phase 10
+**Current Phase Name:** Campus Services Typed Candidate Admission Hardening
+**Current Plan:** `.planning/workstreams/notice-consumption-layer/phases/phase-10-campus-services-typed-candidate-admission-hardening/PLAN.md`
+**Total Phases:** 10
 **Total Plans in Phase:** 1
-**Progress:** 9/9 phases complete
+**Progress:** 10/10 phases complete
 **Last Activity:** 2026-04-27
-**Last Activity Description:** Reopened notice-consumption-layer for authenticated
-notice consumer admission. Phase 9 implemented a repo-owned consumer admission
-manifest, deterministic builder, release gate, import integration, worker CLIs,
-read-model target-surface guard, and downstream worker gate requirements. The
-implementation explicitly excludes historical backfill, live portal collection,
-runtime query-serving opening, and real PG/object-store smoke.
+**Last Activity Description:** Phase 10 completed admission hardening for
+notice-derived campus-services typed materialization. `build_service_status_projection`
+and `build_service_guide_projection` now require consumer admission manifest + typed gate,
+notice-only service-guide release is explicit-override only, and stable-contact candidate
+offline artifact path is available via `build_notice_stable_contact_candidates`.
 
 Previous closeout activity: Added consumption-layer multimodal token-spend
 policy: source-truth `multimodal_processing_required` remains capture truth, but
@@ -88,9 +87,14 @@ create selected consumer admission.
 - completed `Phase 8` artifacts:
   - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/PLAN.md`
   - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/SUMMARY.md`
-- planned `Phase 9` artifacts:
+- completed `Phase 9` artifacts:
   - context: `.planning/workstreams/notice-consumption-layer/phases/phase-9-consumer-admission-manifest-and-release-gate/CONTEXT.md`
   - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-9-consumer-admission-manifest-and-release-gate/PLAN.md`
+  - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-9-consumer-admission-manifest-and-release-gate/SUMMARY.md`
+- completed `Phase 10` artifacts:
+  - context: `.planning/workstreams/notice-consumption-layer/phases/phase-10-campus-services-typed-candidate-admission-hardening/CONTEXT.md`
+  - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-10-campus-services-typed-candidate-admission-hardening/PLAN.md`
+  - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-10-campus-services-typed-candidate-admission-hardening/SUMMARY.md`
 
 - preserved modeling truth:
   - `source_notice -> notice_attachment -> derived consumption unit` fan-out

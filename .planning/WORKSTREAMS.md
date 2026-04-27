@@ -40,7 +40,7 @@ updated: 2026-04-27
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
-| `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | `Phase 1` | `service_status_lookup` readiness closeout：收口状态别名、当前状态文案、source trace 与 deterministic regression |
+| `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | `Phase 1` | `service_status_lookup` precedence / conflict regression follow-up；状态别名与用户可见状态文案已完成一轮收口 |
 | `supervisor-api server live acceptance` | `supervisor-api-server-live-acceptance` | `yes` | `.planning/workstreams/supervisor-api-server-live-acceptance/README.md` | `Phase 0` | 非 WSL Linux host `ubuntu-43` 服务侧实机验收；只补 health/ready/metrics/closed-gate smoke artifact，不做 server-side build、长期运行、生产容量或 80/443 接入 |
 
 ## Completed

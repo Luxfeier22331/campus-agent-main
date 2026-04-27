@@ -21,11 +21,10 @@ from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
 )
+
 from tests.ingestion.test_notice_derived_contact_candidate import _runtime
 
-worker = importlib.import_module(
-    "campus_ingestion_worker.build_notice_stable_contact_candidates"
-)
+worker = importlib.import_module("campus_ingestion_worker.build_notice_stable_contact_candidates")
 
 
 class _FakeProjectionStore:

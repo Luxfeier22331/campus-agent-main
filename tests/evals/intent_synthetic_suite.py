@@ -183,6 +183,18 @@ class IntentSyntheticTest(unittest.TestCase):
         self.assertTrue(all("synthetic_regression" in case.tags for case in regression_cases))
         self.assertTrue(all("synthetic_exploratory" in case.tags for case in exploratory_cases))
 
+    def test_release_gate_covers_service_status_long_tail_cases(self) -> None:
+        cases = {case.user_goal: case for case in intent_suite_cases("release_gate")}
+
+        for user_goal in (
+            "卡务中心今天开不开",
+            "校医院今天停诊了吗",
+            "食堂现在关门了吗",
+            "丰台校区通勤班车在哪里上车",
+        ):
+            self.assertIn(user_goal, cases)
+            self.assertEqual(cases[user_goal].expected_allowed_tools, ("service_status_lookup",))
+
 
 if __name__ == "__main__":
     unittest.main()

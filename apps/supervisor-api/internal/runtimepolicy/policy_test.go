@@ -43,6 +43,7 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 		"transport_intent_service_window",
 		"transport_route_metro_shuttle",
 		"transport_route_intercampus_commute",
+		"structured_transport_boarding_status",
 		"transport_route_to_fengtai",
 		"transport_route_to_haidian",
 		"temporal_today",
@@ -91,6 +92,8 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
 		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
 		{name: "contact directory signal", goal: "招生办电话是多少", want: "campus_services"},
+		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "campus_services"},
+		{name: "transport boarding point status signal", goal: "摆渡车在哪里上车", want: "campus_services"},
 	}
 
 	for _, tt := range tests {

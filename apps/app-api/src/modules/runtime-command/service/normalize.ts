@@ -1031,17 +1031,10 @@ function renderServiceStatusLookupAnswer(toolResult: Record<string, unknown>): s
 				.slice(0, 2)
 		: [];
 	const fallbackStatus = recordString(toolResult, "observed_status", "observedStatus");
-	const normalizedStatus =
-		fallbackStatus === "running"
-			? "当前状态：正常运行"
-			: fallbackStatus === "limited_service"
-				? "当前状态：有限运行"
-				: fallbackStatus === "suspended"
-					? "当前状态：暂停服务"
-					: "";
+	const statusLabel = normalizeServiceStatusLabel(fallbackStatus);
 	const clauses = [
 		statusNote ? `${resolvedSubject}：${statusNote}` : "",
-		statusNote ? "" : normalizedStatus,
+		statusNote ? "" : statusLabel ? `${resolvedSubject}：当前状态：${statusLabel}` : "",
 		notices.length > 0 ? `最新提示：${notices.join("；")}` : "",
 	].filter(Boolean);
 	if (clauses.length === 0) {
@@ -1054,6 +1047,25 @@ function renderServiceStatusLookupAnswer(toolResult: Record<string, unknown>): s
 		...collectNestedSourceRefs(toolResult.operational_notices),
 	];
 	return ensureSentenceEnd(appendSourceSummary(clauses.join(" "), referenceCandidates));
+}
+
+function normalizeServiceStatusLabel(status: string | null): string {
+	if (status === "open") {
+		return "正常开放";
+	}
+	if (status === "closed") {
+		return "未开放";
+	}
+	if (status === "temporarily_closed") {
+		return "临时关闭";
+	}
+	if (status === "limited_service") {
+		return "有限开放";
+	}
+	if (status === "unknown") {
+		return "状态未确认";
+	}
+	return "";
 }
 
 function renderTransportScheduleLookupAnswer(toolResult: Record<string, unknown>): string | null {

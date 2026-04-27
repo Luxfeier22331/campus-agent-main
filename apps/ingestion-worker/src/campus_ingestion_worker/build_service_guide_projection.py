@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from collections.abc import Mapping, Sequence
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -346,8 +346,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.from_notice_consumption_projection:
         if not args.consumer_admission_manifest_path:
             raise ValueError(
-                "consumer admission manifest is required before service_guide typed "
-                "materialization"
+                "consumer admission manifest is required before service_guide typed materialization"
             )
         if not args.release_id:
             raise ValueError("--release-id is required with --from-notice-consumption-projection")

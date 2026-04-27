@@ -16,7 +16,6 @@ from campus_ingestion_core.internal_notice_read_model_shared import (
     InternalNoticeReadModelStore,
 )
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
-from campus_ingestion_core.object_store import build_document_artifact_key
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
@@ -35,6 +34,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     build_notice_consumption_projection_store_from_env,
     is_notice_query_retained_consumption_status,
 )
+from campus_ingestion_core.object_store import build_document_artifact_key
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 WECHAT_PUBLIC_NOTICE_SOURCE_CHANNEL = "wechat_official_account"

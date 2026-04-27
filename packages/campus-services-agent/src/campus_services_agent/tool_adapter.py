@@ -177,12 +177,11 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
     if result.outcome == "resolved_current":
         note = result.status_note.strip()
         note_suffix = f" 运营提示：{note}" if note else ""
+        status_label = _service_status_label(str(result.observed_status))
         return AgentResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=(
-                f"{result.resolved_subject}当前状态：{result.observed_status}。{note_suffix}"
-            ),
+            answer_text=(f"{result.resolved_subject}当前状态：{status_label}。{note_suffix}"),
             confidence="high",
             result=result,
         )
@@ -220,6 +219,17 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
         confidence="low",
         result=result,
     )
+
+
+def _service_status_label(status: str) -> str:
+    labels = {
+        "open": "正常开放",
+        "closed": "未开放",
+        "temporarily_closed": "临时关闭",
+        "limited_service": "有限开放",
+        "unknown": "状态未确认",
+    }
+    return labels.get(status.strip(), "状态未确认")
 
 
 def _transport_schedule_response(result: TransportScheduleLookupResult) -> AgentResponse:
@@ -403,7 +413,9 @@ def _contact_directory_text(result: ContactDirectoryLookupResult) -> str:
     if result.contact_points:
         return "、".join(_contact_directory_point_text(point) for point in result.contact_points)
     if result.location_refs:
-        return "、".join(_contact_directory_location_text(location) for location in result.location_refs)
+        return "、".join(
+            _contact_directory_location_text(location) for location in result.location_refs
+        )
     if result.office_hours:
         return "、".join(
             _contact_directory_hours_text(hours)

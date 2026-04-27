@@ -4,7 +4,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Protocol
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
@@ -98,9 +98,7 @@ def build_notice_derived_contact_candidate_bundle(
             dedupe_keys.add(dedupe_key)
             candidate_records.append(
                 {
-                    "candidate_id": (
-                        f"contact_candidate:{entry.source_notice_id}:{contact_index}"
-                    ),
+                    "candidate_id": (f"contact_candidate:{entry.source_notice_id}:{contact_index}"),
                     "notice_id": entry.source_notice_id,
                     "source_notice_document_id": entry.source_notice_document_id,
                     "display_name": display_name,

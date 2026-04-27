@@ -15,7 +15,7 @@ updated: 2026-04-27
 - status: `active`
 - active implementation: yes
 - current phase: `Phase 1`
-- current slice: `service_status_lookup` readiness closeout
+- current slice: `service_status_lookup` precedence / conflict regression follow-up
 - reopen rule: 只有在 product path 准备打开或强化 `service_status_lookup`、
   `transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup`
   的真实用户可用性时恢复

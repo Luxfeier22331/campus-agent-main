@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from collections.abc import Mapping, Sequence
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -214,9 +214,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             source_collection="internal_notice",
             selected_notice_ids=notice_ids,
             scope_write_mode=(
-                "replace_scope"
-                if args.all_ready_service_status_candidates
-                else "upsert_selected"
+                "replace_scope" if args.all_ready_service_status_candidates else "upsert_selected"
             ),
             target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
         ),

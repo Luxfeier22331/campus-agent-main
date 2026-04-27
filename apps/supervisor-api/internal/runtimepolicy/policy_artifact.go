@@ -40,6 +40,7 @@ var requiredIntentSignalGroups = []string{
 	"structured_service_status",
 	"structured_service_subject",
 	"structured_transport",
+	"structured_transport_boarding_status",
 	"service_guide_focus_contact",
 	"service_guide_focus_eligibility",
 	"service_guide_focus_entry",

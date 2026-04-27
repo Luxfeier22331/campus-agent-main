@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
     CONSUMER_ADMISSION_DECISION_ADMIT,
-    CONSUMER_ADMISSION_SCOPE_WRITE_MODE_REPLACE_SCOPE,
     CONSUMER_ADMISSION_SCOPE_WRITE_MODE_UPSERT_SELECTED,
     CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
     ConsumerAdmissionDecisionRecord,

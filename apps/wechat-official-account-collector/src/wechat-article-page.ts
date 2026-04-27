@@ -108,7 +108,7 @@ function extractBodyBlocks($: ReturnType<typeof load>, contentRoot: any) {
 	}
 	const blocks: string[] = [];
 	const seen = new Set<string>();
-	contentRoot.find("p,li,h1,h2,h3,h4,h5,h6,blockquote,pre").each((_, element) => {
+	contentRoot.find("p,li,h1,h2,h3,h4,h5,h6,blockquote,pre").each((_: number, element: any) => {
 		const text = normalizeBlockText($(element).text());
 		if (!text || seen.has(text)) {
 			return;
@@ -119,7 +119,7 @@ function extractBodyBlocks($: ReturnType<typeof load>, contentRoot: any) {
 	if (blocks.length > 0) {
 		return blocks;
 	}
-	contentRoot.find("section").each((_, element) => {
+	contentRoot.find("section").each((_: number, element: any) => {
 		const section = $(element);
 		if (section.find("p,li,h1,h2,h3,h4,h5,h6,blockquote,pre").length > 0) {
 			return;
@@ -140,7 +140,7 @@ function extractInlineImageUrls($: ReturnType<typeof load>, contentRoot: any) {
 	}
 	const urls: string[] = [];
 	const seen = new Set<string>();
-	contentRoot.find("img").each((_, element) => {
+	contentRoot.find("img").each((_: number, element: any) => {
 		const image = $(element);
 		const source = firstText(image.attr("data-src"), image.attr("src"));
 		const normalized = normalizeOptionalUrl(source);
