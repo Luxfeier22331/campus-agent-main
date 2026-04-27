@@ -28,8 +28,8 @@ only reads derived `document-units.jsonl` / `canonical.md`, cleans table context
 and emits the normalized projection.
 
 It does not rescan raw attachments at query time and does not let Go read object
-storage directly. The Docker runtime consumes a mounted readonly copy of the
-current projection through `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`.
+storage directly. The Docker runtime reads the PostgreSQL
+`structured_projection_current` pointer and typed transport read model.
 
 Projection snapshots distinguish baseline schedules from bounded temporary
 overlays with `schedule_scope`, `service_date_ranges`, and `precedence`.

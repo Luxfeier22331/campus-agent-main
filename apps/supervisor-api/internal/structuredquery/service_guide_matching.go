@@ -43,6 +43,7 @@ func matchServiceGuideRecords(
 }
 
 func scoreServiceGuideRecord(query string, record serviceGuideRecord) int {
+	queryVariants := serviceGuideQueryVariants(query)
 	candidates := append([]string{record.ServiceID, record.DisplayName}, record.Aliases...)
 	best := 0
 	for _, candidate := range candidates {
@@ -50,20 +51,48 @@ func scoreServiceGuideRecord(query string, record serviceGuideRecord) int {
 		if normalized == "" {
 			continue
 		}
-		score := 0
-		switch {
-		case query == normalized:
-			score = 100 + len([]rune(normalized))
-		case strings.Contains(query, normalized):
-			score = len([]rune(normalized))
-		case strings.Contains(normalized, query):
-			score = len([]rune(query))
-		}
-		if score > best {
-			best = score
+		for _, queryVariant := range queryVariants {
+			score := 0
+			switch {
+			case queryVariant == normalized:
+				score = 100 + len([]rune(normalized))
+			case strings.Contains(queryVariant, normalized):
+				score = len([]rune(normalized))
+			case strings.Contains(normalized, queryVariant):
+				score = len([]rune(queryVariant))
+			}
+			if score > best {
+				best = score
+			}
 		}
 	}
 	return best
+}
+
+func serviceGuideQueryVariants(query string) []string {
+	normalized := normalizeSearchText(query)
+	if normalized == "" {
+		return nil
+	}
+	variants := []string{normalized}
+	canonical := normalized
+	for _, phrase := range []string{
+		"在哪里",
+		"在哪儿",
+		"哪里",
+		"需要什么",
+		"需要哪些",
+		"怎么办",
+		"怎么",
+		"如何",
+	} {
+		canonical = strings.ReplaceAll(canonical, phrase, "")
+	}
+	canonical = strings.TrimSpace(canonical)
+	if canonical != "" && canonical != normalized {
+		variants = append(variants, canonical)
+	}
+	return variants
 }
 
 func serviceGuideReadyMatches(matches []serviceGuideMatch) []serviceGuideMatch {

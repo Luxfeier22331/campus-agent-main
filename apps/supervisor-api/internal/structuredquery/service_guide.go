@@ -27,7 +27,7 @@ func (r *Runtime) LookupServiceGuide(ctx context.Context, rawBody []byte) Respon
 }
 
 func (r *Runtime) lookupServiceGuide(ctx context.Context, request serviceGuideRequest) Response {
-	bundle, err := r.loadServiceGuideBundle()
+	bundle, err := r.loadServiceGuideBundle(ctx)
 	timeAnchor := r.timeAnchor()
 	if err != nil {
 		return failClosedServiceGuide(request, timeAnchor, "source_truth_unavailable")

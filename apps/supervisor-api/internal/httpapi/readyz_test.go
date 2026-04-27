@@ -244,7 +244,7 @@ func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T
 }
 
 func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailable(t *testing.T) {
-	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+	partialProjectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"service_status_records":[
 			{
@@ -268,7 +268,13 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 				"is_current":true
 			}
 		]
-	}`)
+	}`
+	emptyServiceGuideFixture := `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"service_guide_records":[],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
 	server := NewServer(config.Config{
 		AppName:                       "campus-agent",
 		MaxConcurrentAnswers:          8,
@@ -280,7 +286,6 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 		PromptRuntimeTransport:        "responses",
 		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
 		PromptStrictStructuredOutputs: true,
-		StructuredQueryProjectionPath: projectionPath,
 	}, &fakeBridge{
 		configured: true,
 		readyz: bridge.ReadyzResponse{
@@ -288,6 +293,14 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 			Body:       json.RawMessage(`{"status":"ready"}`),
 		},
 	})
+	useStructuredQueryRuntimeFixtures(
+		t,
+		server,
+		partialProjectionFixture,
+		partialProjectionFixture,
+		emptyServiceGuideFixture,
+		"",
+	)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))

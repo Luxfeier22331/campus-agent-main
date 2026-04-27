@@ -13,8 +13,6 @@ keep_running="${SUPERVISOR_RUNTIME_SMOKE_KEEP_RUNNING:-false}"
 profile="${1:-closed_gate}"
 started_compose="false"
 answer_body_path=""
-projection_body_path=""
-container_projection_path=""
 
 require_command() {
   local command_name="$1"
@@ -27,9 +25,6 @@ require_command() {
 cleanup() {
   if [[ -n "${answer_body_path}" && -f "${answer_body_path}" ]]; then
     rm -f "${answer_body_path}"
-  fi
-  if [[ -n "${projection_body_path}" && -f "${projection_body_path}" ]]; then
-    rm -f "${projection_body_path}"
   fi
   if [[ "${started_compose}" == "true" && "${keep_running}" != "true" ]]; then
     (
@@ -66,65 +61,18 @@ curl_metrics() {
   curl "${args[@]}" "${api_base_url}/metrics" >/dev/null
 }
 
-write_open_structured_projection() {
-  mkdir -p "${repo_root}/.tmp"
-  projection_body_path="$(mktemp "${repo_root}/.tmp/supervisor-runtime-smoke-projection.XXXXXX.json")"
-  container_projection_path="/tmp/$(basename "${projection_body_path}")"
-  export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH="${container_projection_path}"
-  export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339="2026-04-24T20:30:00+08:00"
-  cat >"${projection_body_path}" <<'JSON'
-{
-  "schema_version": "campus_services_projection_bundle.v1",
-  "transport_schedule_snapshots": [
-    {
-      "snapshot_id": "snapshot:bus:2026-04-20",
-      "published_at": "2026-04-20T18:00:00+08:00",
-      "effective_from": "2026-04-21T00:00:00+08:00",
-      "source_ref": "notice:bus-schedule-2026-04-20",
-      "is_current": true
-    }
-  ],
-  "transport_routes": [
-    {
-      "route_id": "route:haidian-to-fengtai",
-      "display_name": "海淀到丰台通勤车",
-      "service_family": "intercampus_commute",
-      "origin_campus": "haidian",
-      "destination_campus": "fengtai",
-      "stops": [
-        {"stop_id": "stop:haidian-east-gate", "display_name": "海淀东门"},
-        {"stop_id": "stop:fengtai-main-gate", "display_name": "丰台南门"}
-      ]
-    }
-  ],
-  "scheduled_departures": [
-    {
-      "snapshot_id": "snapshot:bus:2026-04-20",
-      "route_id": "route:haidian-to-fengtai",
-      "service_dates": ["2026-04-25"],
-      "departure_time": "06:50",
-      "arrival_time": "08:05",
-      "origin_stop_id": "stop:haidian-east-gate",
-      "destination_stop_id": "stop:fengtai-main-gate"
-    }
-  ]
-}
-JSON
-  chmod 0644 "${projection_body_path}"
-}
-
-copy_projection_into_container() {
-  if [[ "${profile}" != "open_structured" || "${skip_start}" == "true" ]]; then
-    return 0
+seed_open_structured_projection() {
+  require_command uv
+  if [[ -z "${CAMPUS_SHARED_POSTGRES_URL:-}" ]]; then
+    echo "open_structured smoke requires CAMPUS_SHARED_POSTGRES_URL." >&2
+    return 1
   fi
+  export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339="2026-04-24T20:30:00+08:00"
   (
     cd "${repo_root}" || exit
-    COMPOSE_PROJECT_NAME="${compose_project_name}" \
-      SUPERVISOR_API_HOST_PORT="${api_host_port}" \
-      docker compose -f "${compose_file}" cp "${projection_body_path}" "supervisor-api:${container_projection_path}"
-    COMPOSE_PROJECT_NAME="${compose_project_name}" \
-      SUPERVISOR_API_HOST_PORT="${api_host_port}" \
-      docker compose -f "${compose_file}" restart supervisor-api
+    uv run --all-packages campus-ingestion-smoke-structured-projection-postgres \
+      --release-id "supervisor-runtime-smoke" \
+      --generated-at "2026-04-24T20:30:00+08:00"
   )
 }
 
@@ -221,7 +169,7 @@ configure_profile_env() {
       ;;
     open_structured)
       export SUPERVISOR_API_OPEN_CAPABILITIES=campus_services
-      write_open_structured_projection
+      seed_open_structured_projection
       ;;
     readyz_degraded)
       export PROMPT_RUNTIME_API_KEY=""
@@ -272,7 +220,6 @@ main() {
     "${start_script}" up -d --build
     started_compose="true"
   fi
-  copy_projection_into_container
   run_profile_assertions
 
   echo "supervisor runtime smoke passed (${profile}): ${api_base_url}"

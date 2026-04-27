@@ -29,8 +29,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
-	t.Setenv("SERVICE_GUIDE_READ_MODEL_DATABASE_URL", "")
-	t.Setenv("SERVICE_GUIDE_READ_MODEL_TABLE", "")
 	t.Setenv("OBJECT_STORE_ENDPOINT", "")
 	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "")
 	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "")
@@ -150,11 +148,8 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.NoticeReadModelTable != "ingestion_projection.internal_notice_read_model" {
 		t.Fatalf("notice read model table = %q", cfg.NoticeReadModelTable)
 	}
-	if cfg.ServiceGuideReadModelDatabaseURL != "" {
-		t.Fatalf("service guide read model database url = %q, want empty", cfg.ServiceGuideReadModelDatabaseURL)
-	}
-	if cfg.ServiceGuideReadModelTable != "ingestion_projection.service_guide_read_model" {
-		t.Fatalf("service guide read model table = %q", cfg.ServiceGuideReadModelTable)
+	if cfg.StructuredProjectionDatabaseURL != "" {
+		t.Fatalf("structured projection database url = %q, want empty", cfg.StructuredProjectionDatabaseURL)
 	}
 	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
 		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
@@ -235,7 +230,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
 	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
 	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
-	t.Setenv("SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH", "/srv/projections/service-guide.json")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
 	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
@@ -285,7 +279,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		len(cfg.OpenCapabilities) != 2 ||
 		cfg.OpenCapabilities[0] != "campus_services" ||
 		cfg.OpenCapabilities[1] != "notice" ||
-		cfg.ServiceGuideProjectionPath != "/srv/projections/service-guide.json" ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
 		cfg.SupervisorPromptModel != "gpt-supervisor" ||
 		cfg.AgentPromptModel != "gpt-agent" ||
@@ -365,23 +358,6 @@ func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvAcceptsServiceGuideReadModelSettings(t *testing.T) {
-	t.Setenv("SERVICE_GUIDE_READ_MODEL_DATABASE_URL", "postgres://service-guide.example/db")
-	t.Setenv("SERVICE_GUIDE_READ_MODEL_TABLE", "custom_schema.custom_service_guide_read_model")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.ServiceGuideReadModelDatabaseURL != "postgresql://service-guide.example/db" {
-		t.Fatalf("service guide read model database url = %q", cfg.ServiceGuideReadModelDatabaseURL)
-	}
-	if cfg.ServiceGuideReadModelTable != "custom_schema.custom_service_guide_read_model" {
-		t.Fatalf("service guide read model table = %q", cfg.ServiceGuideReadModelTable)
-	}
-}
-
 func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeRuntime(t *testing.T) {
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/db")
 	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
@@ -396,8 +372,8 @@ func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeR
 	if cfg.NoticeReadModelDatabaseURL != "postgresql://shared.example/db" {
 		t.Fatalf("notice read model database url = %q", cfg.NoticeReadModelDatabaseURL)
 	}
-	if cfg.ServiceGuideReadModelDatabaseURL != "postgresql://shared.example/db" {
-		t.Fatalf("service guide read model database url = %q", cfg.ServiceGuideReadModelDatabaseURL)
+	if cfg.StructuredProjectionDatabaseURL != "postgresql://shared.example/db" {
+		t.Fatalf("structured projection database url = %q", cfg.StructuredProjectionDatabaseURL)
 	}
 	if cfg.NoticeObjectStoreAccessKey != "generic-access" {
 		t.Fatalf("notice object store access key = %q", cfg.NoticeObjectStoreAccessKey)

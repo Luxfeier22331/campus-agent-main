@@ -8,11 +8,27 @@ import (
 )
 
 func NewRuntime(options Options) *Runtime {
+	structuredProjectionDatabaseURL := strings.TrimSpace(options.StructuredProjectionDatabaseURL)
+	serviceStatusReadModelStore := options.ServiceStatusReadModelStore
+	if serviceStatusReadModelStore == nil {
+		serviceStatusReadModelStore = NewPostgresServiceStatusReadModelStore(
+			ServiceStatusPostgresOptions{
+				DatabaseURL: structuredProjectionDatabaseURL,
+			},
+		)
+	}
+	transportScheduleReadModelStore := options.TransportScheduleReadModelStore
+	if transportScheduleReadModelStore == nil {
+		transportScheduleReadModelStore = NewPostgresTransportScheduleReadModelStore(
+			TransportSchedulePostgresOptions{
+				DatabaseURL: structuredProjectionDatabaseURL,
+			},
+		)
+	}
 	serviceGuideReadModelStore := options.ServiceGuideReadModelStore
 	if serviceGuideReadModelStore == nil {
 		serviceGuideReadModelStore = NewPostgresServiceGuideReadModelStore(ServiceGuidePostgresOptions{
-			DatabaseURL: strings.TrimSpace(options.ServiceGuideReadModelDatabaseURL),
-			TableName:   strings.TrimSpace(options.ServiceGuideReadModelTable),
+			DatabaseURL: structuredProjectionDatabaseURL,
 		})
 	}
 	noticeReadModelStore := options.NoticeReadModelStore
@@ -34,11 +50,11 @@ func NewRuntime(options Options) *Runtime {
 		})
 	}
 	runtime := &Runtime{
-		projectionPath:             strings.TrimSpace(options.ProjectionPath),
-		serviceGuideProjectionPath: strings.TrimSpace(options.ServiceGuideProjectionPath),
-		serviceGuideReadModelStore: serviceGuideReadModelStore,
-		noticeReadModelStore:       noticeReadModelStore,
-		noticeBodyStore:            noticeBodyStore,
+		serviceStatusReadModelStore:     serviceStatusReadModelStore,
+		transportScheduleReadModelStore: transportScheduleReadModelStore,
+		serviceGuideReadModelStore:      serviceGuideReadModelStore,
+		noticeReadModelStore:            noticeReadModelStore,
+		noticeBodyStore:                 noticeBodyStore,
 	}
 	if trustedTime := strings.TrimSpace(options.TrustedTimeRFC3339); trustedTime != "" {
 		parsed, err := time.Parse(time.RFC3339, trustedTime)
@@ -50,6 +66,12 @@ func NewRuntime(options Options) *Runtime {
 }
 
 func (r *Runtime) Close() {
+	if closer, ok := r.serviceStatusReadModelStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := r.transportScheduleReadModelStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
 	if closer, ok := r.serviceGuideReadModelStore.(interface{ Close() }); ok {
 		closer.Close()
 	}

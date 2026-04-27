@@ -334,7 +334,7 @@ func TestLookupCampusNoticeDiscoverFailsClosedWithoutRestrictedAuthorization(t *
 
 func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
 	runtime := NewRuntime(Options{
-		NoticeReadModelDatabaseURL:     "postgresql://notice.example/db",
+		NoticeReadModelDatabaseURL:     "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
 		NoticeReadModelTable:           "ingestion_projection.internal_notice_read_model",
 		NoticeObjectStoreEndpoint:      "http://minio:9000",
 		NoticeObjectStoreAccessKey:     "access",
@@ -354,8 +354,7 @@ func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
 
 func TestNewRuntimeConfiguresServiceGuideReadModelStoreFromOptions(t *testing.T) {
 	runtime := NewRuntime(Options{
-		ServiceGuideReadModelDatabaseURL: "postgresql://service-guide.example/db",
-		ServiceGuideReadModelTable:       "ingestion_projection.service_guide_read_model",
+		StructuredProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
 	})
 
 	status := runtime.Status(context.Background())
@@ -367,7 +366,6 @@ func TestNewRuntimeConfiguresServiceGuideReadModelStoreFromOptions(t *testing.T)
 func TestServiceGuidePostgresOptionsDefaultsToSmallLocalPool(t *testing.T) {
 	config, err := serviceGuidePostgresPoolConfig(ServiceGuidePostgresOptions{
 		DatabaseURL: "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
-		TableName:   "ingestion_projection.service_guide_read_model",
 	})
 	if err != nil {
 		t.Fatalf("pool config error: %v", err)

@@ -12,7 +12,9 @@ def build_notice_derived_transport_rejected_sources(
     exceptions_by_notice: Mapping[str, Sequence[Any]],
     source_ref: Callable[[Any], str],
     schema_version: str,
+    reason_by_notice: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
+    resolved_reason_by_notice = dict(reason_by_notice or {})
     rejected: list[dict[str, Any]] = []
     for notice_id, entry in sorted(entries_by_notice.items()):
         if rows_by_notice.get(notice_id) or exceptions_by_notice.get(notice_id):
@@ -22,7 +24,9 @@ def build_notice_derived_transport_rejected_sources(
                 "schema_version": schema_version,
                 "source_notice_id": notice_id,
                 "source_ref": source_ref(entry),
-                "reason": "no_supported_transport_schedule_rows",
+                "reason": resolved_reason_by_notice.get(
+                    notice_id, "no_supported_transport_schedule_rows"
+                ),
                 "candidate_kind": str(
                     entry.role_metadata.get("service_status_candidate_kind") or "transport_schedule"
                 ),

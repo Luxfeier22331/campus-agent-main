@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
 )
 
 type failingReadCloser struct{}
@@ -86,6 +87,79 @@ func writeStructuredQueryProjectionFixture(t *testing.T, body string) string {
 		t.Fatalf("write projection fixture: %v", err)
 	}
 	return path
+}
+
+func useStructuredQueryRuntimeFixture(
+	t *testing.T,
+	server *Server,
+	body string,
+	trustedTime string,
+) {
+	t.Helper()
+	bundle := decodeProjectionBundleFixture(t, body)
+	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
+		ServiceStatusReadModelStore: &fakeStructuredReadModelStore{
+			bundle: bundle,
+		},
+		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
+			bundle: bundle,
+		},
+		ServiceGuideReadModelStore: &fakeStructuredReadModelStore{
+			bundle: bundle,
+		},
+		TrustedTimeRFC3339: trustedTime,
+	})
+}
+
+func useStructuredQueryRuntimeFixtures(
+	t *testing.T,
+	server *Server,
+	serviceStatusBody string,
+	transportScheduleBody string,
+	serviceGuideBody string,
+	trustedTime string,
+) {
+	t.Helper()
+	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
+		ServiceStatusReadModelStore: &fakeStructuredReadModelStore{
+			bundle: decodeProjectionBundleFixture(t, serviceStatusBody),
+		},
+		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
+			bundle: decodeProjectionBundleFixture(t, transportScheduleBody),
+		},
+		ServiceGuideReadModelStore: &fakeStructuredReadModelStore{
+			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
+		},
+		TrustedTimeRFC3339: trustedTime,
+	})
+}
+
+func decodeProjectionBundleFixture(t *testing.T, body string) structuredquery.ProjectionBundle {
+	t.Helper()
+	var bundle structuredquery.ProjectionBundle
+	if err := json.Unmarshal([]byte(body), &bundle); err != nil {
+		t.Fatalf("decode projection fixture: %v", err)
+	}
+	return bundle
+}
+
+type fakeStructuredReadModelStore struct {
+	bundle structuredquery.ProjectionBundle
+}
+
+func (s *fakeStructuredReadModelStore) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (s *fakeStructuredReadModelStore) CurrentReleaseID(context.Context) (string, error) {
+	return "test-release", nil
+}
+
+func (s *fakeStructuredReadModelStore) LoadBundleForRelease(
+	context.Context,
+	string,
+) (structuredquery.ProjectionBundle, error) {
+	return s.bundle, nil
 }
 
 func decodeBody(t *testing.T, response *httptest.ResponseRecorder) map[string]any {

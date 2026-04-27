@@ -61,6 +61,15 @@ workflow owner。
   - 一网通办或服务门户事项详情页；只作为只读说明来源
 - `campus_services/contact_directory`
   - 只作为 contact refs 的派生来源，不替代 pure contact directory query
+- authenticated notice consumption projection 中已准入的交通预约说明
+  - 输入必须是 `notice_consumption_projection` 的 ready
+    `campus_services/special_service_candidate`
+  - `role_metadata.special_service_candidate_kind` 固定为
+    `transport_reservation_instruction`
+  - 第一版只抽取只读预约入口、预约开放时间与使用约束，进入
+    `service_guide_lookup`
+  - 同一 notice 的班次运行事实仍由 `campus_services/transport_schedule`
+    消费，不进入 service guide
 
 不允许的 upstream：
 
@@ -100,6 +109,10 @@ workflow owner。
 当前 source-truth manifest 的 release gate 固定期望 15 条 ready record：
 宿舍流程 6 条、公费医疗 3 条、学生日常事务 2 条、资助事务 3 条、校园卡 1 条。
 
+notice-derived service guide record 是 additive upstream family。发布 current
+projection 时必须和上述 curated/source-truth records 合并，不得用单条 notice-derived
+release 覆盖现有办理指南 current projection。
+
 ## Projection Bundle
 
 生成 artifact 固定为 `campus_services_service_guide_projection.v1`。
@@ -129,9 +142,13 @@ current artifact：
 - `release-manifest.json`
 - `manual-review-report.json`
 
-`SUPERVISOR_STRUCTURED_QUERY_SERVICE_GUIDE_PROJECTION_PATH` 指向 Docker runtime 内
-mounted readonly current projection file。Go `apps/supervisor-api` 不直接读对象存储，
-不持有对象存储凭据。
+长期 serving truth 由 PostgreSQL 持有：ingestion worker 在 immutable object artifact
+写入成功后，发布 release catalog、`structured_projection_current` current pointer 与
+`service_guide_read_model` typed read model。Go `apps/supervisor-api` 通过 PG current
+release 读取 `service_guide_lookup` 数据，不直接读对象存储、不持有对象存储凭据。
+
+文件 projection path runtime fallback 已下线；本地 fixture、smoke 与 bootstrap 也应通过
+PostgreSQL release catalog / typed read model 验证，不再挂载 current projection file。
 
 ## Service Guide Record
 

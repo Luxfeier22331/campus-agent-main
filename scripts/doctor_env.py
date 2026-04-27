@@ -262,7 +262,6 @@ _SURFACE_SPECS = {
             "execution_audit_spool_dir": ("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR",),
             "structured_query_base_url": ("SUPERVISOR_STRUCTURED_QUERY_BASE_URL",),
             "structured_query_shared_secret": ("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",),
-            "structured_query_projection_path": ("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH",),
             "structured_query_timeout_ms": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",),
             "structured_query_timeout_seconds": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",),
             "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),

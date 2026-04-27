@@ -74,10 +74,31 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
 
         self.assertIn("SUPERVISOR_STRUCTURED_QUERY_BASE_URL: http://supervisor-api:8000", compose)
         self.assertIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", compose)
-        self.assertIn("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH", compose)
+        self.assertIn("CAMPUS_SHARED_POSTGRES_URL", compose)
+        service_status_url_key = "SERVICE_STATUS" + "_READ_MODEL_DATABASE_URL"
+        transport_url_key = "TRANSPORT_SCHEDULE" + "_READ_MODEL_DATABASE_URL"
+        service_guide_url_key = "SERVICE_GUIDE" + "_READ_MODEL_DATABASE_URL"
+        service_status_table_key = "SERVICE_STATUS" + "_READ_MODEL_TABLE"
+        transport_schema_key = "TRANSPORT_SCHEDULE" + "_READ_MODEL_SCHEMA"
+        service_guide_table_key = "SERVICE_GUIDE" + "_READ_MODEL_TABLE"
+        structured_schema_key = "STRUCTURED_PROJECTION" + "_SCHEMA"
+        self.assertNotIn(service_status_url_key, compose)
+        self.assertNotIn(transport_url_key, compose)
+        self.assertNotIn(service_guide_url_key, compose)
+        self.assertNotIn(service_status_table_key, compose)
+        self.assertNotIn(transport_schema_key, compose)
+        self.assertNotIn(service_guide_table_key, compose)
+        self.assertNotIn(structured_schema_key, compose)
         self.assertIn("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", compose)
         self.assertIn("OBJECT_STORE_ENDPOINT", compose)
         self.assertIn('"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"', script)
+        self.assertNotIn(f'"{service_status_url_key}"', script)
+        self.assertNotIn(f'"{transport_url_key}"', script)
+        self.assertNotIn(f'"{service_guide_url_key}"', script)
+        self.assertNotIn(f'"{service_status_table_key}"', script)
+        self.assertNotIn(f'"{transport_schema_key}"', script)
+        self.assertNotIn(f'"{service_guide_table_key}"', script)
+        self.assertNotIn(f'"{structured_schema_key}"', script)
         self.assertIn('"OBJECT_STORE_ENDPOINT"', script)
 
     def test_local_runtime_passes_prompt_gate_inputs_to_worker_and_go_api(self) -> None:
@@ -137,7 +158,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("open_structured", script)
         self.assertIn("readyz_degraded", script)
         self.assertIn("SUPERVISOR_API_OPEN_CAPABILITIES=campus_services", script)
-        self.assertIn("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH", script)
+        self.assertIn("campus-ingestion-smoke-structured-projection-postgres", script)
         self.assertIn("docker compose", script)
 
 

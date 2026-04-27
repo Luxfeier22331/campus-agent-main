@@ -10,7 +10,7 @@ import (
 )
 
 func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T) {
-	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+	projectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"service_status_records":[
 			{
@@ -25,14 +25,19 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 				"related_notice_refs":["notice:library-hours"]
 			}
 		]
-	}`)
+	}`
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
 		StructuredQuerySharedSecret:       "query-secret",
-		StructuredQueryProjectionPath:     projectionPath,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	}, nil)
+	useStructuredQueryRuntimeFixture(
+		t,
+		server,
+		projectionFixture,
+		"2026-04-24T10:30:00+08:00",
+	)
 
 	request := newTestRequest(
 		http.MethodPost,
@@ -75,7 +80,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 }
 
 func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testing.T) {
-	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+	projectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"transport_schedule_snapshots":[
 			{
@@ -110,14 +115,19 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 				"destination_stop_id":"stop:fengtai-main-gate"
 			}
 		]
-	}`)
+	}`
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
 		StructuredQuerySharedSecret:       "query-secret",
-		StructuredQueryProjectionPath:     projectionPath,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
 	}, nil)
+	useStructuredQueryRuntimeFixture(
+		t,
+		server,
+		projectionFixture,
+		"2026-04-24T20:30:00+08:00",
+	)
 
 	request := newTestRequest(
 		http.MethodPost,
@@ -157,7 +167,7 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 }
 
 func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T) {
-	serviceGuideProjectionPath := writeStructuredQueryProjectionFixture(t, `{
+	serviceGuideProjectionFixture := `{
 		"schema_version":"campus_services_service_guide_projection.v1",
 		"generated_at":"2026-04-25T10:00:00+08:00",
 		"source_families":["handbook_service_navigation_projection_v1"],
@@ -192,19 +202,25 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 		],
 		"conflict_records":[],
 		"manual_review_sources":[]
-	}`)
-	sharedProjectionPath := writeStructuredQueryProjectionFixture(t, `{
+	}`
+	emptySharedProjectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"transport_schedule_snapshots":[]
-	}`)
+	}`
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
 		StructuredQuerySharedSecret:       "query-secret",
-		StructuredQueryProjectionPath:     sharedProjectionPath,
-		ServiceGuideProjectionPath:        serviceGuideProjectionPath,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
 	}, nil)
+	useStructuredQueryRuntimeFixtures(
+		t,
+		server,
+		emptySharedProjectionFixture,
+		emptySharedProjectionFixture,
+		serviceGuideProjectionFixture,
+		"2026-04-25T10:30:00+08:00",
+	)
 
 	request := newTestRequest(
 		http.MethodPost,

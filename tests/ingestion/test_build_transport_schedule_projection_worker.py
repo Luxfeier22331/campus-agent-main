@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import importlib
+import io
 import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
@@ -46,6 +49,15 @@ class _FakeObjectStore:
         content_type: str,
     ) -> None:
         self.objects[(bucket, key)] = data
+
+
+class _FakeStructuredProjectionPublisher:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def publish_release(self, **kwargs: object) -> object:
+        self.calls.append(dict(kwargs))
+        return {"current": True}
 
 
 class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
@@ -90,6 +102,7 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                 },
             )
             object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
 
             report = worker.build_transport_schedule_projection_release_from_inventory(
                 source_truth_inventory_path=inventory_path,
@@ -100,9 +113,23 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                 service_horizon_days=3,
                 object_store=object_store,
                 derived_bucket="campus-rag-derived",
+                structured_projection_publisher=publisher,
             )
 
         self.assertEqual(report.release_id, "transport-schedule-20260424T090000")
+        self.assertEqual(len(publisher.calls), 1)
+        publish_call = publisher.calls[0]
+        self.assertEqual(publish_call["corpus"], "campus_services")
+        self.assertEqual(publish_call["collection"], "transport_schedule")
+        self.assertEqual(publish_call["release_id"], "transport-schedule-20260424T090000")
+        self.assertEqual(publish_call["schema_version"], "campus_services_projection_bundle.v1")
+        self.assertEqual(publish_call["validation_status"], "valid")
+        self.assertEqual(publish_call["artifact_object_key"], report.release_object_key)
+        self.assertTrue(str(publish_call["artifact_checksum"]).startswith("sha256:"))
+        self.assertEqual(
+            len(publish_call["bundle"]["transport_schedule_snapshots"]),  # type: ignore[index]
+            1,
+        )
         current_payload = json.loads(
             object_store.objects[
                 (
@@ -127,6 +154,7 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
             registry, projection_entry = _notice_projection_runtime(object_store)
 
             report = worker.build_transport_schedule_projection_release_from_consumption_projection(
@@ -138,9 +166,13 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                 service_horizon_days=3,
                 object_store=object_store,
                 derived_bucket="campus-rag-derived",
+                structured_projection_publisher=publisher,
             )
 
         self.assertEqual(report.release_id, "transport-schedule-20260320T090000")
+        self.assertEqual(len(publisher.calls), 1)
+        self.assertEqual(publisher.calls[0]["collection"], "transport_schedule")
+        self.assertEqual(publisher.calls[0]["release_id"], "transport-schedule-20260320T090000")
         current_payload = json.loads(
             object_store.objects[
                 (
@@ -166,6 +198,90 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
             ),
             object_store.objects,
         )
+
+    def test_main_publishes_release_to_structured_projection_postgres_when_configured(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_root = root / "source"
+            notice_root = source_root / "authenticated_notice_portal" / "notice-1001"
+            notice_root.mkdir(parents=True)
+            _write_json(
+                notice_root / "notice-manifest.json",
+                {
+                    "site_id": "muc_internal_portal",
+                    "notice_id": "1001",
+                    "notice_title_normalized": "校车时刻表",
+                    "notice_release_time": "2026-04-20 18:00",
+                },
+            )
+            _write_jsonl(
+                notice_root / "content-blocks.jsonl",
+                [
+                    {
+                        "text_normalized": (
+                            "本时刻表自2026年4月21日起执行。"
+                            "海淀校区至丰台校区工作日发车时间：06:50。"
+                        )
+                    }
+                ],
+            )
+            inventory_path = root / "inventory.json"
+            _write_json(
+                inventory_path,
+                {
+                    "parents": [
+                        {
+                            "notice_manifest_key": "authenticated_notice_portal/notice-1001/notice-manifest.json",
+                            "content_blocks_key": "authenticated_notice_portal/notice-1001/content-blocks.jsonl",
+                        }
+                    ]
+                },
+            )
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+
+            with (
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.ObjectStoreSettings.from_env",
+                    return_value=SimpleNamespace(
+                        bucket_source="campus-rag-source",
+                        bucket_derived="campus-rag-derived",
+                    ),
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.S3ObjectStoreAdmin",
+                    return_value=object_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_structured_projection_publisher_from_env",
+                    return_value=publisher,
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                worker.main(
+                    [
+                        "--source-truth-inventory",
+                        str(inventory_path),
+                        "--source-truth-root",
+                        str(source_root),
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "transport-schedule-cli-20260424T090000",
+                        "--generated-at",
+                        "2026-04-24T09:00:00+08:00",
+                        "--service-horizon-days",
+                        "3",
+                    ]
+                )
+
+        self.assertEqual(len(publisher.calls), 1)
+        self.assertEqual(publisher.calls[0]["collection"], "transport_schedule")
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

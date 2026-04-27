@@ -57,7 +57,7 @@ func TestAnswerStreamExecutesTerminalEnvelopeDirectlyInGo(t *testing.T) {
 }
 
 func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
-	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+	projectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"transport_schedule_snapshots":[
 			{
@@ -92,7 +92,7 @@ func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 				"destination_stop_id":"stop:fengtai-main-gate"
 			}
 		]
-	}`)
+	}`
 	bridgeCalls := 0
 	server := NewServer(config.Config{
 		AuthMode:                          "bearer",
@@ -101,7 +101,6 @@ func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 		RequestBodyLimitBytes:             1_048_576,
 		MaxConcurrentAnswers:              8,
 		OpenCapabilities:                  []string{"campus_services"},
-		StructuredQueryProjectionPath:     projectionPath,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
 	}, &fakeBridge{
 		configured: true,
@@ -114,6 +113,12 @@ func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 			}, nil
 		},
 	})
+	useStructuredQueryRuntimeFixture(
+		t,
+		server,
+		projectionFixture,
+		"2026-04-24T20:30:00+08:00",
+	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,

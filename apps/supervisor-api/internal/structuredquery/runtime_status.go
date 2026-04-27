@@ -5,25 +5,39 @@ import (
 )
 
 func (r *Runtime) Status(ctx context.Context) Status {
+	hasPostgresProjection := r.serviceStatusReadModelStore != nil ||
+		r.transportScheduleReadModelStore != nil ||
+		r.serviceGuideReadModelStore != nil
 	status := Status{
-		Configured:       r.projectionPath != "" || r.serviceGuideProjectionPath != "" || r.serviceGuideReadModelStore != nil,
-		ProjectionSource: "file",
+		Configured:       hasPostgresProjection,
+		ProjectionSource: projectionSourceLabel(hasPostgresProjection),
 	}
-	if r.projectionPath == "" && r.serviceGuideProjectionPath == "" {
-		status.ProjectionSource = ""
-		if r.serviceGuideReadModelStore != nil {
-			status.ProjectionSource = "postgres"
-		}
-	}
-	if r.projectionPath != "" {
-		bundle, err := r.loadBundle()
+	if r.serviceStatusReadModelStore != nil {
+		bundle, err := r.loadServiceStatusBundle(ctx)
 		status.ServiceStatusProjectionReady = err == nil && len(bundle.ServiceStatusRecords) > 0
+	}
+	if r.transportScheduleReadModelStore != nil {
+		bundle, err := r.loadTransportScheduleBundle(ctx)
 		status.TransportScheduleImplemented = err == nil && len(bundle.TransportScheduleSnapshots) > 0
 	}
-	if r.serviceGuideProjectionPath != "" || r.projectionPath != "" {
-		bundle, err := r.loadServiceGuideBundle()
+	if r.serviceGuideReadModelStore != nil {
+		bundle, err := r.loadServiceGuideBundle(ctx)
 		status.ServiceGuideProjectionReady = err == nil && len(bundle.ServiceGuideRecords) > 0
 	}
+	status.ServiceStatusReadModelConfigured = r.serviceStatusReadModelStore != nil
+	status.ServiceStatusReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+		ctx,
+		r.serviceStatusReadModelStore,
+		"service_status_read_model_unhealthy",
+		status.NoticeRuntimeLastError,
+	)
+	status.TransportScheduleReadModelConfigured = r.transportScheduleReadModelStore != nil
+	status.TransportScheduleReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
+		ctx,
+		r.transportScheduleReadModelStore,
+		"transport_schedule_read_model_unhealthy",
+		status.NoticeRuntimeLastError,
+	)
 	status.ServiceGuideReadModelConfigured = r.serviceGuideReadModelStore != nil
 	status.ServiceGuideReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
 		ctx,
@@ -46,6 +60,13 @@ func (r *Runtime) Status(ctx context.Context) Status {
 		status.NoticeRuntimeLastError,
 	)
 	return status
+}
+
+func projectionSourceLabel(hasPostgresProjection bool) string {
+	if hasPostgresProjection {
+		return "postgres"
+	}
+	return ""
 }
 
 func noticeRuntimeComponentHealthy(

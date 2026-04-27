@@ -207,9 +207,9 @@ compatibility current artifact：
 - `release-manifest.json`
 - `rejected-source-report.json`
 
-第一版 local / smoke runtime 可以通过 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`
-读取 mounted readonly current projection file。该路径只表示 compatibility consumption
-surface，不代表长期 production truth。
+local / smoke runtime 与 production runtime 都通过 PostgreSQL
+`structured_projection_current` current pointer 和 typed read model 消费当前 release；
+mounted readonly current projection file fallback 已下线。
 
 长期 production publication 必须同时写入 PostgreSQL：
 

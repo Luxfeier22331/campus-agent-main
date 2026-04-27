@@ -285,9 +285,9 @@ ServiceGuideCandidate
 - builder 离线抽取 service records、section facts、materials、entry refs、office hours、
   contacts 与 source refs
 - builder 必须输出 validation summary 与 manual-review report
-- Go `apps/supervisor-api` 通过 `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH` 只读 mounted
-  current projection file，不直接读取对象存储；`SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`
-  只作为本地 fixture / legacy shared bundle fallback，不是 service guide 的目标态主路径
+- Go `apps/supervisor-api` 通过 PostgreSQL `structured_projection_current` current
+  pointer 与 typed `service_guide_read_model` 读取当前 release，不直接读取对象存储，也不再支持
+  mounted current projection file fallback
 
 projection schema 细节见
 `docs/data/campus-services-service-guide-source-truth-schema.md`。

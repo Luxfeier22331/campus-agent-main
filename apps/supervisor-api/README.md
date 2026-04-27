@@ -145,12 +145,12 @@ Current structured query runtime boundary:
   `campus_services`, `notice`, or `campus_services,notice`; wildcard values such
   as `*` or `all` are rejected.
 - `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` enables internal query auth.
-- `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` points at a dev/test file
-  projection bundle for the current service status / transport foundation slice
-  and remains the fallback service-guide path for local fixtures.
-- `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH` points at the mounted readonly
-  `campus_services/service_guide` current projection used by
-  `service_guide_lookup`.
+- `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
+  `service_status_lookup`, `transport_schedule_lookup`, and
+  `service_guide_lookup` for the release catalog, current pointer, and typed
+  read models.
+- Structured projection schema and read-model table names are fixed by the
+  `ingestion_projection` contract, not runtime env.
 - `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
   for deterministic tests; production should normally omit it.
 - `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
@@ -264,8 +264,7 @@ export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
 export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
 export SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES=1048576
 export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
-export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
-export SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH=
+export CAMPUS_SHARED_POSTGRES_URL=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
 export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=

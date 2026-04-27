@@ -13,46 +13,52 @@ const (
 )
 
 type Options struct {
-	ProjectionPath                   string
-	ServiceGuideProjectionPath       string
-	ServiceGuideReadModelStore       ServiceGuideReadModelStore
-	ServiceGuideReadModelDatabaseURL string
-	ServiceGuideReadModelTable       string
-	TrustedTimeRFC3339               string
-	NoticeReadModelStore             NoticeReadModelStore
-	NoticeBodyStore                  NoticeBodyStore
-	NoticeReadModelDatabaseURL       string
-	NoticeReadModelTable             string
-	NoticeObjectStoreEndpoint        string
-	NoticeObjectStoreAccessKey       string
-	NoticeObjectStoreSecretKey       string
-	NoticeObjectStoreRegion          string
-	NoticeObjectStoreBucketDerived   string
-	NoticeObjectStoreBodyLimitBytes  int64
+	ServiceStatusReadModelStore     ServiceStatusReadModelStore
+	TransportScheduleReadModelStore TransportScheduleReadModelStore
+	ServiceGuideReadModelStore      ServiceGuideReadModelStore
+	StructuredProjectionDatabaseURL string
+	TrustedTimeRFC3339              string
+	NoticeReadModelStore            NoticeReadModelStore
+	NoticeBodyStore                 NoticeBodyStore
+	NoticeReadModelDatabaseURL      string
+	NoticeReadModelTable            string
+	NoticeObjectStoreEndpoint       string
+	NoticeObjectStoreAccessKey      string
+	NoticeObjectStoreSecretKey      string
+	NoticeObjectStoreRegion         string
+	NoticeObjectStoreBucketDerived  string
+	NoticeObjectStoreBodyLimitBytes int64
 }
 
 type Runtime struct {
-	projectionPath             string
-	serviceGuideProjectionPath string
-	serviceGuideReadModelStore ServiceGuideReadModelStore
-	trustedTime                time.Time
-	noticeReadModelStore       NoticeReadModelStore
-	noticeBodyStore            NoticeBodyStore
+	serviceStatusReadModelStore     ServiceStatusReadModelStore
+	serviceStatusBundleCache        projectionBundleCache
+	transportScheduleReadModelStore TransportScheduleReadModelStore
+	transportScheduleBundleCache    projectionBundleCache
+	serviceGuideReadModelStore      ServiceGuideReadModelStore
+	serviceGuideBundleCache         projectionBundleCache
+	trustedTime                     time.Time
+	noticeReadModelStore            NoticeReadModelStore
+	noticeBodyStore                 NoticeBodyStore
 }
 
 type Status struct {
-	Configured                      bool   `json:"configured"`
-	ProjectionSource                string `json:"projection_source"`
-	ServiceStatusProjectionReady    bool   `json:"service_status_projection_ready"`
-	ServiceGuideProjectionReady     bool   `json:"service_guide_projection_ready"`
-	ServiceGuideReadModelConfigured bool   `json:"service_guide_read_model_configured"`
-	ServiceGuideReadModelHealthy    bool   `json:"service_guide_read_model_healthy"`
-	TransportScheduleImplemented    bool   `json:"transport_schedule_implemented"`
-	NoticeReadModelConfigured       bool   `json:"notice_read_model_configured"`
-	NoticeBodyStoreConfigured       bool   `json:"notice_body_store_configured"`
-	NoticeReadModelHealthy          bool   `json:"notice_read_model_healthy"`
-	NoticeBodyStoreHealthy          bool   `json:"notice_body_store_healthy"`
-	NoticeRuntimeLastError          string `json:"notice_runtime_last_error"`
+	Configured                           bool   `json:"configured"`
+	ProjectionSource                     string `json:"projection_source"`
+	ServiceStatusProjectionReady         bool   `json:"service_status_projection_ready"`
+	ServiceStatusReadModelConfigured     bool   `json:"service_status_read_model_configured"`
+	ServiceStatusReadModelHealthy        bool   `json:"service_status_read_model_healthy"`
+	ServiceGuideProjectionReady          bool   `json:"service_guide_projection_ready"`
+	TransportScheduleReadModelConfigured bool   `json:"transport_schedule_read_model_configured"`
+	TransportScheduleReadModelHealthy    bool   `json:"transport_schedule_read_model_healthy"`
+	ServiceGuideReadModelConfigured      bool   `json:"service_guide_read_model_configured"`
+	ServiceGuideReadModelHealthy         bool   `json:"service_guide_read_model_healthy"`
+	TransportScheduleImplemented         bool   `json:"transport_schedule_implemented"`
+	NoticeReadModelConfigured            bool   `json:"notice_read_model_configured"`
+	NoticeBodyStoreConfigured            bool   `json:"notice_body_store_configured"`
+	NoticeReadModelHealthy               bool   `json:"notice_read_model_healthy"`
+	NoticeBodyStoreHealthy               bool   `json:"notice_body_store_healthy"`
+	NoticeRuntimeLastError               string `json:"notice_runtime_last_error"`
 }
 
 type Response struct {
@@ -84,3 +90,5 @@ type projectionBundle struct {
 	ScheduledDepartures        []scheduledDepartureRecord        `json:"scheduled_departures"`
 	TransportServiceExceptions []transportServiceExceptionRecord `json:"transport_service_exceptions"`
 }
+
+type ProjectionBundle = projectionBundle

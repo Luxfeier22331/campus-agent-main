@@ -112,9 +112,10 @@ later-wave 已冻结方向包括：
     later-wave closed
 - `service_guide_lookup`
   - 只读 `campus_services/service_guide` guide-oriented projection
-  - Go runtime 通过 `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH` 读取 mounted
-    readonly current file；仅在本地 fixture / legacy shared bundle 测试中回退读取
-    `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH`
+  - 长期 runtime 通过 PostgreSQL `structured_projection_current` current pointer 与
+    `service_guide_read_model` typed read model 读取当前 release
+  - 文件 projection path runtime fallback 已下线；本地 fixture / smoke / bootstrap
+    也必须走 PostgreSQL release catalog 与 typed read model
   - handbook flow page、official-web 办事说明页与 future service entry page 只作为
     provenance 上游
   - handbook-derived first tracked source truth 已覆盖宿舍流程、公费医疗、学生证补办、
@@ -166,9 +167,10 @@ workflow。
 - 周期性班次在 builder 侧展开 90 天服务日；Go runtime 不解析 recurrence
 - versioned/current projection artifact 落在
   `campus_services/releases/transport_schedule/{release_id}/...`
-- Docker runtime 通过 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` 读取 mounted
-  readonly current file；service guide 使用独立
-  `SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH`
+- ingestion worker 发布 release 时同时写入 PostgreSQL release catalog、
+  `structured_projection_current` current pointer 与 transport typed read model
+- Docker runtime 读取 PostgreSQL current release + typed read model；文件
+  projection path fallback 已下线
 - Go `apps/supervisor-api` 不直接读对象存储、不持有对象存储凭据
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。
@@ -196,11 +198,12 @@ runtime lane 已开放。
   - `service_status_lookup` / `transport_schedule_lookup` shared contract
   - structured-runtime pre-routing helper
   - structured-runtime observability summary
-  - Go `apps/supervisor-api` structured query runtime foundation；当前 `service_status_lookup`
-    具备 file projection fixture backed foundation，`transport_schedule_lookup`
-    具备 projection-backed schedule query kernel、Python thin-adapter wiring 与
-    authenticated-notice-backed offline projection builder，但仍不代表产品 serving
-    surface 已打开
+  - Go `apps/supervisor-api` structured query runtime foundation；当前
+    `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
+    均通过 PostgreSQL release current pointer + typed read model 消费，
+    `transport_schedule_lookup` 具备 projection-backed schedule query kernel、
+    Python thin-adapter wiring 与 authenticated-notice-backed offline projection
+    builder，但仍不代表产品 serving surface 已打开
 - gate 未打开时，产品主路径只能保持当前 routing truth 或 deterministic fail-close
 - 不得通过 stub、link-only response 或 “先用 RAG 顶上” 伪装成能力已上线
 

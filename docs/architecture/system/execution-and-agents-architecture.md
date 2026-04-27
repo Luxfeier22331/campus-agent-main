@@ -110,7 +110,8 @@ Docker-side Go runtime control plane 长期负责：
   `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
   Python worker 不再重复做 capability keyword inference
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
-  `service_status_lookup` 具备 file projection fixture backed foundation，
+  `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
+  均通过 PostgreSQL release current pointer + typed read model 消费，
   `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
   Python thin-adapter wiring；`campus_notice_discover` / `campus_notice_get`
   具备 Go-owned PG read-model + S3-compatible canonical body query runtime 与

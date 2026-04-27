@@ -16,9 +16,9 @@ Accepted on 2026-04-26.
 `campus_services/transport_schedule` 已经具备从 authenticated notice
 consumption projection 到 `campus_services_projection_bundle.v1` 的离线物化路径。
 
-第一版实现把 current projection artifact 写到对象存储，并让 Docker runtime 通过 mounted
-readonly file 读取 current bundle。这适合 local smoke 与早期 release 验证，但如果作为长期
-runtime consumption 形态，会造成几个问题：
+早期实现把 current projection artifact 写到对象存储，并让 Docker runtime 通过 mounted
+readonly file 读取 current bundle。这适合一次性 bootstrap 验证，但如果作为 runtime
+consumption 形态，会造成几个问题：
 
 - current 指针隐含在对象 key 或文件替换里，缺少事务性发布语义
 - 多实例 runtime 的 current 版本、reload 与回滚不够可观测
@@ -42,7 +42,7 @@ runtime consumption 形态，会造成几个问题：
 - rejected-source report
 
 对象存储负责审计、回滚、checksum 校验、离线 replay 与 release artifact retention。
-它不再作为长期 online runtime 的唯一 current source。
+它不作为 online runtime 的 current source。
 
 ### 决策 2：PostgreSQL 拥有 structured projection release catalog 与 current pointer
 
@@ -69,19 +69,23 @@ repo 级语义固定为：
 - `counts`
 - `validation_status`
 
-### 决策 3：transport schedule online lookup 读取 PG typed read model
+### 决策 3：campus services online lookup 读取 PG typed read model
 
-`transport_schedule_lookup` 的长期 online consumption 不读 raw notice、不读 OCR
+`service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup` 的
+online consumption 不读 raw notice、不读 OCR
 artifact、不扫 source-truth inventory，也不直接解析对象存储中的 current JSON。
 
-长期 read model 至少固定为：
+read model 至少固定为：
 
-- `transport_schedule_releases`
+- `service_status_read_model`
 - `transport_routes`
 - `transport_schedule_snapshots`
 - `transport_scheduled_departures`
 - `transport_service_exceptions`
 - `transport_release_notices`
+- `service_guide_read_model`
+- `service_guide_conflicts`
+- `service_guide_manual_review_sources`
 
 每条业务 row 必须携带 `release_id`，runtime 只读取 current pointer 指向的 release。
 历史查询、as-of 查询与回滚必须通过 release id / published time 显式表达，不得复用
@@ -98,17 +102,11 @@ Redis 可以用于：
 Redis 不拥有 release catalog、current pointer、typed read model 或 artifact truth。
 Redis 缺失、flush 或重启不得导致 canonical current projection 丢失。
 
-### 决策 5：mounted current JSON 只属于 bootstrap / smoke compatibility
+### 决策 5：runtime 不支持 mounted current JSON fallback
 
-mounted current JSON file 可以继续用于：
-
-- local smoke
-- release artifact inspection
-- early bootstrap fallback
-- Docker runtime 的临时 compatibility path
-
-但它不得被记录为长期 production consumption truth。长期 runtime 应通过
-projection-backed internal query service 读取 PG current pointer 与 typed read model。
+mounted current JSON file 只能作为人工 artifact inspection 输入，不能作为
+`apps/supervisor-api` runtime fallback、local smoke fallback 或 Docker
+compatibility path。runtime 必须读取 PG current pointer 与 typed read model。
 
 ### 决策 6：发布流程必须是 release transaction
 
@@ -130,15 +128,13 @@ build structured projection release
 
 直接结果如下：
 
-- `campus_services/transport_schedule` 的 current file path 只表示当前实现状态，不代表长期
-  架构选型
-- schedule tool 的长期数据入口是 PG current release + typed read model
+- `campus_services` structured tools 的数据入口是 PG current release + typed read model
 - object storage 与 PG 分层不变：对象 bytes 不迁入 PG，PG 保存 release metadata 与结构化查询视图
 - Redis 不进入 truth path
 - ingestion worker 负责离线 materialization 与 release publication；supervisor-api 只消费
   current typed read model
-- 后续实现必须补齐 release catalog、current pointer、typed read model 与 runtime reload /
-  cache invalidation，而不是继续扩展 mounted JSON 作为 production path
+- release catalog、current pointer、typed read model 与 release-id cache 是 runtime
+  consumption 的唯一 repo-supported path，不再扩展 mounted JSON
 
 ## Complements
 

@@ -1,58 +1,73 @@
 package structuredquery
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"os"
-	"strings"
+	"sync"
 )
 
-func (r *Runtime) loadBundle() (projectionBundle, error) {
-	return loadProjectionBundleFromPath(r.projectionPath)
+type projectionReleaseStore interface {
+	CurrentReleaseID(ctx context.Context) (string, error)
+	LoadBundleForRelease(ctx context.Context, releaseID string) (projectionBundle, error)
 }
 
-func (r *Runtime) loadServiceGuideBundle() (projectionBundle, error) {
-	projectionPath := r.serviceGuideProjectionPath
-	if projectionPath == "" {
-		projectionPath = r.projectionPath
+type projectionBundleCache struct {
+	mu        sync.Mutex
+	releaseID string
+	bundle    projectionBundle
+}
+
+func (r *Runtime) loadServiceStatusBundle(ctx context.Context) (projectionBundle, error) {
+	if r.serviceStatusReadModelStore == nil {
+		return projectionBundle{}, errors.New("service status read model store is not configured")
 	}
-	return loadProjectionBundleFromPath(
-		projectionPath,
-		"campus_services_service_guide_projection.v1",
-		"campus_services_projection_bundle.v1",
+	return loadProjectionBundleFromStore(
+		ctx,
+		r.serviceStatusReadModelStore,
+		&r.serviceStatusBundleCache,
 	)
 }
 
-func loadProjectionBundleFromPath(
-	projectionPath string,
-	allowedSchemaVersions ...string,
-) (projectionBundle, error) {
-	if projectionPath == "" {
-		return projectionBundle{}, errors.New("projection path is not configured")
+func (r *Runtime) loadTransportScheduleBundle(ctx context.Context) (projectionBundle, error) {
+	if r.transportScheduleReadModelStore == nil {
+		return projectionBundle{}, errors.New("transport schedule read model store is not configured")
 	}
-	raw, err := os.ReadFile(projectionPath)
+	return loadProjectionBundleFromStore(
+		ctx,
+		r.transportScheduleReadModelStore,
+		&r.transportScheduleBundleCache,
+	)
+}
+
+func (r *Runtime) loadServiceGuideBundle(ctx context.Context) (projectionBundle, error) {
+	if r.serviceGuideReadModelStore == nil {
+		return projectionBundle{}, errors.New("service guide read model store is not configured")
+	}
+	return loadProjectionBundleFromStore(ctx, r.serviceGuideReadModelStore, &r.serviceGuideBundleCache)
+}
+
+func loadProjectionBundleFromStore(
+	ctx context.Context,
+	store projectionReleaseStore,
+	cache *projectionBundleCache,
+) (projectionBundle, error) {
+	if store == nil {
+		return projectionBundle{}, errors.New("projection read model store is not configured")
+	}
+	releaseID, err := store.CurrentReleaseID(ctx)
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	var bundle projectionBundle
-	if err := json.Unmarshal(raw, &bundle); err != nil {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if cache.releaseID == releaseID {
+		return cache.bundle, nil
+	}
+	bundle, err := store.LoadBundleForRelease(ctx, releaseID)
+	if err != nil {
 		return projectionBundle{}, err
 	}
-	if len(allowedSchemaVersions) > 0 && !schemaVersionAllowed(
-		bundle.SchemaVersion,
-		allowedSchemaVersions,
-	) {
-		return projectionBundle{}, errors.New("projection schema version is not supported")
-	}
+	cache.releaseID = releaseID
+	cache.bundle = bundle
 	return bundle, nil
-}
-
-func schemaVersionAllowed(value string, allowedSchemaVersions []string) bool {
-	normalized := strings.TrimSpace(value)
-	for _, allowed := range allowedSchemaVersions {
-		if normalized == allowed {
-			return true
-		}
-	}
-	return false
 }

@@ -21,6 +21,10 @@ from campus_ingestion_core.notice_derived_transport_schedule_materialization imp
 )
 from campus_ingestion_core.object_store import build_index_release_artifact_key
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
+from campus_ingestion_core.structured_projection_postgres import (
+    build_structured_projection_publisher_from_env,
+    projection_artifact_checksum,
+)
 from campus_ingestion_core.transport_schedule_projection import (
     DEFAULT_TRANSPORT_SCHEDULE_HORIZON_DAYS,
     TRANSPORT_SCHEDULE_COLLECTION,
@@ -51,6 +55,27 @@ class _DerivedObjectStore(Protocol):
 
 class _TransportProjectionObjectStore(_SourceObjectStore, _DerivedObjectStore, Protocol):
     pass
+
+
+class _StructuredProjectionPublisher(Protocol):
+    def publish_release(
+        self,
+        *,
+        corpus: str,
+        collection: str,
+        release_id: str,
+        generated_at: str,
+        schema_version: str,
+        artifact_object_key: str,
+        artifact_checksum: str,
+        bundle: Mapping[str, Any],
+        validation_status: str,
+    ) -> object: ...
+
+
+class _ProjectionReleaseReport(Protocol):
+    release_id: str
+    release_object_key: str
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -95,6 +120,7 @@ def build_transport_schedule_projection_release_from_inventory(
     derived_bucket: str,
     source_object_store: _SourceObjectStore | None = None,
     source_bucket: str | None = None,
+    structured_projection_publisher: _StructuredProjectionPublisher | None = None,
 ):
     parents = _load_source_truth_parents(
         inventory_path=source_truth_inventory_path,
@@ -139,6 +165,12 @@ def build_transport_schedule_projection_release_from_inventory(
         data=rejected_source_path.read_bytes(),
         content_type="application/json",
     )
+    _publish_structured_projection_release(
+        structured_projection_publisher=structured_projection_publisher,
+        bundle=build_result.bundle,
+        report=report,
+        generated_at=generated_at,
+    )
     _write_json(work_dir / "build-report.json", asdict(report))
     return report
 
@@ -153,6 +185,7 @@ def build_transport_schedule_projection_release_from_consumption_projection(
     service_horizon_days: int,
     object_store: _TransportProjectionObjectStore,
     derived_bucket: str,
+    structured_projection_publisher: _StructuredProjectionPublisher | None = None,
 ):
     build_result = build_notice_derived_transport_schedule_projection_bundle(
         projection_entries=projection_entries,
@@ -194,6 +227,12 @@ def build_transport_schedule_projection_release_from_consumption_projection(
         data=rejected_source_path.read_bytes(),
         content_type="application/json",
     )
+    _publish_structured_projection_release(
+        structured_projection_publisher=structured_projection_publisher,
+        bundle=build_result.bundle,
+        report=report,
+        generated_at=generated_at,
+    )
     _write_json(work_dir / "build-report.json", asdict(report))
     return report
 
@@ -204,11 +243,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     settings = ObjectStoreSettings.from_env()
     object_store = S3ObjectStoreAdmin(settings)
     generated_at = args.generated_at or _default_generated_at()
+    source = dict(os.environ)
+    structured_projection_publisher = build_structured_projection_publisher_from_env(source)
     if args.from_consumption_projection:
         notice_ids = normalize_notice_ids(tuple(args.notice_id or ()))
         if not notice_ids:
             raise ValueError("--notice-id is required with --from-consumption-projection")
-        source = dict(os.environ)
         projection_store = build_notice_consumption_projection_store_from_env(source)
         projection_entries = projection_store.list_by_scope(
             "campus_notices",
@@ -224,6 +264,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             service_horizon_days=args.service_horizon_days,
             object_store=object_store,
             derived_bucket=args.derived_bucket or settings.bucket_derived,
+            structured_projection_publisher=structured_projection_publisher,
         )
     else:
         if not args.source_truth_inventory:
@@ -243,8 +284,34 @@ def main(argv: Sequence[str] | None = None) -> None:
             derived_bucket=args.derived_bucket or settings.bucket_derived,
             source_object_store=source_object_store,
             source_bucket=args.source_bucket or settings.bucket_source,
+            structured_projection_publisher=structured_projection_publisher,
         )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
+
+
+def _publish_structured_projection_release(
+    *,
+    structured_projection_publisher: _StructuredProjectionPublisher | None,
+    bundle: Mapping[str, Any],
+    report: _ProjectionReleaseReport,
+    generated_at: str,
+) -> None:
+    if structured_projection_publisher is None:
+        return
+    schema_version = _required_text(bundle.get("schema_version"))
+    if schema_version is None:
+        raise ValueError("transport schedule projection bundle schema_version is required")
+    structured_projection_publisher.publish_release(
+        corpus=TRANSPORT_SCHEDULE_CORPUS,
+        collection=TRANSPORT_SCHEDULE_COLLECTION,
+        release_id=report.release_id,
+        generated_at=generated_at,
+        schema_version=schema_version,
+        artifact_object_key=report.release_object_key,
+        artifact_checksum=projection_artifact_checksum(bundle),
+        bundle=bundle,
+        validation_status="valid",
+    )
 
 
 def _load_source_truth_parents(

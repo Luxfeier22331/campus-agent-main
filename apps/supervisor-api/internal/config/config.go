@@ -54,12 +54,9 @@ type Config struct {
 	OpenCapabilities                  []string
 	QueryServingScopesPath            string
 	StructuredQuerySharedSecret       string
-	StructuredQueryProjectionPath     string
-	ServiceGuideProjectionPath        string
 	StructuredQueryTrustedTimeRFC3339 string
 	StructuredQueryTimeoutMS          int
-	ServiceGuideReadModelDatabaseURL  string
-	ServiceGuideReadModelTable        string
+	StructuredProjectionDatabaseURL   string
 	PromptRuntimeProvider             string
 	SupervisorPromptModel             string
 	AgentPromptModel                  string
@@ -123,9 +120,6 @@ type envValues struct {
 	ExecutionAuditSpoolMaxBytes       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES" envDefault:"10485760"`
 	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
 	StructuredQuerySharedSecret       string  `env:"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"`
-	StructuredQueryProjectionPath     string  `env:"SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH"`
-	ServiceGuideProjectionPath        string  `env:"SUPERVISOR_SERVICE_GUIDE_PROJECTION_PATH"`
-	ServiceGuideReadModelTable        string  `env:"SERVICE_GUIDE_READ_MODEL_TABLE" envDefault:"ingestion_projection.service_guide_read_model"`
 	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
 	StructuredQueryTimeoutMS          int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport            string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
@@ -215,12 +209,9 @@ func LoadFromEnv() (Config, error) {
 		OpenCapabilities:                  openCapabilities,
 		QueryServingScopesPath:            strings.TrimSpace(values.QueryServingScopesPath),
 		StructuredQuerySharedSecret:       strings.TrimSpace(values.StructuredQuerySharedSecret),
-		StructuredQueryProjectionPath:     strings.TrimSpace(values.StructuredQueryProjectionPath),
-		ServiceGuideProjectionPath:        strings.TrimSpace(values.ServiceGuideProjectionPath),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
 		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
-		ServiceGuideReadModelDatabaseURL:  readServiceGuideReadModelDatabaseURL(),
-		ServiceGuideReadModelTable:        defaultString(strings.TrimSpace(values.ServiceGuideReadModelTable), "ingestion_projection.service_guide_read_model"),
+		StructuredProjectionDatabaseURL:   readStructuredProjectionDatabaseURL(),
 		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
 		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
 		AgentPromptModel:                  readPromptModel("AGENT_PROMPT_MODEL"),
@@ -341,11 +332,8 @@ func readNoticeReadModelDatabaseURL() string {
 	return normalizePostgresDatabaseURL(databaseURL)
 }
 
-func readServiceGuideReadModelDatabaseURL() string {
-	databaseURL := readFirstString(
-		"SERVICE_GUIDE_READ_MODEL_DATABASE_URL",
-		"CAMPUS_SHARED_POSTGRES_URL",
-	)
+func readStructuredProjectionDatabaseURL() string {
+	databaseURL := readFirstString("CAMPUS_SHARED_POSTGRES_URL")
 	return normalizePostgresDatabaseURL(databaseURL)
 }
 

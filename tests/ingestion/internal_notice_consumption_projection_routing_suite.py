@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_consumption_projection import (
@@ -285,6 +286,60 @@ class InternalNoticeConsumptionProjectionRoutingTest(unittest.TestCase):
         self.assertEqual(
             special_unit.role_metadata["notice_query_reason"],
             "special_service_not_admitted",
+        )
+
+    def test_build_entries_routes_transport_reservation_instruction_to_ready_candidate(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="354777",
+                    title_slug="weekend-subway-shuttle-reservation",
+                    title="关于近期丰台校区周末地铁接驳车运营安排的通知",
+                ),
+            )
+        )
+        entry = _inventory_entry(
+            notice_id="354777",
+            notice_title="关于近期丰台校区周末地铁接驳车运营安排的通知",
+            published_date="2026-02-27 10:00",
+        )
+        parent_snapshot = dict(entry.parent_snapshot)
+        parent_snapshot["notice_content"] = (
+            "三、“接驳车预约”系统可预约班次将于发车前一天9:00开放预约，"
+            "约满即止，请通过服务门户或企业微信预约。"
+        )
+        inventory_store.upsert_many((replace(entry, parent_snapshot=parent_snapshot),))
+
+        entries = build_internal_notice_consumption_projection_entries(
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+        )
+
+        special_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "354777"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_SPECIAL_SERVICE_NOTICE
+        )
+        self.assertEqual(
+            special_unit.target_surface, NOTICE_TARGET_SURFACE_SPECIAL_SERVICE_CANDIDATE
+        )
+        self.assertEqual(
+            special_unit.consumption_status,
+            NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+        )
+        self.assertEqual(special_unit.default_agent, NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES)
+        self.assertEqual(
+            special_unit.role_metadata["special_service_candidate_kind"],
+            "transport_reservation_instruction",
+        )
+        self.assertEqual(
+            special_unit.role_metadata["notice_query_reason"],
+            "transport_reservation_instruction_typed_materialization_candidate",
         )
 
     def test_build_entries_routes_stable_contact_notice_to_typed_candidate(self) -> None:

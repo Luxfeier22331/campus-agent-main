@@ -202,7 +202,7 @@ func (r *Runtime) lookupTransportSchedule(
 	ctx context.Context,
 	request transportScheduleRequest,
 ) Response {
-	bundle, err := r.loadBundle()
+	bundle, err := r.loadTransportScheduleBundle(ctx)
 	if err != nil {
 		return failClosedTransportScheduleWithReason(
 			request,

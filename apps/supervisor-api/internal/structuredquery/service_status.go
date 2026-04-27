@@ -60,7 +60,7 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, "source_truth_unavailable")
 	}
 
-	bundle, err := r.loadBundle()
+	bundle, err := r.loadServiceStatusBundle(ctx)
 	if err != nil {
 		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, "source_truth_unavailable")
 	}

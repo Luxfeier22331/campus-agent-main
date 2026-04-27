@@ -84,6 +84,10 @@ from campus_ingestion_core.document_reader_assets import (
     build_document_reader_publish_entry,
     build_public_docs_sync_manifest,
 )
+from campus_ingestion_core.document_reader_publisher import (
+    DocumentReaderPublishReport,
+    publish_document_reader_assets,
+)
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     MockEmbeddingSettings,
@@ -353,6 +357,7 @@ __all__ = [
     "CollectionScope",
     "CollectionTruthConfig",
     "DocumentReaderAssetPackage",
+    "DocumentReaderPublishReport",
     "DocumentRegistry",
     "DocumentRegistryRecord",
     "EmbeddingSettings",
@@ -454,6 +459,7 @@ __all__ = [
     "build_operations_artifact_key",
     "build_processed_asset_artifact_key",
     "build_public_docs_sync_manifest",
+    "publish_document_reader_assets",
     "build_qdrant_backup_artifact_key",
     "build_raw_asset_key",
     "build_raw_asset_registry_from_env",
