@@ -51,11 +51,14 @@ updated: 2026-04-18
 - `OBJECT_STORE_ACCESS_KEY`
 - `OBJECT_STORE_SECRET_KEY`
 - `OBJECT_STORE_BUCKET_SOURCE`
+- `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL`
+- `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL`
 
 说明：
 
 - `SSO_TGC` 是 operator 需要主动更新的主字段
 - `JSESSIONID` / `nginx` 由 portal runtime 访问派生，不应作为主要人工维护输入
+- 生产 job 应配置 collector lease URL；本地 smoke 可不配置 lease
 
 ## 执行顺序
 
@@ -78,6 +81,13 @@ pnpm --dir apps/authenticated-notice-collector auth:save
 
 ```bash
 pnpm --dir apps/authenticated-notice-collector auth:check
+```
+
+容器入口等价命令：
+
+```bash
+AUTHENTICATED_NOTICE_COLLECTOR_MODE=auth-check \
+docker run --rm --env-file .env campus-authenticated-notice-collector:local
 ```
 
 通过标准：
@@ -113,6 +123,14 @@ export，不再用“随便抓 1 条”的数量 smoke 代替。
 ```bash
 AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<target_file_release_id> \
 pnpm --dir apps/authenticated-notice-collector file-release:export
+```
+
+容器入口等价命令：
+
+```bash
+AUTHENTICATED_NOTICE_COLLECTOR_MODE=file-release-export \
+AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<target_file_release_id> \
+docker run --rm --env-file .env campus-authenticated-notice-collector:local
 ```
 
 如需同时验证源文件 materialization，可在对象存储凭据已配置的前提下直接复用同一条命令；不需要额外放大抓取范围。
@@ -189,6 +207,14 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 - `file-releases-bundle-<timestamp>.json`
 - `file-releases-manifest-<timestamp>.json`
 
+命令 stdout summary 至少应包含：
+
+- `bundlePath`
+- `manifestPath`
+- `bundleObjectKey` / `manifestObjectKey`；未配置对象存储时为 `null`
+- `fileReleasesCollected`
+- `fileObjectsUploaded`
+
 如果当前执行的是 targeted export，还应看到 manifest 中：
 
 - `export_scope=file-release-target-<file_release_id>-<timestamp>`
@@ -215,6 +241,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 - targeted / smoke 的目标 `file_release_id` 与 `items_inserted`
 - 如果执行了 full export，再额外记录 full export 产物文件名与 item count
 - 如果启用了 source bucket 上传，保留 object key 样例和 uploaded file count
+- 如果启用了 run ledger，保留 `source_surface=file_release` 的 run id / row 摘要
 
 建议本地证据目录：
 

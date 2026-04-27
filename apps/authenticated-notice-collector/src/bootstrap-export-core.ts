@@ -14,6 +14,7 @@ import { materializeBundleAttachments } from "./attachment-materialization";
 import {
 	buildCategories,
 	buildExportManifest,
+	buildNoticeBrowserUrls,
 	buildReferenceArtifacts,
 	mergeBundleRecord,
 	normalizeNoticeType,
@@ -27,6 +28,12 @@ import {
 	toTimestampLabel,
 } from "./bootstrap-export-helpers";
 import {
+	buildCollectorRunLeaseKey,
+	createPostgresCollectorRunLeaseStore,
+	type DisposableCollectorRunLeaseStore,
+	withCollectorRunLease,
+} from "./collector-run-lease";
+import {
 	buildCollectorRunLedgerRecord,
 	createPostgresCollectorRunLedgerStore,
 	type DisposableCollectorRunLedgerStore,
@@ -39,10 +46,7 @@ import {
 } from "./config";
 import { getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
-import {
-	assertNoticeRunAdmissionAccepted,
-	buildNoticeRunAdmission,
-} from "./run-admission";
+import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission";
 import type {
 	ApiRequestContextLike,
 	BootstrapExportManifest,
@@ -60,6 +64,7 @@ import type {
 export interface CollectBootstrapBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
+	backfillMaxPagesPerType?: number | null;
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 	exportedAt: string;
 	fetchNoticeDetail?: (input: {
@@ -134,6 +139,23 @@ export function buildBundleRecord(input: {
 		"notice_title",
 	);
 	const sourceHomeUrl = normalizeNullableText(input.detailInfo?.home_url) ?? input.sourceHomeUrl;
+	const noticeLink = normalizeNullableText(
+		input.detailInfo?.notice_link ?? input.notice.notice_link,
+	);
+	const noticeLinkState = normalizeNullableNumber(
+		input.detailInfo?.notice_link_state ?? input.notice.notice_link_state,
+	);
+	const noticeSource = normalizeNullableNumber(
+		input.detailInfo?.notice_source ?? input.notice.notice_source,
+	);
+	const browserUrls = buildNoticeBrowserUrls({
+		noticeId,
+		noticeLink,
+		noticeLinkState,
+		noticeSource,
+		noticeType: normalizeNoticeType(input.notice.notice_type),
+		sourceHomeUrl,
+	});
 	const artifacts = buildReferenceArtifacts({
 		htmlValue:
 			normalizeNullableText(input.detailInfo?.notice_content ?? input.notice.notice_content) ?? "",
@@ -155,6 +177,8 @@ export function buildBundleRecord(input: {
 			notice_content: normalizeNullableText(
 				input.detailInfo?.notice_content ?? input.notice.notice_content,
 			),
+			notice_browser_url: browserUrls.notice_browser_url,
+			notice_browser_url_source: browserUrls.notice_browser_url_source,
 			notice_create_time: normalizeNullableText(
 				input.detailInfo?.notice_create_time ?? input.notice.notice_create_time,
 			),
@@ -162,16 +186,12 @@ export function buildBundleRecord(input: {
 				input.detailInfo?.notice_first_time ?? input.notice.notice_first_time,
 			),
 			notice_id: noticeId,
-			notice_link: normalizeNullableText(input.detailInfo?.notice_link ?? input.notice.notice_link),
-			notice_link_state: normalizeNullableNumber(
-				input.detailInfo?.notice_link_state ?? input.notice.notice_link_state,
-			),
+			notice_link: noticeLink,
+			notice_link_state: noticeLinkState,
 			notice_release_time: normalizeNullableText(
 				input.detailInfo?.notice_release_time ?? input.notice.notice_release_time,
 			),
-			notice_source: normalizeNullableNumber(
-				input.detailInfo?.notice_source ?? input.notice.notice_source,
-			),
+			notice_source: noticeSource,
 			notice_state: normalizeNullableNumber(
 				input.detailInfo?.notice_state ?? input.notice.notice_state,
 			),
@@ -185,6 +205,7 @@ export function buildBundleRecord(input: {
 			organization_name: normalizeNullableText(
 				input.detailInfo?.organization_name ?? input.notice.organization_name,
 			),
+			portal_print_url: browserUrls.portal_print_url,
 		},
 		notice_attachments: artifacts.noticeAttachments,
 		attachments: artifacts.attachments,
@@ -197,6 +218,7 @@ export async function collectBootstrapBundle(
 ): Promise<CollectBootstrapBundleResult> {
 	const selectedNotices = normalizeSelectedNoticeSpecs(input.selectedNotices ?? []);
 	const runAdmission = buildNoticeRunAdmission({
+		backfillMaxPagesPerType: input.backfillMaxPagesPerType,
 		collectionMode: input.collectionMode,
 		noticeTypes: input.noticeTypes,
 		selectedNotices,
@@ -283,7 +305,9 @@ export async function collectBootstrapBundle(
 		} else {
 			for (const noticeType of enabledNoticeTypes) {
 				const pageBudget =
-					collectionMode === "backfill" ? noticeType.backfillPages : noticeType.incrementalPages;
+					collectionMode === "backfill"
+						? (input.backfillMaxPagesPerType ?? noticeType.backfillPages)
+						: noticeType.incrementalPages;
 				const pageSize =
 					collectionMode === "backfill"
 						? noticeType.backfillPageSize
@@ -539,66 +563,83 @@ export async function main(): Promise<void> {
 	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
 	const attachmentFetchStatusStore = buildAttachmentFetchStatusStoreForMain(config);
 	const collectorRunLedgerStore = buildCollectorRunLedgerStoreForMain(config);
+	const collectorRunLeaseStore = buildCollectorRunLeaseStoreForMain(config);
 	try {
-		const selectedNotices = parseSelectedNoticeSpecs(
-			process.env.AUTHENTICATED_NOTICE_SELECTED_NOTICES,
-		);
-		const result = await collectBootstrapBundle({
-			attachmentArtifactStore,
-			attachmentFetchStatusStore,
-			collectionMode: config.collectionMode,
-			exportedAt,
-			noticeTypes,
-			requestBackoffBaseMs: config.requestBackoffBaseMs,
-			requestMaxRetries: config.requestMaxRetries,
-			selectedNotices,
-			siteId: config.siteId,
-			sourceHomeUrl: config.sourceHomeUrl,
-		});
-		const written = writeBootstrapArtifacts({
-			bundleRecords: result.bundleRecords,
-			exportManifest: result.exportManifest,
-			outputDir: config.exportsDir,
-		});
-		const uploadedArtifactRefs = attachmentArtifactStore
-			? await uploadBootstrapArtifacts({
-					artifactStore: attachmentArtifactStore,
-					bundlePath: written.bundlePath,
-					exportedAt,
-					manifestPath: written.manifestPath,
+		await runWithOptionalCollectorLease(
+			collectorRunLeaseStore,
+			{
+				leaseKey: buildCollectorRunLeaseKey({
 					siteId: config.siteId,
-				})
-			: undefined;
-		await collectorRunLedgerStore?.upsertRun(
-			buildCollectorRunLedgerRecord({
-				bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey,
-				bundlePath: written.bundlePath,
-				bundleRecords: result.bundleRecords,
-				collectionMode: result.exportManifest.run.mode,
-				exportedAt,
-				manifest: result.exportManifest,
-				manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey,
-				manifestPath: written.manifestPath,
-				siteId: config.siteId,
-				sourceHomeUrl: config.sourceHomeUrl,
-			}),
-		);
-		console.log(
-			JSON.stringify(
-				{
-					...result.stats,
-					bundlePath: written.bundlePath,
-					bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey ?? null,
-					manifestPath: written.manifestPath,
-					manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey ?? null,
-				},
-				null,
-				2,
-			),
+					sourceSurface: "notice",
+				}),
+				now: exportedAt,
+				ownerId: `${config.siteId}:notice:${toTimestampLabel(exportedAt)}`,
+				ttlSeconds: config.collectorRunLeaseTtlSeconds,
+			},
+			async () => {
+				const selectedNotices = parseSelectedNoticeSpecs(
+					process.env.AUTHENTICATED_NOTICE_SELECTED_NOTICES,
+				);
+				const result = await collectBootstrapBundle({
+					attachmentArtifactStore,
+					attachmentFetchStatusStore,
+					collectionMode: config.collectionMode,
+					exportedAt,
+					noticeTypes,
+					requestBackoffBaseMs: config.requestBackoffBaseMs,
+					requestMaxRetries: config.requestMaxRetries,
+					backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
+					selectedNotices,
+					siteId: config.siteId,
+					sourceHomeUrl: config.sourceHomeUrl,
+				});
+				const written = writeBootstrapArtifacts({
+					bundleRecords: result.bundleRecords,
+					exportManifest: result.exportManifest,
+					outputDir: config.exportsDir,
+				});
+				const uploadedArtifactRefs = attachmentArtifactStore
+					? await uploadBootstrapArtifacts({
+							artifactStore: attachmentArtifactStore,
+							bundlePath: written.bundlePath,
+							exportedAt,
+							manifestPath: written.manifestPath,
+							siteId: config.siteId,
+						})
+					: undefined;
+				await collectorRunLedgerStore?.upsertRun(
+					buildCollectorRunLedgerRecord({
+						bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey,
+						bundlePath: written.bundlePath,
+						bundleRecords: result.bundleRecords,
+						collectionMode: result.exportManifest.run.mode,
+						exportedAt,
+						manifest: result.exportManifest,
+						manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey,
+						manifestPath: written.manifestPath,
+						siteId: config.siteId,
+						sourceHomeUrl: config.sourceHomeUrl,
+					}),
+				);
+				console.log(
+					JSON.stringify(
+						{
+							...result.stats,
+							bundlePath: written.bundlePath,
+							bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey ?? null,
+							manifestPath: written.manifestPath,
+							manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey ?? null,
+						},
+						null,
+						2,
+					),
+				);
+			},
 		);
 	} finally {
 		await attachmentFetchStatusStore?.dispose();
 		await collectorRunLedgerStore?.dispose();
+		await collectorRunLeaseStore?.dispose();
 	}
 }
 
@@ -627,4 +668,26 @@ function buildCollectorRunLedgerStoreForMain(
 	return createPostgresCollectorRunLedgerStore({
 		databaseUrl: config.collectorRunLedgerDatabaseUrl,
 	});
+}
+
+function buildCollectorRunLeaseStoreForMain(
+	config: CollectorConfig,
+): DisposableCollectorRunLeaseStore | undefined {
+	if (config.collectorRunLeaseDisabled || config.collectorRunLeaseDatabaseUrl === null) {
+		return;
+	}
+	return createPostgresCollectorRunLeaseStore({
+		databaseUrl: config.collectorRunLeaseDatabaseUrl,
+	});
+}
+
+async function runWithOptionalCollectorLease<T>(
+	store: DisposableCollectorRunLeaseStore | undefined,
+	input: Parameters<typeof withCollectorRunLease>[1],
+	operation: () => Promise<T>,
+): Promise<T> {
+	if (!store) {
+		return await operation();
+	}
+	return await withCollectorRunLease(store, input, operation);
 }

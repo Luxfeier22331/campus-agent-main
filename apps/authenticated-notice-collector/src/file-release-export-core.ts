@@ -15,7 +15,23 @@ import {
 	type AuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
 } from "./artifact-store";
-import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
+import {
+	buildCollectorRunLeaseKey,
+	createPostgresCollectorRunLeaseStore,
+	type DisposableCollectorRunLeaseStore,
+	withCollectorRunLease,
+} from "./collector-run-lease";
+import {
+	buildCollectorFileReleaseRunLedgerRecord,
+	createPostgresCollectorRunLedgerStore,
+	type DisposableCollectorRunLedgerStore,
+} from "./collector-run-ledger";
+import {
+	type CollectorConfig,
+	ensureRuntimeDirs,
+	loadCollectorEnv,
+	resolveCollectorConfig,
+} from "./config";
 import {
 	AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 	buildExportManifest,
@@ -110,6 +126,19 @@ export interface WriteFileReleaseArtifactsInput {
 export interface WriteFileReleaseArtifactsResult {
 	bundlePath: string;
 	manifestPath: string;
+}
+
+export interface UploadFileReleaseArtifactsInput {
+	artifactStore: AuthenticatedNoticeArtifactStore;
+	bundlePath: string;
+	exportedAt: string;
+	manifestPath: string;
+	siteId: string;
+}
+
+export interface UploadFileReleaseArtifactsResult {
+	bundleObjectKey: string;
+	manifestObjectKey: string;
 }
 
 export function buildFileReleaseRecord(input: {
@@ -414,6 +443,46 @@ export function writeFileReleaseArtifacts(
 	};
 }
 
+export async function uploadFileReleaseArtifacts(
+	input: UploadFileReleaseArtifactsInput,
+): Promise<UploadFileReleaseArtifactsResult> {
+	const timestamp = toTimestampLabel(input.exportedAt);
+	const prefix = [
+		AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+		"runs",
+		sanitizeObjectKeySegment(input.siteId),
+		timestamp,
+	].join("/");
+	const bundleObjectKey = `${prefix}/file-releases-bundle.json`;
+	const manifestObjectKey = `${prefix}/file-releases-manifest.json`;
+	await input.artifactStore.putObject({
+		objectKey: bundleObjectKey,
+		data: fs.readFileSync(input.bundlePath),
+		contentType: "application/json",
+		metadata: {
+			artifact_kind: "file_release_bundle",
+			site_id: input.siteId,
+			source_channel: AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+			source_surface: "file_release",
+		},
+	});
+	await input.artifactStore.putObject({
+		objectKey: manifestObjectKey,
+		data: fs.readFileSync(input.manifestPath),
+		contentType: "application/json",
+		metadata: {
+			artifact_kind: "file_release_manifest",
+			site_id: input.siteId,
+			source_channel: AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+			source_surface: "file_release",
+		},
+	});
+	return {
+		bundleObjectKey,
+		manifestObjectKey,
+	};
+}
+
 export function buildAuthenticatedNoticeFileReleaseCaptureKey(input: {
 	contentSha256: string;
 	fileReleaseId: number;
@@ -538,34 +607,117 @@ export async function main(): Promise<void> {
 	ensureRuntimeDirs(config);
 	const exportedAt = new Date().toISOString();
 	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
+	const collectorRunLedgerStore = buildCollectorRunLedgerStoreForMain(config);
+	const collectorRunLeaseStore = buildCollectorRunLeaseStoreForMain(config);
 	const { pageSize, maxPages, maxFileReleases, targetFileReleaseId } =
 		resolveFileReleaseExportFiltersFromEnv(process.env);
-	const result = await collectFileReleaseBundle({
-		attachmentArtifactStore,
-		exportedAt,
-		maxFileReleases,
-		maxPages,
-		pageSize,
-		requestBackoffBaseMs: config.requestBackoffBaseMs,
-		requestMaxRetries: config.requestMaxRetries,
-		siteId: config.siteId,
-		sourceHomeUrl: config.sourceHomeUrl,
-		targetFileReleaseId,
-	});
-	const written = writeFileReleaseArtifacts({
-		bundleRecords: result.bundleRecords,
-		exportManifest: result.exportManifest,
-		outputDir: config.exportsDir,
-	});
-	console.log(
-		JSON.stringify(
+	try {
+		await runWithOptionalCollectorLease(
+			collectorRunLeaseStore,
 			{
-				...result.stats,
-				bundlePath: written.bundlePath,
-				manifestPath: written.manifestPath,
+				leaseKey: buildCollectorRunLeaseKey({
+					siteId: config.siteId,
+					sourceSurface: "file_release",
+				}),
+				now: exportedAt,
+				ownerId: `${config.siteId}:file_release:${toTimestampLabel(exportedAt)}`,
+				ttlSeconds: config.collectorRunLeaseTtlSeconds,
 			},
-			null,
-			2,
-		),
-	);
+			async () => {
+				const result = await collectFileReleaseBundle({
+					attachmentArtifactStore,
+					exportedAt,
+					maxFileReleases,
+					maxPages,
+					pageSize,
+					requestBackoffBaseMs: config.requestBackoffBaseMs,
+					requestMaxRetries: config.requestMaxRetries,
+					siteId: config.siteId,
+					sourceHomeUrl: config.sourceHomeUrl,
+					targetFileReleaseId,
+				});
+				const written = writeFileReleaseArtifacts({
+					bundleRecords: result.bundleRecords,
+					exportManifest: result.exportManifest,
+					outputDir: config.exportsDir,
+				});
+				const uploadedArtifactRefs = attachmentArtifactStore
+					? await uploadFileReleaseArtifacts({
+							artifactStore: attachmentArtifactStore,
+							bundlePath: written.bundlePath,
+							exportedAt,
+							manifestPath: written.manifestPath,
+							siteId: config.siteId,
+						})
+					: undefined;
+				await collectorRunLedgerStore?.upsertRun(
+					buildCollectorFileReleaseRunLedgerRecord({
+						bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey,
+						bundlePath: written.bundlePath,
+						bundleRecords: result.bundleRecords,
+						exportedAt,
+						manifest: result.exportManifest,
+						manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey,
+						manifestPath: written.manifestPath,
+						siteId: config.siteId,
+						sourceHomeUrl: config.sourceHomeUrl,
+					}),
+				);
+				console.log(
+					JSON.stringify(
+						{
+							...result.stats,
+							bundlePath: written.bundlePath,
+							bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey ?? null,
+							manifestPath: written.manifestPath,
+							manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey ?? null,
+						},
+						null,
+						2,
+					),
+				);
+			},
+		);
+	} finally {
+		await collectorRunLedgerStore?.dispose();
+		await collectorRunLeaseStore?.dispose();
+	}
+}
+
+function sanitizeObjectKeySegment(value: string): string {
+	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");
+	return normalized || "unknown";
+}
+
+function buildCollectorRunLedgerStoreForMain(
+	config: CollectorConfig,
+): DisposableCollectorRunLedgerStore | undefined {
+	if (config.collectorRunLedgerDisabled || config.collectorRunLedgerDatabaseUrl === null) {
+		return;
+	}
+	return createPostgresCollectorRunLedgerStore({
+		databaseUrl: config.collectorRunLedgerDatabaseUrl,
+	});
+}
+
+function buildCollectorRunLeaseStoreForMain(
+	config: CollectorConfig,
+): DisposableCollectorRunLeaseStore | undefined {
+	if (config.collectorRunLeaseDisabled || config.collectorRunLeaseDatabaseUrl === null) {
+		return;
+	}
+	return createPostgresCollectorRunLeaseStore({
+		databaseUrl: config.collectorRunLeaseDatabaseUrl,
+	});
+}
+
+async function runWithOptionalCollectorLease<T>(
+	store: DisposableCollectorRunLeaseStore | undefined,
+	input: Parameters<typeof withCollectorRunLease>[1],
+	operation: () => Promise<T>,
+): Promise<T> {
+	if (!store) {
+		return await operation();
+	}
+	return await withCollectorRunLease(store, input, operation);
 }

@@ -179,4 +179,100 @@ export function registerBootstrapExportCollectionValidationSuite(): void {
 		expect(result.exportManifest.filters.collection_mode).toBe("backfill");
 		expect(result.exportManifest.run.mode).toBe("backfill");
 	});
+
+	it("allows historical backfill to extend beyond per-type page budgets up to a runtime max", async () => {
+		const pageCalls: number[] = [];
+		const detailCalls: number[] = [];
+		const result = await collectBootstrapBundle({
+			backfillMaxPagesPerType: 3,
+			collectionMode: "backfill",
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => ({
+					body: async () => Buffer.from(""),
+					json: async () => ({}),
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => {
+				detailCalls.push(noticeId);
+				return {
+					datas: {
+						notice_info: {
+							notice_content: `<p>${noticeId}</p>`,
+							notice_id: noticeId,
+							notice_release_time: "2026-04-02 18:49",
+							notice_title: `历史通知 ${noticeId}`,
+						},
+					},
+					state: true,
+				};
+			},
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 5,
+							notice_type_name: "办公通知",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async ({ currentPage }) => {
+				pageCalls.push(currentPage);
+				return {
+					datas: {
+						page: {
+							totalCounts: 3,
+						},
+						tables: [
+							{
+								notice_id: 356000 + currentPage,
+								notice_title: `历史通知 ${currentPage}`,
+								notice_type: "5",
+								notice_type_name: "办公通知",
+							},
+						],
+					},
+					state: true,
+				};
+			},
+			noticeTypes: [
+				{
+					type: "5",
+					name: "办公通知",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 20,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(pageCalls).toEqual([1, 2, 3]);
+		expect(detailCalls).toEqual([356001, 356002, 356003]);
+		expect(result.exportManifest.run_admission).toMatchObject({
+			expected_page_count: 3,
+			page_budget: [
+				{
+					notice_type: "5",
+					page_size: 20,
+					pages: 3,
+				},
+			],
+		});
+	});
 }

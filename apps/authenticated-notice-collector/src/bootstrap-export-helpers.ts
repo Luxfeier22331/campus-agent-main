@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { collectHtmlVisualReferenceCandidates } from "./html-visual-references";
 import { buildNoticeTypePolicySnapshot } from "./notice-types";
 import type {
 	BootstrapExportManifest,
@@ -20,13 +21,12 @@ import type {
 export const AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal";
 export const EXPORT_SCHEMA_VERSION = "authenticated_notice_collector_export_v2";
 const HTML_ANCHOR_RE = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>(.*?)<\/a>/gis;
-const HTML_IMG_TAG_RE = /<img\b[^>]*>/gis;
-const HTML_ATTR_RE =
-	/\s([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
 const HTML_TAG_RE = /<[^>]+>/g;
 const WHITESPACE_RE = /\s+/g;
 const ATTACHMENT_FILE_EXTENSIONS = new Set([
 	".7z",
+	".avif",
+	".bmp",
 	".csv",
 	".doc",
 	".docx",
@@ -38,7 +38,11 @@ const ATTACHMENT_FILE_EXTENSIONS = new Set([
 	".ppt",
 	".pptx",
 	".rar",
+	".svg",
+	".tif",
+	".tiff",
 	".txt",
+	".webp",
 	".xls",
 	".xlsx",
 	".zip",
@@ -63,6 +67,8 @@ export function buildExportManifest(input: {
 	sourceHomeUrl: string;
 }): BootstrapExportManifest {
 	const timestamp = toTimestampLabel(input.exportedAt);
+	const selectedNoticeIds = input.selectedNoticeIds ?? [];
+	const selectedNoticeTypes = input.selectedNoticeTypes ?? [];
 	return {
 		schema_version: EXPORT_SCHEMA_VERSION,
 		exported_at: input.exportedAt,
@@ -84,12 +90,11 @@ export function buildExportManifest(input: {
 		filters: {
 			collection_mode: input.collectionMode,
 			max_notices: input.maxNotices,
-			notice_types: input.selectedNoticeTypes?.length
-				? input.selectedNoticeTypes
-				: input.noticeTypes.filter((item) => item.enabled).map((item) => item.type),
-			...(input.selectedNoticeIds?.length
-				? { selected_notice_ids: input.selectedNoticeIds }
-				: {}),
+			notice_types:
+				selectedNoticeTypes.length > 0
+					? selectedNoticeTypes
+					: input.noticeTypes.filter((item) => item.enabled).map((item) => item.type),
+			...(selectedNoticeIds.length > 0 ? { selected_notice_ids: selectedNoticeIds } : {}),
 		},
 		run_admission: input.runAdmission,
 		notice_type_policy: buildNoticeTypePolicySnapshot(input.noticeTypes),
@@ -203,6 +208,7 @@ export function buildReferenceArtifacts(input: {
 	const attachmentIds = new Map<string, number>();
 	const htmlAttachmentIds = new Set<number>();
 	const annexAttachmentIds = new Set<number>();
+	const inlineImageLinkKeys = new Set<string>();
 	let nextLinkId = 1;
 	let nextAttachmentId = 1;
 
@@ -319,19 +325,22 @@ export function buildReferenceArtifacts(input: {
 		});
 	}
 
-	for (const match of input.htmlValue.matchAll(HTML_IMG_TAG_RE)) {
-		const tag = String(match[0] || "");
-		const rawSrc = htmlAttributeValue(tag, "src");
-		if (!rawSrc) {
-			continue;
+	function addInlineImageReference(candidate: { linkText: string | null; rawUrl: string }): void {
+		if (!candidate.rawUrl) {
+			return;
 		}
 		const resolvedLink = resolveLinkTarget({
-			rawHref: rawSrc,
+			rawHref: candidate.rawUrl,
 			sourceHomeUrl: input.sourceHomeUrl,
 		});
+		const linkKey =
+			resolvedLink.finalUrl ?? `${resolvedLink.urlScheme ?? "unknown"}:${candidate.rawUrl}`;
+		if (inlineImageLinkKeys.has(linkKey)) {
+			return;
+		}
+		inlineImageLinkKeys.add(linkKey);
 		const linkText =
-			htmlAttributeValue(tag, "alt") ??
-			htmlAttributeValue(tag, "title") ??
+			candidate.linkText ??
 			(resolvedLink.finalUrl === null ? null : deriveOriginalFilename(resolvedLink.finalUrl, null));
 		const linkId = nextLinkId;
 		nextLinkId += 1;
@@ -341,7 +350,7 @@ export function buildReferenceArtifacts(input: {
 			run_id: null,
 			source: "content",
 			content_kind: "inline_image",
-			url: rawSrc,
+			url: candidate.rawUrl,
 			url_scheme: resolvedLink.urlScheme,
 			link_host: resolvedLink.linkHost,
 			link_scope: resolvedLink.linkScope,
@@ -360,7 +369,7 @@ export function buildReferenceArtifacts(input: {
 		});
 
 		if (resolvedLink.collectPolicy !== "reference_only" || resolvedLink.finalUrl === null) {
-			continue;
+			return;
 		}
 		const attachmentId = ensureAttachmentObservation({
 			filenameHint: linkText,
@@ -370,7 +379,7 @@ export function buildReferenceArtifacts(input: {
 			urlScheme: resolvedLink.urlScheme,
 		});
 		if (htmlAttachmentIds.has(attachmentId)) {
-			continue;
+			return;
 		}
 		htmlAttachmentIds.add(attachmentId);
 		noticeAttachments.push({
@@ -382,6 +391,10 @@ export function buildReferenceArtifacts(input: {
 			anchor_text: linkText,
 			discovered_at: input.observedAt,
 		});
+	}
+
+	for (const candidate of collectHtmlVisualReferenceCandidates(input.htmlValue)) {
+		addInlineImageReference(candidate);
 	}
 
 	for (const annex of input.noticeAnnexes ?? []) {
@@ -453,6 +466,69 @@ export function buildCategories(input: {
 			category_last_run_id: null,
 		},
 	];
+}
+
+export function buildNoticeBrowserUrls(input: {
+	noticeId: number;
+	noticeLink: string | null;
+	noticeLinkState: number | null;
+	noticeSource: number | null;
+	noticeType: string;
+	sourceHomeUrl?: string | null;
+}): Pick<
+	BundleNoticePayload,
+	"notice_browser_url" | "notice_browser_url_source" | "portal_print_url"
+> {
+	const portalPrintUrl = buildPortalPrintUrl(input);
+	if (input.noticeSource === 1 && input.noticeLinkState !== 1 && input.noticeLink) {
+		return {
+			notice_browser_url: input.noticeLink,
+			notice_browser_url_source: "api_notice_link",
+			portal_print_url: portalPrintUrl,
+		};
+	}
+	if (portalPrintUrl) {
+		return {
+			notice_browser_url: portalPrintUrl,
+			notice_browser_url_source: "portal_print_route",
+			portal_print_url: portalPrintUrl,
+		};
+	}
+	return {
+		notice_browser_url: null,
+		notice_browser_url_source: "unavailable",
+		portal_print_url: null,
+	};
+}
+
+function buildPortalPrintUrl(input: {
+	noticeId: number;
+	noticeLinkState: number | null;
+	noticeType: string;
+	sourceHomeUrl?: string | null;
+}): string | null {
+	const noticeType = input.noticeType.trim();
+	if (!noticeType) {
+		return null;
+	}
+	const origin = sourceHomeOrigin(input.sourceHomeUrl);
+	const params = new URLSearchParams({
+		type: noticeType,
+		notice_id: String(input.noticeId),
+		show_type: "1",
+	});
+	if (input.noticeLinkState === 1) {
+		params.set("notice_link_state", "1");
+	}
+	return `${origin}/#/print?${params.toString()}`;
+}
+
+function sourceHomeOrigin(value: string | null | undefined): string {
+	try {
+		return new URL(value?.trim() || "https://my.muc.edu.cn").origin;
+	} catch {
+		return "https://my.muc.edu.cn";
+	}
 }
 
 function dedupeCategories(...categorySets: NoticeCategoryRecord[][]): NoticeCategoryRecord[] {
@@ -619,22 +695,6 @@ function decodeHtmlAttribute(value: string): string {
 		.replace(/&gt;/g, ">")
 		.replace(/&quot;/g, '"')
 		.replace(/&#39;/g, "'");
-}
-
-function htmlAttributeValue(tag: string, attributeName: string): string | null {
-	const target = attributeName.toLowerCase();
-	for (const match of tag.matchAll(HTML_ATTR_RE)) {
-		if (String(match[1] || "").toLowerCase() !== target) {
-			continue;
-		}
-		const value = normalizeNullableText(
-			decodeHtmlAttribute(String(match[2] ?? match[3] ?? match[4] ?? "")),
-		);
-		if (value) {
-			return value;
-		}
-	}
-	return null;
 }
 
 function stripHtml(value: string): string {

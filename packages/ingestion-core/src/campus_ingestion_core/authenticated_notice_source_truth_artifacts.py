@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from campus_ingestion_core.authenticated_notice_browser_url_backfill import (
+    build_authenticated_notice_browser_urls,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_blocks import (
     _build_attachment_refs,
     _build_content_blocks,
@@ -220,6 +223,20 @@ def _build_source_truth_artifacts(
     attachment_refs: tuple[dict[str, Any], ...],
 ) -> dict[str, bytes]:
     category_pairs = _category_pairs(notice)
+    browser_urls = build_authenticated_notice_browser_urls(
+        notice=notice,
+        record={"notice_id": notice_id},
+        source_home_url=source_home_url,
+    )
+    portal_print_url = (
+        _optional_text(notice.get("portal_print_url")) or browser_urls["portal_print_url"]
+    )
+    notice_browser_url = (
+        _optional_text(notice.get("notice_browser_url")) or browser_urls["notice_browser_url"]
+    )
+    notice_browser_url_source = _optional_text(notice.get("notice_browser_url_source")) or str(
+        browser_urls["notice_browser_url_source"]
+    )
     owner_expectations = _build_owner_expectations(
         title=title,
         content_blocks=content_blocks,
@@ -256,6 +273,9 @@ def _build_source_truth_artifacts(
         "notice_type_names": [item[1] for item in category_pairs],
         "source_notice_link": source_uri,
         "source_home_url": source_home_url,
+        "portal_print_url": portal_print_url,
+        "notice_browser_url": notice_browser_url,
+        "notice_browser_url_source": notice_browser_url_source,
         "body_html_hash": __import__("hashlib")
         .sha256(str(notice.get("notice_content") or "").encode("utf-8"))
         .hexdigest(),

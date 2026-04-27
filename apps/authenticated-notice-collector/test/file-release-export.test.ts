@@ -9,6 +9,7 @@ import {
 	buildFileReleaseRecord,
 	collectFileReleaseBundle,
 	resolveFileReleaseExportFiltersFromEnv,
+	uploadFileReleaseArtifacts,
 	writeFileReleaseArtifacts,
 } from "../src/file-release-export";
 
@@ -700,6 +701,71 @@ describe("authenticated notice collector file release export", () => {
 		expect(JSON.parse(fs.readFileSync(written.manifestPath, "utf-8")).source_surface).toBe(
 			"file_release",
 		);
+	});
+
+	it("uploads file release bundle and manifest as source-channel run artifact refs", async () => {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-file-release-upload-"));
+		tempDirs.push(tempDir);
+		const bundlePath = path.join(tempDir, "file-releases-bundle-20260412T003000Z.json");
+		const manifestPath = path.join(tempDir, "file-releases-manifest-20260412T003000Z.json");
+		fs.writeFileSync(bundlePath, '[{"file_release_id":646}]\n', "utf-8");
+		fs.writeFileSync(manifestPath, '{"exported_at":"2026-04-12T00:30:00.000Z"}\n', "utf-8");
+
+		const storedObjects: Array<{
+			contentType: string;
+			key: string;
+			metadata: Record<string, string> | undefined;
+		}> = [];
+
+		const uploaded = await uploadFileReleaseArtifacts({
+			artifactStore: {
+				storageProvider: "object_store",
+				putObject: async ({ objectKey, contentType, metadata, data }) => {
+					storedObjects.push({ contentType, key: objectKey, metadata });
+					return {
+						bucket: "campus-rag-source",
+						byteSize: data.byteLength,
+						contentSha256: "sha256",
+						etag: '"etag"',
+						objectKey,
+						versionId: null,
+					};
+				},
+			},
+			bundlePath,
+			exportedAt: "2026-04-12T00:30:00.000Z",
+			manifestPath,
+			siteId: "muc_internal_portal",
+		});
+
+		expect(uploaded).toEqual({
+			bundleObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+			manifestObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+		});
+		expect(storedObjects).toEqual([
+			{
+				contentType: "application/json",
+				key: "authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+				metadata: {
+					artifact_kind: "file_release_bundle",
+					site_id: "muc_internal_portal",
+					source_channel: "authenticated_notice_portal",
+					source_surface: "file_release",
+				},
+			},
+			{
+				contentType: "application/json",
+				key: "authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+				metadata: {
+					artifact_kind: "file_release_manifest",
+					site_id: "muc_internal_portal",
+					source_channel: "authenticated_notice_portal",
+					source_surface: "file_release",
+				},
+			},
+		]);
 	});
 
 	it("builds ADR-aligned object keys for file release capture bytes", () => {

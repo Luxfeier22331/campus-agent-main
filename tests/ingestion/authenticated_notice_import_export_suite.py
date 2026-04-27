@@ -68,6 +68,15 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
             "asset:authenticated-notice:muc_internal_portal:355119",
         )
         self.assertEqual(entry.source_home_url, "https://portal.example.edu/home")
+        self.assertEqual(
+            entry.parent_snapshot["portal_print_url"],
+            "https://portal.example.edu/#/print?type=6&notice_id=355119&show_type=1",
+        )
+        self.assertEqual(
+            entry.parent_snapshot["notice_browser_url"],
+            "https://portal.example.edu/notice/355119",
+        )
+        self.assertEqual(entry.parent_snapshot["notice_browser_url_source"], "api_notice_link")
         self.assertEqual(entry.attachment_document_count, 1)
         self.assertGreaterEqual(entry.planning_weight, 1)
         self.assertTrue(entry.notice_manifest_key.endswith("/source-truth/notice-manifest.json"))

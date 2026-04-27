@@ -14,6 +14,8 @@ import type {
 const YEAR_RE = /(?<!\d)((?:19|20)\d{2})(?!\d)/;
 const MIME_TYPE_BY_EXTENSION: Record<string, string> = {
 	".7z": "application/x-7z-compressed",
+	".avif": "image/avif",
+	".bmp": "image/bmp",
 	".csv": "text/csv",
 	".doc": "application/msword",
 	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -25,12 +27,28 @@ const MIME_TYPE_BY_EXTENSION: Record<string, string> = {
 	".ppt": "application/vnd.ms-powerpoint",
 	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 	".rar": "application/vnd.rar",
+	".svg": "image/svg+xml",
+	".tif": "image/tiff",
+	".tiff": "image/tiff",
 	".txt": "text/plain",
+	".webp": "image/webp",
 	".xls": "application/vnd.ms-excel",
 	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 	".zip": "application/zip",
 };
 const GENERIC_BINARY_MIME_TYPES = new Set(["application/octet-stream", "binary/octet-stream"]);
+const DEFAULT_EXTERNAL_VISUAL_CAPTURE_HOSTS = new Set(["mmbiz.qpic.cn"]);
+const EXTERNAL_VISUAL_MAX_BYTES = 10 * 1024 * 1024;
+const PREFERRED_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+	"image/avif": ".avif",
+	"image/bmp": ".bmp",
+	"image/gif": ".gif",
+	"image/jpeg": ".jpg",
+	"image/png": ".png",
+	"image/svg+xml": ".svg",
+	"image/tiff": ".tiff",
+	"image/webp": ".webp",
+};
 
 export interface MaterializeBundleAttachmentsInput {
 	apiContext: ApiRequestContextLike;
@@ -64,6 +82,13 @@ interface MaterializedAttachment {
 	>;
 }
 
+type AttachmentFetchMode = "portal_internal" | "trusted_external_visual";
+
+interface MaterializationCandidate {
+	fetchMode: AttachmentFetchMode;
+	originHost: string | null;
+}
+
 export async function materializeBundleAttachments(
 	input: MaterializeBundleAttachmentsInput,
 ): Promise<MaterializeBundleAttachmentsResult> {
@@ -74,7 +99,12 @@ export async function materializeBundleAttachments(
 		const linksById = new Map(record.links.map((link) => [link.id, { ...link }]));
 		const attachmentsById = new Map<number, BundleAttachmentObservation>();
 		const attachmentRefIdByAttachmentId = new Map<number, string>();
+		const relationByAttachmentId = new Map<
+			number,
+			BundleNoticeRecord["notice_attachments"][number]
+		>();
 		record.notice_attachments.forEach((relation, index) => {
+			relationByAttachmentId.set(relation.attachment_id, relation);
 			attachmentRefIdByAttachmentId.set(
 				relation.attachment_id,
 				`attachment-${String(index + 1).padStart(4, "0")}`,
@@ -87,16 +117,19 @@ export async function materializeBundleAttachments(
 				clonedAttachment.final_url ??
 				clonedAttachment.normalized_source_url ??
 				clonedAttachment.source_url;
-			if (
-				!candidateUrl ||
-				clonedAttachment.origin_scope !== "internal" ||
-				clonedAttachment.storage_provider !== "reference_only"
-			) {
+			const relation = relationByAttachmentId.get(clonedAttachment.attachment_id);
+			const materializationCandidate = classifyMaterializationCandidate({
+				attachment: clonedAttachment,
+				candidateUrl,
+				relation,
+			});
+			if (!(candidateUrl && materializationCandidate)) {
 				attachmentsById.set(clonedAttachment.attachment_id, clonedAttachment);
 				continue;
 			}
 
-			let task = cache.get(candidateUrl);
+			const cacheKey = `${materializationCandidate.fetchMode}:${candidateUrl}`;
+			let task = cache.get(cacheKey);
 			if (!task) {
 				task = materializeSingleAttachment({
 					apiContext: input.apiContext,
@@ -106,22 +139,21 @@ export async function materializeBundleAttachments(
 					attachmentRefId:
 						attachmentRefIdByAttachmentId.get(clonedAttachment.attachment_id) ??
 						`attachment-${String(clonedAttachment.attachment_id).padStart(4, "0")}`,
+					fetchMode: materializationCandidate.fetchMode,
 					noticeId: String(record.notice_id),
 					observedAt: input.observedAt,
+					originHost: materializationCandidate.originHost,
 					requestBackoffBaseMs: input.requestBackoffBaseMs,
 					requestMaxRetries: input.requestMaxRetries,
 					siteId: input.siteId,
 					year: inferAuthenticatedNoticeYear(record),
 				});
-				cache.set(candidateUrl, task);
+				cache.set(cacheKey, task);
 			}
 
 			const materialized = await task;
 			attachmentsById.set(clonedAttachment.attachment_id, materialized.attachment);
 
-			const relation = record.notice_attachments.find(
-				(item) => item.attachment_id === clonedAttachment.attachment_id,
-			);
 			if (relation?.link_id != null && materialized.linkPatch) {
 				const existingLink = linksById.get(relation.link_id);
 				if (existingLink) {
@@ -158,8 +190,10 @@ async function materializeSingleAttachment(input: {
 	attachment: BundleAttachmentObservation;
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	attachmentRefId: string;
+	fetchMode: AttachmentFetchMode;
 	noticeId: string;
 	observedAt: string;
+	originHost: string | null;
 	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
 	siteId: string;
@@ -198,20 +232,27 @@ async function materializeSingleAttachment(input: {
 		};
 	}
 	try {
-		const result = await fetchAttachmentBinary({
-			apiContext: input.apiContext,
-			attachmentUrl: sourceUrl,
-			requestBackoffBaseMs: input.requestBackoffBaseMs,
-			requestMaxRetries: input.requestMaxRetries,
-		});
+		const result =
+			input.fetchMode === "trusted_external_visual"
+				? await fetchExternalVisualBinary({
+						attachmentUrl: sourceUrl,
+						requestBackoffBaseMs: input.requestBackoffBaseMs,
+						requestMaxRetries: input.requestMaxRetries,
+					})
+				: await fetchAttachmentBinary({
+						apiContext: input.apiContext,
+						attachmentUrl: sourceUrl,
+						requestBackoffBaseMs: input.requestBackoffBaseMs,
+						requestMaxRetries: input.requestMaxRetries,
+					});
 		const contentSha256 = createHash("sha256").update(result.body).digest("hex");
-		const resolvedFilename = resolveAttachmentFilename({
+		const initialFilename = resolveAttachmentFilename({
 			attachmentFilename: input.attachment.original_filename,
 			contentDisposition: result.contentDisposition,
 			fallbackUrl: input.attachment.final_url,
 		});
 		const extensionContentType =
-			MIME_TYPE_BY_EXTENSION[path.posix.extname(resolvedFilename).toLowerCase()] ?? null;
+			MIME_TYPE_BY_EXTENSION[path.posix.extname(initialFilename).toLowerCase()] ?? null;
 		const responseContentType = normalizeContentType(result.contentType);
 		const resolvedContentType =
 			(responseContentType && !GENERIC_BINARY_MIME_TYPES.has(responseContentType)
@@ -219,18 +260,38 @@ async function materializeSingleAttachment(input: {
 				: extensionContentType) ??
 			responseContentType ??
 			"application/octet-stream";
-		const objectKey = buildAuthenticatedNoticeAttachmentCaptureKey({
-			contentSha256,
-			filename: resolvedFilename,
-			year: input.year,
+		const resolvedFilename = ensureFilenameExtensionForContentType({
+			contentType: resolvedContentType,
+			filename: initialFilename,
 		});
+		const objectKey =
+			input.fetchMode === "trusted_external_visual"
+				? buildAuthenticatedNoticeExternalVisualCaptureKey({
+						contentSha256,
+						filename: resolvedFilename,
+						originHost: input.originHost,
+						year: input.year,
+					})
+				: buildAuthenticatedNoticeAttachmentCaptureKey({
+						contentSha256,
+						filename: resolvedFilename,
+						year: input.year,
+					});
+		const metadata: Record<string, string> =
+			input.fetchMode === "trusted_external_visual"
+				? {
+						"content-sha256": contentSha256,
+						"origin-host": input.originHost ?? "unknown-host",
+						"origin-scope": "external",
+					}
+				: {
+						"content-sha256": contentSha256,
+					};
 		const stored = await input.artifactStore.putObject({
 			objectKey,
 			data: result.body,
 			contentType: resolvedContentType,
-			metadata: {
-				"content-sha256": contentSha256,
-			},
+			metadata,
 		});
 		const updatedAttachment: BundleAttachmentObservation = {
 			...input.attachment,
@@ -285,6 +346,87 @@ async function materializeSingleAttachment(input: {
 	}
 }
 
+function classifyMaterializationCandidate(input: {
+	attachment: BundleAttachmentObservation;
+	candidateUrl: string | null;
+	relation: BundleNoticeRecord["notice_attachments"][number] | undefined;
+}): MaterializationCandidate | null {
+	if (!input.candidateUrl || input.attachment.storage_provider !== "reference_only") {
+		return null;
+	}
+	if (input.attachment.origin_scope === "internal") {
+		return {
+			fetchMode: "portal_internal",
+			originHost: input.attachment.origin_host,
+		};
+	}
+	if (
+		input.attachment.origin_scope !== "external" ||
+		input.relation?.resource_role !== "inline_image"
+	) {
+		return null;
+	}
+	const originHost =
+		normalizeUrlHost(input.candidateUrl) ?? normalizeHost(input.attachment.origin_host);
+	if (!(originHost && DEFAULT_EXTERNAL_VISUAL_CAPTURE_HOSTS.has(originHost))) {
+		return null;
+	}
+	return {
+		fetchMode: "trusted_external_visual",
+		originHost,
+	};
+}
+
+async function fetchExternalVisualBinary(input: {
+	attachmentUrl: string;
+	requestBackoffBaseMs: number;
+	requestMaxRetries: number;
+	sleep?: (ms: number) => Promise<void>;
+}): Promise<FetchAttachmentBinaryResult> {
+	let lastError: Error | null = null;
+	for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
+		try {
+			const response = await fetch(input.attachmentUrl, {
+				redirect: "follow",
+			});
+			if (!response.ok) {
+				throw new Error(`downloadExternalVisual failed: ${response.status} ${response.statusText}`);
+			}
+			const contentType = normalizeHeaderValue(response.headers.get("content-type"));
+			const normalizedContentType = normalizeContentType(contentType);
+			if (!normalizedContentType?.startsWith("image/")) {
+				throw new Error(
+					`downloadExternalVisual returned non-image content-type: ${contentType ?? "unknown"}`,
+				);
+			}
+			const contentLength = parseContentLength(response.headers.get("content-length"));
+			if (contentLength !== null && contentLength > EXTERNAL_VISUAL_MAX_BYTES) {
+				throw new Error(
+					`downloadExternalVisual exceeded max size before download: ${contentLength}`,
+				);
+			}
+			const body = Buffer.from(await response.arrayBuffer());
+			if (body.byteLength > EXTERNAL_VISUAL_MAX_BYTES) {
+				throw new Error(`downloadExternalVisual exceeded max size: ${body.byteLength}`);
+			}
+			return {
+				body,
+				contentType,
+				contentDisposition: normalizeHeaderValue(response.headers.get("content-disposition")),
+				etag: normalizeHeaderValue(response.headers.get("etag")),
+				statusCode: response.status,
+			};
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+			if (attempt >= input.requestMaxRetries) {
+				throw lastError;
+			}
+			await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
+		}
+	}
+	throw lastError ?? new Error("fetchExternalVisualBinary failed with unknown error");
+}
+
 function resolveAttachmentFilename(input: {
 	attachmentFilename: string | null;
 	contentDisposition: string | null;
@@ -301,6 +443,20 @@ function resolveAttachmentFilename(input: {
 		contentDispositionFilename({ contentDisposition: input.contentDisposition }) ??
 		attachmentFilename
 	);
+}
+
+function ensureFilenameExtensionForContentType(input: {
+	contentType: string;
+	filename: string;
+}): string {
+	if (path.posix.extname(input.filename)) {
+		return input.filename;
+	}
+	const extension = PREFERRED_EXTENSION_BY_MIME_TYPE[input.contentType];
+	if (!extension) {
+		return input.filename;
+	}
+	return safeBasename(`${input.filename}${extension}`);
 }
 
 function contentDispositionFilename(
@@ -385,6 +541,44 @@ function normalizeContentType(value: string | null): string | null {
 	return normalized || null;
 }
 
+function normalizeHeaderValue(value: string | null): string | null {
+	if (!value) {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed || null;
+}
+
+function normalizeUrlHost(value: string): string | null {
+	try {
+		return normalizeHost(new URL(value).host);
+	} catch {
+		return null;
+	}
+}
+
+function normalizeHost(value: string | null): string | null {
+	const host = value?.trim().toLowerCase();
+	return host || null;
+}
+
+function parseContentLength(value: string | null): number | null {
+	if (!value) {
+		return null;
+	}
+	const parsed = Number(value.trim());
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+const defaultSleep = async (ms: number) =>
+	new Promise<void>((resolve) => {
+		setTimeout(resolve, ms);
+	});
+
+function backoffDelayMs(baseMs: number, attempt: number): number {
+	return baseMs * attempt;
+}
+
 export function buildAuthenticatedNoticeAttachmentCaptureKey(input: {
 	contentSha256: string;
 	filename: string;
@@ -404,4 +598,35 @@ export function buildAuthenticatedNoticeAttachmentCaptureKey(input: {
 		"capture",
 		safeBasename(input.filename),
 	].join("/");
+}
+
+export function buildAuthenticatedNoticeExternalVisualCaptureKey(input: {
+	contentSha256: string;
+	filename: string;
+	originHost: string | null;
+	year: string | null;
+}): string {
+	const digest = input.contentSha256.trim().toLowerCase();
+	if (!digest) {
+		throw new Error("contentSha256 is required");
+	}
+	const year = input.year?.trim() || "unknown-year";
+	return [
+		"authenticated_notice_portal",
+		"external-visual",
+		safePathSegment(input.originHost ?? "unknown-host"),
+		year,
+		"sha256",
+		digest,
+		"capture",
+		safeBasename(input.filename),
+	].join("/");
+}
+
+function safePathSegment(value: string): string {
+	const normalized = value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9._-]+/g, "-");
+	return normalized.replace(/^-+|-+$/g, "") || "unknown";
 }

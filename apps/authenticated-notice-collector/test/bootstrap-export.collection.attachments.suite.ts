@@ -1,8 +1,12 @@
-import { expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 import { collectBootstrapBundle } from "../src/bootstrap-export";
 
 export function registerBootstrapExportCollectionAttachmentsSuite(): void {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it("scans only enabled notice types while snapshotting the full configured policy", async () => {
 		const pageCalls: string[] = [];
 		const result = await collectBootstrapBundle({
@@ -389,6 +393,172 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 				data: "image-bytes",
 				metadata: {
 					"content-sha256": "2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c",
+				},
+			},
+		]);
+	});
+
+	it("materializes only allowlisted external inline image refs without using the portal API context", async () => {
+		const externalFetch = vi.fn(
+			async () =>
+				new Response(Buffer.from("wechat-image"), {
+					headers: {
+						"content-type": "image/jpeg; charset=binary",
+					},
+					status: 200,
+					statusText: "OK",
+				}),
+		);
+		vi.stubGlobal("fetch", externalFetch);
+
+		const storedObjects: Array<{
+			key: string;
+			contentType: string;
+			data: string;
+			metadata: Record<string, string> | undefined;
+		}> = [];
+		const result = await collectBootstrapBundle({
+			attachmentArtifactStore: {
+				storageProvider: "object_store",
+				putObject: async ({ objectKey, data, contentType, metadata }) => {
+					storedObjects.push({
+						key: objectKey,
+						contentType,
+						data: Buffer.from(data).toString("utf-8"),
+						metadata,
+					});
+					return {
+						bucket: "campus-rag-source",
+						objectKey,
+						contentSha256: "a367921267a37b7c0916ab322ee72b9a9f15197d86dc4d648425b3f8f44ece5d",
+						byteSize: data.byteLength,
+						etag: '"etag-external-image"',
+						versionId: null,
+					};
+				},
+			},
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => {
+					throw new Error("portal API context must not fetch external inline images");
+				},
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						home_url: "https://portal.example.edu/home",
+						notice_content: [
+							'<img alt="论文截图" data-src="https://mmbiz.qpic.cn/mmbiz_jpg/VSYicAPlaX6z95r71Jfu4l5vJAfQcSmvQ/640?wx_fmt=jpeg&amp;from=appmsg">',
+							'<img alt="其他外链图" src="https://cdn.example.org/image.jpg">',
+						].join(""),
+						notice_id: noticeId,
+						notice_release_time: "2026-04-02 18:49",
+					},
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 9980,
+							notice_type_name: "综合新闻",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async () => ({
+				datas: {
+					page: {
+						totalCounts: 1,
+					},
+					tables: [
+						{
+							notice_id: 351117,
+							notice_title: "通知 C",
+							notice_type: "9980",
+							notice_type_name: "综合新闻",
+						},
+					],
+				},
+				state: true,
+			}),
+			noticeTypes: [
+				{
+					type: "9980",
+					name: "综合新闻",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 1,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(externalFetch).toHaveBeenCalledTimes(1);
+		expect(externalFetch).toHaveBeenCalledWith(
+			"https://mmbiz.qpic.cn/mmbiz_jpg/VSYicAPlaX6z95r71Jfu4l5vJAfQcSmvQ/640?wx_fmt=jpeg&from=appmsg",
+			expect.objectContaining({
+				redirect: "follow",
+			}),
+		);
+		expect(result.stats.attachmentObjectsUploaded).toBe(1);
+		expect(result.bundleRecords[0]?.links).toHaveLength(2);
+		expect(result.bundleRecords[0]?.links[0]).toMatchObject({
+			content_kind: "inline_image",
+			content_type: "image/jpeg",
+			downloaded: true,
+			file_size: 12,
+			link_host: "mmbiz.qpic.cn",
+			link_scope: "external",
+		});
+		expect(result.bundleRecords[0]?.links[1]).toMatchObject({
+			content_kind: "inline_image",
+			content_type: null,
+			downloaded: false,
+			link_host: "cdn.example.org",
+			link_scope: "external",
+		});
+		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+			bucket: "campus-rag-source",
+			byte_size: 12,
+			ingest_status: "uploaded",
+			mime_type: "image/jpeg",
+			object_key:
+				"authenticated_notice_portal/external-visual/mmbiz.qpic.cn/2026/sha256/a367921267a37b7c0916ab322ee72b9a9f15197d86dc4d648425b3f8f44ece5d/capture/论文截图.jpg",
+			origin_host: "mmbiz.qpic.cn",
+			origin_scope: "external",
+			original_filename: "论文截图.jpg",
+			provenance_status: "collected_internal",
+			storage_provider: "object_store",
+		});
+		expect(result.bundleRecords[0]?.attachments[1]).toMatchObject({
+			ingest_status: "reference_only",
+			object_key: null,
+			origin_host: "cdn.example.org",
+			origin_scope: "external",
+			storage_provider: "reference_only",
+		});
+		expect(storedObjects).toEqual([
+			{
+				key: "authenticated_notice_portal/external-visual/mmbiz.qpic.cn/2026/sha256/a367921267a37b7c0916ab322ee72b9a9f15197d86dc4d648425b3f8f44ece5d/capture/论文截图.jpg",
+				contentType: "image/jpeg",
+				data: "wechat-image",
+				metadata: {
+					"content-sha256": "a367921267a37b7c0916ab322ee72b9a9f15197d86dc4d648425b3f8f44ece5d",
+					"origin-host": "mmbiz.qpic.cn",
+					"origin-scope": "external",
 				},
 			},
 		]);

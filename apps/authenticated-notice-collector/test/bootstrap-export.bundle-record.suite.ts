@@ -43,6 +43,8 @@ export function registerBootstrapExportBundleRecordSuite() {
 				enrich_attempted_at: "2026-04-04T01:23:45.000Z",
 				last_seen_at: "2026-04-04T01:23:45.000Z",
 				notice_content: "<p>请同学们于4月10日前完成报名。</p>",
+				notice_browser_url: "https://portal.example.edu/notice/355119",
+				notice_browser_url_source: "api_notice_link",
 				notice_create_time: null,
 				notice_first_time: null,
 				notice_id: 355119,
@@ -55,9 +57,65 @@ export function registerBootstrapExportBundleRecordSuite() {
 				notice_title: "关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知",
 				organization_id: "00001",
 				organization_name: "教务处",
+				portal_print_url: "https://my.muc.edu.cn/#/print?type=6&notice_id=355119&show_type=1",
 			},
 			notice_attachments: [],
 			notice_id: 355119,
+		});
+	});
+
+	it("builds portal print browser urls for internal notice details", () => {
+		const record = buildBundleRecord({
+			detailInfo: {
+				notice_content: "<p>正文</p>",
+				notice_id: 351117,
+				notice_link: null,
+				notice_link_state: 0,
+				notice_source: 0,
+			},
+			observedAt: "2026-04-04T01:23:45.000Z",
+			notice: {
+				notice_id: 351117,
+				notice_title:
+					"国家语言资源监测与研究民族语言中心有多篇论文被领域内顶级会议（IJCAI，ACL，ICASSP，NLPCC，CCL）接收",
+				notice_type: "9980",
+				notice_type_name: "学术信息",
+			},
+			sourceHomeUrl: "https://my.muc.edu.cn/page/11",
+		});
+
+		expect(record.notice).toMatchObject({
+			notice_browser_url: "https://my.muc.edu.cn/#/print?type=9980&notice_id=351117&show_type=1",
+			notice_browser_url_source: "portal_print_route",
+			portal_print_url: "https://my.muc.edu.cn/#/print?type=9980&notice_id=351117&show_type=1",
+		});
+	});
+
+	it("keeps portal print urls for notice link state wrapper pages", () => {
+		const record = buildBundleRecord({
+			detailInfo: {
+				notice_content: "<p>正文</p>",
+				notice_id: 355120,
+				notice_link: "https://external.example.edu/news/355120",
+				notice_link_state: 1,
+				notice_source: 1,
+			},
+			observedAt: "2026-04-04T01:23:45.000Z",
+			notice: {
+				notice_id: 355120,
+				notice_title: "通知标题",
+				notice_type: "5",
+				notice_type_name: "办公通知",
+			},
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(record.notice).toMatchObject({
+			notice_browser_url:
+				"https://portal.example.edu/#/print?type=5&notice_id=355120&show_type=1&notice_link_state=1",
+			notice_browser_url_source: "portal_print_route",
+			portal_print_url:
+				"https://portal.example.edu/#/print?type=5&notice_id=355120&show_type=1&notice_link_state=1",
 		});
 	});
 
@@ -204,6 +262,54 @@ export function registerBootstrapExportBundleRecordSuite() {
 				uploaded_at: null,
 				version_id: null,
 			},
+		]);
+	});
+
+	it("extracts lazy, responsive, source, and style image refs from notice html", () => {
+		const record = buildBundleRecord({
+			detailInfo: {
+				notice_content: [
+					'<p><img data-src="/upload/lazy.png" alt="懒加载图.png"/></p>',
+					'<p><img srcset="/upload/small.jpg 480w, /upload/large.jpg 960w" title="响应式图"/></p>',
+					'<picture><source srcset="/upload/source.webp 1x, /upload/source@2x.webp 2x"></picture>',
+					'<p><span style="background-image: url(&quot;/upload/bg.png&quot;)"></span></p>',
+				].join(""),
+				notice_id: 355550,
+			},
+			observedAt: "2026-04-04T01:23:45.000Z",
+			notice: {
+				notice_id: 355550,
+				notice_title: "关于图示区域调整的通知",
+				notice_type: "5",
+				notice_type_name: "办公通知",
+			},
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(record.links.map((link) => link.final_url)).toEqual([
+			"https://portal.example.edu/upload/lazy.png",
+			"https://portal.example.edu/upload/small.jpg",
+			"https://portal.example.edu/upload/large.jpg",
+			"https://portal.example.edu/upload/source.webp",
+			"https://portal.example.edu/upload/source@2x.webp",
+			"https://portal.example.edu/upload/bg.png",
+		]);
+		expect(record.links.every((link) => link.content_kind === "inline_image")).toBe(true);
+		expect(record.notice_attachments.map((relation) => relation.resource_role)).toEqual([
+			"inline_image",
+			"inline_image",
+			"inline_image",
+			"inline_image",
+			"inline_image",
+			"inline_image",
+		]);
+		expect(record.attachments.map((attachment) => attachment.original_filename)).toEqual([
+			"lazy.png",
+			"small.jpg",
+			"large.jpg",
+			"source.webp",
+			"source@2x.webp",
+			"bg.png",
 		]);
 	});
 

@@ -123,6 +123,15 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
         self.assertEqual(manifest["attachment_ref_count"], 1)
         self.assertEqual(manifest["link_count"], 1)
         self.assertEqual(manifest["source_home_url"], "https://portal.example.edu/home")
+        self.assertEqual(
+            manifest["portal_print_url"],
+            "https://portal.example.edu/#/print?type=6&notice_id=355119&show_type=1",
+        )
+        self.assertEqual(
+            manifest["notice_browser_url"],
+            "https://portal.example.edu/notice/355119",
+        )
+        self.assertEqual(manifest["notice_browser_url_source"], "api_notice_link")
 
         content_blocks = [
             json.loads(line)

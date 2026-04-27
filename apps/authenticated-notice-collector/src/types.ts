@@ -207,11 +207,14 @@ export interface BundleNoticePayload {
 	notice_create_time: string | null;
 	notice_first_time: string | null;
 	notice_content: string | null;
+	notice_browser_url: string | null;
+	notice_browser_url_source: "portal_print_route" | "api_notice_link" | "unavailable";
 	notice_link: string | null;
 	notice_source: number | null;
 	notice_link_state: number | null;
 	notice_state: number | null;
 	notice_stick: number | null;
+	portal_print_url: string | null;
 	categories: NoticeCategoryRecord[];
 	last_seen_at: string;
 	enrich_attempted_at: string;

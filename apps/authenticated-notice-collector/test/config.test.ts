@@ -29,6 +29,10 @@ describe("authenticated notice collector config", () => {
 		expect(config.collectionMode).toBe("incremental");
 		expect(config.collectorRunLedgerDatabaseUrl).toBeNull();
 		expect(config.collectorRunLedgerDisabled).toBe(false);
+		expect(config.collectorRunLeaseDatabaseUrl).toBeNull();
+		expect(config.collectorRunLeaseDisabled).toBe(false);
+		expect(config.collectorRunLeaseTtlSeconds).toBe(3600);
+		expect(config.historicalBackfillMaxPagesPerType).toBeNull();
 	});
 
 	it("accepts explicit overrides from env-like input", () => {
@@ -44,6 +48,10 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL:
 				"postgresql://ledger.example/postgres",
 			AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DISABLE: "true",
+			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL: "postgresql://lease.example/postgres",
+			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE: "true",
+			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_TTL_SECONDS: "120",
+			AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE: "500",
 			AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES: "5",
 			AUTHENTICATED_NOTICE_RUNTIME_DIR: "/tmp/collector-runtime",
 			AUTHENTICATED_NOTICE_SSO_TGC: "sso-token",
@@ -59,6 +67,10 @@ describe("authenticated notice collector config", () => {
 		expect(config.collectionMode).toBe("backfill");
 		expect(config.collectorRunLedgerDatabaseUrl).toBe("postgresql://ledger.example/postgres");
 		expect(config.collectorRunLedgerDisabled).toBe(true);
+		expect(config.collectorRunLeaseDatabaseUrl).toBe("postgresql://lease.example/postgres");
+		expect(config.collectorRunLeaseDisabled).toBe(true);
+		expect(config.collectorRunLeaseTtlSeconds).toBe(120);
+		expect(config.historicalBackfillMaxPagesPerType).toBe(500);
 		expect(config.bypassProxyForPortal).toBe(false);
 		expect(config.portalProxyServer).toBeNull();
 		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-12
+updated: 2026-04-27
 ---
 # Authenticated Notice Bootstrap Smoke Runbook
 
@@ -127,6 +127,42 @@ uv run --package campus-ingestion-worker python -m \
 - active runbook 只保留样本放大顺序与判定规则
 - 某一轮 `2/10/50/240` sample 的 summary 路径属于历史 smoke evidence，不再作为默认入口长期维护
 - `6694` 及更大 backfill 仍应作为单独执行决策，而不是被误读为 bootstrap smoke 的默认目标
+
+## Historical Browser URL Backfill
+
+全量历史补采前，先对已有 historical bundle 做 browser URL metadata
+coverage audit / backfill：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.audit_authenticated_notice_browser_url_bundles \
+  --bundle-path /path/to/notices-bundle-a.json \
+  --bundle-path /path/to/notices-bundle-b.json \
+  --source-home-url https://my.muc.edu.cn \
+  --summary-output-path .tmp/authenticated-notice-url-backfill/summary.json \
+  --output-dir .tmp/authenticated-notice-url-backfill/bundles
+```
+
+固定要求：
+
+- 这一步只补 `portal_print_url`、`notice_browser_url` 与
+  `notice_browser_url_source`，不访问 portal、不写 object store、不写 Postgres
+- summary 中 `missing_notice_type_count` 必须先解释清楚；缺 notice type 的历史行不能构造
+  portal print route
+- 经过 backfill 的 bundle 仍需通过 bootstrap smoke 或 canonical replay 进入
+  source-truth，不得手工改 source-truth artifact
+
+需要重新访问 live portal 做完整历史补采时，使用 collector backfill：
+
+```bash
+AUTHENTICATED_NOTICE_COLLECTION_MODE=backfill \
+AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE=500 \
+pnpm --dir apps/authenticated-notice-collector bootstrap:export
+```
+
+`AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE` 是每个 enabled
+notice type 的硬上限；collector 会在 portal 返回的最后页提前停止。全量导入前仍应先按
+`1 -> 50 -> 240 -> full` 做 smoke 放大。
 
 以 `run-2` 为例，可以先切片：
 

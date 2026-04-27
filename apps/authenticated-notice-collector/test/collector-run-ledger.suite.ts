@@ -1,11 +1,17 @@
 import { expect, it } from "vitest";
 
 import {
+	buildCollectorFileReleaseRunLedgerRecord,
 	buildCollectorRunLedgerRecord,
 	createInMemoryCollectorRunLedgerStore,
 	resolveCollectorRunLedgerTableReference,
 } from "../src/collector-run-ledger";
-import type { BootstrapExportManifest, BundleNoticeRecord } from "../src/types";
+import type {
+	BootstrapExportManifest,
+	BundleFileReleaseRecord,
+	BundleNoticeRecord,
+	FileReleaseExportManifest,
+} from "../src/types";
 
 export function registerCollectorRunLedgerSuite() {
 	it("builds a source-channel run ledger record from exported bundle facts", async () => {
@@ -54,6 +60,43 @@ export function registerCollectorRunLedgerSuite() {
 			schemaSql: '"ingestion_projection"',
 			tableSql: '"ingestion_projection"."authenticated_notice_collector_run"',
 		});
+	});
+
+	it("builds a file-release source-channel run ledger record from exported bundle facts", async () => {
+		const record = buildCollectorFileReleaseRunLedgerRecord({
+			bundleObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+			bundlePath: "/tmp/file-releases-bundle.json",
+			bundleRecords: [sampleFileReleaseBundleRecord()],
+			exportedAt: "2026-04-12T00:30:00.000Z",
+			manifest: sampleFileReleaseManifest(),
+			manifestObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+			manifestPath: "/tmp/file-releases-manifest.json",
+			runId: "file-release-run-20260412",
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(record).toMatchObject({
+			runId: "file-release-run-20260412",
+			siteId: "muc_internal_portal",
+			sourceSurface: "file_release",
+			collectionMode: "file_release_export",
+			bundlePath: "/tmp/file-releases-bundle.json",
+			manifestPath: "/tmp/file-releases-manifest.json",
+			bundleObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+			manifestObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+			noticesCollected: 1,
+			attachmentRefsSeen: 1,
+			attachmentUploaded: 1,
+			attachmentReferenceOnly: 0,
+			status: "success",
+		});
+		expect(record.noticeTypeIds).toEqual([]);
+		expect(record.selectedNoticeIds).toEqual(["646"]);
 	});
 }
 
@@ -191,6 +234,8 @@ function sampleBundleRecord(): BundleNoticeRecord {
 			enrich_attempted_at: "2026-04-04T01:23:45.000Z",
 			last_seen_at: "2026-04-04T01:23:45.000Z",
 			notice_content: "<p>正文</p>",
+			notice_browser_url: null,
+			notice_browser_url_source: "unavailable",
 			notice_create_time: null,
 			notice_first_time: null,
 			notice_id: 355119,
@@ -203,6 +248,7 @@ function sampleBundleRecord(): BundleNoticeRecord {
 			notice_title: "通知 A",
 			organization_id: null,
 			organization_name: null,
+			portal_print_url: null,
 		},
 		notice_attachments: [
 			{
@@ -234,5 +280,97 @@ function sampleBundleRecord(): BundleNoticeRecord {
 			},
 		],
 		notice_id: 355119,
+	};
+}
+
+function sampleFileReleaseManifest(): FileReleaseExportManifest {
+	return {
+		collector: {
+			export_contract_version: "authenticated_notice_file_release_export_v1",
+			file_release_collection_mode: "prompt_portlet_materialized",
+			file_storage_mode: "object_store_write",
+			runtime_shell: "repo_local_node",
+		},
+		export_date: "20260412",
+		export_scope: "file-release-target-646-20260412T003000Z",
+		exported_at: "2026-04-12T00:30:00.000Z",
+		filters: {
+			max_file_releases: null,
+			max_pages: null,
+			page_size: 20,
+			target_file_release_id: 646,
+		},
+		observed_departments: ["教务处"],
+		observed_explain_departments: ["教务处"],
+		observed_file_code_types: [],
+		observed_file_types: [],
+		run: {
+			detail_fetched: 1,
+			errors: 0,
+			file_urls_resolved: 1,
+			finished_at: "2026-04-12T00:30:00.000Z",
+			items_inserted: 1,
+			items_seen: 1,
+			mode: "file_release_export",
+			pages_fetched: 1,
+			started_at: "2026-04-12T00:30:00.000Z",
+			status: "success",
+		},
+		schema_version: "authenticated_notice_file_release_export_v1",
+		site_id: "muc_internal_portal",
+		source_channel: "authenticated_notice_portal",
+		source_home_url: "https://portal.example.edu/home",
+		source_surface: "file_release",
+	};
+}
+
+function sampleFileReleaseBundleRecord(): BundleFileReleaseRecord {
+	return {
+		file_release: {
+			det_important: null,
+			enrich_attempted_at: "2026-04-12T00:30:00.000Z",
+			explain_department: "教务处",
+			file_type_id: 18,
+			file_type_name: "教学管理",
+			filecode: "民大校发〔2026〕646号",
+			filedepartment: "教务处",
+			filename: "制度 646",
+			filetime: "2026-03-31 13:51:11",
+			important: null,
+			last_seen_at: "2026-04-12T00:30:00.000Z",
+			original_portal_file_url: "/file/646.pdf",
+			publisher_user_name: "张老师",
+			resolved_download_url: "https://portal.example.edu/file/646.pdf",
+			role: null,
+			source_surface: "file_release",
+			upfilename: "制度-646.pdf",
+		},
+		file_release_id: 646,
+		released_file: {
+			bucket: "campus-rag-source",
+			byte_size: 5,
+			created_at: "2026-04-12T00:30:00.000Z",
+			downloaded_at: "2026-04-12T00:30:00.000Z",
+			etag: '"etag"',
+			final_url: "https://portal.example.edu/file/646.pdf",
+			ingest_status: "uploaded",
+			last_error: null,
+			local_path: null,
+			mime_type: "application/pdf",
+			normalized_source_url: "https://portal.example.edu/file/646.pdf",
+			object_key:
+				"authenticated_notice_portal/file-release-646/2026/sha256-digest/capture/制度-646.pdf",
+			origin_host: "portal.example.edu",
+			origin_scope: "internal",
+			origin_url_scheme: "https",
+			original_filename: "制度-646.pdf",
+			provenance_status: "collected_internal",
+			sha256: "digest",
+			source_url: "https://portal.example.edu/file/646.pdf",
+			storage_provider: "object_store",
+			updated_at: "2026-04-12T00:30:00.000Z",
+			uploaded_at: "2026-04-12T00:30:00.000Z",
+			version_id: null,
+		},
 	};
 }

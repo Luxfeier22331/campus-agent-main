@@ -19,7 +19,11 @@ export interface CollectorConfig {
 	collectionMode: NoticeCollectionMode;
 	collectorRunLedgerDatabaseUrl: string | null;
 	collectorRunLedgerDisabled: boolean;
+	collectorRunLeaseDatabaseUrl: string | null;
+	collectorRunLeaseDisabled: boolean;
+	collectorRunLeaseTtlSeconds: number;
 	exportsDir: string;
+	historicalBackfillMaxPagesPerType: number | null;
 	noticeTypesPath: string;
 	portalBaseUrl: string;
 	portalPageUrl: string;
@@ -79,7 +83,21 @@ export function resolveCollectorConfig(
 			source.AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DISABLE,
 			false,
 		),
+		collectorRunLeaseDatabaseUrl: normalizeOptionalSecret(
+			source.AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL,
+		),
+		collectorRunLeaseDisabled: parseBooleanFlag(
+			source.AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE,
+			false,
+		),
+		collectorRunLeaseTtlSeconds: parsePositiveInteger(
+			source.AUTHENTICATED_NOTICE_COLLECTOR_LEASE_TTL_SECONDS,
+			3600,
+		),
 		exportsDir: path.join(runtimeDir, "exports"),
+		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(
+			source.AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE,
+		),
 		noticeTypesPath: path.resolve(
 			String(
 				source.AUTHENTICATED_NOTICE_NOTICE_TYPES_PATH ||
@@ -126,6 +144,14 @@ function parsePositiveInteger(raw: string | undefined, fallback: number): number
 	return Math.floor(parsed);
 }
 
+function parseOptionalPositiveInteger(raw: string | undefined): number | null {
+	const parsed = Number(raw || "");
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return null;
+	}
+	return Math.floor(parsed);
+}
+
 function parseBooleanFlag(raw: string | undefined, fallback: boolean): boolean {
 	const normalized = String(raw ?? "")
 		.trim()
@@ -143,7 +169,9 @@ function parseBooleanFlag(raw: string | undefined, fallback: boolean): boolean {
 }
 
 function parseCollectionMode(raw: string | undefined): NoticeCollectionMode {
-	const normalized = String(raw ?? "").trim().toLowerCase();
+	const normalized = String(raw ?? "")
+		.trim()
+		.toLowerCase();
 	if (!normalized) {
 		return "incremental";
 	}

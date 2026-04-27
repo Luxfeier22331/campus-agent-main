@@ -426,6 +426,11 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         "notice_release_time": _normalize_non_empty_text(
             notice_manifest.get("notice_release_time")
         ),
+        "portal_print_url": _normalize_non_empty_text(notice_manifest.get("portal_print_url")),
+        "notice_browser_url": _normalize_non_empty_text(notice_manifest.get("notice_browser_url")),
+        "notice_browser_url_source": _normalize_non_empty_text(
+            notice_manifest.get("notice_browser_url_source")
+        ),
         "notice_type_names": _normalize_notice_type_names(notice_manifest.get("notice_type_names")),
         "notice_risk_label": notice_risk_label,
         "attachment_mix_score": attachment_mix_score,

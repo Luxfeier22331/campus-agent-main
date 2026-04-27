@@ -203,6 +203,9 @@ notice source asset 的 identity 固定为“稳定 notice 资源”，而不是
 - `notice_type_names`
 - `source_notice_link`
 - `source_home_url`
+- `portal_print_url`
+- `notice_browser_url`
+- `notice_browser_url_source`
 
 ### D. Content Summary
 

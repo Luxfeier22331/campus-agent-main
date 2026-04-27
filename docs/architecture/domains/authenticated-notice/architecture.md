@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 # Authenticated Notice Source Architecture
 
@@ -142,6 +142,8 @@ owner-recovery readiness 与 operator 排障。
 
 - 内部通知系统的稳定资源身份首先由 notice identity 决定
 - list/detail API、正文 HTML、链接观测与附件关系都应围绕同一条 notice 归并
+- `notice_browser_url` / `portal_print_url` 只作为可浏览详情入口 metadata；它们不替代
+  `source_notice_link`、`campusnotice://...` fallback、raw asset id 或 document id
 
 ## Contract Split
 
@@ -211,6 +213,13 @@ read-model 与 runtime execution。notice-level 查询候选使用
 `target_surface=unsupported`。这些 campus-services 候选只表示下游 typed materialization
 输入，不打开对应 runtime lookup，也不得让下游在 query time 回扫通知正文。
 
+交通类 notice 可以同时产生两类 campus-services 候选：班次、停运、临时调整等运行事实进入
+`campus_services/service_status_candidate` 并由 `transport_schedule_lookup` 消费；预约入口、
+预约开放时间与使用约束进入
+`campus_services/special_service_candidate`，并由
+`campus_services/service_guide` 生成只读 `service_guide_lookup` 记录。后者不得生成预约、
+提交或签到 transaction payload。
+
 ## Collector Runtime Ownership
 
 collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shell。
@@ -227,6 +236,10 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - notice-level normalize / enrich
 - 附件对象上传
 - typed artifact 输出
+- 只读 visual reference audit；用于从真实 portal detail HTML 中找出 `<img>`、lazy image、
+  `srcset`、`<source>` 与 inline style image refs 的 selected export smoke 候选
+- production capture package entrypoint / Docker image；调度由外部 cron、systemd 或
+  Kubernetes Job 承担，collector 本身不升级成 product/API scheduler
 
 它不负责：
 
@@ -234,6 +247,8 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - chunking / embedding / index release
 - retrieval serving truth
 - restricted authorization projection 解释
+- product/API heartbeat、operator read model 或 ingestion handoff；如后续需要这些能力，必须新增
+  dedicated authenticated notice control-plane domain，不能复用 `official_web` surfaces
 
 ## Attachment Handling Boundary
 
@@ -241,6 +256,9 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 - collector / source-truth layer
   - 负责附件发现、对象上传、attachment refs 与 source-level relation truth
+  - 附件发现范围包括 notice detail `notice_annext`、正文 HTML attachment anchors、
+    `<img>` / lazy-image attributes、`srcset` / `<source>` responsive image refs
+    与 inline `style=url(...)` image refs
 - shared file asset loader
   - 负责 admitted file-like attachment 的 normalization / extraction / terminal
     outcome
@@ -250,6 +268,13 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 固定规则：
 
 - attachment relation truth 不因为 shared loader 接入而离开 `notice` source-truth
+- notice-referenced external visual assets 可以进入默认 source collection surface，但必须受
+  collector-owned allowlist 约束；当前 allowlist 只包含 `mmbiz.qpic.cn`
+- allowlisted external visual capture 不得复用 portal API context，不携带校园认证态或
+  portal cookie；bundle 仍必须保留 `origin_scope=external`，对象 key 也必须显式标识
+  external visual origin
+- visual reference audit 只产出候选报告，不下载、不上传、不写 source truth；live proof 必须继续通过
+  selected export + import smoke 形成
 - `doc/xls -> docx/xlsx` 的 conversion service、OOXML deterministic
   parse、PDF/image parsing lane 都不属于 collector 私有 contract
 - 如果 attachment 最终只落到 `reference_only`、`multimodal_processing_required` 或
@@ -686,6 +711,8 @@ query-serving。
   静默写成“无附件”
 - reference-only explanation report 区分 terminal portal misses、object-backed inline
   images 与真正 action-required gaps
+- visual reference audit report 只用于发现真实 portal 样本中的图片引用形态，并为后续 selected export
+  smoke 提供候选，不替代 collector bundle、manifest 或 import smoke summary
 - bounded operator status 只聚合 source-truth inventory、fetch-status coverage、reference-only
   explanation、unsupported binary count、multimodal count 与 latest collector run ledger
 

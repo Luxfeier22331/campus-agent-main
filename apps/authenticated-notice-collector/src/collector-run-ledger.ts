@@ -1,12 +1,18 @@
 import { Pool } from "pg";
 
-import type { BootstrapExportManifest, BundleNoticeRecord, NoticeCollectionMode } from "./types";
+import type {
+	BootstrapExportManifest,
+	BundleFileReleaseRecord,
+	BundleNoticeRecord,
+	FileReleaseExportManifest,
+	NoticeCollectionMode,
+} from "./types";
 
 export interface CollectorRunLedgerRecord {
 	runId: string;
 	siteId: string;
-	sourceSurface: "notice";
-	collectionMode: NoticeCollectionMode;
+	sourceSurface: "notice" | "file_release";
+	collectionMode: NoticeCollectionMode | "file_release_export";
 	sourceHomeUrl: string;
 	noticeTypeIds: string[];
 	selectedNoticeIds: string[];
@@ -61,7 +67,7 @@ export function buildCollectorRunLedgerRecord(input: {
 	const attachmentFacts = aggregateAttachmentFacts(input.bundleRecords);
 	const selectedNoticeIds = input.manifest.filters.selected_notice_ids ?? [];
 	const record = {
-		run_id: input.runId ?? buildRunId(input.exportedAt, input.siteId),
+		run_id: input.runId ?? buildRunId(input.exportedAt, input.siteId, "notice"),
 		site_id: input.siteId,
 		source_surface: "notice",
 		collection_mode: input.collectionMode,
@@ -95,6 +101,79 @@ export function buildCollectorRunLedgerRecord(input: {
 		sourceHomeUrl: input.sourceHomeUrl,
 		noticeTypeIds: [...input.manifest.filters.notice_types],
 		selectedNoticeIds: [...selectedNoticeIds],
+		bundlePath: input.bundlePath,
+		manifestPath: input.manifestPath,
+		bundleObjectKey: input.bundleObjectKey ?? null,
+		manifestObjectKey: input.manifestObjectKey ?? null,
+		noticesCollected: input.bundleRecords.length,
+		pagesFetched: input.manifest.run.pages_fetched,
+		detailFetched: input.manifest.run.detail_fetched,
+		itemsSeen: input.manifest.run.items_seen,
+		attachmentRefsSeen: attachmentFacts.attachmentRefsSeen,
+		attachmentUploaded: attachmentFacts.attachmentUploaded,
+		attachmentTerminalUnavailable: attachmentFacts.attachmentTerminalUnavailable,
+		attachmentTransientFailed: attachmentFacts.attachmentTransientFailed,
+		attachmentReferenceOnly: attachmentFacts.attachmentReferenceOnly,
+		status: "success",
+		errorCount: input.manifest.run.errors,
+		startedAt: input.manifest.run.started_at,
+		finishedAt: input.manifest.run.finished_at,
+		record,
+	};
+}
+
+export function buildCollectorFileReleaseRunLedgerRecord(input: {
+	bundleObjectKey?: string | null;
+	bundlePath: string;
+	bundleRecords: BundleFileReleaseRecord[];
+	exportedAt: string;
+	manifest: FileReleaseExportManifest;
+	manifestObjectKey?: string | null;
+	manifestPath: string;
+	runId?: string;
+	siteId: string;
+	sourceHomeUrl: string;
+}): CollectorRunLedgerRecord {
+	const attachmentFacts = aggregateReleasedFileFacts(input.bundleRecords);
+	const selectedFileReleaseIds =
+		input.manifest.filters.target_file_release_id === null
+			? []
+			: [String(input.manifest.filters.target_file_release_id)];
+	const record = {
+		run_id: input.runId ?? buildRunId(input.exportedAt, input.siteId, "file_release"),
+		site_id: input.siteId,
+		source_surface: "file_release",
+		collection_mode: "file_release_export",
+		source_home_url: input.sourceHomeUrl,
+		notice_type_ids: [],
+		selected_notice_ids: selectedFileReleaseIds,
+		bundle_path: input.bundlePath,
+		manifest_path: input.manifestPath,
+		bundle_object_key: input.bundleObjectKey ?? null,
+		manifest_object_key: input.manifestObjectKey ?? null,
+		notices_collected: input.bundleRecords.length,
+		pages_fetched: input.manifest.run.pages_fetched,
+		detail_fetched: input.manifest.run.detail_fetched,
+		items_seen: input.manifest.run.items_seen,
+		attachment_refs_seen: attachmentFacts.attachmentRefsSeen,
+		attachment_uploaded: attachmentFacts.attachmentUploaded,
+		attachment_terminal_unavailable: attachmentFacts.attachmentTerminalUnavailable,
+		attachment_transient_failed: attachmentFacts.attachmentTransientFailed,
+		attachment_reference_only: attachmentFacts.attachmentReferenceOnly,
+		status: "success",
+		error_count: input.manifest.run.errors,
+		started_at: input.manifest.run.started_at,
+		finished_at: input.manifest.run.finished_at,
+		export_manifest: input.manifest,
+	};
+	return {
+		runId: record.run_id,
+		siteId: record.site_id,
+		sourceSurface: "file_release",
+		collectionMode: "file_release_export",
+		sourceHomeUrl: input.sourceHomeUrl,
+		noticeTypeIds: [],
+		selectedNoticeIds: [...selectedFileReleaseIds],
 		bundlePath: input.bundlePath,
 		manifestPath: input.manifestPath,
 		bundleObjectKey: input.bundleObjectKey ?? null,
@@ -282,6 +361,47 @@ function aggregateAttachmentFacts(bundleRecords: BundleNoticeRecord[]): {
 	};
 }
 
+function aggregateReleasedFileFacts(bundleRecords: BundleFileReleaseRecord[]): {
+	attachmentReferenceOnly: number;
+	attachmentRefsSeen: number;
+	attachmentTerminalUnavailable: number;
+	attachmentTransientFailed: number;
+	attachmentUploaded: number;
+} {
+	let attachmentReferenceOnly = 0;
+	let attachmentRefsSeen = 0;
+	let attachmentTerminalUnavailable = 0;
+	let attachmentTransientFailed = 0;
+	let attachmentUploaded = 0;
+	for (const bundleRecord of bundleRecords) {
+		attachmentRefsSeen += 1;
+		const releasedFile = bundleRecord.released_file;
+		if (
+			releasedFile.storage_provider !== "reference_only" &&
+			(releasedFile.ingest_status === "uploaded" || releasedFile.ingest_status === "downloaded")
+		) {
+			attachmentUploaded += 1;
+			continue;
+		}
+		if (releasedFile.storage_provider === "reference_only") {
+			attachmentReferenceOnly += 1;
+		}
+		const lastError = releasedFile.last_error ?? "";
+		if (lastError.startsWith("terminal_unavailable:")) {
+			attachmentTerminalUnavailable += 1;
+		} else if (lastError.trim()) {
+			attachmentTransientFailed += 1;
+		}
+	}
+	return {
+		attachmentReferenceOnly,
+		attachmentRefsSeen,
+		attachmentTerminalUnavailable,
+		attachmentTransientFailed,
+		attachmentUploaded,
+	};
+}
+
 async function ensureCollectorRunLedgerSchema(
 	pool: Pool,
 	tableReference: CollectorRunLedgerTableReference,
@@ -320,8 +440,12 @@ async function ensureCollectorRunLedgerSchema(
 	`);
 }
 
-function buildRunId(exportedAt: string, siteId: string): string {
-	return `${siteId}:${exportedAt.replace(/[^0-9A-Za-z]/g, "")}`;
+function buildRunId(
+	exportedAt: string,
+	siteId: string,
+	sourceSurface: "notice" | "file_release",
+): string {
+	return `${siteId}:${sourceSurface}:${exportedAt.replace(/[^0-9A-Za-z]/g, "")}`;
 }
 
 export function resolveCollectorRunLedgerTableReference(

@@ -12,13 +12,18 @@ Current scope:
 - repo-local bootstrap bundle export for importer smoke
 - repo-local file-release bundle export for authenticated portal
   file-publication capture
+- read-only visual reference audit for finding real portal notices that contain
+  `<img>`, lazy image, `srcset`, `<source>`, or inline style image refs before
+  selected export smoke
 - portal taxonomy / selector snapshot export for both `notice` and
   `file_release`
 - HTML-derived link observations plus detail `notice_annext` attachment refs for
-  bootstrap export
+  bootstrap export; HTML discovery covers attachment anchors, `<img src>`,
+  common lazy-image attributes, `srcset` / `<source>` responsive image refs, and
+  inline `style=url(...)` image refs
 - when `OBJECT_STORE_*` source-bucket credentials are configured, internal
-  attachments are downloaded and uploaded into source object storage during
-  bootstrap export
+  attachments and allowlisted external inline visual refs are downloaded and
+  uploaded into source object storage during bootstrap export
 - when `OBJECT_STORE_*` source-bucket credentials are configured, released files
   from `文件发布` are also downloaded and uploaded into source object storage during
   file-release export
@@ -31,6 +36,7 @@ Out of scope for this slice:
 - document registry writes
 - chunk/index release
 - query-serving
+- automatic `SSO_TGC` renewal
 - treating SQLite or export JSON as canonical system truth
 
 Local commands:
@@ -42,9 +48,31 @@ pnpm typecheck
 pnpm build
 pnpm auth:save
 pnpm auth:check
+pnpm collector:run
 pnpm bootstrap:export
 pnpm file-release:export
+pnpm visual-ref:audit
 ```
+
+Docker package:
+
+```bash
+docker build -f apps/authenticated-notice-collector/Dockerfile \
+  -t campus-authenticated-notice-collector:local .
+
+AUTHENTICATED_NOTICE_COLLECTOR_MODE=auth-check \
+docker run --rm --env-file .env campus-authenticated-notice-collector:local
+```
+
+`AUTHENTICATED_NOTICE_COLLECTOR_MODE` accepts:
+
+- `auth-check`
+- `notice-export`
+- `file-release-export`
+- `visual-ref-audit`
+
+The container entrypoint only routes to the existing package scripts. External
+cron / systemd / Kubernetes Job owns scheduling.
 
 Auth note:
 
@@ -84,14 +112,33 @@ Attachment note:
 
 - if `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, and
   `OBJECT_STORE_SECRET_KEY` are configured, `bootstrap:export` materializes
-  internal portal attachments and writes them into `OBJECT_STORE_BUCKET_SOURCE`
-  (default `campus-rag-source`)
+  internal portal attachments, HTML-discovered attachment anchors, inline image
+  refs, and allowlisted external inline visual refs into
+  `OBJECT_STORE_BUCKET_SOURCE` (default `campus-rag-source`)
+- allowlisted external inline visual refs are part of the default notice
+  collection surface only when they are notice-referenced visual assets; the
+  current default allowlist is `mmbiz.qpic.cn`, and those downloads use direct
+  unauthenticated fetches instead of the portal API context or campus cookies
 - if object-store credentials are absent, collector stays fail-closed on
   attachment materialization and exports `reference_only` attachment rows
   instead of pretending bytes were captured
 - collector only owns attachment byte capture and source object upload; OCR,
   attachment routing, regulation promotion, and chunk/index work remain
   downstream ingestion responsibilities
+
+Visual reference audit note:
+
+- `visual-ref:audit` is read-only: it scans notice detail HTML and writes a
+  candidate report, but it does not download image bytes, upload objects, write
+  run ledger rows, or import source truth
+- default output path is
+  `.tmp/authenticated-notice-visual-audit/<timestamp>/visual-reference-candidates.json`
+- by default non-selected audit scans at most `50` notice details; override with
+  `AUTHENTICATED_NOTICE_VISUAL_AUDIT_MAX_NOTICES`
+- selected audit reuses `AUTHENTICATED_NOTICE_SELECTED_NOTICES`, so operators can
+  audit a known notice before running `bootstrap:export`
+- use the report to choose one real notice per pattern, then run selected
+  `bootstrap:export` and import smoke to turn the candidate into live proof
 
 Notice export note:
 
@@ -101,15 +148,28 @@ Notice export note:
   - `incremental` uses each enabled notice type's incremental page budget
   - `backfill` uses each enabled notice type's backfill page budget
   - `selected` requires `AUTHENTICATED_NOTICE_SELECTED_NOTICES`
+- full historical backfill can set
+  `AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE` as the hard cap
+  for each enabled notice type; the collector still stops early when the portal
+  reports the last page, but it no longer relies on the repo default backfill
+  page budget being large enough
 - `bootstrap:export` can also run a bounded historical notice refresh with
   `AUTHENTICATED_NOTICE_SELECTED_NOTICES`, using comma-separated
   `notice_id:notice_type[:notice_type_name]` entries. In this mode it fetches
   only those details and does not scan current list pages.
+- each notice row carries browser navigation metadata: `portal_print_url`,
+  `notice_browser_url`, and `notice_browser_url_source`; these fields preserve
+  the portal print route or API-provided external link without changing
+  `notice_link` or notice identity
 - when `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL` is configured
   and `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DISABLE` is not true, each
   successful export upserts a source-channel run ledger row with collection mode,
   selected notices, attachment outcome counts, local artifact paths, and source
   object artifact refs
+- when `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` is configured and
+  `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE` is not true, `bootstrap:export`
+  acquires a `notice` run lease before writing artifacts; a live holder causes
+  the run to fail closed
 - when source-bucket object-store credentials are configured, `bootstrap:export`
   uploads the exported bundle and manifest under
   `authenticated_notice_portal/runs/<site_id>/<timestamp>/`
@@ -143,6 +203,23 @@ File release note:
   - `AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE`
   - `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES`
   - `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS`
+- when source-bucket object-store credentials are configured,
+  `file-release:export` uploads bundle / manifest under
+  `authenticated_notice_portal/runs/<site_id>/<timestamp>/`
+- when `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL` is configured,
+  `file-release:export` writes a `source_surface=file_release` run ledger row
+- when `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` is configured,
+  `file-release:export` acquires a separate `file_release` run lease
 - released source files are stored under ADR-aligned keys:
-  - `authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/captur
-    e/{filename}`
+  - `authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/capture/{filename}`
+
+Production env notes:
+
+- `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` enables Postgres-backed
+  single-run admission for production collector jobs
+- `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_TTL_SECONDS` defaults to `3600`
+- `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL` enables bounded
+  source-channel run ledger writes for both notice and file-release exports
+- if the lease URL is absent, local runs continue without a lease; production
+  jobs should configure the lease URL instead of relying on scheduler-only
+  mutual exclusion

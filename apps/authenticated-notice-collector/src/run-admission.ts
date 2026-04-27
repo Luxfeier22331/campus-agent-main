@@ -6,6 +6,7 @@ import type {
 } from "./types";
 
 export interface NoticeRunAdmissionInput {
+	backfillMaxPagesPerType?: number | null;
 	collectionMode?: NoticeCollectionMode;
 	noticeTypes: NoticeTypeConfig[];
 	selectedNotices?: Array<{
@@ -14,9 +15,7 @@ export interface NoticeRunAdmissionInput {
 	}>;
 }
 
-export function buildNoticeRunAdmission(
-	input: NoticeRunAdmissionInput,
-): NoticeRunAdmissionReport {
+export function buildNoticeRunAdmission(input: NoticeRunAdmissionInput): NoticeRunAdmissionReport {
 	const selectedNotices = normalizeSelectedNotices(input.selectedNotices ?? []);
 	const collectionMode: NoticeCollectionMode =
 		selectedNotices.length > 0 ? "selected" : (input.collectionMode ?? "incremental");
@@ -38,9 +37,13 @@ export function buildNoticeRunAdmission(
 		}
 		noticeTypeIds = enabledNoticeTypes.map((item) => item.type);
 		pageBudget = enabledNoticeTypes.map((item) => {
+			const backfillPages =
+				input.backfillMaxPagesPerType !== null && input.backfillMaxPagesPerType !== undefined
+					? input.backfillMaxPagesPerType
+					: item.backfillPages;
 			const budget =
 				collectionMode === "backfill"
-					? { pages: item.backfillPages, pageSize: item.backfillPageSize }
+					? { pages: backfillPages, pageSize: item.backfillPageSize }
 					: { pages: item.incrementalPages, pageSize: item.incrementalPageSize };
 			return {
 				notice_type: item.type,
@@ -76,7 +79,7 @@ function normalizeSelectedNotices(
 	for (const item of selectedNotices ?? []) {
 		const noticeId = String(item.noticeId || "").trim();
 		const noticeType = String(item.noticeType || "").trim();
-		if (!noticeId || !noticeType) {
+		if (!(noticeId && noticeType)) {
 			continue;
 		}
 		normalized.push({ noticeId, noticeType });
