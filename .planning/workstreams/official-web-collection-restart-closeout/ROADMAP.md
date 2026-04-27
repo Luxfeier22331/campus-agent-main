@@ -22,6 +22,11 @@ updated: 2026-04-28
 - [x] **Phase 2A: Source Host Split Config** — 补齐 `muc_public` host 分组、
   rollout order 与 stable scheduler `lane_id`；当前形态为校级 lane 先跑，
   院级/topic 通过 disabled single-host lane template 逐个 operator-triggered 验证。
+- [x] **Phase 2B: Fresh Rollout Crawl Evidence** — 完成 enabled
+  university-core 三 host bounded crawl 与 `law.muc.edu.cn` single-host crawl；
+  两批 crawl / validator / QC / projection validator 均通过，但 chunk audit
+  未通过，因此只作为 fresh evidence，不作为 promotion 或 recurring coverage
+  widening 依据。
 - [ ] **Phase 2: Dev Scheduler And Preflight Closeout** — 补齐 dev/local scheduler entry、
   worker 专属 preflight 检查项和 repeated-run 操作口径。
 - [ ] **Phase 3: Report Retention And Alert Closeout** — 明确 batch report retention、
@@ -35,6 +40,7 @@ updated: 2026-04-28
 
 - dev/local scheduler 与 preflight 路径明确；
 - enabled university-core crawl 与至少一个 college single-host crawl 有 fresh evidence；
+- fresh evidence 的 chunk audit findings 已修复或被明确 reclassified；
 - report retention 与 alert 规则明确；
 - repeated-run 验收能证明 projection / handoff batch 可重复执行且不会制造 duplicate side effects；
 - 所有证据路径写入 `STATE.md`。

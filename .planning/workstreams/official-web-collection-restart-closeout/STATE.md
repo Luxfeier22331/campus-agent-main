@@ -13,8 +13,8 @@ updated: 2026-04-28
 - current phase: `Phase 2`
 - owner: unassigned
 - active implementation: planning and ops follow-up only
-- latest completed slice: local official web source-truth projection replay evidence plus
-  source-layer host split config
+- latest completed slice: local official web source-truth projection replay evidence,
+  source-layer host split config, and fresh rollout crawl evidence
 
 ## Current Repo Facts
 
@@ -38,6 +38,10 @@ updated: 2026-04-28
 - The host split is source-channel crawl segmentation only. It does not create
   `college_web`, reopen `fresh_news` / `news_archive`, or change product routing
   gates.
+- Fresh rollout evidence now exists for enabled university-core hosts and one
+  college single-host run. Both runs passed crawl artifact validation, QC, and
+  projection validation, but both are blocked from promotion by chunk audit
+  findings.
 
 ## Latest Evidence
 
@@ -60,6 +64,44 @@ updated: 2026-04-28
 - errors: `0`
 - warnings: `0`
 
+## Fresh Rollout Evidence: 20260427T223542Z
+
+These runs are artifact-only local evidence. They did not connect to `app-api`,
+did not upload object-store artifacts, did not import/promote registry truth,
+and did not change query-serving surface.
+
+University-core bounded crawl:
+
+- run id: `university-core-20260427T223542Z`
+- hosts: `www.muc.edu.cn`, `news.muc.edu.cn`, `xxgk.muc.edu.cn`
+- output root:
+  `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/university-core`
+- projection root:
+  `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/university-core-projection`
+- crawl counters: `60` fetched, `0` failures, `3` hosts completed
+- validator: `bundlePages = 60`, `errors = 0`, `warnings = 0`
+- QC: `passPages = 60`, `reviewPages = 0`, `failPages = 0`
+- projection: `60` emitted documents: `52` `muc_public_pages`, `8`
+  `stable_reference`
+- projection validator: `valid = true`, `errors = 0`, `warnings = 0`
+- chunk audit: `passed = false`, with `stacked_short_label_lines = 17` and
+  `article_section_over_aggregation = 1`
+
+College single-host crawl:
+
+- run id: `college-law-20260427T223542Z`
+- host: `law.muc.edu.cn`
+- output root:
+  `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/college-law`
+- projection root:
+  `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/college-law-projection`
+- crawl counters: `26` fetched, `0` failures, `1` host completed
+- validator: `bundlePages = 26`, `errors = 0`, `warnings = 0`
+- QC: `passPages = 26`, `reviewPages = 0`, `failPages = 0`
+- projection: `26` emitted documents, all `muc_public_pages`
+- projection validator: `valid = true`, `errors = 0`, `warnings = 0`
+- chunk audit: `passed = false`, with `stacked_short_label_lines = 5`
+
 ## Repo-Tracked Seed Manifests
 
 - `configs/ingestion/official_web/muc_public_pages/split-manifest.v1.json`: `24` documents
@@ -69,9 +111,11 @@ updated: 2026-04-28
 
 ## Remaining Gaps
 
-- `OFFICIAL-WEB-OPS-00`: run fresh bounded crawl evidence for the enabled
-  university-core lanes, then capture at least one college-host single-host
-  validation artifact before widening recurring coverage.
+- `OFFICIAL-WEB-OPS-00`: fresh bounded crawl evidence exists, but promotion /
+  recurring coverage widening is blocked until chunk audit findings are fixed or
+  explicitly reclassified.
+- `OFFICIAL-WEB-OPS-00A`: resolve official-web chunk audit findings from the
+  20260427T223542Z university-core and `law.muc.edu.cn` runs.
 - `OFFICIAL-WEB-OPS-01`: dev/local scheduler entry still needs a documented command and repeated-run
   cadence.
 - `OFFICIAL-WEB-OPS-02`: worker preflight should explicitly verify official web source channel
@@ -90,5 +134,5 @@ updated: 2026-04-28
 - Keep `official-web-source-channel-news-opening` in backlog until product scope explicitly reopens
   news query-serving.
 - Do not use this workstream to change retrieval runtime profile or product routing gates.
-- Next implementation should start with `OFFICIAL-WEB-OPS-00` through `OFFICIAL-WEB-OPS-03`
-  before adding alert/retention policy.
+- Next implementation should start with `OFFICIAL-WEB-OPS-00A` through
+  `OFFICIAL-WEB-OPS-03` before adding alert/retention policy.
