@@ -324,7 +324,12 @@ _SURFACE_SPECS = {
 }
 
 
-def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, object]:
+def _collect_env_doctor_status(
+    *,
+    repo_root: Path,
+    surface: str,
+    check_postgres_connectivity: bool,
+) -> dict[str, object]:
     normalized_surface = surface.strip().lower()
     if normalized_surface not in _SURFACE_SPECS:
         raise ValueError(
@@ -370,11 +375,24 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
             )
             for relative_path, file_spec in spec["files"].items()
         }
+        postgres = {
+            "shared": _collect_shared_postgres_status(
+                original_env=original_env,
+                current_env=current_env,
+                bootstrap_state=bootstrap_state,
+                check_connectivity=check_postgres_connectivity,
+            ),
+        }
 
+        postgres_ready = _postgres_diagnostics_ready(
+            postgres=postgres,
+            check_connectivity=check_postgres_connectivity,
+        )
         overall_ready = (
             all(status["present"] for status in providers.values())
             and all(status["present"] for status in required_settings.values())
             and all(status["ready"] for status in files.values())
+            and postgres_ready
         )
         return {
             "surface": normalized_surface,
@@ -408,12 +426,125 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
                 "required": required_settings,
                 "optional": optional_settings,
             },
+            "postgres": postgres,
             "files": files,
         }
     finally:
         os.environ.clear()
         os.environ.update(original_env)
         reset_repo_env_bootstrap_state()
+
+
+def collect_env_doctor_status(
+    *,
+    repo_root: Path,
+    surface: str,
+    check_postgres_connectivity: bool = False,
+) -> dict[str, object]:
+    return _collect_env_doctor_status(
+        repo_root=repo_root,
+        surface=surface,
+        check_postgres_connectivity=check_postgres_connectivity,
+    )
+
+
+def _collect_shared_postgres_status(
+    *,
+    original_env: dict[str, str],
+    current_env: dict[str, str],
+    bootstrap_state: object,
+    check_connectivity: bool,
+) -> dict[str, object]:
+    key = "CAMPUS_SHARED_POSTGRES_URL"
+    shell_exported = bool(original_env.get(key, "").strip())
+    present = bool(current_env.get(key, "").strip())
+    loaded_keys = set(getattr(bootstrap_state, "loaded_keys", ()) or ())
+    skipped_existing_keys = set(getattr(bootstrap_state, "skipped_existing_keys", ()) or ())
+    repo_env_loaded = key in loaded_keys
+    repo_env_skipped_existing = key in skipped_existing_keys
+    source = "missing"
+    if present and shell_exported:
+        source = "shell_env"
+    elif present and repo_env_loaded:
+        source = "repo_env"
+    elif present:
+        source = "process_env_after_bootstrap"
+
+    connectivity = {
+        "checked": bool(check_connectivity),
+        "ok": None,
+        "error": None,
+        "error_class": None,
+    }
+    if check_connectivity:
+        database_url = current_env.get(key, "").strip()
+        connectivity = (
+            _probe_postgres_connectivity(database_url)
+            if database_url
+            else {
+                "checked": True,
+                "ok": False,
+                "error": f"{key} is not present after repo env bootstrap",
+                "error_class": "MissingDatabaseURL",
+            }
+        )
+
+    return {
+        "present": present,
+        "checked_keys": [key],
+        "resolved_key": key if present else None,
+        "shell_exported": shell_exported,
+        "repo_env_loaded": repo_env_loaded,
+        "repo_env_skipped_existing": repo_env_skipped_existing,
+        "source": source,
+        "connectivity": connectivity,
+    }
+
+
+def _probe_postgres_connectivity(database_url: str) -> dict[str, object]:
+    try:
+        import psycopg
+    except ImportError as exc:  # pragma: no cover
+        return {
+            "checked": True,
+            "ok": False,
+            "error": str(exc),
+            "error_class": exc.__class__.__name__,
+        }
+    try:
+        with (
+            psycopg.connect(database_url, autocommit=True, connect_timeout=3) as conn,
+            conn.cursor() as cursor,
+        ):
+            cursor.execute("select 1")
+            cursor.fetchone()
+    except Exception as exc:  # pragma: no cover - exercised by local doctor, not unit tests.
+        return {
+            "checked": True,
+            "ok": False,
+            "error": str(exc),
+            "error_class": exc.__class__.__name__,
+        }
+    return {
+        "checked": True,
+        "ok": True,
+        "error": None,
+        "error_class": None,
+    }
+
+
+def _postgres_diagnostics_ready(
+    *,
+    postgres: dict[str, object],
+    check_connectivity: bool,
+) -> bool:
+    if not check_connectivity:
+        return True
+    shared = postgres.get("shared")
+    if not isinstance(shared, dict):
+        return False
+    connectivity = shared.get("connectivity")
+    return isinstance(connectivity, dict) and connectivity.get("ok") is True
 
 
 def _collect_provider_status(
@@ -559,6 +690,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print the status report as JSON.",
     )
+    parser.add_argument(
+        "--check-postgres-connectivity",
+        action="store_true",
+        help=(
+            "Connect to CAMPUS_SHARED_POSTGRES_URL after repo env bootstrap and include the "
+            "result in readiness."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -568,6 +707,18 @@ def _print_text_report(status: dict[str, object]) -> None:
     bootstrap = status["bootstrap"]
     print(f"bootstrap.file_found={bootstrap['file_found']}")
     print(f"bootstrap.loaded_path={bootstrap['loaded_path']}")
+    postgres = status["postgres"]["shared"]
+    print(f"postgres.shared.present={postgres['present']} resolved_key={postgres['resolved_key']}")
+    print(f"postgres.shared.shell_exported={postgres['shell_exported']}")
+    print(f"postgres.shared.repo_env_loaded={postgres['repo_env_loaded']}")
+    print(f"postgres.shared.source={postgres['source']}")
+    connectivity = postgres["connectivity"]
+    print(f"postgres.shared.connectivity.checked={connectivity['checked']} ok={connectivity['ok']}")
+    if connectivity["error"]:
+        print(
+            "postgres.shared.connectivity.error="
+            f"{connectivity['error_class']}: {connectivity['error']}"
+        )
     for provider_name, provider_status in status["providers"].items():
         print(
             f"provider.{provider_name}.present={provider_status['present']} "
@@ -598,6 +749,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     status = collect_env_doctor_status(
         repo_root=args.repo_root.resolve(),
         surface=args.surface,
+        check_postgres_connectivity=args.check_postgres_connectivity,
     )
     if args.json:
         print(json.dumps(status, ensure_ascii=False, indent=2, sort_keys=True))

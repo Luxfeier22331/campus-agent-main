@@ -217,9 +217,104 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["providers"]["embedding"]["present"])
             self.assertTrue(status["settings"]["required"]["qdrant_url"]["present"])
             self.assertTrue(status["settings"]["required"]["shared_postgres_url"]["present"])
+            shared_pg = status["postgres"]["shared"]
+            self.assertTrue(shared_pg["present"])
+            self.assertFalse(shared_pg["shell_exported"])
+            self.assertTrue(shared_pg["repo_env_loaded"])
+            self.assertEqual(shared_pg["source"], "repo_env")
+            self.assertEqual(shared_pg["resolved_key"], "CAMPUS_SHARED_POSTGRES_URL")
+            self.assertFalse(shared_pg["connectivity"]["checked"])
             self.assertTrue(status["files"]["apps/app-api/.env"]["ready"])
             self.assertTrue(status["files"]["apps/app-api/.dev.vars"]["ready"])
             self.assertTrue(status["files"]["apps/public-chat-web/.dev.vars"]["ready"])
+
+    def test_collect_env_doctor_status_reports_shared_postgres_from_shell_without_leaking_url(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "EMBEDDING_API_KEY=shared-embed-secret",
+                        "EMBEDDING_MODEL=Qwen3-Embedding-4B",
+                        "QDRANT_URL=https://qdrant.example.com",
+                        "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:repo-secret@repo.example/postgres",
+                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
+                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                    ]
+                )
+                + "\n",
+            )
+            shell_url = "postgresql://postgres:shell-secret@shell.example/postgres"
+
+            with patch.dict(
+                os.environ,
+                {
+                    "LLM_API_KEY": "shared-llm-secret",
+                    "EMBEDDING_API_KEY": "shared-embed-secret",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                    "QDRANT_URL": "https://qdrant.example.com",
+                    "CAMPUS_SHARED_POSTGRES_URL": shell_url,
+                    "AGNO_SUPERVISOR_MODEL": "gpt-5.4",
+                    "AGNO_SPECIALIST_MODEL": "gpt-5.4-mini",
+                },
+                clear=True,
+            ):
+                status = collect_env_doctor_status(repo_root=repo_root, surface="query")
+
+            shared_pg = status["postgres"]["shared"]
+            rendered = json.dumps(status, ensure_ascii=False)
+            self.assertTrue(shared_pg["present"])
+            self.assertTrue(shared_pg["shell_exported"])
+            self.assertFalse(shared_pg["repo_env_loaded"])
+            self.assertEqual(shared_pg["source"], "shell_env")
+            self.assertNotIn("shell-secret", rendered)
+            self.assertNotIn("repo-secret", rendered)
+
+    def test_collect_env_doctor_status_can_probe_shared_postgres_connectivity(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "EMBEDDING_API_KEY=shared-embed-secret",
+                        "EMBEDDING_MODEL=Qwen3-Embedding-4B",
+                        "QDRANT_URL=https://qdrant.example.com",
+                        "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:pg-secret@127.0.0.1:5432/campus_agent",
+                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
+                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                    ]
+                )
+                + "\n",
+            )
+
+            with (
+                patch.dict(os.environ, {}, clear=True),
+                patch(
+                    "scripts.doctor_env._probe_postgres_connectivity",
+                    return_value={
+                        "checked": True,
+                        "ok": True,
+                        "error": None,
+                        "error_class": None,
+                    },
+                ) as probe,
+            ):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="query",
+                    check_postgres_connectivity=True,
+                )
+
+            shared_pg = status["postgres"]["shared"]
+            probe.assert_called_once()
+            self.assertTrue(shared_pg["connectivity"]["checked"])
+            self.assertTrue(shared_pg["connectivity"]["ok"])
 
     def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_fallback(
         self,
