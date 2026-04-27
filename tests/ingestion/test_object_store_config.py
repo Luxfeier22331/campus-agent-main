@@ -153,6 +153,30 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
         self.assertNotEqual(first_key, second_key)
 
+    def test_build_processed_artifact_key_caps_long_multibyte_document_directory_segment(
+        self,
+    ) -> None:
+        title = (
+            "2022年中央民族大学新校区图书馆阅览设施及资源建设项目-"
+            "中国历史文献总库.民国图书数据库、人大“复印报刊资料”全文数据库、"
+            "民族特色特藏资源数据库、Emerald电子系列丛书数据库采购成交公告"
+        )
+
+        object_key = build_processed_artifact_key(
+            corpus="campus_notices",
+            collection="internal_notice",
+            document_id="notice:muc_internal_portal:198705",
+            revision_track="source-faithful",
+            version_id="sha256:089db276965bd6494fcd6e99d0501457e064361af0d3bce6cac70fae3aad0a13",
+            filename="document-units.jsonl",
+            title=title,
+            year="2022",
+        )
+
+        directory_segment = object_key.split("/")[3]
+        self.assertLessEqual(len(directory_segment.encode("utf-8")), 180)
+        self.assertTrue(directory_segment.endswith("--198705"))
+
     def test_build_raw_asset_key_supports_curriculum_plan(self) -> None:
         object_key = build_raw_asset_key(
             corpus="curriculum",

@@ -241,6 +241,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    mode="admit_and_materialize",
                 ),
                 env=env,
                 object_store=object_store,
@@ -288,3 +289,67 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
             any(key.endswith("/source-truth/notice-manifest.json") for key in uploaded_keys)
         )
         self.assertTrue(any(key.endswith("/document-units.jsonl") for key in uploaded_keys))
+
+    def test_import_authenticated_notice_export_defaults_to_plan_without_writes(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["mode"], "plan")
+        self.assertFalse(report["write_enabled"])
+        self.assertEqual(report["notice_count"], 1)
+        self.assertEqual(report["created_document_ids"], [])
+        self.assertEqual(report["updated_document_ids"], [])
+        self.assertEqual(report["skipped_document_ids"], [])
+        self.assertEqual(report["raw_uploaded_count"], 0)
+        self.assertEqual(report["raw_reused_count"], 0)
+        self.assertEqual(object_store.uploads, [])
+        self.assertEqual(document_registry.list_by_scope("campus_notices", "internal_notice"), ())
+        self.assertEqual(raw_asset_registry.list_by_scope("campus_notices", "internal_notice"), ())
+        self.assertEqual(inventory_store.list_by_scope("campus_notices", "internal_notice"), ())
+
+        write_plan = report["write_plan"]
+        self.assertEqual(write_plan["raw_asset_registry_rows"], 1)
+        self.assertEqual(write_plan["document_registry_parent_rows"], 1)
+        self.assertEqual(write_plan["source_artifact_object_count"], 9)
+        self.assertEqual(write_plan["source_truth_inventory_rows"], 1)
+
+        admission_report = report["admission_report"]
+        self.assertEqual(admission_report["notice_count"], 1)
+        self.assertEqual(admission_report["selected_notice_ids"], ["355119"])
+        self.assertEqual(admission_report["attachment_ref_count"], 1)
+        self.assertEqual(admission_report["notices_with_attachments"], 1)
+        self.assertEqual(admission_report["empty_body_notice_count"], 0)

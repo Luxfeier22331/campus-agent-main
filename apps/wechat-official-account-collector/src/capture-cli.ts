@@ -56,6 +56,7 @@ export async function runCaptureCli(
 			begin: { type: "string" },
 			"max-articles": { type: "string" },
 			"max-pages": { type: "string" },
+			"require-control-plane": { type: "boolean" },
 			"service-token": { type: "string" },
 			size: { type: "string" },
 			"trace-id": { type: "string" },
@@ -91,6 +92,11 @@ export async function runCaptureCli(
 					serviceToken: values["service-token"] ?? env.WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN,
 				})
 			: null;
+	if (values["require-control-plane"] && !controlPlane) {
+		throw new Error(
+			"wechat collector control plane is required; configure app-api base url and service token.",
+		);
+	}
 	const traceId =
 		typeof values["trace-id"] === "string"
 			? values["trace-id"]
@@ -143,6 +149,7 @@ export async function runCaptureCli(
 				{
 					accountSlug: result.accountSlug,
 					artifacts: result.artifacts,
+					captureRunId: run?.run.runId ?? null,
 					planningOutcome: result.planningOutcome,
 					summary: result.summary,
 				},

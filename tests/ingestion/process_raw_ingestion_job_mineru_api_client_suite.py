@@ -150,12 +150,16 @@ class _SplitMineruRequestsModule:
 
     def put(self, url: str, *, data=None, timeout=None):  # type: ignore[no-untyped-def]
         del timeout
-        assert isinstance(data, bytes)
-        self.put_calls.append((url, data))
+        if isinstance(data, bytes):
+            payload = data
+        else:
+            assert hasattr(data, "read")
+            payload = data.read()
+        self.put_calls.append((url, payload))
         return _FakeRequestsResponse(status_code=200)
 
-    def get(self, url: str, *, headers=None, timeout=None):  # type: ignore[no-untyped-def]
-        del headers, timeout
+    def get(self, url: str, *, headers=None, timeout=None, stream=None):  # type: ignore[no-untyped-def]
+        del headers, timeout, stream
         self.get_calls.append(url)
         if "/extract-results/batch/" in url:
             batch_id = url.rsplit("/", 1)[-1]

@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +22,13 @@ from campus_ingestion_worker.resource_profile import (
 
 ON_DEMAND_BATCH_REPORT_SCHEMA_VERSION = "campus_ingestion_on_demand_batch.v1"
 _TIME_PEAK_RSS_MARKER = "__CAMPUS_INGESTION_PEAK_RSS_KB__="
+_DEFAULT_MAX_BATCH_ITEMS = 200
+_DEFAULT_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+_DEFAULT_MAX_OCR_INPUT_BYTES = 25 * 1024 * 1024
+_DEFAULT_MAX_OCR_CACHE_ENTRIES = 1
+_DEFAULT_MAX_OCR_CACHE_TOTAL_BYTES = 4 * 1024 * 1024
+_DEFAULT_PEAK_RSS_WARN_KB = 512 * 1024
+_DEFAULT_PEAK_RSS_HARD_KB = 768 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,14 +47,42 @@ class SubprocessResult:
     peak_rss_kb: int | None = None
 
 
-def _run_subprocess(command: tuple[str, ...]) -> SubprocessResult:
+@dataclass(frozen=True, slots=True)
+class OnDemandBatchPolicy:
+    max_batch_items: int = _DEFAULT_MAX_BATCH_ITEMS
+    max_attachment_bytes: int = _DEFAULT_MAX_ATTACHMENT_BYTES
+    max_ocr_input_bytes: int = _DEFAULT_MAX_OCR_INPUT_BYTES
+    max_ocr_cache_entries: int = _DEFAULT_MAX_OCR_CACHE_ENTRIES
+    max_ocr_cache_total_bytes: int = _DEFAULT_MAX_OCR_CACHE_TOTAL_BYTES
+    peak_rss_warn_kb: int = _DEFAULT_PEAK_RSS_WARN_KB
+    peak_rss_hard_kb: int = _DEFAULT_PEAK_RSS_HARD_KB
+
+    def to_env_overrides(self) -> dict[str, str]:
+        cache_enabled = self.max_ocr_cache_entries > 0 and self.max_ocr_cache_total_bytes > 0
+        return {
+            "INGESTION_MAX_ATTACHMENT_BYTES": str(self.max_attachment_bytes),
+            "INGESTION_MAX_OCR_INPUT_BYTES": str(self.max_ocr_input_bytes),
+            "INGESTION_OCR_PROVIDER_RESPONSE_CACHE_MAX_ENTRIES": str(self.max_ocr_cache_entries),
+            "INGESTION_OCR_PROVIDER_RESPONSE_CACHE_MAX_BYTES": str(self.max_ocr_cache_total_bytes),
+            "INGESTION_OCR_PROVIDER_RESPONSE_CACHE_ENABLED": "1" if cache_enabled else "0",
+        }
+
+
+def _run_subprocess(
+    command: tuple[str, ...],
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> SubprocessResult:
     wrapped_command = _wrap_with_time(command)
+    env = dict(os.environ)
+    if env_overrides:
+        env.update(env_overrides)
     completed = subprocess.run(
         wrapped_command,
         check=False,
         capture_output=True,
         text=True,
-        env=dict(os.environ),
+        env=env,
     )
     stderr, peak_rss_kb = _parse_timed_stderr(completed.stderr)
     return SubprocessResult(
@@ -61,13 +96,14 @@ def _run_subprocess(command: tuple[str, ...]) -> SubprocessResult:
 def run_batch_step(
     step: IngestionBatchStep,
     *,
+    env_overrides: dict[str, str] | None = None,
     child_rss_delta_kb: Callable[[int], int] = child_process_peak_rss_delta_kb,
 ) -> dict[str, Any]:
     command = (sys.executable, "-m", step.module, *step.args)
     before_child_peak_rss_kb = child_process_peak_rss_kb()
     started_at = utc_now_iso()
     started = monotonic_seconds()
-    subprocess_result = _run_subprocess(command)
+    subprocess_result = _run_subprocess(command, env_overrides=env_overrides)
     elapsed_seconds = monotonic_seconds() - started
     finished_at = utc_now_iso()
     status = "succeeded" if subprocess_result.exit_code in step.expected_exit_codes else "failed"
@@ -108,7 +144,10 @@ def run_official_web_handoff_batch(
     limit: int = 20,
     force: bool = False,
     promote: bool = False,
+    policy: OnDemandBatchPolicy | None = None,
 ) -> dict[str, Any]:
+    runtime_policy = policy or load_batch_policy()
+    _require_within_batch_limit(name="limit", value=limit, policy=runtime_policy)
     args: list[str] = []
     if event_id:
         args.extend(("--event-id", event_id))
@@ -119,6 +158,7 @@ def run_official_web_handoff_batch(
         args.append("--promote")
     return _run_steps(
         batch_kind="official_web_handoffs",
+        policy=runtime_policy,
         steps=(
             IngestionBatchStep(
                 name="consume_handoffs",
@@ -135,7 +175,11 @@ def run_internal_notice_multimodal_drain_batch(
     batch_size: int = 20,
     max_attempts: int = 3,
     skip_read_model_rebuild: bool = False,
+    policy: OnDemandBatchPolicy | None = None,
 ) -> dict[str, Any]:
+    runtime_policy = policy or load_batch_policy()
+    _require_within_batch_limit(name="limit", value=limit, policy=runtime_policy)
+    _require_within_batch_limit(name="batch-size", value=batch_size, policy=runtime_policy)
     args = [
         "--limit",
         str(limit),
@@ -148,6 +192,7 @@ def run_internal_notice_multimodal_drain_batch(
         args.append("--skip-read-model-rebuild")
     return _run_steps(
         batch_kind="internal_notice_multimodal_drain",
+        policy=runtime_policy,
         steps=(
             IngestionBatchStep(
                 name="drain_multimodal_pending",
@@ -175,7 +220,10 @@ def run_authenticated_notice_closeout_batch(
     lease_seconds: int = 300,
     validate_chunking: bool = False,
     promote: bool = False,
+    policy: OnDemandBatchPolicy | None = None,
 ) -> dict[str, Any]:
+    runtime_policy = policy or load_batch_policy()
+    _require_within_batch_limit(name="batch-size", value=batch_size, policy=runtime_policy)
     steps: list[IngestionBatchStep] = []
     if bundle_path:
         if not site_id or not source_home_url:
@@ -247,7 +295,59 @@ def run_authenticated_notice_closeout_batch(
                 args=("--run-id", run_id),
             )
         )
-    return _run_steps(batch_kind="authenticated_notice_closeout", steps=tuple(steps))
+    return _run_steps(
+        batch_kind="authenticated_notice_closeout",
+        policy=runtime_policy,
+        steps=tuple(steps),
+    )
+
+
+def run_wechat_public_notice_batch(
+    *,
+    selection_path: str | None = None,
+    article_manifest_keys: tuple[str, ...] = (),
+    source_bucket: str | None = None,
+    capture_run_id: str | None = None,
+    latest_completed_capture_run: bool = False,
+    capture_account_slug: str | None = None,
+    dry_run: bool = False,
+    emit_read_model_evidence: bool = False,
+    policy: OnDemandBatchPolicy | None = None,
+) -> dict[str, Any]:
+    runtime_policy = policy or load_batch_policy()
+    _require_within_batch_limit(
+        name="article-manifest-key count",
+        value=max(1, len(article_manifest_keys)),
+        policy=runtime_policy,
+    )
+    args: list[str] = []
+    if selection_path:
+        args.extend(("--selection-path", selection_path))
+    for key in article_manifest_keys:
+        args.extend(("--article-manifest-key", key))
+    if source_bucket:
+        args.extend(("--source-bucket", source_bucket))
+    if capture_run_id:
+        args.extend(("--capture-run-id", capture_run_id))
+    if latest_completed_capture_run:
+        args.append("--latest-completed-capture-run")
+    if capture_account_slug:
+        args.extend(("--capture-account-slug", capture_account_slug))
+    if dry_run:
+        args.append("--dry-run")
+    if emit_read_model_evidence:
+        args.append("--emit-read-model-evidence")
+    return _run_steps(
+        batch_kind="wechat_public_notices",
+        policy=runtime_policy,
+        steps=(
+            IngestionBatchStep(
+                name="project_wechat_public_notices",
+                module="campus_ingestion_worker.project_wechat_public_notices",
+                args=tuple(args),
+            ),
+        ),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -264,7 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
     official.add_argument("--limit", type=_positive_int, default=20)
     official.add_argument("--force", action="store_true")
     official.add_argument("--promote", action="store_true")
-    _add_common_output_args(official)
+    _add_common_runtime_args(official)
 
     multimodal = subparsers.add_parser(
         "internal-notice-multimodal-drain",
@@ -274,7 +374,7 @@ def build_parser() -> argparse.ArgumentParser:
     multimodal.add_argument("--batch-size", type=_positive_int, default=20)
     multimodal.add_argument("--max-attempts", type=_positive_int, default=3)
     multimodal.add_argument("--skip-read-model-rebuild", action="store_true")
-    _add_common_output_args(multimodal)
+    _add_common_runtime_args(multimodal)
 
     closeout = subparsers.add_parser(
         "authenticated-notice-closeout",
@@ -291,11 +391,25 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument("--batch-size", type=_positive_int, default=16)
     closeout.add_argument("--max-concurrency", type=_positive_int, default=1)
     closeout.add_argument("--notice-concurrency", type=_positive_int, default=2)
-    closeout.add_argument("--object-store-concurrency", type=_positive_int, default=8)
+    closeout.add_argument("--object-store-concurrency", type=_positive_int, default=2)
     closeout.add_argument("--lease-seconds", type=_positive_int, default=300)
     closeout.add_argument("--validate-chunking", action="store_true")
     closeout.add_argument("--promote", action="store_true")
-    _add_common_output_args(closeout)
+    _add_common_runtime_args(closeout)
+
+    wechat = subparsers.add_parser(
+        "wechat-public-notices",
+        help="Project selected WeChat public notice source-truth artifacts.",
+    )
+    wechat.add_argument("--selection-path")
+    wechat.add_argument("--article-manifest-key", action="append", default=[])
+    wechat.add_argument("--source-bucket")
+    wechat.add_argument("--capture-run-id")
+    wechat.add_argument("--latest-completed-capture-run", action="store_true")
+    wechat.add_argument("--capture-account-slug")
+    wechat.add_argument("--dry-run", action="store_true")
+    wechat.add_argument("--emit-read-model-evidence", action="store_true")
+    _add_common_runtime_args(wechat)
 
     return parser
 
@@ -304,6 +418,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    policy = load_batch_policy(
+        max_batch_items=getattr(args, "max_batch_items", None),
+        max_attachment_bytes=getattr(args, "max_attachment_bytes", None),
+        max_ocr_input_bytes=getattr(args, "max_ocr_input_bytes", None),
+        max_ocr_cache_entries=getattr(args, "max_ocr_cache_entries", None),
+        max_ocr_cache_total_bytes=getattr(args, "max_ocr_cache_total_bytes", None),
+        peak_rss_warn_kb=getattr(args, "peak_rss_warn_kb", None),
+        peak_rss_hard_kb=getattr(args, "peak_rss_hard_kb", None),
+    )
     try:
         if args.batch_kind == "official-web-handoffs":
             report = run_official_web_handoff_batch(
@@ -311,6 +434,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 limit=args.limit,
                 force=args.force,
                 promote=args.promote,
+                policy=policy,
             )
         elif args.batch_kind == "internal-notice-multimodal-drain":
             report = run_internal_notice_multimodal_drain_batch(
@@ -318,6 +442,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 batch_size=args.batch_size,
                 max_attempts=args.max_attempts,
                 skip_read_model_rebuild=args.skip_read_model_rebuild,
+                policy=policy,
             )
         elif args.batch_kind == "authenticated-notice-closeout":
             report = run_authenticated_notice_closeout_batch(
@@ -336,6 +461,19 @@ def main(argv: Sequence[str] | None = None) -> None:
                 lease_seconds=args.lease_seconds,
                 validate_chunking=args.validate_chunking,
                 promote=args.promote,
+                policy=policy,
+            )
+        elif args.batch_kind == "wechat-public-notices":
+            report = run_wechat_public_notice_batch(
+                selection_path=args.selection_path,
+                article_manifest_keys=tuple(args.article_manifest_key or ()),
+                source_bucket=args.source_bucket,
+                capture_run_id=args.capture_run_id,
+                latest_completed_capture_run=bool(args.latest_completed_capture_run),
+                capture_account_slug=args.capture_account_slug,
+                dry_run=bool(args.dry_run),
+                emit_read_model_evidence=bool(args.emit_read_model_evidence),
+                policy=policy,
             )
         else:
             parser.error(f"unsupported batch kind: {args.batch_kind}")
@@ -350,13 +488,14 @@ def main(argv: Sequence[str] | None = None) -> None:
 def _run_steps(
     *,
     batch_kind: str,
+    policy: OnDemandBatchPolicy,
     steps: tuple[IngestionBatchStep, ...],
 ) -> dict[str, Any]:
     started_at = utc_now_iso()
     started = monotonic_seconds()
     step_results: list[dict[str, Any]] = []
     for step in steps:
-        result = run_batch_step(step)
+        result = run_batch_step(step, env_overrides=policy.to_env_overrides())
         step_results.append(result)
         if result["status"] != "succeeded":
             break
@@ -367,6 +506,13 @@ def _run_steps(
         else "failed"
     )
     finished_at = utc_now_iso()
+    max_step_peak_rss_kb = (
+        max(int(step.get("peak_rss_kb") or 0) for step in step_results) if step_results else 0
+    )
+    rss_budget_status = _classify_rss_budget(
+        peak_rss_kb=max_step_peak_rss_kb,
+        policy=policy,
+    )
     return {
         "schema_version": ON_DEMAND_BATCH_REPORT_SCHEMA_VERSION,
         "batch_kind": batch_kind,
@@ -377,6 +523,13 @@ def _run_steps(
         "planned_step_count": len(steps),
         "executed_step_count": len(step_results),
         "failed_step": _first_failed_step_name(step_results),
+        "policy": asdict(policy),
+        "resource_budget": {
+            "max_step_peak_rss_kb": max_step_peak_rss_kb,
+            "peak_rss_warn_kb": policy.peak_rss_warn_kb,
+            "peak_rss_hard_kb": policy.peak_rss_hard_kb,
+            "status": rss_budget_status,
+        },
         "steps": step_results,
     }
 
@@ -453,11 +606,25 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
-def _add_common_output_args(parser: argparse.ArgumentParser) -> None:
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be a non-negative integer")
+    return parsed
+
+
+def _add_common_runtime_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--report-path",
         help="Optional path for the full on-demand batch JSON report.",
     )
+    parser.add_argument("--max-batch-items", type=_positive_int)
+    parser.add_argument("--max-attachment-bytes", type=_positive_int)
+    parser.add_argument("--max-ocr-input-bytes", type=_positive_int)
+    parser.add_argument("--max-ocr-cache-entries", type=_non_negative_int)
+    parser.add_argument("--max-ocr-cache-total-bytes", type=_non_negative_int)
+    parser.add_argument("--peak-rss-warn-kb", type=_positive_int)
+    parser.add_argument("--peak-rss-hard-kb", type=_positive_int)
 
 
 def _write_report(*, report: dict[str, Any], output_path: str | None) -> None:
@@ -470,16 +637,91 @@ def _write_report(*, report: dict[str, Any], output_path: str | None) -> None:
     )
 
 
+def load_batch_policy(
+    *,
+    max_batch_items: int | None = None,
+    max_attachment_bytes: int | None = None,
+    max_ocr_input_bytes: int | None = None,
+    max_ocr_cache_entries: int | None = None,
+    max_ocr_cache_total_bytes: int | None = None,
+    peak_rss_warn_kb: int | None = None,
+    peak_rss_hard_kb: int | None = None,
+) -> OnDemandBatchPolicy:
+    env = os.environ
+    resolved = OnDemandBatchPolicy(
+        max_batch_items=max_batch_items
+        if max_batch_items is not None
+        else _env_int(env, "INGESTION_ON_DEMAND_MAX_BATCH_ITEMS", _DEFAULT_MAX_BATCH_ITEMS),
+        max_attachment_bytes=max_attachment_bytes
+        if max_attachment_bytes is not None
+        else _env_int(
+            env, "INGESTION_ON_DEMAND_MAX_ATTACHMENT_BYTES", _DEFAULT_MAX_ATTACHMENT_BYTES
+        ),
+        max_ocr_input_bytes=max_ocr_input_bytes
+        if max_ocr_input_bytes is not None
+        else _env_int(env, "INGESTION_ON_DEMAND_MAX_OCR_INPUT_BYTES", _DEFAULT_MAX_OCR_INPUT_BYTES),
+        max_ocr_cache_entries=max_ocr_cache_entries
+        if max_ocr_cache_entries is not None
+        else _env_int(
+            env, "INGESTION_ON_DEMAND_OCR_CACHE_MAX_ENTRIES", _DEFAULT_MAX_OCR_CACHE_ENTRIES
+        ),
+        max_ocr_cache_total_bytes=max_ocr_cache_total_bytes
+        if max_ocr_cache_total_bytes is not None
+        else _env_int(
+            env,
+            "INGESTION_ON_DEMAND_OCR_CACHE_MAX_TOTAL_BYTES",
+            _DEFAULT_MAX_OCR_CACHE_TOTAL_BYTES,
+        ),
+        peak_rss_warn_kb=peak_rss_warn_kb
+        if peak_rss_warn_kb is not None
+        else _env_int(env, "INGESTION_ON_DEMAND_PEAK_RSS_WARN_KB", _DEFAULT_PEAK_RSS_WARN_KB),
+        peak_rss_hard_kb=peak_rss_hard_kb
+        if peak_rss_hard_kb is not None
+        else _env_int(env, "INGESTION_ON_DEMAND_PEAK_RSS_HARD_KB", _DEFAULT_PEAK_RSS_HARD_KB),
+    )
+    if resolved.peak_rss_hard_kb < resolved.peak_rss_warn_kb:
+        raise ValueError("peak_rss_hard_kb must be greater than or equal to peak_rss_warn_kb")
+    return resolved
+
+
+def _env_int(env: dict[str, str], key: str, default: int) -> int:
+    raw = str(env.get(key) or "").strip()
+    if not raw:
+        return default
+    parsed = int(raw)
+    if parsed < 0:
+        raise ValueError(f"{key} must be non-negative")
+    return parsed
+
+
+def _require_within_batch_limit(*, name: str, value: int, policy: OnDemandBatchPolicy) -> None:
+    if value > policy.max_batch_items:
+        raise ValueError(
+            f"{name}={value} exceeds INGESTION_ON_DEMAND_MAX_BATCH_ITEMS={policy.max_batch_items}"
+        )
+
+
+def _classify_rss_budget(*, peak_rss_kb: int, policy: OnDemandBatchPolicy) -> str:
+    if peak_rss_kb >= policy.peak_rss_hard_kb:
+        return "hard_exceeded"
+    if peak_rss_kb >= policy.peak_rss_warn_kb:
+        return "warn_exceeded"
+    return "within_budget"
+
+
 __all__ = [
     "ON_DEMAND_BATCH_REPORT_SCHEMA_VERSION",
     "IngestionBatchStep",
+    "OnDemandBatchPolicy",
     "SubprocessResult",
     "build_parser",
+    "load_batch_policy",
     "main",
     "run_authenticated_notice_closeout_batch",
     "run_batch_step",
     "run_internal_notice_multimodal_drain_batch",
     "run_official_web_handoff_batch",
+    "run_wechat_public_notice_batch",
 ]
 
 

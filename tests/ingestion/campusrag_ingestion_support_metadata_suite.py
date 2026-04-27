@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from botocore.exceptions import ClientError
+
 from tests.ingestion.campusrag_ingestion_support_test_support import *
 
 
@@ -475,6 +477,109 @@ class CampusragIngestionArtifactsSuite(_CampusragIngestionSupportBase):
         )
         self.assertEqual([call["Key"] for call in created_clients[1].put_calls], ["empty.jsonl"])
         self.assertTrue(created_clients[1].closed)
+
+    def test_s3_object_store_writer_retries_retryable_non_empty_put_with_fresh_client(
+        self,
+    ) -> None:
+        created_clients: list[_FakeS3Client] = []
+
+        class _RetryableS3Client(_FakeS3Client):
+            def __init__(self, *, name: str, fail_first_put: bool = False) -> None:
+                super().__init__(name=name)
+                self.fail_first_put = fail_first_put
+
+            def put_object(self, **kwargs: object) -> None:
+                if self.fail_first_put:
+                    self.fail_first_put = False
+                    error_response = {
+                        "Error": {
+                            "Code": "IncompleteBody",
+                            "Message": "content length mismatch",
+                        }
+                    }
+                    raise ClientError(error_response, "PutObject")
+                super().put_object(**kwargs)
+
+        class _Factory:
+            def __init__(self, settings: ObjectStoreSettings) -> None:
+                self.settings = settings
+
+            def create(self) -> _RetryableS3Client:
+                client = _RetryableS3Client(
+                    name=f"client-{len(created_clients) + 1}",
+                    fail_first_put=(not created_clients),
+                )
+                created_clients.append(client)
+                return client
+
+        with patch("campus_ingestion_core.object_store.S3ObjectStoreClientFactory", _Factory):
+            writer = S3ObjectStoreWriter(self.object_store)
+            writer.put_bytes(
+                bucket="campus-rag-source",
+                key="source-truth/non-empty.json",
+                data=b'{"ok": 1}',
+                content_type="application/json",
+            )
+
+        self.assertEqual(len(created_clients), 2)
+        self.assertTrue(created_clients[0].closed)
+        self.assertEqual(created_clients[1].put_calls[0]["Key"], "source-truth/non-empty.json")
+        self.assertEqual(
+            created_clients[1].objects[("campus-rag-source", "source-truth/non-empty.json")],
+            b'{"ok": 1}',
+        )
+
+    def test_s3_object_store_writer_rotates_non_empty_put_client_after_bounded_batch(
+        self,
+    ) -> None:
+        created_clients: list[_FakeS3Client] = []
+
+        class _Factory:
+            def __init__(self, settings: ObjectStoreSettings) -> None:
+                self.settings = settings
+
+            def create(self) -> _FakeS3Client:
+                client = _FakeS3Client(name=f"client-{len(created_clients) + 1}")
+                created_clients.append(client)
+                return client
+
+        with (
+            patch("campus_ingestion_core.object_store.S3ObjectStoreClientFactory", _Factory),
+            patch(
+                "campus_ingestion_core.campusrag_ingestion_support_models._NON_EMPTY_PUT_CLIENT_REFRESH_INTERVAL",
+                2,
+            ),
+        ):
+            writer = S3ObjectStoreWriter(self.object_store)
+            writer.put_bytes(
+                bucket="campus-rag-source",
+                key="source-truth/first.json",
+                data=b'{"ok": 1}',
+                content_type="application/json",
+            )
+            writer.put_bytes(
+                bucket="campus-rag-source",
+                key="source-truth/second.json",
+                data=b'{"ok": 2}',
+                content_type="application/json",
+            )
+            writer.put_bytes(
+                bucket="campus-rag-source",
+                key="source-truth/third.json",
+                data=b'{"ok": 3}',
+                content_type="application/json",
+            )
+
+        self.assertEqual(len(created_clients), 2)
+        self.assertTrue(created_clients[0].closed)
+        self.assertEqual(
+            [call["Key"] for call in created_clients[0].put_calls],
+            ["source-truth/first.json", "source-truth/second.json"],
+        )
+        self.assertEqual(
+            [call["Key"] for call in created_clients[1].put_calls],
+            ["source-truth/third.json"],
+        )
 
     def test_s3_object_store_writer_supports_get_bytes(self) -> None:
         class _Factory:

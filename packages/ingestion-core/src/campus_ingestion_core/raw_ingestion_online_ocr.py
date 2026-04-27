@@ -6,6 +6,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol
@@ -347,20 +348,19 @@ class MineruApiClient:
 
     def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
         if file_path.suffix.strip().lower() == ".pdf":
-            file_bytes = file_path.read_bytes()
             try:
-                page_count = _read_pdf_page_count(file_bytes)
+                page_count = _read_pdf_page_count_from_path(file_path)
             except Exception:
                 page_count = None
             if page_count is not None and page_count > DEFAULT_MINERU_MAX_PDF_PAGES:
                 return self._parse_oversized_pdf(
                     file_name=file_path.name,
-                    file_bytes=file_bytes,
+                    file_bytes=file_path.read_bytes(),
                     page_count=page_count,
                 )
         archive_bytes, metadata = self._parse_file_archive(
             file_name=file_path.name,
-            file_bytes=file_path.read_bytes(),
+            file_path=file_path,
         )
         return OnlineOcrProviderResult(
             provider_result_bytes=archive_bytes,
@@ -382,7 +382,7 @@ class MineruApiClient:
         page_count: int,
     ) -> OnlineOcrProviderResult:
         segments = _split_pdf_bytes(file_bytes=file_bytes, max_pages=DEFAULT_MINERU_MAX_PDF_PAGES)
-        canonical_segments: list[bytes] = []
+        merged_pages: list[dict[str, object]] = []
         raw_provider_artifacts: list[OnlineOcrRawArtifact] = []
         manifest_segments: list[dict[str, object]] = []
         for index, segment in enumerate(segments, start=1):
@@ -395,8 +395,9 @@ class MineruApiClient:
                 ),
                 file_bytes=segment["file_bytes"],
             )
-            canonical_segments.append(
-                adapt_mineru_archive_to_canonical_provider_payload(archive_bytes)
+            _extend_merged_pages_from_canonical_provider_payload(
+                merged_pages=merged_pages,
+                payload_bytes=adapt_mineru_archive_to_canonical_provider_payload(archive_bytes),
             )
             raw_filename = RAW_PROVIDER_RESPONSE_SEGMENT_FILENAME_TEMPLATE.format(index=index)
             raw_provider_artifacts.append(
@@ -436,7 +437,7 @@ class MineruApiClient:
             )
         )
         return OnlineOcrProviderResult(
-            provider_result_bytes=_merge_canonical_provider_payloads(canonical_segments),
+            provider_result_bytes=_build_canonical_provider_payload_from_pages(merged_pages),
             metadata={
                 "provider": ONLINE_OCR_PROVIDER_MINERU_API,
                 "file_name": file_name,
@@ -463,14 +464,21 @@ class MineruApiClient:
         self,
         *,
         file_name: str,
-        file_bytes: bytes,
+        file_path: Path | None = None,
+        file_bytes: bytes | None = None,
     ) -> tuple[bytes, dict[str, object]]:
         try:
             import requests
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError("requests is required to use the online OCR service") from exc
+        if file_path is None and file_bytes is None:
+            raise ValueError("file_path or file_bytes is required")
 
-        data_id = hashlib.sha256(file_bytes).hexdigest()[:16]
+        data_id = (
+            _sha256_file_prefix(file_path)[:16]
+            if file_path is not None and file_bytes is None
+            else hashlib.sha256(file_bytes or b"").hexdigest()[:16]
+        )
         headers = {"Authorization": f"Bearer {self._settings.api_key}"}
         upload_response = requests.post(
             _resolve_mineru_file_upload_url(self._settings.base_url),
@@ -500,11 +508,19 @@ class MineruApiClient:
         file_urls = upload_payload.get("file_urls")
         if not isinstance(file_urls, list) or not file_urls or not isinstance(file_urls[0], str):
             raise RuntimeError(f"MinerU upload response for {file_name} is missing file_urls")
-        upload_file_response = requests.put(
-            str(file_urls[0]),
-            data=file_bytes,
-            timeout=self._settings.timeout_seconds,
-        )
+        if file_path is not None and file_bytes is None:
+            with file_path.open("rb") as file_stream:
+                upload_file_response = requests.put(
+                    str(file_urls[0]),
+                    data=file_stream,
+                    timeout=self._settings.timeout_seconds,
+                )
+        else:
+            upload_file_response = requests.put(
+                str(file_urls[0]),
+                data=file_bytes,
+                timeout=self._settings.timeout_seconds,
+            )
         upload_file_response.raise_for_status()
 
         deadline = time.monotonic() + self._settings.timeout_seconds
@@ -544,9 +560,11 @@ class MineruApiClient:
                 archive_response = requests.get(
                     full_zip_url,
                     timeout=self._settings.timeout_seconds,
+                    stream=True,
                 )
                 archive_response.raise_for_status()
-                return archive_response.content, {
+                archive_bytes = _read_response_bytes(archive_response)
+                return archive_bytes, {
                     "provider": ONLINE_OCR_PROVIDER_MINERU_API,
                     "batch_id": batch_id,
                     "file_name": file_name,
@@ -708,6 +726,15 @@ def _read_pdf_page_count(file_bytes: bytes) -> int:
         return int(document.page_count)
 
 
+def _read_pdf_page_count_from_path(file_path: Path) -> int:
+    try:
+        import fitz
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("PyMuPDF (fitz) is required to split oversized MinerU PDFs") from exc
+    with fitz.open(file_path) as document:
+        return int(document.page_count)
+
+
 def _split_pdf_bytes(*, file_bytes: bytes, max_pages: int) -> list[dict[str, object]]:
     try:
         import fitz
@@ -740,19 +767,24 @@ def _build_mineru_segment_pdf_name(
     return f"{path.stem}.part-{index:04d}.p{page_start:04d}-p{page_end:04d}{path.suffix or '.pdf'}"
 
 
-def _merge_canonical_provider_payloads(payloads: list[bytes]) -> bytes:
-    merged_pages: list[dict[str, object]] = []
-    for payload_bytes in payloads:
-        for line in payload_bytes.decode("utf-8").splitlines():
-            if not line.strip():
-                continue
-            payload = json.loads(line)
-            result = payload.get("result") if isinstance(payload, dict) else None
-            if not isinstance(result, dict):
-                continue
-            layout_results = result.get("layoutParsingResults")
-            if isinstance(layout_results, list):
-                merged_pages.extend(item for item in layout_results if isinstance(item, dict))
+def _extend_merged_pages_from_canonical_provider_payload(
+    *,
+    merged_pages: list[dict[str, object]],
+    payload_bytes: bytes,
+) -> None:
+    for line in payload_bytes.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        result = payload.get("result") if isinstance(payload, dict) else None
+        if not isinstance(result, dict):
+            continue
+        layout_results = result.get("layoutParsingResults")
+        if isinstance(layout_results, list):
+            merged_pages.extend(item for item in layout_results if isinstance(item, dict))
+
+
+def _build_canonical_provider_payload_from_pages(merged_pages: list[dict[str, object]]) -> bytes:
     merged_payload = {
         "result": {
             "dataInfo": {
@@ -763,3 +795,32 @@ def _merge_canonical_provider_payloads(payloads: list[bytes]) -> bytes:
         }
     }
     return (json.dumps(merged_payload, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _sha256_file_prefix(file_path: Path) -> str:
+    digest = hashlib.sha256()
+    with file_path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _read_response_bytes(response: Any) -> bytes:
+    iter_content = getattr(response, "iter_content", None)
+    if callable(iter_content):
+        chunks: list[bytes] = []
+        for chunk in iter_content(chunk_size=1024 * 1024):
+            if chunk:
+                chunks.append(chunk)
+        return b"".join(chunks)
+    content = getattr(response, "content", b"")
+    if isinstance(content, bytes):
+        return content
+    if isinstance(content, bytearray):
+        return bytes(content)
+    if isinstance(content, str):
+        return content.encode("utf-8")
+    return BytesIO(bytes(content)).getvalue()

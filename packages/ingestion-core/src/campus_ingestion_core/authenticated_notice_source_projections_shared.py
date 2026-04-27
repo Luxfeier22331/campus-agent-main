@@ -57,6 +57,8 @@ __all__ = ("ONLINE_OCR_PROVIDER_ASYNC_JOBS",)
 class AuthenticatedNoticeProjectionObjectStore(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
+    def download_file(self, *, bucket: str, key: str, file_path: str) -> None: ...
+
     def put_bytes(
         self,
         *,

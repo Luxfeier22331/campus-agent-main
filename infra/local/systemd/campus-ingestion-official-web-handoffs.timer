@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Campus Agent official web handoff ingestion batch every hour
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=campus-ingestion-official-web-handoffs.service
+
+[Install]
+WantedBy=timers.target

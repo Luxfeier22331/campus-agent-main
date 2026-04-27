@@ -2,8 +2,22 @@
 Description=Campus Agent internal notice ingestion drain
 Wants=network-online.target
 After=network-online.target
+ConditionPathExists=/srv/campus-agent/scripts/run-internal-notice-multimodal-drain.sh
 
 [Service]
 Type=oneshot
+User=campus-agent
+Group=campus-agent
 WorkingDirectory=/srv/campus-agent
+EnvironmentFile=-/etc/campus-agent/ingestion-worker.env
 ExecStart=/srv/campus-agent/scripts/run-internal-notice-multimodal-drain.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/campus-agent/.tmp/ingestion-reports /srv/campus-agent/.tmp/ingestion-locks
+MemoryMax=768M
+CPUQuota=100%
+UMask=0027
+TimeoutStartSec=45min
+SyslogIdentifier=campus-ingestion-internal-notice

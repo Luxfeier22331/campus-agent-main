@@ -49,6 +49,12 @@ uv run --package campus-ingestion-worker campus-ingestion-run-on-demand-batch \
   --report-path .tmp/ingestion-reports/<run-id>.json
 ```
 
+推荐的 operator shell 入口（preflight + lock + batch + retention）：
+
+```bash
+scripts/run-ingestion-worker-batch.sh <batch-kind> [batch args...]
+```
+
 report 固定包含：
 
 - `schema_version`
@@ -58,6 +64,16 @@ report 固定包含：
 - 每个 step 的 `command`、`exit_code`、`elapsed_seconds`、`peak_rss_kb`
 - 若子命令 stdout 是 JSON，则记录 `stdout_json`
 
+report retention 命令：
+
+```bash
+uv run --package campus-ingestion-worker campus-ingestion-prune-reports \
+  --report-dir .tmp/ingestion-reports \
+  --max-age-days 14 \
+  --max-count 200 \
+  --keep-failed
+```
+
 ## Read-Only Preflight
 
 调度前先确认 CLI、env bootstrap 与 operator DB lane 可用：
@@ -66,11 +82,31 @@ report 固定包含：
 uv run --package campus-ingestion-worker \
   campus-ingestion-run-on-demand-batch --help
 
+uv run --package campus-ingestion-worker \
+  campus-ingestion-preflight \
+  --batch-kind internal-notice-multimodal-drain \
+  --report-dir .tmp/ingestion-reports \
+  --lock-dir .tmp/ingestion-locks
+
 uv run --package campus-ingestion-worker python -m \
   campus_ingestion_worker.list_internal_notice_consumption_admissions \
   --collection internal_notice \
   --limit 5
 ```
+
+本地开发默认不加 `--live`，只做 CLI、env shape 与目录可写检查。服务器部署或 Docker image
+上线前再运行 live gate：
+
+```bash
+uv run --package campus-ingestion-worker \
+  campus-ingestion-preflight \
+  --batch-kind internal-notice-multimodal-drain \
+  --report-dir /var/lib/campus-agent/ingestion/reports \
+  --lock-dir /run/campus-agent/ingestion \
+  --live
+```
+
+`--live` 会对 Postgres 与 S3-compatible object storage 做真实连接探测；失败时返回非零退出码。
 
 不要把 `show_authenticated_notice_control_plane_status` 作为通用 preflight；它会读取
 source attachment inventory 等对象存储 key，更适合具体 control-plane 审计。
@@ -103,6 +139,16 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
 - 本地阶段不安装 `infra/local/systemd/*.service` 或 `*.timer`
 - 不把 `--promote` 纳入本地首跑
 - report 统一落到 `.tmp/ingestion-reports/`
+
+本地也可直接走 unified shell，保持与服务器一致：
+
+```bash
+scripts/run-ingestion-worker-batch.sh internal-notice-multimodal-drain \
+  --limit 1 \
+  --batch-size 1 \
+  --max-attempts 1 \
+  --skip-read-model-rebuild
+```
 
 本地 DB env 默认只需要 shared dev Postgres：
 
@@ -142,7 +188,7 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
   --worker-id notice-ondemand \
   --max-concurrency 1 \
   --notice-concurrency 2 \
-  --object-store-concurrency 8 \
+  --object-store-concurrency 2 \
   --validate-chunking \
   --report-path .tmp/ingestion-reports/notice-$(date +%Y%m%d).json
 ```
@@ -223,9 +269,18 @@ systemd timer 的执行单元只需要调用统一入口，例如：
 
 repo 已提供可复制到服务器的无 secret 文件：
 
+- `scripts/run-ingestion-worker-batch.sh`
 - `scripts/run-internal-notice-multimodal-drain.sh`
+- `scripts/run-official-web-handoffs.sh`
+- `scripts/run-authenticated-notice-closeout.sh`
+- `scripts/run-wechat-public-notices.sh`
 - `infra/local/systemd/campus-ingestion-internal-notice.service`
 - `infra/local/systemd/campus-ingestion-internal-notice.timer`
+- `infra/local/systemd/campus-ingestion-official-web-handoffs.service`
+- `infra/local/systemd/campus-ingestion-official-web-handoffs.timer`
+- `infra/local/systemd/campus-ingestion-authenticated-notice-closeout.service`
+- `infra/local/systemd/campus-ingestion-authenticated-notice-closeout.timer`
+- `infra/local/systemd/campus-ingestion-wechat-public-notices.service`
 
 ```ini
 [Service]
@@ -249,6 +304,47 @@ INGESTION_ON_DEMAND_REPORT_DIR=.tmp/ingestion-reports
 - 调度器只负责拉起 CLI，不写 source truth
 - failure 以非零退出码和 JSON report 中的 failed step 为准
 - report 目录应纳入 operator log/artifact 留存，不作为 canonical data-plane truth
+
+生产侧 hardening 目标：
+
+- service 使用固定低权限用户，例如 `User=campus-ingestion`
+- secrets 从 server-side env file 注入，例如
+  `EnvironmentFile=/etc/campus-agent/ingestion-worker.env`
+- `ExecStartPre` 先跑 `campus-ingestion-preflight --live`
+- `TimeoutStartSec` 必须大于最大 batch 预算，但不能无限等待
+- run script 使用 `flock` 或等价锁，避免 timer overlap
+- report dir、lock dir、working tree 权限只开放给 ingestion 用户
+- journal tag / service name 固定，便于 failure alert 与 log lookup
+
+## Docker Dev Lane
+
+当前 worker 已提供 Docker image 构建与统一 batch entrypoint：
+
+```bash
+docker build \
+  -f apps/ingestion-worker/Dockerfile \
+  -t campus-ingestion-worker:dev \
+  .
+```
+
+以 internal notice 小批量 smoke 为例：
+
+```bash
+docker run --rm \
+  --memory=768m \
+  --cpus=1 \
+  --env-file /etc/campus-agent/ingestion-worker.env \
+  -e INGESTION_ON_DEMAND_BATCH_KIND=internal-notice-multimodal-drain \
+  -v "$(pwd)/.tmp/ingestion-reports:/var/lib/campus-agent/ingestion/reports" \
+  -v "$(pwd)/.tmp/ingestion-locks:/var/lib/campus-agent/ingestion/locks" \
+  campus-ingestion-worker:dev \
+  --limit 1 \
+  --batch-size 1 \
+  --max-attempts 1 \
+  --skip-read-model-rebuild
+```
+
+Docker 只负责跑 bounded batch，不应改造成常驻队列消费者。
 
 ## Failure Handling
 

@@ -304,4 +304,37 @@ describe("FeedWe capture", () => {
 		expect(JSON.stringify(finalizeRun.mock.calls)).not.toContain(apiKey);
 		expect(JSON.stringify(finalizeRun.mock.calls)).not.toContain(serviceToken);
 	});
+
+	it("fails early when control-plane is required but not configured", async () => {
+		const artifactStore: WeChatOfficialAccountArtifactStore = {
+			async putObject(input) {
+				return {
+					byteSize: input.data.byteLength,
+					contentSha256: "f".repeat(64),
+					objectKey: input.objectKey,
+					recordCount: input.recordCount,
+				};
+			},
+		};
+		const capture = vi.fn();
+
+		await expect(
+			runCaptureCli(
+				["--account", "中央民族大学学生会", "--require-control-plane"],
+				{
+					FEEDWE_API_KEY: "feedwe-live-secret",
+				},
+				{
+					capture,
+					createArtifactStore: () => artifactStore,
+					createControlPlaneClient: () => {
+						throw new Error("control-plane client should not be created");
+					},
+					writeOutput: vi.fn(),
+				},
+			),
+		).rejects.toThrow("wechat collector control plane is required");
+
+		expect(capture).not.toHaveBeenCalled();
+	});
 });

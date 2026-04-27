@@ -64,6 +64,7 @@ class _FakeObjectStore:
     def __init__(self) -> None:
         self.objects: dict[tuple[str, str], bytes] = {}
         self.uploads: list[tuple[str, str]] = []
+        self.downloads: list[tuple[str, str, str]] = []
 
     def put_bytes(self, *, bucket: str, key: str, data: bytes, content_type: str) -> None:
         del content_type
@@ -72,6 +73,10 @@ class _FakeObjectStore:
 
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         return self.objects[(bucket, key)]
+
+    def download_file(self, *, bucket: str, key: str, file_path: str) -> None:
+        Path(file_path).write_bytes(self.objects[(bucket, key)])
+        self.downloads.append((bucket, key, file_path))
 
 
 def _build_mineru_archive_bytes() -> bytes:

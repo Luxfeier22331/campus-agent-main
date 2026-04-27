@@ -176,6 +176,57 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         self.assertEqual(report["status"], "failed")
         self.assertEqual(report["steps"][0]["name"], "run_closeout_workers")
 
+    def test_wechat_batch_builds_project_step(self) -> None:
+        with patch(
+            "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
+            return_value={"name": "project_wechat_public_notices", "status": "succeeded"},
+        ) as run_step:
+            report = runner.run_wechat_public_notice_batch(
+                selection_path="/tmp/selection.json",
+                article_manifest_keys=(
+                    "wechat_official_account/muc/source-truth/article-manifest.json",
+                ),
+                source_bucket="source",
+                latest_completed_capture_run=True,
+                capture_account_slug="muc",
+                dry_run=True,
+                emit_read_model_evidence=True,
+            )
+
+        step = run_step.call_args.args[0]
+        self.assertEqual(step.name, "project_wechat_public_notices")
+        self.assertEqual(step.module, "campus_ingestion_worker.project_wechat_public_notices")
+        self.assertIn("--selection-path", step.args)
+        self.assertIn("--article-manifest-key", step.args)
+        self.assertIn("--latest-completed-capture-run", step.args)
+        self.assertIn("--dry-run", step.args)
+        self.assertEqual(report["batch_kind"], "wechat_public_notices")
+        self.assertEqual(report["status"], "succeeded")
+
+    def test_run_steps_includes_policy_and_budget_summary(self) -> None:
+        policy = runner.OnDemandBatchPolicy(
+            max_batch_items=50,
+            max_attachment_bytes=1024,
+            max_ocr_input_bytes=1024,
+            max_ocr_cache_entries=1,
+            max_ocr_cache_total_bytes=512,
+            peak_rss_warn_kb=100,
+            peak_rss_hard_kb=200,
+        )
+        with patch(
+            "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
+            return_value={"name": "step-1", "status": "succeeded", "peak_rss_kb": 120},
+        ):
+            report = runner._run_steps(
+                batch_kind="internal_notice_multimodal_drain",
+                policy=policy,
+                steps=(runner.IngestionBatchStep(name="step-1", module="probe"),),
+            )
+
+        self.assertEqual(report["policy"]["max_batch_items"], 50)
+        self.assertEqual(report["resource_budget"]["max_step_peak_rss_kb"], 120)
+        self.assertEqual(report["resource_budget"]["status"], "warn_exceeded")
+
     def test_cli_prints_report_and_exits_nonzero_on_failure(self) -> None:
         with (
             patch("campus_ingestion_worker.on_demand_batch_runner.load_worker_env"),

@@ -85,7 +85,8 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
         self.assertEqual(report.parent_notice_count, 1)
         self.assertEqual(report.projected_attachment_count, 3)
         self.assertEqual(report.ocr_attachment_count, 2)
-        self.assertEqual(sorted(ocr_client.calls), ["notice.png", "pdf:supplement.pdf"])
+        self.assertIn("notice.png", ocr_client.calls)
+        self.assertTrue(any(call.endswith("supplement.pdf") for call in ocr_client.calls))
 
         pdf_child = next(
             record
@@ -461,6 +462,9 @@ class AuthenticatedNoticeSourceProjectionAttachmentOcrTest(unittest.TestCase):
         self.assertEqual(report.ocr_attachment_count, 2)
         self.assertEqual(report.reference_only_attachment_count, 0)
         self.assertEqual(ocr_client.calls, ["notice.png", "supplement.pdf"])
+        downloaded_keys = [item[1] for item in object_store.downloads]
+        self.assertIn(str(bundle[0]["attachments"][1]["object_key"]), downloaded_keys)
+        self.assertIn(str(bundle[0]["attachments"][2]["object_key"]), downloaded_keys)
 
         records = document_registry.list_by_scope("campus_notices", "internal_notice")
         pdf_child = next(

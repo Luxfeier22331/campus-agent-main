@@ -67,6 +67,93 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
   --report-path .tmp/ingestion-reports/internal-notice-multimodal.json
 ```
 
+### `campus-ingestion-preflight`
+
+Deployment preflight for the ingestion worker shell.
+
+Default behavior:
+
+- Loads current worktree `.env`
+- Checks Python runtime, report directory, lock directory, shared/operator
+  Postgres URL shape, and object-store config
+- Checks batch-specific local directories such as `official_web` handoff inbox
+  paths when that batch kind is selected
+- Skips live network probes unless `--live` is passed
+- Prints a JSON report and exits non-zero on failed checks
+
+Example:
+
+```bash
+uv run --package campus-ingestion-worker campus-ingestion-preflight \
+  --batch-kind internal-notice-multimodal-drain \
+  --report-dir .tmp/ingestion-reports \
+  --lock-dir .tmp/ingestion-locks
+```
+
+Server deploy preflight should add `--live` after env and network access are
+configured.
+
+### `campus-ingestion-prune-reports`
+
+Retention shell for on-demand batch reports.
+
+Example:
+
+```bash
+uv run --package campus-ingestion-worker campus-ingestion-prune-reports \
+  --report-dir .tmp/ingestion-reports \
+  --max-age-days 14 \
+  --max-count 200 \
+  --keep-failed
+```
+
+### Unified Operator Shell
+
+Operator scripts now use a unified shell:
+
+- `scripts/run-ingestion-worker-batch.sh`
+- wrappers:
+  - `scripts/run-internal-notice-multimodal-drain.sh`
+  - `scripts/run-official-web-handoffs.sh`
+  - `scripts/run-authenticated-notice-closeout.sh`
+  - `scripts/run-wechat-public-notices.sh`
+
+The unified shell runs `preflight -> flock lock -> batch runner -> report retention`.
+
+### `campus-ingestion-project-wechat-public-notices`
+
+Projects WeChat source-truth artifacts into
+`ingestion_projection.notice_consumption_projection`.
+
+Selection inputs (at least one required):
+
+- `--article-manifest-key ...` (repeatable)
+- `--selection-path <path>`
+- `--capture-run-id <run_id>`
+- `--latest-completed-capture-run --capture-account-slug <slug>`
+
+Notes:
+
+- `--capture-run-id` / `--latest-completed-capture-run` read refs from
+  `wechat_official_account.capture_runs` + `run_artifacts`.
+- Capture-run selection requires one of:
+  `WECHAT_OFFICIAL_ACCOUNT_CAPTURE_LEDGER_DATABASE_URL` /
+  `CAMPUS_SHARED_POSTGRES_URL` /
+  `NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL` /
+  `INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL` /
+  `DOCUMENT_REGISTRY_DATABASE_URL`.
+- Default mode writes projection rows (`non-dry-run`) and records admission
+  events; use `--dry-run` for validation-only execution.
+
+Example:
+
+```bash
+uv run --all-packages campus-ingestion-project-wechat-public-notices \
+  --latest-completed-capture-run \
+  --capture-account-slug "中央民族大学学生会" \
+  --source-bucket campus-rag-source
+```
+
 ### `campus-ingestion-official-web-handoff-dev`
 
 Local `official_web` handoff receiver for `app-api -> ingestion-worker` seam

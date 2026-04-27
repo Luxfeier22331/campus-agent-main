@@ -39,6 +39,7 @@ REDUNDANT_SOURCE_SUFFIXES = {
     "csv",
     "zip",
 }
+MAX_DOCUMENT_DIRECTORY_SEGMENT_BYTES = 180
 
 
 def build_raw_asset_key(
@@ -487,7 +488,9 @@ def _document_directory_name(*, document_id: str, title: str | None) -> str:
     document_suffix = _document_id_suffix(document_id)
     title_slug = _slugify_path_label(title or document_suffix)
     docid8 = _document_id_short_label(document_id=document_id, document_suffix=document_suffix)
-    return f"{title_slug}--{docid8}"
+    suffix = f"--{docid8}"
+    title_budget = MAX_DOCUMENT_DIRECTORY_SEGMENT_BYTES - len(suffix.encode("utf-8"))
+    return f"{_truncate_utf8_path_segment(title_slug, max_bytes=title_budget)}{suffix}"
 
 
 def _document_id_suffix(document_id: str) -> str:
@@ -517,6 +520,22 @@ def _normalize_year_label(value: str | None) -> str:
     if match is None:
         return "undated"
     return match.group(1)
+
+
+def _truncate_utf8_path_segment(value: str, *, max_bytes: int) -> str:
+    if max_bytes <= 0:
+        raise ValueError("max_bytes must be greater than zero")
+    if len(value.encode("utf-8")) <= max_bytes:
+        return value
+    output: list[str] = []
+    used = 0
+    for char in value:
+        char_size = len(char.encode("utf-8"))
+        if used + char_size > max_bytes:
+            break
+        output.append(char)
+        used += char_size
+    return "".join(output).strip("-") or "document"
 
 
 def infer_year_label(value: str | None) -> str | None:

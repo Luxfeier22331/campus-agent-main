@@ -331,6 +331,9 @@ class S3ObjectStoreClient(S3ObjectStoreWriter):
         response = self._client.get_object(Bucket=bucket, Key=key)
         return response["Body"].read()
 
+    def download_file(self, *, bucket: str, key: str, file_path: str) -> None:
+        self._client.download_file(Bucket=bucket, Key=key, Filename=file_path)
+
 
 def _looks_like_zip_archive(payload: bytes) -> bool:
     return len(payload) >= 4 and payload[:4] == b"PK\x03\x04"

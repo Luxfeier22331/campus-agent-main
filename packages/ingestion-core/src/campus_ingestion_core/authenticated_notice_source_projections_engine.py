@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
+import tempfile
 from collections.abc import Callable
+from pathlib import Path
 
 from campus_ingestion_core.authenticated_notice_attachment_ocr import (
     build_authenticated_notice_ocr_attachment_artifacts,
@@ -153,7 +156,17 @@ def rebuild_authenticated_notice_source_projections_impl(
     multimodal_processing_attachment_count = 0
     unsupported_binary_attachment_count = 0
     documents: list[DocumentImportInput] = []
-    ocr_provider_response_cache: dict[str, bytes] = {}
+    ocr_provider_response_cache = _build_ocr_provider_response_cache(env=source)
+    max_attachment_bytes = _read_positive_env_int(
+        env=source,
+        key="INGESTION_MAX_ATTACHMENT_BYTES",
+        default=25 * 1024 * 1024,
+    )
+    max_ocr_input_bytes = _read_positive_env_int(
+        env=source,
+        key="INGESTION_MAX_OCR_INPUT_BYTES",
+        default=25 * 1024 * 1024,
+    )
 
     for parent_source_truth in parent_source_truths:
         projected_notice, runtime_ocr = _project_parent_source_truth(
@@ -164,6 +177,8 @@ def rebuild_authenticated_notice_source_projections_impl(
             runtime_profile=runtime_profile,
             ocr_runtime=runtime_ocr,
             ocr_provider_response_cache=ocr_provider_response_cache,
+            max_attachment_bytes=max_attachment_bytes,
+            max_ocr_input_bytes=max_ocr_input_bytes,
             env=source,
             text_extractable_extractor=text_extractable_extractor,
             layout_elements_builder=layout_elements_builder,
@@ -223,7 +238,9 @@ def _project_parent_source_truth(
     object_store_settings: ObjectStoreSettings,
     runtime_profile,
     ocr_runtime: AuthenticatedNoticeOcrRuntime | None,
-    ocr_provider_response_cache: dict[str, bytes] | None,
+    ocr_provider_response_cache: _OcrProviderResponseCache | None,
+    max_attachment_bytes: int,
+    max_ocr_input_bytes: int,
     env: dict[str, str],
     text_extractable_extractor: TextExtractableExtractor,
     layout_elements_builder: LayoutElementsBuilder,
@@ -276,6 +293,8 @@ def _project_parent_source_truth(
             object_store_settings=object_store_settings,
             ocr_runtime=runtime_ocr,
             ocr_provider_response_cache=ocr_provider_response_cache,
+            max_attachment_bytes=max_attachment_bytes,
+            max_ocr_input_bytes=max_ocr_input_bytes,
             runtime_profile=runtime_profile,
             text_extractable_extractor=text_extractable_extractor,
             layout_elements_builder=layout_elements_builder,
@@ -390,7 +409,9 @@ def _build_attachment_projection_result(
     object_store: AuthenticatedNoticeProjectionObjectStore,
     object_store_settings: ObjectStoreSettings,
     ocr_runtime: AuthenticatedNoticeOcrRuntime | None,
-    ocr_provider_response_cache: dict[str, bytes] | None,
+    ocr_provider_response_cache: _OcrProviderResponseCache | None,
+    max_attachment_bytes: int,
+    max_ocr_input_bytes: int,
     runtime_profile,
     text_extractable_extractor: TextExtractableExtractor,
     layout_elements_builder: LayoutElementsBuilder,
@@ -404,44 +425,320 @@ def _build_attachment_projection_result(
     object_key = _normalize_optional_text(attachment_ref.get("object_key"))
     if object_key is None:
         raise ValueError(f"{parent_record.document_id}#{attachment_ref_id} object_key is required")
-    attachment_bytes = object_store.get_bytes(
-        bucket=object_store_settings.bucket_source, key=object_key
-    )
-    actual_attachment_sha256 = hashlib.sha256(attachment_bytes).hexdigest()
-    expected_attachment_sha256 = _normalize_optional_text(attachment_ref.get("content_sha256"))
-    if (
-        expected_attachment_sha256 is not None
-        and expected_attachment_sha256 != actual_attachment_sha256
-    ):
-        raise ValueError(
-            f"{parent_record.document_id}#{attachment_ref_id} attachment content_sha256 mismatch: "
-            f"expected {expected_attachment_sha256}, got {actual_attachment_sha256}"
+
+    attachment_bytes: bytes | None = None
+    attachment_file_path: Path | None = None
+    temp_dir: Path | None = None
+    try:
+        if classification == "ocr_required":
+            download_file = getattr(object_store, "download_file", None)
+            if callable(download_file):
+                temp_dir = Path(tempfile.mkdtemp(prefix="authenticated-notice-attachment-"))
+                attachment_file_path = (
+                    temp_dir / Path(_guess_attachment_filename(attachment_ref)).name
+                )
+                download_file(
+                    bucket=object_store_settings.bucket_source,
+                    key=object_key,
+                    file_path=str(attachment_file_path),
+                )
+                attachment_size_bytes = attachment_file_path.stat().st_size
+                actual_attachment_sha256 = _sha256_file(attachment_file_path)
+            else:
+                attachment_bytes = object_store.get_bytes(
+                    bucket=object_store_settings.bucket_source,
+                    key=object_key,
+                )
+                attachment_size_bytes = len(attachment_bytes)
+                actual_attachment_sha256 = hashlib.sha256(attachment_bytes).hexdigest()
+        else:
+            attachment_bytes = object_store.get_bytes(
+                bucket=object_store_settings.bucket_source,
+                key=object_key,
+            )
+            attachment_size_bytes = len(attachment_bytes)
+            actual_attachment_sha256 = hashlib.sha256(attachment_bytes).hexdigest()
+
+        if attachment_size_bytes > max_attachment_bytes:
+            raise ValueError(
+                f"{parent_record.document_id}#{attachment_ref_id} attachment size {attachment_size_bytes} "
+                f"exceeds INGESTION_MAX_ATTACHMENT_BYTES={max_attachment_bytes}"
+            )
+        if classification == "ocr_required" and attachment_size_bytes > max_ocr_input_bytes:
+            raise ValueError(
+                f"{parent_record.document_id}#{attachment_ref_id} OCR input size {attachment_size_bytes} "
+                f"exceeds INGESTION_MAX_OCR_INPUT_BYTES={max_ocr_input_bytes}"
+            )
+
+        expected_attachment_sha256 = _normalize_optional_text(attachment_ref.get("content_sha256"))
+        if (
+            expected_attachment_sha256 is not None
+            and expected_attachment_sha256 != actual_attachment_sha256
+        ):
+            raise ValueError(
+                f"{parent_record.document_id}#{attachment_ref_id} attachment content_sha256 mismatch: "
+                f"expected {expected_attachment_sha256}, got {actual_attachment_sha256}"
+            )
+
+        filename = _guess_attachment_filename(attachment_ref)
+        title = _build_attachment_title(
+            notice_title=str(
+                manifest.get("notice_title_normalized")
+                or manifest.get("notice_title_raw")
+                or parent_record.document_id
+            ),
+            attachment_ref=attachment_ref,
+            filename=filename,
         )
-    filename = _guess_attachment_filename(attachment_ref)
-    title = _build_attachment_title(
-        notice_title=str(
-            manifest.get("notice_title_normalized")
-            or manifest.get("notice_title_raw")
-            or parent_record.document_id
-        ),
-        attachment_ref=attachment_ref,
-        filename=filename,
-    )
-    derived_document_id = f"notice_attachment:{site_id}:{notice_id}:{attachment_ref_id}"
-    version_id = _build_attachment_version_id(
-        attachment_content_sha256=actual_attachment_sha256,
-        extraction_class=classification,
-        extraction_policy_version=config.extraction_policy_version,
-    )
-    materialization_policy = _materialization_policy_for_classification(classification)
-    if classification == "multimodal_processing_required":
+        derived_document_id = f"notice_attachment:{site_id}:{notice_id}:{attachment_ref_id}"
+        version_id = _build_attachment_version_id(
+            attachment_content_sha256=actual_attachment_sha256,
+            extraction_class=classification,
+            extraction_policy_version=config.extraction_policy_version,
+        )
+        materialization_policy = _materialization_policy_for_classification(classification)
+        if classification == "multimodal_processing_required":
+            return AuthenticatedNoticeAttachmentProjectionResult(
+                document=None,
+                outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
+                    attachment_ref_id=attachment_ref_id,
+                    classification=classification,
+                    materialization_policy=materialization_policy,
+                    outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
+                    document_id=derived_document_id,
+                    attachment_object_key=object_key,
+                    attachment_content_sha256=actual_attachment_sha256,
+                    provider_response_bytes=None,
+                    review_reason=review_reason,
+                ),
+            )
+
+        metadata: dict[str, object] = {
+            "document_id": derived_document_id,
+            "version_id": version_id,
+            "source_url": str(
+                attachment_ref.get("final_url")
+                or attachment_ref.get("source_url")
+                or parent_record.source_uri
+            ),
+            "source_id": derived_document_id,
+            "raw_page_start": None,
+            "raw_page_end": None,
+            "projection_name": config.attachment_projection.projection_name,
+            "derived_from": config.attachment_projection.derived_from,
+            "derived_from_document_id": parent_record.document_id,
+            "derived_from_raw_asset_id": str(manifest.get("raw_asset_id") or ""),
+            "derived_from_raw_version_id": str(manifest.get("raw_version_id") or ""),
+            "parent_document_id": parent_record.document_id,
+            "attachment_ref_id": attachment_ref_id,
+            "attachment_kind": _resolve_attachment_kind(
+                classification=classification, config=config
+            ),
+            "attachment_role": _resolve_attachment_role(
+                attachment_ref=attachment_ref, config=config
+            ),
+            "attachment_content_sha256": actual_attachment_sha256,
+            "attachment_mime_type": _normalize_optional_text(attachment_ref.get("mime_type")),
+            "attachment_object_key": object_key,
+            "attachment_filename": filename,
+            "source_resource_role": _normalize_optional_text(attachment_ref.get("resource_role")),
+            "source_relation_source": _normalize_optional_text(
+                attachment_ref.get("relation_source")
+            ),
+            "extraction_class": classification,
+            "extraction_policy_version": config.extraction_policy_version,
+            "status": parent_record.status,
+        }
+        apply_authorization_projection_metadata(
+            metadata,
+            entitlement_groups=parent_record.entitlement_groups,
+            visibility_scope=parent_record.visibility_scope,
+            visibility_level=parent_record.visibility_level,
+            policy_projection_version=parent_record.policy_projection_version,
+        )
+
+        layout_elements_bytes: bytes | None = None
+        structured_layout_rows: tuple[dict[str, object], ...] = ()
+        if classification == "text_extractable":
+            if attachment_bytes is None and attachment_file_path is not None:
+                attachment_bytes = attachment_file_path.read_bytes()
+            if attachment_bytes is None:  # pragma: no cover
+                raise ValueError("attachment bytes are required for text_extractable processing")
+            extraction_outcome = text_extractable_extractor(
+                attachment_bytes,
+                filename=filename,
+                media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+                source_object_key=object_key,
+            )
+            text_blocks = extraction_outcome.text_blocks
+            layout_elements_bytes = layout_elements_builder(
+                attachment_bytes,
+                filename=filename,
+                media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+                source_object_key=object_key,
+            )
+            if layout_elements_bytes is not None:
+                structured_layout_rows = _load_jsonl_rows(layout_elements_bytes)
+            provider_response_bytes = _build_text_extractable_provider_payload(
+                attachment_ref=attachment_ref,
+                extraction_policy_version=config.extraction_policy_version,
+                extraction_outcome=extraction_outcome,
+            )
+        elif classification == "ocr_required":
+            if ocr_runtime is None:
+                raise ValueError("online OCR client is required for ocr_required attachments")
+            provider_response_bytes = None
+            if ocr_provider_response_cache is not None:
+                provider_response_bytes = ocr_provider_response_cache.get(actual_attachment_sha256)
+            if provider_response_bytes is None:
+                provider_response_bytes = _parse_attachment_with_ocr_runtimes(
+                    ocr_runtime=ocr_runtime,
+                    file_bytes=attachment_bytes,
+                    file_path=attachment_file_path,
+                    filename=filename,
+                    media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+                    error_prefix=(
+                        f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed"
+                    ),
+                )
+                if ocr_provider_response_cache is not None:
+                    ocr_provider_response_cache.put(
+                        actual_attachment_sha256, provider_response_bytes
+                    )
+            text_blocks = ()
+        else:  # pragma: no cover
+            raise ValueError(f"unsupported attachment classification: {classification}")
+
+        ocr_artifacts = None
+        if classification == "ocr_required":
+            ocr_artifacts = build_authenticated_notice_ocr_attachment_artifacts(
+                document_id=derived_document_id,
+                version_id=version_id,
+                source_uri=str(
+                    attachment_ref.get("final_url")
+                    or attachment_ref.get("source_url")
+                    or parent_record.source_uri
+                ),
+                title=title,
+                attachment_ref_id=attachment_ref_id,
+                provider_response_bytes=provider_response_bytes,
+                metadata=metadata,
+            )
+            if ocr_artifacts is not None:
+                layout_elements_bytes = ocr_artifacts.layout_elements_bytes
+        if not text_blocks and ocr_artifacts is None:
+            return AuthenticatedNoticeAttachmentProjectionResult(
+                document=None,
+                outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
+                    attachment_ref_id=attachment_ref_id,
+                    classification=classification,
+                    materialization_policy=materialization_policy,
+                    outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+                    document_id=derived_document_id,
+                    attachment_object_key=object_key,
+                    attachment_content_sha256=actual_attachment_sha256,
+                    provider_response_bytes=provider_response_bytes,
+                    review_reason=review_reason,
+                ),
+            )
+
+        canonical_markdown_bytes = _render_canonical_markdown(
+            metadata={
+                key: metadata[key]
+                for key in (
+                    "projection_name",
+                    "derived_from",
+                    "derived_from_document_id",
+                    "derived_from_raw_asset_id",
+                    "derived_from_raw_version_id",
+                    "parent_document_id",
+                    "attachment_ref_id",
+                    "attachment_kind",
+                    "attachment_role",
+                    "attachment_content_sha256",
+                    "attachment_mime_type",
+                    "attachment_object_key",
+                    "attachment_filename",
+                    "source_resource_role",
+                    "source_relation_source",
+                    "extraction_class",
+                    "extraction_policy_version",
+                    "visibility_scope",
+                    "visibility_level",
+                    "entitlement_groups",
+                    "policy_projection_version",
+                )
+                if key in metadata
+            },
+            body=(
+                _build_attachment_markdown_body_from_layout_rows(
+                    title=title,
+                    layout_rows=structured_layout_rows,
+                )
+                if structured_layout_rows
+                else _build_attachment_markdown_body(title=title, text_blocks=text_blocks)
+                if ocr_artifacts is None
+                else (f"# {title}\n\n{ocr_artifacts.body_markdown}".strip() + "\n")
+            ),
+        ).encode("utf-8")
+
+        document_units_bytes = (
+            _build_attachment_document_units_bytes_from_layout_rows(
+                document_id=derived_document_id,
+                version_id=version_id,
+                source_uri=str(metadata["source_url"]),
+                title=title,
+                layout_rows=structured_layout_rows,
+                attachment_ref=attachment_ref,
+                metadata=metadata,
+            )
+            if structured_layout_rows
+            else _build_attachment_document_units_bytes(
+                document_id=derived_document_id,
+                version_id=version_id,
+                source_uri=str(metadata["source_url"]),
+                title=title,
+                text_blocks=text_blocks,
+                attachment_ref=attachment_ref,
+                metadata=metadata,
+            )
+            if ocr_artifacts is None
+            else ocr_artifacts.document_units_bytes
+        )
+
         return AuthenticatedNoticeAttachmentProjectionResult(
-            document=None,
+            document=DocumentImportInput(
+                source_label=f"{parent_record.document_id}#{attachment_ref_id}",
+                document_units_bytes=document_units_bytes,
+                provider_response_bytes=provider_response_bytes,
+                layout_elements_bytes=layout_elements_bytes,
+                canonical_markdown_bytes=canonical_markdown_bytes,
+                metadata=metadata,
+                import_source=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
+                revision_track=parent_record.revision_track,
+                source_channel=parent_record.source_channel,
+                is_current=parent_record.is_current,
+                corpus=config.attachment_projection.target_corpus,
+                collection=config.attachment_projection.target_collection,
+                visibility_scope=parent_record.visibility_scope,
+                status=parent_record.status,
+                raw_source_uri=parent_record.source_uri,
+                raw_asset_id=str(manifest.get("raw_asset_id") or ""),
+                raw_version_id=str(manifest.get("raw_version_id") or ""),
+                provider_response_object_key=None,
+                additional_processed_object_keys=(
+                    parent_source_truth.notice_manifest_key,
+                    parent_source_truth.content_blocks_key,
+                    parent_source_truth.attachment_refs_key,
+                ),
+                title=title,
+                year=_derive_notice_year(manifest=manifest, runtime_profile=runtime_profile),
+            ),
             outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
                 attachment_ref_id=attachment_ref_id,
                 classification=classification,
                 materialization_policy=materialization_policy,
-                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
+                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
                 document_id=derived_document_id,
                 attachment_object_key=object_key,
                 attachment_content_sha256=actual_attachment_sha256,
@@ -449,233 +746,16 @@ def _build_attachment_projection_result(
                 review_reason=review_reason,
             ),
         )
-
-    metadata: dict[str, object] = {
-        "document_id": derived_document_id,
-        "version_id": version_id,
-        "source_url": str(
-            attachment_ref.get("final_url")
-            or attachment_ref.get("source_url")
-            or parent_record.source_uri
-        ),
-        "source_id": derived_document_id,
-        "raw_page_start": None,
-        "raw_page_end": None,
-        "projection_name": config.attachment_projection.projection_name,
-        "derived_from": config.attachment_projection.derived_from,
-        "derived_from_document_id": parent_record.document_id,
-        "derived_from_raw_asset_id": str(manifest.get("raw_asset_id") or ""),
-        "derived_from_raw_version_id": str(manifest.get("raw_version_id") or ""),
-        "parent_document_id": parent_record.document_id,
-        "attachment_ref_id": attachment_ref_id,
-        "attachment_kind": _resolve_attachment_kind(classification=classification, config=config),
-        "attachment_role": _resolve_attachment_role(attachment_ref=attachment_ref, config=config),
-        "attachment_content_sha256": actual_attachment_sha256,
-        "attachment_mime_type": _normalize_optional_text(attachment_ref.get("mime_type")),
-        "attachment_object_key": object_key,
-        "attachment_filename": filename,
-        "source_resource_role": _normalize_optional_text(attachment_ref.get("resource_role")),
-        "source_relation_source": _normalize_optional_text(attachment_ref.get("relation_source")),
-        "extraction_class": classification,
-        "extraction_policy_version": config.extraction_policy_version,
-        "status": parent_record.status,
-    }
-    apply_authorization_projection_metadata(
-        metadata,
-        entitlement_groups=parent_record.entitlement_groups,
-        visibility_scope=parent_record.visibility_scope,
-        visibility_level=parent_record.visibility_level,
-        policy_projection_version=parent_record.policy_projection_version,
-    )
-
-    layout_elements_bytes: bytes | None = None
-    structured_layout_rows: tuple[dict[str, object], ...] = ()
-    if classification == "text_extractable":
-        extraction_outcome = text_extractable_extractor(
-            attachment_bytes,
-            filename=filename,
-            media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
-            source_object_key=object_key,
-        )
-        text_blocks = extraction_outcome.text_blocks
-        layout_elements_bytes = layout_elements_builder(
-            attachment_bytes,
-            filename=filename,
-            media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
-            source_object_key=object_key,
-        )
-        if layout_elements_bytes is not None:
-            structured_layout_rows = _load_jsonl_rows(layout_elements_bytes)
-        provider_response_bytes = _build_text_extractable_provider_payload(
-            attachment_ref=attachment_ref,
-            extraction_policy_version=config.extraction_policy_version,
-            extraction_outcome=extraction_outcome,
-        )
-    elif classification == "ocr_required":
-        if ocr_runtime is None:
-            raise ValueError("online OCR client is required for ocr_required attachments")
-        provider_response_bytes = None
-        if ocr_provider_response_cache is not None:
-            provider_response_bytes = ocr_provider_response_cache.get(actual_attachment_sha256)
-        if provider_response_bytes is None:
-            provider_response_bytes = _parse_attachment_with_ocr_runtimes(
-                ocr_runtime=ocr_runtime,
-                file_bytes=attachment_bytes,
-                filename=filename,
-                media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
-                error_prefix=(
-                    f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed"
-                ),
-            )
-            if ocr_provider_response_cache is not None:
-                ocr_provider_response_cache[actual_attachment_sha256] = provider_response_bytes
-        text_blocks = ()
-    else:  # pragma: no cover
-        raise ValueError(f"unsupported attachment classification: {classification}")
-
-    ocr_artifacts = None
-    if classification == "ocr_required":
-        ocr_artifacts = build_authenticated_notice_ocr_attachment_artifacts(
-            document_id=derived_document_id,
-            version_id=version_id,
-            source_uri=str(
-                attachment_ref.get("final_url")
-                or attachment_ref.get("source_url")
-                or parent_record.source_uri
-            ),
-            title=title,
-            attachment_ref_id=attachment_ref_id,
-            provider_response_bytes=provider_response_bytes,
-            metadata=metadata,
-        )
-        if ocr_artifacts is not None:
-            layout_elements_bytes = ocr_artifacts.layout_elements_bytes
-    if not text_blocks and ocr_artifacts is None:
-        return AuthenticatedNoticeAttachmentProjectionResult(
-            document=None,
-            outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
-                attachment_ref_id=attachment_ref_id,
-                classification=classification,
-                materialization_policy=materialization_policy,
-                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
-                document_id=derived_document_id,
-                attachment_object_key=object_key,
-                attachment_content_sha256=actual_attachment_sha256,
-                provider_response_bytes=provider_response_bytes,
-                review_reason=review_reason,
-            ),
-        )
-
-    canonical_markdown_bytes = _render_canonical_markdown(
-        metadata={
-            key: metadata[key]
-            for key in (
-                "projection_name",
-                "derived_from",
-                "derived_from_document_id",
-                "derived_from_raw_asset_id",
-                "derived_from_raw_version_id",
-                "parent_document_id",
-                "attachment_ref_id",
-                "attachment_kind",
-                "attachment_role",
-                "attachment_content_sha256",
-                "attachment_mime_type",
-                "attachment_object_key",
-                "attachment_filename",
-                "source_resource_role",
-                "source_relation_source",
-                "extraction_class",
-                "extraction_policy_version",
-                "visibility_scope",
-                "visibility_level",
-                "entitlement_groups",
-                "policy_projection_version",
-            )
-            if key in metadata
-        },
-        body=(
-            _build_attachment_markdown_body_from_layout_rows(
-                title=title,
-                layout_rows=structured_layout_rows,
-            )
-            if structured_layout_rows
-            else _build_attachment_markdown_body(title=title, text_blocks=text_blocks)
-            if ocr_artifacts is None
-            else (f"# {title}\n\n{ocr_artifacts.body_markdown}".strip() + "\n")
-        ),
-    ).encode("utf-8")
-
-    document_units_bytes = (
-        _build_attachment_document_units_bytes_from_layout_rows(
-            document_id=derived_document_id,
-            version_id=version_id,
-            source_uri=str(metadata["source_url"]),
-            title=title,
-            layout_rows=structured_layout_rows,
-            attachment_ref=attachment_ref,
-            metadata=metadata,
-        )
-        if structured_layout_rows
-        else _build_attachment_document_units_bytes(
-            document_id=derived_document_id,
-            version_id=version_id,
-            source_uri=str(metadata["source_url"]),
-            title=title,
-            text_blocks=text_blocks,
-            attachment_ref=attachment_ref,
-            metadata=metadata,
-        )
-        if ocr_artifacts is None
-        else ocr_artifacts.document_units_bytes
-    )
-
-    return AuthenticatedNoticeAttachmentProjectionResult(
-        document=DocumentImportInput(
-            source_label=f"{parent_record.document_id}#{attachment_ref_id}",
-            document_units_bytes=document_units_bytes,
-            provider_response_bytes=provider_response_bytes,
-            layout_elements_bytes=layout_elements_bytes,
-            canonical_markdown_bytes=canonical_markdown_bytes,
-            metadata=metadata,
-            import_source=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
-            revision_track=parent_record.revision_track,
-            source_channel=parent_record.source_channel,
-            is_current=parent_record.is_current,
-            corpus=config.attachment_projection.target_corpus,
-            collection=config.attachment_projection.target_collection,
-            visibility_scope=parent_record.visibility_scope,
-            status=parent_record.status,
-            raw_source_uri=parent_record.source_uri,
-            raw_asset_id=str(manifest.get("raw_asset_id") or ""),
-            raw_version_id=str(manifest.get("raw_version_id") or ""),
-            provider_response_object_key=None,
-            additional_processed_object_keys=(
-                parent_source_truth.notice_manifest_key,
-                parent_source_truth.content_blocks_key,
-                parent_source_truth.attachment_refs_key,
-            ),
-            title=title,
-            year=_derive_notice_year(manifest=manifest, runtime_profile=runtime_profile),
-        ),
-        outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
-            attachment_ref_id=attachment_ref_id,
-            classification=classification,
-            materialization_policy=materialization_policy,
-            outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
-            document_id=derived_document_id,
-            attachment_object_key=object_key,
-            attachment_content_sha256=actual_attachment_sha256,
-            provider_response_bytes=None,
-            review_reason=review_reason,
-        ),
-    )
+    finally:
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _parse_attachment_with_ocr_runtimes(
     *,
     ocr_runtime: AuthenticatedNoticeOcrRuntime,
-    file_bytes: bytes,
+    file_bytes: bytes | None,
+    file_path: Path | None,
     filename: str,
     media_type: str | None,
     error_prefix: str,
@@ -690,12 +770,17 @@ def _parse_attachment_with_ocr_runtimes(
     errors: list[str] = []
     for runtime in runtimes:
         try:
-            provider_result = parse_online_ocr_bytes(
-                ocr_client=runtime.client,
-                file_bytes=file_bytes,
-                filename=filename,
-                media_type=media_type,
-            )
+            if file_path is not None:
+                provider_result = runtime.client.parse_file(file_path)
+            else:
+                if file_bytes is None:
+                    raise ValueError("file bytes are required when file path is unavailable")
+                provider_result = parse_online_ocr_bytes(
+                    ocr_client=runtime.client,
+                    file_bytes=file_bytes,
+                    filename=filename,
+                    media_type=media_type,
+                )
             return _normalize_authenticated_notice_ocr_provider_payload(
                 provider_response_bytes=provider_result.provider_result_bytes,
                 provider=runtime.provider,
@@ -703,3 +788,116 @@ def _parse_attachment_with_ocr_runtimes(
         except Exception as exc:
             errors.append(str(exc) if len(runtimes) == 1 else f"{runtime.provider}: {exc}")
     raise RuntimeError(f"{error_prefix}: {' | '.join(errors)}")
+
+
+class _OcrProviderResponseCache:
+    def __init__(self, *, enabled: bool, max_entries: int, max_bytes: int) -> None:
+        self._enabled = enabled
+        self._max_entries = max_entries
+        self._max_bytes = max_bytes
+        self._cache: dict[str, bytes] = {}
+        self._order: list[str] = []
+        self._total_bytes = 0
+
+    def get(self, key: str) -> bytes | None:
+        if not self._enabled:
+            return None
+        payload = self._cache.get(key)
+        if payload is None:
+            return None
+        if key in self._order:
+            self._order.remove(key)
+        self._order.append(key)
+        return payload
+
+    def put(self, key: str, payload: bytes) -> None:
+        if not self._enabled:
+            return
+        payload_size = len(payload)
+        if payload_size > self._max_bytes:
+            return
+        existing = self._cache.get(key)
+        if existing is not None:
+            self._total_bytes -= len(existing)
+        self._cache[key] = payload
+        if key in self._order:
+            self._order.remove(key)
+        self._order.append(key)
+        self._total_bytes += payload_size
+        self._evict_if_needed()
+
+    def _evict_if_needed(self) -> None:
+        while self._order and (
+            len(self._cache) > self._max_entries or self._total_bytes > self._max_bytes
+        ):
+            oldest = self._order.pop(0)
+            removed = self._cache.pop(oldest, None)
+            if removed is not None:
+                self._total_bytes -= len(removed)
+
+
+def _build_ocr_provider_response_cache(*, env: dict[str, str]) -> _OcrProviderResponseCache | None:
+    enabled = _read_bool_env(
+        env=env,
+        key="INGESTION_OCR_PROVIDER_RESPONSE_CACHE_ENABLED",
+        default=True,
+    )
+    max_entries = _read_non_negative_env_int(
+        env=env,
+        key="INGESTION_OCR_PROVIDER_RESPONSE_CACHE_MAX_ENTRIES",
+        default=1,
+    )
+    max_bytes = _read_non_negative_env_int(
+        env=env,
+        key="INGESTION_OCR_PROVIDER_RESPONSE_CACHE_MAX_BYTES",
+        default=4 * 1024 * 1024,
+    )
+    if not enabled or max_entries <= 0 or max_bytes <= 0:
+        return None
+    return _OcrProviderResponseCache(
+        enabled=enabled,
+        max_entries=max_entries,
+        max_bytes=max_bytes,
+    )
+
+
+def _read_positive_env_int(*, env: dict[str, str], key: str, default: int) -> int:
+    raw = str(env.get(key) or "").strip()
+    if not raw:
+        return default
+    value = int(raw)
+    if value <= 0:
+        raise ValueError(f"{key} must be a positive integer")
+    return value
+
+
+def _read_non_negative_env_int(*, env: dict[str, str], key: str, default: int) -> int:
+    raw = str(env.get(key) or "").strip()
+    if not raw:
+        return default
+    value = int(raw)
+    if value < 0:
+        raise ValueError(f"{key} must be a non-negative integer")
+    return value
+
+
+def _read_bool_env(*, env: dict[str, str], key: str, default: bool) -> bool:
+    raw = str(env.get(key) or "").strip().lower()
+    if not raw:
+        return default
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{key} must be a boolean value")
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()

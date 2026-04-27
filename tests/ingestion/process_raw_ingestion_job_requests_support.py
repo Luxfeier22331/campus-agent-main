@@ -26,6 +26,11 @@ class _FakeRequestsResponse:
         if self.status_code >= 400:
             raise RuntimeError(f"http {self.status_code}")
 
+    def iter_content(self, chunk_size: int = 1024 * 1024):  # type: ignore[no-untyped-def]
+        del chunk_size
+        if self.content:
+            yield self.content
+
 
 class _SequencedRequestsModule:
     def __init__(self) -> None:
@@ -168,12 +173,16 @@ class _MineruRequestsModule:
 
     def put(self, url: str, *, data=None, timeout=None):  # type: ignore[no-untyped-def]
         del timeout
-        assert isinstance(data, bytes)
-        self.put_calls.append((url, data))
+        if isinstance(data, bytes):
+            payload = data
+        else:
+            assert hasattr(data, "read")
+            payload = data.read()
+        self.put_calls.append((url, payload))
         return _FakeRequestsResponse(status_code=200)
 
-    def get(self, url: str, *, headers=None, timeout=None):  # type: ignore[no-untyped-def]
-        del headers, timeout
+    def get(self, url: str, *, headers=None, timeout=None, stream=None):  # type: ignore[no-untyped-def]
+        del headers, timeout, stream
         self.get_calls.append(url)
         if url.endswith("/extract-results/batch/batch-001"):
             self._batch_status_attempts += 1
