@@ -15,6 +15,7 @@ export default defineConfig({
 		path.join(__dirname, "src/components/SearchKeyboardGuard.tsx"),
 		path.join(__dirname, "src/components/MobileSidebarGuard.tsx"),
 		path.join(__dirname, "src/components/DocsContentEnhancer.tsx"),
+		path.join(__dirname, "src/components/ReaderStateEnhancer.tsx"),
 	],
 	search: {
 		mode: "local",

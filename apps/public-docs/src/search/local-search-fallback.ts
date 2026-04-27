@@ -1,8 +1,14 @@
 import { searchIndexHash } from "virtual-page-data";
 import {
+	collectDocsSearchScopes,
+	type DocsApiSearchResponse,
+	mapDocsApiResultsToSuggestions,
+	type ScopedDocsApiSearchResponse,
+} from "./docs-api-search-core";
+import {
+	buildLocalSearchFallbackResults,
 	type LocalSearchFallbackSuggestion,
 	type SearchIndexPage,
-	buildLocalSearchFallbackResults,
 } from "./local-search-fallback-core";
 
 interface DefaultSearchGroup {
@@ -66,12 +72,51 @@ async function getSearchIndexPages(): Promise<SearchIndexPage[]> {
 	return pagesPromise;
 }
 
+async function searchDocsApi(
+	query: string,
+	pages: SearchIndexPage[],
+): Promise<LocalSearchFallbackSuggestion[]> {
+	const scopes = collectDocsSearchScopes(pages);
+	const responses = (
+		await Promise.all(
+			scopes.map(async (scope): Promise<ScopedDocsApiSearchResponse | null> => {
+				const params = new URLSearchParams({ limit: "5", q: query, versionMode: "current" });
+				const url = `/api/docs/collections/${encodeURIComponent(scope.corpus)}/${encodeURIComponent(scope.collection)}/search?${params}`;
+				try {
+					const response = await fetch(url, { headers: { accept: "application/json" } });
+					if (!response.ok) {
+						return null;
+					}
+					return {
+						scope,
+						response: (await response.json()) as DocsApiSearchResponse,
+					};
+				} catch {
+					return null;
+				}
+			}),
+		)
+	).filter((response): response is ScopedDocsApiSearchResponse => Boolean(response));
+	return mapDocsApiResultsToSuggestions(query, responses);
+}
+
 export async function onSearch(query: string, matchedResult: DefaultSearchGroup[]): Promise<void> {
+	const pages = await getSearchIndexPages();
+	const docsApiResults = await searchDocsApi(query, pages);
+	if (docsApiResults.length > 0) {
+		matchedResult.unshift({
+			group: "文档命中",
+			renderType: "default",
+			result: docsApiResults,
+		});
+		return;
+	}
+
 	if (hasDefaultResults(matchedResult)) {
 		return;
 	}
 
-	const fallbackResults = buildLocalSearchFallbackResults(query, await getSearchIndexPages());
+	const fallbackResults = buildLocalSearchFallbackResults(query, pages);
 	if (fallbackResults.length === 0) {
 		return;
 	}

@@ -283,15 +283,15 @@ function buildSearchCanonicalUrl(row: DocsSearchUnitRecord): string {
 		row.highlightRootUnitIds.length > 0
 			? `?hl=${row.highlightRootUnitIds.map(encodeURIComponent).join(",")}`
 			: "";
-	const documentUrl = row.canonicalUrl.split("#", 1)[0];
+	const documentUrl = row.canonicalUrl.split("#", 1)[0].split("?", 1)[0];
 	return `${documentUrl}${highlight}#${encodeURIComponent(row.anchor)}`;
 }
 
 function buildVersionCanonicalUrl(record: DocsDocumentVersionRecord): string {
+	const documentUrl = record.canonicalUrl.split("#", 1)[0].split("?", 1)[0].replace(/\/$/u, "");
 	if (record.isCurrent !== false) {
-		return record.canonicalUrl;
+		return documentUrl;
 	}
-	const documentUrl = record.canonicalUrl.split("#", 1)[0].split("?", 1)[0];
 	return `${documentUrl}/v/${encodeURIComponent(record.versionSlug)}`;
 }
 

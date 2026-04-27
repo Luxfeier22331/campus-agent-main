@@ -269,7 +269,8 @@ function buildMetaPanel(input: {
 	entry: PublishedReaderDocEntry;
 	meta: ReaderMetaPayload;
 }): string {
-	const versionLabel = input.entry.versionLabel || input.meta.resolvedVersion?.label || "当前展示版";
+	const versionLabel =
+		input.entry.versionLabel || input.meta.resolvedVersion?.label || "当前展示版";
 	const collectionLabel = resolveCollectionLabel(input.entry);
 	const sourceTitle = input.meta.source?.title || input.meta.sourceLabel;
 	const pageLabel = input.meta.source?.pageLabel || input.meta.pageLabel;
