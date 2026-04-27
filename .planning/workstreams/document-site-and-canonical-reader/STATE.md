@@ -1,7 +1,7 @@
 ---
 workstream: document-site-and-canonical-reader
 created: 2026-04-21
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Project State
@@ -9,17 +9,17 @@ updated: 2026-04-26
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 2
-**Current Phase Name:** Published Reader Assets And App API Docs Control Plane
-**Current Plan:** `.planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/PLAN.md`
+**Current Phase:** 4
+**Current Phase Name:** Docs Search, Version Navigation, And Static Reader State
+**Current Plan:** pending
 **Total Phases:** 6
-**Total Plans in Phase:** 1
-**Progress:** 1/6 phases complete
-**Last Activity:** 2026-04-26
-**Last Activity Description:** Scoped the desktop `public-docs` sidebar
-collapse control to the Rspress document body: collapse no longer mutates global
-Rspress sidebar variables or shifts the topnav, collapsed reading mode keeps a
-larger left content inset, and mobile keeps the native Rspress menu path.
+**Total Plans in Phase:** 0
+**Progress:** 3/6 phases complete
+**Last Activity:** 2026-04-27
+**Last Activity Description:** Completed Phase 3 closeout: public-docs
+published reader source route, Rspress sidebar builder, local scaffold and
+generated content guard now share the `/docs/:corpus/:collection/:documentSlug`
+information architecture without replacing the native Rspress shell.
 
 ## Current Slice
 
@@ -29,10 +29,19 @@ larger left content inset, and mobile keeps the native Rspress menu path.
   - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-1-document-site-architecture-and-contract-freeze/PLAN.md`
   - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-1-document-site-architecture-and-contract-freeze/SUMMARY.md`
 
-- current `Phase 2` artifacts:
+- completed `Phase 2` artifacts:
   - context: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/CONTEXT.md`
   - research: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/RESEARCH.md`
   - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/PLAN.md`
+  - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/SUMMARY.md`
+
+- completed `Phase 3` artifacts:
+  - context: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-3-public-docs-shell-convergence-and-information-architecture/CONTEXT.md`
+  - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-3-public-docs-shell-convergence-and-information-architecture/PLAN.md`
+  - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-3-public-docs-shell-convergence-and-information-architecture/SUMMARY.md`
+
+- next `Phase 4` artifacts:
+  - planning pending
 
 - 当前已冻结的决策：
   - 文档站采用独立 `public-docs` browser surface
@@ -44,18 +53,19 @@ larger left content inset, and mobile keeps the native Rspress menu path.
   - public / restricted reader 长期共用同一 reader truth，差异只在 admission / visibility
   - donor posture 采用成熟 docs-first shell 方向，而不是 chat-first shell
 
-- 当前需要 `Phase 2` 收口的 runtime truth：
-  - canonical document artifacts 如何生成 `reader.json` / `outline.json` /
-    `meta.json` / `asset-manifest.json`
-  - app-owned deploy sync manifest 如何声明 public published subset
-  - `app-api` docs navigation / summary / versions / resolve / search 如何正式落成
-  - `public_static_asset` 与 `gated_asset` 如何在 resolve contract 中显式分化
-  - docs search 如何输出 source-card-compatible canonical jump target
-  - 哪些样本 collection/version 作为首轮 publish/smoke 子集
-  - 当前 `public-docs` shell 如何从“直接同步公开文档产物”的过渡实现，
-    收口到 published reader assets + same-site docs control-plane
-  - notice-derived/internal regulation 如何进入 docs：public-only 子集可进
-    公开 docs，restricted 子集必须等 restricted reader / gated delivery
+- `Phase 2` 已收口的 runtime truth：
+  - canonical document artifacts 由 `ingestion-core` publisher 生成
+    `reader.json` / `outline.json` / `meta.json` / `asset-manifest.json`
+  - ingestion-worker CLI 可发布 reader assets 并产出 docs read-model manifest
+  - `app-api` 可导入 docs read model，并从 read model 导出 public docs sync
+    manifest
+  - `public_static_asset` 与 `gated_asset` 已在 publish manifest、read model 与
+    browser resolve contract 中显式分化
+  - docs search 已输出 source-card-compatible canonical jump target
+  - `public-docs` 默认 deploy path 改为 published reader docs + static assets
+    sync，不再默认依赖 `sync-real-docs`
+  - notice-derived/internal regulation 仍只允许显式 public 且无 entitlement
+    子集进入公开 docs，restricted 子集等待 restricted reader / gated delivery
 
 - 当前 repo 已有的实现真相：
   - `apps/public-docs` 已是正式 docs shell app，当前采用 `Rspress`
@@ -130,32 +140,69 @@ larger left content inset, and mobile keeps the native Rspress menu path.
     已存在 reader asset package builder 与 `public_docs` sync manifest builder
   - `apps/app-api/src/app/routes/docs.ts` 已注册 docs route shell
   - `apps/app-api/src/modules/docs/index.ts` 已冻结 docs browser contract types
+  - `apps/app-api` 已新增 `docs.*` Drizzle read model schema 与
+    `0022_docs_control_plane` migration，覆盖 collections、documents、
+    document_versions、reader_assets 与 search_units
+  - `apps/app-api` 默认 request scope 已从 `buildUnavailableDocsService()`
+    切到 runtime-backed `buildDocsService(createPgDocsReadModelStore(...))`
+  - `apps/app-api` docs service 已按 public current subset fail-close：
+    只向 browser 返回 `visibility_level=public`、
+    `delivery_mode=public_static_asset` 且无 entitlement groups 的 navigation、
+    summary、versions、resolve 与 source-card-compatible search targets
+  - `apps/app-api` docs service response 不返回 object-store key、raw source
+    locator 或 `chunkId`
+  - `apps/public-docs` 已新增 `sync:published-reader-assets` deploy-sync
+    script；该脚本按 app-owned manifest 复制公开 reader assets 到
+    `doc_build/_docs/...`，校验 target path、duplicate target、source object
+    presence 与 `asset-manifest.json` sha256/size
+  - `apps/public-docs` published reader source generation 已收口到
+    `/docs/:corpus/:collection/:documentSlug` IA：根 `/` 是文档首页，
+    `/docs/` 是公开文档总览，corpus/collection landing 由 `_meta.json`
+    驱动原生 Rspress sidebar
+  - `apps/public-docs/scripts/rspress-sidebar.ts` 已成为 Rspress native
+    sidebar config builder；它只把 `_meta.json` 转成 Rspress sidebar data，
+    不替换 topnav/sidebar/layout primitives
+  - `apps/public-docs/scripts/ensure-docs-scaffold.ts` 已改为补齐
+    `/docs/...` 空 scaffold，且只写缺失文件，不覆盖真实同步出来的
+    collection 页面
+  - `apps/public-docs` generated content guard 与 `.gitignore` 已覆盖
+    `docs/docs/**`，避免新的 published reader detail source 被 tracked
   - `apps/public-docs/scripts/_sync_real_docs/regulations.py` 已新增 public-only
     regulation 同步入口；当前对象存储没有显式 public 的 notice-derived
     regulation，因此不会生成 `campus-regulations` 公开目录
 
 - 当前仍未闭环的实现真相：
-  - `app-api` 默认 wiring 仍回落到 `buildUnavailableDocsService()`，
-    docs routes 还不是 runtime-backed live service
-  - `public-docs` 当前仍通过 `sync-real-docs.ts` 直接同步公开文档产物，
-    不是 published reader assets + same-site `/api/docs/*` consumption
-  - `public-docs` 当前 shell 还没有把 navigation / resolve / version /
-    search 全部切到 `app-api` docs control-plane
+  - `docs.*` read model 已有 manifest import CLI：
+    `pnpm --filter app-api docs:import-read-model -- <manifest-path>`
+  - `app-api` 已有 public docs sync manifest export CLI：
+    `pnpm --filter app-api docs:export-public-sync-manifest -- <output-path>`
+  - `public-docs` 已有 `sync:published-reader-docs` 与
+    `sync:published-reader-assets`，默认 deploy path 通过
+    `build:published-reader-assets` 消费 app-owned sync manifest
+  - `public-docs` Worker 已保持 same-site `/api/docs/*` proxy，其他 `/api/*`
+    fail-close；search/version UX 继续留给 Phase 4
   - Rspress build 仍提示 theme export 迁移 warning；当前 build 可通过，
     后续若要消除 warning，应单独收口 theme export shape，而不是替换原生
     shell
 
 ## Blockers
 
-- 当前 `app-api` docs route shell 还没有接上 runtime-backed docs service；默认配置下只会返回 `docs_not_configured`。
-- 当前 `public-docs` shell 仍未消费 same-site `/api/docs/*` 与 published reader assets，因此当前文档站仍停留在过渡实现。
-- 当前 phase planning truth 刚从“docs app 还不存在”的旧叙述迁移出来，仍需要与现有代码真相重新对齐。
+- staging 仍需要执行一次真实 publish/import/export/build 链路，把对象存储 reader
+  assets 与 staging Postgres `docs.*` read model 填成 live 数据。
+- Phase 4 需要继续规划 docs search UX、version switching 与 deep-link state。
 - 当前 public chat 仍未消费 canonical source-card payload，但这属于 `Phase 5`，不阻塞本 phase。
 
 ## Verification
 
 - `pnpm --filter public-docs test`
 - `pnpm --filter public-docs test -- test/sync-real-docs.test.ts`
+- `pnpm --filter public-docs typecheck`
+- `pnpm --filter public-docs lint:generated`
+- `pnpm --filter public-docs build`
+- `pnpm --filter public-docs exec vitest run
+  test/sync-published-reader-docs.test.ts test/generated-docs-checker.test.ts
+  test/public-docs-scaffold.test.ts`
+- `pnpm --filter public-docs exec vitest run test/sync-real-docs-reader-ui.test.ts`
 - `pnpm --filter public-docs typecheck`
 - `pnpm --filter public-docs lint:generated`
 - `pnpm --filter public-docs build`
@@ -203,13 +250,12 @@ larger left content inset, and mobile keeps the native Rspress menu path.
 
 ## Session Continuity
 
-**Stopped At:** `public-docs` canonical rendering、IA/layout、generated
-content governance、reader layout contract、source/version metadata display
-、强基计划古文字方向课程地图漏识别与桌面整栏目录收起/展开已收口；
-当前真实课程地图覆盖率为 `47/70`，剩余缺口均已按源文档无课程地图分类。
-错误的 custom reader shell 已撤回并恢复原生 Rspress shell；后续 shell
-改动只能在原生 Rspress shell 上做受控样式/metadata/interaction 扩展，不得
-再替换 topnav/sidebar/layout primitives。下一次恢复应回到 `Phase 2` 的
-runtime-backed docs service、published reader assets、same-site `/api/docs/*`
-shell consumption 收口项。
-**Resume File:** .planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/PLAN.md
+**Stopped At:** `Phase 3` 已完成 public-docs native Rspress shell IA 收口：
+published reader docs route 为 `/docs/:corpus/:collection/:documentSlug`，
+root/docs/corpus/collection landing、sidebar builder、本地空 scaffold 与
+generated content guard 已对齐。错误的 custom reader shell 仍保持撤回状态；
+后续 shell 改动只能在原生 Rspress shell 上做受控样式/metadata/interaction
+扩展，不得再替换 topnav/sidebar/layout primitives。下一次恢复应进入
+`Phase 4`，规划 docs search UX、version navigation、anchor/highlight
+deep-link state 与 reader-side static state continuity。
+**Resume File:** .planning/workstreams/document-site-and-canonical-reader/ROADMAP.md

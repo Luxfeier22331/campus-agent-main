@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-20
+updated: 2026-04-27
 ---
 
 # Runbooks
@@ -13,6 +13,7 @@ updated: 2026-04-20
 ## Core Deploy / Smoke / Release
 
 - `staging-worker-deploy-runbook.md`
+- `document-reader-publish-and-docs-deploy-runbook.md`
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
 - `index-release-runbook.md`

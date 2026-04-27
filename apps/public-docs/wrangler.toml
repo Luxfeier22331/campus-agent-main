@@ -10,7 +10,7 @@ binding = "APP_API"
 service = "app-api"
 
 [env.staging.vars]
-APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"
+APP_API_BASE_URL = "https://app-api.internal"
 PUBLIC_DOCS_HOSTNAME = "campus-docs-staging.ayafeed.com"
 
 [[env.staging.routes]]

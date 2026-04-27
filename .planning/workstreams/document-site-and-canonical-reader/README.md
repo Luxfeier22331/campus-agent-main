@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-22
-updated: 2026-04-24
+updated: 2026-04-27
 ---
 
 # Workstream: Document Site And Canonical Reader
@@ -13,8 +13,8 @@ updated: 2026-04-24
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2`
-- current focus: 正式 `public-docs` shell 已落地；当前继续收口 published reader assets、runtime-backed `app-api` docs control-plane、docs search / resolve / version seam 与 shell consumption truth；notice-derived/internal regulation 只允许显式 public 子集进入公开 docs，restricted 子集等待 restricted reader phase
+- current phase: `Phase 4`
+- current focus: `Phase 3` 已完成 Rspress native shell IA、`/docs/:corpus/:collection/:documentSlug` published reader source route、sidebar builder、local scaffold 与 generated guard 收口；下一步规划 docs search UX、version navigation 与 deep-link state
 
 ## Native Planning Truth
 

@@ -2,10 +2,89 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { sanitizePreservedHtmlForMdx } from "../scripts/sync-real-docs/html-table";
+import { buildRspressSidebarConfig } from "../scripts/rspress-sidebar";
 import { buildMobileTableRowPairs } from "../src/components/DocsContentEnhancer";
+import { normalizeSearchInputAccessibility } from "../src/components/SearchKeyboardGuard";
 import { buildLocalSearchFallbackResults } from "../src/search/local-search-fallback-core";
 
 describe("public-docs reader UI contracts", () => {
+	it("keeps collection routes out of the top navigation", () => {
+		const config = readFileSync(join(process.cwd(), "rspress.config.ts"), "utf8");
+		const nav = readFileSync(join(process.cwd(), "docs/_nav.json"), "utf8");
+
+		expect(nav).toContain('"text": "首页"');
+		expect(nav).toContain('"text": "学生手册"');
+		expect(nav).toContain('"text": "培养方案"');
+		expect(config).toContain("nav: [],");
+	});
+
+	it("uses product branding with a low-distraction public docs label in the nav title", () => {
+		const config = readFileSync(join(process.cwd(), "rspress.config.ts"), "utf8");
+		const css = readFileSync(join(process.cwd(), "theme/docs-ui.css"), "utf8");
+
+		expect(config).toContain('title: "校园助手公开文档"');
+		expect(config).toContain('description: "校园助手公开文档站');
+		expect(config).toContain('logoText: "校园助手"');
+		expect(config).toContain('logoHref: "/"');
+		expect(css).toContain(".rp-nav__title__link > span::after");
+		expect(css).toContain('content: "公开文档";');
+		expect(css).toContain("color: var(--docs-accent-strong);");
+		expect(css).toContain(".rp-nav__title__link:hover");
+		expect(css).toContain("opacity: 1;");
+	});
+
+	it("builds an explicit sidebar when the top navigation is disabled", () => {
+		const sidebar = buildRspressSidebarConfig(join(process.cwd(), "docs"));
+
+		expect(sidebar["/"][0]).toMatchObject({
+			text: "文档首页",
+			link: "/",
+		});
+		expect(sidebar["/"][1]).toMatchObject({
+			text: "学生手册",
+			link: "/student-handbook/",
+			collapsed: true,
+			collapsible: true,
+		});
+		expect(sidebar["/"][2]).toMatchObject({
+			text: "培养方案",
+			link: "/curriculum-plan/",
+			collapsed: true,
+			collapsible: true,
+		});
+		expect(JSON.stringify(sidebar)).toContain("中央民族大学学生考勤管理办法");
+		expect(JSON.stringify(sidebar)).toContain("/curriculum-plan/undergraduate/计算机类本科人才培养方案");
+	});
+
+	it("normalizes Rspress search input attributes through a runtime helper", () => {
+		class FakeSearchInput {
+			autocomplete = "";
+			id = "_R_2l6aqjh_";
+			name = "";
+			private readonly attributes = new Map<string, string>([
+				["aria-label", "SearchPanelInput"],
+			]);
+
+			getAttribute(name: string): string | null {
+				return this.attributes.get(name) ?? null;
+			}
+
+			setAttribute(name: string, value: string): void {
+				this.attributes.set(name, value);
+			}
+		}
+
+		const input = new FakeSearchInput() as unknown as HTMLInputElement;
+
+		normalizeSearchInputAccessibility(input);
+
+		expect(input.id).toBe("public-docs-search-input");
+		expect(input.name).toBe("public-docs-search");
+		expect(input.getAttribute("name")).toBe("public-docs-search");
+		expect(input.getAttribute("aria-label")).toBe("搜索公开文档");
+		expect(input.autocomplete).toBe("off");
+	});
+
 	it("normalizes preserved HTML tables for MDX and React", () => {
 		const html =
 			'<table><tr><td rowspan="2">类别</td><td colspan="2">评分标准</td></tr><tr><td>第一名</td><td>{备注} *重点*</td></tr></table>';
@@ -176,9 +255,13 @@ describe("public-docs reader UI contracts", () => {
 		expect(enhancer).toContain("anchor.tabIndex = -1;");
 		expect(enhancer).toContain('anchor.textContent = "";');
 		expect(searchGuard).toContain("enhanceSearchInputAccessibility");
-		expect(searchGuard).toContain('input.id = "public-docs-search-input";');
-		expect(searchGuard).toContain('input.name = "public-docs-search";');
-		expect(searchGuard).toContain('input.setAttribute("aria-label", "搜索公开文档");');
+		expect(searchGuard).toContain('const PUBLIC_SEARCH_INPUT_ID = "public-docs-search-input";');
+		expect(searchGuard).toContain('const PUBLIC_SEARCH_INPUT_NAME = "public-docs-search";');
+		expect(searchGuard).toContain('const PUBLIC_SEARCH_INPUT_LABEL = "搜索公开文档";');
+		expect(searchGuard).toContain('input.setAttribute("name", PUBLIC_SEARCH_INPUT_NAME);');
+		expect(searchGuard).toContain('input.setAttribute("aria-label", PUBLIC_SEARCH_INPUT_LABEL);');
+		expect(searchGuard).toContain('document.addEventListener("focusin", handleFocusIn');
+		expect(searchGuard).toContain("attributes: true,");
 	});
 
 	it("does not expose unnamed table columns in mobile card projections", () => {
@@ -204,7 +287,7 @@ describe("public-docs reader UI contracts", () => {
 		expect(pairs.map((pair) => pair.header)).not.toContain("第 9 列");
 	});
 
-	it("wires a desktop control that collapses the whole native sidebar shell", () => {
+	it("keeps the rough desktop sidebar collapse control unmounted", () => {
 		const config = readFileSync(join(process.cwd(), "rspress.config.ts"), "utf8");
 		const component = readFileSync(
 			join(process.cwd(), "src/components/DesktopSidebarCollapseToggle.tsx"),
@@ -212,7 +295,7 @@ describe("public-docs reader UI contracts", () => {
 		);
 		const css = readFileSync(join(process.cwd(), "theme/docs-ui.css"), "utf8");
 
-		expect(config).toContain("DesktopSidebarCollapseToggle.tsx");
+		expect(config).not.toContain("DesktopSidebarCollapseToggle.tsx");
 		expect(component).toContain('const STORAGE_KEY = "public-docs:sidebar-collapsed:v1";');
 		expect(component).toContain("document.documentElement.setAttribute(");
 		expect(component).toContain('"data-docs-sidebar"');

@@ -36,7 +36,7 @@ describe("public docs worker shell", () => {
 		expect(wranglerConfig).toContain("[[env.staging.services]]");
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
 		expect(wranglerConfig).toContain("[env.staging.vars]");
-		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"');
+		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
 		expect(wranglerConfig).toContain('PUBLIC_DOCS_HOSTNAME = "campus-docs-staging.ayafeed.com"');
 		expect(wranglerConfig).toContain("[assets]");
 		expect(wranglerConfig).toContain('directory = "./doc_build"');

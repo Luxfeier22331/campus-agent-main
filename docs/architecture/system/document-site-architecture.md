@@ -73,11 +73,12 @@ updated: 2026-04-27
 - `apps/public-docs` 通过 Wrangler `[[services]] APP_API -> app-api` 调用 shared
   `apps/app-api`
 - staging 通过 `APP_API -> app-api-staging` 与
-  `APP_API_BASE_URL=https://campus-api-staging.ayafeed.com` 形成同一 contract
+  `APP_API_BASE_URL=https://app-api.internal` 形成同一 Service Binding request
+  construction contract
 - Worker 只代理 `/api/docs/*`；其他 `/api/*` fail-close，不把 public-docs 变成通用
   product backend
 - `APP_API_BASE_URL` 只用于构造传给 Service Binding 的 `Request` URL；browser 仍不直接调用
-  app-api public docs endpoint
+  app-api public docs endpoint 或 app-api custom domain
 
 补充约束：
 
@@ -208,6 +209,26 @@ Cloudflare Workers 当前官方 static assets 路由模型允许：
 
 reader asset package 与 deploy-time sync 的正式 contract 统一看
 `docs/contracts/document-reader-publish-contract.md`。
+
+当前 Phase 2 的 deploy-time 收口链路固定为：
+
+- `canonical artifacts -> ingestion reader publisher`
+  `-> reader-assets/* + docs read-model manifest`
+
+- `docs read-model manifest -> app-api docs.* read model`
+  `-> public docs sync manifest`
+
+- `public docs sync manifest + object storage reader-assets/*`
+  `-> public-docs Rspress source + /_docs static assets`
+
+说明：
+
+- `public-docs` 不扫描对象存储决定公开子集
+- `public-docs` 的 source page generation 是 build-time consumption，不是新的
+  canonical truth
+- `app-api` 的 docs read model 是 public subset、delivery mode、version 与 search
+  target 的 browser-facing control-plane owner
+- `sync-real-docs` 只保留为过渡/手动工具，不是默认 deploy path
 
 ## Route And URL Model
 

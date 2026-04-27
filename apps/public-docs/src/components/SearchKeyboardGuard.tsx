@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 
+const PUBLIC_SEARCH_INPUT_ID = "public-docs-search-input";
+const PUBLIC_SEARCH_INPUT_NAME = "public-docs-search";
+const PUBLIC_SEARCH_INPUT_LABEL = "搜索公开文档";
 const SEARCH_INPUT_SELECTOR = ".rp-search-panel__input,[aria-label='SearchPanelInput']";
 const SEARCH_RESULT_LINK_SELECTOR =
 	".rp-search-panel__modal .rp-suggest-item--current .rp-suggest-item__link, .rp-search-panel__modal .rp-suggest-item__link";
@@ -22,20 +25,32 @@ function findSearchResultLink(): HTMLAnchorElement | null {
 	return null;
 }
 
+export function normalizeSearchInputAccessibility(input: HTMLInputElement, index = 0): void {
+	const inputId = index === 0 ? PUBLIC_SEARCH_INPUT_ID : `${PUBLIC_SEARCH_INPUT_ID}-${index + 1}`;
+	if (input.id !== inputId) {
+		input.id = inputId;
+	}
+	if (input.name !== PUBLIC_SEARCH_INPUT_NAME) {
+		input.name = PUBLIC_SEARCH_INPUT_NAME;
+	}
+	if (input.getAttribute("name") !== PUBLIC_SEARCH_INPUT_NAME) {
+		input.setAttribute("name", PUBLIC_SEARCH_INPUT_NAME);
+	}
+	if (input.getAttribute("aria-label") !== PUBLIC_SEARCH_INPUT_LABEL) {
+		input.setAttribute("aria-label", PUBLIC_SEARCH_INPUT_LABEL);
+	}
+	if (input.autocomplete !== "off") {
+		input.autocomplete = "off";
+	}
+	if (input.getAttribute("autocomplete") !== "off") {
+		input.setAttribute("autocomplete", "off");
+	}
+}
+
 function enhanceSearchInputAccessibility(root: ParentNode = document): void {
-	for (const input of Array.from(root.querySelectorAll<HTMLInputElement>(SEARCH_INPUT_SELECTOR))) {
-		if (input.id !== "public-docs-search-input") {
-			input.id = "public-docs-search-input";
-		}
-		if (input.name !== "public-docs-search") {
-			input.name = "public-docs-search";
-		}
-		if (input.getAttribute("aria-label") !== "搜索公开文档") {
-			input.setAttribute("aria-label", "搜索公开文档");
-		}
-		if (!input.autocomplete) {
-			input.autocomplete = "off";
-		}
+	const inputs = Array.from(root.querySelectorAll<HTMLInputElement>(SEARCH_INPUT_SELECTOR));
+	for (const [index, input] of inputs.entries()) {
+		normalizeSearchInputAccessibility(input, index);
 	}
 }
 
@@ -47,7 +62,17 @@ export default function SearchKeyboardGuard(): null {
 			frame = window.requestAnimationFrame(() => enhanceSearchInputAccessibility());
 		};
 		const observer = new MutationObserver(scheduleEnhancement);
-		observer.observe(document.body, { childList: true, subtree: true });
+		observer.observe(document.body, {
+			attributeFilter: ["aria-hidden", "class", "hidden", "style"],
+			attributes: true,
+			childList: true,
+			subtree: true,
+		});
+		const handleFocusIn = (event: FocusEvent) => {
+			if (isSearchInput(event.target)) {
+				normalizeSearchInputAccessibility(event.target);
+			}
+		};
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Enter" || event.isComposing || !isSearchInput(document.activeElement)) {
 				return;
@@ -62,10 +87,12 @@ export default function SearchKeyboardGuard(): null {
 			}
 		};
 
+		document.addEventListener("focusin", handleFocusIn, { capture: true });
 		document.addEventListener("keydown", handleKeyDown, { capture: true });
 		return () => {
 			window.cancelAnimationFrame(frame);
 			observer.disconnect();
+			document.removeEventListener("focusin", handleFocusIn, { capture: true });
 			document.removeEventListener("keydown", handleKeyDown, { capture: true });
 		};
 	}, []);

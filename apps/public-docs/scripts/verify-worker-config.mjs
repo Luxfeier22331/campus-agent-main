@@ -18,7 +18,7 @@ const requiredSnippets = [
 	"custom_domain = true",
 	"[[env.staging.services]]",
 	'service = "app-api-staging"',
-	'APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"',
+	'APP_API_BASE_URL = "https://app-api.internal"',
 	'PUBLIC_DOCS_HOSTNAME = "campus-docs-staging.ayafeed.com"',
 	"[assets]",
 	'directory = "./doc_build"',

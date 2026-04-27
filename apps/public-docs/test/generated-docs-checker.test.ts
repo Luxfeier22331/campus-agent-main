@@ -91,8 +91,8 @@ describe("public-docs generated-docs checker", () => {
 		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
 		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
 		temporaryDirectories.push(root);
-		const target = join(root, "apps/public-docs/docs/curriculum-plan/undergraduate/example.mdx");
-		mkdirSync(join(root, "apps/public-docs/docs/curriculum-plan/undergraduate"), {
+		const target = join(root, "apps/public-docs/docs/docs/curriculum/curriculum_plan/example.mdx");
+		mkdirSync(join(root, "apps/public-docs/docs/docs/curriculum/curriculum_plan"), {
 			recursive: true,
 		});
 		writeFileSync(
@@ -284,6 +284,7 @@ describe("public-docs generated-docs checker", () => {
 			"apps/public-docs/docs/index.md",
 			"apps/public-docs/docs/_meta.json",
 			"apps/public-docs/docs/_nav.json",
+			"apps/public-docs/docs/docs/curriculum/curriculum_plan/computer-science.mdx",
 			"apps/public-docs/docs/student-handbook/index.md",
 			"apps/public-docs/docs/student-handbook/academic/credit-system.md",
 			"apps/public-docs/docs/curriculum-plan/undergraduate/computer-science.mdx",
@@ -292,6 +293,7 @@ describe("public-docs generated-docs checker", () => {
 		]);
 
 		expect(issues.map((issue) => issue.message)).toEqual([
+			"generated public-docs content must not be tracked: apps/public-docs/docs/docs/curriculum/curriculum_plan/computer-science.mdx",
 			"generated public-docs content must not be tracked: apps/public-docs/docs/student-handbook/index.md",
 			"generated public-docs content must not be tracked: apps/public-docs/docs/student-handbook/academic/credit-system.md",
 			"generated public-docs content must not be tracked: apps/public-docs/docs/curriculum-plan/undergraduate/computer-science.mdx",

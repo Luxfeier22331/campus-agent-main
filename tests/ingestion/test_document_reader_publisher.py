@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+import json
+import unittest
+
+from campus_ingestion_core.document_reader_publisher import publish_document_reader_assets
+from campus_ingestion_core.models import DocumentRegistryRecord
+
+
+class FakeObjectStore:
+    def __init__(self, objects: dict[tuple[str, str], bytes]) -> None:
+        self.objects = dict(objects)
+        self.writes: dict[tuple[str, str], bytes] = {}
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        try:
+            return self.objects[(bucket, key)]
+        except KeyError as exc:
+            raise FileNotFoundError(key) from exc
+
+    def put_bytes(self, *, bucket: str, key: str, data: bytes, content_type: str) -> None:
+        self.writes[(bucket, key)] = data
+
+
+class DocumentReaderPublisherTest(unittest.TestCase):
+    def test_publish_document_reader_assets_writes_assets_and_read_model_manifest(self) -> None:
+        public_record = _make_record(
+            document_id="curriculum:law-ethnic-class-program",
+            title_slug="law-ethnic-class-program",
+            visibility_level="public",
+            entitlement_groups=(),
+        )
+        restricted_record = _make_record(
+            document_id="curriculum:restricted-program",
+            title_slug="restricted-program",
+            visibility_level="restricted",
+            entitlement_groups=("students",),
+        )
+        object_store = FakeObjectStore(
+            {
+                ("campus-rag-derived", public_record.canonical_markdown_object_key or ""): (
+                    "# 法学（民族班）培养方案\n\n## 课程设置\n\n第一学期开设法理学。\n"
+                ).encode(),
+                ("campus-rag-derived", public_record.document_units_object_key or ""): (
+                    _document_units_jsonl(public_record, "法学（民族班）培养方案")
+                ).encode(),
+                ("campus-rag-derived", restricted_record.canonical_markdown_object_key or ""): (
+                    "# 受限培养方案\n\n## 内部章节\n\n受限内容。\n"
+                ).encode(),
+                ("campus-rag-derived", restricted_record.document_units_object_key or ""): (
+                    _document_units_jsonl(restricted_record, "受限培养方案")
+                ).encode(),
+            }
+        )
+
+        report = publish_document_reader_assets(
+            bucket_derived="campus-rag-derived",
+            generated_at="2026-04-27T08:00:00+00:00",
+            object_store=object_store,
+            records=(public_record, restricted_record),
+        )
+
+        self.assertEqual(report.document_count, 2)
+        self.assertEqual(report.public_entry_count, 1)
+        self.assertEqual(report.gated_entry_count, 1)
+        self.assertIn(
+            (
+                "campus-rag-derived",
+                "curriculum/documents/curriculum_plan/"
+                "法学-民族班-培养方案--law-ethnic-class-program/"
+                "current-effective/2026/reader-assets/reader.json",
+            ),
+            object_store.writes,
+        )
+        manifest = report.manifest
+        self.assertEqual(manifest["schemaVersion"], "document_reader_publish_manifest_v1")
+        self.assertEqual(len(manifest["documents"]), 2)
+        self.assertEqual(len(manifest["readerAssets"]), 2)
+        self.assertEqual(len(manifest["publicDocsSyncManifest"]["entries"]), 1)
+
+        search_units = manifest["searchUnits"]
+        self.assertTrue(search_units[0]["anchor"].startswith("section-"))
+        self.assertEqual(search_units[0]["highlightRootUnitIds"], ["root-001", "root-002"])
+        self.assertIn("第一学期开设法理学", search_units[0]["snippet"])
+        self.assertNotIn("chunk_id", json.dumps(manifest, ensure_ascii=False))
+
+    def test_publish_document_reader_assets_fails_fast_on_missing_canonical_artifacts(self) -> None:
+        record = _make_record(
+            document_id="curriculum:missing",
+            title_slug="missing",
+            visibility_level="public",
+            entitlement_groups=(),
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing canonical reader input"):
+            publish_document_reader_assets(
+                bucket_derived="campus-rag-derived",
+                generated_at="2026-04-27T08:00:00+00:00",
+                object_store=FakeObjectStore({}),
+                records=(record,),
+            )
+
+
+def _make_record(
+    *,
+    document_id: str,
+    title_slug: str,
+    visibility_level: str,
+    entitlement_groups: tuple[str, ...],
+) -> DocumentRegistryRecord:
+    docid8 = document_id.split(":", 1)[1][:6]
+    return DocumentRegistryRecord(
+        document_id=document_id,
+        revision_track="current-effective",
+        version_id=f"ver_{title_slug}",
+        source_uri=f"campus-agent://curriculum/curriculum_plan/{document_id}",
+        content_hash=f"sha256:{title_slug}",
+        corpus="curriculum",
+        collection="curriculum_plan",
+        entitlement_groups=entitlement_groups,
+        visibility_level=visibility_level,
+        visibility_scope="main",
+        status="active",
+        ingestion_timestamp="2026-04-27T08:00:00+00:00",
+        parser_version="mineru_api_v1",
+        embedding_model="text-embedding-3-large",
+        source_channel="pdf_ocr",
+        is_current=True,
+        effective_date="2026-02-01",
+        published_date="2026-02-15",
+        document_units_object_key=(
+            f"curriculum/documents/curriculum_plan/{title_slug}--{docid8}/"
+            "current-effective/2026/document-units.jsonl"
+        ),
+        canonical_markdown_object_key=(
+            f"curriculum/documents/curriculum_plan/{title_slug}--{docid8}/"
+            "current-effective/2026/canonical.md"
+        ),
+        import_source="raw_online_ocr",
+    )
+
+
+def _document_units_jsonl(record: DocumentRegistryRecord, title: str) -> str:
+    rows = [
+        {
+            "doc_id": record.document_id,
+            "version_id": record.version_id,
+            "chunk_id": "chunk-001",
+            "root_unit_id": "root-001",
+            "unit_type": "heading",
+            "text": "第一节",
+            "anchor": {"section_path": ["第一节"], "page_start": 1, "page_end": 1},
+            "metadata": {"title": title, "heading_level": 2},
+        },
+        {
+            "doc_id": record.document_id,
+            "version_id": record.version_id,
+            "chunk_id": "chunk-002",
+            "root_unit_id": "root-002",
+            "unit_type": "paragraph",
+            "text": "第一学期开设法理学。",
+            "anchor": {"section_path": ["第一节"], "page_start": 1, "page_end": 1},
+        },
+    ]
+    return "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n"
+
+
+if __name__ == "__main__":
+    unittest.main()

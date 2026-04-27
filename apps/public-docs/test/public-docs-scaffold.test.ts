@@ -13,27 +13,37 @@ describe("public-docs local scaffold", () => {
 		expect(robots).not.toContain("<!doctype html>");
 	});
 
-	it("materializes missing ignored collection directories without overwriting existing docs", async () => {
+	it("materializes missing ignored docs IA without overwriting existing docs", async () => {
 		const { ensurePublicDocsScaffold } = await import("../scripts/ensure-docs-scaffold");
 		const root = mkdtempSync(join(tmpdir(), "public-docs-scaffold-"));
 		temporaryDirectories.push(root);
 		const docsRoot = join(root, "apps/public-docs/docs");
-		mkdirSync(join(docsRoot, "student-handbook"), { recursive: true });
+		mkdirSync(join(docsRoot, "docs/regulations/student_rules"), { recursive: true });
 		writeFileSync(
-			join(docsRoot, "student-handbook/index.md"),
+			join(docsRoot, "docs/regulations/student_rules/index.md"),
 			["---", "title: 真实学生手册", "---", "", "existing"].join("\n"),
 			"utf-8",
 		);
 
 		ensurePublicDocsScaffold({ docsRoot });
 
-		expect(readFileSync(join(docsRoot, "student-handbook/index.md"), "utf-8")).toContain(
-			"title: 真实学生手册",
+		expect(readFileSync(join(docsRoot, "_meta.json"), "utf-8")).toContain("文档首页");
+		expect(readFileSync(join(docsRoot, "index.md"), "utf-8")).toContain("校园公开文档");
+		expect(readFileSync(join(docsRoot, "docs/index.md"), "utf-8")).toContain("公开文档总览");
+		expect(readFileSync(join(docsRoot, "docs/regulations/index.md"), "utf-8")).toContain(
+			"title: 规章制度",
 		);
-		expect(readFileSync(join(docsRoot, "student-handbook/_meta.json"), "utf-8")).toBe("[]\n");
-		expect(readFileSync(join(docsRoot, "curriculum-plan/index.md"), "utf-8")).toContain(
-			"title: 培养方案",
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/student_rules/index.md"), "utf-8"),
+		).toContain("title: 真实学生手册");
+		expect(readFileSync(join(docsRoot, "docs/regulations/student_rules/_meta.json"), "utf-8")).toBe(
+			"[]\n",
 		);
-		expect(readFileSync(join(docsRoot, "curriculum-plan/_meta.json"), "utf-8")).toBe("[]\n");
+		expect(
+			readFileSync(join(docsRoot, "docs/curriculum/curriculum_plan/index.md"), "utf-8"),
+		).toContain("title: 培养方案");
+		expect(
+			readFileSync(join(docsRoot, "docs/curriculum/curriculum_plan/_meta.json"), "utf-8"),
+		).toBe("[]\n");
 	});
 });

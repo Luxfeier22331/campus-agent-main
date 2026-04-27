@@ -159,8 +159,13 @@ deploy sync manifest 的最小逻辑形态固定为：
   "generatedAt": "2026-04-21T10:00:00.000Z",
   "entries": [
     {
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
       "docId": "curriculum:law-ethnic-class-program",
       "versionId": "ver_2026_01",
+      "documentSlug": "law-ethnic-class-program",
+      "versionSlug": "2026-current",
+      "title": "法学（民族班）本科人才培养方案",
       "deliveryMode": "public_static_asset",
       "sourceObjects": {
         "reader": "curriculum/documents/curriculum_plan/law-ethnic-class-program--abc12345/current-effective/2026/reader-assets/reader.json",
@@ -171,7 +176,8 @@ deploy sync manifest 的最小逻辑形态固定为：
       "targetObjects": {
         "reader": "_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/reader.json",
         "outline": "_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/outline.json",
-        "meta": "_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/meta.json"
+        "meta": "_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/meta.json",
+        "asset-manifest": "_docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/asset-manifest.json"
       }
     }
   ]
@@ -182,6 +188,11 @@ deploy sync manifest 的最小逻辑形态固定为：
 
 - `sourceObjects.*` 使用对象存储 key，而不是外部 URL
 - `targetObjects.*` 使用 Worker static assets 内的相对路径
+- `corpus`、`collection`、`documentSlug`、`versionSlug` 是 build-time 生成
+  Rspress source 与 static path 的必要身份字段
+- `title` 是 build-time 生成 reader page 与 navigation label 的必要用户可见字段
+- `targetObjects` 必须包含 `asset-manifest`，deploy sync 用它校验 package 内对象的
+  hash 与 size
 - deploy pipeline 只能按 manifest 明确复制，不得目录级盲拷
 
 ## Delivery Modes

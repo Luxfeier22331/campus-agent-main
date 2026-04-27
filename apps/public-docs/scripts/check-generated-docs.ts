@@ -11,6 +11,7 @@ const TRACKED_GENERATED_PATH_PREFIXES = [
 	`${PUBLIC_DOCS_ROOT}/.generated/`,
 	`${PUBLIC_DOCS_ROOT}/campus-regulations/`,
 	`${PUBLIC_DOCS_ROOT}/curriculum-plan/`,
+	`${PUBLIC_DOCS_ROOT}/docs/`,
 	`${PUBLIC_DOCS_ROOT}/public/course-maps/`,
 	`${PUBLIC_DOCS_ROOT}/student-handbook/`,
 	"apps/public-docs/src/generated/",
@@ -220,7 +221,8 @@ function isGeneratedDocumentDetailPath(path: string): boolean {
 	return (
 		path.startsWith(`${PUBLIC_DOCS_ROOT}/student-handbook/`) ||
 		path.startsWith(`${PUBLIC_DOCS_ROOT}/curriculum-plan/`) ||
-		path.startsWith(`${PUBLIC_DOCS_ROOT}/campus-regulations/`)
+		path.startsWith(`${PUBLIC_DOCS_ROOT}/campus-regulations/`) ||
+		path.startsWith(`${PUBLIC_DOCS_ROOT}/docs/`)
 	);
 }
 
