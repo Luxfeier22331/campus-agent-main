@@ -13,8 +13,10 @@ updated: 2026-04-24
 - environment: `staging`
 - zone: `ayafeed.com`
 - staging hostname shape: `ayafeed.com` 下一级子域
-- `apps/app-api`: `<https://campus-api-staging.ayafeed.com`>
+- `apps/app-api`: Worker `app-api-staging`；optional machine / ops ingress
+  `<https://campus-api-staging.ayafeed.com`>
 - `apps/public-chat-web`: `<https://campus-chat-staging.ayafeed.com`>
+- `apps/public-docs`: `<https://campus-docs-staging.ayafeed.com`>
 - `apps/protected-panel-web`: `<https://campus-panel-staging.ayafeed.com`>
 
 它只回答：
@@ -42,8 +44,11 @@ updated: 2026-04-24
   视为可依赖的 SSL deploy truth
 - `ayafeed.com` 是共享 zone，generic 一级子域（例如 `api-staging.ayafeed.com`）不再视为本 repo
   可占用的 deploy truth
-- staging forward truth 必须统一使用 `ayafeed.com` 下的项目隔离一级子域：`campus-api-staging.ayaf
-  eed.com`、`campus-chat-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`
+- staging browser forward truth 必须统一使用 `ayafeed.com` 下的项目隔离一级子域：
+  `campus-chat-staging.ayafeed.com`、`campus-docs-staging.ayafeed.com`、
+  `campus-panel-staging.ayafeed.com`
+- `campus-api-staging.ayafeed.com` 如保留，只作为 `app-api-staging` 的 machine /
+  ops ingress；web surfaces 不把它当成 upstream
 - repo 中仍残留的 `*.rag.ayafeed.com` staging 配置、脚本断言或测试断言，只能视为待迁移实现残留，不能继续作为新资源
   provision 或 deploy 目标
 - 依据：Cloudflare 官方文档说明 Universal SSL 默认覆盖 apex 与一级子域，更深层级需依赖不同证书能力，因此当前 tier
@@ -56,7 +61,9 @@ updated: 2026-04-24
 truth，而不是这些旧值的继续合法化。
 
 - `apps/app-api/wrangler.toml`
-  - `env.staging` 应收敛到 `campus-api-staging.ayafeed.com`
+  - `env.staging` 的 Worker 名为 `app-api-staging`
+  - `campus-api-staging.ayafeed.com` 如配置 custom domain，只作为受控 machine /
+    ops ingress
   - `env.staging.hyperdrive` 持有 `APP_API_DB`（cached/read-mostly）与
     `APP_API_DB_FRESH`（no-cache/auth-sensitive）两条 staging binding
   - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=<https://campus-chat-staging.ayafee
@@ -77,7 +84,7 @@ truth，而不是这些旧值的继续合法化。
 - `apps/public-chat-web/wrangler.toml`
   - `env.staging` 应收敛到 `campus-chat-staging.ayafeed.com`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.APP_API_BASE_URL=<https://campus-api-staging.ayafeed.com`>
+  - `env.staging.vars.APP_API_BASE_URL=<https://app-api.internal`>
 - `apps/public-chat-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
@@ -92,8 +99,7 @@ truth，而不是这些旧值的继续合法化。
 - `apps/protected-panel-web/wrangler.toml`
   - `env.staging` 应收敛到 `campus-panel-staging.ayafeed.com`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=<https://campus-api-staging.aya
-    feed.com`>
+  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=<https://app-api.internal`>
   - `env.staging.vars` 只保留 non-secret runtime truth；`ACCESS_TEAM_DOMAIN` /
     `ACCESS_POLICY_AUD` 不再硬编码在 repo
 - `apps/protected-panel-web/package.json`
@@ -119,9 +125,11 @@ truth，而不是这些旧值的继续合法化。
 
 ### 1. Worker hostnames
 
-- 创建 `campus-api-staging.ayafeed.com` custom domain，绑定到 `app-api-staging`
+- 如需要 machine / ops ingress，创建 `campus-api-staging.ayafeed.com` custom domain，
+  绑定到 `app-api-staging`，并使用 Cloudflare Access service token 或等价机器保护
 - 创建 `campus-chat-staging.ayafeed.com` custom domain，绑定到
   `public-chat-web-staging`
+- 创建 `campus-docs-staging.ayafeed.com` custom domain，绑定到 `public-docs-staging`
 - 创建 `campus-panel-staging.ayafeed.com` custom domain，绑定到
   `protected-panel-web-staging`
 
@@ -308,7 +316,8 @@ wrangler secret put SENTRY_DSN --env staging
   `/api/operator/*` 上收到 `403 operator_identity_not_admitted`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
 - `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向
-  `<https://campus-api-staging.ayafeed.com`>
+  `<https://app-api.internal`>，并通过 Worker `APP_API` Service Binding 调用
+  `app-api-staging`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke
   必须覆盖 `sign-up -> immediate sign-in`
 - `SUPERVISOR_API_BASE_URL` 在每次 staging deploy 时都必须显式注入，且当次值必须真实可达

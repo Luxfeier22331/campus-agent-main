@@ -41,8 +41,9 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 - `apps/public-chat-web`、`apps/protected-panel-web`、`apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
-- staging baseline 当前固定为 `campus-api-staging.ayafeed.com`、`campus-chat-staging.a
-  yafeed.com`、`campus-panel-staging.ayafeed.com`
+- staging browser baseline 当前固定为 `campus-chat-staging.ayafeed.com`、
+  `campus-docs-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`；web surfaces
+  通过 Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - `apps/supervisor-api` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
@@ -58,8 +59,11 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 当前 accepted staging baseline 固定为：
 
-- `apps/app-api` -> `<https://campus-api-staging.ayafeed.com`>
+- `apps/app-api` -> Worker `app-api-staging`，由 web surfaces 通过 `APP_API` Service
+  Binding 调用
+- `apps/app-api` optional machine / ops ingress -> `<https://campus-api-staging.ayafeed.com`>
 - `apps/public-chat-web` -> `<https://campus-chat-staging.ayafeed.com`>
+- `apps/public-docs` -> `<https://campus-docs-staging.ayafeed.com`>
 - `apps/protected-panel-web` -> `<https://campus-panel-staging.ayafeed.com`>
 
 长期规则：
@@ -67,6 +71,10 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `ayafeed.com` 下项目隔离一级子域是当前 repo-owned staging truth
 - `*.rag.ayafeed.com` 之类历史嵌套 staging 子域不再作为 forward truth
 - future production hostname 应新增独立 env truth，而不是覆写 staging baseline
+- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 在 Worker web surfaces 中固定为
+  `https://app-api.internal`，只用于 Service Binding request construction
+- `campus-api-staging.ayafeed.com` 不得作为 browser surface upstream invariant；若保留，
+  必须按 machine ingress 处理
 
 ## Release Identity
 
@@ -96,9 +104,12 @@ release identity 的长期规则固定为：
 ### Cross-App Invariants
 
 - public/panel 都必须指向同一个 `app-api` staging origin
+- public/docs/panel 的 `app-api` staging origin 是 `APP_API` Service Binding +
+  `https://app-api.internal`，不是 public custom domain fetch
 - internal shared secret、operator allowlist、public chat allowlist 必须按跨 app
   invariant 收口
-- `PUBLIC_CHAT_WEB_ORIGIN`、`APP_API_BASE_URL`、`PANEL_RUNTIME_API_BASE_URL` 不能漂移
+- `PUBLIC_CHAT_WEB_ORIGIN`、`APP_API_BASE_URL=https://app-api.internal`、
+  `PANEL_RUNTIME_API_BASE_URL=https://app-api.internal` 不能漂移
 
 ### Data Freshness / DB Gate
 
@@ -111,6 +122,8 @@ release identity 的长期规则固定为：
 
 - `app-api` deploy 时必须显式注入真实可达的 `SUPERVISOR_API_BASE_URL`
 - forward deploy truth 应指向 Docker-first Go execution ingress
+- 如果 Docker supervisor ingress 由 Cloudflare Access 保护，`app-api` 必须同时注入
+  `SUPERVISOR_API_ACCESS_CLIENT_ID` 与 `SUPERVISOR_API_ACCESS_CLIENT_SECRET`
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
 - repo-owned staging runbook 只消费 `supervisor-api` execution origin；不再保留
   dev-backed compatibility path

@@ -187,6 +187,16 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   何时必需: 当前 canonical staging execution runtime 需要
   获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
 
+- Provider / system: Supervisor API machine ingress protection
+  作用: `apps/app-api` 调用 Docker-first `supervisor-api` 时穿过 Cloudflare Access /
+  Tunnel 保护的机器入口
+  主要 env keys: `SUPERVISOR_API_ACCESS_CLIENT_ID`
+  `SUPERVISOR_API_ACCESS_CLIENT_SECRET`
+  放置位置: `apps/app-api/.dev.vars` 或 Cloudflare Worker secret store
+  何时必需: 当 `SUPERVISOR_API_BASE_URL` 指向 Access-protected machine ingress 时必需
+  获取方式: Cloudflare Zero Trust Service Token；该 token 不替代
+  `SUPERVISOR_API_SHARED_SECRET`
+
 ## Provider 详情
 
 ## 1. OpenAI-compatible LLM provider
@@ -817,6 +827,8 @@ root convenience keys：
   - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
   - `PUBLIC_CHAT_WEB_ORIGIN`
   - `SUPERVISOR_API_*`
+  - 如果 supervisor ingress 受 Cloudflare Access 保护，补充
+    `SUPERVISOR_API_ACCESS_CLIENT_ID` 与 `SUPERVISOR_API_ACCESS_CLIENT_SECRET`
   - `APP_API_INTERNAL_SHARED_SECRET`
 - `apps/public-chat-web/.dev.vars`
   - `APP_API_BASE_URL`

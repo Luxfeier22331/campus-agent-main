@@ -44,7 +44,11 @@ model`
 
 - browser 不直打 `apps/supervisor-api`
 - panel 不绕过 `apps/app-api`
+- public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
+  Service Binding；`https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
+- `campus-api-staging.ayafeed.com` 如存在，只表示 app-api staging machine / ops
+  ingress，不是 browser surface upstream
 - `apps/supervisor-api` 是 Go-owned internal execution engine，不是产品后端
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
@@ -101,7 +105,7 @@ model`
 - 只负责 browser route shell 与 chat UI
 - auth family 通过 same-site seam 将 Turnstile verification transport 到
   `apps/app-api`
-- 通过 same-site/internal seam 调用 `apps/app-api`
+- 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
 
 ### `apps/public-docs`
 
@@ -118,7 +122,7 @@ model`
 
 - protected Worker web surface
 - 只负责 operator-facing panel UI
-- 通过 `apps/app-api` 消费 runtime-owned query surfaces
+- 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query surfaces
 
 ### `apps/app-api`
 
@@ -129,6 +133,7 @@ model`
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
 - 承接 `official_web` control plane
+- 当前代码侧以 route exposure inventory 固定每个 route 的 caller class 与 admission rule
 
 ### `apps/supervisor-api`
 

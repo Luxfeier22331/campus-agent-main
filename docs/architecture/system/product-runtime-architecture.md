@@ -35,6 +35,8 @@ model`
 这意味着：
 
 - 当前已落地的 public/protected/docs surface 是 shared `app-api` 前面的并列 browser surface
+- Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service Binding；
+  `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的 origin
 - `apps/public-chat-web` 与 `apps/public-docs` 都是 public-facing surface，但它们的内部 IA
   不自动升级成整个产品的顶层 IA
 - `apps/public-docs` 是独立 docs-first browser surface
@@ -114,6 +116,11 @@ model`
 - `runtime.projection_outbox`
 - `operator.request_projection`
 - selected operator control-plane domains，例如 `official_web`
+- route exposure inventory 必须显式区分 `browser-surface`、`operator-via-panel`、
+  `machine-internal`、`collector-machine` 与 `system`；新增 route 时必须同步 caller
+  class 与 admission rule
+- `campus-api-staging.ayafeed.com` 如存在，只能作为 staging machine / ops ingress
+  与 readiness/smoke 入口，不是 browser product contract
 
 ## Surface Capability Policy
 

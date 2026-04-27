@@ -77,7 +77,7 @@ if (!hasAppApiService) {
 
 expectEqual(
 	vars.APP_API_BASE_URL,
-	"https://campus-api-staging.ayafeed.com",
+	"https://app-api.internal",
 	"Built staging config must keep APP_API_BASE_URL fixed.",
 );
 expectEqual(

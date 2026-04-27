@@ -30,9 +30,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		const stagingVarsBlock = wranglerConfig.split("[env.staging.vars]")[1] ?? "";
-		expect(stagingVarsBlock).toContain(
-			'PANEL_RUNTIME_API_BASE_URL = "https://campus-api-staging.ayafeed.com"',
-		);
+		expect(stagingVarsBlock).toContain('PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"');
 		expect(stagingVarsBlock).toContain('PANEL_PROTECTION_ENVELOPE = "cloudflare-access"');
 		expect(stagingVarsBlock).not.toContain("ACCESS_TEAM_DOMAIN");
 		expect(stagingVarsBlock).not.toContain("ACCESS_POLICY_AUD");
@@ -90,6 +88,9 @@ export function registerWorkerRuntimeConfigSuite() {
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"SERVICE:APP_API=app-api-staging",
+		);
+		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+			"VAR:PANEL_RUNTIME_API_BASE_URL=https://app-api.internal",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"VAR_ABSENT:SENTRY_RELEASE",

@@ -28,7 +28,7 @@ environment = "local"
 
 [env.staging.vars]
 PANEL_PROTECTION_ENVELOPE = "cloudflare-access"
-PANEL_RUNTIME_API_BASE_URL = "https://campus-api-staging.ayafeed.com"
+PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"
 SENTRY_ENVIRONMENT = "staging"
 
 [env.staging.secrets]
