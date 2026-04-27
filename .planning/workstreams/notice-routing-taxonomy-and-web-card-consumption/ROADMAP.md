@@ -31,7 +31,7 @@ updated: 2026-04-28
 - `notice_family_classification.v1.json`
 - `internal_notice_consumer_admission_builder`
 - procurement/history, service-status candidate, notice-level query
-- defer / no_adoption / review_later residual
+- defer / no_adoption terminal residual
 - machine-processing policy and multimodal spend boundary
 
 ## Phase 2: Minimum Web Card Contract
@@ -73,7 +73,7 @@ updated: 2026-04-28
 - lecture/publicity/event/campus-news low-priority families
 - skip machine-processing policy
 - queryable vs non-queryable boundary
-- review_later audit residual
+- terminal residual audit
 - representative Web card examples
 
 ## Phase 5: Eval And Closeout

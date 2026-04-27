@@ -55,7 +55,7 @@ updated: 2026-04-28
    `procurement_notice_history`，并被 discover/get 命中。
 5. 低优先级 notice 的 minimum card contract 被明确：不深处理，但可按需返回
    title/url。
-6. 低置信 residual 不形成 `review_later` 状态；无动作信号直接 `no_adoption`，
+6. 低置信 residual 不形成延后人工处理状态；无动作信号直接 `no_adoption`，
    需要机器判断的高价值附件/图片通知进入 multimodal processing。
 7. Web 侧消费 title/url 卡片有至少一条 deterministic acceptance path。
 

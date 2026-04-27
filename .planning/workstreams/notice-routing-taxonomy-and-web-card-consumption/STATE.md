@@ -53,8 +53,8 @@ updated: 2026-04-28
 - 哪些 family 应默认 queryable 但只提供 title/url card？
 - `defer` 与 queryable title/url card 是否允许并存，还是 defer 一律不进入
   read model？
-- `review_later` 是否只保留 audit residual，还是允许 selected low-confidence
-  card admission？
+- 低置信 residual 如何在不引入 human review 状态的前提下关闭：默认
+  `no_adoption`，还是少量进入 multimodal processing？
 - procurement/history 第一批 selected notice 应覆盖哪些类型：公告、结果公示、
   更正/延期、附件型公告？
 - Web 侧是否需要 `source_url` 优先，还是 `canonical_url` 优先并回退 source URL？

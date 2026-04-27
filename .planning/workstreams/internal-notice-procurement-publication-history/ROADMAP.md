@@ -44,7 +44,7 @@ Web-facing response 是否都保持 title + url contract。
 
 **Scope:**
 
-- `defer` / `review_later` / `no_adoption` 与 queryable admission 的边界
+- `defer` / `no_adoption` 与 queryable admission 的边界
 - low-value publicity/event notice skip policy
 - machine-processing skip vs title/url card availability
 - Web card no-body/reference-only rendering
