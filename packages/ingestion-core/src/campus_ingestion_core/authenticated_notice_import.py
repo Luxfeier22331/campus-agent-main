@@ -9,10 +9,10 @@ from typing import Any
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
-    AuthenticatedNoticeAttachmentFetchStatusStore,
     DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
+    AuthenticatedNoticeAttachmentFetchStatusStore,
     build_attachment_fetch_status_records_from_bundle_records,
 )
 from campus_ingestion_core.authenticated_notice_defaults import (
