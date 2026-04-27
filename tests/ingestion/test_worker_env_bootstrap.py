@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,6 +13,34 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
 class WorkerEnvBootstrapTest(unittest.TestCase):
+    def test_importing_worker_env_bootstrap_stays_lightweight(self) -> None:
+        code = """
+import json
+import sys
+
+import campus_ingestion_worker.env_bootstrap
+
+print(json.dumps({
+    "prompt_runtime_imported": "campus_shared.prompt_runtime" in sys.modules,
+    "provider_config_imported": "campus_shared.provider_config" in sys.modules,
+    "ingestion_core_imported": any(
+        name == "campus_ingestion_core" or name.startswith("campus_ingestion_core.")
+        for name in sys.modules
+    ),
+}))
+"""
+        completed = subprocess.run(
+            [sys.executable, "-c", code],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        payload = json.loads(completed.stdout)
+        self.assertFalse(payload["prompt_runtime_imported"])
+        self.assertFalse(payload["provider_config_imported"])
+        self.assertFalse(payload["ingestion_core_imported"])
+
     def test_load_worker_env_prefers_current_worktree_dotenv(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / ".worktrees" / "feature-a"
