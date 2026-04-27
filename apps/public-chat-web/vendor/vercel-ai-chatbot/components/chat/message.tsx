@@ -2,6 +2,7 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { Vote } from "@/lib/db/schema";
 import type {
+  CampusServiceTraceCardData,
   ChatMessage,
   ChatMessagePart,
   PlaceCardData,
@@ -243,6 +244,42 @@ function SourceCardsBlock({
   );
 }
 
+function CampusServiceTraceCardsBlock({
+  part,
+}: {
+  part: Extract<ChatMessagePart, { type: "data-campus-service-trace-cards" }>;
+}) {
+  const cards = part.data;
+  if (!cards.length) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-label="信息溯源"
+      className="w-full max-w-[min(100%,40rem)] rounded-2xl border border-border/70 bg-background/80 p-3 shadow-[var(--shadow-card)]"
+      data-testid="campus-service-trace-cards"
+    >
+      <div className="mb-2 text-[12px] font-medium text-muted-foreground">信息溯源</div>
+      <div className="grid gap-2">
+        {cards.map((card: CampusServiceTraceCardData) => (
+          <div
+            className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5"
+            key={`${card.title}:${card.refs.join("|")}`}
+          >
+            <div className="text-[12px] font-semibold text-foreground">{card.title}</div>
+            <ul className="mt-1.5 list-disc space-y-1 pl-5 text-[12px] leading-[1.55] text-muted-foreground">
+              {card.refs.map((ref) => (
+                <li key={ref}>{ref}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 const PurePreviewMessage = ({
   addToolApprovalResponse,
   chatId,
@@ -356,6 +393,10 @@ const PurePreviewMessage = ({
 
     if (type === "data-source-cards") {
       return <SourceCardsBlock key={key} part={part} />;
+    }
+
+    if (type === "data-campus-service-trace-cards") {
+      return <CampusServiceTraceCardsBlock key={key} part={part} />;
     }
 
     if (type === "tool-getWeather") {

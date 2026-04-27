@@ -145,4 +145,51 @@ describe("platform chat message parts", () => {
 			},
 		]);
 	});
+
+	it("adds data-campus-service-trace-cards after assistant text", () => {
+		expect(
+			mapShellMessageToChatMessage({
+				createdAt: "2026-04-27T09:00:02.000Z",
+				id: "msg_assistant",
+				kind: "answer",
+				requestId: "req_790",
+				retryable: false,
+				role: "assistant",
+				structuredParts: [
+					{
+						traceCards: [
+							{
+								refs: ["认证通知 #355122", "认证通知 #354777"],
+								title: "相关通知",
+							},
+							{
+								refs: ["官网来源：graduate-school/contact"],
+								title: "信息来源",
+							},
+						],
+						type: "campus_service_trace_cards",
+					},
+				],
+				text: "丰台至海淀班车已调整，请查看信息溯源。",
+			}).parts,
+		).toEqual([
+			{
+				text: "丰台至海淀班车已调整，请查看信息溯源。",
+				type: "text",
+			},
+			{
+				data: [
+					{
+						refs: ["认证通知 #355122", "认证通知 #354777"],
+						title: "相关通知",
+					},
+					{
+						refs: ["官网来源：graduate-school/contact"],
+						title: "信息来源",
+					},
+				],
+				type: "data-campus-service-trace-cards",
+			},
+		]);
+	});
 });

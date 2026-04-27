@@ -228,6 +228,64 @@ describe("platform chat mappers", () => {
 		});
 	});
 
+	it("maps assistant campus-service trace cards into shell structured parts", () => {
+		expect(
+			mapConversationDetail({
+				createdAt: "2026-04-27T09:00:00.000Z",
+				id: "conv_789",
+				messages: [
+					{
+						conversationId: "conv_789",
+						createdAt: "2026-04-27T09:00:02.000Z",
+						id: "msg_assistant",
+						kind: "answer",
+						requestId: "req_789",
+						retryable: false,
+						role: "assistant",
+						structuredParts: [
+							{
+								traceCards: [
+									{
+										refs: ["认证通知 #355122"],
+										title: "相关通知",
+									},
+									{
+										refs: ["官网来源：graduate-school/contact"],
+										title: "信息来源",
+									},
+								],
+								type: "campus_service_trace_cards",
+							},
+						],
+						text: "请查看信息溯源。",
+					},
+				],
+				title: "班车信息来源",
+				updatedAt: "2026-04-27T09:00:02.000Z",
+			}),
+		).toMatchObject({
+			messages: [
+				{
+					structuredParts: [
+						{
+							traceCards: [
+								{
+									refs: ["认证通知 #355122"],
+									title: "相关通知",
+								},
+								{
+									refs: ["官网来源：graduate-school/contact"],
+									title: "信息来源",
+								},
+							],
+							type: "campus_service_trace_cards",
+						},
+					],
+				},
+			],
+		});
+	});
+
 	it("maps chat request outcomes into shell request outcome shape", () => {
 		expect(
 			mapChatAnswerPayload({

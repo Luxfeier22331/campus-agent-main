@@ -13,6 +13,7 @@ describe("vendor chat messages", () => {
 		expect(messageSource).toContain("DocumentPreview");
 		expect(messageSource).toContain('type === "data-place-card"');
 		expect(messageSource).toContain('type === "data-source-cards"');
+		expect(messageSource).toContain('type === "data-campus-service-trace-cards"');
 		expect(messageSource).toContain("校区范围");
 		expect(messageSource).toContain("位置说明");
 		expect(messageSource).toContain("地标提示");
@@ -22,6 +23,7 @@ describe("vendor chat messages", () => {
 		expect(messageSource).toContain("serviceTags");
 		expect(messageSource).toContain("pointGeometry");
 		expect(messageSource).toContain("参考来源");
+		expect(messageSource).toContain("信息溯源");
 		expect(messageSource).toContain("查看原文");
 		expect(messageSource).not.toContain("Clarification needed");
 		expect(messageSource).not.toContain("Needs more detail before answering.");
