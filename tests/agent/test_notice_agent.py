@@ -61,6 +61,19 @@ class _FakeNoticeQueryService:
         )
 
 
+class _FakeReferenceOnlyNoticeQueryService(_FakeNoticeQueryService):
+    def get_notice(self, query: NoticeGetQuery) -> CampusNoticeGetResult:
+        self.last_get_query = query
+        return CampusNoticeGetResult(
+            notice_id=query.payload.notice_id,
+            outcome="resolved_current",
+            title="校园活动通知",
+            source_family="wechat_public_notice",
+            source_url="https://mp.weixin.qq.com/s/example",
+            reference_only=True,
+        )
+
+
 class NoticeAgentTest(unittest.TestCase):
     def test_notice_discover_payload_routes_through_internal_query_service(self) -> None:
         query_service = _FakeNoticeQueryService()
@@ -223,6 +236,62 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.normalized_body, "# 采购公告\n\n供应商应按要求投标。\n")
         self.assertEqual(result.attachment_refs, ("attachment:355222:1",))
+
+    def test_http_query_service_decodes_reference_only_notice_get_result(self) -> None:
+        transport = _RecordingNoticeHTTPTransport(
+            {
+                "notice_id": "wechat:article:001",
+                "outcome": "resolved_current",
+                "title": "校园活动通知",
+                "source_family": "wechat_public_notice",
+                "source_url": "https://mp.weixin.qq.com/s/example",
+                "reference_only": True,
+            }
+        )
+        query_service = NoticeHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            transport=transport,
+        )
+
+        result = query_service.get_notice(
+            NoticeGetQuery(
+                payload=CampusNoticeGetPayload(
+                    notice_id="wechat:article:001",
+                    source_family="wechat_public_notice",
+                ),
+                access_context=_restricted_access_context(),
+            )
+        )
+
+        self.assertTrue(result.reference_only)
+        self.assertEqual(result.normalized_body, "")
+
+    def test_notice_get_reference_only_result_returns_source_url_answer(self) -> None:
+        response = delegate_to_notice_agent(
+            AgentRequest(
+                target="notice-agent",
+                user_goal="读取这条公众号通知",
+                payload=CampusNoticeGetPayload(
+                    notice_id="wechat:article:001",
+                    source_family="wechat_public_notice",
+                ),
+                allowed_tools=("campus_notice_get",),
+                actor=ActorContext(user_id="student-001"),
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001"),
+                    authorization=AuthorizationProjection(
+                        principal_id="principal-001",
+                        entitlement_groups=("students",),
+                    ),
+                ),
+            ),
+            query_service=_FakeReferenceOnlyNoticeQueryService(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("仅提供原文链接", response.answer_text)
+        self.assertIn("https://mp.weixin.qq.com/s/example", response.answer_text)
 
 
 def _restricted_access_context() -> NoticeAccessContext:

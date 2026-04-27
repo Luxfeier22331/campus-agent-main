@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
     ErrorInfo,
-    AgentRequest,
-    AgentResponse,
 )
 
 from campus_notice_agent.query_service import (
@@ -119,6 +119,18 @@ def _discover_response(result: CampusNoticeDiscoverResult) -> AgentResponse:
 def _get_response(result: CampusNoticeGetResult) -> AgentResponse:
     if result.outcome in {"resolved_current", "resolved_historical_reference"}:
         confidence = "high" if result.outcome == "resolved_current" else "medium"
+        if result.reference_only:
+            source_url = result.source_url or result.canonical_url
+            answer_text = result.title
+            if source_url:
+                answer_text = f"{result.title}\n\n该通知当前仅提供原文链接：{source_url}"
+            return AgentResponse(
+                target="notice-agent",
+                status="completed",
+                answer_text=answer_text,
+                confidence=confidence,
+                result=result,
+            )
         return AgentResponse(
             target="notice-agent",
             status="completed",

@@ -328,6 +328,19 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
             )
 
+    def test_notice_get_result_allows_reference_only_resolved_notice_without_body(self) -> None:
+        result = CampusNoticeGetResult(
+            notice_id="wechat:notice:muc:001",
+            outcome="resolved_current",
+            title="关于讲座安排的通知",
+            source_family="wechat_public_notice",
+            source_url="https://mp.weixin.qq.com/s/example",
+            reference_only=True,
+        )
+
+        self.assertTrue(result.reference_only)
+        self.assertEqual(result.normalized_body, "")
+
     def test_agent_request_accepts_service_status_payload(self) -> None:
         request = AgentRequest(
             target="campus-services-agent",

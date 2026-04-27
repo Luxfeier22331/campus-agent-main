@@ -9,6 +9,8 @@ import (
 
 const (
 	internalNoticeRestrictedSourceFamily = "internal_notice_restricted"
+	officialWebPublicNoticeSourceFamily  = "official_web_public_notice"
+	wechatPublicNoticeSourceFamily       = "wechat_public_notice"
 	defaultNoticeDiscoverMaxResults      = 5
 	noticeDiscoverMaxResultsLimit        = 20
 )
@@ -117,6 +119,7 @@ type noticeGetResult struct {
 	SourceURL                 string   `json:"source_url,omitempty"`
 	CanonicalURL              string   `json:"canonical_url,omitempty"`
 	NormalizedBody            string   `json:"normalized_body,omitempty"`
+	ReferenceOnly             bool     `json:"reference_only,omitempty"`
 	PublishedAt               string   `json:"published_at,omitempty"`
 	EffectiveAt               string   `json:"effective_at,omitempty"`
 	TargetSurface             string   `json:"target_surface,omitempty"`
@@ -146,8 +149,11 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 	if request.MaxResults > noticeDiscoverMaxResultsLimit {
 		request.MaxResults = noticeDiscoverMaxResultsLimit
 	}
-	sourceFamilies := internalNoticeSourceFamilies(request.SourceFamilies)
-	if len(sourceFamilies) == 0 || !hasInternalNoticeAccess(envelope.AccessContext) {
+	sourceFamilies, invalidSourceFamily := resolveNoticeSourceFamilies(
+		request.SourceFamilies,
+		admittedNoticeSourceFamilies(envelope.AccessContext),
+	)
+	if invalidSourceFamily || len(sourceFamilies) == 0 {
 		return failClosedNoticeDiscover(request.QueryText, sourceFamilies, r.timeAnchor(), "source_family_unavailable")
 	}
 	if r.noticeReadModelStore == nil {
@@ -220,10 +226,16 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	if sourceFamily == "" {
 		sourceFamily = internalNoticeRestrictedSourceFamily
 	}
-	if sourceFamily != internalNoticeRestrictedSourceFamily || !hasInternalNoticeAccess(envelope.AccessContext) {
+	if !isKnownNoticeSourceFamily(sourceFamily) || !isNoticeSourceFamilyAdmitted(
+		sourceFamily,
+		envelope.AccessContext,
+	) {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_family_unavailable")
 	}
-	if r.noticeReadModelStore == nil || r.noticeBodyStore == nil {
+	if r.noticeReadModelStore == nil {
+		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
+	}
+	if sourceFamily == internalNoticeRestrictedSourceFamily && r.noticeBodyStore == nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
 	if err := ctx.Err(); err != nil {
@@ -241,20 +253,60 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 		}
 		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 	}
+	resolvedSourceFamily := strings.TrimSpace(row.SourceFamily)
+	if resolvedSourceFamily == "" {
+		resolvedSourceFamily = sourceFamily
+	}
+	if !isKnownNoticeSourceFamily(resolvedSourceFamily) {
+		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_family_unavailable")
+	}
+	resolvedNoticeID := strings.TrimSpace(row.SourceNoticeID)
+	if resolvedNoticeID == "" {
+		resolvedNoticeID = request.NoticeID
+	}
+	title := strings.TrimSpace(row.Title)
+	if title == "" {
+		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
+	}
+	sourceURL := strings.TrimSpace(row.SourceURL)
+	if sourceURL == "" {
+		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
+	}
 	objectKey := strings.TrimSpace(row.CanonicalMarkdownObjectKey)
 	if objectKey == "" {
+		if isPublicNoticeSourceFamily(resolvedSourceFamily) {
+			body := noticeGetResult{
+				NoticeID:       resolvedNoticeID,
+				Outcome:        "resolved_current",
+				Title:          title,
+				SourceFamily:   resolvedSourceFamily,
+				SourceURL:      sourceURL,
+				CanonicalURL:   row.CanonicalURL,
+				ReferenceOnly:  true,
+				PublishedAt:    row.PublishedAt,
+				EffectiveAt:    row.EffectiveAt,
+				TargetSurface:  row.TargetSurface,
+				PrimaryRole:    row.PrimaryRole,
+				AttachmentRefs: append([]string(nil), row.AttachmentRefs...),
+				ProvenanceRefs: append([]string(nil), row.ProvenanceRefs...),
+			}
+			return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+		}
 		return failClosedNoticeGet(request.NoticeID, row.SourceFamily, "source_truth_unavailable")
+	}
+	if r.noticeBodyStore == nil {
+		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
 	}
 	bodyText, err := r.noticeBodyStore.GetNoticeBody(ctx, objectKey)
 	if err != nil || strings.TrimSpace(bodyText) == "" {
-		return failClosedNoticeGet(request.NoticeID, row.SourceFamily, "source_truth_unavailable")
+		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
 	}
 	body := noticeGetResult{
-		NoticeID:       row.SourceNoticeID,
+		NoticeID:       resolvedNoticeID,
 		Outcome:        "resolved_current",
-		Title:          row.Title,
-		SourceFamily:   row.SourceFamily,
-		SourceURL:      row.SourceURL,
+		Title:          title,
+		SourceFamily:   resolvedSourceFamily,
+		SourceURL:      sourceURL,
 		CanonicalURL:   row.CanonicalURL,
 		NormalizedBody: bodyText,
 		PublishedAt:    row.PublishedAt,
@@ -286,23 +338,6 @@ func normalizeNoticeDiscoverRequest(request *noticeDiscoverRequest) {
 	request.TargetSurfaces = normalizeNoticeTargetSurfaces(request.TargetSurfaces)
 }
 
-func internalNoticeSourceFamilies(values []string) []string {
-	normalized := make([]string, 0, len(values))
-	if len(values) == 0 {
-		return []string{internalNoticeRestrictedSourceFamily}
-	}
-	seen := map[string]bool{}
-	for _, value := range values {
-		item := strings.TrimSpace(value)
-		if item != internalNoticeRestrictedSourceFamily || seen[item] {
-			continue
-		}
-		seen[item] = true
-		normalized = append(normalized, item)
-	}
-	return normalized
-}
-
 func normalizeNoticeTargetSurfaces(values []string) []string {
 	normalized := make([]string, 0, len(values))
 	seen := map[string]bool{}
@@ -319,7 +354,7 @@ func normalizeNoticeTargetSurfaces(values []string) []string {
 
 func hasInternalNoticeAccess(accessContext noticeAccessContext) bool {
 	authorization := accessContext.Authorization
-	if strings.TrimSpace(authorization.PrincipalID) == "" {
+	if !hasNoticePrincipal(accessContext) {
 		return false
 	}
 	if strings.TrimSpace(authorization.RetrievalFilter.VisibilityLevel) != "restricted" {
@@ -336,6 +371,92 @@ func hasInternalNoticeAccess(accessContext noticeAccessContext) bool {
 		}
 	}
 	return false
+}
+
+func hasNoticePrincipal(accessContext noticeAccessContext) bool {
+	return strings.TrimSpace(accessContext.Authorization.PrincipalID) != ""
+}
+
+func admittedNoticeSourceFamilies(accessContext noticeAccessContext) []string {
+	if !hasNoticePrincipal(accessContext) {
+		return nil
+	}
+	admitted := []string{
+		officialWebPublicNoticeSourceFamily,
+		wechatPublicNoticeSourceFamily,
+	}
+	if hasInternalNoticeAccess(accessContext) {
+		admitted = append(admitted, internalNoticeRestrictedSourceFamily)
+	}
+	return admitted
+}
+
+func resolveNoticeSourceFamilies(requested []string, admitted []string) ([]string, bool) {
+	admittedSet := map[string]bool{}
+	for _, family := range admitted {
+		if isKnownNoticeSourceFamily(family) {
+			admittedSet[family] = true
+		}
+	}
+	if len(admittedSet) == 0 {
+		return nil, false
+	}
+	if len(requested) == 0 {
+		resolved := make([]string, 0, len(admittedSet))
+		for _, family := range admitted {
+			if admittedSet[family] {
+				resolved = append(resolved, family)
+				delete(admittedSet, family)
+			}
+		}
+		return resolved, false
+	}
+	invalid := false
+	resolved := make([]string, 0, len(requested))
+	seen := map[string]bool{}
+	for _, value := range requested {
+		family := strings.TrimSpace(value)
+		if family == "" {
+			continue
+		}
+		if !isKnownNoticeSourceFamily(family) {
+			invalid = true
+			continue
+		}
+		if !admittedSet[family] || seen[family] {
+			continue
+		}
+		seen[family] = true
+		resolved = append(resolved, family)
+	}
+	return resolved, invalid
+}
+
+func isNoticeSourceFamilyAdmitted(sourceFamily string, accessContext noticeAccessContext) bool {
+	for _, admitted := range admittedNoticeSourceFamilies(accessContext) {
+		if admitted == sourceFamily {
+			return true
+		}
+	}
+	return false
+}
+
+func isKnownNoticeSourceFamily(sourceFamily string) bool {
+	switch strings.TrimSpace(sourceFamily) {
+	case internalNoticeRestrictedSourceFamily, officialWebPublicNoticeSourceFamily, wechatPublicNoticeSourceFamily:
+		return true
+	default:
+		return false
+	}
+}
+
+func isPublicNoticeSourceFamily(sourceFamily string) bool {
+	switch strings.TrimSpace(sourceFamily) {
+	case officialWebPublicNoticeSourceFamily, wechatPublicNoticeSourceFamily:
+		return true
+	default:
+		return false
+	}
 }
 
 func failClosedNoticeDiscover(queryText string, sourceFamilies []string, timeAnchor string, reason string) Response {

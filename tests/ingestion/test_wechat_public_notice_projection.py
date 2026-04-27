@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from campus_ingestion_core.internal_notice_read_model import InMemoryInternalNoticeReadModelStore
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
@@ -18,6 +19,8 @@ from campus_ingestion_core.notice_consumption_projection import (
 from campus_ingestion_core.wechat_public_notice_projection import (
     WeChatPublicNoticeProjectionRequest,
     WeChatSourceTruthArtifactRefs,
+    build_wechat_public_notice_read_model_entries,
+    materialize_wechat_public_notice_read_model,
     parse_wechat_projection_selection_path,
     rebuild_wechat_public_notice_projection,
 )
@@ -201,6 +204,79 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
             refs[0].media_refs_key,
             "wechat_official_account/muc/2026/woa_ver_sel/source-truth/media-refs.jsonl",
         )
+
+    def test_build_wechat_read_model_entries_marks_queryable_by_consumption_and_surface(self) -> None:
+        retained_entry = _projection_entry(
+            source_family=NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
+            source_collection="wechat_public_notice",
+            source_notice_id="woa_article_queryable",
+            title_normalized="保留用于查询",
+            publish_time="2026-04-21T08:00:00+08:00",
+            normalized_article_url="https://mp.weixin.qq.com/s/queryable",
+        )
+        suppressed_entry = NoticeConsumptionProjectionEntry(
+            source_family=NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
+            source_corpus="campus_notices",
+            source_collection="wechat_public_notice",
+            source_notice_id="woa_article_suppressed",
+            unit_id="notice_unit:wechat:woa_article_suppressed",
+            primary_role="notice_window",
+            semantic_owner="notice_body",
+            default_agent="notice-agent",
+            target_surface=NOTICE_TARGET_SURFACE_UNSUPPORTED,
+            temporal_policy="announcement_window",
+            completeness_status="reference_only",
+            answerability="reference_only",
+            consumption_status=NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
+            source_notice_document_id="notice:woa_article_suppressed",
+            source_document_id="notice:woa_article_suppressed",
+            role_metadata={
+                "notice_title": "抑制样例",
+                "source_url": "https://mp.weixin.qq.com/s/suppressed",
+            },
+        )
+
+        rows = build_wechat_public_notice_read_model_entries((retained_entry, suppressed_entry))
+
+        self.assertEqual(len(rows), 2)
+        by_notice_id = {row.source_notice_id: row for row in rows}
+        self.assertTrue(by_notice_id["woa_article_queryable"].queryable)
+        self.assertFalse(by_notice_id["woa_article_suppressed"].queryable)
+        self.assertEqual(
+            by_notice_id["woa_article_queryable"].source_url,
+            "https://mp.weixin.qq.com/s/queryable",
+        )
+        self.assertEqual(by_notice_id["woa_article_queryable"].canonical_markdown_object_key, "")
+
+    def test_materialize_wechat_read_model_replaces_selected_notices(self) -> None:
+        stale_entry = _projection_entry(
+            source_family=NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
+            source_collection="wechat_public_notice",
+            source_notice_id="woa_article_refresh",
+            title_normalized="旧标题",
+            publish_time="2026-04-20T08:00:00+08:00",
+            normalized_article_url="https://mp.weixin.qq.com/s/refresh-old",
+        )
+        store = InMemoryInternalNoticeReadModelStore(
+            build_wechat_public_notice_read_model_entries((stale_entry,))
+        )
+        refreshed_entry = _projection_entry(
+            source_family=NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
+            source_collection="wechat_public_notice",
+            source_notice_id="woa_article_refresh",
+            title_normalized="新标题",
+            publish_time="2026-04-21T08:00:00+08:00",
+            normalized_article_url="https://mp.weixin.qq.com/s/refresh-new",
+        )
+
+        rows = materialize_wechat_public_notice_read_model(
+            projection_entries=(refreshed_entry,),
+            read_model_store=store,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].source_notice_id, "woa_article_refresh")
+        self.assertEqual(rows[0].source_url, "https://mp.weixin.qq.com/s/refresh-new")
 
 
 def _build_source_truth_fixture(

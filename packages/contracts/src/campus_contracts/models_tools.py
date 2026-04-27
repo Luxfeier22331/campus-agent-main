@@ -680,6 +680,7 @@ class CampusNoticeGetResult:
     source_url: str = ""
     canonical_url: str = ""
     normalized_body: str = ""
+    reference_only: bool = False
     published_at: str = ""
     effective_at: str = ""
     attachment_refs: tuple[str, ...] = field(default_factory=tuple)
@@ -704,7 +705,7 @@ class CampusNoticeGetResult:
                 raise ValueError("source_family must not be empty for resolved notice results")
             if not self.source_url.strip():
                 raise ValueError("source_url must not be empty for resolved notice results")
-            if not self.normalized_body.strip():
+            if not self.reference_only and not self.normalized_body.strip():
                 raise ValueError("normalized_body must not be empty for resolved notice results")
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from campus_ingestion_core.internal_notice_read_model import InternalNoticeReadModelEntry
 from campus_ingestion_core.notice_consumption_projection import NoticeConsumptionProjectionEntry
 from campus_ingestion_core.wechat_public_notice_projection import (
     WeChatPublicNoticeProjectionBuildReport,
@@ -41,6 +42,8 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
             duplicate_source_family_counts={},
         )
         admission_store = object()
+        read_model_store = object()
+        read_model_rows = (_read_model_entry("woa_article_alpha"),)
         manifest_key = (
             "wechat_official_account/muc/2026/woa_ver_alpha/source-truth/article-manifest.json"
         )
@@ -53,7 +56,15 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
             patch(
                 "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_consumption_admission_store_from_env",
                 return_value=admission_store,
-            ) as build_store,
+            ) as build_admission_store,
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_read_model_store_from_env",
+                return_value=read_model_store,
+            ) as build_read_model_store,
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.materialize_wechat_public_notice_read_model",
+                return_value=read_model_rows,
+            ) as materialize_read_model,
             patch(
                 "campus_ingestion_worker.project_wechat_public_notices.record_internal_notice_consumption_admission",
                 side_effect=("batch-wechat-001", "batch-wechat-001"),
@@ -69,7 +80,12 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
                 ]
             )
 
-        build_store.assert_called_once()
+        build_admission_store.assert_called_once()
+        build_read_model_store.assert_called_once()
+        materialize_read_model.assert_called_once_with(
+            projection_entries=report.projection_entries,
+            read_model_store=read_model_store,
+        )
         self.assertEqual(rebuild.call_args.kwargs["dry_run"], False)
         request = rebuild.call_args.kwargs["request"]
         self.assertEqual(request.source_corpus, "campus_notices")
@@ -96,11 +112,14 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
         self.assertEqual(completed_kwargs["batch_id"], "batch-wechat-001")
         self.assertEqual(completed_kwargs["notice_ids"], ("woa_article_alpha",))
         self.assertEqual(completed_kwargs["result_counts"]["projection_entry_count"], 1)
+        self.assertEqual(completed_kwargs["result_counts"]["read_model_entry_count"], 1)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["batch_id"], "batch-wechat-001")
         self.assertEqual(payload["projection_entry_count"], 1)
-        self.assertEqual(payload["query_serving_opened"], False)
+        self.assertEqual(payload["query_serving_opened"], True)
         self.assertEqual(payload["projection_write_performed"], True)
+        self.assertEqual(payload["read_model_write_performed"], True)
+        self.assertEqual(payload["read_model_entry_count"], 1)
         self.assertEqual(payload["retained_count"], 1)
         self.assertEqual(payload["read_model_evidence_count"], 0)
 
@@ -158,6 +177,12 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
                     return_value=evidence,
                 ) as build_evidence,
                 patch(
+                    "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_read_model_store_from_env"
+                ) as build_read_model_store,
+                patch(
+                    "campus_ingestion_worker.project_wechat_public_notices.materialize_wechat_public_notice_read_model"
+                ) as materialize_read_model,
+                patch(
                     "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_consumption_admission_store_from_env"
                 ),
                 patch(
@@ -180,6 +205,8 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
         parse_selection.assert_called_once_with(selection_path, default_bucket="source")
         self.assertEqual(rebuild.call_args.kwargs["dry_run"], True)
         build_evidence.assert_called_once()
+        build_read_model_store.assert_not_called()
+        materialize_read_model.assert_not_called()
         started_kwargs = record_admission.call_args_list[0].kwargs
         self.assertEqual(started_kwargs["command"], "wechat_public_notice_projection_dry_run")
         self.assertEqual(started_kwargs["selection_source"], "selection_path")
@@ -187,8 +214,10 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
         self.assertTrue(started_kwargs["selection_sha256"])
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["projection_write_performed"], False)
+        self.assertEqual(payload["read_model_write_performed"], False)
         self.assertEqual(payload["read_model_evidence_emitted"], True)
         self.assertEqual(payload["read_model_evidence_count"], 1)
+        self.assertEqual(payload["read_model_entry_count"], 0)
 
     def test_main_records_failed_admission_when_projection_fails(self) -> None:
         manifest_key = (
@@ -228,6 +257,101 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
         self.assertEqual(failed_kwargs["error"], "projection failed")
         self.assertIs(failed_kwargs["store"], admission_store)
 
+    def test_main_projects_from_capture_run_selection(self) -> None:
+        report = WeChatPublicNoticeProjectionBuildReport(
+            projection_entries=(_projection_entry("woa_article_gamma"),),
+            total_article_count=1,
+            retained_count=1,
+            duplicate_suppressed_count=0,
+            duplicate_source_family_counts={},
+        )
+        refs = (
+            WeChatSourceTruthArtifactRefs(
+                article_manifest_key=(
+                    "wechat_official_account/muc/2026/woa_ver_gamma/source-truth/article-manifest.json"
+                ),
+                content_blocks_key=(
+                    "wechat_official_account/muc/2026/woa_ver_gamma/source-truth/content-blocks.jsonl"
+                ),
+                media_refs_key=(
+                    "wechat_official_account/muc/2026/woa_ver_gamma/source-truth/media-refs.jsonl"
+                ),
+                bucket="source",
+            ),
+        )
+
+        with (
+            patch("campus_ingestion_worker.project_wechat_public_notices.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices._load_capture_run_refs",
+                return_value=(refs, "wcrun_abc123"),
+            ) as load_capture_refs,
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.rebuild_wechat_public_notice_projection",
+                return_value=report,
+            ) as rebuild,
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_read_model_store_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.materialize_wechat_public_notice_read_model",
+                return_value=(_read_model_entry("woa_article_gamma"),),
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_consumption_admission_store_from_env",
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.record_internal_notice_consumption_admission",
+                side_effect=("batch-wechat-004", "batch-wechat-004"),
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            worker.main(
+                [
+                    "--capture-run-id",
+                    "wcrun_abc123",
+                    "--source-bucket",
+                    "source",
+                ]
+            )
+
+        load_capture_refs.assert_called_once()
+        request = rebuild.call_args.kwargs["request"]
+        self.assertEqual(len(request.artifact_refs), 1)
+        self.assertEqual(
+            request.artifact_refs[0].article_manifest_key,
+            "wechat_official_account/muc/2026/woa_ver_gamma/source-truth/article-manifest.json",
+        )
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["capture_run_id"], "wcrun_abc123")
+        self.assertEqual(payload["projection_entry_count"], 1)
+
+    def test_main_rejects_latest_capture_selection_without_account_slug(self) -> None:
+        with (
+            patch("campus_ingestion_worker.project_wechat_public_notices.load_worker_env"),
+            patch("sys.stderr", new_callable=io.StringIO),
+            self.assertRaises(SystemExit),
+        ):
+            worker.main(["--latest-completed-capture-run"])
+
+    def test_build_capture_refs_requires_manifest_related_artifacts(self) -> None:
+        with self.assertRaisesRegex(ValueError, "missing source-truth content blocks"):
+            worker._build_capture_refs_from_artifacts(
+                artifact_rows=(
+                    (
+                        "source_truth_article_manifest",
+                        "wechat_official_account/muc/2026/woa_ver_missing/source-truth/article-manifest.json",
+                    ),
+                    (
+                        "source_truth_media_refs",
+                        "wechat_official_account/muc/2026/woa_ver_missing/source-truth/media-refs.jsonl",
+                    ),
+                ),
+                source_bucket="source",
+                run_id="wcrun_missing",
+            )
+
 
 def _projection_entry(source_notice_id: str) -> NoticeConsumptionProjectionEntry:
     return NoticeConsumptionProjectionEntry(
@@ -247,6 +371,21 @@ def _projection_entry(source_notice_id: str) -> NoticeConsumptionProjectionEntry
         source_notice_document_id=f"wechat_notice:muc:{source_notice_id}",
         source_document_id=f"wechat_notice:muc:{source_notice_id}",
         role_metadata={"notice_title": source_notice_id},
+    )
+
+
+def _read_model_entry(source_notice_id: str) -> InternalNoticeReadModelEntry:
+    return InternalNoticeReadModelEntry(
+        source_family="wechat_public_notice",
+        source_corpus="campus_notices",
+        source_collection="wechat_public_notice",
+        source_notice_id=source_notice_id,
+        unit_id=f"notice_unit:wechat:{source_notice_id}",
+        primary_role="notice_window",
+        target_surface="notice_level_query",
+        consumption_status="retained_for_notice_query",
+        queryable=True,
+        title=source_notice_id,
     )
 
 

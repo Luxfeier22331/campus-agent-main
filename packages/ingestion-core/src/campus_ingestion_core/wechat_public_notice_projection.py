@@ -9,6 +9,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from campus_ingestion_core.internal_notice_read_model_shared import (
+    DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS,
+    DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS,
+    InternalNoticeReadModelEntry,
+    InternalNoticeReadModelStore,
+)
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
@@ -26,6 +32,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NoticeConsumptionProjectionEntry,
     NoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
+    is_notice_query_retained_consumption_status,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -299,6 +306,95 @@ def build_wechat_public_notice_read_model_evidence_entries(
             )
         )
     return tuple(sorted(evidence, key=lambda item: item.source_notice_id))
+
+
+def build_wechat_public_notice_read_model_entries(
+    entries: Sequence[NoticeConsumptionProjectionEntry],
+) -> tuple[InternalNoticeReadModelEntry, ...]:
+    rows: list[InternalNoticeReadModelEntry] = []
+    for entry in entries:
+        metadata = dict(entry.role_metadata or {})
+        title = (
+            _text(metadata.get("notice_title"))
+            or _text(metadata.get("title"))
+            or _text(metadata.get("title_normalized"))
+            or entry.source_notice_id
+        )
+        source_url = _text(metadata.get("source_url")) or _text(
+            metadata.get("normalized_article_url")
+        ) or _text(metadata.get("article_url"))
+        canonical_document_id = entry.source_notice_document_id or entry.source_document_id
+        body_excerpt = _build_wechat_read_model_body_excerpt(metadata=metadata, title=title)
+        rows.append(
+            InternalNoticeReadModelEntry(
+                source_family=entry.source_family,
+                source_corpus=entry.source_corpus,
+                source_collection=entry.source_collection,
+                source_notice_id=entry.source_notice_id,
+                unit_id=entry.unit_id,
+                primary_role=entry.primary_role,
+                target_surface=entry.target_surface,
+                consumption_status=entry.consumption_status,
+                queryable=_is_wechat_read_model_queryable(entry),
+                title=title,
+                published_at=_text(metadata.get("publish_time"))
+                or str(entry.source_notice_release_time or "").strip(),
+                source_url=source_url,
+                canonical_url=source_url,
+                canonical_document_id=canonical_document_id,
+                canonical_markdown_object_key="",
+                attachment_refs=entry.source_attachment_ref_ids,
+                provenance_refs=_build_wechat_read_model_provenance_refs(
+                    entry=entry,
+                    metadata=metadata,
+                    canonical_document_id=canonical_document_id,
+                ),
+                body_excerpt=body_excerpt,
+                search_text=_build_wechat_read_model_search_text(
+                    entry=entry,
+                    title=title,
+                    body_excerpt=body_excerpt,
+                    source_url=source_url,
+                    metadata=metadata,
+                ),
+                projection_updated_at=entry.updated_at,
+            )
+        )
+    return tuple(sorted(rows, key=lambda item: (item.source_notice_id, item.unit_id)))
+
+
+def materialize_wechat_public_notice_read_model(
+    *,
+    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    read_model_store: InternalNoticeReadModelStore,
+) -> tuple[InternalNoticeReadModelEntry, ...]:
+    if not projection_entries:
+        return ()
+    source_corpus = projection_entries[0].source_corpus
+    source_collection = projection_entries[0].source_collection
+    notice_ids = tuple(
+        sorted(
+            {
+                entry.source_notice_id
+                for entry in projection_entries
+                if entry.source_notice_id.strip()
+            }
+        )
+    )
+    if not notice_ids:
+        return ()
+    rows = build_wechat_public_notice_read_model_entries(projection_entries)
+    read_model_store.replace_notices(
+        source_corpus,
+        source_collection,
+        notice_ids=notice_ids,
+        records=rows,
+    )
+    return read_model_store.list_by_scope(
+        source_corpus,
+        source_collection,
+        notice_ids=notice_ids,
+    )
 
 
 def parse_wechat_projection_selection_path(
@@ -739,6 +835,70 @@ def _build_source_object_store(
     return S3ObjectStoreAdmin(settings)
 
 
+def _is_wechat_read_model_queryable(entry: NoticeConsumptionProjectionEntry) -> bool:
+    return (
+        is_notice_query_retained_consumption_status(entry.consumption_status)
+        and entry.target_surface == NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
+    )
+
+
+def _build_wechat_read_model_body_excerpt(
+    *,
+    metadata: Mapping[str, object],
+    title: str,
+) -> str:
+    excerpt = (
+        _text(metadata.get("title_normalized"))
+        or _text(metadata.get("title"))
+        or _text(metadata.get("notice_title"))
+        or title
+    )
+    return excerpt[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
+
+
+def _build_wechat_read_model_provenance_refs(
+    *,
+    entry: NoticeConsumptionProjectionEntry,
+    metadata: Mapping[str, object],
+    canonical_document_id: str,
+) -> tuple[str, ...]:
+    return _string_tuple(
+        (
+            entry.source_notice_document_id,
+            entry.source_document_id,
+            canonical_document_id,
+            metadata.get("manifest_key"),
+            metadata.get("content_blocks_key"),
+            metadata.get("media_refs_key"),
+            entry.unit_id,
+        )
+    )
+
+
+def _build_wechat_read_model_search_text(
+    *,
+    entry: NoticeConsumptionProjectionEntry,
+    title: str,
+    body_excerpt: str,
+    source_url: str,
+    metadata: Mapping[str, object],
+) -> str:
+    parts = (
+        title,
+        entry.source_notice_id,
+        entry.primary_role,
+        entry.target_surface,
+        source_url,
+        _text(metadata.get("account_name")),
+        _text(metadata.get("account_slug")),
+        _text(metadata.get("provider_article_id")),
+        body_excerpt,
+    )
+    return "\n".join(part for part in parts if part).strip()[
+        :DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS
+    ]
+
+
 def _source_family_priority(source_family: str) -> int:
     normalized = source_family.strip()
     if normalized == NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED:
@@ -850,7 +1010,9 @@ __all__ = [
     "WeChatReadModelEvidenceEntry",
     "WeChatSourceTruthArtifactRefs",
     "build_wechat_public_notice_projection_entries",
+    "build_wechat_public_notice_read_model_entries",
     "build_wechat_public_notice_read_model_evidence_entries",
+    "materialize_wechat_public_notice_read_model",
     "parse_wechat_projection_selection_path",
     "rebuild_wechat_public_notice_projection",
 ]
