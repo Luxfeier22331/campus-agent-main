@@ -1,7 +1,12 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { ChatMessageStructuredPart, ChatPlaceCard, ChatSourceCard } from "../../chat";
+import type {
+	ChatCampusServiceTraceCard,
+	ChatMessageStructuredPart,
+	ChatPlaceCard,
+	ChatSourceCard,
+} from "../../chat";
 import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
 import {
 	normalizeVersionQuery,
@@ -52,6 +57,9 @@ const INTERNAL_LOCATOR_PATTERNS = [
 	/\b(?:program_semester_facts|program_family_facts|course_facts|curriculum|handbook|official_web|student_rules|service_catalog|campus_services|authenticated_notice|internal_notice|notice):/iu,
 	/\bchunk-[a-z0-9_-]+\b/iu,
 	/\[[^\]\n]*#[^\]\n]*\]/u,
+	/(?:release[_-]?id|projection(?:_id|_table)?|table_parser_state|debug[_-]?only)\s*[:=]/iu,
+	/\bingestion_projection\b/iu,
+	/\bs3:\/\//iu,
 ];
 
 function collapseAssistantTextWhitespace(text: string): string {
@@ -179,6 +187,18 @@ function recordStringArray(
 ): string[] {
 	const value = snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
 	return normalizeStringArray(value);
+}
+
+function recordObjectArray(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): Record<string, unknown>[] {
+	const value = snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is Record<string, unknown> => isRecord(item));
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -452,12 +472,203 @@ export function normalizeSourceCardsPart(input: {
 		: [];
 }
 
+const UNSAFE_CAMPUS_SERVICE_TRACE_TOKEN_PATTERN =
+	/(?:release[_-]?id|ingestion_projection|table_parser_state|debug[_-]?only|postgres|s3:\/\/)/iu;
+
+const SAFE_CAMPUS_SERVICE_REF_PREFIX_PATTERNS = [
+	/^authenticated_notice:\d+$/iu,
+	/^official_web:[a-z0-9._:-]{2,200}$/iu,
+	/^handbook:[a-z0-9._:-]{2,200}$/iu,
+	/^service_catalog:[a-z0-9._:-]{2,200}$/iu,
+	/^contact_directory:[a-z0-9._:-]{2,200}$/iu,
+	/^notice:[a-z0-9._:-]{2,200}$/iu,
+];
+
+function normalizeCampusServiceTraceRef(ref: string): string | null {
+	const normalized = ref.trim();
+	if (!(normalized && normalized.length <= 220)) {
+		return null;
+	}
+	if (UNSAFE_CAMPUS_SERVICE_TRACE_TOKEN_PATTERN.test(normalized)) {
+		return null;
+	}
+	if (!SAFE_CAMPUS_SERVICE_REF_PREFIX_PATTERNS.some((pattern) => pattern.test(normalized))) {
+		return null;
+	}
+	return normalized;
+}
+
+function dedupeStable(values: string[]): string[] {
+	const seen = new Set<string>();
+	const deduped: string[] = [];
+	for (const value of values) {
+		if (seen.has(value)) {
+			continue;
+		}
+		seen.add(value);
+		deduped.push(value);
+	}
+	return deduped;
+}
+
+function formatCampusServiceTraceRef(ref: string): string {
+	if (ref.startsWith("authenticated_notice:")) {
+		return `认证通知 #${ref.split(":").at(-1)}`;
+	}
+	if (ref.startsWith("official_web:")) {
+		return `官网来源：${ref.split(":").slice(1).join("/")}`;
+	}
+	if (ref.startsWith("handbook:")) {
+		return `手册来源：${ref.split(":").slice(1).join("/")}`;
+	}
+	if (ref.startsWith("service_catalog:")) {
+		return `服务目录：${ref.split(":").slice(1).join("/")}`;
+	}
+	if (ref.startsWith("contact_directory:")) {
+		return `联系人目录：${ref.split(":").slice(1).join("/")}`;
+	}
+	if (ref.startsWith("notice:")) {
+		return `通知来源：${ref.split(":").slice(1).join("/")}`;
+	}
+	return ref;
+}
+
+function collectCampusServiceTraceRefsFromRecord(input: {
+	record: Record<string, unknown>;
+	noticeRefs: string[];
+	sourceRefs: string[];
+}) {
+	input.noticeRefs.push(
+		...recordStringArray(input.record, "related_notice_refs", "relatedNoticeRefs"),
+	);
+	input.noticeRefs.push(...recordStringArray(input.record, "notice_refs", "noticeRefs"));
+	input.sourceRefs.push(...recordStringArray(input.record, "source_refs", "sourceRefs"));
+	input.sourceRefs.push(
+		...recordStringArray(input.record, "override_source_refs", "overrideSourceRefs"),
+	);
+	const rootSourceRef = recordString(input.record, "source_ref", "sourceRef");
+	if (rootSourceRef) {
+		input.sourceRefs.push(rootSourceRef);
+	}
+
+	for (const nestedRecord of [
+		...recordObjectArray(input.record, "operational_notices", "operationalNotices"),
+		...recordObjectArray(input.record, "contact_points", "contactPoints"),
+		...recordObjectArray(input.record, "location_refs", "locationRefs"),
+		...recordObjectArray(input.record, "office_hours", "officeHours"),
+		...recordObjectArray(input.record, "guide_sections", "guideSections"),
+		...recordObjectArray(input.record, "required_materials", "requiredMaterials"),
+		...recordObjectArray(input.record, "entry_refs", "entryRefs"),
+		...recordObjectArray(input.record, "contact_refs", "contactRefs"),
+	]) {
+		input.sourceRefs.push(...recordStringArray(nestedRecord, "source_refs", "sourceRefs"));
+		const nestedSourceRef = recordString(nestedRecord, "source_ref", "sourceRef");
+		if (nestedSourceRef) {
+			input.sourceRefs.push(nestedSourceRef);
+		}
+		input.noticeRefs.push(
+			...recordStringArray(nestedRecord, "related_notice_refs", "relatedNoticeRefs"),
+		);
+	}
+}
+
+function campusServiceResultRecords(result: unknown): Record<string, unknown>[] {
+	if (!isRecord(result)) {
+		return [];
+	}
+	const records: Record<string, unknown>[] = [result];
+	const toolResult = isRecord(result.tool_result)
+		? result.tool_result
+		: isRecord(result.toolResult)
+			? result.toolResult
+			: null;
+	if (toolResult && toolResult !== result) {
+		records.push(toolResult);
+	}
+	return records;
+}
+
+function buildCampusServiceTraceCards(input: {
+	noticeRefs: string[];
+	sourceRefs: string[];
+}): ChatCampusServiceTraceCard[] {
+	const normalizedNoticeRefs = dedupeStable(
+		input.noticeRefs
+			.map((item) => normalizeCampusServiceTraceRef(item))
+			.filter((item): item is string => item !== null),
+	);
+	const noticeRefSet = new Set(normalizedNoticeRefs);
+	const normalizedSourceRefs = dedupeStable(
+		input.sourceRefs
+			.map((item) => normalizeCampusServiceTraceRef(item))
+			.filter((item): item is string => item !== null)
+			.filter((item) => !noticeRefSet.has(item)),
+	);
+	const noticeLabels = normalizedNoticeRefs.map(formatCampusServiceTraceRef).slice(0, 6);
+	const sourceLabels = normalizedSourceRefs.map(formatCampusServiceTraceRef).slice(0, 8);
+	const cards: ChatCampusServiceTraceCard[] = [];
+	if (noticeLabels.length > 0) {
+		cards.push({
+			title: "相关通知",
+			refs: noticeLabels,
+		});
+	}
+	if (sourceLabels.length > 0) {
+		cards.push({
+			title: "信息来源",
+			refs: sourceLabels,
+		});
+	}
+	return cards;
+}
+
+export function normalizeCampusServiceTracePart(input: {
+	selectedTarget: string | null;
+	status: SupervisorExecutionResponse["status"];
+	result: unknown;
+}): ChatMessageStructuredPart[] {
+	if (input.selectedTarget !== "campus-services-agent" || input.status !== "completed") {
+		return [];
+	}
+
+	const records = campusServiceResultRecords(input.result);
+	if (records.length === 0) {
+		return [];
+	}
+
+	const noticeRefs: string[] = [];
+	const sourceRefs: string[] = [];
+	for (const record of records) {
+		collectCampusServiceTraceRefsFromRecord({
+			record,
+			noticeRefs,
+			sourceRefs,
+		});
+	}
+	const traceCards = buildCampusServiceTraceCards({
+		noticeRefs,
+		sourceRefs,
+	});
+	return traceCards.length > 0
+		? [
+				{
+					type: "campus_service_trace_cards",
+					traceCards,
+				},
+			]
+		: [];
+}
+
 export function normalizeChatResponseStructuredParts(input: {
 	selectedTarget: string | null;
 	status: SupervisorExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	return [...normalizePlaceCardPart(input), ...normalizeSourceCardsPart(input)];
+	return [
+		...normalizePlaceCardPart(input),
+		...normalizeSourceCardsPart(input),
+		...normalizeCampusServiceTracePart(input),
+	];
 }
 
 export function extractSourceDocIds(result: unknown): string[] {
@@ -481,6 +692,318 @@ export function extractSourceDocIds(result: unknown): string[] {
 		.filter((sourceDocumentId): sourceDocumentId is string => Boolean(sourceDocumentId));
 
 	return Array.from(new Set(sourceDocIds));
+}
+
+function dedupeStringList(values: string[]): string[] {
+	return Array.from(new Set(values.filter((value) => value.length > 0)));
+}
+
+function normalizeSourceRefCategory(reference: string): string | null {
+	const prefix = reference.split(":", 1)[0]?.toLowerCase() ?? "";
+	if (prefix === "authenticated_notice" || prefix === "internal_notice" || prefix === "notice") {
+		return "校内通知";
+	}
+	if (prefix === "official_web") {
+		return "学校官网";
+	}
+	if (prefix === "service_catalog" || prefix === "campus_services") {
+		return "服务目录";
+	}
+	return null;
+}
+
+function normalizeSourceRefSummary(referenceCandidates: string[]): string {
+	const categories = dedupeStringList(
+		referenceCandidates
+			.map((reference) => normalizeSourceRefCategory(reference))
+			.filter((category): category is string => category !== null),
+	);
+	return categories.length > 0 ? `来源：${categories.join("、")}` : "";
+}
+
+function collectNestedSourceRefs(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.flatMap((entry) =>
+		isRecord(entry) ? recordStringArray(entry, "source_refs", "sourceRefs") : [],
+	);
+}
+
+function appendSourceSummary(text: string, referenceCandidates: string[]): string {
+	const summary = normalizeSourceRefSummary(referenceCandidates);
+	if (!summary) {
+		return text;
+	}
+	return `${text}（${summary}）`;
+}
+
+function ensureSentenceEnd(text: string): string {
+	const normalized = normalizeOptionalString(text);
+	if (!normalized) {
+		return "";
+	}
+	return /[。！？!?]$/u.test(normalized) ? normalized : `${normalized}。`;
+}
+
+function normalizeIsoTimeLabel(value: unknown): string | null {
+	const normalized = normalizeOptionalString(value);
+	if (!normalized) {
+		return null;
+	}
+	const match = normalized.match(/T(\d{2}:\d{2})/u);
+	return match?.[1] ?? null;
+}
+
+function normalizeCampusServicesToolResult(result: unknown): Record<string, unknown> | null {
+	if (!isRecord(result)) {
+		return null;
+	}
+	if (isRecord(result.tool_result)) {
+		return result.tool_result;
+	}
+	if (isRecord(result.toolResult)) {
+		return result.toolResult;
+	}
+	return null;
+}
+
+function normalizeCampusServicesToolName(result: unknown): string | null {
+	if (!isRecord(result)) {
+		return null;
+	}
+	const payloadKind = normalizeOptionalString(result.payload_kind ?? result.payloadKind);
+	if (payloadKind) {
+		return payloadKind;
+	}
+	if (Array.isArray(result.allowed_tools)) {
+		const firstTool = normalizeOptionalString(result.allowed_tools[0]);
+		return firstTool;
+	}
+	return null;
+}
+
+function renderServiceStatusLookupAnswer(toolResult: Record<string, unknown>): string | null {
+	const resolvedSubject =
+		recordString(toolResult, "resolved_subject", "resolvedSubject") ?? "相关服务";
+	const statusNote = recordString(toolResult, "status_note", "statusNote");
+	const notices = Array.isArray(toolResult.operational_notices)
+		? toolResult.operational_notices
+				.map((notice) =>
+					isRecord(notice)
+						? (recordString(notice, "note", "note") ??
+							recordString(notice, "content", "content") ??
+							recordString(notice, "title", "title"))
+						: null,
+				)
+				.filter((notice): notice is string => Boolean(notice))
+				.slice(0, 2)
+		: [];
+	const fallbackStatus = recordString(toolResult, "observed_status", "observedStatus");
+	const normalizedStatus =
+		fallbackStatus === "running"
+			? "当前状态：正常运行"
+			: fallbackStatus === "limited_service"
+				? "当前状态：有限运行"
+				: fallbackStatus === "suspended"
+					? "当前状态：暂停服务"
+					: "";
+	const clauses = [
+		statusNote ? `${resolvedSubject}：${statusNote}` : "",
+		statusNote ? "" : normalizedStatus,
+		notices.length > 0 ? `最新提示：${notices.join("；")}` : "",
+	].filter(Boolean);
+	if (clauses.length === 0) {
+		return null;
+	}
+	const referenceCandidates = [
+		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
+		...recordStringArray(toolResult, "related_notice_refs", "relatedNoticeRefs"),
+		...recordStringArray(toolResult, "override_source_refs", "overrideSourceRefs"),
+		...collectNestedSourceRefs(toolResult.operational_notices),
+	];
+	return ensureSentenceEnd(appendSourceSummary(clauses.join(" "), referenceCandidates));
+}
+
+function renderTransportScheduleLookupAnswer(toolResult: Record<string, unknown>): string | null {
+	const resolvedRoute =
+		isRecord(toolResult.resolved_route) || isRecord(toolResult.resolvedRoute)
+			? ((toolResult.resolved_route ?? toolResult.resolvedRoute) as Record<string, unknown>)
+			: null;
+	const selectedDeparture =
+		isRecord(toolResult.selected_departure) || isRecord(toolResult.selectedDeparture)
+			? ((toolResult.selected_departure ?? toolResult.selectedDeparture) as Record<string, unknown>)
+			: null;
+	const routeName = resolvedRoute
+		? (recordString(resolvedRoute, "display_name", "displayName") ?? "通勤班车")
+		: "通勤班车";
+	const departureTime = normalizeIsoTimeLabel(
+		selectedDeparture?.departure_at ?? selectedDeparture?.departureAt,
+	);
+	const originStop = isRecord(
+		selectedDeparture?.origin_stop_ref ?? selectedDeparture?.originStopRef,
+	)
+		? ((selectedDeparture?.origin_stop_ref ?? selectedDeparture?.originStopRef) as Record<
+				string,
+				unknown
+			>)
+		: null;
+	const destinationStop = isRecord(
+		selectedDeparture?.destination_stop_ref ?? selectedDeparture?.destinationStopRef,
+	)
+		? ((selectedDeparture?.destination_stop_ref ?? selectedDeparture?.destinationStopRef) as Record<
+				string,
+				unknown
+			>)
+		: null;
+	const originName = originStop ? recordString(originStop, "display_name", "displayName") : null;
+	const destinationName = destinationStop
+		? recordString(destinationStop, "display_name", "displayName")
+		: null;
+	const routeDirection =
+		originName && destinationName ? `（${originName} -> ${destinationName}）` : "";
+	const base = departureTime ? `${routeName}首班车时间为 ${departureTime}${routeDirection}` : "";
+	if (!base) {
+		return null;
+	}
+	const referenceCandidates = [
+		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
+		...recordStringArray(toolResult, "related_notice_refs", "relatedNoticeRefs"),
+		...collectNestedSourceRefs(toolResult.schedule_items ?? toolResult.scheduleItems),
+		...collectNestedSourceRefs(toolResult.upcoming_departures ?? toolResult.upcomingDepartures),
+	];
+	return ensureSentenceEnd(appendSourceSummary(base, referenceCandidates));
+}
+
+function renderServiceGuideLookupAnswer(toolResult: Record<string, unknown>): string | null {
+	const resolvedService =
+		isRecord(toolResult.resolved_service) || isRecord(toolResult.resolvedService)
+			? ((toolResult.resolved_service ?? toolResult.resolvedService) as Record<string, unknown>)
+			: null;
+	const serviceName = resolvedService
+		? (recordString(resolvedService, "display_name", "displayName") ?? "该服务")
+		: "该服务";
+	const guideSections = Array.isArray(toolResult.guide_sections ?? toolResult.guideSections)
+		? ((toolResult.guide_sections ?? toolResult.guideSections) as unknown[])
+				.map((section) => {
+					if (!isRecord(section)) {
+						return null;
+					}
+					const content = recordString(section, "content", "content");
+					if (!content) {
+						return null;
+					}
+					const title = recordString(section, "title", "title");
+					return title ? `${title}：${content}` : content;
+				})
+				.filter((section): section is string => Boolean(section))
+				.slice(0, 2)
+		: [];
+	const entryRefs = Array.isArray(toolResult.entry_refs ?? toolResult.entryRefs)
+		? ((toolResult.entry_refs ?? toolResult.entryRefs) as unknown[])
+				.map((entry) => (isRecord(entry) ? recordString(entry, "label", "label") : null))
+				.filter((label): label is string => Boolean(label))
+				.slice(0, 2)
+		: [];
+	const clauses = [
+		guideSections.length > 0 ? `${serviceName}：${guideSections.join("；")}` : "",
+		entryRefs.length > 0 ? `可用入口：${entryRefs.join("、")}` : "",
+	].filter(Boolean);
+	if (clauses.length === 0) {
+		return null;
+	}
+	const referenceCandidates = [
+		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
+		...recordStringArray(toolResult, "related_notice_refs", "relatedNoticeRefs"),
+		...collectNestedSourceRefs(toolResult.guide_sections ?? toolResult.guideSections),
+		...collectNestedSourceRefs(toolResult.entry_refs ?? toolResult.entryRefs),
+	];
+	return ensureSentenceEnd(appendSourceSummary(clauses.join(" "), referenceCandidates));
+}
+
+function renderContactDirectoryLookupAnswer(toolResult: Record<string, unknown>): string | null {
+	const resolvedContact =
+		isRecord(toolResult.resolved_contact) || isRecord(toolResult.resolvedContact)
+			? ((toolResult.resolved_contact ?? toolResult.resolvedContact) as Record<string, unknown>)
+			: null;
+	const contactName = resolvedContact
+		? (recordString(resolvedContact, "display_name", "displayName") ?? "该部门")
+		: "该部门";
+	const contactPoints = Array.isArray(toolResult.contact_points ?? toolResult.contactPoints)
+		? ((toolResult.contact_points ?? toolResult.contactPoints) as unknown[])
+				.map((point) => {
+					if (!isRecord(point)) {
+						return null;
+					}
+					const value = recordString(point, "value", "value");
+					if (!value) {
+						return null;
+					}
+					const label = recordString(point, "label", "label");
+					return label ? `${label}：${value}` : value;
+				})
+				.filter((point): point is string => Boolean(point))
+				.slice(0, 2)
+		: [];
+	const locationRefs = Array.isArray(toolResult.location_refs ?? toolResult.locationRefs)
+		? ((toolResult.location_refs ?? toolResult.locationRefs) as unknown[])
+				.map((location) => {
+					if (!isRecord(location)) {
+						return null;
+					}
+					const locationRef =
+						recordString(location, "location_ref", "locationRef") ??
+						recordString(location, "value", "value");
+					if (!locationRef) {
+						return null;
+					}
+					const label = recordString(location, "label", "label");
+					return label ? `${label}：${locationRef}` : locationRef;
+				})
+				.filter((location): location is string => Boolean(location))
+				.slice(0, 1)
+		: [];
+	const clauses = [
+		contactPoints.length > 0 ? `${contactName}联系方式：${contactPoints.join("；")}` : "",
+		locationRefs.length > 0 ? `办公地点：${locationRefs[0]}` : "",
+	].filter(Boolean);
+	if (clauses.length === 0) {
+		return null;
+	}
+	const referenceCandidates = [
+		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
+		...collectNestedSourceRefs(toolResult.contact_points ?? toolResult.contactPoints),
+		...collectNestedSourceRefs(toolResult.location_refs ?? toolResult.locationRefs),
+	];
+	return ensureSentenceEnd(appendSourceSummary(clauses.join(" "), referenceCandidates));
+}
+
+export function synthesizeCampusServicesAssistantText(input: {
+	result: unknown;
+	selectedTarget: string | null;
+	status: SupervisorExecutionResponse["status"];
+}): string | null {
+	if (input.status !== "completed" || input.selectedTarget !== "campus-services-agent") {
+		return null;
+	}
+	const toolName = normalizeCampusServicesToolName(input.result);
+	const toolResult = normalizeCampusServicesToolResult(input.result);
+	if (!(toolName && toolResult)) {
+		return null;
+	}
+	if (toolName === "service_status_lookup") {
+		return renderServiceStatusLookupAnswer(toolResult);
+	}
+	if (toolName === "transport_schedule_lookup") {
+		return renderTransportScheduleLookupAnswer(toolResult);
+	}
+	if (toolName === "service_guide_lookup") {
+		return renderServiceGuideLookupAnswer(toolResult);
+	}
+	if (toolName === "contact_directory_lookup") {
+		return renderContactDirectoryLookupAnswer(toolResult);
+	}
+	return null;
 }
 
 export function resolveValidatedPayload(

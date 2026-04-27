@@ -4,6 +4,8 @@ export type {
 	ChatConversationResponse,
 	ChatConversationSummary,
 	ChatConversationSummaryResponse,
+	ChatCampusServiceTraceCard,
+	ChatCampusServiceTraceCardsStructuredPart,
 	ChatMessage,
 	ChatMessageRole,
 	ChatMessageStructuredPart,

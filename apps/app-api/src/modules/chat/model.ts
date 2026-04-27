@@ -43,7 +43,20 @@ export interface ChatSourceCardsStructuredPart {
 	sourceCards: ChatSourceCard[];
 }
 
-export type ChatMessageStructuredPart = ChatPlaceCardStructuredPart | ChatSourceCardsStructuredPart;
+export interface ChatCampusServiceTraceCard {
+	title: string;
+	refs: string[];
+}
+
+export interface ChatCampusServiceTraceCardsStructuredPart {
+	type: "campus_service_trace_cards";
+	traceCards: ChatCampusServiceTraceCard[];
+}
+
+export type ChatMessageStructuredPart =
+	| ChatPlaceCardStructuredPart
+	| ChatSourceCardsStructuredPart
+	| ChatCampusServiceTraceCardsStructuredPart;
 
 export interface ChatSessionSlot {
 	confirmed: boolean;
@@ -243,6 +256,51 @@ function normalizeSourceCards(value: unknown): ChatSourceCard[] {
 		.slice(0, 5);
 }
 
+const UNSAFE_TRACE_TOKEN_PATTERN =
+	/(?:release[_-]?id|ingestion_projection|table_parser_state|debug[_-]?only|s3:\/\/|postgres)/iu;
+
+function isSafeTraceLabel(value: string): boolean {
+	if (!value.trim()) {
+		return false;
+	}
+	if (value.length > 160) {
+		return false;
+	}
+	return !UNSAFE_TRACE_TOKEN_PATTERN.test(value);
+}
+
+function normalizeCampusServiceTraceCard(value: unknown): ChatCampusServiceTraceCard | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const title = normalizeOptionalString(value.title);
+	if (!(title && isSafeTraceLabel(title))) {
+		return null;
+	}
+
+	const refs = normalizeStringArray(value.refs).filter(isSafeTraceLabel).slice(0, 8);
+	if (refs.length === 0) {
+		return null;
+	}
+
+	return {
+		title,
+		refs,
+	};
+}
+
+function normalizeCampusServiceTraceCards(value: unknown): ChatCampusServiceTraceCard[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value
+		.map((item) => normalizeCampusServiceTraceCard(item))
+		.filter((item): item is ChatCampusServiceTraceCard => item !== null)
+		.slice(0, 3);
+}
+
 function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | null {
 	if (!isRecord(value)) {
 		return null;
@@ -269,6 +327,18 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		return {
 			type: "source_cards",
 			sourceCards,
+		};
+	}
+
+	if (value.type === "campus_service_trace_cards") {
+		const traceCards = normalizeCampusServiceTraceCards(value.traceCards);
+		if (traceCards.length === 0) {
+			return null;
+		}
+
+		return {
+			type: "campus_service_trace_cards",
+			traceCards,
 		};
 	}
 

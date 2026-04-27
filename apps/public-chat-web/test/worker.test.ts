@@ -172,7 +172,8 @@ function buildCampusServicesExecutionResponse(
 	route: CampusServicesRoutingCase,
 ): SupervisorExecutionResponse {
 	return {
-		answerText: `${route.expectedAnswerFragment}。`,
+		answerText:
+			"debug projection_internal_state release_id=campus_services_release authenticated_notice:355122 official_web:graduate-school:contact",
 		error: null,
 		followUpQuestion: "",
 		observability: {
@@ -1182,6 +1183,12 @@ describe("public chat web worker shell", () => {
 				kind: "answer",
 				text: expect.stringContaining(route.expectedAnswerFragment),
 			});
+			if (payload.answer?.result?.text) {
+				expect(payload.answer.result.text).not.toContain("projection_internal_state");
+				expect(payload.answer.result.text).not.toContain("campus_services_release");
+				expect(payload.answer.result.text).not.toContain("authenticated_notice:");
+				expect(payload.answer.result.text).not.toContain("official_web:");
+			}
 		}
 
 		expect(supervisor.execute).toHaveBeenCalledTimes(CAMPUS_SERVICES_ROUTING_CASES.length);

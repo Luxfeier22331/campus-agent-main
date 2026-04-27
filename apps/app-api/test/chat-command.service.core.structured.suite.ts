@@ -77,6 +77,167 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 		expectNoInternalLocators(response.answer.result.text);
 		expect(response.answer.result.text).toBe("第四学期有合同法、人格权法、侵权责任法。");
 	});
+	it("renders campus-services answers from structured tool facts and safe source categories", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const cases = [
+			{
+				answerText:
+					"debug projection_internal_state release_id=service_status_release_v2 authenticated_notice:355122",
+				expected: [
+					"丰台校区通勤班车乘车点：当前乘车点为丰台校区北门外班车候车点。",
+					"最新提示：受大风影响，晚间班次临时取消。",
+					"来源：校内通知",
+				],
+				forbidden: [
+					"projection_internal_state",
+					"service_status_release_v2",
+					"authenticated_notice:355122",
+				],
+				prompt: "丰台校区通勤班车在哪里上车",
+				result: {
+					payload_kind: "service_status_lookup",
+					tool_result: {
+						observed_status: "limited_service",
+						operational_notices: [
+							{
+								note: "受大风影响，晚间班次临时取消。",
+								source_refs: ["authenticated_notice:355122"],
+							},
+						],
+						related_notice_refs: ["authenticated_notice:355122"],
+						resolved_subject: "丰台校区通勤班车乘车点",
+						status_note: "当前乘车点为丰台校区北门外班车候车点。",
+					},
+				},
+			},
+			{
+				answerText:
+					"raw_table_parser_state=true guide_release=service_guide_release_v3 authenticated_notice:354777",
+				expected: [
+					"地铁接驳车预约：预约入口：通过学校统一预约入口提交地铁接驳车预约。",
+					"可用入口：统一预约入口",
+					"来源：校内通知",
+				],
+				forbidden: [
+					"raw_table_parser_state",
+					"service_guide_release_v3",
+					"authenticated_notice:354777",
+				],
+				prompt: "地铁接驳车怎么预约",
+				result: {
+					allowed_tools: ["service_guide_lookup"],
+					tool_result: {
+						entry_refs: [
+							{
+								label: "统一预约入口",
+								source_refs: ["authenticated_notice:354777"],
+							},
+						],
+						guide_sections: [
+							{
+								content: "通过学校统一预约入口提交地铁接驳车预约。",
+								source_refs: ["authenticated_notice:354777"],
+								title: "预约入口",
+							},
+						],
+						resolved_service: {
+							display_name: "地铁接驳车预约",
+						},
+						source_refs: ["authenticated_notice:354777"],
+					},
+				},
+			},
+			{
+				answerText:
+					"debug_contact_profile release_id=contact_release_02 official_web:graduate-school:contact",
+				expected: [
+					"研究生院办公室联系方式：办公室电话：010-68930001",
+					"办公地点：海淀校区研究生院",
+					"来源：学校官网",
+				],
+				forbidden: [
+					"debug_contact_profile",
+					"contact_release_02",
+					"official_web:graduate-school:contact",
+				],
+				prompt: "研究生院办公室电话是多少",
+				result: {
+					payload_kind: "contact_directory_lookup",
+					tool_result: {
+						contact_points: [
+							{
+								label: "办公室电话",
+								source_refs: ["official_web:graduate-school:contact"],
+								value: "010-68930001",
+							},
+						],
+						location_refs: [
+							{
+								location_ref: "海淀校区研究生院",
+								source_refs: ["official_web:graduate-school:contact"],
+							},
+						],
+						resolved_contact: {
+							display_name: "研究生院办公室",
+						},
+						source_refs: ["official_web:graduate-school:contact"],
+					},
+				},
+			},
+		] as const;
+		const supervisor: SupervisorExecutionClient = {
+			execute: vi.fn(async (input) => {
+				const currentCase = cases.find((candidate) => candidate.prompt === input.userGoal);
+				if (!currentCase) {
+					throw new Error(`Unexpected campus-services prompt: ${input.userGoal}`);
+				}
+				return {
+					answerText: currentCase.answerText,
+					error: null,
+					followUpQuestion: "",
+					result: currentCase.result,
+					selectedTarget: "campus-services-agent",
+					status: "completed",
+					traceId: "trace_0003",
+				} as const;
+			}),
+		};
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore,
+			store,
+			supervisor,
+		});
+
+		for (const [index, currentCase] of cases.entries()) {
+			const response = await service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: currentCase.prompt,
+				},
+				principal: createPrincipal(),
+				surface: "public_chat_web",
+			});
+			expect(response.answer.result.kind).toBe("answer");
+			if (response.answer.result.kind !== "answer") {
+				throw new Error("expected completed answer result");
+			}
+			const answerText = response.answer.result.text;
+			expectNoInternalLocators(answerText);
+			for (const expectedFragment of currentCase.expected) {
+				expect(answerText).toContain(expectedFragment);
+			}
+			for (const forbiddenFragment of currentCase.forbidden) {
+				expect(answerText).not.toContain(forbiddenFragment);
+			}
+
+			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
+			expect(finalizedWrite.assistantMessage.text).toBe(answerText);
+			expect(finalizedWrite.requestExecution.selectedTarget).toBe("campus-services-agent");
+		}
+	});
 	it("persists navigation place cards into assistant structured parts", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();

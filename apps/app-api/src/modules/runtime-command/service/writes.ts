@@ -23,6 +23,7 @@ import {
 	normalizeChatResponseStructuredParts,
 	previewText,
 	sanitizePublicAssistantText,
+	synthesizeCampusServicesAssistantText,
 } from "./normalize";
 import type { ChatCommandResponse, ChatCommandResult } from "./types";
 
@@ -298,7 +299,12 @@ export function buildFinalizedWrite(input: {
 		status = input.response.status;
 	} else {
 		assistantKind = "answer";
-		assistantText = input.response.answerText;
+		assistantText =
+			synthesizeCampusServicesAssistantText({
+				result: input.response.result,
+				selectedTarget: input.response.selectedTarget,
+				status: input.response.status,
+			}) ?? input.response.answerText;
 		outboxEventType = "request.completed";
 		result = {
 			kind: "answer",
