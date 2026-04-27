@@ -13,8 +13,8 @@ updated: 2026-04-27
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 4`
-- current focus: `Phase 3` 已完成 Rspress native shell IA、`/docs/:corpus/:collection/:documentSlug` published reader source route、sidebar builder、local scaffold 与 generated guard 收口；下一步规划 docs search UX、version navigation 与 deep-link state
+- current phase: `Phase 5`
+- current focus: `Phase 4` 已完成 docs search enhancement、current/historical static reader version routes、reader anchor/highlight state 与低打扰版本切换；下一步规划 public chat source cards 与 canonical reader jump integration
 
 ## Native Planning Truth
 

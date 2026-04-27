@@ -9,17 +9,18 @@ updated: 2026-04-27
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 4
-**Current Phase Name:** Docs Search, Version Navigation, And Static Reader State
+**Current Phase:** 5
+**Current Phase Name:** Chat Source Cards And Canonical Jump Integration
 **Current Plan:** pending
 **Total Phases:** 6
 **Total Plans in Phase:** 0
-**Progress:** 3/6 phases complete
+**Progress:** 4/6 phases complete
 **Last Activity:** 2026-04-27
-**Last Activity Description:** Completed Phase 3 closeout: public-docs
-published reader source route, Rspress sidebar builder, local scaffold and
-generated content guard now share the `/docs/:corpus/:collection/:documentSlug`
-information architecture without replacing the native Rspress shell.
+**Last Activity Description:** Completed Phase 4 closeout: docs search
+enhancement, current/historical static reader version routes, anchor/highlight
+reader state and low-disturbance version switcher now share the
+`/docs/:corpus/:collection/:documentSlug` information architecture without
+replacing the native Rspress shell.
 
 ## Current Slice
 
@@ -40,7 +41,12 @@ information architecture without replacing the native Rspress shell.
   - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-3-public-docs-shell-convergence-and-information-architecture/PLAN.md`
   - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-3-public-docs-shell-convergence-and-information-architecture/SUMMARY.md`
 
-- next `Phase 4` artifacts:
+- completed `Phase 4` artifacts:
+  - context: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-4-docs-search-version-navigation-and-static-reader-state/CONTEXT.md`
+  - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-4-docs-search-version-navigation-and-static-reader-state/PLAN.md`
+  - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-4-docs-search-version-navigation-and-static-reader-state/SUMMARY.md`
+
+- next `Phase 5` artifacts:
   - planning pending
 
 - 当前已冻结的决策：
@@ -167,6 +173,18 @@ information architecture without replacing the native Rspress shell.
     collection 页面
   - `apps/public-docs` generated content guard 与 `.gitignore` 已覆盖
     `docs/docs/**`，避免新的 published reader detail source 被 tracked
+  - `apps/app-api` docs search canonical URL 已统一为 `?hl=...#anchor`；
+    reader state parser 仍兼容旧式 `#anchor?hl=...`
+  - `apps/app-api` reader resolve 对 current version 返回 current alias，对
+    historical version 返回 `/v/:versionSlug` explicit route
+  - public docs sync manifest 已导出所有 public static versions，并携带
+    `isCurrent` / `versionLabel`；`public-docs` collection landing 仍只按
+    current docs 计数
+  - `apps/public-docs` published reader docs 已支持 current alias 与
+    `/docs/:corpus/:collection/:documentSlug/v/:versionSlug.mdx` explicit
+    version source
+  - `apps/public-docs` ReaderStateEnhancer 已在 native Rspress layout 上注入
+    reader highlight 与低打扰版本切换，不替换 topnav/sidebar/layout
   - `apps/public-docs/scripts/_sync_real_docs/regulations.py` 已新增 public-only
     regulation 同步入口；当前对象存储没有显式 public 的 notice-derived
     regulation，因此不会生成 `campus-regulations` 公开目录
@@ -180,7 +198,8 @@ information architecture without replacing the native Rspress shell.
     `sync:published-reader-assets`，默认 deploy path 通过
     `build:published-reader-assets` 消费 app-owned sync manifest
   - `public-docs` Worker 已保持 same-site `/api/docs/*` proxy，其他 `/api/*`
-    fail-close；search/version UX 继续留给 Phase 4
+    fail-close；Phase 4 已让 Rspress search fallback 增强消费 same-site docs
+    search API，API 失败时回退到本地搜索
   - Rspress build 仍提示 theme export 迁移 warning；当前 build 可通过，
     后续若要消除 warning，应单独收口 theme export shape，而不是替换原生
     shell
@@ -189,8 +208,9 @@ information architecture without replacing the native Rspress shell.
 
 - staging 仍需要执行一次真实 publish/import/export/build 链路，把对象存储 reader
   assets 与 staging Postgres `docs.*` read model 填成 live 数据。
-- Phase 4 需要继续规划 docs search UX、version switching 与 deep-link state。
-- 当前 public chat 仍未消费 canonical source-card payload，但这属于 `Phase 5`，不阻塞本 phase。
+- Phase 5 需要规划并实现 public chat source cards 到 canonical reader jump 的
+  browser integration。
+- Phase 6 继续保留 restricted / historical reader handoff 与 gated delivery acceptance。
 
 ## Verification
 
@@ -247,15 +267,21 @@ information architecture without replacing the native Rspress shell.
   across reload, removes collapsed sidebar from a11y/keyboard flow via
   `aria-hidden` / `inert`, does not overlap the document title, leaves mobile
   `<900px` without the desktop toggle, and emits no console messages
+- `pnpm --filter public-docs exec vitest run test/generated-docs-checker.test.ts`
+- `pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/docs.read-model-manifest.test.ts test/docs.service.test.ts`
+- `pnpm --filter public-docs test`
+- `pnpm --filter public-docs typecheck`
+- `pnpm --filter public-docs lint:generated`
+- `pnpm exec biome check apps/app-api/src/modules/docs/service.ts apps/public-docs/test/generated-docs-checker.test.ts`
+- `pnpm --filter public-docs build`
+- `pnpm --filter app-api typecheck`
 
 ## Session Continuity
 
-**Stopped At:** `Phase 3` 已完成 public-docs native Rspress shell IA 收口：
-published reader docs route 为 `/docs/:corpus/:collection/:documentSlug`，
-root/docs/corpus/collection landing、sidebar builder、本地空 scaffold 与
-generated content guard 已对齐。错误的 custom reader shell 仍保持撤回状态；
-后续 shell 改动只能在原生 Rspress shell 上做受控样式/metadata/interaction
-扩展，不得再替换 topnav/sidebar/layout primitives。下一次恢复应进入
-`Phase 4`，规划 docs search UX、version navigation、anchor/highlight
-deep-link state 与 reader-side static state continuity。
+**Stopped At:** `Phase 4` 已完成 docs search enhancement、current/historical
+static reader version routes、anchor/highlight reader state 与低打扰版本切换。
+错误的 custom reader shell 仍保持撤回状态；后续 shell 改动只能在原生
+Rspress shell 上做受控样式/metadata/interaction 扩展，不得再替换
+topnav/sidebar/layout primitives。下一次恢复应进入 `Phase 5`，规划 public
+chat source cards 与 canonical reader jump integration。
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/ROADMAP.md

@@ -39,7 +39,7 @@ updated: 2026-04-27
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 4` | `Phase 3` 已完成 Rspress native shell IA、`/docs/:corpus/:collection/:documentSlug` published reader source route、sidebar builder、local scaffold 与 generated guard 收口；下一步规划 docs search UX、version navigation 与 deep-link state |
+| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 5` | `Phase 4` 已完成 docs search enhancement、current/historical static reader version routes、reader anchor/highlight state 与低打扰版本切换；下一步规划 public chat source cards 与 canonical reader jump integration |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 
 ## Completed
