@@ -40,7 +40,7 @@ updated: 2026-04-27
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
-| `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | `Phase 3` | `Phase 2` 已完成 public/chat positive routing and handoff matrix；当前进入 answer rendering and source trace acceptance |
+| `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | `Phase 4` | `Phase 3` 已完成 answer rendering and source trace acceptance；当前进入 fail-close, clarification, and no-action guardrails |
 
 ## Completed
 
