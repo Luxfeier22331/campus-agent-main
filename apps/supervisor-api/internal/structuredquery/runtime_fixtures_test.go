@@ -243,6 +243,67 @@ func serviceStatusProjectionFixture() string {
 	}`
 }
 
+func serviceStatusProjectionFixtureWithTemporaryOverride() string {
+	return `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"service_status_records":[
+			{
+				"subject_id":"library-haidian-baseline",
+				"display_name":"海淀校区图书馆",
+				"aliases":["图书馆","海淀校区图书馆"],
+				"campus_scope":"haidian",
+				"observed_status":"open",
+				"status_note":"工作日开放，节假日另行通知",
+				"effective_from":"2026-01-01T08:00:00+08:00",
+				"effective_until":"2026-12-31T22:00:00+08:00",
+				"related_notice_refs":["notice:library-baseline-hours"]
+			},
+			{
+				"subject_id":"library-haidian-temporary-close",
+				"display_name":"海淀校区图书馆",
+				"aliases":["图书馆","海淀校区图书馆"],
+				"campus_scope":"haidian",
+				"observed_status":"temporarily_closed",
+				"status_note":"13:00-18:00 因活动临时闭馆",
+				"effective_from":"2026-04-24T13:00:00+08:00",
+				"effective_until":"2026-04-24T18:00:00+08:00",
+				"override_source_refs":["notice:library-temporary-close"],
+				"related_notice_refs":["notice:library-temporary-close"]
+			}
+		]
+	}`
+}
+
+func serviceStatusProjectionFixtureWithConflictingCurrentRecords() string {
+	return `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"service_status_records":[
+			{
+				"subject_id":"library-haidian",
+				"display_name":"海淀校区图书馆",
+				"aliases":["图书馆","海淀校区图书馆"],
+				"campus_scope":"haidian",
+				"observed_status":"open",
+				"status_note":"工作日开放",
+				"effective_from":"2026-04-24T08:00:00+08:00",
+				"effective_until":"2026-04-24T22:00:00+08:00",
+				"related_notice_refs":["notice:library-open"]
+			},
+			{
+				"subject_id":"library-haidian",
+				"display_name":"图书馆开放安排",
+				"aliases":["图书馆"],
+				"campus_scope":"haidian",
+				"observed_status":"temporarily_closed",
+				"status_note":"全天临时闭馆",
+				"effective_from":"2026-04-24T08:00:00+08:00",
+				"effective_until":"2026-04-24T22:00:00+08:00",
+				"related_notice_refs":["notice:library-closed"]
+			}
+		]
+	}`
+}
+
 func incompleteServiceStatusProjectionFixture() string {
 	return `{
 		"schema_version":"campus_services_projection_bundle.v1",

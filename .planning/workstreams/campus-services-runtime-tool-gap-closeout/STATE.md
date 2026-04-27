@@ -2,7 +2,7 @@
 doc_type: state
 status: active
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # State: Campus Services Runtime Tool Gap Closeout
@@ -38,6 +38,9 @@ Phase 6 已完成 `campus-services-product-path` opening verdict。当前四个�
     `食堂现在关门了吗`、`丰台校区通勤班车在哪里上车`
 - status precedence regression 继续补强：临时调整、常规状态、历史记录、source conflict
   优先级
+  - 2026-04-28 slice 已补：runtime 先按 current effective window 过滤，再优先选择更晚
+    `effective_from` / 更窄 effective window 的临时 override；同一 subject 同一窗口冲突时
+    fail-close 为 `source_conflict`
 - `status_note` 的回答表达继续压测，确保只暴露用户可执行事实，不泄露内部字段
   - 2026-04-27 slice 已补：Python agent 与 app-api browser-facing answer 不再暴露
     `open` / `limited_service` 等内部枚举
@@ -83,3 +86,14 @@ Phase 6 已完成 `campus-services-product-path` opening verdict。当前四个�
 - `pnpm docs:lint`：pass
 - `git diff --check`：pass
 - `pnpm web:lint`：仍因当前 worktree 中非本 slice 文件的既有 Biome diagnostics 失败；本 slice touched TS/JSON targeted Biome check 已 pass
+
+## Latest Verification (2026-04-28)
+
+- `go test ./internal/structuredquery -run 'TestLookupServiceStatus'`：pass
+- `uv run --all-packages python -m scripts.eval_gate accept --profile campus-services-product-path --json`：pass；artifact
+  `.tmp/evals/campus-services-product-path-opening-gate-accept-20260428T002247/campus-services-product-path-opening-gate.json`
+  - gate `passed=true`
+  - `service_status_lookup` / `transport_schedule_lookup` / `service_guide_lookup` /
+    `contact_directory_lookup` verdicts all remain `open`
+- `pnpm docs:lint`：pass
+- `git diff --check`：pass

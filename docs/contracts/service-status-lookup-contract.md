@@ -81,6 +81,7 @@ ServiceStatusLookupResult
   - source_truth_unavailable
   - temporal_scope_ambiguous
   - source_family_unavailable
+  - source_conflict
 ```
 
 固定语义：
@@ -98,6 +99,10 @@ ServiceStatusLookupResult
 - 当前性不可证或 source truth 缺关键字段时必须 fail-close
 - matched current record 如果缺 `observed_status`、`effective_from` 或必要 provenance，
   必须返回 `temporarily_unverifiable/current_state_unverifiable`
+- 同一 subject、同一 current effective window 出现互相矛盾的 status / status note 时，必须返回
+  `temporarily_unverifiable/source_conflict`，不得猜测或按读取顺序选择
+- baseline 与临时 override 同时命中时，runtime 必须先按 query time 过滤 current effective
+  window，再优先选择更晚 `effective_from` / 更窄 effective window 的临时记录
 - matched record 的 effective window 已过期时，不得继续回答
   `resolved_current`；应返回 `temporarily_unverifiable`，并用
   `historical_downgrade_reason=current_effective_miss` 标识当前有效性缺口

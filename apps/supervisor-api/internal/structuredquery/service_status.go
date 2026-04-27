@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 )
@@ -47,6 +48,12 @@ type serviceStatusRecordStatus struct {
 	effectiveUntil time.Time
 }
 
+type serviceStatusMatch struct {
+	record       serviceStatusRecord
+	score        int
+	recordStatus serviceStatusRecordStatus
+}
+
 func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Response {
 	var request serviceStatusRequest
 	if err := json.Unmarshal(rawBody, &request); err != nil {
@@ -66,8 +73,20 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 	if err != nil {
 		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, "source_truth_unavailable")
 	}
-	record, ok := matchServiceStatusRecord(bundle.ServiceStatusRecords, request)
-	if !ok {
+	queryTime, err := serviceStatusQueryTime(request, timeAnchor)
+	if err != nil {
+		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, "temporal_scope_ambiguous")
+	}
+	matchResult := matchServiceStatusRecord(bundle.ServiceStatusRecords, request, queryTime)
+	if matchResult.err != nil {
+		return failClosedServiceStatusWithHistoricalReason(
+			request.SubjectQuery,
+			timeAnchor,
+			matchResult.err.Error(),
+			matchResult.historicalDowngradeReason,
+		)
+	}
+	if !matchResult.ok {
 		body := serviceStatusResult{
 			SubjectQuery:      request.SubjectQuery,
 			Outcome:           "not_found",
@@ -75,22 +94,7 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 		}
 		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 	}
-	queryTime, err := serviceStatusQueryTime(request, timeAnchor)
-	if err != nil {
-		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, "temporal_scope_ambiguous")
-	}
-	recordStatus, err := validateServiceStatusRecord(record)
-	if err != nil {
-		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, "source_truth_unavailable")
-	}
-	if queryTime.Before(recordStatus.effectiveFrom) || !queryTime.Before(recordStatus.effectiveUntil) {
-		return failClosedServiceStatusWithHistoricalReason(
-			request.SubjectQuery,
-			timeAnchor,
-			"current_state_unverifiable",
-			"current_effective_miss",
-		)
-	}
+	record := matchResult.record
 	body := serviceStatusResult{
 		SubjectQuery:       request.SubjectQuery,
 		Outcome:            "resolved_current",
@@ -127,35 +131,135 @@ func failClosedServiceStatusWithHistoricalReason(
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }
 
+type serviceStatusMatchResult struct {
+	record                    serviceStatusRecord
+	recordStatus              serviceStatusRecordStatus
+	ok                        bool
+	err                       error
+	historicalDowngradeReason string
+}
+
 func matchServiceStatusRecord(
 	records []serviceStatusRecord,
 	request serviceStatusRequest,
-) (serviceStatusRecord, bool) {
+	queryTime time.Time,
+) serviceStatusMatchResult {
 	query := normalizeSearchText(request.SubjectQuery)
 	campusScope := normalizeSearchText(request.CampusScope)
+	everMatched := false
+	matches := []serviceStatusMatch{}
 	for _, record := range records {
 		if campusScope != "" && normalizeSearchText(record.CampusScope) != campusScope {
 			continue
 		}
-		if matchesServiceStatusRecord(query, record) {
-			return record, true
+		score := scoreServiceStatusRecord(query, record)
+		if score <= 0 {
+			continue
 		}
+		everMatched = true
+		recordStatus, err := validateServiceStatusRecord(record)
+		if err != nil {
+			return serviceStatusMatchResult{err: errors.New("source_truth_unavailable")}
+		}
+		if queryTime.Before(recordStatus.effectiveFrom) || !queryTime.Before(recordStatus.effectiveUntil) {
+			continue
+		}
+		matches = append(matches, serviceStatusMatch{
+			record:       record,
+			score:        score,
+			recordStatus: recordStatus,
+		})
 	}
-	return serviceStatusRecord{}, false
+	if len(matches) == 0 {
+		if everMatched {
+			return serviceStatusMatchResult{
+				err:                       errors.New("current_state_unverifiable"),
+				historicalDowngradeReason: "current_effective_miss",
+			}
+		}
+		return serviceStatusMatchResult{ok: false}
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		return serviceStatusMatchLess(matches[i], matches[j])
+	})
+	top := matches[0]
+	if serviceStatusHasTopConflict(top, matches[1:]) {
+		return serviceStatusMatchResult{err: errors.New("source_conflict")}
+	}
+	return serviceStatusMatchResult{
+		record:       top.record,
+		recordStatus: top.recordStatus,
+		ok:           true,
+	}
 }
 
 func matchesServiceStatusRecord(query string, record serviceStatusRecord) bool {
+	return scoreServiceStatusRecord(query, record) > 0
+}
+
+func scoreServiceStatusRecord(query string, record serviceStatusRecord) int {
 	candidates := append([]string{record.SubjectID, record.DisplayName}, record.Aliases...)
+	best := 0
 	for _, candidate := range candidates {
 		normalized := normalizeSearchText(candidate)
 		if normalized == "" {
 			continue
 		}
-		if strings.Contains(query, normalized) || strings.Contains(normalized, query) {
+		score := 0
+		switch {
+		case query == normalized:
+			score = 100 + len([]rune(normalized))
+		case strings.Contains(query, normalized):
+			score = len([]rune(normalized))
+		case strings.Contains(normalized, query):
+			score = len([]rune(query))
+		}
+		if score > best {
+			best = score
+		}
+	}
+	return best
+}
+
+func serviceStatusMatchLess(left serviceStatusMatch, right serviceStatusMatch) bool {
+	if left.score != right.score {
+		return left.score > right.score
+	}
+	if left.recordStatus.effectiveFrom != right.recordStatus.effectiveFrom {
+		return left.recordStatus.effectiveFrom.After(right.recordStatus.effectiveFrom)
+	}
+	leftDuration := left.recordStatus.effectiveUntil.Sub(left.recordStatus.effectiveFrom)
+	rightDuration := right.recordStatus.effectiveUntil.Sub(right.recordStatus.effectiveFrom)
+	if leftDuration != rightDuration {
+		return leftDuration < rightDuration
+	}
+	return left.record.SubjectID < right.record.SubjectID
+}
+
+func serviceStatusHasTopConflict(top serviceStatusMatch, rest []serviceStatusMatch) bool {
+	for _, candidate := range rest {
+		if !sameServiceStatusSubject(top.record, candidate.record) {
+			continue
+		}
+		if top.recordStatus.effectiveFrom.Equal(candidate.recordStatus.effectiveFrom) &&
+			top.recordStatus.effectiveUntil.Equal(candidate.recordStatus.effectiveUntil) &&
+			(strings.TrimSpace(top.record.ObservedStatus) != strings.TrimSpace(candidate.record.ObservedStatus) ||
+				strings.TrimSpace(top.record.StatusNote) != strings.TrimSpace(candidate.record.StatusNote)) {
 			return true
 		}
 	}
 	return false
+}
+
+func sameServiceStatusSubject(left serviceStatusRecord, right serviceStatusRecord) bool {
+	leftSubjectID := normalizeSearchText(left.SubjectID)
+	rightSubjectID := normalizeSearchText(right.SubjectID)
+	if leftSubjectID != "" && leftSubjectID == rightSubjectID {
+		return true
+	}
+	leftDisplayName := normalizeSearchText(left.DisplayName)
+	rightDisplayName := normalizeSearchText(right.DisplayName)
+	return leftDisplayName != "" && leftDisplayName == rightDisplayName
 }
 
 func normalizeSearchText(value string) string {
