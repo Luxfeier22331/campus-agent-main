@@ -14,6 +14,7 @@ from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
 )
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
 )
@@ -72,6 +73,35 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
             CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
         )
         self.assertEqual(manifest.selected_notice_ids, ("course", "transport"))
+
+    def test_builder_admits_regulation_candidates_for_institutional_rules_materialization(
+        self,
+    ) -> None:
+        manifest = build_internal_notice_consumer_admission_manifest_from_bundle_records(
+            bundle_records=(
+                _bundle_record(
+                    notice_id="regulation",
+                    title="关于印发《中央民族大学本科生转专业实施办法（试行）》的通知",
+                    notice_type="6",
+                    notice_type_name="教学通知",
+                ),
+            ),
+            config=self.config,
+            admission_run_id="consumer-admission-regulation",
+            selection_source="bundle_dry_run",
+            selection_path="bundle.json",
+            site_id="muc_internal_portal",
+            created_at="2026-04-27T00:00:00+00:00",
+        )
+
+        decision = manifest.decision_records[0]
+        self.assertEqual(decision.notice_family, "policy_regulation")
+        self.assertEqual(decision.suggested_consumption_route, "regulation_candidate")
+        self.assertEqual(decision.target_surface, NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES)
+        self.assertEqual(
+            decision.consumption_status,
+            CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
+        )
 
 
 if __name__ == "__main__":

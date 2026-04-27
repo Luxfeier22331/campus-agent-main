@@ -146,6 +146,14 @@ Current routing taxonomy groups include:
   campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
   - target-collection materializer for `regulations/institutional_rules`
 - `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.dry_run_internal_notice_regulation_document_site ...`
+  - selected dry-run path for `regulation_candidate` notices
+  - writes local `regulations/institutional_rules` registry/object-store artifacts
+    and canonical document reader assets from snapshot inputs
+  - reads the input object-store snapshot but writes generated objects into the
+    dry-run output overlay
+  - stops before release, retrieval/index preparation, and query-serving
+- `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`
   - target-collection materializer for `regulations/scoped_rules`
 - `uv run --package campus-ingestion-worker python -m

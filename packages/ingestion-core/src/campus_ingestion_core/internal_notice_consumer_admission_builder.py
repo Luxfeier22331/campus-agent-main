@@ -38,6 +38,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
     NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
@@ -208,6 +209,13 @@ def _map_sample_to_decision(
             NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
             CONSUMER_ADMISSION_DECISION_ADMIT,
             ("procurement_notice_history",),
+        )
+    if route == "regulation_candidate":
+        return (
+            NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+            CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
+            CONSUMER_ADMISSION_DECISION_ADMIT,
+            ("regulation_candidate",),
         )
     if route == "service_status_candidate":
         return (
