@@ -32,7 +32,7 @@ It does not carry:
   - read-only notice-family admission metadata used by inventory/replay/operator
     read models
   - owns explicit family route policy, terminal title rules, residual
-    `review_later` overrides, machine-processing policy, and attachment
+    default-family overrides, machine-processing policy, and attachment
     processing policy
   - current taxonomy covers high-value notice-level query families, service
     status candidate families, procurement/history, regulation candidates, and
@@ -99,7 +99,7 @@ Current interpretation is:
     env is available so residual routing can use body text; pass
     `--skip-content-blocks` for fast title/type-only sampling
   - pass `--audit-output-path <path>` to write a full read-only taxonomy audit
-    artifact with all `review_later` notices and deterministic clusters; this
+    artifact with terminal default-family residual notices and deterministic clusters; this
     artifact is operator evidence, not an admission manifest
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.evaluate_authenticated_notice_routing_taxonomy
@@ -124,16 +124,15 @@ Current routing taxonomy groups include:
   competition, recruitment, staff/internal admin, research publicity calls,
   governance/party life, internal governance events, general cultural publicity,
   cultural publicity activities, and campus news/publicity
-- fallback `other/review_later` remains a bounded low-confidence bucket and uses
-  `machine_processing_policy=skip`; deterministic high-confidence clusters are
-  promoted into explicit routes, while clearly unconsumable terminal titles
-  such as obituaries close as `no_adoption`. Bare "通知/公告/通告" titles are
-  never terminal by themselves; source-truth body text must be inspected before
-  routing. The residual bucket is not a VLM backlog or automatic
-  consumer-admission source
+- fallback `other` with no actionable signal closes as terminal `no_adoption`
+  with `machine_processing_policy=skip`; deterministic high-confidence clusters
+  are promoted into explicit routes, while clearly unconsumable terminal titles
+  such as obituaries also close as `no_adoption`. Bare "通知/公告/通告" titles
+  require source-truth body text before they can be promoted into a service or
+  action route. There is no human review-later state in this taxonomy
 - attachment processing policy is derived from route: admitted high-value
   routes with attachment refs use `process`; body-only admitted routes use
-  `not_required`; `defer`, `review_later`, and `no_adoption` use
+  `not_required`; `defer` and `no_adoption` use
   `metadata_only`, meaning source-truth may retain attachment facts but
   operator补采不应下载、OCR、materialize, or send them to multimodal processing
 - current source-truth inventory replay can be audited without bundle input;

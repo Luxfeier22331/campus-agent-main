@@ -26,7 +26,7 @@ updated: 2026-04-28
 - queryable read-model title/source_url completeness audit
 - procurement/history card 作为首个代表性低深度消费 surface
 - low-priority notice 的 minimum Web card contract
-- routing taxonomy eval fixture 和 review-later audit 收敛
+- routing taxonomy eval fixture 和 terminal residual audit 收敛
 - Web 侧消费字段：
   - `notice_id`
   - `title`
@@ -49,14 +49,14 @@ updated: 2026-04-28
 
 1. repo planning truth 明确 notice 分流是一条独立 active workstream。
 2. taxonomy route 与 target surface 的当前矩阵被重新记录，含 procurement、
-   service-status candidate、notice-level query、defer、review_later 和 no_adoption。
+   service-status candidate、notice-level query、defer 和 no_adoption。
 3. queryable read model rows 有可重复审计命令，确认 title/source_url 完整。
 4. 选定的第一批采购 notice 能通过 selected admission 进入
    `procurement_notice_history`，并被 discover/get 命中。
 5. 低优先级 notice 的 minimum card contract 被明确：不深处理，但可按需返回
    title/url。
-6. `review_later` 继续作为低置信 audit residual，不恢复为人工 review 或 VLM
-   backlog。
+6. 低置信 residual 不形成 `review_later` 状态；无动作信号直接 `no_adoption`，
+   需要机器判断的高价值附件/图片通知进入 multimodal processing。
 7. Web 侧消费 title/url 卡片有至少一条 deterministic acceptance path。
 
 ## Canonical Entry

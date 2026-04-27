@@ -185,7 +185,7 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
 
 - 它可以从 historical bundle 或 source-truth inventory 生成 stratified sample report
 - `--audit-output-path` 可生成全量只读 taxonomy audit artifact，包含全部
-  `review_later` notices 与 deterministic clusters；该 artifact 只用于 operator
+  terminal default-family residual notices 与 deterministic clusters；该 artifact 只用于 operator
   审计，不是 selected admission manifest
 - 它产出 reviewer 可复核的 `notice_family`、`suggested_consumption_route` 与
   `machine_processing_policy`
@@ -197,9 +197,9 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
   `notice_level_query`；把设施、教室、自习室、交通/班车、IT 平台、图书馆开放/关闭等可用性/开放时间变化归入
   `service_status_candidate`；把内部行政、人事/员工内部事项、研究宣传征稿、党团治理生活、一般文化宣传和校园新闻归入
   `defer`，且默认跳过低价值视觉处理
-- fallback `other/review_later` 只保留为低置信分流边界，默认
-  `machine_processing_policy=skip`；它不等于 consumer admission，也不形成
-  pending multimodal backlog
+- fallback `other` 在缺少动作、服务、宣传或高价值证据时直接关闭为
+  `no_adoption`，默认 `machine_processing_policy=skip`；需要视觉/附件理解的
+  高价值通知进入 `pending_multimodal_processing`，不形成 human review-later 状态
 - 它不代表 consumer admission，不写 projection/read model，也不打开 query-serving
 
 新写入的 consumption projection 不再使用 `notice_runtime` 同时表示 holding、

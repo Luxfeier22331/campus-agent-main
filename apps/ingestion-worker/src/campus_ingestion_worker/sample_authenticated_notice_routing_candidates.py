@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--audit-output-path",
         help=(
-            "Write a full read-only routing audit artifact with all review_later "
+            "Write a full read-only routing audit artifact with terminal residual "
             "notices and deterministic clusters. This does not create consumer admission."
         ),
     )
