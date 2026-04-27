@@ -16,7 +16,9 @@ import {
 } from "./page-artifacts-extraction-recovery-containers.ts";
 import {
 	containsDateLikeText,
+	getDomTagName,
 	type HtmlDomApi,
+	type HtmlDomNode,
 	normalizePageTitle,
 	normalizeText,
 	resolveAnchorTargetUrl,
@@ -47,10 +49,10 @@ export function extractRecoveryBlockCandidates(input: {
 		const selector = isListingLikeRecoveryContainer(container)
 			? "a,div,span,time"
 			: "h1,h2,h3,h4,h5,h6,p,li,dt,dd,div,section,article,span,time,a";
-		const elements = $(container.element).find(selector).toArray() as unknown[];
+		const elements = $(container.element).find(selector).toArray() as HtmlDomNode[];
 
 		for (const element of elements) {
-			const tagName = String((element as { tagName?: unknown }).tagName ?? "").toLowerCase();
+			const tagName = getDomTagName(element);
 			if (tagName.length === 0 || shouldSuppressVisuallyHiddenElement($, element)) {
 				continue;
 			}
@@ -141,7 +143,7 @@ export function looksLikeStructuralShell(html: CheerioCrawlingContext["$"]): boo
 
 function shouldRecoverElement(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	tagName: string,
 	container: VisibleContentContainerStats,
 	baseUrl: string,
@@ -180,7 +182,7 @@ function shouldRecoverElement(
 			return $(element)
 				.children("div,section,article,span,time,p")
 				.toArray()
-				.every((candidate: unknown) => {
+				.every((candidate: HtmlDomNode) => {
 					const childText = normalizeText(extractElementText($, candidate));
 					return childText == null || !containsDateLikeText(childText);
 				});
@@ -193,7 +195,7 @@ function shouldRecoverElement(
 		const hasSubstantialStructuredChild = $(element)
 			.children("div,section,article,p,ul,ol,dl")
 			.toArray()
-			.some((candidate: unknown) => {
+			.some((candidate: HtmlDomNode) => {
 				const childText = normalizeText(extractElementText($, candidate));
 				return childText != null && childText.length >= 24;
 			});

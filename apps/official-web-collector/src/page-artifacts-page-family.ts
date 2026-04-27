@@ -170,6 +170,12 @@ export function classifyPageFamily(input: {
 		input.pageSignals.mainListItemCount >= 4 &&
 		input.pageSignals.shortMainLinkCount >=
 			Math.max(6, Math.ceil(input.pageSignals.mainLinkCount * 0.6));
+	const paragraphHeavyArticleSignal =
+		input.pageSignals.mainTableCount === 0 &&
+		input.pageSignals.mainHeadingCount >= 1 &&
+		input.pageSignals.mainParagraphCount >= 6 &&
+		input.pageSignals.mainContentCharacterCount >= 240 &&
+		input.pageSignals.mainParagraphCount >= Math.max(6, input.pageSignals.mainLinkCount * 2);
 
 	if (input.pageSignals.zeroMainContent && input.pageSignals.dynamicShellSignal) {
 		return {
@@ -192,6 +198,14 @@ export function classifyPageFamily(input: {
 			pageFamily: "structural_shell_page",
 			confidence: 0.82,
 			reason: "zero_main_content_with_repeated_navigation_shell_signal",
+		};
+	}
+
+	if (paragraphHeavyArticleSignal) {
+		return {
+			pageFamily: "article_detail",
+			confidence: 0.9,
+			reason: "paragraph_dominant_main_content",
 		};
 	}
 

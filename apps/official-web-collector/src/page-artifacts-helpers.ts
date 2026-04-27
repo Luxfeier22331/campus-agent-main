@@ -1,9 +1,13 @@
+import type { AnyNode, Element } from "cheerio";
 import type { CheerioCrawlingContext } from "crawlee";
 import type { OfficialWebPageFamily } from "./official-web-core.ts";
 
 const SHANGHAI_TIMEZONE_OFFSET = "+08:00";
 export type HtmlDomApi = CheerioCrawlingContext["$"];
 export type HtmlDomSelection = ReturnType<HtmlDomApi>;
+export type HtmlDomElement = Element;
+export type HtmlDomNode = AnyNode;
+
 const PUBLISHED_AT_ALLOWED_PAGE_FAMILIES = new Set<OfficialWebPageFamily>([
 	"article_detail",
 	"generic_content_page",
@@ -43,7 +47,7 @@ function hydrateEngine2DetailRichText(html: CheerioCrawlingContext["$"], finalUr
 function extractEngine2BootstrapRichText($: HtmlDomApi): string | null {
 	const candidatePayloads: string[] = [];
 
-	for (const script of $("script").toArray() as unknown[]) {
+	for (const script of $("script").toArray() as HtmlDomNode[]) {
 		const scriptText = normalizeOptionalString($(script).html() ?? $(script).text());
 		if (scriptText == null || !/renderRichtext\(["']editor1["']\s*,/i.test(scriptText)) {
 			continue;
@@ -187,7 +191,7 @@ export function extractCanonicalPublishedAt(input: {
 		'meta[name="dc.date.issued"]',
 	];
 	for (const selector of metaSelectors) {
-		for (const element of input.html(selector).toArray() as unknown[]) {
+		for (const element of input.html(selector).toArray() as HtmlDomNode[]) {
 			const content = normalizeOptionalString(String(input.html(element).attr("content") ?? ""));
 			const publishedAt = parseCanonicalPublishedAt(content);
 			if (publishedAt != null) {
@@ -196,7 +200,7 @@ export function extractCanonicalPublishedAt(input: {
 		}
 	}
 
-	for (const element of input.html("time[datetime]").toArray() as unknown[]) {
+	for (const element of input.html("time[datetime]").toArray() as HtmlDomNode[]) {
 		const datetime = normalizeOptionalString(String(input.html(element).attr("datetime") ?? ""));
 		const publishedAt = parseCanonicalPublishedAt(datetime);
 		if (publishedAt != null) {
@@ -204,7 +208,7 @@ export function extractCanonicalPublishedAt(input: {
 		}
 	}
 
-	for (const element of input.html("time,span,div,p,li").toArray() as unknown[]) {
+	for (const element of input.html("time,span,div,p,li").toArray() as HtmlDomNode[]) {
 		if (!hasPublicationMetadataContext(input.html, element)) {
 			continue;
 		}
@@ -224,8 +228,8 @@ export function extractCanonicalPublishedAt(input: {
 	return null;
 }
 
-function hasPublicationMetadataContext($: HtmlDomApi, element: unknown): boolean {
-	const candidates = [element, ...($(element).parents().slice(0, 3).toArray() as unknown[])];
+function hasPublicationMetadataContext($: HtmlDomApi, element: HtmlDomNode): boolean {
+	const candidates = [element, ...($(element).parents().slice(0, 3).toArray() as HtmlDomNode[])];
 	return candidates.some((candidate) => {
 		const classOrId = `${$(candidate).attr("class") ?? ""} ${$(candidate).attr("id") ?? ""}`
 			.toLowerCase()
@@ -314,7 +318,7 @@ export function resolveOptionalUrl(
 
 export function resolveAnchorTargetUrl(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	baseUrl: string,
 ): string | null {
 	const href = normalizeOptionalString(String($(element).attr("href") ?? ""));
@@ -349,6 +353,13 @@ export function extractOnclickNavigationTarget(onclick: string): string | null {
 	}
 
 	return null;
+}
+
+export function getDomTagName(node: HtmlDomNode | undefined): string {
+	if (node == null || !("tagName" in node)) {
+		return "";
+	}
+	return String(node.tagName ?? "").toLowerCase();
 }
 
 export function stripKnownTrackingResidue(value: string): string {

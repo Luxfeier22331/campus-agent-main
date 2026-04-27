@@ -8,6 +8,32 @@ import {
 	SAMPLE_NEWS_ARTICLE_DETAIL_HTML,
 } from "./page-artifacts-test-support";
 
+const SAMPLE_ENGINE2_PARAGRAPH_HEAVY_DETAIL_WITH_LINKS_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>关于举办中央民族大学第四届学生信息素养大赛的通知</title>
+  </head>
+  <body>
+    <header class="nav">
+      <a href="/engine2/general/more?appId=537849&websiteId=64168&wfwfid=24149&pageId=87948&typeId=3049665&currentBranch=0">数字资源</a>
+    </header>
+    <main id="vsb_content">
+      <h1>关于举办中央民族大学第四届学生信息素养大赛的通知</h1>
+      <p>各学院、各单位：</p>
+      <p>为提升学生信息素养与人工智能应用能力，学校将组织开展第四届学生信息素养大赛校内选拔赛。</p>
+      <p>一、参赛对象：全体在校本科生、研究生。</p>
+      <p>二、报名时间：2026年4月25日至2026年5月10日。</p>
+      <p>三、初赛时间：2026年5月15日，复赛时间：2026年5月25日。</p>
+      <p>四、报名方式：请访问 <a href="https://contest.example.edu/register">报名系统</a> 完成报名。</p>
+      <p>五、资料下载：<a href="https://contest.example.edu/guide">参赛指南</a>、<a href="https://contest.example.edu/rules">竞赛规则</a>、<a href="https://contest.example.edu/faq">常见问题</a>。</p>
+      <p>联系人：图书馆知识服务部，电话 010-68930000。</p>
+      <p>图书馆、教务处</p>
+      <p>2026年4月25日</p>
+    </main>
+  </body>
+</html>`;
+
 export function registerPageArtifactsDetailSuite() {
 	it("extracts a checked-in real article detail fixture into stable article blocks", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
@@ -90,6 +116,26 @@ export function registerPageArtifactsDetailSuite() {
 
 		expect(pageArtifacts.pageManifest.pageFamily).toBe("listing_page");
 		expect(pageArtifacts.pageManifest.publishedAt).toBeNull();
+	});
+
+	it("classifies paragraph-heavy engine2 detail pages with date and link chrome as article details", () => {
+		const pageArtifacts = buildContentSiteArtifactsForTest({
+			crawlRunId: "owrun_test_engine2_paragraph_heavy",
+			requestedUrl: "https://www.example.edu/engine2/d/9285493/699558/0",
+			finalUrl: "https://www.example.edu/engine2/d/9285493/699558/0",
+			responseBody: SAMPLE_ENGINE2_PARAGRAPH_HEAVY_DETAIL_WITH_LINKS_HTML,
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: "https://www.example.edu/",
+			fetchedAt: "2026-04-27T21:32:34.490Z",
+		});
+
+		expect(pageArtifacts.providerExtraction.pageSignals.mainParagraphCount).toBeGreaterThan(4);
+		expect(pageArtifacts.providerExtraction.pageSignals.mainLinkCount).toBeGreaterThanOrEqual(4);
+		expect(
+			pageArtifacts.providerExtraction.pageSignals.dateLikeMainBlockCount,
+		).toBeGreaterThanOrEqual(4);
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("article_detail");
+		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe("paragraph_dominant_main_content");
 	});
 
 	it("keeps unrecovered engine2 detail pages thin instead of treating hidden audio placeholders as main content", () => {

@@ -1,4 +1,5 @@
 import type { OfficialWebContentBlockRow, OfficialWebPageFamily } from "./official-web-core.ts";
+import type { HtmlDomNode } from "./page-artifacts-helpers.ts";
 
 export interface ExtractedBlockCandidate {
 	blockRole: OfficialWebContentBlockRow["blockRole"];
@@ -34,7 +35,7 @@ export interface PageFamilyClassification {
 }
 
 export interface VisibleContentContainerStats {
-	element: unknown;
+	element: HtmlDomNode;
 	textLength: number;
 	mediaCount: number;
 	listCount: number;

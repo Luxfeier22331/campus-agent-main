@@ -10,6 +10,8 @@ import {
 import type { HtmlDomApi } from "./page-artifacts-helpers.ts";
 import {
 	extractOnclickNavigationTarget,
+	getDomTagName,
+	type HtmlDomNode,
 	looksLikeDateText,
 	normalizeOptionalString,
 	normalizeText,
@@ -41,7 +43,7 @@ export function resolveBlockRole(
 	return "metadata";
 }
 
-export function shouldSuppressAggregateListItem($: HtmlDomApi, element: unknown): boolean {
+export function shouldSuppressAggregateListItem($: HtmlDomApi, element: HtmlDomNode): boolean {
 	const candidate = $(element);
 	const anchorCount = candidate.find("a").length;
 	if (anchorCount === 0) {
@@ -60,13 +62,13 @@ export function shouldSuppressAggregateListItem($: HtmlDomApi, element: unknown)
 	);
 }
 
-export function shouldSuppressAggregateTable($: HtmlDomApi, element: unknown): boolean {
+export function shouldSuppressAggregateTable($: HtmlDomApi, element: HtmlDomNode): boolean {
 	const textNormalized = normalizeText(extractElementText($, element));
 	if (textNormalized == null) {
 		return true;
 	}
 
-	const ancestorTables = $(element).parents("table").toArray() as unknown[];
+	const ancestorTables = $(element).parents("table").toArray() as HtmlDomNode[];
 	return ancestorTables.some(
 		(candidate) => normalizeText(extractElementText($, candidate)) === textNormalized,
 	);
@@ -74,7 +76,7 @@ export function shouldSuppressAggregateTable($: HtmlDomApi, element: unknown): b
 
 export function isLikelyNavigationalListItem(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	hasMainContentAncestor: boolean,
 ): boolean {
 	if (hasMainContentAncestor || hasDirectoryRosterContext($, element)) {
@@ -102,7 +104,7 @@ export function isLikelyNavigationalListItem(
 		candidate
 			.find("a")
 			.toArray()
-			.map((anchor: unknown) => extractElementText($, anchor) ?? "")
+			.map((anchor: HtmlDomNode) => extractElementText($, anchor) ?? "")
 			.join(" "),
 	);
 	const linkDensity = computeTextDensity(linkText, textNormalized);
@@ -111,7 +113,7 @@ export function isLikelyNavigationalListItem(
 
 export function isLikelyMainContentListItem(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	hasMainContentAncestor: boolean,
 ): boolean {
 	if (hasMainContentAncestor || hasDirectoryRosterContext($, element)) {
@@ -138,7 +140,7 @@ export function isLikelyMainContentListItem(
 		candidate
 			.find("a")
 			.toArray()
-			.map((anchor: unknown) => extractElementText($, anchor) ?? "")
+			.map((anchor: HtmlDomNode) => extractElementText($, anchor) ?? "")
 			.join(" "),
 	);
 	return computeTextDensity(linkText, textNormalized) < 0.75;
@@ -146,7 +148,7 @@ export function isLikelyMainContentListItem(
 
 export function isLikelyMainContentAnchor(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	hasMainContentAncestor: boolean,
 	_baseUrl: string,
 ): boolean {
@@ -173,7 +175,7 @@ export function isLikelyMainContentAnchor(
 		);
 	}
 
-	const parentTagName = String($(element).parent()?.[0]?.tagName ?? "").toLowerCase();
+	const parentTagName = getDomTagName($(element).parent()[0]);
 	if (/^h\d$/.test(parentTagName) || parentTagName === "p") {
 		return true;
 	}
@@ -195,7 +197,7 @@ export function isLikelyMainContentAnchor(
 
 export function shouldDemoteAggregateAnchorTitleDescendant(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	tagName: string,
 	textNormalized: string | null,
 ): boolean {
@@ -221,7 +223,7 @@ export function shouldDemoteAggregateAnchorTitleDescendant(
 
 export function hasNavigationalListContext(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	hasMainContentAncestor: boolean,
 ): boolean {
 	const closestListItem = $(element).closest("li,dt");
@@ -238,13 +240,13 @@ export function hasNavigationalListContext(
 
 export function isLikelyMainContentTable(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	hasMainContentAncestor: boolean,
 ): boolean {
 	const maxColumnCount = $(element)
 		.find("tr")
 		.toArray()
-		.reduce((max: number, row: unknown) => Math.max(max, $(row).find("th,td").length), 0);
+		.reduce((max: number, row: HtmlDomNode) => Math.max(max, $(row).find("th,td").length), 0);
 
 	if (hasMainContentAncestor && maxColumnCount >= 3) {
 		return true;
@@ -263,14 +265,14 @@ export function isLikelyMainContentTable(
 
 export function shouldUpdateHeadingPath(
 	$: HtmlDomApi,
-	element: unknown,
+	element: HtmlDomNode,
 	isBoilerplate: boolean,
 ): boolean {
 	if (isBoilerplate) {
 		return false;
 	}
 
-	const anchors = $(element).find("a[href]").toArray() as unknown[];
+	const anchors = $(element).find("a[href]").toArray() as HtmlDomNode[];
 	if (anchors.length !== 1) {
 		return true;
 	}
@@ -289,13 +291,13 @@ export function shouldUpdateHeadingPath(
 	return href.startsWith("#") || href.startsWith("javascript:");
 }
 
-function shouldSuppressDatedListChildAnchor($: HtmlDomApi, listItem: unknown): boolean {
+function shouldSuppressDatedListChildAnchor($: HtmlDomApi, listItem: HtmlDomNode): boolean {
 	return $(listItem).find("a").length === 1 && hasDateLikeDescendant($, listItem);
 }
 
-function isLikelyListingTable($: HtmlDomApi, element: unknown): boolean {
+function isLikelyListingTable($: HtmlDomApi, element: HtmlDomNode): boolean {
 	const table = $(element);
-	const rowElements = table.find("tr").toArray() as unknown[];
+	const rowElements = table.find("tr").toArray() as HtmlDomNode[];
 	const linkedRowCount = rowElements.filter((row) => tableRowContainsLinks($, row)).length;
 	if (linkedRowCount < 2) {
 		return false;
@@ -315,7 +317,7 @@ function isLikelyListingTable($: HtmlDomApi, element: unknown): boolean {
 
 	const headerText = normalizeText(
 		rowElements
-			.flatMap((row) => $(row).find("th").toArray() as unknown[])
+			.flatMap((row) => $(row).find("th").toArray() as HtmlDomNode[])
 			.map((cell) => $(cell).text())
 			.join(" "),
 	);
@@ -330,7 +332,7 @@ function isLikelyListingTable($: HtmlDomApi, element: unknown): boolean {
 	const dateLikeCellCount = table
 		.find("th,td")
 		.toArray()
-		.filter((cell: unknown) => {
+		.filter((cell: HtmlDomNode) => {
 			const text = normalizeText($(cell).text());
 			return text != null && looksLikeDateText(text);
 		}).length;
@@ -338,7 +340,7 @@ function isLikelyListingTable($: HtmlDomApi, element: unknown): boolean {
 	return dateLikeCellCount >= Math.min(linkedRowCount, 2);
 }
 
-function isLikelyGalleryTable($: HtmlDomApi, element: unknown): boolean {
+function isLikelyGalleryTable($: HtmlDomApi, element: HtmlDomNode): boolean {
 	const table = $(element);
 	const anchorCount = table.find("a[href]").length;
 	if (
@@ -352,7 +354,7 @@ function isLikelyGalleryTable($: HtmlDomApi, element: unknown): boolean {
 	const dateLikeCellCount = table
 		.find("td,span,time")
 		.toArray()
-		.filter((candidate: unknown) => {
+		.filter((candidate: HtmlDomNode) => {
 			const text = normalizeText($(candidate).text());
 			return text != null && looksLikeDateText(text);
 		}).length;
@@ -367,6 +369,6 @@ function computeTextDensity(segment: string | null, whole: string): number {
 	return segment.length / whole.length;
 }
 
-function tableRowContainsLinks($: HtmlDomApi, row: unknown): boolean {
+function tableRowContainsLinks($: HtmlDomApi, row: HtmlDomNode): boolean {
 	return $(row).find("a[href]").length > 0;
 }

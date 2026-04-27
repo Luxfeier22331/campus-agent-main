@@ -31,7 +31,9 @@ import {
 } from "./page-artifacts-extraction-dom.ts";
 import {
 	compactHeadingPath,
+	getDomTagName,
 	type HtmlDomApi,
+	type HtmlDomNode,
 	normalizeOptionalString,
 	normalizePageTitle,
 	normalizeText,
@@ -65,12 +67,12 @@ export function extractBlockCandidates(input: {
 		"body table",
 		"body a",
 	].join(", ");
-	const elements = $(selector).toArray() as unknown[];
+	const elements = $(selector).toArray() as HtmlDomNode[];
 	const headingPath: string[] = [];
 	const candidates: ExtractedBlockCandidate[] = [];
 
 	for (const element of elements) {
-		const tagName = String((element as { tagName?: unknown }).tagName ?? "").toLowerCase();
+		const tagName = getDomTagName(element);
 		if (tagName === "li" && shouldSuppressAggregateListItem($, element)) {
 			continue;
 		}
@@ -187,7 +189,7 @@ export function extractDiscoveredLinks(input: {
 	rawVersionId: string;
 }): OfficialWebDiscoveredLinkRecord[] {
 	const $: HtmlDomApi = input.html;
-	const anchors = $("a[href]").toArray() as unknown[];
+	const anchors = $("a[href]").toArray() as HtmlDomNode[];
 
 	return anchors.map((element, index) => {
 		const hrefRaw = String($(element).attr("href") ?? "");
