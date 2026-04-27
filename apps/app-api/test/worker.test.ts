@@ -192,6 +192,11 @@ describe("app-api worker foundation", () => {
 	});
 
 	it("declares non-inheritable required secrets for local and staging worker environments", () => {
+		const localSecretsBlock = readTomlBlock(
+			wranglerConfig,
+			"[env.local.secrets]",
+			"[[env.staging.routes]]",
+		);
 		const stagingSecretsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.staging.secrets]",
@@ -201,6 +206,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
 		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
+		expect(localSecretsBlock).toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(wranglerConfig).toContain("[env.staging.secrets]");
 		expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
