@@ -21,8 +21,10 @@ _YEARLESS_SINGLE_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
 _YEARLESS_MULTI_DAY_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})[、,，](\d{1,2})日")
 _CHINESE_DATE_RANGE_RE = re.compile(
     r"(?:(20\d{2})年)?(\d{1,2})月(\d{1,2})日?\s*"
+    r"(?:[（(][^）)]{1,12}[）)])?\s*"
     r"(?:至|到|\-|—|~|～)\s*"
-    r"(?:(20\d{2})年)?(\d{1,2})月(\d{1,2})日?"
+    r"(?:(20\d{2})年)?(?:(\d{1,2})月)?(\d{1,2})日?"
+    r"(?:[（(][^）)]{1,12}[）)])?"
 )
 _ORDINAL_RE = re.compile(r"^\d+[\.、]?$")
 _BODY_TEXT_SPLIT_RE = re.compile(r"[\n。；;]")
@@ -126,8 +128,9 @@ def _resolve_service_date_ranges(
     for match in _CHINESE_DATE_RANGE_RE.finditer(text):
         start_year = int(match.group(1) or release_year)
         end_year = int(match.group(4) or start_year)
+        end_month = int(match.group(5) or match.group(2))
         start_date = date(start_year, int(match.group(2)), int(match.group(3)))
-        end_date = date(end_year, int(match.group(5)), int(match.group(6)))
+        end_date = date(end_year, end_month, int(match.group(6)))
         if end_date < start_date and match.group(4) is None:
             end_date = date(start_year + 1, end_date.month, end_date.day)
         ranges.append((start_date.isoformat(), end_date.isoformat()))
@@ -203,6 +206,12 @@ def _resolve_route(row_text: str):
         if fengtai_index < wukesong_index:
             return route_by_id("route:fengtai-to-wukesong-subway")
         return route_by_id("route:wukesong-subway-to-fengtai")
+    zhangguozhuang_index = compact.find("张郭庄")
+    if fengtai_index >= 0 and zhangguozhuang_index >= 0 and fengtai_index < zhangguozhuang_index:
+        return route_by_id("route:fengtai-to-zhangguozhuang-special-bus")
+    yuanboyuan_index = compact.find("园博园")
+    if fengtai_index >= 0 and yuanboyuan_index >= 0 and yuanboyuan_index < fengtai_index:
+        return route_by_id("route:yuanboyuan-to-fengtai-special-bus")
     libafang_index = compact.find("篱笆房")
     if fengtai_index >= 0 and libafang_index >= 0:
         if fengtai_index < libafang_index:
@@ -227,6 +236,8 @@ def _route_direction(route_id: str) -> str:
         "route:wukesong-subway-to-fengtai": "wukesong_subway_to_fengtai",
         "route:fengtai-to-libafang-subway": "fengtai_to_libafang_subway",
         "route:libafang-subway-to-fengtai": "libafang_subway_to_fengtai",
+        "route:fengtai-to-zhangguozhuang-special-bus": ("fengtai_to_zhangguozhuang_special_bus"),
+        "route:yuanboyuan-to-fengtai-special-bus": "yuanboyuan_to_fengtai_special_bus",
     }.get(route_id, route_id)
 
 

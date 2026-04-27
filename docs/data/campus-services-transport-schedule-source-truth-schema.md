@@ -100,7 +100,7 @@ export、raw HTML 或附件 OCR 输出。
 
 ## Route Canonical Seed
 
-第一版固定七条 route identity：
+第一版固定九条 route identity：
 
 - `route:haidian-to-fengtai`
   - display name: `海淀到丰台通勤车`
@@ -130,6 +130,14 @@ export、raw HTML 或附件 OCR 输出。
   - display name: `篱笆房到丰台地铁接驳车`
   - service family: `subway_shuttle`
   - default calendar: daily
+- `route:fengtai-to-zhangguozhuang-special-bus`
+  - display name: `丰台到张郭庄社会实践专车`
+  - service family: `temporary_special_bus`
+  - default calendar: daily
+- `route:yuanboyuan-to-fengtai-special-bus`
+  - display name: `园博园到丰台社会实践专车`
+  - service family: `temporary_special_bus`
+  - default calendar: daily
 
 站点第一版只保留 route-level stop refs，用于回答与后续 navigation handoff：
 
@@ -140,6 +148,10 @@ export、raw HTML 或附件 OCR 输出。
 - `stop:wukesong-subway-a-north`
 - `stop:fengtai-student-activity-center-west-parking-lot`
 - `stop:libafang-subway-b2`
+- `stop:fengtai-smart-center-south`
+- `stop:zhangguozhuang-subway-14`
+- `stop:yuanboyuan-subway-a-west-50m`
+- `stop:fengtai-campus`
 
 如果 notice 文本中的路线、方向或站点无法稳定映射到上述 identity，builder 必须把该
 source 写入 rejected-source report，不得猜测写入 current projection。

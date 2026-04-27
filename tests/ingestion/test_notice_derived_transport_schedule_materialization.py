@@ -268,6 +268,122 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
             [("route:fengtai-to-haidian", "06:40", ["2026-04-11"])],
         )
 
+    def test_builds_social_practice_special_bus_from_notice_body(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="355881",
+            release_time="2026-04-25 16:26",
+            parent_markdown=(
+                "# 关于开通丰台校区社会实践专车的通知\n\n"
+                "各位同学：根据学校工作安排，为保障2026年春季社会实践周活动顺利开展，"
+                "满足丰台校区学生开展专业实习等社会实践的出行需求，"
+                "4月28日（周二）至4月30日（周四）临时开通社会实践专车，具体通知如下：\n\n"
+                "一、运行区间：\n"
+                "1.出发：丰台校区至地铁14号线张郭庄站\n"
+                "2.接站：地铁14号线园博园站至丰台校区\n\n"
+                "二、运行时间：\n"
+                "1.出发：第一班07：30，第二班09：00，第三班10：30，第四班12：00\n"
+                "2.接站：第一班18：00，第二班19：30，第三班21：00\n\n"
+                "三、乘车地点：\n"
+                "1.出发：丰台校区 智慧中心南侧\n"
+                "2.接站：园博园地铁站A出口右转西侧50米\n\n"
+                "四、乘车方式：4月26日9：00起开放预约，有出行需求的同学可通过服务门户、"
+                "企业微信APP、民大通APP等线上预约系统“接驳车预约”内预约4月28日-30日之间"
+                "的专车，约满即止。请提前到达上车点，通过企业微信或民大通“扫一扫”"
+                "现场扫码签到后排队乘车，准点发车。\n"
+            ),
+            attachment_document_ids=(),
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            [(row.route_id, row.departure_time, row.service_date_ranges) for row in rows],
+            [
+                (
+                    "route:fengtai-to-zhangguozhuang-special-bus",
+                    "07:30",
+                    (("2026-04-28", "2026-04-30"),),
+                ),
+                (
+                    "route:fengtai-to-zhangguozhuang-special-bus",
+                    "09:00",
+                    (("2026-04-28", "2026-04-30"),),
+                ),
+                (
+                    "route:fengtai-to-zhangguozhuang-special-bus",
+                    "10:30",
+                    (("2026-04-28", "2026-04-30"),),
+                ),
+                (
+                    "route:fengtai-to-zhangguozhuang-special-bus",
+                    "12:00",
+                    (("2026-04-28", "2026-04-30"),),
+                ),
+                (
+                    "route:yuanboyuan-to-fengtai-special-bus",
+                    "18:00",
+                    (("2026-04-28", "2026-04-30"),),
+                ),
+                (
+                    "route:yuanboyuan-to-fengtai-special-bus",
+                    "19:30",
+                    (("2026-04-28", "2026-04-30"),),
+                ),
+                (
+                    "route:yuanboyuan-to-fengtai-special-bus",
+                    "21:00",
+                    (("2026-04-28", "2026-04-30"),),
+                ),
+            ],
+        )
+        self.assertTrue(all(row.schedule_scope == "temporary_period" for row in rows))
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2026-04-26T09:00:00+08:00",
+            service_horizon_days=10,
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        self.assertEqual(result.rejected_source_records, [])
+        snapshot = result.bundle["transport_schedule_snapshots"][0]
+        self.assertEqual(snapshot["source_ref"], "notice:muc_internal_portal:355881")
+        self.assertEqual(snapshot["schedule_scope"], "temporary_period")
+        self.assertEqual(
+            snapshot["service_date_ranges"],
+            [{"start_date": "2026-04-28", "end_date": "2026-04-30"}],
+        )
+        departures = {
+            (row["route_id"], row["departure_time"]): row
+            for row in result.bundle["scheduled_departures"]
+        }
+        self.assertEqual(len(departures), 7)
+        self.assertEqual(
+            departures[("route:fengtai-to-zhangguozhuang-special-bus", "07:30")]["service_dates"],
+            ["2026-04-28", "2026-04-29", "2026-04-30"],
+        )
+        self.assertEqual(
+            departures[("route:yuanboyuan-to-fengtai-special-bus", "21:00")]["service_dates"],
+            ["2026-04-28", "2026-04-29", "2026-04-30"],
+        )
+        self.assertIn(
+            "丰台校区 智慧中心南侧",
+            departures[("route:fengtai-to-zhangguozhuang-special-bus", "07:30")][
+                "operational_comment"
+            ],
+        )
+
     def test_builds_body_only_transport_service_exception(self) -> None:
         module = _load_module()
         self.assertIsNotNone(module, "notice-derived transport materializer module is required")

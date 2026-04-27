@@ -20,12 +20,21 @@ _LOCATION_SECTION_RE = re.compile(
     r"乘车地点[:：]?\s*(?P<body>.*?)(?=乘车方式|预约|特此通知|$)",
     re.S,
 )
+_ROUTE_SECTION_RE = re.compile(
+    r"运行区间[:：]?\s*(?P<body>.*?)(?=(?:[一二三四五六七八九十]+、\s*)?运行时间|二、|三、|$)",
+    re.S,
+)
 _LOCATION_ITEM_RE = re.compile(
     r"(?:\d+[.、]\s*)?(?P<label>出发|接站|返程|去程)\s*[:：]\s*"
     r"(?P<body>.*?)(?=(?:\d+[.、]\s*)?(?:出发|接站|返程|去程)\s*[:：]|$)",
     re.S,
 )
-_SERVICE_WINDOW_RE = re.compile(r"\d{1,2}月\d{1,2}日\s*(?:-|—|至|到)\s*\d{1,2}日(?:之间|期间)?")
+_SERVICE_WINDOW_RE = re.compile(
+    r"\d{1,2}月\d{1,2}日(?:[（(][^）)]{1,12}[）)])?\s*"
+    r"(?:-|—|至|到)\s*"
+    r"(?:\d{1,2}月)?\d{1,2}日(?:[（(][^）)]{1,12}[）)])?"
+    r"(?:之间|期间)?"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +60,7 @@ def extract_schedule_from_notice_body(
     body: ScheduleNoticeBody,
 ) -> ScheduleNoticeBodyExtraction:
     text = _normalize_text("\n".join((body.notice_title, body.context_before, body.context_after)))
+    routes = _extract_direction_routes(text)
     locations = _extract_direction_locations(text)
     rows: list[dict[str, str]] = []
     for section in _DIRECTION_SECTION_RE.finditer(text):
@@ -61,6 +71,7 @@ def extract_schedule_from_notice_body(
                 {
                     "notice_id": body.notice_id,
                     "direction_label": direction_label,
+                    "route_text": routes.get(direction_label, ""),
                     "sequence_label": match.group("label"),
                     "departure_time": f"{int(match.group('hour')):02d}:{match.group('minute')}",
                     "boarding_location": locations.get(direction_label, ""),
@@ -83,6 +94,17 @@ def extract_schedule_from_notice_body(
     )
 
 
+def _extract_direction_routes(text: str) -> dict[str, str]:
+    routes: dict[str, str] = {}
+    section = _ROUTE_SECTION_RE.search(text)
+    if section is None:
+        return routes
+    route_body = section.group("body")
+    for item in _LOCATION_ITEM_RE.finditer(route_body):
+        routes[item.group("label")] = _clean_route_text(item.group("body"))
+    return routes
+
+
 def _extract_direction_locations(text: str) -> dict[str, str]:
     locations: dict[str, str] = {}
     section = _LOCATION_SECTION_RE.search(text)
@@ -101,6 +123,12 @@ def _extract_service_window(text: str) -> str:
 
 def _normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _clean_route_text(text: str) -> str:
+    value = re.sub(r"\s+", " ", text or "").strip()
+    value = re.sub(r"(?:二、|运行时间).*$", "", value).strip()
+    return value.rstrip("。；;，, ")
 
 
 def _clean_location(text: str) -> str:

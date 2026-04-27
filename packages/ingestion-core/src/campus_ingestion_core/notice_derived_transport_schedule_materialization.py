@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Protocol
 
+from campus_ingestion_core.internal_notice_schedule_body import (
+    ScheduleNoticeBody,
+    extract_schedule_from_notice_body,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
@@ -149,10 +153,17 @@ def extract_notice_derived_transport_schedule_rows(
         projection_entry=projection_entry,
         registry=registry,
     )
-    rows: list[NoticeDerivedTransportScheduleRow] = _extract_rows_from_parent_text(
+    rows: list[NoticeDerivedTransportScheduleRow] = _extract_rows_from_body_schedule(
         parent_text=parent_text,
         projection_entry=projection_entry,
         source_ref=source_ref,
+    )
+    rows.extend(
+        _extract_rows_from_parent_text(
+            parent_text=parent_text,
+            projection_entry=projection_entry,
+            source_ref=source_ref,
+        )
     )
     for attachment_record in attachment_records:
         document_units = _read_document_units(
@@ -675,6 +686,98 @@ def _extract_rows_from_parent_text(
                 )
             )
     return rows
+
+
+def _extract_rows_from_body_schedule(
+    *,
+    parent_text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+    source_ref: str,
+) -> list[NoticeDerivedTransportScheduleRow]:
+    extraction = extract_schedule_from_notice_body(
+        ScheduleNoticeBody(
+            notice_id=projection_entry.source_notice_id,
+            notice_title=str(projection_entry.role_metadata.get("notice_title") or ""),
+            release_time=projection_entry.source_notice_release_time,
+            organization=str(projection_entry.role_metadata.get("organization_name") or ""),
+            context_before=parent_text,
+            context_after="",
+        )
+    )
+    if extraction.status != "extracted":
+        return []
+    service_date_ranges = _resolve_service_date_ranges(
+        text=f"{parent_text}\n{extraction.service_window}",
+        release_time=projection_entry.source_notice_release_time,
+    )
+    rows: list[NoticeDerivedTransportScheduleRow] = []
+    for body_row in extraction.rows:
+        row_text = _body_schedule_row_text(body_row)
+        route = _resolve_route(str(body_row.get("route_text") or row_text))
+        if route is None:
+            continue
+        effective_from = (
+            service_date_ranges[0][0]
+            if service_date_ranges
+            else _resolve_effective_date(
+                text=f"{parent_text}\n{row_text}",
+                release_time=projection_entry.source_notice_release_time,
+            )
+        )
+        schedule_scope = _resolve_schedule_scope(
+            parent_text=parent_text,
+            row_text=row_text,
+            service_date_ranges=service_date_ranges,
+        )
+        rows.append(
+            NoticeDerivedTransportScheduleRow(
+                source_notice_id=projection_entry.source_notice_id,
+                source_ref=source_ref,
+                source_attachment_document_id=projection_entry.source_notice_document_id,
+                weekday_scope=_resolve_weekday_scope(row_text, route.default_calendar),
+                route_direction=_route_direction(route.route_id),
+                route_id=route.route_id,
+                departure_time=str(body_row["departure_time"]),
+                rider_type=_resolve_rider_type(f"{parent_text}\n{row_text}"),
+                remarks=_body_schedule_row_remarks(body_row),
+                effective_from=effective_from,
+                schedule_scope=schedule_scope,
+                service_date_ranges=service_date_ranges,
+                precedence=_schedule_scope_precedence(schedule_scope),
+            )
+        )
+    return rows
+
+
+def _body_schedule_row_text(row: Mapping[str, str]) -> str:
+    return _clean_cell(
+        " ".join(
+            item
+            for item in (
+                row.get("route_text", ""),
+                row.get("direction_label", ""),
+                row.get("sequence_label", ""),
+                row.get("departure_time", ""),
+                row.get("boarding_location", ""),
+            )
+            if item
+        )
+    )
+
+
+def _body_schedule_row_remarks(row: Mapping[str, str]) -> str:
+    return "；".join(
+        dict.fromkeys(
+            item
+            for item in (
+                row.get("sequence_label", ""),
+                f"乘车地点：{row.get('boarding_location', '')}"
+                if row.get("boarding_location")
+                else "",
+            )
+            if item
+        )
+    )
 
 
 def _extract_exceptions_from_parent_text(

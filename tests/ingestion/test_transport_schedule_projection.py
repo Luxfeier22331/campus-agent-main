@@ -89,6 +89,8 @@ class TransportScheduleProjectionTest(unittest.TestCase):
                 "route:wukesong-subway-to-fengtai",
                 "route:fengtai-to-libafang-subway",
                 "route:libafang-subway-to-fengtai",
+                "route:fengtai-to-zhangguozhuang-special-bus",
+                "route:yuanboyuan-to-fengtai-special-bus",
             },
         )
         haidian_to_fengtai = [
