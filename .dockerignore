@@ -4,6 +4,8 @@
 !apps/supervisor-api/**
 !apps/supervisor-agent-worker/
 !apps/supervisor-agent-worker/**
+!apps/ingestion-worker/
+!apps/ingestion-worker/**
 !apps/legacy-office-conversion-service/
 !apps/legacy-office-conversion-service/**
 !configs/ingestion/
@@ -26,3 +28,5 @@
 !packages/retrieval-core/**
 !packages/shared/
 !packages/shared/**
+!scripts/
+!scripts/**
