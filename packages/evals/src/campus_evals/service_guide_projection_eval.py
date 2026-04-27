@@ -92,6 +92,17 @@ def load_default_service_guide_projection_eval_cases() -> tuple[
             ),
             expected_missing_fields=("contact_refs",),
         ),
+        ServiceGuideProjectionEvalCase(
+            case_id="campus-card-lost-reissue",
+            service_id="service:campus-card:lost-reissue",
+            required_entry_labels=("学生自助补卡机", "海淀校区校园卡管理中心", "丰台校区卡务中心"),
+            required_contact_labels=("海淀校区校园卡管理中心", "丰台校区卡务中心"),
+            required_section_types=("overview", "procedure", "entry", "contact"),
+            required_source_refs=(
+                "https://met.muc.edu.cn/info/1027/1127.htm",
+                "https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/",
+            ),
+        ),
     )
 
 

@@ -21,8 +21,9 @@ Current runtime truth:
 Current structured projection:
 
 - schema: `campus_services_service_guide_projection.v1`
-- current tracked source-truth gate: 14 ready records from dormitory workflows,
-  public medical guides, student daily-affairs guides and financial-aid guides
+- current tracked source-truth gate: 15 ready records from dormitory workflows,
+  public medical guides, student daily-affairs guides, financial-aid guides and
+  official campus-card service pages
 - canonical build path: `regulations/student_rules` handbook raw ingestion and
   provider-response replay load `source-truth.v1.json` after successful
   document persistence, then publish the `service_guide` structured projection

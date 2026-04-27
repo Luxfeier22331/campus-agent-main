@@ -37,8 +37,8 @@ class ServiceGuideProjectionEvalTest(unittest.TestCase):
         )
 
         self.assertTrue(eval_report.passed, eval_report.failed_case_ids)
-        self.assertEqual(eval_report.summary["total"], 5)
-        self.assertEqual(eval_report.summary["passed"], 5)
+        self.assertEqual(eval_report.summary["total"], 6)
+        self.assertEqual(eval_report.summary["passed"], 6)
         by_case = {case.case_id: case for case in eval_report.case_results}
         self.assertEqual(
             by_case["student-card-office-hours"].observed_values["office_hours"],
@@ -47,6 +47,10 @@ class ServiceGuideProjectionEvalTest(unittest.TestCase):
         self.assertEqual(
             by_case["public-medical-contact-fail-close"].observed_missing_fields,
             ["contact_refs"],
+        )
+        self.assertEqual(
+            by_case["campus-card-lost-reissue"].observed_values["contacts"],
+            ["海淀校区校园卡管理中心", "丰台校区卡务中心"],
         )
 
     def test_eval_reports_missing_required_materials(self) -> None:

@@ -13,8 +13,12 @@ from campus_ingestion_core.service_guide_projection_constants import (
     HANDBOOK_CURATED_SERVICE_GUIDE_SCHEMA_VERSION,
     HANDBOOK_CURATED_SERVICE_GUIDE_SOURCE_FAMILY,
     HANDBOOK_SERVICE_NAVIGATION_SOURCE_FAMILY,
+    NOTICE_DERIVED_SERVICE_GUIDE_SOURCE_FAMILY,
+    OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SCHEMA_VERSION,
+    OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SOURCE_FAMILY,
     SERVICE_GUIDE_COLLECTION,
     SERVICE_GUIDE_CORPUS,
+    SERVICE_GUIDE_MANUAL_REVIEW_FILENAME,
     SERVICE_GUIDE_PROJECTION_FILENAME,
     SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION,
     SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_ENV,
@@ -178,7 +182,13 @@ def build_service_guide_projection_bundle_from_curated_service_guide(
         "curated_service_guide_artifact",
     )
     schema_version = str(artifact.get("schemaVersion") or "").strip()
-    if schema_version != HANDBOOK_CURATED_SERVICE_GUIDE_SCHEMA_VERSION:
+    if schema_version == HANDBOOK_CURATED_SERVICE_GUIDE_SCHEMA_VERSION:
+        source_family = HANDBOOK_CURATED_SERVICE_GUIDE_SOURCE_FAMILY
+        require_handbook_pages = True
+    elif schema_version == OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SCHEMA_VERSION:
+        source_family = OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SOURCE_FAMILY
+        require_handbook_pages = False
+    else:
         raise ValueError(f"unsupported curated service guide schemaVersion: {schema_version!r}")
     if _required_text(artifact.get("projectionName")) is None:
         raise ValueError("curated service guide projectionName is required")
@@ -187,12 +197,13 @@ def build_service_guide_projection_bundle_from_curated_service_guide(
         document_data=document_data,
         effective_from=effective_from,
         effective_until=effective_until,
+        require_handbook_pages=require_handbook_pages,
     )
     records.sort(key=lambda item: (item["source_refs"][0], item["display_name"]))
     bundle = {
         "schema_version": SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION,
         "generated_at": generated_at,
-        "source_families": [HANDBOOK_CURATED_SERVICE_GUIDE_SOURCE_FAMILY],
+        "source_families": [source_family],
         "service_guide_records": records,
         "conflict_records": [],
         "manual_review_sources": manual_review_sources,
@@ -275,6 +286,18 @@ def resolve_service_guide_source_truth_manifest_path(
     return None
 
 
+def build_service_guide_projection_bundle_from_source_truth_manifest(
+    *,
+    source_truth_manifest_path: Path | str,
+    generated_at: str,
+) -> ServiceGuideProjectionBuildResult:
+    manifest = load_service_guide_source_truth_manifest(source_truth_manifest_path)
+    return _build_service_guide_projection_bundle_from_loaded_source_truth_manifest(
+        manifest=manifest,
+        generated_at=generated_at,
+    )
+
+
 def write_service_guide_projection_release_from_source_truth_manifest(
     *,
     source_truth_manifest_path: Path | str,
@@ -285,33 +308,9 @@ def write_service_guide_projection_release_from_source_truth_manifest(
     release_id: str | None = None,
 ) -> ServiceGuideProjectionReleaseReport:
     manifest = load_service_guide_source_truth_manifest(source_truth_manifest_path)
-    _parse_rfc3339(generated_at, "generated_at")
-    build_results: list[ServiceGuideProjectionBuildResult] = []
-    for curated_flow_graph_path in manifest.curated_flow_graph_paths:
-        build_results.append(
-            build_service_guide_projection_bundle_from_curated_handbook_flow_graph(
-                curated_flow_graph_artifact=_read_json_object(curated_flow_graph_path),
-                generated_at=generated_at,
-                effective_from=manifest.effective_from,
-                effective_until=manifest.effective_until,
-            )
-        )
-    for curated_service_guide_path in manifest.curated_service_guide_paths:
-        build_results.append(
-            build_service_guide_projection_bundle_from_curated_service_guide(
-                curated_service_guide_artifact=_read_json_object(curated_service_guide_path),
-                generated_at=generated_at,
-                effective_from=manifest.effective_from,
-                effective_until=manifest.effective_until,
-            )
-        )
-    build_result = (
-        build_results[0]
-        if len(build_results) == 1
-        else merge_service_guide_projection_build_results(
-            build_results=build_results,
-            generated_at=generated_at,
-        )
+    build_result = _build_service_guide_projection_bundle_from_loaded_source_truth_manifest(
+        manifest=manifest,
+        generated_at=generated_at,
     )
     assert_service_guide_projection_release_ready(
         build_result.bundle,
@@ -360,6 +359,41 @@ def write_service_guide_projection_release_from_manifest_if_available(
         generated_at=generated_at,
         object_store=object_store,
         bucket=bucket,
+    )
+
+
+def _build_service_guide_projection_bundle_from_loaded_source_truth_manifest(
+    *,
+    manifest: ServiceGuideSourceTruthManifest,
+    generated_at: str,
+) -> ServiceGuideProjectionBuildResult:
+    _parse_rfc3339(generated_at, "generated_at")
+    build_results: list[ServiceGuideProjectionBuildResult] = []
+    for curated_flow_graph_path in manifest.curated_flow_graph_paths:
+        build_results.append(
+            build_service_guide_projection_bundle_from_curated_handbook_flow_graph(
+                curated_flow_graph_artifact=_read_json_object(curated_flow_graph_path),
+                generated_at=generated_at,
+                effective_from=manifest.effective_from,
+                effective_until=manifest.effective_until,
+            )
+        )
+    for curated_service_guide_path in manifest.curated_service_guide_paths:
+        build_results.append(
+            build_service_guide_projection_bundle_from_curated_service_guide(
+                curated_service_guide_artifact=_read_json_object(curated_service_guide_path),
+                generated_at=generated_at,
+                effective_from=manifest.effective_from,
+                effective_until=manifest.effective_until,
+            )
+        )
+    return (
+        build_results[0]
+        if len(build_results) == 1
+        else merge_service_guide_projection_build_results(
+            build_results=build_results,
+            generated_at=generated_at,
+        )
     )
 
 
@@ -604,8 +638,12 @@ __all__ = [
     "HANDBOOK_CURATED_SERVICE_GUIDE_SCHEMA_VERSION",
     "HANDBOOK_CURATED_SERVICE_GUIDE_SOURCE_FAMILY",
     "HANDBOOK_SERVICE_NAVIGATION_SOURCE_FAMILY",
+    "NOTICE_DERIVED_SERVICE_GUIDE_SOURCE_FAMILY",
+    "OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SCHEMA_VERSION",
+    "OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SOURCE_FAMILY",
     "SERVICE_GUIDE_COLLECTION",
     "SERVICE_GUIDE_CORPUS",
+    "SERVICE_GUIDE_MANUAL_REVIEW_FILENAME",
     "SERVICE_GUIDE_PROJECTION_FILENAME",
     "SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION",
     "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_ENV",
@@ -619,6 +657,7 @@ __all__ = [
     "build_service_guide_projection_bundle_from_curated_service_guide",
     "build_service_guide_projection_bundle_from_handbook_flow_graph",
     "build_service_guide_projection_bundle_from_handbook_flow_graph_document_data",
+    "build_service_guide_projection_bundle_from_source_truth_manifest",
     "load_service_guide_source_truth_manifest",
     "merge_service_guide_projection_build_results",
     "resolve_service_guide_source_truth_manifest_path",

@@ -20,6 +20,7 @@ def _coerce_curated_service_guide_records(
     document_data: dict[str, Any],
     effective_from: str,
     effective_until: str,
+    require_handbook_pages: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     payload = _require_mapping(document_data, "document_data")
     extraction_status = _required_text(payload.get("extractionStatus")) or ""
@@ -28,8 +29,12 @@ def _coerce_curated_service_guide_records(
     title = _required_text(payload.get("title"))
     if title is None:
         raise ValueError("curated service guide title is required")
-    page_start = _positive_int(payload.get("sourcePageStart"), "sourcePageStart")
-    page_end = _positive_int(payload.get("sourcePageEnd"), "sourcePageEnd")
+    if require_handbook_pages:
+        page_start = _positive_int(payload.get("sourcePageStart"), "sourcePageStart")
+        page_end = _positive_int(payload.get("sourcePageEnd"), "sourcePageEnd")
+    else:
+        page_start = _optional_positive_int(payload.get("sourcePageStart"))
+        page_end = _optional_positive_int(payload.get("sourcePageEnd"))
     global_manual_review_required = bool(payload.get("manualReviewRequired")) or (
         extraction_status == "needs_review"
     )
@@ -122,12 +127,16 @@ def _curated_aliases(*, display_name: str, aliases: object) -> list[str]:
 def _curated_source_refs(
     value: object,
     *,
-    page_start: int,
-    page_end: int,
+    page_start: int | None,
+    page_end: int | None,
 ) -> list[str]:
     refs = _string_list(value)
     if refs:
         return refs
+    if page_start is None or page_end is None:
+        raise ValueError(
+            "curated service guide sourceRefs is required when handbook pages are absent"
+        )
     return [_handbook_page_source_ref(page_start=page_start, page_end=page_end, page=page_start)]
 
 

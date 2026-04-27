@@ -67,6 +67,12 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
             "联系方式",
             "联系谁",
             "电话",
+            "怎么办",
+            "丢了",
+            "遗失",
+            "挂失",
+            "补卡",
+            "补办",
             "退宿",
             "入住",
             "不住宿",
@@ -85,6 +91,8 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
             "公费医疗",
             "医疗报销",
             "医药费报销",
+            "校园卡",
+            "一卡通",
         )
     ):
         return ("service_guide_lookup",)
@@ -193,6 +201,9 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
         "公费医疗报销怎么办理",
         "公费医疗报销联系电话是多少",
         "公费医疗报销办理时间是什么",
+        "校园卡丢了怎么办",
+        "校园卡在哪里补办",
+        "一卡通挂失电话是多少",
     )
     return tuple(
         IntentCase(
@@ -263,6 +274,8 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
         "毕业生离校流程是什么",
         "公费医疗报销需要什么材料",
         "公费医疗报销联系电话是多少",
+        "校园卡丢了怎么办",
+        "一卡通挂失电话是多少",
     )
     notice_goals = (
         "找一下春假通知",

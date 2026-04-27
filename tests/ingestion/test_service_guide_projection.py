@@ -51,13 +51,14 @@ class ServiceGuideProjectionTest(unittest.TestCase):
         projection = json.loads(
             object_store.objects[("campus-rag-derived", report.current_object_key)].decode("utf-8")
         )
-        self.assertEqual(len(projection["service_guide_records"]), 14)
+        self.assertEqual(len(projection["service_guide_records"]), 15)
         by_name = {record["display_name"]: record for record in projection["service_guide_records"]}
         self.assertIn("学生证补办办理指南", by_name)
         self.assertIn("学生申诉办理指南", by_name)
         self.assertIn("临时困难补助申请指南", by_name)
         self.assertIn("国家助学贷款申请指南", by_name)
         self.assertIn("勤工助学岗位聘用指南", by_name)
+        self.assertIn("校园卡挂失与补卡", by_name)
         self.assertEqual(
             {material["name"] for material in by_name["学生证补办办理指南"]["materials"]},
             {"书面申请", "《中央民族大学补办学生证申请表》", "本人照片"},
@@ -149,6 +150,51 @@ class ServiceGuideProjectionTest(unittest.TestCase):
         )
         self.assertEqual(reimbursement["office_hours"], [])
         self.assertEqual(reimbursement["contact_refs"], [])
+
+    def test_builds_campus_card_service_guide_from_official_web_curated_source_truth(
+        self,
+    ) -> None:
+        result = build_service_guide_projection_bundle_from_curated_service_guide(
+            curated_service_guide_artifact=_official_web_campus_card_service_guide_artifact(),
+            generated_at="2026-04-27T10:00:00+08:00",
+            effective_from="2026-04-27T00:00:00+08:00",
+            effective_until="2099-12-31T23:59:59+08:00",
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        assert_service_guide_projection_release_ready(
+            result.bundle,
+            expected_ready_records=1,
+        )
+        self.assertEqual(
+            result.bundle["source_families"], ["official_web_curated_service_guide_v1"]
+        )
+        record = result.bundle["service_guide_records"][0]
+        self.assertEqual(record["service_id"], "service:campus-card:lost-reissue")
+        self.assertEqual(record["category"], "campus_card")
+        self.assertIn("校园卡丢了", record["aliases"])
+        self.assertIn("一卡通补卡", record["aliases"])
+        self.assertEqual(
+            {entry["label"] for entry in record["entry_refs"]},
+            {"学生自助补卡机", "海淀校区校园卡管理中心", "丰台校区卡务中心"},
+        )
+        self_service_entry = next(
+            entry for entry in record["entry_refs"] if entry["label"] == "学生自助补卡机"
+        )
+        self.assertIn("聚雅餐厅", self_service_entry["location_ref"])
+        self.assertIn("图书馆一层门厅", self_service_entry["location_ref"])
+        self.assertEqual(
+            {contact["phone"] for contact in record["contact_refs"]},
+            {"010-68933381", "010-83878225"},
+        )
+        self.assertIn(
+            "30分钟后",
+            next(
+                section["content"]
+                for section in record["guide_sections"]
+                if section["section_type"] == "overview"
+            ),
+        )
 
     def test_builds_ready_projection_from_curated_handbook_flow_graph_artifact(self) -> None:
         result = build_service_guide_projection_bundle_from_curated_handbook_flow_graph(
@@ -406,6 +452,125 @@ def _handbook_flow_graph_artifact() -> dict[str, object]:
                         },
                     ],
                 },
+            ],
+        },
+    }
+
+
+def _official_web_campus_card_service_guide_artifact() -> dict[str, object]:
+    source_refs = [
+        "https://met.muc.edu.cn/info/1027/1127.htm",
+        "https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/",
+    ]
+    return {
+        "schemaVersion": "official_web_curated_service_guide.v1",
+        "projectionName": "official_web_campus_card_service_guide",
+        "targetDocumentId": "campus_services:service_catalog:campus-card",
+        "sourceDocumentId": "official_web:campus-card-service-pages",
+        "documentData": {
+            "title": "中央民族大学校园卡服务指南",
+            "sourceTitle": "学生校园卡服务 / 一卡通",
+            "manualReviewRequired": False,
+            "extractionStatus": "ready",
+            "services": [
+                {
+                    "serviceId": "service:campus-card:lost-reissue",
+                    "displayName": "校园卡挂失与补卡",
+                    "aliases": [
+                        "校园卡丢了",
+                        "校园卡遗失",
+                        "校园卡挂失",
+                        "校园卡补办",
+                        "一卡通丢了",
+                        "一卡通补卡",
+                    ],
+                    "category": "campus_card",
+                    "campusScope": "all",
+                    "audience": ["student", "faculty"],
+                    "sourceRefs": source_refs,
+                    "guideSections": [
+                        {
+                            "sectionId": "service:campus-card:lost-reissue:section:overview",
+                            "sectionType": "overview",
+                            "title": "丢失后的处理范围",
+                            "content": "校园卡丢失后应先办理挂失，再补办新卡；正式卡可挂失，临时卡不挂失。补卡后原余额可在30分钟后通过POS机刷卡领取或圈存机领取到新卡。",
+                            "order": 1,
+                            "sourceRefs": source_refs,
+                        },
+                        {
+                            "sectionId": "service:campus-card:lost-reissue:section:procedure",
+                            "sectionType": "procedure",
+                            "title": "挂失与补卡流程",
+                            "content": "1. 通过圈存机、企业微信或民大通APP办理挂失。\n2. 挂失后可在学生自助补卡机补办校园卡。\n3. 补卡后原余额可在30分钟后通过POS机刷卡领取或圈存机领取到新卡。",
+                            "order": 2,
+                            "sourceRefs": source_refs,
+                        },
+                        {
+                            "sectionId": "service:campus-card:lost-reissue:section:entry",
+                            "sectionType": "entry",
+                            "title": "补卡入口与线下地点",
+                            "content": "学生自助补卡机可办理补卡；自助补卡机位置包括丰台校区聚雅餐厅、荟贤餐厅、智慧中心校园卡前台，以及海淀校区文化楼西区一层、图书馆一层门厅、理工楼一层、中慧楼二层校园卡管理中心；海淀校区线下地点为中慧楼二层校园卡管理中心，丰台校区线下地点为智慧中心一层大厅卡务中心。",
+                            "order": 3,
+                            "sourceRefs": source_refs,
+                        },
+                        {
+                            "sectionId": "service:campus-card:lost-reissue:section:contact",
+                            "sectionType": "contact",
+                            "title": "咨询电话",
+                            "content": "海淀校区校园卡管理中心咨询电话010-68933381；丰台校区卡务中心咨询电话010-83878225。",
+                            "order": 4,
+                            "sourceRefs": source_refs,
+                        },
+                    ],
+                    "materials": [],
+                    "entryRefs": [
+                        {
+                            "entryId": "service:campus-card:lost-reissue:entry:self-service-machine",
+                            "label": "学生自助补卡机",
+                            "entryType": "instructions_only",
+                            "locationRef": "丰台校区聚雅餐厅、荟贤餐厅、智慧中心校园卡前台；海淀校区文化楼西区一层、图书馆一层门厅、理工楼一层、中慧楼二层校园卡管理中心",
+                            "sourceRefs": source_refs,
+                        },
+                        {
+                            "entryId": "service:campus-card:lost-reissue:entry:haidian-card-center",
+                            "label": "海淀校区校园卡管理中心",
+                            "entryType": "offline_location",
+                            "locationRef": "中慧楼二层",
+                            "sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                        },
+                        {
+                            "entryId": "service:campus-card:lost-reissue:entry:fengtai-card-center",
+                            "label": "丰台校区卡务中心",
+                            "entryType": "offline_location",
+                            "locationRef": "智慧中心一层大厅",
+                            "sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                        },
+                    ],
+                    "officeHours": [],
+                    "contactRefs": [
+                        {
+                            "contactId": "service:campus-card:lost-reissue:contact:haidian",
+                            "label": "海淀校区校园卡管理中心",
+                            "department": "校园卡管理中心",
+                            "phone": "010-68933381",
+                            "locationRef": "中慧楼二层",
+                            "sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                        },
+                        {
+                            "contactId": "service:campus-card:lost-reissue:contact:fengtai",
+                            "label": "丰台校区卡务中心",
+                            "department": "卡务中心",
+                            "phone": "010-83878225",
+                            "locationRef": "智慧中心一层大厅",
+                            "sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                        },
+                    ],
+                    "eligibilityNotes": [
+                        "正式卡可办理挂失；临时卡不挂失。",
+                    ],
+                    "extractionStatus": "ready",
+                    "manualReviewNotes": [],
+                }
             ],
         },
     }

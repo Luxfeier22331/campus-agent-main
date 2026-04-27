@@ -55,6 +55,8 @@ workflow owner。
   - service entries、topic landing pages、service portal pages、办事入口说明页
 - official-web service reference pages
   - official web 中稳定的办事说明、入口说明、部门服务说明
+  - 已人工整理为结构化字段的官方网页办理指南使用
+    `official_web_curated_service_guide.v1`
 - future service entry page
   - 一网通办或服务门户事项详情页；只作为只读说明来源
 - `campus_services/contact_directory`
@@ -91,9 +93,12 @@ workflow owner。
     页；`中央民族大学本(预)科学生勤工助学管理办法`，学生手册第 220-225
     页；`中央民族大学助学贷款管理暂行办法`，学生手册第 240-246 页
   - 覆盖：临时困难补助申请指南、国家助学贷款申请指南、勤工助学岗位聘用指南
+- `configs/ingestion/campus_services/service_guide/curated-service-guides/central-minzu-campus-card-official-web.v1.json`
+  - 来源：信息化建设管理处学生校园卡服务页与迎新站一卡通页
+  - 覆盖：校园卡挂失、补卡、两校区线下地点、咨询电话与补卡后余额领取说明
 
-当前 source-truth manifest 的 release gate 固定期望 14 条 ready record：
-宿舍流程 6 条、公费医疗 3 条、学生日常事务 2 条、资助事务 3 条。
+当前 source-truth manifest 的 release gate 固定期望 15 条 ready record：
+宿舍流程 6 条、公费医疗 3 条、学生日常事务 2 条、资助事务 3 条、校园卡 1 条。
 
 ## Projection Bundle
 

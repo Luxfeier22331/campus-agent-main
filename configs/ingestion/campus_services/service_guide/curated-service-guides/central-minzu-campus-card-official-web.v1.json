@@ -1,0 +1,130 @@
+{
+	"schemaVersion": "official_web_curated_service_guide.v1",
+	"projectionName": "official_web_campus_card_service_guide",
+	"targetDocumentId": "campus_services:service_catalog:campus-card",
+	"sourceDocumentId": "official_web:campus-card-service-pages",
+	"documentData": {
+		"title": "中央民族大学校园卡服务指南",
+		"sourceTitle": "学生校园卡服务 / 一卡通",
+		"manualReviewRequired": false,
+		"extractionStatus": "ready",
+		"services": [
+			{
+				"serviceId": "service:campus-card:lost-reissue",
+				"displayName": "校园卡挂失与补卡",
+				"aliases": [
+					"校园卡丢了",
+					"校园卡遗失",
+					"校园卡挂失",
+					"校园卡补办",
+					"校园卡补卡",
+					"一卡通丢了",
+					"一卡通遗失",
+					"一卡通挂失",
+					"一卡通补卡"
+				],
+				"category": "campus_card",
+				"campusScope": "all",
+				"audience": ["student", "faculty"],
+				"sourceRefs": [
+					"https://met.muc.edu.cn/info/1027/1127.htm",
+					"https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"
+				],
+				"guideSections": [
+					{
+						"sectionId": "service:campus-card:lost-reissue:section:overview",
+						"sectionType": "overview",
+						"title": "丢失后的处理范围",
+						"content": "校园卡丢失后应先办理挂失，再补办新卡；正式卡可挂失，临时卡不挂失。补卡后原余额可在30分钟后通过POS机刷卡领取或圈存机领取到新卡。",
+						"order": 1,
+						"sourceRefs": [
+							"https://met.muc.edu.cn/info/1027/1127.htm",
+							"https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"
+						]
+					},
+					{
+						"sectionId": "service:campus-card:lost-reissue:section:procedure",
+						"sectionType": "procedure",
+						"title": "挂失与补卡流程",
+						"content": "1. 通过圈存机、企业微信或民大通APP办理挂失。\n2. 挂失后可在学生自助补卡机补办校园卡。\n3. 补卡后原余额可在30分钟后通过POS机刷卡领取或圈存机领取到新卡。",
+						"order": 2,
+						"sourceRefs": [
+							"https://met.muc.edu.cn/info/1027/1127.htm",
+							"https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"
+						]
+					},
+					{
+						"sectionId": "service:campus-card:lost-reissue:section:entry",
+						"sectionType": "entry",
+						"title": "补卡入口与线下地点",
+						"content": "学生自助补卡机可办理补卡；自助补卡机位置包括丰台校区聚雅餐厅、荟贤餐厅、智慧中心校园卡前台，以及海淀校区文化楼西区一层、图书馆一层门厅、理工楼一层、中慧楼二层校园卡管理中心；海淀校区线下地点为中慧楼二层校园卡管理中心，丰台校区线下地点为智慧中心一层大厅卡务中心。",
+						"order": 3,
+						"sourceRefs": [
+							"https://met.muc.edu.cn/info/1027/1127.htm",
+							"https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"
+						]
+					},
+					{
+						"sectionId": "service:campus-card:lost-reissue:section:contact",
+						"sectionType": "contact",
+						"title": "咨询电话",
+						"content": "海淀校区校园卡管理中心咨询电话010-68933381；丰台校区卡务中心咨询电话010-83878225。",
+						"order": 4,
+						"sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"]
+					}
+				],
+				"materials": [],
+				"entryRefs": [
+					{
+						"entryId": "service:campus-card:lost-reissue:entry:self-service-machine",
+						"label": "学生自助补卡机",
+						"entryType": "instructions_only",
+						"url": "",
+						"locationRef": "丰台校区聚雅餐厅、荟贤餐厅、智慧中心校园卡前台；海淀校区文化楼西区一层、图书馆一层门厅、理工楼一层、中慧楼二层校园卡管理中心",
+						"sourceRefs": ["https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
+					},
+					{
+						"entryId": "service:campus-card:lost-reissue:entry:haidian-card-center",
+						"label": "海淀校区校园卡管理中心",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "中慧楼二层",
+						"sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"]
+					},
+					{
+						"entryId": "service:campus-card:lost-reissue:entry:fengtai-card-center",
+						"label": "丰台校区卡务中心",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "智慧中心一层大厅",
+						"sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"]
+					}
+				],
+				"officeHours": [],
+				"contactRefs": [
+					{
+						"contactId": "service:campus-card:lost-reissue:contact:haidian",
+						"label": "海淀校区校园卡管理中心",
+						"department": "校园卡管理中心",
+						"phone": "010-68933381",
+						"email": "",
+						"locationRef": "中慧楼二层",
+						"sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"]
+					},
+					{
+						"contactId": "service:campus-card:lost-reissue:contact:fengtai",
+						"label": "丰台校区卡务中心",
+						"department": "卡务中心",
+						"phone": "010-83878225",
+						"email": "",
+						"locationRef": "智慧中心一层大厅",
+						"sourceRefs": ["https://met.muc.edu.cn/info/1027/1127.htm"]
+					}
+				],
+				"eligibilityNotes": ["正式卡可办理挂失；临时卡不挂失。"],
+				"extractionStatus": "ready",
+				"manualReviewNotes": []
+			}
+		]
+	}
+}

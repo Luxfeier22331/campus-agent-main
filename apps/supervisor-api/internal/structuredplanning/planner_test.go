@@ -166,6 +166,48 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "campus card lost service guide full guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡丢了怎么办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园卡丢了怎么办",
+				"guide_focus":   "full_guide",
+			},
+		},
+		{
+			name: "campus card replacement entry",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡在哪里补办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园卡在哪里补办",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "campus card loss contact",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "一卡通挂失电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "一卡通挂失电话是多少",
+				"guide_focus":   "contact",
+			},
+		},
+		{
 			name: "notice discover",
 			request: Request{
 				EffectiveCapability: "notice",
