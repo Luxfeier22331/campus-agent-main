@@ -51,6 +51,7 @@ campus-ingestion-show-internal-notice-consumption-projection-status = "campus_in
 campus-ingestion-list-internal-notice-consumption-admissions = "campus_ingestion_worker.list_internal_notice_consumption_admissions:main"
 campus-ingestion-rebuild-internal-notice-read-model = "campus_ingestion_worker.rebuild_internal_notice_read_model:main"
 campus-ingestion-project-wechat-public-notices = "campus_ingestion_worker.project_wechat_public_notices:main"
+campus-ingestion-smoke-wechat-public-notice-phase5 = "campus_ingestion_worker.smoke_wechat_public_notice_phase5:main"
 campus-ingestion-check-internal-notice-read-model-consistency = "campus_ingestion_worker.check_internal_notice_read_model_consistency:main"
 campus-ingestion-repair-internal-notice-read-model-consistency = "campus_ingestion_worker.repair_internal_notice_read_model_consistency:main"
 campus-ingestion-check-internal-notice-processing-gaps = "campus_ingestion_worker.check_internal_notice_processing_gaps:main"
