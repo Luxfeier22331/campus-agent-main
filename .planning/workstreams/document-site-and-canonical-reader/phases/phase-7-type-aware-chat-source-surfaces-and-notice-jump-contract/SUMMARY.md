@@ -28,6 +28,6 @@ phase: 7
 - Passed: `pnpm docs:lint`
 - Passed: `pnpm exec biome check apps/app-api/src/modules/chat/index.ts apps/app-api/src/modules/chat/model.ts apps/app-api/src/modules/runtime-command/service/normalize.ts apps/public-chat-web/src/platform/chat/api-types.ts apps/public-chat-web/src/platform/chat/message-parts.ts apps/public-chat-web/src/platform/vendor-compat/lib/types.ts apps/public-chat-web/test/platform-chat-mappers.test.ts apps/public-chat-web/test/platform-chat-message-parts.test.ts apps/public-chat-web/test/vendor-chat-message.test.ts apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message.tsx`
 
-## Non-phase Blockers Observed
+## Repo-level Follow-up Verification
 
-- `pnpm web:lint` fails on unrelated dirty files from other workstreams, including WeChat official account collector and existing app-api docs formatting diagnostics.
+- Passed after targeted lint cleanup: `pnpm web:lint`

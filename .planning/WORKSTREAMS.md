@@ -40,7 +40,7 @@ updated: 2026-04-28
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
-| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 7` | 类型化 chat 来源列表已本地实现；app-api/public-chat 定向验证通过，仓库级 `web:lint` 仍受其他 workstream 失败阻塞 |
+| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 7` | 类型化 chat 来源列表已本地实现；app-api/public-chat 定向验证与仓库级 `web:lint` 已通过 |
 | `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | `Phase 1` | `service_status_lookup` precedence / conflict regression follow-up；状态别名与用户可见状态文案已完成一轮收口 |
 
 ## Completed

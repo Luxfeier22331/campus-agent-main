@@ -198,7 +198,7 @@ Compatibility rule: Phase 7 may keep the existing structured part name as `sourc
 - Passed: `pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/chat-command.service.test.ts test/chat-structured-parts.test.ts`
 - Passed: `pnpm docs:lint`
 - Passed: `pnpm exec biome check apps/app-api/src/modules/chat/index.ts apps/app-api/src/modules/chat/model.ts apps/app-api/src/modules/runtime-command/service/normalize.ts apps/public-chat-web/src/platform/chat/api-types.ts apps/public-chat-web/src/platform/chat/message-parts.ts apps/public-chat-web/src/platform/vendor-compat/lib/types.ts apps/public-chat-web/test/platform-chat-mappers.test.ts apps/public-chat-web/test/platform-chat-message-parts.test.ts apps/public-chat-web/test/vendor-chat-message.test.ts apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message.tsx`
-- Blocked outside this phase: `pnpm web:lint` still fails on unrelated dirty workstream files, including WeChat official account collector and existing app-api docs formatting diagnostics.
+- Passed after targeted lint cleanup: `pnpm web:lint`
 
 ## Completion Criteria
 

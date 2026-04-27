@@ -16,7 +16,7 @@ updated: 2026-04-28
 **Total Plans in Phase:** 1
 **Progress:** 7/7 phases implemented locally
 **Last Activity:** 2026-04-28
-**Last Activity Description:** 完成 Phase 7 本地实现：`app-api` chat source projection 从 docs-only `source_cards` 升级为类型化 `source_items`，`public-chat-web` donor message renderer 改为紧凑来源列表，并覆盖 canonical reader、公开通知原始 URL、notice reader 与 restricted notice 的安全展示和动作文案；app-api/public-chat 验证通过，仓库级 `web:lint` 仍受其他 workstream 既有失败阻塞。
+**Last Activity Description:** 完成 Phase 7 本地实现：`app-api` chat source projection 从 docs-only `source_cards` 升级为类型化 `source_items`，`public-chat-web` donor message renderer 改为紧凑来源列表，并覆盖 canonical reader、公开通知原始 URL、notice reader 与 restricted notice 的安全展示和动作文案；app-api/public-chat 验证与仓库级 `web:lint` 均已通过。
 
 ## Current Slice
 
@@ -261,8 +261,7 @@ updated: 2026-04-28
 ## Blockers
 
 - No Phase 7 implementation blocker.
-- Non-phase verification blocker remains in the dirty worktree:
-  - `pnpm web:lint` fails on unrelated files from other workstreams.
+- No repo-wide `web:lint` blocker remains for this workstream.
 
 ## Verification
 
@@ -299,7 +298,7 @@ updated: 2026-04-28
 - `pnpm --filter public-docs lint:generated`
 - `pnpm --filter public-docs build`
 - `pnpm --filter public-docs sync:real-docs`
-- Blocked non-phase: `pnpm web:lint` currently fails on unrelated dirty workstream files, including WeChat official account collector and existing app-api docs formatting diagnostics
+- `pnpm web:lint`
 - `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_provider_normalize`
 - static scans for dense `(1)` / `1)` enumerations, unstyled course-list lead-ins,
   stale global-competence slash, stale cross-discipline split, stale sample docs
@@ -350,6 +349,6 @@ updated: 2026-04-28
 
 ## Session Continuity
 
-**Stopped At:** Phase 7 已本地实现，并通过 app-api/public-chat 验证。仓库级 `web:lint` 仍受其他 workstream 的既有失败阻塞，不应在本 workstream 内越界修复 WeChat collector、notice classification 或 app-api docs formatting 问题。
+**Stopped At:** Phase 7 已本地实现，并通过 app-api/public-chat 验证与仓库级 `web:lint`。
 后续若继续推进本 workstream，应优先做真实 public-chat source item live smoke，或在 notice source serving 正式进入 public chat 后补充端到端来源跳转验收。
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/ROADMAP.md

@@ -14,7 +14,7 @@ updated: 2026-04-28
 
 - status: `implemented-local`
 - current phase: `Phase 7`
-- current focus: Phase 7 已把 docs-only chat source cards 升级为类型化来源列表；app-api/public-chat 定向验证已通过，仓库级 `web:lint` 仍受其他 workstream 既有失败阻塞。
+- current focus: Phase 7 已把 docs-only chat source cards 升级为类型化来源列表；app-api/public-chat 定向验证与仓库级 `web:lint` 已通过。
 
 ## Native Planning Truth
 
