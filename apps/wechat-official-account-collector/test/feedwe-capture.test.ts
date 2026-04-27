@@ -6,14 +6,13 @@ import {
 	type WeChatOfficialAccountArtifactStore,
 } from "../src";
 import { runCaptureCli } from "../src/capture-cli.ts";
-import { replayFeedWeProviderResponseSourceTruth } from "../src/replay-source-truth.ts";
 
 describe("FeedWe capture", () => {
 	it("normalizes account names into stable source-bucket asset slugs", () => {
 		expect(normalizeWeChatAccountSlug("中央民族大学学生会")).toBe("中央民族大学学生会");
 	});
 
-	it("paginates FeedWe history into ADR-0002 provider and capture artifacts", async () => {
+	it("captures real article HTML and image artifacts before materializing source-truth", async () => {
 		const email = "collector@example.com";
 		const password = "super-secret-password";
 		const fetchImplementation = vi
@@ -89,12 +88,15 @@ describe("FeedWe capture", () => {
   <head>
     <meta property="og:title" content="2026 春季通知" />
     <meta property="og:description" content="春季通知摘要第一段&#10;春季通知摘要第二段" />
+    <meta property="og:image" content="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-a-cover/0?wx_fmt=jpeg" />
   </head>
   <body>
     <h1 id="activity-name">2026 春季通知</h1>
     <div id="js_content">
       <section><p>春季通知正文第一段</p></section>
       <section><p>春季通知正文第二段</p></section>
+      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-1/0?wx_fmt=png" />
+      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-2/0?wx_fmt=png" />
     </div>
     <script>window.ct = 1777166101;</script>
   </body>
@@ -104,6 +106,24 @@ describe("FeedWe capture", () => {
 						status: 200,
 					},
 				),
+			)
+			.mockResolvedValueOnce(
+				new Response("cover-a", {
+					headers: { "content-type": "image/jpeg" },
+					status: 200,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response("inline-a-1", {
+					headers: { "content-type": "image/png" },
+					status: 200,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response("inline-a-2", {
+					headers: { "content-type": "image/png" },
+					status: 200,
+				}),
 			)
 			.mockResolvedValueOnce(
 				new Response(
@@ -133,12 +153,14 @@ describe("FeedWe capture", () => {
   <head>
     <meta property="og:title" content="2026 夏季通知" />
     <meta property="og:description" content="夏季通知摘要第一段&#10;夏季通知摘要第二段" />
+    <meta property="og:image" content="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-b-cover/0?wx_fmt=jpeg" />
   </head>
   <body>
     <h1 id="activity-name">2026 夏季通知</h1>
     <div id="js_content">
       <section><p>夏季通知正文第一段</p></section>
       <section><p>夏季通知正文第二段</p></section>
+      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-b-inline-1/0?wx_fmt=png" />
     </div>
     <script>window.ct = 1777252501;</script>
   </body>
@@ -148,6 +170,18 @@ describe("FeedWe capture", () => {
 						status: 200,
 					},
 				),
+			)
+			.mockResolvedValueOnce(
+				new Response("cover-b", {
+					headers: { "content-type": "image/jpeg" },
+					status: 200,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response("inline-b-1", {
+					headers: { "content-type": "image/png" },
+					status: 200,
+				}),
 			);
 		const writes: Array<{ objectKey: string; text: string }> = [];
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
@@ -178,7 +212,7 @@ describe("FeedWe capture", () => {
 			size: 1,
 		});
 
-		expect(fetchImplementation).toHaveBeenCalledTimes(7);
+		expect(fetchImplementation).toHaveBeenCalledTimes(12);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			1,
 			"https://www.feedwe.top/api/auth/login",
@@ -225,7 +259,7 @@ describe("FeedWe capture", () => {
 			}),
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
-			6,
+			9,
 			"https://www.feedwe.top/api/articles?accountId=account-1&cursor=cursor-1&limit=1",
 			expect.objectContaining({
 				headers: { Authorization: "Bearer jwt-token-1" },
@@ -233,7 +267,7 @@ describe("FeedWe capture", () => {
 			}),
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
-			7,
+			10,
 			"https://mp.weixin.qq.com/s/article-b",
 			expect.objectContaining({
 				headers: expect.objectContaining({
@@ -244,15 +278,40 @@ describe("FeedWe capture", () => {
 				redirect: "follow",
 			}),
 		);
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-a-cover/0?wx_fmt=jpeg",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+					referer: "https://mp.weixin.qq.com/s/article-a",
+					"user-agent": expect.stringContaining("Mozilla/5.0"),
+				}),
+				redirect: "follow",
+			}),
+		);
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-b-inline-1/0?wx_fmt=png",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+					referer: "https://mp.weixin.qq.com/s/article-b",
+				}),
+				redirect: "follow",
+			}),
+		);
 		expect(result.summary).toEqual({
-			artifactUploads: 14,
+			artifactUploads: 26,
 			articlesMaterialized: 2,
 			articlesSeen: 2,
 			bodyCapturedArticles: 2,
 			bodyMissingArticles: 0,
 			failures: 0,
+			mediaCaptureArtifacts: 10,
+			mediaCapturedCount: 5,
+			mediaCaptureFailedCount: 0,
+			mediaReferenceCount: 5,
 			pagesFetched: 2,
-			pageCaptureArtifacts: 4,
+			pageCaptureArtifacts: 16,
 			pageCapturesFailed: 0,
 			pageCapturesSucceeded: 2,
 			sourceTruthArtifacts: 6,
@@ -285,9 +344,18 @@ describe("FeedWe capture", () => {
 				expect.stringMatching(
 					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-fetch-metadata\.json$/,
 				),
+				expect.stringMatching(
+					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/provider\/wechat-page-parser\/page-extraction\.json$/,
+				),
+				expect.stringMatching(
+					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/original\.(jpg|png)$/,
+				),
+				expect.stringMatching(
+					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/media\/[a-z0-9-]+\/fetch-metadata\.json$/,
+				),
 			]),
 		);
-		expect(objectKeys).toHaveLength(14);
+		expect(objectKeys).toHaveLength(26);
 		expect(writes.some((item) => item.objectKey.includes("/source-truth/"))).toBe(true);
 		expect(
 			writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-page.html")),
@@ -295,6 +363,21 @@ describe("FeedWe capture", () => {
 		expect(
 			writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-fetch-metadata.json")),
 		).toBe(true);
+		expect(
+			writes.some((item) => item.objectKey.includes("/provider/wechat-page-parser/page-extraction.json")),
+		).toBe(true);
+		expect(
+			writes.some((item) => item.objectKey.includes("/capture/media/") && item.objectKey.endsWith("/original.png")),
+		).toBe(true);
+		expect(
+			writes.find((item) => item.objectKey.endsWith("/source-truth/article-manifest.json"))?.text,
+		).toContain('"schemaVersion": "wechat_official_account_article_manifest.v2"');
+		expect(
+			writes.find((item) => item.objectKey.endsWith("/source-truth/media-refs.jsonl"))?.text,
+		).toContain('"captureStatus":"captured"');
+		expect(
+			writes.find((item) => item.objectKey.endsWith("/source-truth/media-refs.jsonl"))?.text,
+		).toContain('"objectKey":"wechat_official_account/');
 		expect(writes.some((item) => item.objectKey.includes("/projection/"))).toBe(false);
 		expect(JSON.stringify(writes)).not.toContain(password);
 	});
@@ -516,14 +599,18 @@ describe("FeedWe capture", () => {
 		});
 
 		expect(result.summary).toEqual({
-			artifactUploads: 7,
+			artifactUploads: 8,
 			articlesMaterialized: 1,
 			articlesSeen: 1,
 			bodyCapturedArticles: 0,
 			bodyMissingArticles: 1,
 			failures: 1,
+			mediaCaptureArtifacts: 0,
+			mediaCapturedCount: 0,
+			mediaCaptureFailedCount: 0,
+			mediaReferenceCount: 0,
 			pagesFetched: 1,
-			pageCaptureArtifacts: 2,
+			pageCaptureArtifacts: 3,
 			pageCapturesFailed: 1,
 			pageCapturesSucceeded: 0,
 			sourceTruthArtifacts: 3,
@@ -536,68 +623,17 @@ describe("FeedWe capture", () => {
 			writes.find((item) => item.objectKey.endsWith("/capture/wechat-article-page.html"))?.text,
 		).toContain("环境异常");
 		expect(
+			writes.find(
+				(item) =>
+					item.objectKey.includes("/provider/wechat-page-parser/page-extraction.json"),
+			)?.text,
+		).toContain('"pageKind": "verification"');
+		expect(
 			writes.find((item) => item.objectKey.endsWith("/source-truth/article-manifest.json"))?.text,
 		).toContain('"bodyState": "fetch_failed"');
 		expect(
 			writes.find((item) => item.objectKey.endsWith("/source-truth/content-blocks.jsonl"))?.text,
 		).toContain('"blockRole":"summary"');
-	});
-
-	it("replays source-truth artifacts from provider-response JSONL", async () => {
-		const writes: Array<{ objectKey: string; text: string }> = [];
-		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
-				const text = new TextDecoder().decode(input.data);
-				writes.push({ objectKey: input.objectKey, text });
-				return {
-					byteSize: input.data.byteLength,
-					contentSha256: "a".repeat(64),
-					objectKey: input.objectKey,
-					recordCount: input.recordCount,
-				};
-			},
-		};
-		const providerResponseJsonl = `${JSON.stringify({
-			articles: [
-				{
-					accountName: "中央民族大学学生会",
-					coverUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/0?wx_fmt=jpeg",
-					id: "feedwe-article-1",
-					publishDate: "2026-04-27 12:00:00",
-					summary: "2026 春季通知正文第一段\n\n2026 春季通知正文第二段",
-					title: "2026 春季通知",
-					url: "https://mp.weixin.qq.com/s/article-a#wechat_redirect",
-				},
-			],
-			begin: "0",
-			count: 1,
-			hasMore: false,
-			size: 1,
-			total: 1,
-		})}\n`;
-
-		const result = await replayFeedWeProviderResponseSourceTruth({
-			accountName: "中央民族大学学生会",
-			accountSlug: "中央民族大学学生会",
-			artifactStore,
-			capturedAt: "2026-04-27T08:00:00.000Z",
-			providerResponseJsonl,
-		});
-
-		expect(result.summary).toEqual({
-			articlesMaterialized: 1,
-			sourceTruthArtifacts: 3,
-		});
-		expect(writes.map((item) => item.objectKey)).toEqual([
-			expect.stringMatching(/\/source-truth\/article-manifest\.json$/),
-			expect.stringMatching(/\/source-truth\/content-blocks\.jsonl$/),
-			expect.stringMatching(/\/source-truth\/media-refs\.jsonl$/),
-		]);
-		expect(writes[0]?.text).toContain('"bodyState": "not_captured"');
-		expect(writes[0]?.text).toContain(
-			'"normalizedArticleUrl": "https://mp.weixin.qq.com/s/article-a"',
-		);
-		expect(writes[1]?.text).toContain('"blockRole":"summary"');
 	});
 
 	it("finalizes failed app-api runs with redacted terminal errors", async () => {

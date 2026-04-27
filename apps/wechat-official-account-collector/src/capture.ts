@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
 	buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage,
+	type CapturedWeChatOfficialAccountArticleMedia,
 	type CapturedWeChatOfficialAccountArticlePage,
 	type WeChatOfficialAccountArticleSourceTruthMaterial,
 } from "wechat-official-account-core";
@@ -17,7 +18,6 @@ import {
 	loginFeedWe,
 	resolveFeedWeSubscription,
 } from "./feedwe-client.ts";
-import { writeWeChatOfficialAccountSourceTruthArtifacts } from "./replay-source-truth.ts";
 import {
 	fetchWeChatOfficialAccountArticlePage,
 	WECHAT_ARTICLE_PAGE_PARSER_VERSION,
@@ -47,6 +47,9 @@ export interface WeChatOfficialAccountCaptureArtifactRef extends StoredArtifactR
 		| "request_summary"
 		| "page_fetch_metadata"
 		| "page_raw_html"
+		| "page_extraction"
+		| "captured_media_metadata"
+		| "captured_media_object"
 		| "source_truth_article_manifest"
 		| "source_truth_content_blocks"
 		| "source_truth_media_refs";
@@ -63,6 +66,10 @@ export interface CaptureFeedWeHistoryResult {
 		bodyCapturedArticles: number;
 		bodyMissingArticles: number;
 		failures: number;
+		mediaCaptureArtifacts: number;
+		mediaCapturedCount: number;
+		mediaCaptureFailedCount: number;
+		mediaReferenceCount: number;
 		pagesFetched: number;
 		pageCaptureArtifacts: number;
 		pageCapturesFailed: number;
@@ -72,6 +79,18 @@ export interface CaptureFeedWeHistoryResult {
 }
 
 const textEncoder = new TextEncoder();
+const MIME_TYPE_EXTENSION: Record<string, string> = {
+	"image/gif": ".gif",
+	"image/jpeg": ".jpg",
+	"image/png": ".png",
+	"image/webp": ".webp",
+};
+
+interface CapturedArticleMediaPayload extends CapturedWeChatOfficialAccountArticleMedia {
+	contentType: string | null;
+	imageBytes: Uint8Array | null;
+	objectKeySeed: string;
+}
 
 export async function captureFeedWeHistory(
 	input: CaptureFeedWeHistoryInput,
@@ -119,6 +138,10 @@ export async function captureFeedWeHistory(
 	let articlesMaterialized = 0;
 	let bodyCapturedArticles = 0;
 	let bodyMissingArticles = 0;
+	let mediaCaptureArtifacts = 0;
+	let mediaCapturedCount = 0;
+	let mediaCaptureFailedCount = 0;
+	let mediaReferenceCount = 0;
 	let pageCaptureArtifacts = 0;
 	let pageCapturesFailed = 0;
 	let pageCapturesSucceeded = 0;
@@ -149,23 +172,49 @@ export async function captureFeedWeHistory(
 				fetchImplementation,
 				now,
 			});
+			const capturedMedia = await captureWeChatArticleMedia({
+				articleSourceUrl: capturedPage.finalUrl || resolveArticleUrl(article) || "",
+				coverImageUrl: capturedPage.coverImageUrl,
+				fetchImplementation,
+				inlineImageUrls: capturedPage.inlineImageUrls,
+				now,
+			});
+			const provisionalMaterial =
+				buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage({
+					accountName,
+					accountSlug,
+					article,
+					capturedAt,
+					page: capturedPage,
+					mediaCaptures: capturedMedia,
+				});
+			const mediaCaptureResult = await writeWeChatArticlePageCaptureArtifacts({
+				article,
+				artifactStore: input.artifactStore,
+				capturedAt,
+				material: provisionalMaterial,
+				mediaCaptures: capturedMedia,
+				page: capturedPage,
+			});
 			const material = buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage({
 				accountName,
 				accountSlug,
 				article,
 				capturedAt,
 				page: capturedPage,
+				mediaCaptures: mediaCaptureResult.mediaCaptures,
 			});
 			pageMaterials.push(material);
-			const storedPageCaptureRefs = await writeWeChatArticlePageCaptureArtifacts({
-				article,
-				artifactStore: input.artifactStore,
-				capturedAt,
-				material,
-				page: capturedPage,
-			});
-			pageCaptureRefs.push(...storedPageCaptureRefs);
-			pageCaptureArtifacts += storedPageCaptureRefs.length;
+			pageCaptureRefs.push(...mediaCaptureResult.refs);
+			pageCaptureArtifacts += mediaCaptureResult.refs.length;
+			mediaCaptureArtifacts += mediaCaptureResult.mediaArtifactCount;
+			mediaCapturedCount += mediaCaptureResult.mediaCaptures.filter(
+				(item) => item.captureStatus === "captured",
+			).length;
+			mediaCaptureFailedCount += mediaCaptureResult.mediaCaptures.filter(
+				(item) => item.captureStatus === "fetch_failed",
+			).length;
+			mediaReferenceCount += mediaCaptureResult.mediaCaptures.length;
 			if (isSuccessfulPageCapture(capturedPage)) {
 				pageCapturesSucceeded += 1;
 			} else {
@@ -225,6 +274,10 @@ export async function captureFeedWeHistory(
 			bodyCapturedArticles,
 			bodyMissingArticles,
 			failures: pageCapturesFailed,
+			mediaCaptureArtifacts,
+			mediaCapturedCount,
+			mediaCaptureFailedCount,
+			mediaReferenceCount,
 			pagesFetched: artifacts.filter((item) => item.artifactType === "provider_response").length,
 			pageCaptureArtifacts,
 			pageCapturesFailed,
@@ -277,13 +330,98 @@ async function captureWeChatArticlePage(input: {
 	}
 }
 
+async function captureWeChatArticleMedia(input: {
+	articleSourceUrl: string;
+	coverImageUrl: string | null;
+	fetchImplementation: typeof fetch;
+	inlineImageUrls: string[];
+	now: () => Date;
+}): Promise<CapturedArticleMediaPayload[]> {
+	const orderedUrls: Array<{ normalizedSourceUrl: string; sourceUrl: string }> = [];
+	const seen = new Set<string>();
+	for (const candidate of [input.coverImageUrl, ...input.inlineImageUrls]) {
+		const sourceUrl = normalizeMediaUrl(candidate);
+		if (!sourceUrl || seen.has(sourceUrl)) {
+			continue;
+		}
+		seen.add(sourceUrl);
+		orderedUrls.push({
+			normalizedSourceUrl: sourceUrl,
+			sourceUrl,
+		});
+	}
+	const media: CapturedArticleMediaPayload[] = [];
+	for (const item of orderedUrls) {
+		const capturedAt = input.now().toISOString();
+		try {
+			const response = await input.fetchImplementation(item.sourceUrl, {
+				headers: {
+					accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+					"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+					referer: input.articleSourceUrl,
+					"user-agent":
+						"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0 Safari/537.36",
+				},
+				redirect: "follow",
+			});
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+			const contentType = normalizeImageContentType(response.headers.get("content-type"));
+			if (!contentType) {
+				throw new Error("non-image content-type");
+			}
+			const imageBytes = new Uint8Array(await response.arrayBuffer());
+			const finalUrl = normalizeMediaUrl(response.url) ?? item.normalizedSourceUrl;
+			media.push({
+				byteSize: imageBytes.byteLength,
+				captureStatus: "captured",
+				capturedAt,
+				contentSha256: sha256Hex(imageBytes),
+				contentType,
+				finalUrl,
+				fetchErrorMessage: null,
+				imageBytes,
+				mimeType: contentType,
+				normalizedSourceUrl: item.normalizedSourceUrl,
+				objectKey: null,
+				objectKeySeed: sha256Hex(item.normalizedSourceUrl).slice(0, 16),
+				sourceUrl: item.sourceUrl,
+			});
+		} catch (error) {
+			media.push({
+				byteSize: null,
+				captureStatus: "fetch_failed",
+				capturedAt,
+				contentSha256: null,
+				contentType: null,
+				finalUrl: null,
+				fetchErrorMessage: error instanceof Error ? error.message : String(error),
+				imageBytes: null,
+				mimeType: null,
+				normalizedSourceUrl: item.normalizedSourceUrl,
+				objectKey: null,
+				objectKeySeed: sha256Hex(item.normalizedSourceUrl).slice(0, 16),
+				sourceUrl: item.sourceUrl,
+			});
+		}
+	}
+	return media;
+}
+
 async function writeWeChatArticlePageCaptureArtifacts(input: {
 	article: unknown;
 	artifactStore: WeChatOfficialAccountArtifactStore;
 	capturedAt: string;
 	material: WeChatOfficialAccountArticleSourceTruthMaterial;
+	mediaCaptures: CapturedArticleMediaPayload[];
 	page: CapturedWeChatOfficialAccountArticlePage;
-}): Promise<WeChatOfficialAccountCaptureArtifactRef[]> {
+}): Promise<{
+	refs: WeChatOfficialAccountCaptureArtifactRef[];
+	mediaArtifactCount: number;
+	mediaCaptures: CapturedWeChatOfficialAccountArticleMedia[];
+}> {
+	const articlePrefix = buildArticlePrefix(input.material);
 	const capturePrefix = buildArticleCapturePrefix(input.material);
 	const metadata = {
 		schemaVersion: "wechat_official_account_article_fetch_metadata.v1",
@@ -330,7 +468,95 @@ async function writeWeChatArticlePageCaptureArtifacts(input: {
 		});
 		refs.push({ ...pageRef, artifactType: "page_raw_html" });
 	}
-	return refs;
+	const extractionRef = await input.artifactStore.putObject({
+		contentType: "application/json",
+		data: textEncoder.encode(
+			`${JSON.stringify(
+				{
+					schemaVersion: "wechat_official_account_article_page_extraction.v1",
+					accountName: input.material.accountName,
+					accountSlug: input.material.accountSlug,
+					articleStableId: input.material.articleStableId,
+					rawAssetId: input.material.rawAssetId,
+					rawVersionId: input.material.rawVersionId,
+					parserVersion: input.page.parserVersion,
+					pageKind: input.page.pageKind,
+					finalUrl: input.page.finalUrl,
+					title: input.page.title,
+					summary: input.page.summary,
+					publishTime: input.page.publishTime,
+					publishTimeSource: input.page.publishTimeSource,
+					coverImageUrl: input.page.coverImageUrl,
+					bodyBlocks: input.page.bodyBlocks,
+					inlineImageUrls: input.page.inlineImageUrls,
+				},
+				null,
+				2,
+			)}\n`,
+		),
+		objectKey: `${articlePrefix}/provider/wechat-page-parser/page-extraction.json`,
+		recordCount: 1,
+	});
+	refs.push({ ...extractionRef, artifactType: "page_extraction" });
+
+	const finalizedMediaCaptures: CapturedWeChatOfficialAccountArticleMedia[] = [];
+	let mediaArtifactCount = 0;
+	for (const media of input.mediaCaptures) {
+		const mediaPrefix = `${capturePrefix}/media/${media.objectKeySeed}`;
+		let objectKey: string | null = null;
+		if (media.captureStatus === "captured" && media.imageBytes && media.contentType) {
+			objectKey = `${mediaPrefix}/original${inferImageExtension({
+				contentType: media.contentType,
+				sourceUrl: media.finalUrl ?? media.normalizedSourceUrl,
+			})}`;
+			const storedObject = await input.artifactStore.putObject({
+				contentType: media.contentType,
+				data: media.imageBytes,
+				objectKey,
+			});
+			refs.push({ ...storedObject, artifactType: "captured_media_object" });
+			mediaArtifactCount += 1;
+		}
+		const metadataObject = {
+			schemaVersion: "wechat_official_account_media_fetch_metadata.v1",
+			accountName: input.material.accountName,
+			accountSlug: input.material.accountSlug,
+			articleStableId: input.material.articleStableId,
+			rawAssetId: input.material.rawAssetId,
+			rawVersionId: input.material.rawVersionId,
+			sourceUrl: media.sourceUrl,
+			normalizedSourceUrl: media.normalizedSourceUrl,
+			captureStatus: media.captureStatus,
+			finalUrl: media.finalUrl,
+			objectKey,
+			contentSha256: media.contentSha256,
+			mimeType: media.mimeType,
+			byteSize: media.byteSize,
+			capturedAt: media.capturedAt,
+			fetchErrorMessage: media.fetchErrorMessage,
+		};
+		const storedMetadata = await input.artifactStore.putObject({
+			contentType: "application/json",
+			data: textEncoder.encode(`${JSON.stringify(metadataObject, null, 2)}\n`),
+			objectKey: `${mediaPrefix}/fetch-metadata.json`,
+			recordCount: 1,
+		});
+		refs.push({ ...storedMetadata, artifactType: "captured_media_metadata" });
+		mediaArtifactCount += 1;
+		finalizedMediaCaptures.push({
+			byteSize: media.byteSize,
+			captureStatus: media.captureStatus,
+			capturedAt: media.capturedAt,
+			contentSha256: media.contentSha256,
+			finalUrl: media.finalUrl,
+			fetchErrorMessage: media.fetchErrorMessage,
+			mimeType: media.mimeType,
+			normalizedSourceUrl: media.normalizedSourceUrl,
+			objectKey,
+			sourceUrl: media.sourceUrl,
+		});
+	}
+	return { refs, mediaArtifactCount, mediaCaptures: finalizedMediaCaptures };
 }
 
 async function writeFeedWePageArtifacts(input: {
@@ -429,10 +655,36 @@ async function writeFeedWePageArtifacts(input: {
 	];
 }
 
+async function writeWeChatOfficialAccountSourceTruthArtifacts(input: {
+	artifactStore: WeChatOfficialAccountArtifactStore;
+	materials: WeChatOfficialAccountArticleSourceTruthMaterial[];
+}): Promise<WeChatOfficialAccountCaptureArtifactRef[]> {
+	const refs: WeChatOfficialAccountCaptureArtifactRef[] = [];
+	for (const material of input.materials) {
+		for (const artifact of material.artifacts) {
+			const stored = await input.artifactStore.putObject({
+				contentType: artifact.contentType,
+				data: artifact.data,
+				objectKey: artifact.objectKey,
+				recordCount: artifact.recordCount,
+			});
+			refs.push({
+				...stored,
+				artifactType: artifact.artifactType,
+			});
+		}
+	}
+	return refs;
+}
+
+function buildArticlePrefix(material: WeChatOfficialAccountArticleSourceTruthMaterial): string {
+	return `wechat_official_account/${material.accountSlug}/${material.year}/${material.rawVersionId}`;
+}
+
 function buildArticleCapturePrefix(
 	material: WeChatOfficialAccountArticleSourceTruthMaterial,
 ): string {
-	return `wechat_official_account/${material.accountSlug}/${material.year}/${material.rawVersionId}/capture`;
+	return `${buildArticlePrefix(material)}/capture`;
 }
 
 function buildSyntheticFetchErrorPage(input: {
@@ -478,6 +730,36 @@ function resolveArticleUrl(value: unknown): string | null {
 function resolveArticleProviderId(value: unknown): string | null {
 	const article = resolveArticleRecord(value);
 	return typeof article.id === "string" && article.id.trim() ? article.id.trim() : null;
+}
+
+function normalizeMediaUrl(value: string | null | undefined): string | null {
+	if (!value?.trim()) {
+		return null;
+	}
+	try {
+		const parsed = new URL(value.trim());
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return null;
+	}
+}
+
+function normalizeImageContentType(value: string | null): string | null {
+	const normalized = String(value || "")
+		.split(";", 1)[0]
+		.trim()
+		.toLowerCase();
+	return normalized.startsWith("image/") ? normalized : null;
+}
+
+function inferImageExtension(input: { contentType: string; sourceUrl: string }): string {
+	const direct = MIME_TYPE_EXTENSION[input.contentType];
+	if (direct) {
+		return direct;
+	}
+	const match = /\.([a-z0-9]{1,8})(?:$|[?#])/i.exec(input.sourceUrl);
+	return match ? `.${match[1]!.toLowerCase()}` : ".bin";
 }
 
 function extractPageYear(page: FeedWeArticlesPage, capturedAt: string): string {

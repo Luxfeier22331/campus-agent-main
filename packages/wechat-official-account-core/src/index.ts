@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 export const WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL = "wechat_official_account" as const;
 export const WECHAT_OFFICIAL_ACCOUNT_PROVIDER = "feedwe" as const;
+export const WECHAT_OFFICIAL_ACCOUNT_CAPTURE_BOUNDARY = "real_mp_weixin_page" as const;
 
 export type WeChatArticleIdentityBasis = "article_url" | "provider_article_id";
 export type WeChatArticleBodyState = "captured" | "not_captured" | "fetch_failed";
@@ -9,9 +10,10 @@ export type WeChatArticleAvailabilityState = "observed";
 export type WeChatArticleBlockRole = "title" | "summary" | "body_paragraph";
 export type WeChatArticleMediaResourceRole = "cover_image" | "inline_image";
 export type WeChatArticlePageKind = "article" | "verification" | "non_article" | "fetch_error";
+export type WeChatArticleMediaCaptureStatus = "captured" | "fetch_failed";
 
 export interface WeChatOfficialAccountArticleManifest {
-	schemaVersion: "wechat_official_account_article_manifest.v1";
+	schemaVersion: "wechat_official_account_article_manifest.v2";
 	sourceChannel: typeof WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL;
 	accountName: string;
 	accountSlug: string;
@@ -34,6 +36,13 @@ export interface WeChatOfficialAccountArticleManifest {
 	blockCount: number;
 	mediaRefCount: number;
 	availabilityState: WeChatArticleAvailabilityState;
+	captureBoundary: typeof WECHAT_OFFICIAL_ACCOUNT_CAPTURE_BOUNDARY;
+	pageKind: WeChatArticlePageKind;
+	pageParserVersion: string;
+	capturedPageFinalUrl: string;
+	inlineImageCount: number;
+	capturedInlineImageCount: number;
+	failedInlineImageCount: number;
 }
 
 export interface WeChatOfficialAccountContentBlockRow {
@@ -49,7 +58,7 @@ export interface WeChatOfficialAccountContentBlockRow {
 }
 
 export interface WeChatOfficialAccountMediaRefRow {
-	schemaVersion: "wechat_official_account_media_ref.v1";
+	schemaVersion: "wechat_official_account_media_ref.v2";
 	rawAssetId: string;
 	rawVersionId: string;
 	mediaRefId: string;
@@ -57,6 +66,14 @@ export interface WeChatOfficialAccountMediaRefRow {
 	resourceRole: WeChatArticleMediaResourceRole;
 	sourceUrl: string;
 	normalizedSourceUrl: string;
+	captureStatus: WeChatArticleMediaCaptureStatus;
+	finalUrl: string | null;
+	objectKey: string | null;
+	contentSha256: string | null;
+	mimeType: string | null;
+	byteSize: number | null;
+	capturedAt: string | null;
+	fetchErrorMessage: string | null;
 }
 
 export type WeChatOfficialAccountSourceTruthArtifactType =
@@ -85,13 +102,6 @@ export interface WeChatOfficialAccountArticleSourceTruthMaterial {
 	artifacts: WeChatOfficialAccountSerializedArtifact[];
 }
 
-export interface BuildWeChatOfficialAccountArticleSourceTruthInput {
-	accountName: string;
-	accountSlug: string;
-	article: unknown;
-	capturedAt: string;
-}
-
 export interface CapturedWeChatOfficialAccountArticlePage {
 	bodyBlocks: string[];
 	contentType: string | null;
@@ -108,6 +118,19 @@ export interface CapturedWeChatOfficialAccountArticlePage {
 	statusCode: number;
 	summary: string | null;
 	title: string | null;
+}
+
+export interface CapturedWeChatOfficialAccountArticleMedia {
+	sourceUrl: string;
+	normalizedSourceUrl: string;
+	captureStatus: WeChatArticleMediaCaptureStatus;
+	finalUrl: string | null;
+	objectKey: string | null;
+	contentSha256: string | null;
+	mimeType: string | null;
+	byteSize: number | null;
+	capturedAt: string | null;
+	fetchErrorMessage: string | null;
 }
 
 export interface WeChatOfficialAccountSourceTruthValidationIssue {
@@ -130,136 +153,17 @@ const FORBIDDEN_SOURCE_TRUTH_KEYS = new Set([
 	"policy_projection_version",
 ]);
 
-export function buildWeChatOfficialAccountArticleSourceTruthMaterial(
-	input: BuildWeChatOfficialAccountArticleSourceTruthInput,
-): WeChatOfficialAccountArticleSourceTruthMaterial {
-	const article = normalizeArticleRecord(input.article);
-	const accountName = firstText(article.accountName, input.accountName);
-	const accountSlug = requireText(input.accountSlug, "accountSlug");
-	const capturedAt = normalizeIsoTimestamp(input.capturedAt, "capturedAt");
-	const titleRaw = requireText(article.title, "title");
-	const titleNormalized = normalizeText(titleRaw);
-	const providerArticleId = optionalText(article.id);
-	const articleUrl = optionalText(article.url);
-	const normalizedArticleUrl = articleUrl ? normalizeUrl(articleUrl) : null;
-	if (!(normalizedArticleUrl || providerArticleId)) {
-		throw new Error("article url or provider article id is required");
-	}
-
-	const articleIdentityBasis: WeChatArticleIdentityBasis = normalizedArticleUrl
-		? "article_url"
-		: "provider_article_id";
-	const identityValue = normalizedArticleUrl ?? providerArticleId ?? "";
-	const publish = normalizePublishTime(article);
-	const coverImageUrl = resolveArticleCoverUrl(article);
-	const normalizedCoverImageUrl = coverImageUrl ? normalizeUrl(coverImageUrl) : null;
-	const summaryRaw = resolveArticleSummary(article);
-	const summaryNormalized = summaryRaw ? normalizeText(summaryRaw) : null;
-	const articleStableId = prefixedHash("woa_article", `${accountSlug}\n${identityValue}`, 24);
-	const rawAssetId = prefixedHash("woa_asset", `${accountSlug}\n${identityValue}`, 24);
-	const metadataHash = hashJson({
-		accountName,
-		accountSlug,
-		coverImageUrl: normalizedCoverImageUrl,
-		normalizedArticleUrl,
-		providerArticleId,
-		publishTime: publish.value,
-		summary: summaryNormalized,
-		titleNormalized,
-	});
-	const rawVersionId = prefixedHash("woa_ver", metadataHash, 24);
-	const contentBlocks = [
-		buildContentBlock({
-			blockOrder: 0,
-			blockRole: "title",
-			rawAssetId,
-			rawVersionId,
-			rowIndex: 0,
-			textRaw: titleRaw,
-			textNormalized: titleNormalized,
-		}),
-	];
-	if (summaryRaw) {
-		contentBlocks.push(
-			buildContentBlock({
-				blockOrder: contentBlocks.length,
-				blockRole: "summary",
-				rawAssetId,
-				rawVersionId,
-				rowIndex: contentBlocks.length,
-				textRaw: summaryRaw,
-				textNormalized: summaryNormalized ?? normalizeText(summaryRaw),
-			}),
-		);
-	}
-	const mediaRefs = normalizedCoverImageUrl
-		? [
-				buildMediaRef({
-					normalizedSourceUrl: normalizedCoverImageUrl,
-					rawAssetId,
-					rawVersionId,
-					refOrder: 0,
-					resourceRole: "cover_image",
-					sourceUrl: coverImageUrl ?? normalizedCoverImageUrl,
-				}),
-			]
-		: [];
-	const manifest: WeChatOfficialAccountArticleManifest = {
-		schemaVersion: "wechat_official_account_article_manifest.v1",
-		sourceChannel: WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL,
-		accountName,
-		accountSlug,
-		articleStableId,
-		rawAssetId,
-		rawVersionId,
-		articleUrl,
-		normalizedArticleUrl,
-		articleIdentityBasis,
-		provider: WECHAT_OFFICIAL_ACCOUNT_PROVIDER,
-		providerArticleId,
-		capturedAt,
-		titleRaw,
-		titleNormalized,
-		publishTime: publish.value,
-		publishTimeSource: publish.source,
-		coverImageUrl: normalizedCoverImageUrl,
-		bodyState: "not_captured",
-		metadataHash,
-		blockCount: contentBlocks.length,
-		mediaRefCount: mediaRefs.length,
-		availabilityState: "observed",
-	};
-	const year = extractYear(publish.value) ?? extractYear(capturedAt) ?? "undated";
-	return {
-		accountName,
-		accountSlug,
-		articleStableId,
-		rawAssetId,
-		rawVersionId,
-		year,
-		manifest,
-		contentBlocks,
-		mediaRefs,
-		artifacts: serializeWeChatOfficialAccountArticleSourceTruthArtifacts({
-			accountSlug,
-			contentBlocks,
-			manifest,
-			mediaRefs,
-			rawVersionId,
-			year,
-		}),
-	};
-}
-
 export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage(input: {
 	accountName: string;
 	accountSlug: string;
 	article: unknown;
 	capturedAt: string;
 	page: CapturedWeChatOfficialAccountArticlePage;
+	mediaCaptures: CapturedWeChatOfficialAccountArticleMedia[];
 }): WeChatOfficialAccountArticleSourceTruthMaterial {
 	const article = normalizeArticleRecord(input.article);
 	const page = normalizeCapturedPage(input.page);
+	const mediaCaptureLookup = normalizeMediaCaptureLookup(input.mediaCaptures);
 	const accountName = firstText(article.accountName, input.accountName);
 	const accountSlug = requireText(input.accountSlug, "accountSlug");
 	const capturedAt = normalizeIsoTimestamp(input.capturedAt, "capturedAt");
@@ -288,6 +192,14 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 	const inlineImageUrls = dedupeUrls(page.inlineImageUrls);
 	const articleStableId = prefixedHash("woa_article", `${accountSlug}\n${identityValue}`, 24);
 	const rawAssetId = prefixedHash("woa_asset", `${accountSlug}\n${identityValue}`, 24);
+
+	const normalizedMediaRefs = buildNormalizedMediaRefInputs({
+		rawAssetId,
+		normalizedCoverImageUrl,
+		coverImageUrl,
+		inlineImageUrls,
+		mediaCaptureLookup,
+	});
 	const metadataHash = hashJson({
 		accountName,
 		accountSlug,
@@ -296,10 +208,21 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 		contentType: page.contentType,
 		coverImageUrl: normalizedCoverImageUrl,
 		fetchErrorMessage: optionalText(page.fetchErrorMessage),
-		inlineImageUrls,
+		mediaRefs: normalizedMediaRefs.map((item) => ({
+			byteSize: item.byteSize,
+			captureStatus: item.captureStatus,
+			contentSha256: item.contentSha256,
+			finalUrl: item.finalUrl,
+			fetchErrorMessage: item.fetchErrorMessage,
+			mimeType: item.mimeType,
+			normalizedSourceUrl: item.normalizedSourceUrl,
+			refOrder: item.refOrder,
+			resourceRole: item.resourceRole,
+			sourceUrl: item.sourceUrl,
+		})),
 		normalizedArticleUrl,
+		pageFinalUrl: page.finalUrl,
 		pageKind: page.pageKind,
-		pageFinalUrl: page.finalUrl ? normalizeUrl(page.finalUrl) : null,
 		parserVersion: page.parserVersion,
 		providerArticleId,
 		publishTime,
@@ -307,70 +230,24 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 		titleNormalized,
 	});
 	const rawVersionId = prefixedHash("woa_ver", metadataHash, 24);
-	const contentBlocks = [
-		buildContentBlock({
-			blockOrder: 0,
-			blockRole: "title",
+	const contentBlocks = buildContentBlocks({
+		rawAssetId,
+		rawVersionId,
+		titleRaw,
+		titleNormalized,
+		summaryRaw,
+		bodyBlocksRaw,
+	});
+	const mediaRefs = normalizedMediaRefs.map((item) =>
+		buildMediaRef({
+			...item,
 			rawAssetId,
 			rawVersionId,
-			rowIndex: 0,
-			textRaw: titleRaw,
-			textNormalized: titleNormalized,
 		}),
-	];
-	if (summaryRaw) {
-		contentBlocks.push(
-			buildContentBlock({
-				blockOrder: contentBlocks.length,
-				blockRole: "summary",
-				rawAssetId,
-				rawVersionId,
-				rowIndex: contentBlocks.length,
-				textRaw: summaryRaw,
-				textNormalized: normalizeText(summaryRaw),
-			}),
-		);
-	}
-	for (const block of bodyBlocksRaw) {
-		contentBlocks.push(
-			buildContentBlock({
-				blockOrder: contentBlocks.length,
-				blockRole: "body_paragraph",
-				rawAssetId,
-				rawVersionId,
-				rowIndex: contentBlocks.length,
-				textRaw: block,
-				textNormalized: normalizeText(block),
-			}),
-		);
-	}
-	const mediaRefs: WeChatOfficialAccountMediaRefRow[] = [];
-	if (normalizedCoverImageUrl) {
-		mediaRefs.push(
-			buildMediaRef({
-				normalizedSourceUrl: normalizedCoverImageUrl,
-				rawAssetId,
-				rawVersionId,
-				refOrder: mediaRefs.length,
-				resourceRole: "cover_image",
-				sourceUrl: coverImageUrl ?? normalizedCoverImageUrl,
-			}),
-		);
-	}
-	for (const inlineImageUrl of inlineImageUrls) {
-		mediaRefs.push(
-			buildMediaRef({
-				normalizedSourceUrl: inlineImageUrl,
-				rawAssetId,
-				rawVersionId,
-				refOrder: mediaRefs.length,
-				resourceRole: "inline_image",
-				sourceUrl: inlineImageUrl,
-			}),
-		);
-	}
+	);
+	const inlineMediaRefs = mediaRefs.filter((item) => item.resourceRole === "inline_image");
 	const manifest: WeChatOfficialAccountArticleManifest = {
-		schemaVersion: "wechat_official_account_article_manifest.v1",
+		schemaVersion: "wechat_official_account_article_manifest.v2",
 		sourceChannel: WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL,
 		accountName,
 		accountSlug,
@@ -393,6 +270,17 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 		blockCount: contentBlocks.length,
 		mediaRefCount: mediaRefs.length,
 		availabilityState: "observed",
+		captureBoundary: WECHAT_OFFICIAL_ACCOUNT_CAPTURE_BOUNDARY,
+		pageKind: page.pageKind,
+		pageParserVersion: page.parserVersion,
+		capturedPageFinalUrl: page.finalUrl,
+		inlineImageCount: inlineMediaRefs.length,
+		capturedInlineImageCount: inlineMediaRefs.filter(
+			(item) => item.captureStatus === "captured",
+		).length,
+		failedInlineImageCount: inlineMediaRefs.filter(
+			(item) => item.captureStatus === "fetch_failed",
+		).length,
 	};
 	const year = extractYear(publishTime) ?? extractYear(capturedAt) ?? "undated";
 	return {
@@ -416,44 +304,6 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 	};
 }
 
-export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromFeedWeDiscoveryArticle(
-	input: BuildWeChatOfficialAccountArticleSourceTruthInput,
-): WeChatOfficialAccountArticleSourceTruthMaterial {
-	const article = normalizeArticleRecord(input.article);
-	return buildWeChatOfficialAccountArticleSourceTruthMaterial({
-		accountName: input.accountName,
-		accountSlug: input.accountSlug,
-		article: {
-			...article,
-			coverUrl: resolveArticleCoverUrl(article),
-			summary: resolveArticleSummary(article),
-		},
-		capturedAt: input.capturedAt,
-	});
-}
-
-export function buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWeDiscoveryPage(input: {
-	accountName: string;
-	accountSlug: string;
-	capturedAt: string;
-	page: { articles: unknown[] } | { raw: { articles?: unknown } };
-}): WeChatOfficialAccountArticleSourceTruthMaterial[] {
-	const rawArticles =
-		"articles" in input.page && Array.isArray(input.page.articles)
-			? input.page.articles
-			: "raw" in input.page && Array.isArray(input.page.raw.articles)
-				? input.page.raw.articles
-				: [];
-	return rawArticles.map((article) =>
-		buildWeChatOfficialAccountArticleSourceTruthMaterialFromFeedWeDiscoveryArticle({
-			accountName: input.accountName,
-			accountSlug: input.accountSlug,
-			article,
-			capturedAt: input.capturedAt,
-		}),
-	);
-}
-
 export function buildWeChatOfficialAccountSourceTruthArtifactKey(input: {
 	accountSlug: string;
 	year: string;
@@ -474,7 +324,7 @@ export function validateWeChatOfficialAccountArticleSourceTruth(
 	material: WeChatOfficialAccountArticleSourceTruthMaterial,
 ): WeChatOfficialAccountSourceTruthValidationIssue[] {
 	const issues: WeChatOfficialAccountSourceTruthValidationIssue[] = [];
-	if (material.manifest.schemaVersion !== "wechat_official_account_article_manifest.v1") {
+	if (material.manifest.schemaVersion !== "wechat_official_account_article_manifest.v2") {
 		issues.push({ code: "invalid_schema", message: "article manifest schemaVersion is invalid" });
 	}
 	if (material.manifest.sourceChannel !== WECHAT_OFFICIAL_ACCOUNT_SOURCE_CHANNEL) {
@@ -487,6 +337,31 @@ export function validateWeChatOfficialAccountArticleSourceTruth(
 		issues.push({
 			code: "media_count_mismatch",
 			message: "mediaRefCount does not match media refs",
+		});
+	}
+	const inlineRefs = material.mediaRefs.filter((item) => item.resourceRole === "inline_image");
+	if (material.manifest.inlineImageCount !== inlineRefs.length) {
+		issues.push({
+			code: "inline_image_count_mismatch",
+			message: "inlineImageCount does not match inline media refs",
+		});
+	}
+	if (
+		material.manifest.capturedInlineImageCount !==
+		inlineRefs.filter((item) => item.captureStatus === "captured").length
+	) {
+		issues.push({
+			code: "captured_inline_image_count_mismatch",
+			message: "capturedInlineImageCount does not match captured inline media refs",
+		});
+	}
+	if (
+		material.manifest.failedInlineImageCount !==
+		inlineRefs.filter((item) => item.captureStatus === "fetch_failed").length
+	) {
+		issues.push({
+			code: "failed_inline_image_count_mismatch",
+			message: "failedInlineImageCount does not match failed inline media refs",
 		});
 	}
 	if (
@@ -507,6 +382,28 @@ export function validateWeChatOfficialAccountArticleSourceTruth(
 			message: "uncaptured article source-truth must not contain body_paragraph blocks",
 		});
 	}
+	for (const mediaRef of material.mediaRefs) {
+		if (mediaRef.schemaVersion !== "wechat_official_account_media_ref.v2") {
+			issues.push({
+				code: "invalid_media_ref_schema",
+				message: `media ref ${mediaRef.mediaRefId} schemaVersion is invalid`,
+			});
+		}
+		if (mediaRef.captureStatus === "captured") {
+			if (!(mediaRef.objectKey && mediaRef.contentSha256 && mediaRef.mimeType && mediaRef.byteSize)) {
+				issues.push({
+					code: "captured_media_missing_object_metadata",
+					message: `captured media ref ${mediaRef.mediaRefId} must include object metadata`,
+				});
+			}
+		}
+		if (mediaRef.captureStatus === "fetch_failed" && !mediaRef.fetchErrorMessage) {
+			issues.push({
+				code: "failed_media_missing_error",
+				message: `failed media ref ${mediaRef.mediaRefId} must include fetchErrorMessage`,
+			});
+		}
+	}
 	for (const key of findForbiddenKeys(material)) {
 		issues.push({
 			code: "forbidden_field",
@@ -514,6 +411,159 @@ export function validateWeChatOfficialAccountArticleSourceTruth(
 		});
 	}
 	return issues;
+}
+
+function buildContentBlocks(input: {
+	rawAssetId: string;
+	rawVersionId: string;
+	titleRaw: string;
+	titleNormalized: string;
+	summaryRaw: string;
+	bodyBlocksRaw: string[];
+}): WeChatOfficialAccountContentBlockRow[] {
+	const rows = [
+		buildContentBlock({
+			blockOrder: 0,
+			blockRole: "title",
+			rawAssetId: input.rawAssetId,
+			rawVersionId: input.rawVersionId,
+			rowIndex: 0,
+			textRaw: input.titleRaw,
+			textNormalized: input.titleNormalized,
+		}),
+	];
+	if (input.summaryRaw) {
+		rows.push(
+			buildContentBlock({
+				blockOrder: rows.length,
+				blockRole: "summary",
+				rawAssetId: input.rawAssetId,
+				rawVersionId: input.rawVersionId,
+				rowIndex: rows.length,
+				textRaw: input.summaryRaw,
+				textNormalized: normalizeText(input.summaryRaw),
+			}),
+		);
+	}
+	for (const block of input.bodyBlocksRaw) {
+		rows.push(
+			buildContentBlock({
+				blockOrder: rows.length,
+				blockRole: "body_paragraph",
+				rawAssetId: input.rawAssetId,
+				rawVersionId: input.rawVersionId,
+				rowIndex: rows.length,
+				textRaw: block,
+				textNormalized: normalizeText(block),
+			}),
+		);
+	}
+	return rows;
+}
+
+function buildNormalizedMediaRefInputs(input: {
+	rawAssetId: string;
+	normalizedCoverImageUrl: string | null;
+	coverImageUrl: string | null;
+	inlineImageUrls: string[];
+	mediaCaptureLookup: Map<string, NormalizedMediaCapture>;
+}): NormalizedMediaRefInput[] {
+	const mediaRefs: NormalizedMediaRefInput[] = [];
+	if (input.normalizedCoverImageUrl) {
+		mediaRefs.push(
+			buildNormalizedMediaRefInput({
+				mediaCaptureLookup: input.mediaCaptureLookup,
+				normalizedSourceUrl: input.normalizedCoverImageUrl,
+				refOrder: mediaRefs.length,
+				resourceRole: "cover_image",
+				sourceUrl: input.coverImageUrl ?? input.normalizedCoverImageUrl,
+			}),
+		);
+	}
+	for (const inlineImageUrl of input.inlineImageUrls) {
+		mediaRefs.push(
+			buildNormalizedMediaRefInput({
+				mediaCaptureLookup: input.mediaCaptureLookup,
+				normalizedSourceUrl: inlineImageUrl,
+				refOrder: mediaRefs.length,
+				resourceRole: "inline_image",
+				sourceUrl: inlineImageUrl,
+			}),
+		);
+	}
+	return mediaRefs;
+}
+
+type NormalizedMediaCapture = {
+	byteSize: number | null;
+	captureStatus: WeChatArticleMediaCaptureStatus;
+	capturedAt: string | null;
+	contentSha256: string | null;
+	finalUrl: string | null;
+	fetchErrorMessage: string | null;
+	mimeType: string | null;
+	objectKey: string | null;
+	sourceUrl: string;
+	normalizedSourceUrl: string;
+};
+
+type NormalizedMediaRefInput = NormalizedMediaCapture & {
+	refOrder: number;
+	resourceRole: WeChatArticleMediaResourceRole;
+};
+
+function normalizeMediaCaptureLookup(
+	values: CapturedWeChatOfficialAccountArticleMedia[],
+): Map<string, NormalizedMediaCapture> {
+	const lookup = new Map<string, NormalizedMediaCapture>();
+	for (const value of values) {
+		const normalizedSourceUrl = normalizeUrl(requireText(value.normalizedSourceUrl, "normalizedSourceUrl"));
+		lookup.set(normalizedSourceUrl, {
+			byteSize: normalizeByteSize(value.byteSize),
+			captureStatus: normalizeMediaCaptureStatus(value.captureStatus),
+			capturedAt: normalizeOptionalIsoTimestamp(optionalText(value.capturedAt)),
+			contentSha256: optionalText(value.contentSha256),
+			finalUrl: normalizeOptionalUrl(optionalText(value.finalUrl)),
+			fetchErrorMessage: optionalText(value.fetchErrorMessage),
+			mimeType: optionalText(value.mimeType),
+			objectKey: optionalText(value.objectKey),
+			sourceUrl: optionalText(value.sourceUrl) ?? normalizedSourceUrl,
+			normalizedSourceUrl,
+		});
+	}
+	return lookup;
+}
+
+function buildNormalizedMediaRefInput(input: {
+	mediaCaptureLookup: Map<string, NormalizedMediaCapture>;
+	normalizedSourceUrl: string;
+	refOrder: number;
+	resourceRole: WeChatArticleMediaResourceRole;
+	sourceUrl: string;
+}): NormalizedMediaRefInput {
+	const capture = input.mediaCaptureLookup.get(input.normalizedSourceUrl);
+	if (capture) {
+		return {
+			...capture,
+			refOrder: input.refOrder,
+			resourceRole: input.resourceRole,
+			sourceUrl: input.sourceUrl,
+		};
+	}
+	return {
+		byteSize: null,
+		captureStatus: "fetch_failed",
+		capturedAt: null,
+		contentSha256: null,
+		finalUrl: null,
+		fetchErrorMessage: "capture result missing",
+		mimeType: null,
+		objectKey: null,
+		refOrder: input.refOrder,
+		resourceRole: input.resourceRole,
+		sourceUrl: input.sourceUrl,
+		normalizedSourceUrl: input.normalizedSourceUrl,
+	};
 }
 
 function serializeWeChatOfficialAccountArticleSourceTruthArtifacts(input: {
@@ -590,16 +640,9 @@ function buildContentBlock(input: {
 	};
 }
 
-function buildMediaRef(input: {
-	normalizedSourceUrl: string;
-	rawAssetId: string;
-	rawVersionId: string;
-	refOrder: number;
-	resourceRole: WeChatArticleMediaResourceRole;
-	sourceUrl: string;
-}): WeChatOfficialAccountMediaRefRow {
+function buildMediaRef(input: NormalizedMediaRefInput & { rawAssetId: string; rawVersionId: string }): WeChatOfficialAccountMediaRefRow {
 	return {
-		schemaVersion: "wechat_official_account_media_ref.v1",
+		schemaVersion: "wechat_official_account_media_ref.v2",
 		rawAssetId: input.rawAssetId,
 		rawVersionId: input.rawVersionId,
 		mediaRefId: prefixedHash(
@@ -611,6 +654,14 @@ function buildMediaRef(input: {
 		resourceRole: input.resourceRole,
 		sourceUrl: input.sourceUrl,
 		normalizedSourceUrl: input.normalizedSourceUrl,
+		captureStatus: input.captureStatus,
+		finalUrl: input.finalUrl,
+		objectKey: input.objectKey,
+		contentSha256: input.contentSha256,
+		mimeType: input.mimeType,
+		byteSize: input.byteSize,
+		capturedAt: input.capturedAt,
+		fetchErrorMessage: input.fetchErrorMessage,
 	};
 }
 
@@ -618,14 +669,14 @@ function normalizeCapturedPage(value: CapturedWeChatOfficialAccountArticlePage) 
 	return {
 		bodyBlocks: Array.isArray(value.bodyBlocks) ? value.bodyBlocks.filter(Boolean) : [],
 		contentType: optionalText(value.contentType),
-		coverImageUrl: optionalText(value.coverImageUrl),
+		coverImageUrl: normalizeOptionalUrl(optionalText(value.coverImageUrl)),
 		fetchErrorMessage: optionalText(value.fetchErrorMessage),
 		fetchedAt: normalizeIsoTimestamp(value.fetchedAt, "page.fetchedAt"),
-		finalUrl: optionalText(value.finalUrl) ? normalizeUrl(value.finalUrl) : "",
+		finalUrl: normalizeUrl(requireText(value.finalUrl, "page.finalUrl")),
 		inlineImageUrls: Array.isArray(value.inlineImageUrls) ? value.inlineImageUrls : [],
 		pageKind: normalizePageKind(value.pageKind),
 		parserVersion: requireText(value.parserVersion, "page.parserVersion"),
-		publishTime: normalizeOptionalIsoTimestamp(value.publishTime),
+		publishTime: normalizeOptionalIsoTimestamp(optionalText(value.publishTime)),
 		publishTimeSource: optionalText(value.publishTimeSource),
 		statusCode: Number.isInteger(value.statusCode) ? value.statusCode : 0,
 		summary: optionalText(value.summary),
@@ -696,6 +747,10 @@ function normalizeUrl(value: string): string {
 	return parsed.toString();
 }
 
+function normalizeOptionalUrl(value: string | null): string | null {
+	return value ? normalizeUrl(value) : null;
+}
+
 function firstText(...values: unknown[]): string {
 	for (const value of values) {
 		const normalized = optionalText(value);
@@ -730,19 +785,23 @@ function normalizePageKind(value: unknown): WeChatArticlePageKind {
 	return "non_article";
 }
 
-function resolveArticleCoverUrl(article: Record<string, unknown>): string | null {
-	return (
-		optionalText(article.coverImage) ??
-		optionalText(article.cover_image) ??
-		optionalText(article.coverUrl)
-	);
+function normalizeMediaCaptureStatus(value: unknown): WeChatArticleMediaCaptureStatus {
+	return value === "captured" ? "captured" : "fetch_failed";
 }
 
-function resolveArticleSummary(article: Record<string, unknown>): string | null {
+function normalizeByteSize(value: unknown): number | null {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+		return null;
+	}
+	return Math.trunc(value);
+}
+
+function resolveArticleSummary(article: Record<string, unknown>): string {
 	return (
 		optionalText(article.summary) ??
 		optionalText(article.description) ??
-		optionalText(article.digest)
+		optionalText(article.digest) ??
+		""
 	);
 }
 
