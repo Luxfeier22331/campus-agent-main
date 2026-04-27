@@ -120,11 +120,7 @@ export function buildPublicDocsSyncManifestFromReadModel(
 	const documentsByDocId = new Map(plan.documents.map((document) => [document.docId, document]));
 	const exportedVersionsById = new Map(
 		plan.documentVersions
-			.filter(
-				(version) =>
-					isPublicExportedVersion(version) ||
-					isGatedExportedVersion(version),
-			)
+			.filter((version) => isPublicExportedVersion(version) || isGatedExportedVersion(version))
 			.map((version) => [version.versionId, version]),
 	);
 

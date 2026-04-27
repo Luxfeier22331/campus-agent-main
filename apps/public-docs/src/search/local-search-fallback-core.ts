@@ -55,7 +55,11 @@ function findCurrentHeader(page: SearchIndexPage, contentIndex: number): SearchI
 	return current;
 }
 
-function createContentStatement(content: string, contentIndex: number, queryLength: number): {
+function createContentStatement(
+	content: string,
+	contentIndex: number,
+	queryLength: number,
+): {
 	statement: string;
 	highlightStart: number;
 } {
@@ -135,7 +139,9 @@ export function buildLocalSearchFallbackResults(
 						header: `${headerPrefix}${header.text}`,
 						link: `${page.routePath}#${header.id}`,
 						query,
-						highlightInfoList: [{ start: headerPrefix.length + headerIndex, length: highlightLength }],
+						highlightInfoList: [
+							{ start: headerPrefix.length + headerIndex, length: highlightLength },
+						],
 					},
 					limit,
 				)

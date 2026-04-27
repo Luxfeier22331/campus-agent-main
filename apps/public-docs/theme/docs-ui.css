@@ -13,7 +13,9 @@
 	--docs-sidebar-outer-gutter: 16px;
 	--docs-sidebar-gutter: 12px;
 	--docs-sidebar-toggle-left: calc(
-		var(--docs-sidebar-outer-gutter) + var(--docs-sidebar-width) + 0.7rem
+		var(--docs-sidebar-outer-gutter) +
+		var(--docs-sidebar-width) +
+		0.7rem
 	);
 	--docs-sidebar-motion-duration: 190ms;
 	--docs-sidebar-motion-easing: cubic-bezier(0.2, 0, 0, 1);
@@ -354,8 +356,7 @@ main.rp-doc-layout__doc-container {
 		min-width: 0;
 		padding-right: var(--docs-reader-padding-right);
 		padding-left: var(--docs-reader-padding-left);
-		transition:
-			padding-left var(--docs-sidebar-motion-duration) var(--docs-sidebar-motion-easing);
+		transition: padding-left var(--docs-sidebar-motion-duration) var(--docs-sidebar-motion-easing);
 	}
 
 	.rp-doc-layout__container .rp-doc-layout__sidebar {
@@ -456,7 +457,9 @@ main.rp-doc-layout__doc-container {
 		padding-left: 0;
 		overflow: hidden;
 		opacity: 0;
-		transform: translateX(calc(-1 * (var(--docs-sidebar-width) + var(--docs-sidebar-outer-gutter))));
+		transform: translateX(
+			calc(-1 * (var(--docs-sidebar-width) + var(--docs-sidebar-outer-gutter)))
+		);
 		visibility: hidden;
 		pointer-events: none;
 		transition:
@@ -493,8 +496,8 @@ main.rp-doc-layout__doc-container {
 	main.rp-doc-layout__doc-container,
 	.rp-doc-layout__container .rp-doc-layout__sidebar,
 	.rp-doc-layout__container .rp-doc-layout__sidebar-placeholder {
-		transition-duration: 0.01ms !important;
-		transition-delay: 0s !important;
+		transition-duration: 0.01ms;
+		transition-delay: 0s;
 	}
 }
 
@@ -968,7 +971,7 @@ main.rp-doc-layout__doc-container {
 		position: fixed;
 		top: var(--rp-nav-height, 64px);
 		right: 0;
-		bottom: auto !important;
+		bottom: auto;
 		left: 0;
 		z-index: 70;
 		align-items: center;
@@ -982,11 +985,11 @@ main.rp-doc-layout__doc-container {
 
 	.rp-doc-layout__menu {
 		min-height: 46px;
-		z-index: 60 !important;
+		z-index: 60;
 	}
 
 	body:has(.rp-doc-layout__sidebar--open) .rp-doc-layout__menu {
-		z-index: 80 !important;
+		z-index: 80;
 	}
 
 	.rp-sidebar-menu__left {

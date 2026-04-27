@@ -356,10 +356,10 @@ describe("docs routes", () => {
 			resolveReader: vi.fn(),
 			checkReaderAdmission: vi.fn().mockRejectedValue(
 				new AppApiRouteError({
-				code: "docs_document_not_found",
-				message: "Document was not found.",
-				retryable: false,
-				status: 404,
+					code: "docs_document_not_found",
+					message: "Document was not found.",
+					retryable: false,
+					status: 404,
 				}),
 			),
 			search: vi.fn(),

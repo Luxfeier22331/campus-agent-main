@@ -61,7 +61,9 @@ export async function syncPublishedReaderAssets(input: {
 		}
 		throw new Error(`unsupported reader asset delivery mode: ${entry.deliveryMode}`);
 	});
-	const publicEntries = syncedEntries.filter((entry) => entry.deliveryMode === "public_static_asset");
+	const publicEntries = syncedEntries.filter(
+		(entry) => entry.deliveryMode === "public_static_asset",
+	);
 	const gatedEntries = syncedEntries.filter((entry) => entry.deliveryMode === "gated_asset");
 	const targetRoot = resolve(input.targetRoot);
 	const docsTargetRoot = resolve(targetRoot, "_docs");

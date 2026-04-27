@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { sanitizePreservedHtmlForMdx } from "../scripts/sync-real-docs/html-table";
 import { buildRspressSidebarConfig } from "../scripts/rspress-sidebar";
+import { sanitizePreservedHtmlForMdx } from "../scripts/sync-real-docs/html-table";
 import { buildMobileTableRowPairs } from "../src/components/DocsContentEnhancer";
 import { normalizeSearchInputAccessibility } from "../src/components/SearchKeyboardGuard";
 import { buildLocalSearchFallbackResults } from "../src/search/local-search-fallback-core";
@@ -41,19 +41,15 @@ describe("public-docs reader UI contracts", () => {
 			link: "/",
 		});
 		expect(sidebar["/"][1]).toMatchObject({
-			text: "学生手册",
-			link: "/student-handbook/",
-			collapsed: true,
-			collapsible: true,
-		});
-		expect(sidebar["/"][2]).toMatchObject({
-			text: "培养方案",
-			link: "/curriculum-plan/",
-			collapsed: true,
+			text: "公开文档",
+			link: "/docs/",
+			collapsed: false,
 			collapsible: true,
 		});
 		expect(JSON.stringify(sidebar)).toContain("中央民族大学学生考勤管理办法");
-		expect(JSON.stringify(sidebar)).toContain("/curriculum-plan/undergraduate/计算机类本科人才培养方案");
+		expect(JSON.stringify(sidebar)).toContain(
+			"/docs/curriculum/curriculum_plan/计算机类本科人才培养方案",
+		);
 	});
 
 	it("normalizes Rspress search input attributes through a runtime helper", () => {
@@ -61,9 +57,7 @@ describe("public-docs reader UI contracts", () => {
 			autocomplete = "";
 			id = "_R_2l6aqjh_";
 			name = "";
-			private readonly attributes = new Map<string, string>([
-				["aria-label", "SearchPanelInput"],
-			]);
+			private readonly attributes = new Map<string, string>([["aria-label", "SearchPanelInput"]]);
 
 			getAttribute(name: string): string | null {
 				return this.attributes.get(name) ?? null;
@@ -315,10 +309,11 @@ describe("public-docs reader UI contracts", () => {
 			"transition:\n\t\t\twidth var(--docs-sidebar-motion-duration) var(--docs-sidebar-motion-easing),",
 		);
 		expect(css).toContain(
-			"transition:\n\t\t\tpadding-left var(--docs-sidebar-motion-duration) var(--docs-sidebar-motion-easing);",
+			"transition: padding-left var(--docs-sidebar-motion-duration) var(--docs-sidebar-motion-easing);",
 		);
+		expect(css).toContain("transform: translateX(");
 		expect(css).toContain(
-			"transform: translateX(calc(-1 * (var(--docs-sidebar-width) + var(--docs-sidebar-outer-gutter))));",
+			"calc(-1 * (var(--docs-sidebar-width) + var(--docs-sidebar-outer-gutter)))",
 		);
 		expect(css).toContain("width: 0;");
 		expect(css).toContain("max-width: 0;");
@@ -326,10 +321,9 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("visibility: hidden;");
 		expect(css).toContain("pointer-events: none;");
 		expect(css).toContain("@media (prefers-reduced-motion: reduce)");
-		expect(css).toContain("transition-duration: 0.01ms !important;");
-		expect(css).toContain(
-			"html[data-docs-sidebar=\"collapsed\"] main.rp-doc-layout__doc-container",
-		);
+		expect(css).toContain("transition-duration: 0.01ms;");
+		expect(css).not.toContain("!important");
+		expect(css).toContain('html[data-docs-sidebar="collapsed"] main.rp-doc-layout__doc-container');
 		expect(css).toContain("padding-left: var(--docs-reader-collapsed-padding-left);");
 		expect(css).not.toContain("--rp-sidebar-width: 0px;");
 		expect(css).not.toContain("--rp-sidebar-margin-left: 0px;");

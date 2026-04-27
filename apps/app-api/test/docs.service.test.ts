@@ -323,7 +323,8 @@ describe("docs service", () => {
 
 		expect(response.readerAsset).toEqual({
 			canonicalUrl: "/docs/curriculum/curriculum_plan/restricted-program",
-			contentUrl: "/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+			contentUrl:
+				"/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
 			deliveryMode: "gated_asset",
 			outlineUrl:
 				"/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/outline.json",
