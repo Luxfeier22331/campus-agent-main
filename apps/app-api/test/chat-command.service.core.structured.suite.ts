@@ -166,6 +166,136 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 			],
 		});
 	});
+	it("projects browser-safe canonical source cards for completed RAG answers", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore,
+			store,
+			supervisor: {
+				execute: vi.fn().mockResolvedValue({
+					answerText: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
+					error: null,
+					followUpQuestion: "",
+					result: {
+						evidence: {
+							sources: [
+								{
+									anchor: {
+										page_start: 87,
+										page_end: 102,
+										reader_anchor: "graduation-requirements",
+										root_unit_ids: ["curriculum-root-001", "curriculum-root-002"],
+										section_path: ["二、毕业要求"],
+									},
+									canonical_source_title: "计算机类本科人才培养方案",
+									canonical_url: "/docs/curriculum/curriculum_plan/computer-science",
+									chunk_id: "curriculum:computer-science:source-faithful:sha256:test:chunk-0001",
+									collection: "curriculum_plan",
+									doc_id: "curriculum:computer-science",
+									is_current: true,
+									score: 0.88,
+									snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+									source_title: "计算机类本科人才培养方案",
+									source_unit_key: "curriculum:computer-science:unit:internal",
+									version_id: "version_current",
+								},
+								{
+									anchor: {
+										page_start: 87,
+										reader_anchor: "graduation-requirements",
+										root_unit_ids: ["curriculum-root-001"],
+										section_path: ["二、毕业要求"],
+									},
+									canonical_source_title: "计算机类本科人才培养方案",
+									canonical_url: "/docs/curriculum/curriculum_plan/computer-science",
+									chunk_id: "chunk-duplicate",
+									collection: "curriculum_plan",
+									doc_id: "curriculum:computer-science",
+									is_current: true,
+									snippet: "重复命中不应生成第二张来源卡片。",
+									source_title: "计算机类本科人才培养方案",
+									version_id: "version_current",
+								},
+								{
+									anchor: {
+										reader_anchor: "internal",
+										section_path: ["内部材料"],
+									},
+									canonical_url: "s3://bucket/private-object.json",
+									chunk_id: "chunk-private",
+									collection: "curriculum_plan",
+									doc_id: "curriculum:private",
+									is_current: true,
+									snippet: "不应展示对象存储来源。",
+									source_title: "内部材料",
+									version_id: "version_private",
+								},
+							],
+						},
+					},
+					selectedTarget: "rag-agent",
+					status: "completed",
+					traceId: "trace_0002",
+				}),
+			},
+		});
+
+		const response = await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "计算机类培养方案的毕业要求是什么？",
+				requestedScope: {
+					collection: "curriculum_plan",
+					corpus: "curriculum",
+				},
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
+		});
+
+		expect(finalWrites[0]).toMatchObject({
+			assistantMessage: {
+				structuredParts: [
+					{
+						sourceCards: [
+							{
+								collectionLabel: "培养方案",
+								href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
+								pageLabel: "原文第 87-102 页",
+								sectionTitle: "二、毕业要求",
+								snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+								title: "计算机类本科人才培养方案",
+								versionLabel: "现行版",
+							},
+						],
+						type: "source_cards",
+					},
+				],
+			},
+		});
+		expect(response.answer.conversation.messages.at(-1)).toMatchObject({
+			structuredParts: [
+				{
+					sourceCards: [
+						{
+							href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
+							title: "计算机类本科人才培养方案",
+						},
+					],
+					type: "source_cards",
+				},
+			],
+		});
+		const browserFacingPayload = JSON.stringify(response.answer);
+		expect(browserFacingPayload).not.toContain("chunk_id");
+		expect(browserFacingPayload).not.toContain("chunkId");
+		expect(browserFacingPayload).not.toContain("source_unit_key");
+		expect(browserFacingPayload).not.toContain("sourceUnitKey");
+		expect(browserFacingPayload).not.toContain("s3://");
+	});
 	it("persists navigation place cards even when point geometry is absent", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();

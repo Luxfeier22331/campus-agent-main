@@ -62,6 +62,9 @@ export function resolveRequestSurface(request: Request): string {
 	if (pathname.startsWith("/api/official-web/")) {
 		return "official_web";
 	}
+	if (pathname.startsWith("/api/wechat-official-account/")) {
+		return "wechat_official_account";
+	}
 	if (
 		pathname === "/api/chat" ||
 		pathname === "/api/history" ||

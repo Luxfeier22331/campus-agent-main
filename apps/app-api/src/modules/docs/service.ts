@@ -1,7 +1,10 @@
 import { AppApiRouteError } from "../../http";
+import type { ResolvedAppPrincipal } from "../auth";
 import type {
 	DocsDocumentSummaryResponse,
 	DocsNavigationResponse,
+	DocsReaderAssetKind,
+	DocsResolvedReaderAssetSource,
 	DocsResolveResponse,
 	DocsSearchResponse,
 	DocsService,
@@ -43,6 +46,7 @@ export interface DocsReaderAssetRecord extends DocsDocumentVersionRecord {
 	contentUrl: string;
 	manifestUrl: string | null;
 	outlineUrl: string;
+	sourceObjects?: Record<string, string>;
 }
 
 export interface DocsSearchUnitRecord extends DocsVersionAccessRecord {
@@ -105,7 +109,7 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 				documentSlug: request.documentSlug,
 				version: null,
 			});
-			assertPublicStaticDocument(document);
+			assertReadableDocument(document, request.principal);
 
 			return {
 				document: {
@@ -136,7 +140,10 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 					collection: request.collection,
 					corpus: request.corpus,
 				})
-			).filter((document) => isPublicStaticCurrent(document));
+			).filter(
+				(document) =>
+					document.isCurrent !== false && canReadDocumentVersion(document, request.principal),
+			);
 
 			return {
 				collection: {
@@ -162,7 +169,7 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 					corpus: request.corpus,
 					documentSlug: request.documentSlug,
 				})
-			).filter((version) => isPublicStaticVersion(version));
+			).filter((version) => canReadDocumentVersion(version, request.principal));
 			if (versions.length === 0) {
 				throw notFound("docs_document_not_found", "Document was not found.");
 			}
@@ -191,11 +198,12 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 				documentSlug: request.documentSlug,
 				version: request.version,
 			});
-			assertPublicStaticDocument(readerAsset);
+			assertReadableDocument(readerAsset, request.principal);
+			const canonicalUrl = buildVersionCanonicalUrl(readerAsset);
 
 			return {
 				document: {
-					canonicalUrl: buildVersionCanonicalUrl(readerAsset),
+					canonicalUrl,
 					collection: readerAsset.collection,
 					corpus: readerAsset.corpus,
 					docId: readerAsset.docId,
@@ -206,10 +214,10 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 					versionSlug: readerAsset.versionSlug,
 				},
 				readerAsset: {
-					canonicalUrl: buildVersionCanonicalUrl(readerAsset),
-					contentUrl: readerAsset.contentUrl,
+					canonicalUrl,
+					contentUrl: buildReaderAssetUrl(readerAsset, "reader"),
 					deliveryMode: readerAsset.deliveryMode,
-					outlineUrl: readerAsset.outlineUrl,
+					outlineUrl: buildReaderAssetUrl(readerAsset, "outline"),
 				},
 				readerState: {
 					anchor: request.anchor,
@@ -222,6 +230,32 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 					versionSlug: readerAsset.versionSlug,
 				},
 			} satisfies DocsResolveResponse;
+		},
+
+		async resolveReaderAssetSource(request) {
+			const readerAsset = await store.getReaderAsset({
+				collection: request.collection,
+				corpus: request.corpus,
+				documentSlug: request.documentSlug,
+				version: request.version,
+			});
+			assertReadableDocument(readerAsset, request.principal);
+			if (readerAsset.deliveryMode !== "gated_asset") {
+				throw notFound("docs_document_not_found", "Document was not found.");
+			}
+
+			const sourceObjectKey = resolveReaderAssetSourceObject(
+				readerAsset.sourceObjects ?? {},
+				request.assetKind,
+			);
+			if (!sourceObjectKey) {
+				throw notFound("docs_reader_asset_not_found", "Reader asset was not found.");
+			}
+
+			return {
+				contentType: resolveReaderAssetContentType(request.assetKind),
+				sourceObjectKey,
+			} satisfies DocsResolvedReaderAssetSource;
 		},
 
 		async search(request) {
@@ -251,16 +285,30 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 	};
 }
 
-function assertPublicStaticDocument<T extends DocsVersionAccessRecord>(
+function assertReadableDocument<T extends DocsVersionAccessRecord>(
 	record: T | null,
+	principal: ResolvedAppPrincipal | null,
 ): asserts record is T {
-	if (!(record && isPublicStaticVersion(record))) {
+	if (!(record && canReadDocumentVersion(record, principal))) {
 		throw notFound("docs_document_not_found", "Document was not found.");
 	}
 }
 
-function isPublicStaticCurrent(record: DocsDocumentVersionRecord): boolean {
-	return isPublicStaticVersion(record) && record.isCurrent !== false;
+function canReadDocumentVersion(
+	record: DocsVersionAccessRecord,
+	principal: ResolvedAppPrincipal | null,
+): boolean {
+	if (isPublicStaticVersion(record)) {
+		return true;
+	}
+	if (record.visibilityLevel !== "restricted" || record.deliveryMode !== "gated_asset") {
+		return false;
+	}
+	if (record.entitlementGroups.length === 0) {
+		return false;
+	}
+	const principalGroups = principal?.authorization?.entitlementGroups ?? [];
+	return record.entitlementGroups.every((group) => principalGroups.includes(group));
 }
 
 function isPublicStaticVersion(record: DocsVersionAccessRecord): boolean {
@@ -293,6 +341,57 @@ function buildVersionCanonicalUrl(record: DocsDocumentVersionRecord): string {
 		return documentUrl;
 	}
 	return `${documentUrl}/v/${encodeURIComponent(record.versionSlug)}`;
+}
+
+function buildReaderAssetUrl(
+	record: DocsReaderAssetRecord,
+	assetKind: DocsReaderAssetKind,
+): string {
+	if (record.deliveryMode === "public_static_asset") {
+		if (assetKind === "reader") {
+			return record.contentUrl;
+		}
+		if (assetKind === "outline") {
+			return record.outlineUrl;
+		}
+		if (assetKind === "asset-manifest" && record.manifestUrl) {
+			return record.manifestUrl;
+		}
+	}
+
+	const params = new URLSearchParams({ version: record.versionSlug });
+	return `/api/docs/collections/${encodeURIComponent(record.corpus)}/${encodeURIComponent(
+		record.collection,
+	)}/documents/${encodeURIComponent(record.documentSlug)}/assets/${encodeURIComponent(
+		assetKind,
+	)}?${params.toString()}`;
+}
+
+function resolveReaderAssetSourceObject(
+	sourceObjects: Record<string, string>,
+	assetKind: DocsReaderAssetKind,
+): string | null {
+	const candidateKeys =
+		assetKind === "asset-manifest" ? ["asset-manifest", "manifest"] : [assetKind];
+	for (const key of candidateKeys) {
+		const value = sourceObjects[key]?.trim();
+		if (value) {
+			return value;
+		}
+	}
+	return null;
+}
+
+function resolveReaderAssetContentType(assetKind: DocsReaderAssetKind): string {
+	switch (assetKind) {
+		case "asset-manifest":
+		case "meta":
+		case "outline":
+		case "reader":
+			return "application/json; charset=utf-8";
+		default:
+			return "application/octet-stream";
+	}
 }
 
 function notFound(code: string, message: string): AppApiRouteError {

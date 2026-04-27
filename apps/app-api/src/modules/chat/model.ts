@@ -28,7 +28,22 @@ export interface ChatPlaceCardStructuredPart {
 	placeCard: ChatPlaceCard;
 }
 
-export type ChatMessageStructuredPart = ChatPlaceCardStructuredPart;
+export interface ChatSourceCard {
+	title: string;
+	sectionTitle: string;
+	snippet: string;
+	href: string;
+	collectionLabel: string;
+	versionLabel: string;
+	pageLabel: string;
+}
+
+export interface ChatSourceCardsStructuredPart {
+	type: "source_cards";
+	sourceCards: ChatSourceCard[];
+}
+
+export type ChatMessageStructuredPart = ChatPlaceCardStructuredPart | ChatSourceCardsStructuredPart;
 
 export interface ChatSessionSlot {
 	confirmed: boolean;
@@ -185,6 +200,49 @@ function normalizePlaceCard(value: unknown): ChatPlaceCard | null {
 	};
 }
 
+function isBrowserSafeDocsHref(value: string): boolean {
+	return (
+		value.startsWith("/docs/") &&
+		!value.startsWith("//") &&
+		!value.includes("://") &&
+		!value.includes("..")
+	);
+}
+
+function normalizeSourceCard(value: unknown): ChatSourceCard | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const title = normalizeOptionalString(value.title);
+	const href = normalizeOptionalString(value.href);
+	const snippet = normalizeOptionalString(value.snippet);
+	if (!(title && href && snippet && isBrowserSafeDocsHref(href))) {
+		return null;
+	}
+
+	return {
+		title,
+		sectionTitle: normalizeOptionalString(value.sectionTitle) ?? "",
+		snippet,
+		href,
+		collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
+		versionLabel: normalizeOptionalString(value.versionLabel) ?? "",
+		pageLabel: normalizeOptionalString(value.pageLabel) ?? "",
+	};
+}
+
+function normalizeSourceCards(value: unknown): ChatSourceCard[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value
+		.map((item) => normalizeSourceCard(item))
+		.filter((item): item is ChatSourceCard => item !== null)
+		.slice(0, 5);
+}
+
 function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | null {
 	if (!isRecord(value)) {
 		return null;
@@ -199,6 +257,18 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		return {
 			type: "place_card",
 			placeCard,
+		};
+	}
+
+	if (value.type === "source_cards") {
+		const sourceCards = normalizeSourceCards(value.sourceCards);
+		if (sourceCards.length === 0) {
+			return null;
+		}
+
+		return {
+			type: "source_cards",
+			sourceCards,
 		};
 	}
 

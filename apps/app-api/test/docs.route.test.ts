@@ -18,6 +18,8 @@ const env = {
 	},
 };
 
+const docsAssetBody = JSON.stringify({ document: { title: "受限培养方案" }, sections: [] });
+
 function createCampusPrincipal(): ResolvedAppPrincipal {
 	return {
 		actor: {
@@ -67,6 +69,7 @@ describe("docs routes", () => {
 				],
 			}),
 			getVersions: vi.fn(),
+			resolveReaderAssetSource: vi.fn(),
 			resolveReader: vi.fn(),
 			search: vi.fn(),
 		};
@@ -138,6 +141,7 @@ describe("docs routes", () => {
 					},
 				],
 			}),
+			resolveReaderAssetSource: vi.fn(),
 			resolveReader: vi.fn().mockResolvedValue({
 				document: {
 					canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
@@ -309,5 +313,101 @@ describe("docs routes", () => {
 			query: "大二下课程",
 			versionMode: "current",
 		});
+	});
+
+	it("streams gated reader assets after repeating docs authorization", async () => {
+		const principal = createCampusPrincipal();
+		const service: DocsService = {
+			getDocumentSummary: vi.fn(),
+			getNavigation: vi.fn(),
+			getVersions: vi.fn(),
+			resolveReader: vi.fn(),
+			resolveReaderAssetSource: vi.fn().mockResolvedValue({
+				contentType: "application/json; charset=utf-8",
+				sourceObjectKey: "reader-assets/restricted-program/reader.json",
+			}),
+			search: vi.fn(),
+		};
+		const app = createApp(
+			{
+				...env,
+				DOCS_READER_ASSETS: {
+					get: vi.fn().mockResolvedValue({
+						body: new ReadableStream({
+							start(controller) {
+								controller.enqueue(new TextEncoder().encode(docsAssetBody));
+								controller.close();
+							},
+						}),
+						httpEtag: '"reader-etag"',
+						writeHttpMetadata(headers: Headers) {
+							headers.set("content-type", "application/json; charset=utf-8");
+						},
+					}),
+				},
+			},
+			{
+				docsService: service,
+				getPrincipal: vi.fn().mockResolvedValue(principal),
+			},
+		);
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/assets/reader?version=2026-current",
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(response.headers.get("vary")).toBe("Cookie, Authorization");
+		expect(response.headers.get("etag")).toBe('"reader-etag"');
+		expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+		await expect(response.text()).resolves.toBe(docsAssetBody);
+		expect(service.resolveReaderAssetSource).toHaveBeenCalledWith({
+			assetKind: "reader",
+			collection: "curriculum_plan",
+			corpus: "curriculum",
+			documentSlug: "restricted-program",
+			principal,
+			version: "2026-current",
+		});
+	});
+
+	it("rejects unsupported gated reader asset kinds before storage lookup", async () => {
+		const service: DocsService = {
+			getDocumentSummary: vi.fn(),
+			getNavigation: vi.fn(),
+			getVersions: vi.fn(),
+			resolveReader: vi.fn(),
+			resolveReaderAssetSource: vi.fn(),
+			search: vi.fn(),
+		};
+		const assetStore = { get: vi.fn() };
+		const app = createApp(
+			{
+				...env,
+				DOCS_READER_ASSETS: assetStore,
+			},
+			{
+				docsService: service,
+				getPrincipal: vi.fn().mockResolvedValue(null),
+			},
+		);
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/assets/private-key?version=2026-current",
+			),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "validation_failed",
+			},
+		});
+		expect(service.resolveReaderAssetSource).not.toHaveBeenCalled();
+		expect(assetStore.get).not.toHaveBeenCalled();
 	});
 });

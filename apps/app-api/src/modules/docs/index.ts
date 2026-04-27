@@ -12,6 +12,7 @@ export {
 } from "./service";
 export { createPgDocsReadModelStore } from "./store";
 
+export type DocsReaderAssetKind = "asset-manifest" | "meta" | "outline" | "reader";
 export type DocsVersionMode = "current";
 export type ReaderAssetDeliveryMode = "public_static_asset" | "gated_asset";
 
@@ -90,6 +91,11 @@ export interface DocsResolveResponse {
 	};
 }
 
+export interface DocsResolvedReaderAssetSource {
+	contentType: string;
+	sourceObjectKey: string;
+}
+
 export interface DocsSearchResponse {
 	query: string;
 	results: Array<{
@@ -130,6 +136,14 @@ export interface DocsService {
 		principal: ResolvedAppPrincipal | null;
 		version: string | null;
 	}): Promise<DocsResolveResponse>;
+	resolveReaderAssetSource(input: {
+		assetKind: DocsReaderAssetKind;
+		collection: string;
+		corpus: string;
+		documentSlug: string;
+		principal: ResolvedAppPrincipal | null;
+		version: string | null;
+	}): Promise<DocsResolvedReaderAssetSource>;
 	search(input: {
 		collection: string;
 		corpus: string;
@@ -155,6 +169,7 @@ export function buildUnavailableDocsService(): DocsService {
 		getNavigation: unavailable,
 		getVersions: unavailable,
 		resolveReader: unavailable,
+		resolveReaderAssetSource: unavailable,
 		search: unavailable,
 	};
 }

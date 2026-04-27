@@ -43,6 +43,12 @@ expectContains(
 	'binding = "APP_API_DB_FRESH"',
 	"Missing APP_API_DB_FRESH Hyperdrive binding.",
 );
+expectContains(source, 'binding = "DOCS_READER_ASSETS"', "Missing DOCS_READER_ASSETS R2 binding.");
+expectContains(
+	source,
+	'bucket_name = "campus-agent-reader-assets-staging"',
+	"Missing staging reader asset R2 bucket binding.",
+);
 expectNotContains(
 	source,
 	'SENTRY_RELEASE = "',

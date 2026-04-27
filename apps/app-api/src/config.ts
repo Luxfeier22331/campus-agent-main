@@ -8,6 +8,16 @@ export interface HyperdriveBindingLike {
 	connectionString?: string;
 }
 
+export interface DocsReaderAssetObjectLike {
+	body: ReadableStream;
+	httpEtag?: string;
+	writeHttpMetadata?(headers: Headers): void;
+}
+
+export interface DocsReaderAssetBucketLike {
+	get(key: string): Promise<DocsReaderAssetObjectLike | null>;
+}
+
 export interface Env {
 	APP_API_NAME?: string;
 	APP_API_ENVIRONMENT?: AppApiEnvironment;
@@ -15,6 +25,7 @@ export interface Env {
 	APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?: string;
 	APP_API_OFFICIAL_WEB_HANDOFF_URL?: string;
 	APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN?: string;
+	APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN?: string;
 	BETTER_AUTH_SECRET?: string;
 	AUTH_TURNSTILE_SECRET_KEY?: string;
 	RESEND_API_KEY?: string;
@@ -46,6 +57,7 @@ export interface Env {
 	SENTRY_RELEASE?: string;
 	APP_API_DB?: HyperdriveBindingLike;
 	APP_API_DB_FRESH?: HyperdriveBindingLike;
+	DOCS_READER_ASSETS?: DocsReaderAssetBucketLike;
 }
 
 export interface AppApiConfig {

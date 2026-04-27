@@ -59,6 +59,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind",
+		callerClass: "browser-surface",
+		admission: "docs gated reader asset admission",
+	},
+	{
+		method: "GET",
 		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve",
 		callerClass: "browser-surface",
 		admission: "docs surface read admission",
@@ -156,6 +162,18 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "GET",
 		path: "/api/operator/official-web/sites/:siteId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/wechat-official-account/runs",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/wechat-official-account/runs/:runId",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
 	},
@@ -326,5 +344,23 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/official-web/runs/:runId/heartbeats",
 		callerClass: "collector-machine",
 		admission: "official-web collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/wechat-official-account/runs",
+		callerClass: "collector-machine",
+		admission: "wechat official-account collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/wechat-official-account/runs/:runId/finalize",
+		callerClass: "collector-machine",
+		admission: "wechat official-account collector bearer token",
+	},
+	{
+		method: "POST",
+		path: "/api/wechat-official-account/runs/:runId/heartbeats",
+		callerClass: "collector-machine",
+		admission: "wechat official-account collector bearer token",
 	},
 ] as const satisfies readonly AppApiRouteExposure[];

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppApiRouteError } from "../src/http";
+import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import { buildDocsService, type DocsReadModelStore } from "../src/modules/docs";
 
 const publicDoc = {
@@ -71,9 +72,15 @@ function createStore(): DocsReadModelStore {
 			if (input.documentSlug === restrictedDoc.documentSlug) {
 				return {
 					...restrictedDoc,
-					contentUrl: "/_gated/curriculum/restricted-program/reader.json",
-					manifestUrl: "/_gated/curriculum/restricted-program/asset-manifest.json",
-					outlineUrl: "/_gated/curriculum/restricted-program/outline.json",
+					contentUrl: "/_docs-gated/curriculum/restricted-program/reader.json",
+					manifestUrl: "/_docs-gated/curriculum/restricted-program/asset-manifest.json",
+					outlineUrl: "/_docs-gated/curriculum/restricted-program/outline.json",
+					sourceObjects: {
+						"asset-manifest": "reader-assets/restricted-program/asset-manifest.json",
+						meta: "reader-assets/restricted-program/meta.json",
+						outline: "reader-assets/restricted-program/outline.json",
+						reader: "reader-assets/restricted-program/reader.json",
+					},
 				};
 			}
 			if (input.version === historicalPublicDoc.versionSlug) {
@@ -156,6 +163,47 @@ function createStore(): DocsReadModelStore {
 					title: "受限章节",
 				},
 			];
+		},
+	};
+}
+
+function createStudentPrincipal(): ResolvedAppPrincipal {
+	return {
+		actor: {
+			departments: [],
+			principalId: "user_student",
+			principalType: "student",
+			roles: ["student"],
+			userId: "user_student",
+		},
+		authorization: {
+			approvalState: "approved",
+			entitlementGroups: ["campus_members", "students"],
+			entitlementSnapshotId: "snapshot_student",
+			ownershipScopes: [],
+			principalId: "user_student",
+			projectionSource: "campus_identity",
+			retrievalFilter: {
+				entitlementGroups: ["campus_members", "students"],
+				policyProjectionVersion: "phase1-authorization-projection-v1",
+				visibilityLevel: "restricted",
+				visibilityScope: null,
+			},
+			visibilityScope: null,
+		},
+		permissions: {
+			chat: true,
+			operator: false,
+		},
+		principal: {
+			displayName: "学生用户",
+			email: "student@muc.edu.cn",
+			principalId: "user_student",
+			type: "student",
+		},
+		session: {
+			expiresAt: "2026-04-30T07:00:00.000Z",
+			sessionId: "sess_student",
 		},
 	};
 }
@@ -252,6 +300,63 @@ describe("docs service", () => {
 				highlightRootUnitIds: [],
 				principal: null,
 				version: null,
+			}),
+		).rejects.toMatchObject({
+			code: "docs_document_not_found",
+			status: 404,
+		} satisfies Partial<AppApiRouteError>);
+	});
+
+	it("resolves restricted reader descriptors and server-only source objects for authorized principals", async () => {
+		const service = buildDocsService({ store: createStore() });
+		const principal = createStudentPrincipal();
+
+		const response = await service.resolveReader({
+			anchor: "restricted-section",
+			collection: "curriculum_plan",
+			corpus: "curriculum",
+			documentSlug: "restricted-program",
+			highlightRootUnitIds: ["restricted-root"],
+			principal,
+			version: null,
+		});
+
+		expect(response.readerAsset).toEqual({
+			canonicalUrl: "/docs/curriculum/curriculum_plan/restricted-program",
+			contentUrl:
+				"/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/assets/reader?version=2026-current",
+			deliveryMode: "gated_asset",
+			outlineUrl:
+				"/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/assets/outline?version=2026-current",
+		});
+		expect(JSON.stringify(response)).not.toContain("reader-assets/restricted-program");
+
+		const source = await service.resolveReaderAssetSource({
+			assetKind: "reader",
+			collection: "curriculum_plan",
+			corpus: "curriculum",
+			documentSlug: "restricted-program",
+			principal,
+			version: "2026-current",
+		});
+
+		expect(source).toEqual({
+			contentType: "application/json; charset=utf-8",
+			sourceObjectKey: "reader-assets/restricted-program/reader.json",
+		});
+	});
+
+	it("fails closed for restricted source object lookup without matching entitlement", async () => {
+		const service = buildDocsService({ store: createStore() });
+
+		await expect(
+			service.resolveReaderAssetSource({
+				assetKind: "reader",
+				collection: "curriculum_plan",
+				corpus: "curriculum",
+				documentSlug: "restricted-program",
+				principal: null,
+				version: "2026-current",
 			}),
 		).rejects.toMatchObject({
 			code: "docs_document_not_found",

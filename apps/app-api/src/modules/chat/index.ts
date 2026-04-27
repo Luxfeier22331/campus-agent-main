@@ -11,6 +11,8 @@ export type {
 	ChatPlaceCardStructuredPart,
 	ChatPlacePointGeometry,
 	ChatSessionSlot,
+	ChatSourceCard,
+	ChatSourceCardsStructuredPart,
 	VendorChatHistoryItemResponse,
 	VendorChatHistoryPageResponse,
 } from "./model";

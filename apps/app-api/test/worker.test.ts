@@ -126,6 +126,9 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
 		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-dev"');
+		expect(wranglerConfig).toContain("[[env.staging.r2_buckets]]");
+		expect(wranglerConfig).toContain('binding = "DOCS_READER_ASSETS"');
+		expect(wranglerConfig).toContain('bucket_name = "campus-agent-reader-assets-staging"');
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
@@ -199,6 +202,8 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[env.local]");
 		expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
 		expect(wranglerConfig).toContain('binding = "APP_API_DB"');
+		expect(wranglerConfig).toContain("[[env.local.r2_buckets]]");
+		expect(wranglerConfig).toContain('bucket_name = "campus-agent-reader-assets-local"');
 	});
 
 	it("points the local smoke supervisor upstream at the docker-first supervisor-api port", () => {

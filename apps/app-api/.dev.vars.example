@@ -34,6 +34,10 @@ APP_API_DATABASE_SSLMODE=prefer
 # Required for live `official_web` control-plane smoke. This must match
 # `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`.
 APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=
+# Required for live `wechat_official_account` capture control-plane smoke. This
+# must match `apps/wechat-official-account-collector/.env`
+# `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`.
+APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN=
 APP_API_OFFICIAL_WEB_HANDOFF_URL=
 APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=
 APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS=8000

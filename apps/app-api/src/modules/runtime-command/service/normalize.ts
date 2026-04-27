@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { ChatMessageStructuredPart, ChatPlaceCard } from "../../chat";
+import type { ChatMessageStructuredPart, ChatPlaceCard, ChatSourceCard } from "../../chat";
 import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
 import {
 	normalizeVersionQuery,
@@ -153,6 +153,34 @@ function normalizeOptionalString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function recordString(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): string | null {
+	return normalizeOptionalString(
+		snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey],
+	);
+}
+
+function recordNumber(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): number | null {
+	const value = snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
+	return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
+}
+
+function recordStringArray(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): string[] {
+	const value = snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
+	return normalizeStringArray(value);
+}
+
 function normalizeStringArray(value: unknown): string[] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -246,16 +274,198 @@ export function normalizePlaceCardPart(input: {
 	];
 }
 
+function normalizeDocsReaderPath(value: unknown): string | null {
+	const canonicalUrl = normalizeOptionalString(value);
+	if (
+		!canonicalUrl?.startsWith("/docs/") ||
+		canonicalUrl.startsWith("//") ||
+		canonicalUrl.includes("://") ||
+		canonicalUrl.includes("..")
+	) {
+		return null;
+	}
+
+	const [withoutHash = ""] = canonicalUrl.split("#", 1);
+	const [path = ""] = withoutHash.split("?", 1);
+	const normalizedPath = path.replace(/\/+$/u, "");
+	return normalizedPath.startsWith("/docs/") && normalizedPath.length > "/docs/".length
+		? normalizedPath
+		: null;
+}
+
+function normalizeAnchor(value: unknown): Record<string, unknown> {
+	return isRecord(value) ? value : {};
+}
+
+function normalizeHighlightUnitIds(anchor: Record<string, unknown>): string[] {
+	const rootUnitIds = recordStringArray(anchor, "root_unit_ids", "rootUnitIds");
+	const rootUnitId = recordString(anchor, "root_unit_id", "rootUnitId");
+	return Array.from(new Set([...(rootUnitId ? [rootUnitId] : []), ...rootUnitIds]));
+}
+
+function buildSourceCardHref(input: {
+	anchor: string | null;
+	basePath: string;
+	highlightUnitIds: string[];
+}): string {
+	const query =
+		input.highlightUnitIds.length > 0
+			? `?hl=${input.highlightUnitIds.map((item) => encodeURIComponent(item)).join(",")}`
+			: "";
+	const hash = input.anchor ? `#${encodeURIComponent(input.anchor)}` : "";
+	return `${input.basePath}${query}${hash}`;
+}
+
+function collectionLabel(collection: string | null): string {
+	if (collection === "curriculum_plan") {
+		return "培养方案";
+	}
+	if (collection === "student_rules") {
+		return "学生手册";
+	}
+	return "公开文档";
+}
+
+function pageLabel(anchor: Record<string, unknown>): string {
+	const pageStart = recordNumber(anchor, "page_start", "pageStart");
+	const pageEnd = recordNumber(anchor, "page_end", "pageEnd");
+	if (pageStart && pageEnd && pageStart !== pageEnd) {
+		return `原文第 ${pageStart}-${pageEnd} 页`;
+	}
+	if (pageStart || pageEnd) {
+		return `原文第 ${pageStart ?? pageEnd} 页`;
+	}
+	return "";
+}
+
+function normalizeSnippet(value: unknown): string | null {
+	const snippet = normalizeOptionalString(value);
+	if (!snippet) {
+		return null;
+	}
+
+	return snippet.length <= 180 ? snippet : `${snippet.slice(0, 179)}…`;
+}
+
+function normalizeSectionTitle(
+	anchor: Record<string, unknown>,
+	source: Record<string, unknown>,
+): string {
+	const sectionPath = recordStringArray(anchor, "section_path", "sectionPath");
+	const sectionTitle = sectionPath.at(-1);
+	return (
+		sectionTitle ??
+		recordString(anchor, "section_title", "sectionTitle") ??
+		recordString(source, "section_title", "sectionTitle") ??
+		""
+	);
+}
+
+function normalizeSourceCard(source: unknown): ChatSourceCard | null {
+	if (!isRecord(source)) {
+		return null;
+	}
+
+	const basePath = normalizeDocsReaderPath(source.canonical_url ?? source.canonicalUrl);
+	const anchor = normalizeAnchor(source.anchor);
+	const readerAnchor =
+		recordString(anchor, "reader_anchor", "readerAnchor") ??
+		recordString(anchor, "anchor", "anchor");
+	const title =
+		recordString(source, "canonical_source_title", "canonicalSourceTitle") ??
+		recordString(source, "source_title", "sourceTitle") ??
+		recordString(source, "title", "title");
+	const snippet = normalizeSnippet(source.snippet);
+	if (!(basePath && title && snippet)) {
+		return null;
+	}
+
+	const href = buildSourceCardHref({
+		anchor: readerAnchor,
+		basePath,
+		highlightUnitIds: normalizeHighlightUnitIds(anchor),
+	});
+
+	return {
+		title,
+		sectionTitle: normalizeSectionTitle(anchor, source),
+		snippet,
+		href,
+		collectionLabel: collectionLabel(recordString(source, "collection", "collection")),
+		versionLabel: source.is_current === false || source.isCurrent === false ? "历史版本" : "现行版",
+		pageLabel: pageLabel(anchor),
+	};
+}
+
+function sourceCardDedupeKey(sourceCard: ChatSourceCard): string {
+	return sourceCard.href.replace(/\?hl=[^#]*/u, "");
+}
+
+function resultEvidenceSources(result: unknown): unknown[] {
+	if (!isRecord(result)) {
+		return [];
+	}
+
+	if (Array.isArray(result.sources)) {
+		return result.sources;
+	}
+
+	return isRecord(result.evidence) && Array.isArray(result.evidence.sources)
+		? result.evidence.sources
+		: [];
+}
+
+export function normalizeSourceCardsPart(input: {
+	selectedTarget: string | null;
+	status: SupervisorExecutionResponse["status"];
+	result: unknown;
+}): ChatMessageStructuredPart[] {
+	if (input.selectedTarget !== "rag-agent" || input.status !== "completed") {
+		return [];
+	}
+
+	const sourceCards: ChatSourceCard[] = [];
+	const seenSourceKeys = new Set<string>();
+	for (const source of resultEvidenceSources(input.result)) {
+		const sourceCard = normalizeSourceCard(source);
+		if (!sourceCard) {
+			continue;
+		}
+		const dedupeKey = sourceCardDedupeKey(sourceCard);
+		if (seenSourceKeys.has(dedupeKey)) {
+			continue;
+		}
+		seenSourceKeys.add(dedupeKey);
+		sourceCards.push(sourceCard);
+		if (sourceCards.length >= 5) {
+			break;
+		}
+	}
+
+	return sourceCards.length > 0
+		? [
+				{
+					type: "source_cards",
+					sourceCards,
+				},
+			]
+		: [];
+}
+
+export function normalizeChatResponseStructuredParts(input: {
+	selectedTarget: string | null;
+	status: SupervisorExecutionResponse["status"];
+	result: unknown;
+}): ChatMessageStructuredPart[] {
+	return [...normalizePlaceCardPart(input), ...normalizeSourceCardsPart(input)];
+}
+
 export function extractSourceDocIds(result: unknown): string[] {
 	if (!isRecord(result)) {
 		return [];
 	}
 
-	const sources = Array.isArray(result.sources)
-		? result.sources
-		: isRecord(result.evidence) && Array.isArray(result.evidence.sources)
-			? result.evidence.sources
-			: [];
+	const sources = resultEvidenceSources(result);
 	if (sources.length === 0) {
 		return [];
 	}

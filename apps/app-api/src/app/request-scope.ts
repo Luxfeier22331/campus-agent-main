@@ -24,6 +24,10 @@ import {
 import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
+import {
+	buildWeChatOfficialAccountCommandService,
+	createPgWeChatOfficialAccountCommandStore,
+} from "../modules/wechat-official-account-command";
 import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
 
@@ -55,6 +59,8 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
+			let weChatOfficialAccountCommandService =
+				input.dependencies.wechatOfficialAccountCommandService ?? null;
 
 			function resolveChatConversationService() {
 				if (chatConversationService) {
@@ -161,6 +167,19 @@ export function createRequestScopeFactory(input: {
 				return profileMemoryService;
 			}
 
+			function resolveWeChatOfficialAccountCommandService() {
+				if (weChatOfficialAccountCommandService) {
+					return weChatOfficialAccountCommandService;
+				}
+
+				weChatOfficialAccountCommandService = buildWeChatOfficialAccountCommandService({
+					store: createPgWeChatOfficialAccountCommandStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
+				});
+				return weChatOfficialAccountCommandService;
+			}
+
 			return {
 				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
 				resolveChatCommandService,
@@ -171,6 +190,7 @@ export function createRequestScopeFactory(input: {
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,
+				resolveWeChatOfficialAccountCommandService,
 			};
 		},
 		officialWebExecutionStatusService,

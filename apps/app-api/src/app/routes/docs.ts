@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
 import type { ResolvedAppPrincipal } from "../../modules/auth";
-import type { DocsVersionMode } from "../../modules/docs";
+import type { DocsReaderAssetKind, DocsVersionMode } from "../../modules/docs";
 import { principalResolutionErrorResponse, resolvePrincipalForScope } from "../principal";
 import { parseLimit } from "../request-utils";
 import type { AppRequestScope } from "../types";
@@ -137,6 +137,36 @@ export function registerDocsRoutes(input: {
 			);
 		},
 	);
+
+	input.app.get(
+		"/api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind",
+		async (c) => {
+			const scope = input.createRequestScope();
+			const resolved = await resolveOptionalPrincipal({
+				env: input.env,
+				getPrincipal: input.getPrincipal,
+				request: c.req.raw,
+				scope,
+			});
+			if (resolved.response) {
+				return resolved.response;
+			}
+
+			const source = await scope.resolveDocsService().resolveReaderAssetSource({
+				assetKind: parseAssetKind(c.req.param("assetKind")),
+				collection: c.req.param("collection"),
+				corpus: c.req.param("corpus"),
+				documentSlug: c.req.param("documentSlug"),
+				principal: resolved.principal,
+				version: normalizeOptionalString(c.req.query("version")),
+			});
+
+			return streamDocsReaderAsset({
+				env: input.env,
+				source,
+			});
+		},
+	);
 }
 
 async function resolveOptionalPrincipal(input: {
@@ -191,6 +221,64 @@ function parseVersionMode(value: string | null | undefined): DocsVersionMode {
 		retryable: false,
 		status: 400,
 	});
+}
+
+function parseAssetKind(value: string | null | undefined): DocsReaderAssetKind {
+	const normalized = normalizeOptionalString(value);
+	if (
+		normalized === "asset-manifest" ||
+		normalized === "meta" ||
+		normalized === "outline" ||
+		normalized === "reader"
+	) {
+		return normalized;
+	}
+
+	throw new AppApiRouteError({
+		code: "validation_failed",
+		details: { field: "assetKind" },
+		message: "assetKind must be one of asset-manifest, meta, outline, or reader.",
+		retryable: false,
+		status: 400,
+	});
+}
+
+async function streamDocsReaderAsset(input: {
+	env: Env;
+	source: { contentType: string; sourceObjectKey: string };
+}): Promise<Response> {
+	const bucket = input.env.DOCS_READER_ASSETS;
+	if (!bucket) {
+		throw new AppApiRouteError({
+			code: "dependency_not_ready",
+			message: "Document reader asset storage is not configured.",
+			retryable: true,
+			status: 503,
+		});
+	}
+
+	const object = await bucket.get(input.source.sourceObjectKey);
+	if (!object) {
+		throw new AppApiRouteError({
+			code: "docs_reader_asset_not_found",
+			message: "Reader asset was not found.",
+			retryable: false,
+			status: 404,
+		});
+	}
+
+	const headers = new Headers();
+	object.writeHttpMetadata?.(headers);
+	if (!headers.has("content-type")) {
+		headers.set("content-type", input.source.contentType);
+	}
+	if (object.httpEtag) {
+		headers.set("etag", object.httpEtag);
+	}
+	headers.set("cache-control", "no-store");
+	headers.set("vary", "Cookie, Authorization");
+
+	return new Response(object.body, { headers, status: 200 });
 }
 
 function requireNonEmptyQuery(value: string | null | undefined, field: string): string {

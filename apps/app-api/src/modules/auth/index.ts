@@ -22,6 +22,7 @@ export type {
 	InternalEvalPrincipalInput,
 	OfficialWebCollectorPrincipal,
 	ResolvedAppPrincipal,
+	WeChatOfficialAccountCollectorPrincipal,
 } from "./principal";
 export {
 	buildExecutionAuthorizationContext,
@@ -33,4 +34,5 @@ export {
 	mapSessionToCampusMemberPrincipal,
 	resolveOfficialWebCollectorPrincipal,
 	resolveRequestPrincipal,
+	resolveWeChatOfficialAccountCollectorPrincipal,
 } from "./principal";

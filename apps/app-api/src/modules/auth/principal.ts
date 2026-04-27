@@ -20,6 +20,12 @@ export interface OfficialWebCollectorPrincipal {
 	serviceId: "official-web-collector";
 }
 
+export interface WeChatOfficialAccountCollectorPrincipal {
+	kind: "service";
+	serviceClass: "wechat_official_account_collector";
+	serviceId: "wechat-official-account-collector";
+}
+
 export interface AppPermissions {
 	chat: boolean;
 	operator: boolean;
@@ -642,6 +648,23 @@ export async function resolveOfficialWebCollectorPrincipal(
 		kind: "service",
 		serviceClass: "official_web_collector",
 		serviceId: "official-web-collector",
+	};
+}
+
+export async function resolveWeChatOfficialAccountCollectorPrincipal(
+	request: Request,
+	env: Pick<Env, "APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN">,
+): Promise<WeChatOfficialAccountCollectorPrincipal | null> {
+	if (
+		!hasMatchingBearerToken(request, env.APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN ?? null)
+	) {
+		return null;
+	}
+
+	return {
+		kind: "service",
+		serviceClass: "wechat_official_account_collector",
+		serviceId: "wechat-official-account-collector",
 	};
 }
 

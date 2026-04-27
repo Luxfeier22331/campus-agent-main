@@ -20,7 +20,7 @@ import {
 import type { AcceptRequestWrite, FinalizeRequestWrite, RequestExecutionStatus } from "../store";
 import {
 	extractSourceDocIds,
-	normalizePlaceCardPart,
+	normalizeChatResponseStructuredParts,
 	previewText,
 	sanitizePublicAssistantText,
 } from "./normalize";
@@ -219,7 +219,7 @@ export function buildFinalizedWrite(input: {
 	} satisfies SupervisorExecutionResponse;
 	const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
 	const sourceDocIds = extractSourceDocIds(input.response.result);
-	const structuredParts = normalizePlaceCardPart({
+	const structuredParts = normalizeChatResponseStructuredParts({
 		result: input.response.result,
 		selectedTarget: input.response.selectedTarget,
 		status: input.response.status,

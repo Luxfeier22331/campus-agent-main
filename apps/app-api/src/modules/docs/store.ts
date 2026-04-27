@@ -74,6 +74,7 @@ export function createPgDocsReadModelStore(
 					contentUrl: docsReaderAssets.contentUrl,
 					manifestUrl: docsReaderAssets.manifestUrl,
 					outlineUrl: docsReaderAssets.outlineUrl,
+					sourceObjects: docsReaderAssets.sourceObjectsJson,
 				})
 				.from(docsDocuments)
 				.innerJoin(
@@ -257,6 +258,7 @@ function toReaderAssetRecord(
 		contentUrl: string;
 		manifestUrl: string | null;
 		outlineUrl: string;
+		sourceObjects: Record<string, string>;
 	},
 ): DocsReaderAssetRecord {
 	return {
@@ -264,6 +266,7 @@ function toReaderAssetRecord(
 		contentUrl: row.contentUrl,
 		manifestUrl: row.manifestUrl,
 		outlineUrl: row.outlineUrl,
+		sourceObjects: row.sourceObjects,
 	};
 }
 

@@ -25,6 +25,11 @@ export {
 } from "./operator";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
+export {
+	wechatOfficialAccountCaptureRuns,
+	wechatOfficialAccountRunArtifacts,
+	wechatOfficialAccountRunHeartbeats,
+} from "./wechat-official-account";
 
 import {
 	docsCollections,
@@ -53,6 +58,11 @@ import {
 } from "./operator";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
+import {
+	wechatOfficialAccountCaptureRuns,
+	wechatOfficialAccountRunArtifacts,
+	wechatOfficialAccountRunHeartbeats,
+} from "./wechat-official-account";
 
 export const appApiOwnedSchema = {
 	crawlRuns,
@@ -79,4 +89,7 @@ export const appApiOwnedSchema = {
 	traceBacklinkProjection,
 	officialWebRunProjection,
 	officialWebSiteProjection,
+	wechatOfficialAccountCaptureRuns,
+	wechatOfficialAccountRunHeartbeats,
+	wechatOfficialAccountRunArtifacts,
 };

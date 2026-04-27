@@ -11,6 +11,7 @@ import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { AppTelemetry } from "../modules/telemetry";
+import type { WeChatOfficialAccountCommandService } from "../modules/wechat-official-account-command";
 
 export interface AppDependencies {
 	authHandler?: (
@@ -34,6 +35,7 @@ export interface AppDependencies {
 	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
 	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
+	wechatOfficialAccountCommandService?: WeChatOfficialAccountCommandService;
 	scheduleRequestProjectionDrain?: (input: {
 		requestId: string;
 		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
@@ -66,4 +68,5 @@ export interface AppRequestScope {
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
+	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
 }

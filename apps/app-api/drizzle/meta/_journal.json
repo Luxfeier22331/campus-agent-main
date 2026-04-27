@@ -162,6 +162,13 @@
       "when": 1777246121859,
       "tag": "0022_docs_control_plane",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1777259939475,
+      "tag": "0023_graceful_robin_chapel",
+      "breakpoints": true
     }
   ]
 }
