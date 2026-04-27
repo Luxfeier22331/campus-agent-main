@@ -5,30 +5,57 @@
 	"timezone": "Asia/Shanghai",
 	"lanes": [
 		{
-			"enabled": true,
-			"run_intent": "baseline",
-			"cadence_minutes": 1440,
-			"host_filter": [],
-			"max_pages_per_host": 40,
-			"max_total_pages": 1200,
-			"notes": "Daily broad-coverage baseline crawl across enabled public hosts."
-		},
-		{
+			"lane_id": "university-core-hot",
 			"enabled": true,
 			"run_intent": "hot",
 			"cadence_minutes": 30,
 			"host_filter": [
 				"www.muc.edu.cn",
 				"news.muc.edu.cn",
-				"xxgk.muc.edu.cn",
-				"xiaoyou.muc.edu.cn",
-				"lib.muc.edu.cn"
+				"xxgk.muc.edu.cn"
 			],
 			"max_pages_per_host": 20,
-			"max_total_pages": 120,
-			"notes": "High-frequency refresh for homepage, news, information-disclosure, alumni, and library surfaces."
+			"max_total_pages": 80,
+			"notes": "High-frequency refresh for university-core homepage, news, and information disclosure surfaces."
 		},
 		{
+			"lane_id": "university-core-baseline",
+			"enabled": true,
+			"run_intent": "baseline",
+			"cadence_minutes": 1440,
+			"host_filter": [
+				"www.muc.edu.cn",
+				"news.muc.edu.cn",
+				"xxgk.muc.edu.cn",
+				"lib.muc.edu.cn",
+				"xiaoyou.muc.edu.cn"
+			],
+			"max_pages_per_host": 40,
+			"max_total_pages": 220,
+			"notes": "Daily university-level baseline crawl before college and topic rollout."
+		},
+		{
+			"lane_id": "college-single-host-baseline",
+			"enabled": false,
+			"run_intent": "baseline",
+			"cadence_minutes": 1440,
+			"host_filter": [],
+			"max_pages_per_host": 40,
+			"max_total_pages": 40,
+			"notes": "Operator-triggered single-college crawl; pass one explicit --host value."
+		},
+		{
+			"lane_id": "topic-single-host-baseline",
+			"enabled": false,
+			"run_intent": "baseline",
+			"cadence_minutes": 1440,
+			"host_filter": [],
+			"max_pages_per_host": 40,
+			"max_total_pages": 40,
+			"notes": "Operator-triggered single-topic crawl; pass one explicit --host value."
+		},
+		{
+			"lane_id": "repair",
 			"enabled": true,
 			"run_intent": "repair",
 			"cadence_minutes": 120,

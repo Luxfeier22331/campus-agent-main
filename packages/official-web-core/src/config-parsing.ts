@@ -5,12 +5,14 @@ import {
 	ALLOWED_DISCOVERY_METHODS,
 	ALLOWED_PUBLIC_KINDS,
 	OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES,
+	OFFICIAL_WEB_HOST_GROUPS,
 	OFFICIAL_WEB_PROJECTION_ACTIONS,
 	OFFICIAL_WEB_RUN_INTENTS,
 	type OfficialWebCredentialsMode,
 	type OfficialWebDeclarablePageFamily,
 	type OfficialWebDiscoveryMethod,
 	type OfficialWebDynamicShellDiscoveryPolicy,
+	type OfficialWebHostGroup,
 	type OfficialWebProjectionAction,
 	type OfficialWebPublicKind,
 	type OfficialWebRunIntent,
@@ -59,6 +61,14 @@ export function asPublicKind(value: unknown): OfficialWebPublicKind {
 	const normalized = asString(value) as OfficialWebPublicKind;
 	if (!ALLOWED_PUBLIC_KINDS.includes(normalized)) {
 		throw new Error(`unsupported public kind: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asHostGroup(value: unknown): OfficialWebHostGroup {
+	const normalized = asString(value) as OfficialWebHostGroup;
+	if (!OFFICIAL_WEB_HOST_GROUPS.includes(normalized)) {
+		throw new Error(`unsupported official_web host group: ${String(value)}`);
 	}
 	return normalized;
 }

@@ -4,6 +4,7 @@ import {
 	asCredentialsMode,
 	asDiscoveryMethod,
 	asDynamicShellDiscoveryPolicy,
+	asHostGroup,
 	asNonNegativeInt,
 	asPathSegment,
 	asPositiveInt,
@@ -64,6 +65,9 @@ export function loadOfficialWebConfig(
 			hosts: asArray(hostsPayload.hosts).map((item) => ({
 				host: asString(item.host),
 				publicKind: asPublicKind(item.public_kind),
+				hostGroup: asHostGroup(item.host_group),
+				ownerLabel: asString(item.owner_label),
+				rolloutOrder: asPositiveInt(item.rollout_order, "rollout_order"),
 				enabled: Boolean(item.enabled),
 				seedUrls: asStringArray(item.seed_urls),
 				allowedPathPrefixes: asStringArray(item.allowed_path_prefixes),
@@ -160,6 +164,7 @@ export function loadOfficialWebConfig(
 			schedulerPolicyVersion: asString(schedulerPolicyPayload.scheduler_policy_version),
 			timezone: asString(schedulerPolicyPayload.timezone),
 			lanes: asArray(schedulerPolicyPayload.lanes).map((item) => ({
+				laneId: asPathSegment(item.lane_id, "scheduler.lane_id"),
 				enabled: Boolean(item.enabled),
 				hostFilter: asStringArray(item.host_filter).map((host) => host.toLowerCase()),
 				maxPagesPerHost: asPositiveInt(item.max_pages_per_host, "max_pages_per_host"),

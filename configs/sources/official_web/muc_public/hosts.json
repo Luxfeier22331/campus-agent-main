@@ -6,6 +6,9 @@
 		{
 			"host": "www.muc.edu.cn",
 			"public_kind": "directory_site",
+			"host_group": "university_core",
+			"owner_label": "学校主页",
+			"rollout_order": 10,
 			"enabled": true,
 			"seed_urls": ["https://www.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -26,6 +29,9 @@
 		{
 			"host": "news.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "university_core",
+			"owner_label": "学校新闻网",
+			"rollout_order": 20,
 			"enabled": true,
 			"seed_urls": ["https://news.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -46,6 +52,9 @@
 		{
 			"host": "xxgk.muc.edu.cn",
 			"public_kind": "directory_site",
+			"host_group": "university_core",
+			"owner_label": "信息公开网",
+			"rollout_order": 30,
 			"enabled": true,
 			"seed_urls": ["https://xxgk.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -61,6 +70,9 @@
 		{
 			"host": "lib.muc.edu.cn",
 			"public_kind": "directory_site",
+			"host_group": "university_support",
+			"owner_label": "图书馆",
+			"rollout_order": 40,
 			"enabled": true,
 			"seed_urls": ["https://lib.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -125,6 +137,9 @@
 		{
 			"host": "xiaoyou.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "university_support",
+			"owner_label": "校友网",
+			"rollout_order": 50,
 			"enabled": true,
 			"seed_urls": ["https://xiaoyou.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -140,6 +155,9 @@
 		{
 			"host": "art.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "艺术学院",
+			"rollout_order": 60,
 			"enabled": true,
 			"seed_urls": ["https://art.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -155,6 +173,9 @@
 		{
 			"host": "cie.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "国际教育学院",
+			"rollout_order": 70,
 			"enabled": true,
 			"seed_urls": ["https://cie.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -170,6 +191,9 @@
 		{
 			"host": "cles.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "生命与环境科学学院",
+			"rollout_order": 80,
 			"enabled": true,
 			"seed_urls": ["https://cles.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -185,6 +209,9 @@
 		{
 			"host": "dd9.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "topic",
+			"owner_label": "专题站点 dd9",
+			"rollout_order": 90,
 			"enabled": true,
 			"seed_urls": ["https://dd9.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -200,6 +227,9 @@
 		{
 			"host": "eco.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "经济学院",
+			"rollout_order": 100,
 			"enabled": true,
 			"seed_urls": ["https://eco.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -215,6 +245,9 @@
 		{
 			"host": "edu.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "教育学院",
+			"rollout_order": 110,
 			"enabled": true,
 			"seed_urls": ["https://edu.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -230,6 +263,9 @@
 		{
 			"host": "gjaqyjy.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "topic",
+			"owner_label": "国家安全研究院",
+			"rollout_order": 120,
 			"enabled": true,
 			"seed_urls": ["https://gjaqyjy.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -245,6 +281,9 @@
 		{
 			"host": "history.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "历史文化学院",
+			"rollout_order": 130,
 			"enabled": true,
 			"seed_urls": ["https://history.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -260,6 +299,9 @@
 		{
 			"host": "law.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "法学院",
+			"rollout_order": 140,
 			"enabled": true,
 			"seed_urls": ["https://law.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -275,6 +317,9 @@
 		{
 			"host": "lxy.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "理学院",
+			"rollout_order": 150,
 			"enabled": true,
 			"seed_urls": ["https://lxy.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -290,6 +335,9 @@
 		{
 			"host": "marxism.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "马克思主义学院",
+			"rollout_order": 160,
 			"enabled": true,
 			"seed_urls": ["https://marxism.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -305,6 +353,9 @@
 		{
 			"host": "ms.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "民族学与社会学学院",
+			"rollout_order": 170,
 			"enabled": true,
 			"seed_urls": ["https://ms.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -320,6 +371,9 @@
 		{
 			"host": "msy.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "美术学院",
+			"rollout_order": 180,
 			"enabled": true,
 			"seed_urls": ["https://msy.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -335,6 +389,9 @@
 		{
 			"host": "muchnic.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "topic",
+			"owner_label": "中华民族共同体研究院",
+			"rollout_order": 190,
 			"enabled": true,
 			"seed_urls": ["https://muchnic.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -350,6 +407,9 @@
 		{
 			"host": "phil.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "哲学与宗教学学院",
+			"rollout_order": 200,
 			"enabled": true,
 			"seed_urls": ["https://phil.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -365,6 +425,9 @@
 		{
 			"host": "sce.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "继续教育学院",
+			"rollout_order": 210,
 			"enabled": true,
 			"seed_urls": ["https://sce.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -380,6 +443,9 @@
 		{
 			"host": "scemll.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "中国少数民族语言文学学院",
+			"rollout_order": 220,
 			"enabled": true,
 			"seed_urls": ["https://scemll.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -395,6 +461,9 @@
 		{
 			"host": "sfs.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "外国语学院",
+			"rollout_order": 230,
 			"enabled": true,
 			"seed_urls": ["https://sfs.muc.edu.cn/index.jsp"],
 			"allowed_path_prefixes": ["/"],
@@ -410,6 +479,9 @@
 		{
 			"host": "sla.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "文学院",
+			"rollout_order": 240,
 			"enabled": true,
 			"seed_urls": ["https://sla.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -425,6 +497,9 @@
 		{
 			"host": "sport.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "体育学院",
+			"rollout_order": 250,
 			"enabled": true,
 			"seed_urls": ["https://sport.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -440,6 +515,9 @@
 		{
 			"host": "tjcz.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "统计与大数据学院",
+			"rollout_order": 260,
 			"enabled": true,
 			"seed_urls": ["https://tjcz.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -455,6 +533,9 @@
 		{
 			"host": "wd.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "舞蹈学院",
+			"rollout_order": 270,
 			"enabled": true,
 			"seed_urls": ["https://wd.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -470,6 +551,9 @@
 		{
 			"host": "xinchuan.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "新闻与传播学院",
+			"rollout_order": 280,
 			"enabled": true,
 			"seed_urls": ["https://xinchuan.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -485,6 +569,9 @@
 		{
 			"host": "xingong.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "信息工程学院",
+			"rollout_order": 290,
 			"enabled": true,
 			"seed_urls": ["https://xingong.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -500,6 +587,9 @@
 		{
 			"host": "yuke.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "预科教育学院",
+			"rollout_order": 300,
 			"enabled": true,
 			"seed_urls": ["https://yuke.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -515,6 +605,9 @@
 		{
 			"host": "yxy.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "药学院",
+			"rollout_order": 310,
 			"enabled": true,
 			"seed_urls": ["https://yxy.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -530,6 +623,9 @@
 		{
 			"host": "yyxy.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "college",
+			"owner_label": "音乐学院",
+			"rollout_order": 320,
 			"enabled": true,
 			"seed_urls": ["https://yyxy.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -545,6 +641,9 @@
 		{
 			"host": "zlzhmzgtt.muc.edu.cn",
 			"public_kind": "content_site",
+			"host_group": "topic",
+			"owner_label": "铸牢中华民族共同体专题站",
+			"rollout_order": 330,
 			"enabled": true,
 			"seed_urls": ["https://zlzhmzgtt.muc.edu.cn/"],
 			"allowed_path_prefixes": ["/"],
@@ -560,6 +659,9 @@
 		{
 			"host": "my.muc.edu.cn",
 			"public_kind": "portal",
+			"host_group": "excluded",
+			"owner_label": "校园门户",
+			"rollout_order": 340,
 			"enabled": false,
 			"seed_urls": [],
 			"allowed_path_prefixes": ["/"],
@@ -575,6 +677,9 @@
 		{
 			"host": "service.muc.edu.cn",
 			"public_kind": "app_shell",
+			"host_group": "excluded",
+			"owner_label": "网上服务大厅",
+			"rollout_order": 350,
 			"enabled": false,
 			"seed_urls": [],
 			"allowed_path_prefixes": ["/"],

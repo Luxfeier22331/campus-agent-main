@@ -63,10 +63,27 @@ describe("official-web-core config loading", () => {
 		);
 		expect(config.qcPolicy.allowedReviewPageFamilies).toContain("dynamic_shell_page");
 		expect(config.schedulerPolicy.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
+		expect(
+			config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn"),
+		).toMatchObject({
+			hostGroup: "university_core",
+			ownerLabel: "学校主页",
+			rolloutOrder: 10,
+		});
+		expect(config.hosts.hosts.find((item) => item.host === "law.muc.edu.cn")).toMatchObject({
+			hostGroup: "college",
+			ownerLabel: "法学院",
+			rolloutOrder: 140,
+		});
 		expect(plan.crawlRunId).toBe("muc_public-TEST");
 		expect(plan.runIntent).toBe("baseline");
 		expect(plan.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
 		expect(plan.enabledHosts).toHaveLength(33);
+		expect(plan.enabledHosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
+			hostGroup: "university_core",
+			ownerLabel: "学校主页",
+			rolloutOrder: 10,
+		});
 		expect(plan.seeds).toHaveLength(33);
 		expect(plan.requiredArtifacts).toEqual([
 			"crawl-run.json",
@@ -77,12 +94,36 @@ describe("official-web-core config loading", () => {
 		expect(schedulerPlan.siteId).toBe("muc_public");
 		expect(schedulerPlan.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
 		expect(schedulerPlan.timezone).toBe("Asia/Shanghai");
-		expect(schedulerPlan.lanes).toHaveLength(3);
+		expect(schedulerPlan.lanes).toHaveLength(5);
 		expect(schedulerPlan.lanes[0]).toMatchObject({
-			runIntent: "baseline",
-			schedulerRunKeyPattern: "muc_public:baseline:{scheduled-at-iso}",
+			laneId: "university-core-hot",
+			runIntent: "hot",
+			schedulerRunKeyPattern: "muc_public:university-core-hot:{scheduled-at-iso}",
 			siteId: "muc_public",
 		});
+		expect(schedulerPlan.lanes[1]).toMatchObject({
+			laneId: "university-core-baseline",
+			runIntent: "baseline",
+			schedulerRunKeyPattern: "muc_public:university-core-baseline:{scheduled-at-iso}",
+			siteId: "muc_public",
+		});
+	});
+
+	it("allows multiple scheduler lanes for the same run intent when lane ids are unique", () => {
+		const schedulerPlan = buildOfficialWebSchedulerPlan("muc_public", {
+			now: new Date("2026-03-28T16:00:00.000Z"),
+		});
+
+		const baselineLanes = schedulerPlan.lanes.filter((lane) => lane.runIntent === "baseline");
+
+		expect(baselineLanes.map((lane) => lane.laneId)).toEqual([
+			"university-core-baseline",
+			"college-single-host-baseline",
+			"topic-single-host-baseline",
+		]);
+		expect(new Set(schedulerPlan.lanes.map((lane) => lane.laneId)).size).toBe(
+			schedulerPlan.lanes.length,
+		);
 	});
 
 	it("allows crawl plans to carry a run intent", () => {
@@ -138,6 +179,9 @@ describe("official-web-core config loading", () => {
 						{
 							host: "www.example.edu",
 							public_kind: "directory_site",
+							host_group: "university_core",
+							owner_label: "Example homepage",
+							rollout_order: 10,
 							enabled: true,
 							seed_urls: [],
 							allowed_path_prefixes: ["/"],
@@ -153,6 +197,9 @@ describe("official-web-core config loading", () => {
 						{
 							host: "portal.example.edu",
 							public_kind: "portal",
+							host_group: "excluded",
+							owner_label: "Example portal",
+							rollout_order: 20,
 							enabled: false,
 							seed_urls: [],
 							allowed_path_prefixes: ["/"],
@@ -250,6 +297,7 @@ describe("official-web-core config loading", () => {
 					timezone: "Asia/Shanghai",
 					lanes: [
 						{
+							lane_id: "baseline",
 							enabled: true,
 							run_intent: "baseline",
 							cadence_minutes: 1440,
@@ -259,6 +307,7 @@ describe("official-web-core config loading", () => {
 							notes: "baseline coverage",
 						},
 						{
+							lane_id: "hot",
 							enabled: true,
 							run_intent: "hot",
 							cadence_minutes: 60,
@@ -268,6 +317,7 @@ describe("official-web-core config loading", () => {
 							notes: "hot listings",
 						},
 						{
+							lane_id: "repair",
 							enabled: true,
 							run_intent: "repair",
 							cadence_minutes: 120,
@@ -360,6 +410,9 @@ describe("official-web-core config loading", () => {
 						{
 							host: "www.example.edu",
 							public_kind: "content_site",
+							host_group: "university_core",
+							owner_label: "Example homepage",
+							rollout_order: 10,
 							enabled: true,
 							seed_urls: ["https://www.example.edu/"],
 							allowed_path_prefixes: ["/"],
@@ -458,6 +511,7 @@ describe("official-web-core config loading", () => {
 					timezone: "Asia/Shanghai",
 					lanes: [
 						{
+							lane_id: "baseline",
 							enabled: true,
 							run_intent: "baseline",
 							cadence_minutes: 1440,
@@ -467,6 +521,7 @@ describe("official-web-core config loading", () => {
 							notes: "baseline coverage",
 						},
 						{
+							lane_id: "hot",
 							enabled: true,
 							run_intent: "hot",
 							cadence_minutes: 60,
@@ -476,6 +531,7 @@ describe("official-web-core config loading", () => {
 							notes: "hot listings",
 						},
 						{
+							lane_id: "repair",
 							enabled: true,
 							run_intent: "repair",
 							cadence_minutes: 120,

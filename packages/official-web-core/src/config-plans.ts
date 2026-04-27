@@ -50,6 +50,9 @@ export function buildOfficialWebCrawlPlan(
 			.map((item) => ({
 				host: item.host,
 				publicKind: item.publicKind,
+				hostGroup: item.hostGroup,
+				ownerLabel: item.ownerLabel,
+				rolloutOrder: item.rolloutOrder,
 				maxDepth: item.maxDepth,
 				maxPagesPerRun: item.maxPagesPerRun,
 				maxConcurrency: item.maxConcurrency,
@@ -89,7 +92,7 @@ export function buildOfficialWebSchedulerPlan(
 		timezone: bundle.schedulerPolicy.timezone,
 		lanes: bundle.schedulerPolicy.lanes.map((lane) => ({
 			...lane,
-			schedulerRunKeyPattern: `${bundle.site.siteId}:${lane.runIntent}:{scheduled-at-iso}`,
+			schedulerRunKeyPattern: `${bundle.site.siteId}:${lane.laneId}:{scheduled-at-iso}`,
 			siteId: bundle.site.siteId,
 		})),
 	};

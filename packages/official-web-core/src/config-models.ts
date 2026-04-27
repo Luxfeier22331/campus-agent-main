@@ -6,6 +6,13 @@ export const ALLOWED_PUBLIC_KINDS = [
 	"app_shell",
 ] as const;
 export const ENABLED_PUBLIC_KINDS = ["content_site", "directory_site"] as const;
+export const OFFICIAL_WEB_HOST_GROUPS = [
+	"university_core",
+	"university_support",
+	"college",
+	"topic",
+	"excluded",
+] as const;
 export const ALLOWED_CREDENTIALS_MODES = ["public", "authenticated"] as const;
 export const ALLOWED_DISCOVERY_METHODS = [
 	"seed",
@@ -34,6 +41,7 @@ export const OFFICIAL_WEB_SHELL_PAGE_FAMILIES = [
 ] as const;
 
 export type OfficialWebPublicKind = (typeof ALLOWED_PUBLIC_KINDS)[number];
+export type OfficialWebHostGroup = (typeof OFFICIAL_WEB_HOST_GROUPS)[number];
 export type OfficialWebCredentialsMode = (typeof ALLOWED_CREDENTIALS_MODES)[number];
 export type OfficialWebDiscoveryMethod = (typeof ALLOWED_DISCOVERY_METHODS)[number];
 export type OfficialWebRunIntent = (typeof OFFICIAL_WEB_RUN_INTENTS)[number];
@@ -64,6 +72,9 @@ export interface OfficialWebSiteConfig {
 export interface OfficialWebHostPolicy {
 	host: string;
 	publicKind: OfficialWebPublicKind;
+	hostGroup: OfficialWebHostGroup;
+	ownerLabel: string;
+	rolloutOrder: number;
 	enabled: boolean;
 	seedUrls: string[];
 	allowedPathPrefixes: string[];
@@ -183,6 +194,7 @@ export interface OfficialWebQcPolicy {
 }
 
 export interface OfficialWebSchedulerLanePolicy {
+	laneId: string;
 	enabled: boolean;
 	hostFilter: string[];
 	maxPagesPerHost: number;
@@ -228,6 +240,9 @@ export interface OfficialWebConfigBundle {
 export interface OfficialWebPlannedHost {
 	host: string;
 	publicKind: OfficialWebPublicKind;
+	hostGroup: OfficialWebHostGroup;
+	ownerLabel: string;
+	rolloutOrder: number;
 	maxDepth: number;
 	maxPagesPerRun: number;
 	maxConcurrency: number;

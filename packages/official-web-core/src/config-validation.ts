@@ -115,6 +115,16 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 
 	for (const host of bundle.hosts.hosts) {
 		validateHostName(host.host, "hosts.host");
+		assertNonEmpty(host.ownerLabel, `host ${host.host} ownerLabel`);
+		if (host.rolloutOrder <= 0) {
+			throw new Error(`host ${host.host} must have rolloutOrder > 0`);
+		}
+		if (!host.enabled && host.hostGroup !== "excluded") {
+			throw new Error(`disabled host ${host.host} must use hostGroup=excluded`);
+		}
+		if (host.enabled && host.hostGroup === "excluded") {
+			throw new Error(`enabled host ${host.host} must not use hostGroup=excluded`);
+		}
 		if (
 			host.enabled &&
 			!ENABLED_PUBLIC_KINDS.includes(host.publicKind as (typeof ENABLED_PUBLIC_KINDS)[number])
@@ -344,18 +354,26 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 	if (bundle.schedulerPolicy.lanes.length === 0) {
 		throw new Error("schedulerPolicy.lanes must not be empty");
 	}
-	ensureSameSet(
-		bundle.schedulerPolicy.lanes.map((lane) => lane.runIntent),
-		[...OFFICIAL_WEB_RUN_INTENTS],
-		"schedulerPolicy.lanes[].runIntent",
+	ensureUnique(
+		bundle.schedulerPolicy.lanes.map((lane) => lane.laneId),
+		"schedulerPolicy.lanes[].laneId",
 	);
+	const enabledLaneIntents = bundle.schedulerPolicy.lanes
+		.filter((lane) => lane.enabled)
+		.map((lane) => lane.runIntent);
+	for (const runIntent of OFFICIAL_WEB_RUN_INTENTS) {
+		if (!enabledLaneIntents.includes(runIntent)) {
+			throw new Error(`schedulerPolicy must include enabled ${runIntent} lane`);
+		}
+	}
 	for (const lane of bundle.schedulerPolicy.lanes) {
+		assertNonEmpty(lane.laneId, "scheduler lane laneId");
 		if (lane.notes.length === 0) {
-			throw new Error(`scheduler lane ${lane.runIntent} must define notes`);
+			throw new Error(`scheduler lane ${lane.laneId} must define notes`);
 		}
 		if (lane.maxTotalPages < lane.maxPagesPerHost) {
 			throw new Error(
-				`scheduler lane ${lane.runIntent} must keep maxTotalPages >= maxPagesPerHost`,
+				`scheduler lane ${lane.laneId} must keep maxTotalPages >= maxPagesPerHost`,
 			);
 		}
 		for (const host of lane.hostFilter) {
