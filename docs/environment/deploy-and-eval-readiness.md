@@ -54,9 +54,20 @@ from Worker staging:
 
 - shared LLM provider resolution
 - supervisor / agent prompt model selection
+- bridge base URL / shared secret
 - prompt HTTP timeout and connection-pool tuning keys
 - async audit queue capacity
 - answer admission and worker-thread tuning keys
+
+Conditional readiness:
+
+- if `SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true`, doctor requires
+  `SUPERVISOR_API_EXECUTION_AUDIT_URL` and
+  `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
+- if `SUPERVISOR_API_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
+  doctor requires `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` and
+  `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice read-model/object-store
+  runtime dependencies
 
 Runtime `/readyz` is stricter than liveness:
 

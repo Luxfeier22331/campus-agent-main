@@ -28,6 +28,7 @@ updated: 2026-04-27
 
 - `supervisor-api-staging-operations.md`
 - `supervisor-api-staging-smoke-runbook.md`
+- `supervisor-api-server-handoff.md`
 - `worker-observability-smoke-runbook.md`
 - `templates/public-chat-staging-smoke-artifact-template.md`
 - `templates/worker-observability-smoke-artifact-template.md`

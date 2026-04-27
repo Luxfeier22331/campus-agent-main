@@ -17,6 +17,8 @@ updated: 2026-04-24
 
 它不覆盖 browser smoke 证据采集；那部分统一看
 `supervisor-api-staging-smoke-runbook.md`。
+它也不作为通用 Linux server 部署文档；server handoff 见
+`supervisor-api-server-handoff.md`。
 
 ## 当前真相
 
@@ -42,6 +44,9 @@ updated: 2026-04-24
   - WSL-side lifecycle scripts: `infra/local/staging/start-supervisor-api-staging.sh`
   - strict health check: `infra/local/staging/status-supervisor-api-staging.sh --check`
   - lifecycle lock: `.tmp/supervisor-api-staging/lifecycle.lock`
+
+以上是当前 staging host（WSL + Windows scheduler）特定形态，不代表通用 server runtime
+管理方式。
 
 ## 安装与重装
 

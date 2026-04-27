@@ -196,6 +196,14 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   何时必需: 当前 canonical staging execution runtime 需要
   获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
 
+- Provider / system: Supervisor local runtime command template
+  作用: 本地 Docker 双容器 `supervisor-api` runtime 的 command-scoped override
+  主要 env keys: `SUPERVISOR_RUNTIME_*` `SUPERVISOR_API_*`
+  `SUPERVISOR_AGENT_WORKER_*` `SUPERVISOR_STRUCTURED_QUERY_*`
+  放置位置: `env/commands/supervisor-runtime.env.example`
+  何时必需: 只在本地 smoke / 运维排障需要显式覆写默认值时
+  获取方式: 直接基于 repo template；不要把 deploy-only secret 回写到 root `.env.example`
+
 - Provider / system: Supervisor API machine ingress protection
   作用: `apps/app-api` 调用 Docker-first `supervisor-api` 时穿过 Cloudflare Access /
   Tunnel 保护的机器入口
