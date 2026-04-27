@@ -16,9 +16,10 @@ updated: 2026-04-27
 - status: `completed`
 - active implementation: no
 - current posture: 已完成 `Phase 0-7` 的本地部署包硬化与验收（含 static gates、Docker build、
-  `closed_gate` runtime smoke artifact）。
-- reopen rule: 只有在准备继续补 server 实机验收、扩展 profile smoke 验收、或新增 supervisor runtime
-  部署 contract 变更时恢复
+  `closed_gate` runtime smoke artifact）；非 WSL server live acceptance 已由
+  `supervisor-api-server-live-acceptance` 闭环。
+- reopen rule: 只有在 runtime contract 变更导致现有 local/server evidence 失效、需要新增 smoke
+  profile，或新增 supervisor runtime 部署 contract 变更时恢复
 
 ## Native Planning Truth
 

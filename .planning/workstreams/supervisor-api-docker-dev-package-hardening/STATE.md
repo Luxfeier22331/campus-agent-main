@@ -47,10 +47,18 @@ updated: 2026-04-27
 - runtime artifact
   - `.tmp/supervisor-api-local-smoke/20260427T145119Z-closed_gate/summary.json`
 
-## Remaining Live-Only Gap
+## Live-Only Gap Closure
 
-- 非 WSL 的服务器实机验收（host policy、systemd/container runtime 运维约束、真实 ingress）
-  仍需在后续部署 workstream 执行。
+- 非 WSL 的服务器实机验收已闭环，执行记录在
+  `supervisor-api-server-live-acceptance`：
+  - host: `ubuntu-43` (`VM-0-2-ubuntu`)
+  - artifact:
+    `/home/ubuntu/campus-agent-supervisor-acceptance/bundle/artifacts/20260427T155723Z-closed_gate/summary.json`
+  - result:
+    - `healthz=200`
+    - `readyz=200`
+    - `metrics=200`
+    - `closed_gate answer=503` with `structured_runtime_closed`
 
 ## Continuity Notes
 

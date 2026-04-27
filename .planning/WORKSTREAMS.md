@@ -41,7 +41,6 @@ updated: 2026-04-27
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 | `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | `Phase 1` | `service_status_lookup` precedence / conflict regression follow-up；状态别名与用户可见状态文案已完成一轮收口 |
-| `supervisor-api server live acceptance` | `supervisor-api-server-live-acceptance` | `yes` | `.planning/workstreams/supervisor-api-server-live-acceptance/README.md` | `Phase 0` | 非 WSL Linux host `ubuntu-43` 服务侧实机验收；只补 health/ready/metrics/closed-gate smoke artifact，不做 server-side build、长期运行、生产容量或 80/443 接入 |
 
 ## Completed
 
@@ -68,7 +67,8 @@ updated: 2026-04-27
 | `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | 只有在课程地图重新 admission 为 RAG/query-serving、source-truth canonical 或新的 multimodal extraction contract 时恢复；单纯 UI/UX 展示打磨走 `curriculum-course-map-docs-presentation-refinement` |
 | `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | 只有在 repo 重新 admission 新的 supervisor execution runtime migration slice、显式改写 `supervisor-api -> supervisor-agent-worker` bridge contract、重新打开 Python public supervisor runtime entry，或 profiling 证明 prompt/provider executor 或其他 semantic runtime 成为下一条 Go migration 瓶颈时恢复 |
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | 只有在 repo 重新 admission 新的 tracked handwritten code/test monolith decomposition inventory、`pnpm decomposition:lint` 发现新超阈值 tracked 文件、baseline 出现回流，或已拆文件重新长回阈值外时才恢复 |
-| `supervisor-api Docker/dev package hardening` | `supervisor-api-docker-dev-package-hardening` | `yes` | `.planning/workstreams/supervisor-api-docker-dev-package-hardening/README.md` | 只有在准备继续补 server 实机验收、扩展 profile smoke 验收，或新增 supervisor runtime 部署 contract 变更时恢复 |
+| `supervisor-api Docker/dev package hardening` | `supervisor-api-docker-dev-package-hardening` | `yes` | `.planning/workstreams/supervisor-api-docker-dev-package-hardening/README.md` | 只有在 runtime contract 变更导致 local/server evidence 失效、需要新增 smoke profile，或新增 supervisor runtime 部署 contract 变更时恢复 |
+| `supervisor-api server live acceptance` | `supervisor-api-server-live-acceptance` | `yes` | `.planning/workstreams/supervisor-api-server-live-acceptance/README.md` | 只有在新增 server-live smoke profile、runtime contract 变更导致当前 artifact 失效，或需要重新验证 non-WSL host acceptance 时恢复 |
 
 ## Deferred
 

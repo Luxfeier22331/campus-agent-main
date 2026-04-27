@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -16,16 +16,18 @@ smoke，并留下可复查 artifact。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 0`
+- status: `completed`
+- current phase: `Phase 5` completed
 - active implementation: no
 - target host: Windows SSH alias `ubuntu-43`
-- target host facts already observed:
-  - OS: `Ubuntu 24.04.4 LTS`
-  - Docker: `29.3.0`
-  - Docker Compose: `v5.1.0`
-  - ports `18080` and `38080` observed free at planning time
-- current scope: 服务侧实机验收计划，不是部署方式冻结、不是真实生产接入
+- execution summary:
+  - remote no-build image load completed (`docker load`, no `docker build`)
+  - `supervisor-api + supervisor-agent-worker` runtime smoke passed on `ubuntu-43`
+  - health/ready/metrics/closed-gate answer artifact captured
+  - cleanup completed; acceptance containers and network removed
+- artifact:
+  - `/home/ubuntu/campus-agent-supervisor-acceptance/bundle/artifacts/20260427T155723Z-closed_gate/summary.json`
+- current scope conclusion: 服务侧实机验收 gap 已闭环；不代表长期运行或生产容量结论
 
 ## Native Planning Truth
 

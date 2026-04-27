@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -9,81 +9,79 @@ updated: 2026-04-27
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 0`
+- status: `completed`
+- completed phase: `Phase 0-5`
 - owner: unassigned
 - active implementation: no
 - target host: `ubuntu-43`
-- target host access: Windows-side SSH alias
+- target host hostname: `VM-0-2-ubuntu`
 
-## Current Scope
+## Completed Outcomes
 
-This workstream only validates service-side runtime acceptance on a non-WSL Linux host.
+- Host baseline confirmed on non-WSL Linux server:
+  - OS: `Ubuntu 24.04.4 LTS`
+  - Docker: `29.3.0`
+  - Docker Compose: `v5.1.0`
+  - resources at run time: `2 vCPU`, `1.9GiB RAM`, `1.9GiB swap`, `38G` free disk
+  - existing listeners included `*:80` and `*:443`
+- No-build deployment path executed:
+  - local prebuilt images exported to tar (`206M`)
+  - copied to `ubuntu-43`
+  - loaded with `docker load`
+  - no `docker build` and no `compose up --build` executed on host
+- Isolated runtime acceptance executed:
+  - remote directory: `~/campus-agent-supervisor-acceptance`
+  - compose project: `campus-supervisor-live-acceptance`
+  - bind address: `127.0.0.1:38080`
+  - capability gates kept closed
+- Closed-gate service checks passed:
+  - `/healthz` returned `200`
+  - `/readyz` returned `200`
+  - `/metrics` returned `200`
+  - `/api/v1/answer` returned `503`
+  - answer body contained `structured_runtime_closed`
+- Cleanup and non-interference passed:
+  - acceptance containers removed
+  - acceptance network removed
+  - `38080` released after teardown
+  - existing `*:80` and `*:443` listeners still present
 
-It does not validate:
+## Verification Evidence
+
+- remote artifact root:
+  - `/home/ubuntu/campus-agent-supervisor-acceptance/bundle/artifacts/20260427T155723Z-closed_gate`
+- remote artifact files:
+  - `summary.json`
+  - `healthz.json`
+  - `readyz.json`
+  - `metrics.txt`
+  - `answer.json`
+  - `compose-ps.txt`
+  - `container-health.json`
+- key summary fields from remote `summary.json`:
+  - `result=passed`
+  - `healthz_status_code=200`
+  - `readyz_status_code=200`
+  - `metrics_status_code=200`
+  - `answer_status_code=503`
+  - `compose_project=campus-supervisor-live-acceptance`
+  - `base_url=http://127.0.0.1:38080`
+
+## Scope Guardrail Confirmation
+
+Validated as out of scope in this workstream:
 
 - long-running production operation
 - server-side image build
-- production ingress
-- capacity / stress / soak behavior
+- production ingress/reverse proxy changes
+- capacity/stress/soak testing
 - `app-api` upstream integration
-
-## Known Host Facts
-
-Observed on 2026-04-27 via Windows SSH alias `ubuntu-43`:
-
-- OS: `Ubuntu 24.04.4 LTS`
-- hostname: `VM-0-2-ubuntu`
-- user: `ubuntu`
-- Docker: `29.3.0`
-- Docker Compose: `v5.1.0`
-- CPU: `2`
-- memory: `1.9Gi` total, approximately `930Mi` available at observation time
-- swap: `1.9Gi` total
-- disk: `/` has `38G` available
-- existing Docker containers: none running at observation time
-- existing listeners:
-  - `*:80`
-  - `*:443`
-  - `0.0.0.0:22`
-  - loopback service ports
-- candidate acceptance ports:
-  - `18080`: no listener observed
-  - `38080`: no listener observed
-
-## Planned Runtime Parameters
-
-- remote directory: `~/campus-agent-supervisor-acceptance`
-- compose project: `campus-supervisor-live-acceptance`
-- host bind: `127.0.0.1:38080`
-- profile: `closed_gate`
-- image mode: no server-side build
-- capability gates: closed
-
-## Immediate Next Slice
-
-Start `Phase 0` by refreshing host facts and writing the exact command/output summary into this
-state file. Do not transfer deployment material until the refreshed facts still match the planned
-runtime parameters.
-
-## Planned Verification Evidence
-
-Expected final artifact set:
-
-- remote artifact directory under `~/campus-agent-supervisor-acceptance/artifacts/`
-- `summary.json`
-- `healthz.json`
-- `readyz.json`
-- `metrics.txt`
-- `answer.json`
-- `compose-ps.txt`
-- `container-health.json` or equivalent inspect output
-- cleanup verification output
 
 ## Continuity Notes
 
-- This workstream closes the live-only gap left by
+- This workstream closes the non-WSL live-only evidence gap for
   `supervisor-api-docker-dev-package-hardening`.
-- It must not introduce new deployment topology truth.
-- It must not change existing `80/443` business ingress.
-- It must not use `docker build` or `compose up --build` on `ubuntu-43`.
+- Reopen only when:
+  - new server-live acceptance profile is needed (for example `open_structured`),
+  - runtime contract changes invalidate this evidence set, or
+  - deployment guardrails/acceptance criteria are updated.

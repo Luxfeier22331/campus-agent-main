@@ -1,14 +1,46 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
 
 # Roadmap: Supervisor API Server Live Acceptance
 
-当前为 detailed active plan。执行时只做 `ubuntu-43` 非 WSL 服务侧验收，不扩大到
-server-side build、长期部署、生产容量或真实 ingress 接入。
+当前为 detailed completed record。该执行只覆盖 `ubuntu-43` 非 WSL 服务侧验收，
+未扩大到 server-side build、长期部署、生产容量或真实 ingress 接入。
+
+## Execution Status (2026-04-27)
+
+- `Phase 0` completed:
+  - host baseline refreshed on `ubuntu-43` (OS/Docker/Compose/resources/ports/listeners).
+- `Phase 1` completed:
+  - no-build acceptance bundle prepared and uploaded.
+  - image source used: local prebuilt images exported then remote `docker load`.
+- `Phase 2` completed:
+  - isolated runtime started with project `campus-supervisor-live-acceptance` and
+    bind `127.0.0.1:38080`.
+- `Phase 3` completed:
+  - health/ready/metrics/closed-gate answer checks passed.
+  - closed-gate answer returned `503` with `structured_runtime_closed`.
+- `Phase 4` completed:
+  - cleanup executed (`compose down --remove-orphans`), no acceptance containers left.
+  - `38080` released; existing `*:80` and `*:443` listeners remained.
+- `Phase 5` completed:
+  - evidence written to workstream state.
+  - upstream live-only gap marked resolved.
+
+## Final Evidence
+
+- remote summary:
+  - `/home/ubuntu/campus-agent-supervisor-acceptance/bundle/artifacts/20260427T155723Z-closed_gate/summary.json`
+- key status:
+  - `healthz_status_code=200`
+  - `readyz_status_code=200`
+  - `metrics_status_code=200`
+  - `answer_status_code=503`
+- server-side build:
+  - not used (`docker load` + `docker compose up -d` with `image:` only compose)
 
 ## Phase 0: Scope Lock And Host Readiness Baseline
 

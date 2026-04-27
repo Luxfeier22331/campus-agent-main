@@ -23,9 +23,14 @@ local/dev package closeout、staging host closeout，还是 server handoff packa
 - `Phase 7` 完成：static gates + Docker build + `closed_gate` runtime smoke 已通过；
   artifact：`.tmp/supervisor-api-local-smoke/20260427T145119Z-closed_gate/summary.json`。
 
-## Remaining Live-Only Gap
+## Live Evidence Status
 
-- 服务器实机验收（非 WSL staging host）仍是后续 backlog，不阻塞本地 Docker/dev 部署包闭环。
+- 非 WSL 服务器实机验收已在
+  `supervisor-api-server-live-acceptance` workstream 完成：
+  - host: `ubuntu-43` (`VM-0-2-ubuntu`)
+  - artifact:
+    `/home/ubuntu/campus-agent-supervisor-acceptance/bundle/artifacts/20260427T155723Z-closed_gate/summary.json`
+  - status: `healthz=200`, `readyz=200`, `metrics=200`, `closed_gate answer=503`
 
 ## Phase 0: Package Truth And Gap Baseline
 
