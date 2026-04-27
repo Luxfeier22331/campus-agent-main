@@ -256,6 +256,8 @@ function toAuthorizationProjectionSource(
 
 function defaultEntitlementGroups(principalType: AppPrincipalType): string[] {
 	switch (principalType) {
+		case "campus_member":
+			return ["campus_members"];
 		case "student":
 			return ["campus_members", "students"];
 		case "staff":

@@ -256,9 +256,10 @@ Deployment minimum gate:
 - `APP_API_INTERNAL_SHARED_SECRET` must exactly match
   `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` is required only for staging authenticated
-  chat smoke automation; it gates
-  `POST /api/internal/staging-smoke/auth/session` and must be distinct from the
-  public auth and internal service secrets
+  smoke automation; it gates
+  `POST /api/internal/staging-smoke/auth/session`, must be distinct from the
+  public auth and internal service secrets, and may be provided through ignored
+  repo-root `.env.staging.local`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails
   expected to use the protected panel bridge
 - `SUPERVISOR_API_BASE_URL` and `SUPERVISOR_API_SHARED_SECRET` must be present
@@ -280,8 +281,8 @@ pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- \
   --email help_bot@outlook.com --name "Help Bot"
-APP_API_STAGING_SMOKE_AUTH_SECRET='<same as Worker secret>' pnpm \
-  chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm docs:gated:smoke:staging
 pnpm official-web:drain-projection -- --limit 50
 pnpm collection-rename:audit
 pnpm collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
@@ -305,8 +306,8 @@ APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
   "Help Bot"
-APP_API_STAGING_SMOKE_AUTH_SECRET='<same as Worker secret>' pnpm \
-  chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm docs:gated:smoke:staging
 pnpm dev
 ```
 
@@ -322,6 +323,10 @@ Deploy note:
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有
   staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
+- `chat:smoke:staging` and `docs:gated:smoke:staging` do not require local
+  staging DB credentials; they reset the fixed smoke identity through the
+  deployed staging internal smoke endpoint protected by
+  `APP_API_STAGING_SMOKE_AUTH_SECRET`
 
 Testing lanes:
 

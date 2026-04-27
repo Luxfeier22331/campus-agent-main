@@ -111,11 +111,11 @@ describe("campus member principal projection", () => {
 				userId: "user_01HQ",
 			},
 			authorization: {
-				entitlementGroups: [],
+				entitlementGroups: ["campus_members"],
 				principalId: "user_01HQ",
 				projectionSource: "campus_identity",
 				retrievalFilter: {
-					entitlementGroups: [],
+					entitlementGroups: ["campus_members"],
 					policyProjectionVersion: "phase1-authorization-projection-v1",
 					visibilityLevel: "public",
 					visibilityScope: null,
@@ -230,7 +230,7 @@ describe("request principal resolution", () => {
 				type: "campus_member",
 			},
 			authorization: {
-				entitlementGroups: [],
+				entitlementGroups: ["campus_members"],
 				entitlementSnapshotId: "",
 				projectionSource: "campus_identity",
 				visibilityScope: null,

@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-22
 updated: 2026-04-27
 ---
@@ -12,9 +12,9 @@ updated: 2026-04-27
 
 ## Current Status
 
-- status: `active`
+- status: `completed`
 - current phase: `Phase 6`
-- current focus: `Phase 6` 已完成 restricted / historical reader handoff 与 gated delivery acceptance 的本地实现；下一步只剩 staging reader asset sync 与 live smoke。
+- current focus: `Phase 6` 已完成本地与 staging 的 reader assets 同步链路、staging deploy、未授权 gated fail-close 与授权态 gated `200` 自动化 live smoke；本 workstream 已收口。
 
 ## Native Planning Truth
 

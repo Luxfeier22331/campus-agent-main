@@ -39,13 +39,13 @@ updated: 2026-04-27
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 6` | `Phase 6` 已完成 restricted / historical reader handoff 与 gated delivery acceptance 的本地实现；下一步只剩 staging reader asset sync 与 live smoke |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | 只有在产品范围重新 admission restricted collection/query serving、authenticated document center、restricted retrieval、canonical reader asset contract，或 gated reader admission/delivery contract 被显式改写时才恢复 |
 | `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/archive/completed/execution-capability-family-convergence.md` | 只有在 repo 重新 admission raw runtime target family rename、显式改写 `selected_target` / `selectedTarget` 语义，或新增 capability family 需要重开 repo-wide naming / label convergence 规则时才恢复 |
 | `handbook curriculum MinerU cutover` | `handbook-curriculum-mineru-cutover` | `yes` | `.planning/workstreams/handbook-curriculum-mineru-cutover/README.md` | 只有在 `student_rules` / `curriculum_plan` 需要重新切换 OCR provider、回滚 serving alias、或重开 Paddle/MinerU source-truth cutover 时才恢复 |
 | `bounded agentic retrieval productization` | `bounded-agentic-retrieval-productization` | `yes` | `docs/plans/archive/completed/bounded-agentic-retrieval-productization.md` | 只有在 repo 重新 admission 新的 retrieval step / planner-executor lifecycle、某个具体产品面决定正式消费 generic `live_source_lookup`、显式改写 raw retrieved trace / supporting evidence / operator observability contract，或把 non-current runtime acceptance 提升为 retrieval owner 时才恢复 |

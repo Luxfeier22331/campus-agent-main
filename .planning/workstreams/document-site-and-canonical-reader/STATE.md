@@ -8,7 +8,7 @@ updated: 2026-04-27
 
 ## Current Position
 
-**Status:** Active
+**Status:** Completed
 **Current Phase:** 6
 **Current Phase Name:** Restricted / Historical Reader Handoff And Acceptance
 **Current Plan:** `.planning/workstreams/document-site-and-canonical-reader/phases/phase-6-restricted-historical-reader-handoff-and-acceptance/PLAN.md`
@@ -16,7 +16,7 @@ updated: 2026-04-27
 **Total Plans in Phase:** 0
 **Progress:** 6/6 phases complete
 **Last Activity:** 2026-04-27
-**Last Activity Description:** Implemented Phase 6 restricted / historical reader handoff: `app-api` now enforces principal-visible docs resolve and gated asset delivery, `public-docs` now has a missing-static reader fallback shell, Cloudflare staging has `campus-agent-reader-assets-staging` bound as `DOCS_READER_ASSETS`, and local app-api/public-docs verification passes; real staging restricted bytes still require syncing gated reader assets into that bucket before live smoke.
+**Last Activity Description:** 完成 Phase 6 真实链路回放、staging 部署与授权态 gated docs 自动化验收：registry 中注入 1 条 real restricted current doc 后，publish/import/export/build 在 local+staging 全部跑通（`entries=116/public=115/gated=1`，`copiedAssetCount=464`）；`public-docs-staging` 已验证未授权 `/_gated-docs/...` 为 `404 + no-store + Vary: Cookie, Authorization`，授权态 `campus_members` 通过 repo-owned `docs:gated:smoke:staging` 验证 `200 + no-store + Vary: Cookie, Authorization`。
 
 ## Current Slice
 
@@ -217,15 +217,56 @@ updated: 2026-04-27
     后续若要消除 warning，应单独收口 theme export shape，而不是替换原生
     shell
 
+## Latest Execution Evidence (2026-04-27)
+
+- real gated sample 已注入 docs registry：
+  - `doc_id=curriculum:中央民族大学大学生社会实践环节实施方案`
+  - `delivery_mode=gated_asset`
+  - `entitlement_groups=["campus_members"]`
+- local publish/import/export/build 已完成：
+  - `publish_document_reader_assets` 输出 `document_count=116`、`gated_entry_count=1`、`public_entry_count=115`
+  - `app-api` local `db:migrate` + `docs:import-read-model` + `docs:export-public-sync-manifest`
+  - `public-docs` local `sync:published-reader-assets` 输出 `copiedAssetCount=464`、`copiedGatedDocumentCount=1`
+- staging 链路已完成：
+  - `app-api` `db:migrate:staging` + `docs:import-read-model:staging` + `docs:export-public-sync-manifest:staging`
+  - `public-docs` `deploy:staging` 成功，version: `7a8abe84-dc49-4586-9648-49ad497ceb56`
+- staging 未授权 gated live smoke：
+  - `GET https://campus-docs-staging.ayafeed.com/_gated-docs/curriculum/curriculum_plan/中央民族大学大学生社会实践环节实施方案/2022-current/reader.json`
+  - 返回 `404`，headers 包含 `cache-control: no-store` 与 `vary: Cookie, Authorization`
+- staging 授权态 gated live smoke：
+  - `APP_API_STAGING_SMOKE_AUTH_SECRET` 已轮换并写入 Cloudflare
+    `app-api-staging` Worker secret；当前本机 operator copy 存在 ignored
+    `.env.staging.local`，不进入 git。
+  - `app-api-staging` 已部署 version
+    `7bb6d1a4-9137-4f66-9b0d-3c35876f4bed`。
+  - `pnpm --dir apps/app-api docs:gated:smoke:staging` 会通过部署态
+    `/api/internal/staging-smoke/auth/session` 重置 `help_bot@outlook.com`，
+    铸造 session cookie，并验证同一 gated reader path：
+    unauthenticated `404`、authorized `200`、`Cache-Control: no-store`、
+    `Vary: Cookie, Authorization`。
+
 ## Blockers
 
-- staging 仍需要执行一次真实 publish/import/export/build 链路，把对象存储 reader
-  assets 与 staging Postgres `docs.*` read model 填成 live 数据。
-- staging restricted reader 仍需要把 gated reader asset objects 同步进
-  `campus-agent-reader-assets-staging` 后再做 live acceptance。
+- None for this workstream. Phase 6 acceptance is complete.
 
 ## Verification
 
+- `uv run --all-packages python -m campus_ingestion_worker.publish_document_reader_assets --manifest-path var/docs-read-model-manifest.json --manifest-object-key manifests/public-docs-reader-assets.json`
+- `pnpm --filter app-api db:migrate`
+- `pnpm --filter app-api docs:import-read-model ../../var/docs-read-model-manifest.json`
+- `pnpm --filter app-api docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json`
+- `PUBLIC_DOCS_SYNC_MANIFEST_PATH=/home/reptilian/code/campus-agent/var/public-docs-sync-manifest.json pnpm --filter public-docs build:published-reader-assets`
+- `pnpm --filter app-api db:migrate:staging`
+- `pnpm --filter app-api docs:import-read-model:staging ../../var/docs-read-model-manifest.json`
+- `pnpm --filter app-api docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json`
+- `PUBLIC_DOCS_SYNC_MANIFEST_PATH=/home/reptilian/code/campus-agent/var/public-docs-sync-manifest.staging.json pnpm --filter public-docs deploy:staging`
+- `curl -i -sS "https://campus-docs-staging.ayafeed.com/_gated-docs/curriculum/curriculum_plan/中央民族大学大学生社会实践环节实施方案/2022-current/reader.json" | sed -n '1,40p'`
+- `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/principal-resolution.test.ts test/docs.service.test.ts test/staging-smoke-auth.route.test.ts test/staging-docs-gated-smoke.args.test.ts test/staging-chat-smoke.args.test.ts`
+- `pnpm --dir apps/app-api typecheck`
+- `pnpm --dir apps/app-api docs:gated:smoke:staging`
+- `pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/docs.service.test.ts test/docs.route.test.ts`
+- `pnpm --filter public-docs test:worker`
+- `pnpm --filter public-docs exec vitest run test/sync-published-reader-docs.test.ts test/sync-published-reader-assets.test.ts`
 - `pnpm --filter public-docs test`
 - `pnpm --filter public-docs test -- test/sync-real-docs.test.ts`
 - `pnpm --filter public-docs typecheck`
@@ -294,10 +335,6 @@ updated: 2026-04-27
 
 ## Session Continuity
 
-**Stopped At:** `Phase 4` 已完成 docs search enhancement、current/historical
-static reader version routes、anchor/highlight reader state 与低打扰版本切换。
-错误的 custom reader shell 仍保持撤回状态；后续 shell 改动只能在原生
-Rspress shell 上做受控样式/metadata/interaction 扩展，不得再替换
-topnav/sidebar/layout primitives。下一次恢复应进入 `Phase 5`，规划 public
-chat source cards 与 canonical reader jump integration。
+**Stopped At:** Workstream completed. Phase 6 本地与 staging reader publish/deploy 链路、未授权 gated fail-close、授权态 gated `200` 自动化 live smoke 均已验收。
+后续只有在产品范围重新 admission restricted collection/query serving、authenticated document center、restricted retrieval，或 gated reader admission contract 变更时才重开。
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/ROADMAP.md

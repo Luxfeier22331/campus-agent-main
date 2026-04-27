@@ -1,10 +1,12 @@
 export type { AppAuth, AppAuthGetter, AppAuthResolutionInput, CreateAppAuthInput } from "./auth";
 export {
 	buildBetterAuthConfig,
+	buildEndUserEmailAdmissionPolicy,
 	createAppAuth,
 	getAppAuth,
 	handleAuthRequest,
 	hashAppPassword,
+	isEndUserEmailAllowedForAuth,
 	probeAppAuthRuntime,
 	resolvePasswordResetRedirectTarget,
 	verifyAppPassword,

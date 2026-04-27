@@ -236,7 +236,9 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 - `STAGING_APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
-  `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:smoke:staging`
+  `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:smoke:staging` 与
+  `docs:gated:smoke:staging`；本机 operator copy 可放在 ignored repo-root
+  `.env.staging.local`
 - 只有在你手工运行低层 smoke identity reset 时，shell 才需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
 
 要求：
@@ -355,23 +357,26 @@ pnpm --dir apps/protected-panel-web exec wrangler login
 
 ## Smoke Identity Contract
 
-- `public-chat` staging smoke 不再依赖浏览器现场 sign-up；固定使用受控 smoke identity，并在需要时通过
-  repo-owned 脚本重置密码和清理旧聊天数据
+- staging smoke 不再依赖浏览器现场 sign-up；固定使用受控 smoke identity，并在需要时通过
+  部署态 `app-api-staging` 内部 smoke endpoint 重置密码和清理旧聊天数据
 - 当前 repo-tracked staging explicit end-user allowlist 仍固定包含
   `help_bot@outlook.com`；在 deploy env 未扩面前，它仍是 canonical chat smoke identity
 - 当前 canonical automation 命令：
 
 ```bash
 pnpm --dir apps/app-api chat:smoke:staging
+pnpm --dir apps/app-api docs:gated:smoke:staging
 ```
 
-- 这条命令会在 shell 内生成临时随机密码、本地 provision staging smoke identity、
-- 通过部署态 `app-api-staging` `POST /api/internal/staging-smoke/auth/session`
-  铸造真实 staging session cookie，然后真实请求 `campus-chat-staging`
-  `api/chat/requests`
+- 这些命令会在 shell 内生成临时随机密码，通过部署态 `app-api-staging`
+  `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
+  staging session cookie，然后真实请求 `campus-chat-staging` 或
+  `campus-docs-staging`
 - 它要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
-  `STAGING_APP_API_SMOKE_AUTH_SECRET`
-- 它不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，也不要求 agent 通过真实 Turnstile challenge
+  `STAGING_APP_API_SMOKE_AUTH_SECRET`；repo-owned wrapper 会自动加载 ignored
+  `.env.staging.local`
+- 它不要求本机 staging DB URL，不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，
+  也不要求 agent 通过真实 Turnstile challenge
 - 低层手动重置命令仍保留：
 
 ```bash

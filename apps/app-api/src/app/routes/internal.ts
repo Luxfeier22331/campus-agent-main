@@ -1,8 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 
+import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 
 import { type Env, readPublicChatOrigin, resolveEnvironment } from "../../config";
+import { withRuntimeDatabase } from "../../db/runtime";
 import {
 	AppApiRouteError,
 	errorEnvelope,
@@ -10,7 +12,13 @@ import {
 	routeErrorResponse,
 	withNoStore,
 } from "../../http";
-import { hasMatchingInternalSecret, hasTrustedInternalRequest } from "../../modules/auth";
+import {
+	buildEndUserEmailAdmissionPolicy,
+	hashAppPassword,
+	hasMatchingInternalSecret,
+	hasTrustedInternalRequest,
+	isEndUserEmailAllowedForAuth,
+} from "../../modules/auth";
 import type { OfficialWebExecutionStatusService } from "../../modules/official-web-execution";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import { internalAuthRequiredResponse, serviceCredentialRequiredResponse } from "../responses";
@@ -43,6 +51,66 @@ function hasMatchingStagingSmokeAuthSecret(
 function readStringField(payload: Record<string, unknown>, fieldName: string): string | null {
 	const value = payload[fieldName];
 	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readBooleanField(payload: Record<string, unknown>, fieldName: string): boolean {
+	return payload[fieldName] === true;
+}
+
+function parseCsvList(value: string | null | undefined): string[] {
+	return (value ?? "")
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+}
+
+async function resetStagingSmokeIdentity(input: {
+	email: string;
+	env: Env;
+	name: string;
+	password: string;
+}): Promise<{ userId: string }> {
+	const policy = buildEndUserEmailAdmissionPolicy({
+		endUserEmailAllowlist: parseCsvList(input.env.APP_API_END_USER_EMAIL_ALLOWLIST),
+		endUserEmailDomainAllowlist: parseCsvList(input.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST),
+	});
+	if (!isEndUserEmailAllowedForAuth(input.email, policy)) {
+		throw new AppApiRouteError({
+			code: "end_user_email_not_allowed",
+			message: "This email is not allowed for campus sign-in.",
+			retryable: false,
+			status: 403,
+		});
+	}
+
+	const userId = crypto.randomUUID();
+	const accountRowId = crypto.randomUUID();
+	const passwordHash = await hashAppPassword(input.password);
+	const now = new Date();
+
+	await withRuntimeDatabase(input.env, async (db) => {
+		await db.execute(sql`
+			delete from "chat"."conversations"
+			where "owner_user_id" in (
+				select "id" from "app_auth"."user" where "email" = ${input.email}
+			)
+		`);
+		await db.execute(sql`delete from "app_auth"."user" where "email" = ${input.email}`);
+		await db.execute(sql`
+			insert into "app_auth"."user" (
+				"id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt"
+			)
+			values (${userId}, ${input.name}, ${input.email}, false, null, ${now}, ${now})
+		`);
+		await db.execute(sql`
+			insert into "app_auth"."account" (
+				"id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt"
+			)
+			values (${accountRowId}, ${userId}, 'credential', ${userId}, ${passwordHash}, ${now}, ${now})
+		`);
+	});
+
+	return { userId };
 }
 
 function collectExecutionAuditRequestIds(payload: Record<string, unknown>): string[] {
@@ -141,6 +209,7 @@ export function registerInternalRoutes(input: {
 		const payload = await readJsonRequestBody(c.req.raw);
 		const email = readStringField(payload, "email")?.toLowerCase() ?? null;
 		const password = readStringField(payload, "password");
+		const name = readStringField(payload, "name") ?? "Campus Agent Smoke";
 		if (!(email && password)) {
 			return routeErrorResponse(
 				new AppApiRouteError({
@@ -150,6 +219,15 @@ export function registerInternalRoutes(input: {
 					status: 400,
 				}),
 			);
+		}
+
+		if (readBooleanField(payload, "resetIdentity")) {
+			await resetStagingSmokeIdentity({
+				email,
+				env: input.env,
+				name,
+				password,
+			});
 		}
 
 		const publicChatOrigin = readPublicChatOrigin(input.env);
