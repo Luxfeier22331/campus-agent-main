@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from campus_ingestion_core.internal_notice_schedule_router import (
@@ -11,6 +11,15 @@ from campus_ingestion_core.internal_notice_schedule_router import (
     build_schedule_routing_input_from_inventory_row,
     route_schedule_notice_images,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleRouterDryRunResult:
+    report_payload: Mapping[str, object]
+    summary_payload: Mapping[str, object]
+    image_ocr_inventory: tuple[dict[str, object], ...]
+    body_schedule_inventory: tuple[dict[str, object], ...]
+    skipped_visual_inventory: tuple[dict[str, object], ...]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,10 +34,40 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
-    inventory_path = Path(args.evidence_inventory)
-    output_dir = Path(args.output_dir)
+    result = run_schedule_router_dry_run(
+        inventory_path=Path(args.evidence_inventory),
+        output_dir=Path(args.output_dir),
+        run_id=str(args.run_id),
+    )
+    print(json.dumps(result.summary_payload, ensure_ascii=False, indent=2))
+
+
+def run_schedule_router_dry_run(
+    *,
+    inventory_path: Path,
+    output_dir: Path,
+    run_id: str,
+) -> ScheduleRouterDryRunResult:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_rows = _load_inventory_rows(inventory_path)
+    result = route_schedule_inventory_rows(
+        raw_rows=raw_rows,
+        run_id=run_id,
+        source_inventory=str(inventory_path),
+    )
+    _write_json(output_dir / "_router-dry-run.json", result.report_payload)
+    _write_json(output_dir / "_image-ocr-inventory.json", result.image_ocr_inventory)
+    _write_json(output_dir / "_body-schedule-inventory.json", result.body_schedule_inventory)
+    _write_json(output_dir / "_skipped-visual-inventory.json", result.skipped_visual_inventory)
+    return result
+
+
+def route_schedule_inventory_rows(
+    *,
+    raw_rows: Sequence[Mapping[str, object]],
+    run_id: str,
+    source_inventory: str,
+) -> ScheduleRouterDryRunResult:
     entries = tuple(build_schedule_routing_input_from_inventory_row(row) for row in raw_rows)
     report = route_schedule_notice_images(entries)
     route_by_key = {
@@ -37,53 +76,45 @@ def main(argv: Sequence[str] | None = None) -> None:
     }
 
     report_payload = {
-        "run_id": str(args.run_id),
-        "source_inventory": str(inventory_path),
+        "run_id": run_id,
+        "source_inventory": source_inventory,
         "remote_write_status": "not_written_pg_or_object_storage",
         **asdict(report),
     }
-    _write_json(output_dir / "_router-dry-run.json", report_payload)
-    _write_json(
-        output_dir / "_image-ocr-inventory.json",
-        [
-            _with_route(raw, route_by_key)
-            for raw in raw_rows
-            if route_by_key[_route_key(raw)].should_run_image_ocr
-        ],
+    image_ocr_inventory = tuple(
+        _with_route(raw, route_by_key)
+        for raw in raw_rows
+        if route_by_key[_route_key(raw)].should_run_image_ocr
     )
-    _write_json(
-        output_dir / "_body-schedule-inventory.json",
+    body_schedule_inventory = tuple(
         _dedupe_notice_rows(
             _with_route(raw, route_by_key)
             for raw in raw_rows
             if route_by_key[_route_key(raw)].should_run_body_extractor
-        ),
-    )
-    _write_json(
-        output_dir / "_skipped-visual-inventory.json",
-        [
-            _with_route(raw, route_by_key)
-            for raw in raw_rows
-            if route_by_key[_route_key(raw)].image_action == "visual_or_guide"
-        ],
-    )
-    print(
-        json.dumps(
-            {
-                "run_id": str(args.run_id),
-                "image_count": report.image_count,
-                "notice_count": report.notice_count,
-                "image_ocr_count": report.image_ocr_count,
-                "body_schedule_count": report.body_schedule_count,
-                "skipped_visual_count": report.skipped_visual_count,
-                "needs_review_count": report.needs_review_count,
-                "counts": dict(report.counts),
-                "output_dir": str(output_dir),
-                "remote_write_status": "not_written_pg_or_object_storage",
-            },
-            ensure_ascii=False,
-            indent=2,
         )
+    )
+    skipped_visual_inventory = tuple(
+        _with_route(raw, route_by_key)
+        for raw in raw_rows
+        if route_by_key[_route_key(raw)].image_action == "visual_or_guide"
+    )
+    summary_payload = {
+        "run_id": run_id,
+        "image_count": report.image_count,
+        "notice_count": report.notice_count,
+        "image_ocr_count": report.image_ocr_count,
+        "body_schedule_count": report.body_schedule_count,
+        "skipped_visual_count": report.skipped_visual_count,
+        "needs_review_count": report.needs_review_count,
+        "counts": dict(report.counts),
+        "remote_write_status": "not_written_pg_or_object_storage",
+    }
+    return ScheduleRouterDryRunResult(
+        report_payload=report_payload,
+        summary_payload=summary_payload,
+        image_ocr_inventory=image_ocr_inventory,
+        body_schedule_inventory=body_schedule_inventory,
+        skipped_visual_inventory=skipped_visual_inventory,
     )
 
 
@@ -109,7 +140,7 @@ def _route_key(raw: Mapping[str, object]) -> tuple[str, str, int]:
     return (entry.notice_id, entry.attachment_ref_id, entry.image_index)
 
 
-def _dedupe_notice_rows(rows: Sequence[dict[str, object]]) -> list[dict[str, object]]:
+def _dedupe_notice_rows(rows: Iterable[dict[str, object]]) -> list[dict[str, object]]:
     deduped: dict[str, dict[str, object]] = {}
     for row in rows:
         notice_id = str(row.get("notice_id") or "")

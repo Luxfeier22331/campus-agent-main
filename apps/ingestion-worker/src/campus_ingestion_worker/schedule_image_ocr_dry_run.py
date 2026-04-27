@@ -12,6 +12,7 @@ from campus_ingestion_core.internal_notice_schedule_image_ocr import (
     ScheduleImageOcrProvider,
     ScheduleImageOcrProviderRequest,
     ScheduleImageOcrProviderResult,
+    build_schedule_image_ocr_evidence_inventory_from_rows,
     load_schedule_image_ocr_evidence_inventory,
     run_schedule_image_ocr_dry_run,
 )
@@ -19,6 +20,7 @@ from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
+from campus_ingestion_worker.schedule_router_dry_run import run_schedule_router_dry_run
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,6 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fixture-provider-result",
         help="Local JSON fixture provider result for deterministic non-network dry-runs.",
+    )
+    parser.add_argument(
+        "--skip-router",
+        action="store_true",
+        help="Bypass text router and send every eligible inventory image to OCR.",
     )
     return parser
 
@@ -48,16 +55,36 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.fixture_provider_result
         else None,
     )
-    evidence_entries = load_schedule_image_ocr_evidence_inventory(Path(args.evidence_inventory))
+    inventory_path = Path(args.evidence_inventory)
+    output_dir = Path(args.output_dir)
+    router_summary: Mapping[str, object] | None = None
+    if args.skip_router:
+        evidence_entries = load_schedule_image_ocr_evidence_inventory(inventory_path)
+    else:
+        router_result = run_schedule_router_dry_run(
+            inventory_path=inventory_path,
+            output_dir=output_dir,
+            run_id=f"{args.run_id}:router",
+        )
+        router_summary = router_result.summary_payload
+        evidence_entries = build_schedule_image_ocr_evidence_inventory_from_rows(
+            router_result.image_ocr_inventory
+        )
     report = run_schedule_image_ocr_dry_run(
         evidence_entries=evidence_entries,
         object_store=object_store,
         source_bucket=source_bucket,
         provider=provider,
-        output_dir=Path(args.output_dir),
+        output_dir=output_dir,
         run_id=str(args.run_id),
     )
-    print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
+    payload = asdict(report)
+    payload["router"] = router_summary or {
+        "status": "skipped",
+        "reason": "skip_router_flag",
+    }
+    payload["remote_write_status"] = "not_written_pg_or_object_storage"
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def build_schedule_image_ocr_provider_from_env(

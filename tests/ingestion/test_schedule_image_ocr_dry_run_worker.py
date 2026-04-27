@@ -35,7 +35,25 @@ class ScheduleImageOcrDryRunWorkerTest(unittest.TestCase):
                 "object_exists": True,
                 "image_use": "schedule_table_image",
                 "reason_codes": ["schedule_table_terms_near_image"],
-            }
+            },
+            {
+                "notice_id": "355122",
+                "notice_title": "关于两校区学生通勤班车增加班次的通知",
+                "release_time": "2026-03-18 11:12",
+                "organization": "丰台校区管理委员会",
+                "image_index": 2,
+                "attachment_id": 2,
+                "filename": "boarding-point.jpg",
+                "mime_type": "image/jpeg",
+                "byte_size": len(image_bytes),
+                "sha256": "57f84d542435a9de3eeb32f5bfd07bbd3d815612dbd9708a7de130cdabf9b5ea",
+                "object_key": "authenticated_notice_portal/attachment-a/2026/sha256/x/capture/b.jpg",
+                "object_exists": True,
+                "image_use": "mixed_schedule_and_guide_image",
+                "context_before": "乘车地点见图1。",
+                "context_after": "图1. 学生活动中心西侧停车场路口实景图。",
+                "reason_codes": ["transport_image_candidate"],
+            },
         ]
         object_store = _FakeObjectStore(
             {
@@ -82,12 +100,25 @@ class ScheduleImageOcrDryRunWorkerTest(unittest.TestCase):
                     ]
                 )
 
-        payload = json.loads(stdout.getvalue())
-        self.assertEqual(payload["image_count"], 1)
-        self.assertEqual(payload["processed_count"], 1)
-        self.assertEqual(payload["failed_count"], 0)
-        self.assertEqual(provider.request_count, 1)
-        self.assertEqual(object_store.put_calls, [])
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["image_count"], 1)
+            self.assertEqual(payload["processed_count"], 1)
+            self.assertEqual(payload["failed_count"], 0)
+            self.assertEqual(payload["router"]["image_count"], 2)
+            self.assertEqual(payload["router"]["image_ocr_count"], 1)
+            self.assertEqual(payload["router"]["skipped_visual_count"], 1)
+            self.assertEqual(provider.request_count, 1)
+            self.assertEqual(object_store.put_calls, [])
+            image_inventory = json.loads(
+                (output_dir / "_image-ocr-inventory.json").read_text(encoding="utf-8")
+            )
+            skipped_inventory = json.loads(
+                (output_dir / "_skipped-visual-inventory.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(len(image_inventory), 1)
+            self.assertEqual(image_inventory[0]["image_index"], 1)
+            self.assertEqual(len(skipped_inventory), 1)
+            self.assertEqual(skipped_inventory[0]["image_index"], 2)
 
 
 class _FakeObjectStore:

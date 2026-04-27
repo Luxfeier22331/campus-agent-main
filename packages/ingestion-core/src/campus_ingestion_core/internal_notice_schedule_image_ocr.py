@@ -5,7 +5,7 @@ import json
 import os
 import re
 from base64 import b64encode
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -559,10 +559,16 @@ def load_schedule_image_ocr_evidence_inventory(
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         raise ValueError("schedule image OCR inventory must be a JSON list")
+    return build_schedule_image_ocr_evidence_inventory_from_rows(
+        raw for raw in payload if isinstance(raw, Mapping)
+    )
+
+
+def build_schedule_image_ocr_evidence_inventory_from_rows(
+    rows: Iterable[Mapping[str, object]],
+) -> tuple[ScheduleImageOcrEvidence, ...]:
     entries: list[ScheduleImageOcrEvidence] = []
-    for raw in payload:
-        if not isinstance(raw, dict):
-            continue
+    for raw in rows:
         object_key = _text(raw.get("object_key"))
         sha256 = _text(raw.get("sha256"))
         if not object_key or not bool(raw.get("object_exists")) or not sha256:
@@ -1789,6 +1795,7 @@ __all__ = [
     "build_schedule_image_ocr_artifact_keys",
     "build_schedule_image_ocr_attempt_store_from_env",
     "build_schedule_image_ocr_child_document_registry_record",
+    "build_schedule_image_ocr_evidence_inventory_from_rows",
     "classify_schedule_image_ocr_result",
     "load_schedule_image_ocr_evidence_inventory",
     "run_schedule_image_ocr_dry_run",
