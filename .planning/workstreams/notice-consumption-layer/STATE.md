@@ -18,9 +18,10 @@ updated: 2026-04-27
 **Last Activity:** 2026-04-27
 **Last Activity Description:** Phase 10 completed admission hardening for
 notice-derived campus-services typed materialization. `build_service_status_projection`
-and `build_service_guide_projection` now require consumer admission manifest + typed gate,
-notice-only service-guide release is explicit-override only, and stable-contact candidate
-offline artifact path is available via `build_notice_stable_contact_candidates`.
+and `build_service_guide_projection` now require consumer admission manifest +
+typed gate, notice-only service-guide release is explicit-override only, and
+stable-contact candidate offline artifact path is available via
+`build_notice_stable_contact_candidates`.
 
 Previous closeout activity: Added consumption-layer multimodal token-spend
 policy: source-truth `multimodal_processing_required` remains capture truth, but
@@ -376,8 +377,8 @@ create selected consumer admission.
   - procurement/no-adoption/service-status/form-template projection unit 测试
   - read-model consistency checker / worker CLI 测试
   - notice discover target surface facet 测试
-  - machine-processing downline projection / status / rebuild report / processing gap
-    checker 测试
+  - machine-processing downline projection / status / rebuild report /
+    processing gap checker 测试
   - consumer admission lifecycle / append-only event log / list CLI /
     persistent attempt store / runtime smoke / multimodal eval gate 测试
   - read-model rebuild/repair admission lifecycle 测试
