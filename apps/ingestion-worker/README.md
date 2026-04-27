@@ -19,6 +19,10 @@ Env bootstrap rule:
 
 `apps/ingestion-worker` exposes ingestion runtime shells.
 
+- Default low-frequency operation is on-demand batch execution: pull up a
+  bounded CLI job, emit a JSON report, then exit. Do not keep a full Python
+  ingestion worker resident for the current notice volume. See
+  `docs/runbooks/ingestion-worker-on-demand-batch-runbook.md`.
 - Query-serving scope is controlled by
   `configs/ingestion/<corpus>/<collection>/runtime-profile.json`, not by worker
   defaults.
@@ -33,6 +37,35 @@ Env bootstrap rule:
 - Serving/indexing terms follow
   `docs/reference/runtime-serving-and-index-terms.md`.
 - Operator release flow follows `docs/runbooks/index-release-runbook.md`.
+
+### `campus-ingestion-run-on-demand-batch`
+
+Lightweight orchestration shell for bounded ingestion batches.
+
+Supported batch kinds:
+
+- `authenticated-notice-closeout`
+- `official-web-handoffs`
+- `internal-notice-multimodal-drain`
+
+Behavior:
+
+- Loads current worktree `.env`
+- Runs existing ingestion worker modules in child processes
+- Stops at the first failed step
+- Emits a JSON report with per-step exit code, elapsed time, peak RSS, stdout
+  JSON when available, and stderr tail
+- Exits non-zero when any step fails
+
+Example:
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
+  internal-notice-multimodal-drain \
+  --limit 100 \
+  --batch-size 20 \
+  --report-path .tmp/ingestion-reports/internal-notice-multimodal.json
+```
 
 ### `campus-ingestion-official-web-handoff-dev`
 
