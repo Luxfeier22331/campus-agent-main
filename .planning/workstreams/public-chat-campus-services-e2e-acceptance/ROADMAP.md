@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -44,21 +44,21 @@ structured tools 放到 public/chat 产品路径里验收，并产出 opening ve
   - 验证 source refs / notice refs / contact source refs 的 safe rendering
   - 防止回答暴露 release id、projection internals、raw table parser state 或 debug-only fields
 
-- [ ] **Phase 4: Fail-close, Clarification, And No-action Guardrails**
+- [x] **Phase 4: Fail-close, Clarification, And No-action Guardrails**
   - 覆盖 route/direction/contact ambiguity -> clarification
   - 覆盖 currentness 不可证、source conflict、projection 缺关键字段 -> fail-close
   - 覆盖 how-to 与 schedule/status/contact 的互斥路由
   - 覆盖“帮我预约 / 代我提交 / 帮我打电话 / 发邮件”不生成执行动作
   - 验证 fail-close 文案不退回 generic retrieval 编造答案
 
-- [ ] **Phase 5: Campus Services Product-path Opening Gate**
+- [x] **Phase 5: Campus Services Product-path Opening Gate**
   - 新增或扩展 shared eval gate profile：`campus-services-product-path`
   - 聚合 focused runtime tests、`service-guide-lookup` gate、`contact-directory-lookup` gate、
     Go structured runtime tests、Python agent adapter tests 与 public/chat E2E
   - 产出机器可读 gate artifact：通过项、失败项、tool-level verdict、运行命令、版本摘要
   - 明确 local gate 与 staging gate 的差异，不把 local pass 当 staging opening
 
-- [ ] **Phase 6: Opening Verdict, Rollout Flags, And Handoff**
+- [x] **Phase 6: Opening Verdict, Rollout Flags, And Handoff**
   - 更新 campus services architecture / runbook，记录 opening verdict
   - 按 tool 粒度给出 `open / keep closed / blocked` 结论
   - 明确 rollout flag、回滚条件、source trace 观察点与后续 owner

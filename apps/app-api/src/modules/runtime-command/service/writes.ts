@@ -229,6 +229,11 @@ export function buildFinalizedWrite(input: {
 		requestedScope: input.requestedScope,
 		response: normalizedSupervisorResponse,
 	});
+	const synthesizedCampusServicesText = synthesizeCampusServicesAssistantText({
+		result: input.response.result,
+		selectedTarget: input.response.selectedTarget,
+		status: input.response.status,
+	});
 
 	let assistantKind: ChatMessage["kind"];
 	let assistantText: string;
@@ -240,7 +245,8 @@ export function buildFinalizedWrite(input: {
 
 	if (input.response.status === "needs_clarification") {
 		assistantKind = "clarification";
-		assistantText = input.response.followUpQuestion || input.response.answerText;
+		assistantText =
+			synthesizedCampusServicesText || input.response.followUpQuestion || input.response.answerText;
 		outboxEventType = "request.needs_clarification";
 		result = {
 			kind: "clarification",
@@ -251,7 +257,7 @@ export function buildFinalizedWrite(input: {
 		status = "needs_clarification";
 	} else if (input.response.status === "no_answer") {
 		assistantKind = "no_answer";
-		assistantText = input.response.answerText;
+		assistantText = synthesizedCampusServicesText || input.response.answerText;
 		outboxEventType = "request.no_answer";
 		result = {
 			kind: "no_answer",
@@ -268,6 +274,7 @@ export function buildFinalizedWrite(input: {
 	) {
 		assistantKind = "error";
 		assistantText =
+			synthesizedCampusServicesText ||
 			input.response.error?.message ||
 			input.response.answerText ||
 			(input.response.status === "approval_required"
@@ -299,12 +306,7 @@ export function buildFinalizedWrite(input: {
 		status = input.response.status;
 	} else {
 		assistantKind = "answer";
-		assistantText =
-			synthesizeCampusServicesAssistantText({
-				result: input.response.result,
-				selectedTarget: input.response.selectedTarget,
-				status: input.response.status,
-			}) ?? input.response.answerText;
+		assistantText = synthesizedCampusServicesText ?? input.response.answerText;
 		outboxEventType = "request.completed";
 		result = {
 			kind: "answer",

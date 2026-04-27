@@ -783,6 +783,237 @@ function normalizeCampusServicesToolName(result: unknown): string | null {
 	return null;
 }
 
+function normalizeCandidateDisplayName(value: unknown): string | null {
+	if (!isRecord(value)) {
+		return normalizeOptionalString(value);
+	}
+	return (
+		recordString(value, "display_name", "displayName") ??
+		recordString(value, "label", "label") ??
+		recordString(value, "name", "name") ??
+		recordString(value, "service_name", "serviceName") ??
+		recordString(value, "route_name", "routeName") ??
+		recordString(value, "query_text", "queryText")
+	);
+}
+
+function normalizeCandidateDisplayNames(value: unknown, maxCount = 3): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const names = value
+		.map((item) => normalizeCandidateDisplayName(item))
+		.filter((item): item is string => item !== null);
+	return dedupeStringList(names).slice(0, maxCount);
+}
+
+function normalizeFailCloseReasonLabel(reason: string): string {
+	if (reason === "current_state_unverifiable") {
+		return "当前时效无法稳定确认";
+	}
+	if (reason === "source_truth_unavailable") {
+		return "当前来源暂不可用";
+	}
+	if (reason === "temporal_scope_ambiguous") {
+		return "时间范围不明确";
+	}
+	if (reason === "source_family_unavailable") {
+		return "可用来源类型不足";
+	}
+	if (reason === "source_conflict") {
+		return "来源信息存在冲突";
+	}
+	if (reason === "manual_review_required") {
+		return "需要人工核验";
+	}
+	if (reason === "privacy_policy_restricted") {
+		return "该信息受权限策略限制";
+	}
+	if (reason === "stable_contact_unavailable") {
+		return "当前没有可确认的稳定联系方式";
+	}
+	return "当前依据不足";
+}
+
+function deriveCampusServicesSubject(input: {
+	toolName: string | null;
+	toolResult: Record<string, unknown> | null;
+}): string {
+	if (!input.toolResult) {
+		return "这项校园服务";
+	}
+	if (input.toolName === "service_status_lookup") {
+		return (
+			recordString(input.toolResult, "resolved_subject", "resolvedSubject") ??
+			recordString(input.toolResult, "subject_query", "subjectQuery") ??
+			"该服务状态"
+		);
+	}
+	if (input.toolName === "transport_schedule_lookup") {
+		const resolvedRoute =
+			isRecord(input.toolResult.resolved_route) || isRecord(input.toolResult.resolvedRoute)
+				? ((input.toolResult.resolved_route ?? input.toolResult.resolvedRoute) as Record<
+						string,
+						unknown
+					>)
+				: null;
+		return (
+			(resolvedRoute ? recordString(resolvedRoute, "display_name", "displayName") : null) ??
+			recordString(input.toolResult, "query_text", "queryText") ??
+			"该班车线路"
+		);
+	}
+	if (input.toolName === "service_guide_lookup") {
+		const resolvedService =
+			isRecord(input.toolResult.resolved_service) || isRecord(input.toolResult.resolvedService)
+				? ((input.toolResult.resolved_service ?? input.toolResult.resolvedService) as Record<
+						string,
+						unknown
+					>)
+				: null;
+		return (
+			(resolvedService ? recordString(resolvedService, "display_name", "displayName") : null) ??
+			recordString(input.toolResult, "service_query", "serviceQuery") ??
+			"该服务办理指南"
+		);
+	}
+	if (input.toolName === "contact_directory_lookup") {
+		const resolvedContact =
+			isRecord(input.toolResult.resolved_contact) || isRecord(input.toolResult.resolvedContact)
+				? ((input.toolResult.resolved_contact ?? input.toolResult.resolvedContact) as Record<
+						string,
+						unknown
+					>)
+				: null;
+		return (
+			(resolvedContact ? recordString(resolvedContact, "display_name", "displayName") : null) ??
+			recordString(input.toolResult, "query_text", "queryText") ??
+			"该联系对象"
+		);
+	}
+	return "这项校园服务";
+}
+
+function renderCampusServicesClarificationAnswer(input: {
+	toolName: string | null;
+	toolResult: Record<string, unknown> | null;
+}): string {
+	const clarificationReason = input.toolResult
+		? recordString(input.toolResult, "clarification_reason", "clarificationReason")
+		: null;
+	if (input.toolName === "transport_schedule_lookup") {
+		const routeCandidates = normalizeCandidateDisplayNames(
+			input.toolResult?.candidate_routes ?? input.toolResult?.candidateRoutes,
+		);
+		const stopCandidates = normalizeCandidateDisplayNames(
+			input.toolResult?.stop_refs ?? input.toolResult?.stopRefs,
+		);
+		if (clarificationReason === "route_direction_required") {
+			return routeCandidates.length > 0
+				? `请说明班车方向（从哪里到哪里）。可选线路：${routeCandidates.join("、")}。`
+				: "请说明班车方向（从哪里到哪里）。";
+		}
+		if (clarificationReason === "route_variant_ambiguous") {
+			return routeCandidates.length > 0
+				? `我找到了多个相似线路，请先确认：${routeCandidates.join("、")}。`
+				: "我找到了多个相似线路，请先确认你要查询的具体线路。";
+		}
+		if (clarificationReason === "origin_stop_ambiguous") {
+			return stopCandidates.length > 0
+				? `请先确认出发站点：${stopCandidates.join("、")}。`
+				: "请先确认出发站点。";
+		}
+		if (clarificationReason === "destination_stop_ambiguous") {
+			return stopCandidates.length > 0
+				? `请先确认到达站点：${stopCandidates.join("、")}。`
+				: "请先确认到达站点。";
+		}
+		if (clarificationReason === "service_date_required") {
+			return "请补充查询日期（例如 4 月 30 日）。";
+		}
+		if (clarificationReason === "route_family_required") {
+			return routeCandidates.length > 0
+				? `请先说明要查询哪条班车线：${routeCandidates.join("、")}。`
+				: "请先说明要查询哪条班车线。";
+		}
+	}
+	if (input.toolName === "service_guide_lookup") {
+		const serviceCandidates = normalizeCandidateDisplayNames(
+			input.toolResult?.candidate_services ?? input.toolResult?.candidateServices,
+		);
+		if (clarificationReason === "service_ambiguous") {
+			return serviceCandidates.length > 0
+				? `我找到了多个可能的服务，请先确认：${serviceCandidates.join("、")}。`
+				: "请先确认你要查询的具体服务。";
+		}
+		if (clarificationReason === "campus_scope_required") {
+			return "请先说明校区（例如海淀校区或丰台校区）。";
+		}
+		if (clarificationReason === "audience_required") {
+			return "请说明你对应的人群（学生、教职工或访客）。";
+		}
+		if (clarificationReason === "guide_focus_required") {
+			return "请说明你要查询办理流程、所需材料、入口还是办公时间。";
+		}
+	}
+	if (input.toolName === "contact_directory_lookup") {
+		const contactCandidates = normalizeCandidateDisplayNames(
+			input.toolResult?.candidate_contacts ?? input.toolResult?.candidateContacts,
+		);
+		if (clarificationReason === "contact_entity_ambiguous") {
+			return contactCandidates.length > 0
+				? `我找到了多个可能的联系对象，请先确认：${contactCandidates.join("、")}。`
+				: "请先明确你要查询的部门或联系对象。";
+		}
+		if (clarificationReason === "contact_focus_required") {
+			return "请说明你要查询电话、邮箱、办公地点还是办公时间。";
+		}
+		if (clarificationReason === "department_required") {
+			return "请补充具体部门名称。";
+		}
+		if (clarificationReason === "campus_scope_required") {
+			return "请先说明校区（例如海淀校区或丰台校区）。";
+		}
+		if (clarificationReason === "audience_required") {
+			return "请说明你对应的人群（学生、教职工或访客）。";
+		}
+		if (clarificationReason === "purpose_required") {
+			return "请补充你的咨询事项，我会据此定位对应联系方式。";
+		}
+	}
+	return "为避免答错，请补充具体服务对象、校区或时间范围。";
+}
+
+function renderCampusServicesNoAnswer(input: {
+	toolName: string | null;
+	toolResult: Record<string, unknown> | null;
+}): string {
+	const outcome = input.toolResult ? recordString(input.toolResult, "outcome", "outcome") : null;
+	const failCloseReason = input.toolResult
+		? recordString(input.toolResult, "fail_close_reason", "failCloseReason")
+		: null;
+	const subject = deriveCampusServicesSubject(input);
+	const reasonLabel = failCloseReason ? normalizeFailCloseReasonLabel(failCloseReason) : null;
+	if (outcome === "not_found") {
+		return reasonLabel
+			? `目前没有检索到“${subject}”的有效信息（${reasonLabel}）。`
+			: `目前没有检索到“${subject}”的有效信息。`;
+	}
+	if (outcome === "temporarily_unverifiable" || failCloseReason) {
+		return reasonLabel
+			? `为避免误导，我暂不直接给出“${subject}”的结论（${reasonLabel}）。`
+			: `为避免误导，我暂不直接给出“${subject}”的结论。`;
+	}
+	return `当前没有足够依据回答“${subject}”。`;
+}
+
+function renderCampusServicesNoActionGuardrail(status: "approval_required" | "rejected"): string {
+	const base = "我只能提供校园服务信息，不能代你预约、提交、打电话或发邮件";
+	return status === "approval_required"
+		? `${base}。该请求涉及执行动作，需按校内流程人工办理。`
+		: `${base}。请根据我提供的办理入口或联系方式自行操作。`;
+}
+
 function renderServiceStatusLookupAnswer(toolResult: Record<string, unknown>): string | null {
 	const resolvedSubject =
 		recordString(toolResult, "resolved_subject", "resolvedSubject") ?? "相关服务";
@@ -983,11 +1214,29 @@ export function synthesizeCampusServicesAssistantText(input: {
 	selectedTarget: string | null;
 	status: SupervisorExecutionResponse["status"];
 }): string | null {
-	if (input.status !== "completed" || input.selectedTarget !== "campus-services-agent") {
+	if (input.selectedTarget !== "campus-services-agent") {
 		return null;
 	}
 	const toolName = normalizeCampusServicesToolName(input.result);
 	const toolResult = normalizeCampusServicesToolResult(input.result);
+	if (input.status === "needs_clarification") {
+		return renderCampusServicesClarificationAnswer({
+			toolName,
+			toolResult,
+		});
+	}
+	if (input.status === "no_answer") {
+		return renderCampusServicesNoAnswer({
+			toolName,
+			toolResult,
+		});
+	}
+	if (input.status === "approval_required" || input.status === "rejected") {
+		return renderCampusServicesNoActionGuardrail(input.status);
+	}
+	if (input.status !== "completed") {
+		return null;
+	}
 	if (!(toolName && toolResult)) {
 		return null;
 	}

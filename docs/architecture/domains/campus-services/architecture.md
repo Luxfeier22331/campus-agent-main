@@ -195,107 +195,48 @@ runtime lane 已开放。
 
 固定规则：
 
-- opening gate 默认保持 closed，直到 backing query implementation、release-gate
-  regression / eval evidence 与 app-owned typed observability summary 同时满足
-- 当前 repo 已补齐 gate-closed prework：
-  - `service_status_lookup` / `transport_schedule_lookup` shared contract
-  - structured-runtime pre-routing helper
-  - structured-runtime observability summary
-  - Go `apps/supervisor-api` structured query runtime foundation；当前
-    `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
-    均通过 PostgreSQL release current pointer + typed read model 消费，
-    `transport_schedule_lookup` 具备 projection-backed schedule query kernel、
-    Python thin-adapter wiring 与 authenticated-notice-backed offline projection
-    builder，但仍不代表产品 serving surface 已打开
-- gate 未打开时，产品主路径只能保持当前 routing truth 或 deterministic fail-close
+- opening gate 由 shared eval profile `campus-services-product-path` 驱动；artifact
+  是产品路径 opening verdict 的唯一 machine-readable 入口
+- rollout flag 仍由 Go runtime 持有：`SUPERVISOR_API_OPEN_CAPABILITIES`
+- gate 未打开时，产品主路径必须保持 deterministic fail-close，不得回退 generic retrieval
 - 不得通过 stub、link-only response 或 “先用 RAG 顶上” 伪装成能力已上线
 
-## Runtime Tool Readiness And Gaps
+## Public/chat Opening Verdict Snapshot (2026-04-27)
 
-以下缺口属于 product-path opening gate 与长期边界收口缺口，不改变
-`campus-services-agent -> thin tool adapter -> internal query service -> projection-backed
-structured truth` 的 owner shape。
+判定命令：
 
-### `service_status_lookup`
+```bash
+uv run --all-packages python -m scripts.eval_gate accept \
+  --profile campus-services-product-path \
+  --json
+```
 
-目标问题形态：
+判定结果（local deterministic gate）：
 
-- 当前状态、临时调整、乘车点变更、开放 / 关闭、current-effective override
+- `service_status_lookup`: `open`
+- `transport_schedule_lookup`: `open`
+- `service_guide_lookup`: `open`
+- `contact_directory_lookup`: `open`
+- `service_process_lookup`: `keep_closed`（未在本轮 admission）
 
-剩余缺口：
+固定解释：
 
-- service subject alias 覆盖仍需要扩展，尤其是用户用自然说法询问“班车乘车点”“卡务中心是否开门”
-  这类对象时，必须稳定映射到 canonical service / subject，而不是退回 generic retrieval。
-- status precedence 需要继续固化 regression：临时调整优先于常规状态，当前有效记录优先于历史记录，
-  source 冲突或 currentness 不可证时 fail-close。
-- `status_note` 的 answer shaping 还需要产品化，回答应展示用户可执行的事实，例如地点变更，
-  不暴露内部 `notice_kind`、projection status 或 release id。
-- source trace 与 observability 需要和 public/chat 入口打通，最终回答应能追溯到 source notice /
-  projection release，同时只暴露 safe source summary。
-- public/chat E2E 尚未固化为 release gate；planner、handoff、tool result 与最终 answer text
-  需要在同一条真实请求路径上验证。
+- local gate `PASS` 只表示“可进入 rollout 判定”，不自动等于 staging/prod 已开
+- staging/prod 开放前必须额外满足：
+  - `supervisor-api /readyz`：`capability_gates.campus_services.open=true`
+  - `app-api/public-chat /readyz`：`preflight.campusServicesProductPath.status=ready`
+- 若上述 preflight blocker 任一项退化，必须立即回滚 capability flag
 
-### `transport_schedule_lookup`
+## Runtime Tool Readiness Residual Backlog
 
-目标问题形态：
+Phase 6 后，这条线的产品路径缺口不再放在本架构文档分散维护；统一回写到
+`campus-services-runtime-tool-gap-closeout`。
 
-- 班车 / 接驳车时刻、方向、首班、末班、下一班、运营窗口、站点引用
+当前 residual backlog 只保留以下三类：
 
-剩余缺口：
-
-- route / direction / stop alias 需要继续扩展，尤其是“丰台回海淀”“地铁接驳车”“通勤班车”
-  这类短问法必须稳定落到具体 route 或触发 clarification。
-- 长期线路、临时线路、临时站点调整与 schedule exception 的优先级需要更完整的 regression 覆盖；
-  tool 只能消费已发布 projection，不应在 query time 重新解释原始 notice。
-- date / time semantics 需要继续收口，包括指定日期、节假日、周末、寒暑假、当前时间之前/之后的
-  “下一班”选择，以及 projection 展开窗口之外的 fail-close。
-- OCR / table extraction 质量仍是 backing projection 风险；runtime 不修表格解析，只能在 projection
-  缺关键字段时 fail-close，并通过 eval 暴露数据面缺口。
-- 预约说明、办理入口这类 how-to 问题不应由 schedule tool 承担，应路由到
-  `service_guide_lookup`。
-- public/chat E2E 尚未覆盖 schedule answer 的最终渲染、operational notices 摘要与 source trace。
-
-### `service_guide_lookup`
-
-目标问题形态：
-
-- 怎么办、需要什么材料、入口在哪里、办公时间、预约说明、只读办理指南
-
-剩余缺口：
-
-- service guide catalog 与 alias 覆盖仍薄，当前已能消费部分 notice-derived / handbook-derived
-  guide，但还不是完整校园服务目录。
-- guide section normalization 需要继续加强，材料、入口、办理地点、办公时间、适用人群、注意事项
-  应尽量成为 typed fields，而不是只依赖长文本 section。
-- 纯电话 / 邮箱 / 部门联系方式问题不应长期压在 `service_guide_lookup` 上；只有 guide projection
-  已内嵌 source-linked contact refs 时才可展示；纯联系方式默认路由到
-  `contact_directory_lookup`。
-- 事务 guardrail 需要 E2E 验证：用户要求“帮我预约 / 代我提交 / 帮我办理”时，不能生成执行型
-  handoff，只能回答只读流程或 fail-close。
-- source refs、更新时间、适用范围与 unavailable / clarification 文案需要 product-path
-  rendering gate。
-- public/chat E2E 尚未覆盖 guide answer 的完整路径，尤其是“地铁接驳车怎么预约”“校园卡丢了怎么办”
-  这类高频服务问题。
-
-### `contact_directory_lookup`
-
-目标问题形态：
-
-- 部门电话、邮箱、办公地点、联系人、办公时间等稳定联系方式查询
-
-剩余缺口：
-
-- alias coverage 仍需扩展，尤其是“学院办公室”“招生咨询老师”“国际交流科”这类别称命中与歧义澄清。
-- 当前只支持 `current/latest` 语义，`as_of` / 年份查询保持 fail-close；历史联系方式查询还未开放。
-- conflict/manual-review source 命中时需要持续保持 fail-close，不得退回猜测或 fallback 文案。
-- public/chat E2E 尚未覆盖 contact answer 的最终渲染、source trace 与 no-action boundary。
-
-共同缺口：
-
-- 四个 tool 都需要固定 deterministic eval denominator：planner/router、structured query result、
-  agent adapter answer shaping、public/chat E2E。
-- `campus-services-agent` 当前仍应保持 deterministic thin adapter。除非 eval 证明模板化 answer
-  shaping 不足，否则不引入独立 LLM prompt 作为 correctness owner。
+- staging opening evidence（真实部署、真实依赖、real traffic smoke）
+- alias/clarification denominator 扩展（长尾口语、跨部门别称、边界提示词）
+- `service_process_lookup` 的后续 admission（当前保持 `keep_closed`）
 
 ## Forbidden Shapes
 
@@ -303,7 +244,7 @@ structured truth` 的 owner shape。
 - 不让 `navigation-agent` 代持 timetable truth 或 service-status truth
 - 不在 query time 扫描 raw source、notice bundle、portal HTML 或对象存储前缀
 - 不通过 `app-api` loopback HTTP 充当 internal query seam
-- 不把当前未开放的 runtime lane 冒充成已上线 product capability
+- 不把未通过 opening gate 的 runtime lane 冒充成已上线 product capability
 
 ## 相关稳定文档
 

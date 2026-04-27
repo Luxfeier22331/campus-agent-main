@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -9,13 +9,13 @@ updated: 2026-04-27
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 4`
-- current slice: fail-close, clarification, and no-action guardrails
+- status: `completed`
+- completed phase: `Phase 6`
+- current slice: none
 - owner: current Codex session
-- active implementation: Phase 3 complete; deterministic Worker harness now covers positive
-  routing/handoff matrix plus browser-safe answer rendering and source-trace-safe text for the four
-  campus-services tools
+- active implementation: no
+- completion summary: Phase 6 已完成 opening verdict、rollout/rollback contract、
+  source-trace observation points 与 backlog handoff；本 workstream 不再持有 active slice
 
 ## Current Context
 
@@ -36,7 +36,24 @@ updated: 2026-04-27
 - Phase 3 已完成：`app-api` completed answer path 对 `campus-services-agent` 改为优先消费
   `tool_result` 生成产品化回答，并把 source refs 归并为安全来源类别展示，避免暴露 release id、
   projection internals、raw parser/debug fields、或原始 source ref id。
-- 当前缺口转入 Phase 4：覆盖 ambiguity clarification、fail-close、与 no-action guardrails。
+- Phase 4 已完成：`apps/public-chat-web/test/worker.test.ts` 新增 deterministic guardrail
+  matrix，覆盖：
+  - route/direction ambiguity clarification（`transport_schedule_lookup`）
+  - contact ambiguity clarification（`contact_directory_lookup`）
+  - currentness/source conflict fail-close（`no_answer`）
+  - how-to 与 schedule/status/contact 的互斥路由
+  - “帮我预约 / 代提交 / 打电话 / 发邮件” no-action guardrails（包含
+    `completed` 只读引导 + `approval_required/rejected` 拒绝执行）
+- 当前缺口转入 Phase 5：聚合 campus-services product-path opening gate 与 tool-level verdict。
+- Phase 5 已完成：新增 shared eval profile `campus-services-product-path`，聚合
+  `service-guide/contact-directory` release gates、Go structured runtime tests、
+  Python campus-services adapter tests、`app-api` runtime/typecheck 与 public/chat E2E。
+- Phase 5 artifact `campus-services-product-path-opening-gate.json` 输出 check 级通过状态、
+  tool-level `open/blocked` verdict、执行命令摘要、`git_head` 与 local-vs-staging gate scope。
+- 当前缺口转入 Phase 6：基于 opening gate artifact 给出 final opening verdict、rollout flags、
+  回滚条件与 owner handoff。
+- Phase 6 已完成：opening verdict/runbook/architecture truth 已落盘，
+  `public-chat-campus-services-e2e-acceptance` 进入 completed 状态。
 
 ## Phase 0 Completion
 
@@ -105,6 +122,55 @@ Phase 3 completed on 2026-04-27.
   上游返回污染 `answerText` 时，`public-chat-web -> app-api -> chat response`
   仍输出结构化安全文案。
 
+## Phase 4 Completion
+
+Phase 4 completed on 2026-04-27.
+
+- `apps/public-chat-web/test/worker.test.ts` guardrail matrix 新增 8 条 deterministic prompts，
+  覆盖 clarification/no_answer/no-action 的完整终态集合。
+- guardrail assertions 覆盖：
+  - `public-chat-web` response `result.kind` 与 `requestExecution.status` 一致
+  - 维持 `selectedTarget=campus-services-agent`、`allowed_tool/payload_kind` 不漂移
+  - clarification/fail-close 文案来自 campus-services structured semantics，不回退 generic
+    retrieval 拼接文案
+  - action prompts 不产生执行承诺；`approval_required/rejected` 固化 no-action guardrail 文案
+  - 非 completed 终态不生成 `campus_service_trace_cards`；completed 终态保留 trace cards
+
+## Phase 5 Completion
+
+Phase 5 completed on 2026-04-27.
+
+- 新增 `packages/evals/src/campus_evals/campus_services_product_path_opening_gate.py`：
+  - 组合执行 `service-guide-lookup` / `contact-directory-lookup` 两条 deterministic release gate
+  - 执行 Go structured runtime matrix、Python adapter tests、`app-api` runtime tests、
+    public/chat worker E2E、`app-api/public-chat` typecheck
+  - 输出机器可读 artifact：
+    `campus-services-product-path-opening-gate.json`
+- `scripts/eval_gate.py` 增加 shared profile `campus-services-product-path`（`reruns=1`，
+  不支持 publish dry-run），统一入口：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile campus-services-product-path --json`
+- 新增 tests：
+  - `tests/evals/campus_services_product_path_eval_gate_profile_suite.py`
+  - `tests/evals/campus_services_product_path_opening_gate_suite.py`
+
+## Phase 6 Completion
+
+Phase 6 completed on 2026-04-27.
+
+- `docs/architecture/domains/campus-services/architecture.md` 新增
+  public/chat opening verdict snapshot，按 tool 给出 `open / keep_closed / blocked` 结论。
+- `docs/runbooks/eval-release-gate-automation.md` 补齐
+  `contact-directory-lookup` 与 `campus-services-product-path` profile，以及
+  rollout flag、rollback 条件、source trace 观察点与 owner split。
+- Phase 6 最终 opening verdict：
+  - `service_status_lookup`: `open`
+  - `transport_schedule_lookup`: `open`
+  - `service_guide_lookup`: `open`
+  - `contact_directory_lookup`: `open`
+  - `service_process_lookup`: `keep_closed`
+- 仍未开放项与后续扩展任务已回写到
+  `campus-services-runtime-tool-gap-closeout` backlog workstream，不在本 workstream 继续堆叠。
+
 ## Captured Acceptance Prompts
 
 - “丰台校区通勤班车在哪里上车”
@@ -154,11 +220,18 @@ Phase 1 verification note:
 - Repo-wide `pnpm web:lint` is still blocked by unrelated existing dirty files outside this
   phase. The Phase 1 touched TS files pass targeted Biome check.
 
-Later phases add:
+Post-closeout follow-up:
 
-- `campus-services-product-path` unified gate profile
 - optional staging smoke once local deterministic gate is stable
-- fail-close / clarification / no-action guardrail acceptance
+
+## Reopen Rule
+
+仅在以下条件触发时恢复：
+
+- `campus-services-product-path` opening verdict 发生变化（例如某 tool 从 `open` 退化为 `blocked`）
+- rollout flag/rollback contract 或 source-trace observation contract 被显式改写
+- staging opening evidence 与当前 local gate verdict 出现结构性冲突
+- 新增 campus-services tool family 需要重新进入 public/chat 产品路径 E2E 验收
 
 ## Continuity Notes
 

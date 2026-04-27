@@ -29,20 +29,16 @@ updated: 2026-04-23
 
 ## 当前 Rollout 状态
 
-- 当前产品主路径尚未开放 `transport_schedule_lookup`
-- `packages/contracts` 已具备 intent-first `TransportScheduleLookupPayload / Result`
-  shape
-- Go `apps/supervisor-api` internal query service 已具备 projection-backed
-  deterministic kernel，可覆盖 snapshot metadata、route clarification、
-  departure selection、departure list、service window、timetable 与 temporary
-  suspension summary
-- Python `campus-services-agent` 已具备 thin HTTP adapter；只有配置
-  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与
-  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` 时才消费该 internal seam
-- 数据面第一版已冻结 authenticated-notice-only offline projection path；projection
-  artifact 由 `campus_services/transport_schedule` 生成并发布到对象存储
-- 这仍不打开 `campus_services` 产品 serving surface；opening gate 仍取决于
-  release-gate regression / eval evidence 与 app-owned typed observability summary
+- `transport_schedule_lookup` 已通过 `campus-services-product-path` opening gate，
+  tool-level verdict 为 `open`（Phase 6，2026-04-27）。
+- `packages/contracts`、Go structured query runtime、Python thin adapter 与
+  projection-backed data-plane 均已纳入 opening gate denominator。
+- local gate 判定命令：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  campus-services-product-path --json`
+- rollout flag 仍由 Go runtime 持有：
+  `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`。
+- 未设置该 flag 时，产品路径仍必须 fail-close。
 
 ## Core Conclusion
 

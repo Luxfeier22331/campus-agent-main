@@ -28,12 +28,15 @@ updated: 2026-04-26
 
 ## 当前 Rollout 状态
 
-- 当前产品主路径仍未开放 `service_guide_lookup`
-- 当前 repo 已具备 shared contract、planner subtype、Go internal query endpoint、
-  Python thin adapter、source-truth projection builder 与 intent eval case
-- 已落地实现不等于 serving surface 已打开；opening gate 仍按本文条件收口
-- opening gate 仍取决于 backing projection、release-gate regression / eval evidence 与
-  app-owned typed observability summary
+- `service_guide_lookup` 已通过 `campus-services-product-path` opening gate，
+  tool-level verdict 为 `open`（Phase 6，2026-04-27）。
+- 当前 repo 的 shared contract、Go internal query endpoint、Python thin adapter、
+  source-truth projection builder 与 release gate 已纳入 opening denominator。
+- local gate 判定命令：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  campus-services-product-path --json`
+- rollout flag 仍由 Go runtime 持有：
+  `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`；未设置时产品路径仍应 fail-close。
 
 ## Core Conclusion
 
@@ -341,3 +344,9 @@ metrics label。
   reason
 - intent eval / release gate 覆盖 guide query、ambiguity、fail-close 与 transaction guardrail
 - docs 明确当前 serving surface 与 rollback 条件
+
+Phase 6 snapshot（2026-04-27）：
+
+- 上述条件已由 `campus-services-product-path` opening gate 聚合验证通过。
+- tool-level verdict 已进入 `open`，但环境是否对真实用户开放仍受
+  `SUPERVISOR_API_OPEN_CAPABILITIES` 控制。

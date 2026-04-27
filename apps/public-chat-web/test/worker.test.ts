@@ -37,6 +37,19 @@ interface CampusServicesRoutingCase {
 	toolResult: Record<string, unknown>;
 }
 
+interface CampusServicesGuardrailCase {
+	expectedResultKind: "answer" | "clarification" | "no_answer" | "error";
+	expectedStatus: SupervisorExecutionResponse["status"];
+	expectedTextFragments: string[];
+	expectedTool: CampusServicesTool;
+	forbiddenTextFragments: string[];
+	name: string;
+	prompt: string;
+	responseAnswerText: string;
+	responseFollowUpQuestion: string;
+	toolResult: Record<string, unknown>;
+}
+
 const CAMPUS_SERVICES_ROUTING_CASES: CampusServicesRoutingCase[] = [
 	{
 		expectedAnswerFragment: "丰台校区北门",
@@ -159,6 +172,192 @@ const CAMPUS_SERVICES_ROUTING_CASES: CampusServicesRoutingCase[] = [
 	},
 ];
 
+const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
+	{
+		expectedResultKind: "clarification",
+		expectedStatus: "needs_clarification",
+		expectedTextFragments: ["请说明班车方向", "海淀校区 -> 丰台校区", "丰台校区 -> 海淀校区"],
+		expectedTool: "transport_schedule_lookup",
+		forbiddenTextFragments: ["已为你预约", "我来帮你预约", "已帮你提交"],
+		name: "route-direction ambiguity should ask clarification",
+		prompt: "明天通勤班车最早一班是几点",
+		responseAnswerText: "",
+		responseFollowUpQuestion: "请确认出发方向：海淀到丰台，还是丰台到海淀？",
+		toolResult: {
+			query_text: "明天通勤班车最早一班是几点",
+			outcome: "needs_clarification",
+			clarification_reason: "route_direction_required",
+			candidate_routes: [
+				{
+					display_name: "海淀校区 -> 丰台校区",
+				},
+				{
+					display_name: "丰台校区 -> 海淀校区",
+				},
+			],
+		},
+	},
+	{
+		expectedResultKind: "clarification",
+		expectedStatus: "needs_clarification",
+		expectedTextFragments: ["我找到了多个可能的联系对象", "本科招生办公室", "研究生招生办公室"],
+		expectedTool: "contact_directory_lookup",
+		forbiddenTextFragments: ["已帮你联系", "已为你发邮件", "我来帮你打电话"],
+		name: "contact ambiguity should ask clarification",
+		prompt: "招生办联系方式",
+		responseAnswerText: "",
+		responseFollowUpQuestion: "请确认是本科招生办还是研究生招生办？",
+		toolResult: {
+			query_text: "招生办联系方式",
+			outcome: "needs_clarification",
+			clarification_reason: "contact_entity_ambiguous",
+			candidate_contacts: [
+				{
+					display_name: "本科招生办公室",
+				},
+				{
+					display_name: "研究生招生办公室",
+				},
+			],
+		},
+	},
+	{
+		expectedResultKind: "no_answer",
+		expectedStatus: "no_answer",
+		expectedTextFragments: ["为避免误导", "地铁接驳车运行状态", "当前时效无法稳定确认"],
+		expectedTool: "service_status_lookup",
+		forbiddenTextFragments: ["根据检索结果", "可能是", "大概率"],
+		name: "currentness unverifiable should fail closed",
+		prompt: "现在地铁接驳车还开吗",
+		responseAnswerText: "当前无法确认该服务的最新状态，请稍后重试或咨询校办。",
+		responseFollowUpQuestion: "",
+		toolResult: {
+			subject_query: "现在地铁接驳车还开吗",
+			resolved_subject: "地铁接驳车运行状态",
+			outcome: "temporarily_unverifiable",
+			fail_close_reason: "current_state_unverifiable",
+		},
+	},
+	{
+		expectedResultKind: "no_answer",
+		expectedStatus: "no_answer",
+		expectedTextFragments: ["为避免误导", "今天丰台到海淀下一班班车几点", "来源信息存在冲突"],
+		expectedTool: "transport_schedule_lookup",
+		forbiddenTextFragments: ["最早是", "下一班是", "推测"],
+		name: "projection missing required fields should fail closed",
+		prompt: "今天丰台到海淀下一班班车几点",
+		responseAnswerText: "暂时无法给出可靠班次时间，请以后续官方通知为准。",
+		responseFollowUpQuestion: "",
+		toolResult: {
+			query_text: "今天丰台到海淀下一班班车几点",
+			outcome: "temporarily_unverifiable",
+			fail_close_reason: "source_conflict",
+		},
+	},
+	{
+		expectedResultKind: "answer",
+		expectedStatus: "completed",
+		expectedTextFragments: ["预约需由本人在统一预约入口提交", "可用入口：统一预约入口"],
+		expectedTool: "service_guide_lookup",
+		forbiddenTextFragments: ["已为你预约", "我来帮你预约", "已帮你提交预约"],
+		name: "action prompt should stay read-only and route to guide",
+		prompt: "帮我预约明天丰台到海淀班车",
+		responseAnswerText:
+			"debug projection_internal_state release_id=guardrail-guide authenticated_notice:355122",
+		responseFollowUpQuestion: "",
+		toolResult: {
+			service_query: "帮我预约明天丰台到海淀班车",
+			guide_focus: "entry",
+			outcome: "resolved_current",
+			resolved_service: {
+				service_id: "service:transport:intercampus-commute-booking",
+				display_name: "通勤班车预约",
+			},
+			guide_sections: [
+				{
+					section_type: "entry",
+					title: "预约说明",
+					content: "预约需由本人在统一预约入口提交。",
+					source_refs: ["authenticated_notice:355122"],
+				},
+			],
+			entry_refs: [
+				{
+					label: "统一预约入口",
+					entry_type: "instructions_only",
+					source_refs: ["authenticated_notice:355122"],
+				},
+			],
+			source_refs: ["authenticated_notice:355122"],
+		},
+	},
+	{
+		expectedResultKind: "answer",
+		expectedStatus: "completed",
+		expectedTextFragments: ["招生办公室联系方式：邮箱：admission@muc.edu.cn"],
+		expectedTool: "contact_directory_lookup",
+		forbiddenTextFragments: ["已为你发邮件", "我来帮你发邮件", "已帮你联系"],
+		name: "email action prompt should return contact guidance only",
+		prompt: "帮我给招生办发邮件",
+		responseAnswerText:
+			"debug projection_internal_state release_id=guardrail-contact official_web:admission:contact",
+		responseFollowUpQuestion: "",
+		toolResult: {
+			query_text: "帮我给招生办发邮件",
+			contact_focus: "email",
+			outcome: "resolved_current",
+			resolved_contact: {
+				contact_id: "contact:admission-office",
+				display_name: "招生办公室",
+				entity_type: "office",
+			},
+			contact_points: [
+				{
+					label: "邮箱",
+					contact_type: "email",
+					value: "admission@muc.edu.cn",
+					source_refs: ["official_web:admission:contact"],
+				},
+			],
+			source_refs: ["official_web:admission:contact"],
+		},
+	},
+	{
+		expectedResultKind: "error",
+		expectedStatus: "approval_required",
+		expectedTextFragments: [
+			"我只能提供校园服务信息，不能代你预约、提交、打电话或发邮件",
+			"需按校内流程人工办理",
+		],
+		expectedTool: "contact_directory_lookup",
+		forbiddenTextFragments: ["已为你拨打", "已帮你联系"],
+		name: "call action prompt should be blocked as no-action error",
+		prompt: "帮我打电话给招生办",
+		responseAnswerText: "请稍等，我来帮你打电话。",
+		responseFollowUpQuestion: "",
+		toolResult: {
+			query_text: "帮我打电话给招生办",
+		},
+	},
+	{
+		expectedResultKind: "error",
+		expectedStatus: "rejected",
+		expectedTextFragments: [
+			"我只能提供校园服务信息，不能代你预约、提交、打电话或发邮件",
+			"请根据我提供的办理入口或联系方式自行操作",
+		],
+		expectedTool: "service_guide_lookup",
+		forbiddenTextFragments: ["已帮你提交", "我来替你办理"],
+		name: "submit action prompt should be blocked as no-action error",
+		prompt: "帮我代提交校园卡补办申请",
+		responseAnswerText: "好的，我来替你提交。",
+		responseFollowUpQuestion: "",
+		toolResult: {
+			service_query: "帮我代提交校园卡补办申请",
+		},
+	},
+];
+
 function findCampusServicesRoutingCase(prompt: string): CampusServicesRoutingCase {
 	const route = CAMPUS_SERVICES_ROUTING_CASES.find((item) => item.prompt === prompt);
 	if (!route) {
@@ -217,6 +416,95 @@ function buildCampusServicesExecutionResponse(
 		},
 		selectedTarget: "campus-services-agent",
 		status: "completed",
+		traceId: input.traceId,
+	};
+}
+
+function findCampusServicesGuardrailCase(prompt: string): CampusServicesGuardrailCase {
+	const route = CAMPUS_SERVICES_GUARDRAIL_CASES.find((item) => item.prompt === prompt);
+	if (!route) {
+		throw new Error(`Unexpected campus-services guardrail prompt: ${prompt}`);
+	}
+	return route;
+}
+
+function buildCampusServicesGuardrailExecutionResponse(
+	input: SupervisorExecutionInput,
+	currentCase: CampusServicesGuardrailCase,
+): SupervisorExecutionResponse {
+	const errorPayload =
+		currentCase.expectedStatus === "rejected"
+			? {
+					code: "request_rejected",
+					message: "request was rejected by supervisor policy",
+					retryable: false,
+				}
+			: currentCase.expectedStatus === "error"
+				? {
+						code: "internal_error",
+						message: "supervisor failed",
+						retryable: true,
+					}
+				: null;
+	return {
+		answerText: currentCase.responseAnswerText,
+		error: errorPayload,
+		followUpQuestion: currentCase.responseFollowUpQuestion,
+		observability: {
+			aclAnomalyCode: null,
+			aclDecision: null,
+			cachedInputTokens: null,
+			candidateCount: 1,
+			citationCount: null,
+			citationExpected: null,
+			citationMissing: null,
+			estimatedCostMicrousd: null,
+			failClosed: currentCase.expectedStatus === "no_answer",
+			inputTokens: null,
+			intentCapability: "campus_services",
+			intentNextAction: "delegate",
+			intentResolvedSlots: {
+				allowed_tool: currentCase.expectedTool,
+				payload_kind: currentCase.expectedTool,
+			},
+			intentRoutingConfidence: "high",
+			intentScopeClass: "in_scope",
+			intentTaskKind: "campus_services_lookup",
+			modelName: null,
+			modelProvider: null,
+			outputTokens: null,
+			refusalClass: null,
+			retrievedSourceCount: null,
+			retrievalAttempted: false,
+			semanticOutcome:
+				currentCase.expectedStatus === "no_answer"
+					? "fail_closed"
+					: currentCase.expectedStatus === "needs_clarification"
+						? "needs_clarification"
+						: currentCase.expectedStatus === "approval_required" ||
+								currentCase.expectedStatus === "rejected"
+							? "action_blocked"
+							: "resolved_current",
+		},
+		result: {
+			allowed_tools: [currentCase.expectedTool],
+			payload_kind: currentCase.expectedTool,
+			target: "campus-services-agent",
+			tool_result: currentCase.toolResult,
+			diagnostics: {
+				grounding_verdict:
+					currentCase.expectedStatus === "completed" ? "supported" : "insufficient",
+				retrieved_title_summary: [currentCase.expectedTool],
+				semantic_outcome:
+					currentCase.expectedStatus === "no_answer"
+						? "fail_closed"
+						: currentCase.expectedStatus === "needs_clarification"
+							? "needs_clarification"
+							: "resolved_current",
+			},
+		},
+		selectedTarget: "campus-services-agent",
+		status: currentCase.expectedStatus,
 		traceId: input.traceId,
 	};
 }
@@ -1257,6 +1545,161 @@ describe("public chat web worker shell", () => {
 				(part) => part.type === "campus_service_trace_cards",
 			);
 			expect(tracePart).toBeDefined();
+		}
+	});
+
+	it("enforces campus-services clarification, fail-close, and no-action guardrails on the public chat path", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const observedResults: Record<string, unknown>[] = [];
+		const supervisor: SupervisorExecutionClient = {
+			execute: vi.fn(async (input: SupervisorExecutionInput) => {
+				const currentCase = findCampusServicesGuardrailCase(input.userGoal);
+				const response = buildCampusServicesGuardrailExecutionResponse(input, currentCase);
+				observedResults.push(response.result as Record<string, unknown>);
+				return response;
+			}),
+		};
+		const chatCommandService = buildChatCommandService({
+			conversationStore,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T10:00:00.000Z"),
+			store,
+			supervisor,
+		});
+		const appApiEnv = {
+			APP_API_NAME: "campus-agent-app-api",
+			APP_API_ENVIRONMENT: "test" as const,
+			BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+			PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
+			SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+			SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+			APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+			APP_API_DB: {
+				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+			},
+		};
+		const appApi = createAppApi(appApiEnv, {
+			chatCommandService,
+			getPrincipal: vi.fn().mockResolvedValue(createPrincipal()),
+		});
+
+		for (const currentCase of CAMPUS_SERVICES_GUARDRAIL_CASES) {
+			const response = await worker.fetch(
+				new Request("https://chat.example.com/api/chat/requests", {
+					body: JSON.stringify({
+						prompt: currentCase.prompt,
+					}),
+					headers: {
+						"content-type": "application/json",
+						cookie: "better-auth.session_token=test",
+						"idempotency-key": `idem-guardrail-${currentCase.expectedTool}-${currentCase.expectedStatus}`,
+					},
+					method: "POST",
+				}),
+				{
+					APP_API: {
+						fetch: async (request: Request) => appApi.fetch(request, appApiEnv),
+					},
+					APP_API_BASE_URL: "https://app-api.internal",
+					ASSETS: {
+						fetch: async () =>
+							new Response('<!doctype html><html><body><div id="root"></div></body></html>', {
+								headers: {
+									"content-type": "text/html; charset=utf-8",
+								},
+								status: 200,
+							}),
+					},
+					PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+				},
+			);
+			const payload = (await response.json()) as {
+				answer?: {
+					conversation?: {
+						messages?: Array<{
+							structuredParts?: Array<{
+								type?: string;
+							}>;
+						}>;
+					};
+					result?: {
+						kind?: "answer" | "clarification" | "no_answer" | "error";
+						message?: string;
+						text?: string;
+					};
+				};
+			};
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("cache-control")).toBe("no-store");
+			expect(payload.answer?.result?.kind).toBe(currentCase.expectedResultKind);
+			const resultText =
+				currentCase.expectedResultKind === "error"
+					? (payload.answer?.result?.message ?? "")
+					: (payload.answer?.result?.text ?? "");
+			expect(resultText).toBeTruthy();
+			for (const fragment of currentCase.expectedTextFragments) {
+				expect(resultText, `[${currentCase.name}] missing fragment`).toContain(fragment);
+			}
+			for (const fragment of currentCase.forbiddenTextFragments) {
+				expect(resultText, `[${currentCase.name}] forbidden fragment`).not.toContain(fragment);
+			}
+			expect(resultText).not.toContain("projection_internal_state");
+			expect(resultText).not.toContain("release_id");
+			expect(resultText).not.toContain("authenticated_notice:");
+			expect(resultText).not.toContain("official_web:");
+
+			const lastMessage = payload.answer?.conversation?.messages?.at(-1);
+			const tracePart = lastMessage?.structuredParts?.find(
+				(part) => part.type === "campus_service_trace_cards",
+			);
+			if (currentCase.expectedResultKind === "answer") {
+				expect(tracePart).toBeDefined();
+			} else {
+				expect(tracePart).toBeUndefined();
+			}
+		}
+
+		expect(supervisor.execute).toHaveBeenCalledTimes(CAMPUS_SERVICES_GUARDRAIL_CASES.length);
+		for (const [index, currentCase] of CAMPUS_SERVICES_GUARDRAIL_CASES.entries()) {
+			const supervisorInput = vi.mocked(supervisor.execute).mock.calls[index]?.[0];
+			expect(supervisorInput).toMatchObject({
+				requestedCapability: null,
+				surface: "public_chat_web",
+				userGoal: currentCase.prompt,
+			});
+
+			expect(observedResults[index]).toMatchObject({
+				allowed_tools: [currentCase.expectedTool],
+				payload_kind: currentCase.expectedTool,
+				target: "campus-services-agent",
+			});
+
+			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
+			expect(finalizedWrite.requestExecution).toMatchObject({
+				selectedTarget: "campus-services-agent",
+				status: currentCase.expectedStatus,
+				surface: "public_chat_web",
+			});
+
+			if (currentCase.expectedResultKind === "clarification") {
+				expect(finalizedWrite.assistantMessage.kind).toBe("clarification");
+			}
+			if (currentCase.expectedResultKind === "no_answer") {
+				expect(finalizedWrite.assistantMessage.kind).toBe("no_answer");
+			}
+			if (currentCase.expectedResultKind === "error") {
+				expect(finalizedWrite.assistantMessage.kind).toBe("error");
+			}
+			if (currentCase.expectedResultKind === "answer") {
+				expect(finalizedWrite.assistantMessage.kind).toBe("answer");
+				const tracePart = finalizedWrite.assistantMessage.structuredParts.find(
+					(part) => part.type === "campus_service_trace_cards",
+				);
+				expect(tracePart).toBeDefined();
+			}
 		}
 	});
 

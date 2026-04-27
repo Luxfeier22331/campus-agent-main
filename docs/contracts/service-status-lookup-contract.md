@@ -25,12 +25,15 @@ updated: 2026-04-25
 
 ## 当前 Rollout 状态
 
-- 当前产品主路径尚未开放 `service_status_lookup`
-- repo 已完成的是 implementation-ready prework：
-  - shared contract
-  - gate-closed structured-runtime pre-routing helper
-  - app-owned observability summary 字段
-- opening gate 仍取决于 backing query implementation、release evidence 与 app-owned rollout
+- `service_status_lookup` 已通过 `campus-services-product-path` opening gate，
+  tool-level verdict 为 `open`（Phase 6，2026-04-27）。
+- local gate 判定命令：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  campus-services-product-path --json`
+- rollout flag 仍由 Go runtime 持有：
+  `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`。
+- 未设置该 flag 时，运行时仍应 fail-close，不得把
+  “tool verdict 为 open”等价成“环境已开放”。
 
 ## Request Contract
 

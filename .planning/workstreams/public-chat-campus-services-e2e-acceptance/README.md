@@ -1,25 +1,25 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
 
 # Workstream: Public Chat Campus Services E2E Acceptance
 
-这是 `public-chat-campus-services-e2e-acceptance` 的 native active workstream 入口。
+这是 `public-chat-campus-services-e2e-acceptance` 的 native workstream 入口。
 它负责把 public/chat 入口到 `campus-services-agent` structured tools 的产品级 E2E 验收、
 release gate 与 opening verdict 收口到同一条线。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 4`
-- current slice: fail-close, clarification, and no-action guardrails
-- current posture: internal structured query、agent adapter 与部分 tool release gate 已有 focused
-  验证；public/chat 入口已具备 deterministic Worker harness、campus-services preflight、
-  tool-level positive routing matrix，以及 answer rendering / source trace acceptance，
-  下一步进入 fail-close / clarification / no-action guardrail
+- status: `completed`
+- completed phase: `Phase 6`
+- completion posture: `campus-services-product-path` opening gate 已形成 machine-readable
+  artifact；tool-level opening verdict、rollout flags、rollback 条件、source trace 观察点与
+  owner handoff 已落盘到 architecture/runbook/workstream summary
+- reopen rule: 只有在 campus-services tool denominator 新增、tool-level opening verdict 改写、
+  rollout/rollback contract 改写，或 staging opening 证据与当前 verdict 发生漂移时才恢复
 
 ## Native Planning Truth
 

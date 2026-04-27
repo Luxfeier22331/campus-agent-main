@@ -7,6 +7,7 @@ import {
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
+	expectNoInternalLocators,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceObservabilitySuite(): void {
@@ -91,6 +92,197 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 			},
 			requestExecution: {
 				status: "no_answer",
+			},
+		});
+	});
+
+	it("renders campus-services guardrail text for clarification, fail-close, and no-action statuses", async () => {
+		const clarificationStore = createCommandStore();
+		const noAnswerStore = createCommandStore();
+		const approvalStore = createCommandStore();
+		const rejectedStore = createCommandStore();
+		const clarificationService = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore: createConversationStore().store,
+			store: clarificationStore.store,
+			supervisor: {
+				execute: vi.fn().mockResolvedValue({
+					answerText: "projection_internal_state route_variant_ambiguous",
+					error: null,
+					followUpQuestion: "",
+					result: {
+						payload_kind: "transport_schedule_lookup",
+						tool_result: {
+							candidate_routes: [
+								{ display_name: "丰台至海淀通勤班车" },
+								{ display_name: "海淀至丰台通勤班车" },
+							],
+							clarification_reason: "route_direction_required",
+							outcome: "clarification_required",
+						},
+					},
+					selectedTarget: "campus-services-agent",
+					status: "needs_clarification",
+					traceId: "trace_guardrail_01",
+				}),
+			},
+		});
+		const noAnswerService = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore: createConversationStore().store,
+			store: noAnswerStore.store,
+			supervisor: {
+				execute: vi.fn().mockResolvedValue({
+					answerText: "release_id=contact_directory_projection_v2",
+					error: null,
+					followUpQuestion: "",
+					result: {
+						payload_kind: "contact_directory_lookup",
+						tool_result: {
+							fail_close_reason: "source_conflict",
+							outcome: "temporarily_unverifiable",
+							query_text: "招生办联系方式",
+						},
+					},
+					selectedTarget: "campus-services-agent",
+					status: "no_answer",
+					traceId: "trace_guardrail_02",
+				}),
+			},
+		});
+		const approvalService = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore: createConversationStore().store,
+			store: approvalStore.store,
+			supervisor: {
+				execute: vi.fn().mockResolvedValue({
+					answerText: "",
+					error: null,
+					followUpQuestion: "",
+					result: {
+						payload_kind: "service_guide_lookup",
+						tool_result: {
+							outcome: "resolved_current",
+							service_query: "地铁接驳车预约",
+						},
+					},
+					selectedTarget: "campus-services-agent",
+					status: "approval_required",
+					traceId: "trace_guardrail_03",
+				}),
+			},
+		});
+		const rejectedService = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore: createConversationStore().store,
+			store: rejectedStore.store,
+			supervisor: {
+				execute: vi.fn().mockResolvedValue({
+					answerText: "",
+					error: {
+						code: "request_rejected",
+						message: "request was rejected by supervisor policy",
+						retryable: false,
+					},
+					followUpQuestion: "",
+					result: {
+						payload_kind: "contact_directory_lookup",
+						tool_result: {
+							outcome: "resolved_current",
+							query_text: "招生办电话",
+						},
+					},
+					selectedTarget: "campus-services-agent",
+					status: "rejected",
+					traceId: "trace_guardrail_04",
+				}),
+			},
+		});
+
+		const clarification = await clarificationService.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "班车最早几点发车",
+			},
+			principal: createPrincipal(),
+		});
+		const noAnswer = await noAnswerService.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "招生办联系方式",
+			},
+			principal: createPrincipal(),
+		});
+		const approval = await approvalService.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "帮我预约地铁接驳车",
+			},
+			principal: createPrincipal(),
+		});
+		const rejected = await rejectedService.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "帮我给招生办发邮件",
+			},
+			principal: createPrincipal(),
+		});
+
+		expect(clarification.answer.result.kind).toBe("clarification");
+		if (clarification.answer.result.kind !== "clarification") {
+			throw new Error("expected clarification result");
+		}
+		expect(clarification.answer.result.text).toContain("请说明班车方向");
+		expect(clarification.answer.result.text).toContain("丰台至海淀通勤班车");
+		expectNoInternalLocators(clarification.answer.result.text);
+		expect(clarificationStore.finalWrites[0]).toMatchObject({
+			requestExecution: {
+				selectedTarget: "campus-services-agent",
+				status: "needs_clarification",
+			},
+		});
+
+		expect(noAnswer.answer.result.kind).toBe("no_answer");
+		if (noAnswer.answer.result.kind !== "no_answer") {
+			throw new Error("expected no_answer result");
+		}
+		expect(noAnswer.answer.result.text).toContain("为避免误导");
+		expect(noAnswer.answer.result.text).toContain("来源信息存在冲突");
+		expect(noAnswer.answer.result.text).toContain("招生办联系方式");
+		expectNoInternalLocators(noAnswer.answer.result.text);
+		expect(noAnswerStore.finalWrites[0]).toMatchObject({
+			requestExecution: {
+				selectedTarget: "campus-services-agent",
+				status: "no_answer",
+			},
+		});
+
+		expect(approval.answer.result.kind).toBe("error");
+		if (approval.answer.result.kind !== "error") {
+			throw new Error("expected error result");
+		}
+		expect(approval.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
+		expect(approvalStore.finalWrites[0]).toMatchObject({
+			requestExecution: {
+				selectedTarget: "campus-services-agent",
+				status: "approval_required",
+			},
+		});
+
+		expect(rejected.answer.result.kind).toBe("error");
+		if (rejected.answer.result.kind !== "error") {
+			throw new Error("expected error result");
+		}
+		expect(rejected.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
+		expect(rejectedStore.finalWrites[0]).toMatchObject({
+			requestExecution: {
+				errorCode: "request_rejected",
+				selectedTarget: "campus-services-agent",
+				status: "rejected",
 			},
 		});
 	});

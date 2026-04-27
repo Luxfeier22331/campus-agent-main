@@ -29,15 +29,18 @@ updated: 2026-04-27
 
 ## 当前 Rollout 状态
 
-- 当前产品主路径未开放 `contact_directory_lookup`
-- `campus_services/contact_directory` 已有 projection data-plane 与 PostgreSQL
-  read model
-- 当前 repo 已具备 `ContactDirectoryLookupPayload / Result` shared
-  model、Go structured query runtime、Python thin adapter、planner/policy
-  routing 与 deterministic release gate
-  profile
-- `public/chat` 产品路径 E2E 与 opening verdict 仍未完成，本 contract
-  不能视为产品已上线证明
+- `contact_directory_lookup` 已通过 `campus-services-product-path` opening gate，
+  tool-level verdict 为 `open`（Phase 6，2026-04-27）。
+- `campus_services/contact_directory` projection data-plane 与 PostgreSQL read model
+  已纳入 opening denominator。
+- `ContactDirectoryLookupPayload / Result`、Go structured query runtime、Python thin
+  adapter、planner/policy routing、deterministic release gate 与 public/chat E2E
+  已形成统一 opening verdict 证据。
+- local gate 判定命令：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  campus-services-product-path --json`
+- rollout flag 仍由 Go runtime 持有：
+  `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`；未设置时产品路径仍应 fail-close。
 
 ## Core Conclusion
 
@@ -308,11 +311,17 @@ ContactDirectoryCandidate
     其他 capability 分流
   - deterministic release gate：
     `uv run --all-packages python -m scripts.eval_gate accept --profile contact-directory-lookup`
-- 待完成：
   - `public/chat` E2E：从真实入口验证最终 answer text、source trace 与 no-action
     boundary
   - opening verdict：和 `service_status_lookup` / `transport_schedule_lookup` /
     `service_guide_lookup` 一起完成 product-path gate 决策
+
+Phase 6 snapshot（2026-04-27）：
+
+- `public/chat` E2E 与 opening verdict 已完成，`contact_directory_lookup`
+  当前 tool-level verdict 为 `open`。
+- 长尾 alias 覆盖、历史语义与 denominator 扩展继续回写到
+  `campus-services-runtime-tool-gap-closeout`。
 
 首批 golden prompts：
 
