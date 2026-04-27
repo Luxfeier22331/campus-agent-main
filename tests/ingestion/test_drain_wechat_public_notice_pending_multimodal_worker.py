@@ -136,6 +136,10 @@ class DrainWeChatPublicNoticePendingMultimodalWorkerCliTest(unittest.TestCase):
         self.assertEqual(process_entries.call_args.kwargs["notice_ids"], ("woa_article_1",))
         self.assertEqual(process_entries.call_args.kwargs["max_attempts"], 2)
         build_request.assert_called_once()
+        self.assertEqual(
+            build_request.call_args.kwargs["consumer_admission_batch_id"],
+            "wechat-mm-batch-1",
+        )
         rebuild_projection.assert_called_once_with(
             request="projection-request",
             projection_store=build_projection_store.return_value,

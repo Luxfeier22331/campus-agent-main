@@ -151,6 +151,7 @@ class WeChatPublicNoticeProjectionRequest:
     artifact_refs: tuple[WeChatSourceTruthArtifactRefs, ...]
     source_corpus: str = WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS
     source_collection: str = WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION
+    consumer_admission_batch_id: str = ""
     reference_scopes: tuple[tuple[str, str], ...] = (
         (WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS, "internal_notice"),
         (WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS, WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION),
@@ -214,6 +215,7 @@ def rebuild_wechat_public_notice_projection(
         source_corpus=request.source_corpus,
         source_collection=request.source_collection,
         reference_entries=reference_entries,
+        consumer_admission_batch_id=request.consumer_admission_batch_id,
     )
     if dry_run:
         return build_report
@@ -253,6 +255,7 @@ def build_wechat_public_notice_projection_entries(
     source_corpus: str,
     source_collection: str,
     reference_entries: Sequence[NoticeConsumptionProjectionEntry],
+    consumer_admission_batch_id: str = "",
 ) -> WeChatPublicNoticeProjectionBuildReport:
     reference_signals = _build_reference_signal_map(reference_entries)
     retained_entries: list[NoticeConsumptionProjectionEntry] = []
@@ -273,6 +276,7 @@ def build_wechat_public_notice_projection_entries(
                     article=article,
                     source_corpus=source_corpus,
                     source_collection=source_collection,
+                    consumer_admission_batch_id=consumer_admission_batch_id,
                 )
                 retained_count += 1
             else:
@@ -280,6 +284,7 @@ def build_wechat_public_notice_projection_entries(
                     article=article,
                     source_corpus=source_corpus,
                     source_collection=source_collection,
+                    consumer_admission_batch_id=consumer_admission_batch_id,
                 )
             output_entries.append(entry)
             retained_entries.append(entry)
@@ -296,6 +301,7 @@ def build_wechat_public_notice_projection_entries(
                 duplicate_hit=duplicate_hit,
                 source_corpus=source_corpus,
                 source_collection=source_collection,
+                consumer_admission_batch_id=consumer_admission_batch_id,
             )
         )
 
@@ -812,7 +818,11 @@ def _capture_gate_status(article: WeChatArticleSourceTruth) -> str:
     return "captured_without_text"
 
 
-def _build_article_role_metadata(article: WeChatArticleSourceTruth) -> dict[str, object]:
+def _build_article_role_metadata(
+    article: WeChatArticleSourceTruth,
+    *,
+    consumer_admission_batch_id: str = "",
+) -> dict[str, object]:
     ocr_required = _article_ocr_required(article)
     multimodal_summary = _aggregate_multimodal_summary(article)
     multimodal_extracted_text = _aggregate_multimodal_text(article)
@@ -821,7 +831,7 @@ def _build_article_role_metadata(article: WeChatArticleSourceTruth) -> dict[str,
     ocr_status = _article_ocr_status(article)
     processing_status = _multimodal_processing_status(article)
     processing_gap_reason = _processing_gap_reason(article)
-    return {
+    metadata = {
         "projection_source_label": WECHAT_PUBLIC_NOTICE_SOURCE_LABEL,
         "notice_title": article.title_raw,
         "title": article.title_raw,
@@ -871,6 +881,9 @@ def _build_article_role_metadata(article: WeChatArticleSourceTruth) -> dict[str,
         "media_refs_key": article.media_refs_key,
         "source_bucket": article.bucket,
     }
+    if consumer_admission_batch_id.strip():
+        metadata["consumer_admission_batch_id"] = consumer_admission_batch_id.strip()
+    return metadata
 
 
 def _has_pending_inline_image_outcome(article: WeChatArticleSourceTruth) -> bool:
@@ -956,8 +969,12 @@ def _build_retained_notice_entry(
     article: WeChatArticleSourceTruth,
     source_corpus: str,
     source_collection: str,
+    consumer_admission_batch_id: str = "",
 ) -> NoticeConsumptionProjectionEntry:
-    metadata = _build_article_role_metadata(article)
+    metadata = _build_article_role_metadata(
+        article,
+        consumer_admission_batch_id=consumer_admission_batch_id,
+    )
     notice_document_id = f"wechat_notice:{article.account_slug}:{article.article_stable_id}"
     unit_digest = hashlib.sha256(
         "\n".join(
@@ -992,11 +1009,13 @@ def _build_suppressed_duplicate_entry(
     duplicate_hit: _DuplicateReferenceHit,
     source_corpus: str,
     source_collection: str,
+    consumer_admission_batch_id: str = "",
 ) -> NoticeConsumptionProjectionEntry:
     retained_entry = _build_retained_notice_entry(
         article=article,
         source_corpus=source_corpus,
         source_collection=source_collection,
+        consumer_admission_batch_id=consumer_admission_batch_id,
     )
     metadata = dict(retained_entry.role_metadata)
     metadata.update(
@@ -1036,11 +1055,13 @@ def _build_capture_pending_reference_entry(
     article: WeChatArticleSourceTruth,
     source_corpus: str,
     source_collection: str,
+    consumer_admission_batch_id: str = "",
 ) -> NoticeConsumptionProjectionEntry:
     retained_entry = _build_retained_notice_entry(
         article=article,
         source_corpus=source_corpus,
         source_collection=source_collection,
+        consumer_admission_batch_id=consumer_admission_batch_id,
     )
     metadata = dict(retained_entry.role_metadata)
     metadata.update({"dedupe_status": "capture_pending"})

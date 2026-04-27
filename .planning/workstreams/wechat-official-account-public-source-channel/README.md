@@ -15,13 +15,12 @@ notice consumption 输入，而不是混入 `official_web` crawl policy、generi
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 7`
+- current phase: `Phase 12`
 - current focus:
-  重开此前 closeout。live verification 已确认 FeedWe `/articles/{articleId}` 详情页与
-  `/api/articles/download` / `/api/articles/download-local` 产物并不是 canonical body
-  owner；当前要把 collector 主链恢复为
-  `FeedWe discovery -> real mp.weixin page capture -> canonical source-truth -> notice consumption`
-  并继续规划 Phase 8-12 的 page capture、fail-close、OCR 与 replay drift guard。
+  repo 内部链路已经恢复并收口为
+  `FeedWe discovery -> real mp.weixin page capture -> canonical source-truth -> notice consumption`，
+  并补齐了 `consumer_admission_batch_id`、runtime smoke、历史 audit/purge 与统一 shell。
+  当前剩余工作是 live 历史坏数据修复、operator replay 验证与 acceptance evidence closeout。
 
 ## Reopen Basis
 

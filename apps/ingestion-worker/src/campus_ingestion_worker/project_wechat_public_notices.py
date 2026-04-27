@@ -134,17 +134,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not artifact_refs:
         parser.error("selection did not yield source-truth artifact references")
 
+    source_corpus = str(args.corpus or "").strip() or WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS
+    source_collection = str(args.collection or "").strip() or WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION
     reference_scopes = _parse_reference_scopes(args.reference_scope)
-    request_kwargs: dict[str, object] = {
-        "artifact_refs": artifact_refs,
-        "source_corpus": str(args.corpus or "").strip() or WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS,
-        "source_collection": str(args.collection or "").strip()
-        or WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION,
-        "source_bucket": source_bucket,
-    }
-    if reference_scopes:
-        request_kwargs["reference_scopes"] = reference_scopes
-    request = WeChatPublicNoticeProjectionRequest(**request_kwargs)
+    effective_reference_scopes = reference_scopes or (
+        (WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS, "internal_notice"),
+        (WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS, WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION),
+    )
     selection_sha256 = (
         sha256(Path(selection_path).read_bytes()).hexdigest() if selection_path else ""
     )
@@ -165,11 +161,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         "selection_source": selection_source,
         "selection_path": selection_path,
         "selection_sha256": selection_sha256,
-        "source_bucket": request.source_bucket,
+        "source_bucket": source_bucket,
         "capture_run_id": resolved_capture_run_id,
         "capture_account_slug": capture_account_slug,
         "reference_scopes": [
-            f"{corpus}/{collection}" for corpus, collection in request.reference_scopes
+            f"{corpus}/{collection}" for corpus, collection in effective_reference_scopes
         ],
         "dry_run": bool(args.dry_run),
         "emit_read_model_evidence": bool(args.emit_read_model_evidence),
@@ -179,8 +175,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     admission_store = build_internal_notice_consumption_admission_store_from_env()
     admission_created_at = utc_now()
     batch_id = record_internal_notice_consumption_admission(
-        source_corpus=request.source_corpus,
-        source_collection=request.source_collection,
+        source_corpus=source_corpus,
+        source_collection=source_collection,
         command=command,
         notice_ids=(),
         status="started",
@@ -191,6 +187,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         command_args=command_args,
         store=admission_store,
     )
+    request_kwargs: dict[str, object] = {
+        "artifact_refs": artifact_refs,
+        "source_corpus": source_corpus,
+        "source_collection": source_collection,
+        "source_bucket": source_bucket,
+        "consumer_admission_batch_id": batch_id,
+    }
+    if reference_scopes:
+        request_kwargs["reference_scopes"] = reference_scopes
+    request = WeChatPublicNoticeProjectionRequest(**request_kwargs)
     try:
         build_report = rebuild_wechat_public_notice_projection(
             request=request,

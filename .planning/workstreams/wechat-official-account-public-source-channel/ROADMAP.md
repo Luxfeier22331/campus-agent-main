@@ -62,7 +62,7 @@ precondition 需要在 Phase 10-11 重新硬化。
 
 ### Phase 7: Reopen And Truth Correction
 
-**Status:** active
+**Status:** completed
 
 **Goal:** 撤回错误 closeout，统一 planning truth、runtime truth 与 source-truth truth。
 
@@ -80,7 +80,7 @@ precondition 需要在 Phase 10-11 重新硬化。
 
 ### Phase 8: Discovery-To-Page Capture Pipeline
 
-**Status:** pending
+**Status:** completed
 
 **Goal:** 把 collector 主链从“FeedWe 直接物化 source-truth”改成“两段式采集”。
 
@@ -100,7 +100,7 @@ precondition 需要在 Phase 10-11 重新硬化。
 
 ### Phase 9: Parser Hardening And Fail-Closed Body Semantics
 
-**Status:** pending
+**Status:** completed
 
 **Goal:** 稳定解析真实 `mp.weixin` 页面，并对异常页 fail-close。
 
@@ -119,7 +119,7 @@ precondition 需要在 Phase 10-11 重新硬化。
 
 ### Phase 10: Notice Consumption Gate Re-hardening
 
-**Status:** pending
+**Status:** completed
 
 **Goal:** 恢复“只有真实采集完成的文章才可进入 queryable notice”。
 
@@ -134,7 +134,7 @@ precondition 需要在 Phase 10-11 重新硬化。
 
 ### Phase 11: Image/OCR Default-On For WeChat Notice
 
-**Status:** pending
+**Status:** completed
 
 **Goal:** 解决公众号通知中“关键信息在图片里”的默认路径。
 
@@ -148,7 +148,7 @@ precondition 需要在 Phase 10-11 重新硬化。
 
 ### Phase 12: Replay, Drift Guard, And Acceptance Closeout
 
-**Status:** pending
+**Status:** active
 
 **Goal:** 为重开后的链路补齐 replay、live smoke 与防回流保护。
 
@@ -159,6 +159,16 @@ precondition 需要在 Phase 10-11 重新硬化。
   - real `mp.weixin` HTML
   - verify/captcha HTML
 - replay validator 覆盖 source-truth 重建
+- projection metadata / reproject flow 统一写入 `consumer_admission_batch_id`
+- 新增 runtime smoke，显式校验：
+  - source-truth object completeness
+  - admission provenance completeness
+  - read-model consistency
+  - queryable body gate
+  - pending multimodal attempt/image posture
+- 新增 historical state audit 与 explicit purge CLI，支持历史坏数据 repair selection
+- 统一 `scripts/run-wechat-public-notices.sh` 为：
+  `project -> optional multimodal drain -> runtime smoke`
 - drift guard：禁止重新把 FeedWe summary/download placeholder 当正文 truth
 - live smoke 作为显式 lane，单独验证真实采集与 notice projection
 - 更新 acceptance evidence 与 closeout 条件

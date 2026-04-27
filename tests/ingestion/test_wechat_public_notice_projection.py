@@ -119,6 +119,35 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
         self.assertEqual(entry.role_metadata.get("dedupe_status"), "unique")
         self.assertEqual(entry.role_metadata.get("capture_gate_status"), "captured_body")
 
+    def test_rebuild_carries_consumer_admission_batch_id_into_projection_metadata(self) -> None:
+        object_store, refs = _build_source_truth_fixture(
+            bucket="source",
+            prefix="wechat_official_account/muc/2026/woa_ver_batch_alpha",
+            article_stable_id="woa_article_batch_alpha",
+            normalized_article_url="https://mp.weixin.qq.com/s/batch-alpha",
+            publish_time="2026-04-20T08:00:00+08:00",
+            provider_article_id="feedwe-batch-alpha",
+            title_raw="关于教学安排调整的通知",
+            title_normalized="关于教学安排调整的通知",
+            body_state="captured",
+            body_block_texts=("第一段正文",),
+        )
+        report = rebuild_wechat_public_notice_projection(
+            request=WeChatPublicNoticeProjectionRequest(
+                artifact_refs=(refs,),
+                consumer_admission_batch_id="batch-wechat-001",
+            ),
+            object_store=object_store,
+            projection_store=InMemoryNoticeConsumptionProjectionStore(),
+            dry_run=True,
+        )
+
+        entry = report.projection_entries[0]
+        self.assertEqual(
+            entry.role_metadata.get("consumer_admission_batch_id"),
+            "batch-wechat-001",
+        )
+
     def test_rebuild_keeps_uncaptured_inline_image_articles_reference_only(self) -> None:
         object_store, refs = _build_source_truth_fixture(
             bucket="source",

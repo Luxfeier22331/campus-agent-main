@@ -173,6 +173,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             source_bucket=source_settings.bucket_source,
             source_corpus=args.corpus,
             source_collection=args.collection,
+            consumer_admission_batch_id=batch_id,
         )
         rebuild_report = rebuild_wechat_public_notice_projection(
             request=projection_request,
@@ -327,6 +328,7 @@ def _build_projection_request_from_projection_entries(
     source_bucket: str,
     source_corpus: str = WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS,
     source_collection: str = WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION,
+    consumer_admission_batch_id: str = "",
 ) -> WeChatPublicNoticeProjectionRequest:
     refs: dict[tuple[str, str], WeChatSourceTruthArtifactRefs] = {}
     for entry in projection_entries:
@@ -353,6 +355,7 @@ def _build_projection_request_from_projection_entries(
         source_corpus=source_corpus,
         source_collection=source_collection,
         source_bucket=source_bucket,
+        consumer_admission_batch_id=consumer_admission_batch_id,
     )
 
 

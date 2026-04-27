@@ -113,6 +113,7 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
         request = rebuild.call_args.kwargs["request"]
         self.assertEqual(request.source_corpus, "campus_notices")
         self.assertEqual(request.source_collection, "wechat_public_notice")
+        self.assertEqual(request.consumer_admission_batch_id, "batch-wechat-001")
         self.assertEqual(len(request.artifact_refs), 1)
         self.assertEqual(request.artifact_refs[0].bucket, "source")
         self.assertEqual(request.artifact_refs[0].article_manifest_key, manifest_key)

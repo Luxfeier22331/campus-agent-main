@@ -9,50 +9,47 @@ updated: 2026-04-28
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 7
-**Current Phase Name:** Reopen And Truth Correction
+**Current Phase:** 12
+**Current Phase Name:** Replay, Drift Guard, And Acceptance Closeout
 **Current Plan:** `.planning/workstreams/wechat-official-account-public-source-channel/ROADMAP.md`
 **Total Phases:** 12
-**Progress:** 6/12 phases historically complete; Phase 7-12 reopened
+**Progress:** 11/12 phases repo-side implementation complete; Phase 12 remains open for live repair and acceptance evidence
 **Last Activity:** 2026-04-28
-**Last Activity Description:** Live verification confirmed that FeedWe article detail and
-download surfaces are summary-only or placeholder HTML for the verified sample.
-The workstream is reopened to restore the accepted primary chain
-`FeedWe discovery -> real mp.weixin page capture -> canonical source-truth`.
+**Last Activity Description:** Added WeChat notice runtime smoke, historical state audit,
+explicit purge CLI, batch-id provenance threading, and post-batch shell closeout.
 
 ## Current Slice
 
-- historical `Phase 1-6` artifacts remain archived, but their closeout claim
-  that FeedWe authenticated web article/download surfaces are sufficient body
-  truth is superseded
-- repo-frozen source-truth schema already expects:
-  `FeedWe discovery -> real mp.weixin article URL -> canonical source-truth`
-- live verification completed on the current sample article:
-  - `/articles/{accountId}/{articleId}` is a summary page with `阅读原文`
-  - `GET /api/articles/{articleId}` returns metadata, summary, cover image, and source URL
-  - `POST /api/articles/download` returns placeholder HTML with `无法提取文章内容`
-  - `POST /api/articles/download-local` returns the same placeholder HTML inside a zip
-  - browser-profile `Mozilla` request can currently fetch the real
-    `mp.weixin.qq.com/s/...` HTML and observe `js_content` plus inline image markers
-- implementation gap in current collector:
-  - `capture.ts` still materializes source-truth directly from FeedWe article payload
-  - page fetch artifacts are not yet written as first-class capture evidence
-  - queryable notice gating still needs to be re-hardened against metadata-only rows
+- historical `Phase 1-6` closeout claim that FeedWe detail/download surfaces were
+  sufficient body truth remains superseded
+- repo-side canonical chain is now closed around:
+  `FeedWe discovery -> real mp.weixin article URL -> canonical source-truth -> notice consumption`
+- implemented closeout surfaces:
+  - projection metadata now carries `consumer_admission_batch_id`
+  - multimodal drain reprojects with fresh batch provenance
+  - `campus-ingestion-smoke-wechat-public-notice-runtime`
+    validates admission provenance, read-model consistency, source-truth object completeness,
+    queryable-body gate, and pending multimodal attempt/image posture
+  - `campus-ingestion-audit-wechat-public-notice-state`
+    produces read-only suspect-state classification plus repair selection JSON
+  - `campus-ingestion-purge-wechat-public-notices`
+    supports explicit projection/read-model purge for unrecoverable rows
+  - `scripts/run-wechat-public-notices.sh`
+    now closes with projection -> optional multimodal drain -> runtime smoke
+- remaining live/operator work:
+  - run audit against historical rows and repair or purge stale metadata-only entries
+  - collect fresh live smoke and acceptance evidence on image-heavy and text-heavy samples
+  - confirm no remaining pre-fix queryable rows without canonical body/source-truth completeness
 
 ## Blockers / Open Questions
 
 - `mp.weixin` raw page access currently works with browser-profile request headers, but
   long-term stability under anti-bot / verification pressure is still an operational risk
-- deletion/update synchronization remains deferred; the reopened phases first target
-  correct acquisition and truth boundaries
-- image-heavy notices require OCR before they can safely become queryable; that lane needs
-  to be wired into notice projection without breaking source-truth boundaries
-- any previously materialized metadata-only queryable rows should be treated as suspect
-  until Phase 10 re-hardens consumption gates
+- deletion/update synchronization remains deferred; current closeout优先级仍是正确采集与正确消费
+- historical bad rows still need one轮 operator audit/repair before this line can fully close
 
 ## Session Continuity
 
-**Stopped At:** Phase 7 planning truth correction recorded; next implementation slice is
-Phase 8 collector pipeline conversion from FeedWe-direct materialization to
-FeedWe discovery plus real `mp.weixin` page capture.
+**Stopped At:** Repo-side runtime closeout landed; next slice is live audit / repair /
+acceptance evidence for Phase 12.
 **Resume File:** `.planning/workstreams/wechat-official-account-public-source-channel/README.md`
