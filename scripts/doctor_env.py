@@ -215,6 +215,8 @@ _SURFACE_SPECS = {
         "required_settings": {
             "supervisor_prompt_model": ("SUPERVISOR_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
             "agent_prompt_model": ("AGENT_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+            "agent_worker_base_url": ("SUPERVISOR_AGENT_WORKER_BASE_URL",),
+            "agent_worker_shared_secret": ("SUPERVISOR_AGENT_WORKER_SHARED_SECRET",),
         },
         "optional_settings": {
             "prompt_runtime_transport": ("PROMPT_RUNTIME_TRANSPORT",),
@@ -231,8 +233,6 @@ _SURFACE_SPECS = {
             "audit_log_path": ("AUDIT_LOG_PATH",),
             "audit_queue_capacity": ("AUDIT_QUEUE_CAPACITY",),
             "agent_worker_threads": ("SUPERVISOR_AGENT_WORKER_THREADS",),
-            "agent_worker_base_url": ("SUPERVISOR_AGENT_WORKER_BASE_URL",),
-            "agent_worker_shared_secret": ("SUPERVISOR_AGENT_WORKER_SHARED_SECRET",),
             "agent_worker_timeout_ms": ("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",),
             "agent_worker_cancel_timeout_ms": ("SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS",),
             "transport_max_concurrent_answers": ("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",),
@@ -266,6 +266,15 @@ _SURFACE_SPECS = {
             "structured_query_timeout_seconds": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",),
             "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),
             "internal_notice_read_model_table": ("INTERNAL_NOTICE_READ_MODEL_TABLE",),
+            "notice_object_store_endpoint": ("OBJECT_STORE_ENDPOINT",),
+            "notice_object_store_access_key": (
+                "OBJECT_STORE_DERIVED_ACCESS_KEY",
+                "OBJECT_STORE_ACCESS_KEY",
+            ),
+            "notice_object_store_secret_key": (
+                "OBJECT_STORE_DERIVED_SECRET_KEY",
+                "OBJECT_STORE_SECRET_KEY",
+            ),
         },
         "files": {},
     },
@@ -382,6 +391,15 @@ def _collect_env_doctor_status(
                 check_connectivity=check_postgres_connectivity,
             ),
         }
+        conditions = _collect_surface_conditions(
+            surface=normalized_surface,
+            env=current_env,
+            settings={
+                "required": required_settings,
+                "optional": optional_settings,
+            },
+            postgres=postgres,
+        )
 
         postgres_ready = _postgres_diagnostics_ready(
             postgres=postgres,
@@ -392,6 +410,7 @@ def _collect_env_doctor_status(
             and all(status["present"] for status in required_settings.values())
             and all(status["ready"] for status in files.values())
             and postgres_ready
+            and all(condition["ready"] for condition in conditions.values())
         )
         return {
             "surface": normalized_surface,
@@ -425,6 +444,7 @@ def _collect_env_doctor_status(
                 "required": required_settings,
                 "optional": optional_settings,
             },
+            "conditions": conditions,
             "postgres": postgres,
             "files": files,
         }
@@ -530,6 +550,108 @@ def _probe_postgres_connectivity(database_url: str) -> dict[str, object]:
         "error": None,
         "error_class": None,
     }
+
+
+def _collect_surface_conditions(
+    *,
+    surface: str,
+    env: dict[str, str],
+    settings: dict[str, dict[str, dict[str, object]]],
+    postgres: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    if surface != "supervisor-api":
+        return {}
+
+    conditions: dict[str, dict[str, object]] = {}
+    optional_settings = settings.get("optional", {})
+    shared_postgres_status = postgres.get("shared")
+    shared_postgres_present = bool(
+        isinstance(shared_postgres_status, dict) and shared_postgres_status.get("present")
+    )
+
+    execution_audit_enabled = _read_bool_env(env, "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED")
+    audit_missing: list[str] = []
+    if execution_audit_enabled:
+        if not _setting_present(optional_settings, "execution_audit_url"):
+            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_URL")
+        if not _setting_present(optional_settings, "execution_audit_shared_secret"):
+            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET")
+    conditions["execution_audit_contract"] = {
+        "required": execution_audit_enabled,
+        "ready": len(audit_missing) == 0,
+        "error": (
+            "execution audit enabled but missing "
+            + " / ".join(audit_missing)
+            if audit_missing
+            else None
+        ),
+    }
+
+    opened_capabilities = _read_capability_set(
+        env.get("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
+    )
+    structured_runtime_required = bool(opened_capabilities.intersection({"campus_services", "notice"}))
+    structured_missing: list[str] = []
+    if structured_runtime_required:
+        if not _setting_present(optional_settings, "structured_query_shared_secret"):
+            structured_missing.append("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")
+        if not shared_postgres_present:
+            structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
+    conditions["structured_runtime_contract"] = {
+        "required": structured_runtime_required,
+        "opened_capabilities": sorted(opened_capabilities),
+        "ready": len(structured_missing) == 0,
+        "error": (
+            "structured runtime opened but missing "
+            + " / ".join(structured_missing)
+            if structured_missing
+            else None
+        ),
+    }
+
+    notice_capability_open = "notice" in opened_capabilities
+    notice_missing: list[str] = []
+    notice_read_model_present = _setting_present(
+        optional_settings,
+        "internal_notice_read_model_database_url",
+    ) or shared_postgres_present
+    if notice_capability_open:
+        if not notice_read_model_present:
+            notice_missing.append("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL")
+        if not _setting_present(optional_settings, "notice_object_store_endpoint"):
+            notice_missing.append("OBJECT_STORE_ENDPOINT")
+        if not _setting_present(optional_settings, "notice_object_store_access_key"):
+            notice_missing.append("OBJECT_STORE_DERIVED_ACCESS_KEY or OBJECT_STORE_ACCESS_KEY")
+        if not _setting_present(optional_settings, "notice_object_store_secret_key"):
+            notice_missing.append("OBJECT_STORE_DERIVED_SECRET_KEY or OBJECT_STORE_SECRET_KEY")
+    conditions["notice_runtime_contract"] = {
+        "required": notice_capability_open,
+        "ready": len(notice_missing) == 0,
+        "error": (
+            "notice capability opened but missing " + " / ".join(notice_missing)
+            if notice_missing
+            else None
+        ),
+    }
+
+    return conditions
+
+
+def _setting_present(
+    settings: dict[str, dict[str, object]],
+    setting_name: str,
+) -> bool:
+    setting = settings.get(setting_name)
+    return bool(isinstance(setting, dict) and setting.get("present"))
+
+
+def _read_bool_env(env: dict[str, str], key: str) -> bool:
+    value = env.get(key, "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _read_capability_set(raw_value: str) -> set[str]:
+    return {value.strip() for value in raw_value.split(",") if value.strip()}
 
 
 def _postgres_diagnostics_ready(
@@ -735,6 +857,13 @@ def _print_text_report(status: dict[str, object]) -> None:
             )
             if setting_status["error"] and setting_status["required"]:
                 print(f"setting.{setting_name}.error={setting_status['error']}")
+    for condition_name, condition_status in status.get("conditions", {}).items():
+        print(
+            f"condition.{condition_name}.required={condition_status['required']} "
+            f"ready={condition_status['ready']}"
+        )
+        if condition_status.get("error"):
+            print(f"condition.{condition_name}.error={condition_status['error']}")
     for relative_path, file_status in status["files"].items():
         print(f"file.{relative_path}.ready={file_status['ready']}")
         print(f"file.{relative_path}.file_found={file_status['file_found']}")

@@ -135,11 +135,16 @@ class DoctorEnvTest(unittest.TestCase):
                 )
 
             self.assertTrue(status["overall_ready"])
+            required = status["settings"]["required"]
             optional = status["settings"]["optional"]
             self.assertNotIn("transport_worker_threads", optional)
             self.assertEqual(
-                optional["agent_worker_base_url"]["resolved_key"],
+                required["agent_worker_base_url"]["resolved_key"],
                 "SUPERVISOR_AGENT_WORKER_BASE_URL",
+            )
+            self.assertEqual(
+                required["agent_worker_shared_secret"]["resolved_key"],
+                "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
             )
             self.assertEqual(
                 optional["transport_queue_capacity"]["resolved_key"],
@@ -153,6 +158,133 @@ class DoctorEnvTest(unittest.TestCase):
                 optional["structured_query_shared_secret"]["resolved_key"],
                 "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
             )
+            self.assertTrue(status["conditions"]["execution_audit_contract"]["ready"])
+            self.assertFalse(status["conditions"]["execution_audit_contract"]["required"])
+            self.assertTrue(status["conditions"]["structured_runtime_contract"]["ready"])
+            self.assertFalse(status["conditions"]["structured_runtime_contract"]["required"])
+            self.assertTrue(status["conditions"]["notice_runtime_contract"]["ready"])
+            self.assertFalse(status["conditions"]["notice_runtime_contract"]["required"])
+
+    def test_collect_env_doctor_status_supervisor_api_requires_bridge_contract(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            self.assertFalse(status["settings"]["required"]["agent_worker_base_url"]["present"])
+            self.assertFalse(status["settings"]["required"]["agent_worker_shared_secret"]["present"])
+
+    def test_collect_env_doctor_status_supervisor_api_enforces_execution_audit_when_enabled(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            condition = status["conditions"]["execution_audit_contract"]
+            self.assertTrue(condition["required"])
+            self.assertFalse(condition["ready"])
+            self.assertIn("SUPERVISOR_API_EXECUTION_AUDIT_URL", condition["error"])
+            self.assertIn("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", condition["error"])
+
+    def test_collect_env_doctor_status_supervisor_api_enforces_structured_runtime_when_opened(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        "SUPERVISOR_API_OPEN_CAPABILITIES=campus_services",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            condition = status["conditions"]["structured_runtime_contract"]
+            self.assertTrue(condition["required"])
+            self.assertFalse(condition["ready"])
+            self.assertIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", condition["error"])
+            self.assertIn("CAMPUS_SHARED_POSTGRES_URL", condition["error"])
+
+    def test_collect_env_doctor_status_supervisor_api_enforces_notice_runtime_when_opened(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        "SUPERVISOR_API_OPEN_CAPABILITIES=notice",
+                        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret",
+                        "CAMPUS_SHARED_POSTGRES_URL=postgresql://shared.example/postgres",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            condition = status["conditions"]["notice_runtime_contract"]
+            self.assertTrue(condition["required"])
+            self.assertFalse(condition["ready"])
+            self.assertIn("OBJECT_STORE_ENDPOINT", condition["error"])
 
     def test_collect_env_doctor_status_reports_query_surface_with_app_local_files(self) -> None:
         with TemporaryDirectory() as temp_dir:

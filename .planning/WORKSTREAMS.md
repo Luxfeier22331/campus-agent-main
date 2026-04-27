@@ -40,6 +40,7 @@ updated: 2026-04-27
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
+| `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | `Phase 3` | `Phase 2` 已完成 public/chat positive routing and handoff matrix；当前进入 answer rendering and source trace acceptance |
 
 ## Completed
 
@@ -83,7 +84,9 @@ updated: 2026-04-27
 | `chat capacity and cancellation hardening` | `chat-capacity-and-cancellation-hardening` | `yes` | `.planning/workstreams/chat-capacity-and-cancellation-hardening/README.md` | 只有在产品范围决定为 public chat 正式收口 100 人同时提问、热点削峰、ChatGPT 式提交/中止体验或 K8s/多实例容量治理时恢复 |
 | `public-chat profile memory management UI` | `public-chat-profile-memory-management-ui` | `yes` | `.planning/workstreams/public-chat-profile-memory-management-ui/README.md` | 只有在产品范围决定为 public-chat-web 暴露 end-user profile memory 列表、开关、删除与新增入口时恢复；不得重新打开 `app-api` owned memory truth、authorization semantics 或 serving-surface policy |
 | `supervisor Docker runtime language split` | `supervisor-docker-runtime-language-split` | `yes` | `.planning/workstreams/supervisor-docker-runtime-language-split/README.md` | 只有在 Docker 侧性能预算、服务器成本或 profiling 结果显示 Python execution runtime / CPU-heavy kernel 成为正式迁移瓶颈时恢复 |
-| `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | 只有在 product path 准备验证 `campus-services-agent` 从 public/chat 入口到 structured tool 消费的真实用户路径时恢复；不得替代 internal structured query unit/integration tests |
+| `supervisor-api Docker/dev package hardening` | `supervisor-api-docker-dev-package-hardening` | `yes` | `.planning/workstreams/supervisor-api-docker-dev-package-hardening/README.md` | 只有在准备补齐 `apps/supervisor-api` Docker/dev package 的 doctor gate、compose hardening、env inventory、local smoke artifact 与 server handoff 时恢复；不得借此重写 supervisor runtime language split 或打开 product capability gates |
+| `ingestion worker independent deployment hardening` | `ingestion-worker-independent-deployment-hardening` | `yes` | `.planning/workstreams/ingestion-worker-independent-deployment-hardening/README.md` | 已有详细 backlog plan；只有在准备把 `apps/ingestion-worker` 从本地按需 CLI 推进到服务器侧独立 timer/cron/Docker 部署、需要 resource policy / deploy artifact / env / lock / report / alert / smoke 闭环时恢复；不得借此重写 data-plane canonical chain 或把 ingestion worker 做成常驻 query-serving 服务 |
+| `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | 只有在 product path 准备打开或强化 `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup` 的真实用户可用性时恢复；不得替代 source-truth/projection data-plane work |
 
 ## Legacy / Follow-up References
 
