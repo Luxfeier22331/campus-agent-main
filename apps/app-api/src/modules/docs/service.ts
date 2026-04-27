@@ -3,8 +3,6 @@ import type { ResolvedAppPrincipal } from "../auth";
 import type {
 	DocsDocumentSummaryResponse,
 	DocsNavigationResponse,
-	DocsReaderAssetKind,
-	DocsResolvedReaderAssetSource,
 	DocsResolveResponse,
 	DocsSearchResponse,
 	DocsService,
@@ -232,7 +230,7 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 			} satisfies DocsResolveResponse;
 		},
 
-		async resolveReaderAssetSource(request) {
+		async checkReaderAdmission(request) {
 			const readerAsset = await store.getReaderAsset({
 				collection: request.collection,
 				corpus: request.corpus,
@@ -240,22 +238,6 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 				version: request.version,
 			});
 			assertReadableDocument(readerAsset, request.principal);
-			if (readerAsset.deliveryMode !== "gated_asset") {
-				throw notFound("docs_document_not_found", "Document was not found.");
-			}
-
-			const sourceObjectKey = resolveReaderAssetSourceObject(
-				readerAsset.sourceObjects ?? {},
-				request.assetKind,
-			);
-			if (!sourceObjectKey) {
-				throw notFound("docs_reader_asset_not_found", "Reader asset was not found.");
-			}
-
-			return {
-				contentType: resolveReaderAssetContentType(request.assetKind),
-				sourceObjectKey,
-			} satisfies DocsResolvedReaderAssetSource;
 		},
 
 		async search(request) {
@@ -345,7 +327,7 @@ function buildVersionCanonicalUrl(record: DocsDocumentVersionRecord): string {
 
 function buildReaderAssetUrl(
 	record: DocsReaderAssetRecord,
-	assetKind: DocsReaderAssetKind,
+	assetKind: "outline" | "reader",
 ): string {
 	if (record.deliveryMode === "public_static_asset") {
 		if (assetKind === "reader") {
@@ -354,44 +336,13 @@ function buildReaderAssetUrl(
 		if (assetKind === "outline") {
 			return record.outlineUrl;
 		}
-		if (assetKind === "asset-manifest" && record.manifestUrl) {
-			return record.manifestUrl;
-		}
 	}
 
-	const params = new URLSearchParams({ version: record.versionSlug });
-	return `/api/docs/collections/${encodeURIComponent(record.corpus)}/${encodeURIComponent(
+	return `/_gated-docs/${encodeURIComponent(record.corpus)}/${encodeURIComponent(
 		record.collection,
-	)}/documents/${encodeURIComponent(record.documentSlug)}/assets/${encodeURIComponent(
-		assetKind,
-	)}?${params.toString()}`;
-}
-
-function resolveReaderAssetSourceObject(
-	sourceObjects: Record<string, string>,
-	assetKind: DocsReaderAssetKind,
-): string | null {
-	const candidateKeys =
-		assetKind === "asset-manifest" ? ["asset-manifest", "manifest"] : [assetKind];
-	for (const key of candidateKeys) {
-		const value = sourceObjects[key]?.trim();
-		if (value) {
-			return value;
-		}
-	}
-	return null;
-}
-
-function resolveReaderAssetContentType(assetKind: DocsReaderAssetKind): string {
-	switch (assetKind) {
-		case "asset-manifest":
-		case "meta":
-		case "outline":
-		case "reader":
-			return "application/json; charset=utf-8";
-		default:
-			return "application/octet-stream";
-	}
+	)}/${encodeURIComponent(record.documentSlug)}/${encodeURIComponent(
+		record.versionSlug,
+	)}/${assetKind}.json`;
 }
 
 function notFound(code: string, message: string): AppApiRouteError {
