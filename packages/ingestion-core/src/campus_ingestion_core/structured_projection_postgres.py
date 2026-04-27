@@ -157,6 +157,21 @@ _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
         _TypedColumn("service_status", "text", "text not null default ''"),
         _TypedColumn("related_notice_refs", "text_array", "text[] not null default '{}'"),
     ),
+    "transport_operational_notices": (
+        _TypedColumn("notice_id", "text", "text not null default ''"),
+        _TypedColumn("notice_kind", "text", "text not null default ''"),
+        _TypedColumn("route_ids", "text_array", "text[] not null default '{}'"),
+        _TypedColumn("effective_from", "timestamptz", "timestamptz"),
+        _TypedColumn("effective_until", "timestamptz", "timestamptz"),
+        _TypedColumn("operational_comment", "text", "text not null default ''"),
+        _COMMON_SEARCH_COLUMN,
+    ),
+    "transport_rejected_sources": (
+        _TypedColumn("source_notice_id", "text", "text not null default ''"),
+        _TypedColumn("reason", "text", "text not null default ''"),
+        _TypedColumn("candidate_kind", "text", "text not null default ''"),
+        _COMMON_SEARCH_COLUMN,
+    ),
     "transport_release_notices": (
         _TypedColumn("source_notice_id", "text", "text not null default ''"),
     ),
@@ -351,6 +366,8 @@ class PostgresStructuredProjectionPublisher:
             "transport_schedule_snapshots",
             "transport_scheduled_departures",
             "transport_service_exceptions",
+            "transport_operational_notices",
+            "transport_rejected_sources",
             "transport_release_notices",
             "service_status_read_model",
             "service_guide_read_model",
@@ -602,6 +619,26 @@ def _typed_recordsets(
                 ),
             ),
             (
+                "transport_operational_notices",
+                _records(
+                    release_id,
+                    bundle.get("transport_operational_notices"),
+                    id_fields=("notice_id", "notice_kind", "route_ids"),
+                    source_ref_field="source_ref",
+                    table_name="transport_operational_notices",
+                ),
+            ),
+            (
+                "transport_rejected_sources",
+                _records(
+                    release_id,
+                    bundle.get("transport_rejected_sources"),
+                    id_fields=("source_notice_id", "reason"),
+                    source_ref_field="source_ref",
+                    table_name="transport_rejected_sources",
+                ),
+            ),
+            (
                 "transport_release_notices",
                 [
                     {
@@ -728,6 +765,8 @@ def _projection_counts(collection: str, bundle: Mapping[str, Any]) -> dict[str, 
             "routes": len(_list(bundle.get("transport_routes"))),
             "scheduled_departures": len(_list(bundle.get("scheduled_departures"))),
             "service_exceptions": len(_list(bundle.get("transport_service_exceptions"))),
+            "operational_notices": len(_list(bundle.get("transport_operational_notices"))),
+            "rejected_sources": len(_list(bundle.get("transport_rejected_sources"))),
         }
     if collection == "service_guide":
         return {
@@ -747,6 +786,8 @@ def _collection_table_names(collection: str) -> tuple[str, ...]:
             "transport_routes",
             "transport_scheduled_departures",
             "transport_service_exceptions",
+            "transport_operational_notices",
+            "transport_rejected_sources",
             "transport_release_notices",
         )
     if collection == "service_guide":
@@ -765,12 +806,20 @@ def _source_notice_ids(bundle: Mapping[str, Any]) -> list[str]:
         bundle.get("transport_schedule_snapshots"),
         bundle.get("scheduled_departures"),
         bundle.get("transport_service_exceptions"),
+        bundle.get("transport_operational_notices"),
+        bundle.get("transport_rejected_sources"),
         bundle.get("service_guide_records"),
     ):
         for row in _list(row_group):
             if not isinstance(row, Mapping):
                 continue
-            for field in ("source_ref", "source_refs", "related_notice_refs"):
+            for field in (
+                "source_ref",
+                "source_refs",
+                "related_notice_refs",
+                "source_notice_id",
+                "notice_id",
+            ):
                 value = row.get(field)
                 refs: Sequence[object]
                 if isinstance(value, str):
@@ -783,6 +832,8 @@ def _source_notice_ids(bundle: Mapping[str, Any]) -> list[str]:
                     text = str(ref).strip()
                     if text.startswith("notice:"):
                         values.add(text)
+                    elif field in {"source_notice_id", "notice_id"} and text:
+                        values.add(f"notice:muc_internal_portal:{text}")
     return sorted(values)
 
 

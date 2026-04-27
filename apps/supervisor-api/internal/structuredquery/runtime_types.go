@@ -80,15 +80,16 @@ type temporalQuery struct {
 }
 
 type projectionBundle struct {
-	SchemaVersion              string                            `json:"schema_version"`
-	ServiceStatusRecords       []serviceStatusRecord             `json:"service_status_records"`
-	ServiceGuideRecords        []serviceGuideRecord              `json:"service_guide_records"`
-	ServiceGuideConflicts      []serviceGuideConflictRecord      `json:"conflict_records"`
-	ServiceGuideManualReviews  []serviceGuideManualReviewRecord  `json:"manual_review_sources"`
-	TransportScheduleSnapshots []transportScheduleSnapshotRecord `json:"transport_schedule_snapshots"`
-	TransportRoutes            []transportRouteRecord            `json:"transport_routes"`
-	ScheduledDepartures        []scheduledDepartureRecord        `json:"scheduled_departures"`
-	TransportServiceExceptions []transportServiceExceptionRecord `json:"transport_service_exceptions"`
+	SchemaVersion               string                             `json:"schema_version"`
+	ServiceStatusRecords        []serviceStatusRecord              `json:"service_status_records"`
+	ServiceGuideRecords         []serviceGuideRecord               `json:"service_guide_records"`
+	ServiceGuideConflicts       []serviceGuideConflictRecord       `json:"conflict_records"`
+	ServiceGuideManualReviews   []serviceGuideManualReviewRecord   `json:"manual_review_sources"`
+	TransportScheduleSnapshots  []transportScheduleSnapshotRecord  `json:"transport_schedule_snapshots"`
+	TransportRoutes             []transportRouteRecord             `json:"transport_routes"`
+	ScheduledDepartures         []scheduledDepartureRecord         `json:"scheduled_departures"`
+	TransportServiceExceptions  []transportServiceExceptionRecord  `json:"transport_service_exceptions"`
+	TransportOperationalNotices []transportOperationalNoticeRecord `json:"transport_operational_notices"`
 }
 
 type ProjectionBundle = projectionBundle

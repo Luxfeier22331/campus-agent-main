@@ -44,6 +44,7 @@ type transportScheduleResult struct {
 	ClarificationReason       string                        `json:"clarification_reason,omitempty"`
 	StopRefs                  []transportStopRef            `json:"stop_refs,omitempty"`
 	RelatedNoticeRefs         []string                      `json:"related_notice_refs,omitempty"`
+	OperationalNotices        []transportOperationalNotice  `json:"operational_notices,omitempty"`
 	HistoricalDowngradeReason string                        `json:"historical_downgrade_reason,omitempty"`
 	FailCloseReason           string                        `json:"fail_close_reason,omitempty"`
 }
@@ -82,4 +83,14 @@ type transportScheduleSnapshotRef struct {
 type transportRouteCandidate struct {
 	Route             transportRouteRef `json:"route"`
 	ClarificationHint string            `json:"clarification_hint,omitempty"`
+}
+
+type transportOperationalNotice struct {
+	NoticeID           string   `json:"notice_id"`
+	SourceRef          string   `json:"source_ref"`
+	NoticeKind         string   `json:"notice_kind"`
+	RouteIDs           []string `json:"route_ids"`
+	EffectiveFrom      string   `json:"effective_from,omitempty"`
+	EffectiveUntil     string   `json:"effective_until,omitempty"`
+	OperationalComment string   `json:"operational_comment"`
 }

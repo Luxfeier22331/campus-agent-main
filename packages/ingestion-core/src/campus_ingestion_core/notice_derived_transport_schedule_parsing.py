@@ -15,7 +15,7 @@ from campus_ingestion_core.transport_schedule_projection_routes import (
 _SHANGHAI_TZ = timezone(timedelta(hours=8))
 _TIME_RE = re.compile(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)")
 _FULL_DATE_RE = re.compile(r"(20\d{2})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})日?")
-_YEARLESS_EFFECTIVE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日(?:起|开始|执行|生效)")
+_YEARLESS_EFFECTIVE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日[）)]?(?:起|开始|执行|生效)")
 _YEARLESS_SINGLE_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
 _YEARLESS_MULTI_DAY_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})[、,，](\d{1,2})日")
 _CHINESE_DATE_RANGE_RE = re.compile(

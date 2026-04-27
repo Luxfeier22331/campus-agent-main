@@ -268,6 +268,44 @@ func TestLookupTransportScheduleAppliesTemporarySuspension(t *testing.T) {
 	}
 }
 
+func TestLookupTransportScheduleIncludesOperationalNoticeForRoute(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixtureWithOperationalNotice(),
+		"2026-01-02T10:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天丰台回海淀班车怎么坐",
+		"intent":"service_window",
+		"route_selector":{"route_id":"route:fengtai-to-haidian"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.OperationalNotices) != 1 {
+		t.Fatalf("operational_notices = %#v", result.OperationalNotices)
+	}
+	notice := result.OperationalNotices[0]
+	if notice.NoticeKind != "boarding_point_change" {
+		t.Fatalf("notice_kind = %q", notice.NoticeKind)
+	}
+	if notice.OperationalComment != "通勤班车丰台校区乘车点调整至南门外停车区" {
+		t.Fatalf("operational_comment = %q", notice.OperationalComment)
+	}
+	if len(result.RelatedNoticeRefs) != 1 ||
+		result.RelatedNoticeRefs[0] != "notice:muc_internal_portal:353903" {
+		t.Fatalf("related_notice_refs = %#v", result.RelatedNoticeRefs)
+	}
+}
+
 func TestLookupTransportScheduleSelectsTemporaryOverlayByRequestedServiceDate(t *testing.T) {
 	runtime := newRuntimeWithTransportReadModel(
 		t,
@@ -369,6 +407,9 @@ func TestLookupServiceStatusReadsPostgresReadModelWithoutProjectionPath(t *testi
 	}
 	if result.ResolvedSubject != "海淀校区图书馆" {
 		t.Fatalf("resolved_subject = %q", result.ResolvedSubject)
+	}
+	if result.StatusNote != "工作日开放，节假日另行通知" {
+		t.Fatalf("status_note = %q", result.StatusNote)
 	}
 	status := runtime.Status(context.Background())
 	if status.ProjectionSource != "postgres" || !status.ServiceStatusReadModelConfigured {

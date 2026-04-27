@@ -19,6 +19,7 @@ type serviceStatusResult struct {
 	Outcome                   string   `json:"outcome"`
 	ResolvedSubject           string   `json:"resolved_subject,omitempty"`
 	ObservedStatus            string   `json:"observed_status,omitempty"`
+	StatusNote                string   `json:"status_note,omitempty"`
 	QueriedTimeAnchor         string   `json:"queried_time_anchor,omitempty"`
 	EffectiveFrom             string   `json:"effective_from,omitempty"`
 	EffectiveUntil            string   `json:"effective_until,omitempty"`
@@ -34,6 +35,7 @@ type serviceStatusRecord struct {
 	Aliases            []string `json:"aliases"`
 	CampusScope        string   `json:"campus_scope"`
 	ObservedStatus     string   `json:"observed_status"`
+	StatusNote         string   `json:"status_note"`
 	EffectiveFrom      string   `json:"effective_from"`
 	EffectiveUntil     string   `json:"effective_until"`
 	OverrideSourceRefs []string `json:"override_source_refs"`
@@ -94,6 +96,7 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 		Outcome:            "resolved_current",
 		ResolvedSubject:    record.DisplayName,
 		ObservedStatus:     record.ObservedStatus,
+		StatusNote:         strings.TrimSpace(record.StatusNote),
 		QueriedTimeAnchor:  timeAnchor,
 		EffectiveFrom:      record.EffectiveFrom,
 		EffectiveUntil:     record.EffectiveUntil,

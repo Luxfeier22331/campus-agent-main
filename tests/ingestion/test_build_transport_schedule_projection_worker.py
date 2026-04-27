@@ -60,6 +60,22 @@ class _FakeStructuredProjectionPublisher:
         return {"current": True}
 
 
+class _FakeProjectionStore:
+    def __init__(self, entries: tuple[NoticeConsumptionProjectionEntry, ...]) -> None:
+        self.entries = entries
+        self.list_notice_ids: tuple[str, ...] | None = None
+
+    def list_by_scope(
+        self,
+        source_corpus: str,
+        source_collection: str,
+        *,
+        notice_ids: tuple[str, ...] = (),
+    ) -> tuple[NoticeConsumptionProjectionEntry, ...]:
+        self.list_notice_ids = tuple(notice_ids)
+        return self.entries
+
+
 class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
     def test_worker_builds_projection_release_from_local_notice_source_truth_inventory(
         self,
@@ -282,6 +298,63 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
 
         self.assertEqual(len(publisher.calls), 1)
         self.assertEqual(publisher.calls[0]["collection"], "transport_schedule")
+
+    def test_main_can_build_from_all_ready_transport_candidates(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+            registry, projection_entry = _notice_projection_runtime(object_store)
+            projection_store = _FakeProjectionStore((projection_entry,))
+
+            with (
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.ObjectStoreSettings.from_env",
+                    return_value=SimpleNamespace(
+                        bucket_source="campus-rag-source",
+                        bucket_derived="campus-rag-derived",
+                    ),
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.S3ObjectStoreAdmin",
+                    return_value=object_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_document_registry_from_env",
+                    return_value=registry,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_notice_consumption_projection_store_from_env",
+                    return_value=projection_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_structured_projection_publisher_from_env",
+                    return_value=publisher,
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                worker.main(
+                    [
+                        "--from-consumption-projection",
+                        "--all-ready-transport-candidates",
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "transport-schedule-cli-all-ready",
+                        "--generated-at",
+                        "2026-03-20T09:00:00+08:00",
+                        "--service-horizon-days",
+                        "3",
+                    ]
+                )
+
+        self.assertEqual(projection_store.list_notice_ids, ())
+        self.assertEqual(len(publisher.calls), 1)
+        bundle = publisher.calls[0]["bundle"]
+        self.assertEqual(len(bundle["transport_schedule_snapshots"]), 1)  # type: ignore[index]
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

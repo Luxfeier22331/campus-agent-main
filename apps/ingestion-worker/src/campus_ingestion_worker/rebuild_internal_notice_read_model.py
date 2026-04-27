@@ -18,6 +18,12 @@ from campus_ingestion_core.internal_notice_read_model import (
     InternalNoticeReadModelEntry,
     rebuild_internal_notice_read_model,
 )
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+    build_notice_consumption_projection_store_from_env,
+    normalize_notice_ids,
+)
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.internal_notice_selection import (
@@ -33,6 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", default="internal_notice")
     parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
     parser.add_argument("--selection-path")
+    parser.add_argument(
+        "--all-ready-transport-candidates",
+        action="store_true",
+        help=(
+            "Rebuild notice read-model rows for all ready transport schedule candidates already "
+            "present in notice_consumption_projection."
+        ),
+    )
     return parser
 
 
@@ -43,8 +57,28 @@ def main(argv: Sequence[str] | None = None) -> None:
     selection = build_internal_notice_selection_provenance(
         explicit_notice_ids=args.notice_ids,
         selection_path=args.selection_path,
+        extra_command_args={
+            "all_ready_transport_candidates": bool(args.all_ready_transport_candidates),
+        },
     )
-    if not selection.notice_ids:
+    notice_ids = selection.notice_ids
+    selection_source = selection.selection_source
+    command_args = dict(selection.command_args)
+    if args.all_ready_transport_candidates:
+        projection_store = build_notice_consumption_projection_store_from_env()
+        projection_entries = projection_store.list_by_scope(
+            args.corpus,
+            args.collection,
+            notice_ids=(),
+        )
+        notice_ids = normalize_notice_ids(
+            entry.source_notice_id
+            for entry in projection_entries
+            if _is_ready_transport_candidate(entry)
+        )
+        selection_source = "all_ready_transport_candidates"
+        command_args["notice_ids"] = list(notice_ids)
+    if not notice_ids:
         parser.error(
             "refusing implicit full-scope read model rebuild; pass --notice-id "
             "or --selection-path for notices selected by the consumer layer"
@@ -55,35 +89,35 @@ def main(argv: Sequence[str] | None = None) -> None:
         source_corpus=args.corpus,
         source_collection=args.collection,
         command="read_model_rebuild",
-        notice_ids=selection.notice_ids,
+        notice_ids=notice_ids,
         status="started",
         created_at=admission_created_at,
-        selection_source=selection.selection_source,
+        selection_source=selection_source,
         selection_path=selection.selection_path,
         selection_sha256=selection.selection_sha256,
-        command_args=selection.command_args,
+        command_args=command_args,
         store=admission_store,
     )
     try:
         rows = rebuild_internal_notice_read_model(
             source_corpus=args.corpus,
             source_collection=args.collection,
-            notice_ids=selection.notice_ids,
+            notice_ids=notice_ids,
         )
     except Exception as exc:
         record_internal_notice_consumption_admission(
             source_corpus=args.corpus,
             source_collection=args.collection,
             command="read_model_rebuild",
-            notice_ids=selection.notice_ids,
+            notice_ids=notice_ids,
             status="failed",
             batch_id=batch_id,
             created_at=admission_created_at,
             error=str(exc),
-            selection_source=selection.selection_source,
+            selection_source=selection_source,
             selection_path=selection.selection_path,
             selection_sha256=selection.selection_sha256,
-            command_args=selection.command_args,
+            command_args=command_args,
             store=admission_store,
         )
         raise
@@ -92,7 +126,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         source_corpus=args.corpus,
         source_collection=args.collection,
         command="read_model_rebuild",
-        notice_ids=selection.notice_ids,
+        notice_ids=notice_ids,
         status="completed",
         batch_id=batch_id,
         created_at=admission_created_at,
@@ -101,10 +135,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             "notice_count": int(report["notice_count"]),
             "queryable_count": int(report["queryable_count"]),
         },
-        selection_source=selection.selection_source,
+        selection_source=selection_source,
         selection_path=selection.selection_path,
         selection_sha256=selection.selection_sha256,
-        command_args=selection.command_args,
+        command_args=command_args,
         store=admission_store,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
@@ -135,6 +169,15 @@ def _build_report(rows: Sequence[InternalNoticeReadModelEntry]) -> dict[str, Any
         "primary_role_counts": dict(sorted(primary_role_counts.items())),
         "entries": [asdict(row) for row in rows],
     }
+
+
+def _is_ready_transport_candidate(entry: object) -> bool:
+    role_metadata = getattr(entry, "role_metadata", {}) or {}
+    return (
+        getattr(entry, "target_surface", "") == NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE
+        and getattr(entry, "consumption_status", "") == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
+        and str(role_metadata.get("service_status_candidate_kind") or "") == "transport_schedule"
+    )
 
 
 __all__ = [

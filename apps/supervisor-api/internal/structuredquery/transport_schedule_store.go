@@ -127,12 +127,22 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if err != nil {
 		return projectionBundle{}, err
 	}
+	operationalNotices, err := fetchTransportJSONRecords[transportOperationalNoticeRecord](
+		ctx,
+		s.pool,
+		s.tableSQL("transport_operational_notices"),
+		releaseID,
+	)
+	if err != nil {
+		return projectionBundle{}, err
+	}
 	return projectionBundle{
-		SchemaVersion:              "campus_services_projection_bundle.v1",
-		TransportScheduleSnapshots: snapshots,
-		TransportRoutes:            routes,
-		ScheduledDepartures:        departures,
-		TransportServiceExceptions: exceptions,
+		SchemaVersion:               "campus_services_projection_bundle.v1",
+		TransportScheduleSnapshots:  snapshots,
+		TransportRoutes:             routes,
+		ScheduledDepartures:         departures,
+		TransportServiceExceptions:  exceptions,
+		TransportOperationalNotices: operationalNotices,
 	}, nil
 }
 

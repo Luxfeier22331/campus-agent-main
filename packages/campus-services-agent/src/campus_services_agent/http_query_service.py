@@ -17,6 +17,7 @@ from campus_contracts import (
     ServiceGuideSection,
     ServiceGuideServiceRef,
     ServiceStatusLookupResult,
+    TransportOperationalNotice,
     TransportRouteCandidate,
     TransportRouteRef,
     TransportScheduleLookupResult,
@@ -155,6 +156,7 @@ def _service_status_result_from_dict(
         outcome=_string(body.get("outcome")),
         resolved_subject=_string(body.get("resolved_subject")),
         observed_status=_string(body.get("observed_status")),
+        status_note=_string(body.get("status_note")),
         queried_time_anchor=_string(body.get("queried_time_anchor")),
         effective_from=_string(body.get("effective_from")),
         effective_until=_string(body.get("effective_until")),
@@ -254,6 +256,11 @@ def _transport_schedule_result_from_dict(
             stop for item in _list(body.get("stop_refs")) if (stop := _stop_ref(item)) is not None
         ),
         related_notice_refs=_string_tuple(body.get("related_notice_refs")),
+        operational_notices=tuple(
+            notice
+            for item in _list(body.get("operational_notices"))
+            if (notice := _operational_notice(item)) is not None
+        ),
         historical_downgrade_reason=_string(body.get("historical_downgrade_reason")),
         fail_close_reason=_string(body.get("fail_close_reason")),
     )
@@ -416,6 +423,21 @@ def _route_candidate(value: object) -> TransportRouteCandidate | None:
     return TransportRouteCandidate(
         route=route,
         clarification_hint=_string(item.get("clarification_hint")),
+    )
+
+
+def _operational_notice(value: object) -> TransportOperationalNotice | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return TransportOperationalNotice(
+        notice_id=_string(item.get("notice_id")),
+        source_ref=_string(item.get("source_ref")),
+        notice_kind=_string(item.get("notice_kind")),
+        route_ids=_string_tuple(item.get("route_ids")),
+        effective_from=_string(item.get("effective_from")),
+        effective_until=_string(item.get("effective_until")),
+        operational_comment=_string(item.get("operational_comment")),
     )
 
 

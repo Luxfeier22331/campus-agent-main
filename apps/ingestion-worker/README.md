@@ -830,6 +830,8 @@ Preferred notice-derived mode:
 
 - `--from-consumption-projection`
 - `--notice-id` (repeatable; selected notices only)
+- `--selection-path`
+- `--all-ready-transport-candidates`
 - `--work-dir`
 - `--release-id`
 
@@ -846,6 +848,9 @@ Behavior:
   `campus_services/service_status_candidate` consumption projection entries.
 - It reads OCR child `document-units.jsonl` from the derived bucket, cleans table
   context, and publishes `campus_services_projection_bundle.v1`.
+- It materializes supported timetable rows, service exceptions, operational
+  notices such as boarding-point changes, and rejected-source records into the
+  same projection bundle.
 - It writes local release artifacts and publishes versioned/current projection
   artifacts to the derived bucket.
 - When `CAMPUS_SHARED_POSTGRES_URL` is configured, publishes the same validated

@@ -70,6 +70,10 @@ class TransportScheduleProjectionTest(unittest.TestCase):
         self.assertTrue(result.validation_report.valid, result.validation_report.issues)
         bundle = result.bundle
         self.assertEqual(bundle["schema_version"], "campus_services_projection_bundle.v1")
+        self.assertEqual(bundle["transport_operational_notices"], [])
+        self.assertEqual(bundle["transport_rejected_sources"], [])
+        self.assertEqual(result.validation_report.counts["operational_notices"], 0)
+        self.assertEqual(result.validation_report.counts["rejected_sources"], 0)
         self.assertEqual(len(bundle["transport_schedule_snapshots"]), 1)
         self.assertEqual(
             bundle["transport_schedule_snapshots"][0]["source_ref"],

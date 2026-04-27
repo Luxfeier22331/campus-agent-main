@@ -70,6 +70,16 @@ type transportServiceExceptionRecord struct {
 	OperationalComment string   `json:"operational_comment"`
 }
 
+type transportOperationalNoticeRecord struct {
+	NoticeID           string   `json:"notice_id"`
+	SourceRef          string   `json:"source_ref"`
+	NoticeKind         string   `json:"notice_kind"`
+	RouteIDs           []string `json:"route_ids"`
+	EffectiveFrom      string   `json:"effective_from"`
+	EffectiveUntil     string   `json:"effective_until"`
+	OperationalComment string   `json:"operational_comment"`
+}
+
 type transportSnapshotSelection struct {
 	record                    transportScheduleSnapshotRecord
 	outcome                   string
@@ -301,16 +311,22 @@ func (r *Runtime) lookupTransportSchedule(
 	}
 
 	base := transportScheduleResult{
-		QueryText:                 request.QueryText,
-		Intent:                    request.Intent,
-		Outcome:                   snapshot.outcome,
-		ResolvedRoute:             transportRouteRefFromRecord(routeSelection.record),
-		QueriedTimeAnchor:         anchor.Format(time.RFC3339),
-		RequestedServiceDate:      serviceDateText,
-		ServiceStatus:             "running",
-		ScheduleSnapshot:          transportScheduleSnapshotRefFromRecord(snapshot.record),
+		QueryText:            request.QueryText,
+		Intent:               request.Intent,
+		Outcome:              snapshot.outcome,
+		ResolvedRoute:        transportRouteRefFromRecord(routeSelection.record),
+		QueriedTimeAnchor:    anchor.Format(time.RFC3339),
+		RequestedServiceDate: serviceDateText,
+		ServiceStatus:        "running",
+		ScheduleSnapshot:     transportScheduleSnapshotRefFromRecord(snapshot.record),
+		OperationalNotices: matchingTransportOperationalNotices(
+			bundle.TransportOperationalNotices,
+			routeSelection.record,
+			serviceDateText,
+		),
 		HistoricalDowngradeReason: snapshot.historicalDowngradeReason,
 	}
+	base.RelatedNoticeRefs = transportOperationalNoticeRefs(base.OperationalNotices)
 
 	if exception, ok := matchTransportServiceException(
 		bundle.TransportServiceExceptions,
@@ -319,7 +335,10 @@ func (r *Runtime) lookupTransportSchedule(
 		serviceDateText,
 	); ok {
 		base.ServiceStatus = exception.ServiceStatus
-		base.RelatedNoticeRefs = append([]string(nil), exception.RelatedNoticeRefs...)
+		base.RelatedNoticeRefs = appendUniqueTransportRefs(
+			exception.RelatedNoticeRefs,
+			base.RelatedNoticeRefs,
+		)
 		return Response{StatusCode: 200, Outcome: base.Outcome, Body: base}
 	}
 

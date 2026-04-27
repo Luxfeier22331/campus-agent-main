@@ -72,6 +72,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             outcome="resolved_current",
             resolved_subject="海淀校区图书馆",
             observed_status="open",
+            status_note="工作日开放，节假日另行通知",
             queried_time_anchor="2026-04-21T10:30:00+08:00",
             effective_from="2026-04-21T08:00:00+08:00",
             effective_until="2026-04-21T22:00:00+08:00",
@@ -92,6 +93,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             },
         )
         self.assertEqual(asdict(result)["observed_status"], "open")
+        self.assertEqual(asdict(result)["status_note"], "工作日开放，节假日另行通知")
         self.assertEqual(
             tuple(asdict(result)["override_source_refs"]),
             ("notice:muc-library-holiday-adjustment-2026",),
@@ -177,6 +179,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 "service_window",
                 "schedule_snapshot",
                 "candidate_routes",
+                "operational_notices",
             }.issubset({field.name for field in fields(TransportScheduleLookupResult)})
         )
 

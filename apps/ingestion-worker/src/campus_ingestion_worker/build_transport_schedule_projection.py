@@ -12,6 +12,8 @@ from typing import Any, Protocol
 from campus_ingestion_core import ObjectStoreSettings
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
     NoticeConsumptionProjectionEntry,
     build_notice_consumption_projection_store_from_env,
     normalize_notice_ids,
@@ -36,6 +38,9 @@ from campus_ingestion_core.transport_schedule_projection import (
 )
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
+from campus_ingestion_worker.internal_notice_selection import (
+    build_internal_notice_selection_provenance,
+)
 
 
 class _SourceObjectStore(Protocol):
@@ -94,6 +99,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Selected notice id for consumption-projection mode. Repeatable.",
+    )
+    parser.add_argument(
+        "--selection-path",
+        help="Selection manifest/path containing notice ids for consumption-projection mode.",
+    )
+    parser.add_argument(
+        "--all-ready-transport-candidates",
+        action="store_true",
+        help=(
+            "Build from all ready transport schedule candidates already present in "
+            "notice_consumption_projection."
+        ),
     )
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--release-id", required=True)
@@ -246,15 +263,27 @@ def main(argv: Sequence[str] | None = None) -> None:
     source = dict(os.environ)
     structured_projection_publisher = build_structured_projection_publisher_from_env(source)
     if args.from_consumption_projection:
-        notice_ids = normalize_notice_ids(tuple(args.notice_id or ()))
-        if not notice_ids:
-            raise ValueError("--notice-id is required with --from-consumption-projection")
+        selection = build_internal_notice_selection_provenance(
+            explicit_notice_ids=args.notice_id or (),
+            selection_path=args.selection_path,
+            extra_command_args={
+                "all_ready_transport_candidates": bool(args.all_ready_transport_candidates),
+            },
+        )
+        notice_ids = normalize_notice_ids(selection.notice_ids)
+        if not notice_ids and not args.all_ready_transport_candidates:
+            raise ValueError(
+                "--notice-id, --selection-path, or --all-ready-transport-candidates is "
+                "required with --from-consumption-projection"
+            )
         projection_store = build_notice_consumption_projection_store_from_env(source)
         projection_entries = projection_store.list_by_scope(
             "campus_notices",
             "internal_notice",
             notice_ids=notice_ids,
         )
+        if args.all_ready_transport_candidates:
+            projection_entries = _ready_transport_projection_entries(projection_entries)
         report = build_transport_schedule_projection_release_from_consumption_projection(
             projection_entries=projection_entries,
             registry=build_document_registry_from_env(source),
@@ -311,6 +340,19 @@ def _publish_structured_projection_release(
         artifact_checksum=projection_artifact_checksum(bundle),
         bundle=bundle,
         validation_status="valid",
+    )
+
+
+def _ready_transport_projection_entries(
+    entries: Sequence[NoticeConsumptionProjectionEntry],
+) -> tuple[NoticeConsumptionProjectionEntry, ...]:
+    return tuple(
+        entry
+        for entry in entries
+        if entry.target_surface == NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE
+        and entry.consumption_status == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
+        and str(entry.role_metadata.get("service_status_candidate_kind") or "")
+        == "transport_schedule"
     )
 
 

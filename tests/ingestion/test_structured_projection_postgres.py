@@ -81,6 +81,86 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
         self.assertEqual(typed_payload[0]["release_id"], "transport-schedule-20260427T090000")
         self.assertEqual(typed_payload[0]["record"]["snapshot_id"], "snapshot:bus:2026-04-20")
 
+    def test_publish_transport_schedule_release_writes_rejected_and_operational_rows(
+        self,
+    ) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        bundle = {
+            "schema_version": "campus_services_projection_bundle.v1",
+            "transport_schedule_snapshots": [
+                {
+                    "snapshot_id": "snapshot:bus:2026-04-20",
+                    "published_at": "2026-04-20T18:00:00+08:00",
+                    "effective_from": "2026-04-21T00:00:00+08:00",
+                    "source_ref": "notice:muc_internal_portal:355122",
+                    "is_current": True,
+                }
+            ],
+            "transport_routes": [{"route_id": "route:haidian-to-fengtai"}],
+            "scheduled_departures": [],
+            "transport_service_exceptions": [],
+            "transport_operational_notices": [
+                {
+                    "notice_id": "353903",
+                    "source_ref": "notice:muc_internal_portal:353903",
+                    "notice_kind": "boarding_point_change",
+                    "route_ids": ["route:fengtai-to-haidian"],
+                    "effective_from": "2026-01-01T00:00:00+08:00",
+                    "effective_until": "",
+                    "operational_comment": "更改通勤班车丰台校区乘车点。",
+                }
+            ],
+            "transport_rejected_sources": [
+                {
+                    "schema_version": "transport_schedule_rejected_sources.v1",
+                    "source_notice_id": "228282",
+                    "source_ref": "notice:muc_internal_portal:228282",
+                    "reason": "reservation_open_time_only",
+                    "candidate_kind": "transport_schedule",
+                }
+            ],
+        }
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            publisher.publish_release(
+                corpus="campus_services",
+                collection="transport_schedule",
+                release_id="transport-schedule-20260427T090000",
+                generated_at="2026-04-27T09:00:00+08:00",
+                schema_version="campus_services_projection_bundle.v1",
+                artifact_object_key=(
+                    "campus_services/releases/transport_schedule/transport-schedule-"
+                    "20260427T090000/campus-services-projection.json"
+                ),
+                artifact_checksum="sha256:test",
+                bundle=bundle,
+                validation_status="valid",
+            )
+
+        executed_sql = "\n".join(query for query, _params in cursor.execute_calls)
+        self.assertIn("transport_operational_notices", executed_sql)
+        self.assertIn("transport_rejected_sources", executed_sql)
+        operational_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "transport_operational_notices" in query and "jsonb_to_recordset" in query
+        )
+        rejected_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "transport_rejected_sources" in query and "jsonb_to_recordset" in query
+        )
+        operational_payload = json.loads(cursor.execute_calls[operational_insert_index][1][0])
+        rejected_payload = json.loads(cursor.execute_calls[rejected_insert_index][1][0])
+        self.assertEqual(operational_payload[0]["notice_kind"], "boarding_point_change")
+        self.assertEqual(rejected_payload[0]["reason"], "reservation_open_time_only")
+
     def test_publish_service_guide_release_writes_service_records_and_review_tables(self) -> None:
         publisher = object.__new__(PostgresStructuredProjectionPublisher)
         publisher.database_url = "postgresql://projection.example/db"

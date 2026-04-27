@@ -16,6 +16,7 @@ from campus_contracts import (
     ServiceGuideServiceRef,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
+    TransportOperationalNotice,
     TransportRouteRef,
     TransportScheduleLookupPayload,
     TransportScheduleLookupResult,
@@ -47,6 +48,7 @@ class _FakeCampusServicesQueryService:
             outcome="resolved_current",
             resolved_subject="海淀校区图书馆",
             observed_status="open",
+            status_note="工作日开放，节假日另行通知",
             queried_time_anchor="2026-04-21T10:30:00+08:00",
             effective_from="2026-04-21T08:00:00+08:00",
             effective_until="2026-04-21T22:00:00+08:00",
@@ -115,6 +117,16 @@ class _FakeCampusServicesQueryService:
                 source_ref="notice:bus-schedule-2026-04-20",
             ),
             stop_refs=(TransportStopRef(stop_id="haidian-library", display_name="图书馆站"),),
+            operational_notices=(
+                TransportOperationalNotice(
+                    notice_id="353903",
+                    source_ref="notice:muc_internal_portal:353903",
+                    notice_kind="boarding_point_change",
+                    route_ids=("route:haidian-shuttle",),
+                    effective_from="2026-04-21T00:00:00+08:00",
+                    operational_comment="海淀校区乘车点临时调整至图书馆站",
+                ),
+            ),
         )
 
 
@@ -161,6 +173,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.resolved_subject, "海淀校区图书馆")
         self.assertIn("海淀校区图书馆", response.answer_text)
+        self.assertIn("工作日开放，节假日另行通知", response.answer_text)
         self.assertEqual(
             query_service.last_service_status_query,
             ServiceStatusQuery(
@@ -449,6 +462,16 @@ class CampusServicesAgentTest(unittest.TestCase):
                     "published_at": "2026-04-20T18:00:00+08:00",
                     "source_ref": "notice:bus-schedule-2026-04-20",
                 },
+                "operational_notices": [
+                    {
+                        "notice_id": "353903",
+                        "source_ref": "notice:muc_internal_portal:353903",
+                        "notice_kind": "boarding_point_change",
+                        "route_ids": ["route:haidian-to-fengtai"],
+                        "effective_from": "2026-04-25T00:00:00+08:00",
+                        "operational_comment": "海淀校区乘车点临时调整至东门",
+                    }
+                ],
             }
         )
         query_service = CampusServicesHTTPQueryService(
@@ -477,6 +500,54 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_route.display_name, "海淀到丰台通勤车")
         self.assertEqual(result.selected_departure.departure_at, "2026-04-25T06:50:00+08:00")
+        self.assertEqual(result.operational_notices[0].notice_kind, "boarding_point_change")
+        self.assertEqual(
+            result.operational_notices[0].operational_comment,
+            "海淀校区乘车点临时调整至东门",
+        )
+
+    def test_http_query_service_posts_service_status_payload_and_decodes_result(self) -> None:
+        transport = _RecordingQueryHTTPTransport(
+            {
+                "subject_query": "通勤班车丰台校区乘车点现在在哪里",
+                "outcome": "resolved_current",
+                "resolved_subject": "两校区通勤班车丰台校区乘车点",
+                "observed_status": "limited_service",
+                "status_note": (
+                    "下周一（12月15日）起，两校区通勤班车丰台校区的上车点、"
+                    "下车点更改为聚雅餐厅东侧停车场路口"
+                ),
+                "queried_time_anchor": "2026-04-27T12:07:36+08:00",
+                "effective_from": "2025-12-15T00:00:00+08:00",
+                "effective_until": "2099-12-31T23:59:59+08:00",
+                "override_source_refs": ["notice:muc_internal_portal:353903"],
+                "related_notice_refs": ["notice:muc_internal_portal:353903"],
+            }
+        )
+        query_service = CampusServicesHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            timeout_seconds=0.75,
+            transport=transport,
+        )
+
+        result = query_service.lookup_service_status(
+            ServiceStatusQuery(
+                payload=ServiceStatusLookupPayload(
+                    subject_query="通勤班车丰台校区乘车点现在在哪里",
+                    campus_scope="fengtai",
+                )
+            )
+        )
+
+        self.assertEqual(
+            transport.calls[0][0],
+            "http://supervisor-api.internal/internal/query/campus-services/service-status",
+        )
+        self.assertEqual(transport.calls[0][2]["campus_scope"], "fengtai")
+        self.assertEqual(result.outcome, "resolved_current")
+        self.assertEqual(result.observed_status, "limited_service")
+        self.assertIn("聚雅餐厅东侧停车场路口", result.status_note)
 
     def test_http_query_service_posts_service_guide_payload_and_decodes_result(self) -> None:
         transport = _RecordingQueryHTTPTransport(

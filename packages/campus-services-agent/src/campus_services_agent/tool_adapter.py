@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     ErrorInfo,
     ServiceGuideLookupPayload,
     ServiceGuideLookupResult,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
-    AgentRequest,
-    AgentResponse,
     TransportScheduleLookupPayload,
     TransportScheduleLookupResult,
 )
@@ -150,10 +150,14 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
 
 def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse:
     if result.outcome == "resolved_current":
+        note = result.status_note.strip()
+        note_suffix = f" 运营提示：{note}" if note else ""
         return AgentResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=f"{result.resolved_subject}当前状态：{result.observed_status}。",
+            answer_text=(
+                f"{result.resolved_subject}当前状态：{result.observed_status}。{note_suffix}"
+            ),
             confidence="high",
             result=result,
         )
@@ -194,6 +198,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
 
 
 def _transport_schedule_response(result: TransportScheduleLookupResult) -> AgentResponse:
+    operational_suffix = _transport_operational_suffix(result)
     if result.outcome == "resolved_current":
         route_name = result.resolved_route.display_name if result.resolved_route is not None else ""
         if result.selected_departure is not None:
@@ -202,8 +207,9 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 status="completed",
                 answer_text=(
                     f"{route_name}下一班发车时间：{result.selected_departure.departure_at}。"
+                    f"{operational_suffix}"
                     if route_name
-                    else f"下一班发车时间：{result.selected_departure.departure_at}。"
+                    else f"下一班发车时间：{result.selected_departure.departure_at}。{operational_suffix}"
                 ),
                 confidence="high",
                 result=result,
@@ -225,9 +231,9 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 target="campus-services-agent",
                 status="completed",
                 answer_text=(
-                    f"{route_name}可选班次：{departures}。"
+                    f"{route_name}可选班次：{departures}。{operational_suffix}"
                     if route_name
-                    else f"可选班次：{departures}。"
+                    else f"可选班次：{departures}。{operational_suffix}"
                 ),
                 confidence="high",
                 result=result,
@@ -238,11 +244,11 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 status="completed",
                 answer_text=(
                     f"{route_name}运营时间：{result.service_window.first_departure_at}"
-                    f" 至 {result.service_window.last_departure_at}。"
+                    f" 至 {result.service_window.last_departure_at}。{operational_suffix}"
                     if route_name
                     else (
                         f"运营时间：{result.service_window.first_departure_at}"
-                        f" 至 {result.service_window.last_departure_at}。"
+                        f" 至 {result.service_window.last_departure_at}。{operational_suffix}"
                     )
                 ),
                 confidence="high",
@@ -254,7 +260,9 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 target="campus-services-agent",
                 status="completed",
                 answer_text=(
-                    f"{route_name}时刻表：{entries}。" if route_name else f"时刻表：{entries}。"
+                    f"{route_name}时刻表：{entries}。{operational_suffix}"
+                    if route_name
+                    else f"时刻表：{entries}。{operational_suffix}"
                 ),
                 confidence="high",
                 result=result,
@@ -262,9 +270,9 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
         return AgentResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=f"{route_name}当前状态：{result.service_status}。"
+            answer_text=f"{route_name}当前状态：{result.service_status}。{operational_suffix}"
             if route_name
-            else f"当前状态：{result.service_status}。",
+            else f"当前状态：{result.service_status}。{operational_suffix}",
             confidence="high",
             result=result,
         )
@@ -322,6 +330,17 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
     if result.eligibility_notes:
         return "、".join(result.eligibility_notes)
     return ""
+
+
+def _transport_operational_suffix(result: TransportScheduleLookupResult) -> str:
+    comments = tuple(
+        notice.operational_comment
+        for notice in result.operational_notices
+        if notice.operational_comment
+    )
+    if not comments:
+        return ""
+    return "运营提示：" + "；".join(comments) + "。"
 
 
 def _service_guide_contact_text(contact) -> str:

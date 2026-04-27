@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from hashlib import sha256
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_read_model import InternalNoticeReadModelEntry
@@ -143,6 +144,53 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
             expected_sha256,
         )
 
+    def test_main_can_rebuild_all_ready_transport_candidate_read_model_rows(self) -> None:
+        projection_store = _FakeProjectionStore(
+            (
+                _projection_entry(
+                    "355122", "transport_schedule", "ready_for_target_materialization"
+                ),
+                _projection_entry("355222", "procurement", "retained_for_notice_query"),
+                _projection_entry(
+                    "354889", "transport_schedule", "ready_for_target_materialization"
+                ),
+            )
+        )
+        with (
+            patch("campus_ingestion_worker.rebuild_internal_notice_read_model.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.rebuild_internal_notice_read_model",
+                return_value=(),
+            ) as rebuild,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.build_notice_consumption_projection_store_from_env",
+                return_value=projection_store,
+            ) as build_projection_store,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.build_internal_notice_consumption_admission_store_from_env",
+                return_value=object(),
+                create=True,
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.record_internal_notice_consumption_admission",
+                side_effect=("batch-read-model-001", "batch-read-model-001"),
+                create=True,
+            ) as record_admission,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            worker.main(["--all-ready-transport-candidates"])
+
+        build_projection_store.assert_called_once()
+        self.assertEqual(projection_store.list_notice_ids, ())
+        self.assertEqual(rebuild.call_args.kwargs["notice_ids"], ("354889", "355122"))
+        started_kwargs = record_admission.call_args_list[0].kwargs
+        self.assertEqual(started_kwargs["selection_source"], "all_ready_transport_candidates")
+        self.assertEqual(started_kwargs["notice_ids"], ("354889", "355122"))
+        self.assertEqual(
+            started_kwargs["command_args"]["all_ready_transport_candidates"],
+            True,
+        )
+
     def test_main_records_failed_admission_when_rebuild_fails(self) -> None:
         admission_store = object()
 
@@ -172,6 +220,35 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
         self.assertEqual(failed_kwargs["batch_id"], "batch-read-model-001")
         self.assertEqual(failed_kwargs["error"], "read model failed")
         self.assertIs(failed_kwargs["store"], admission_store)
+
+
+class _FakeProjectionStore:
+    def __init__(self, entries: tuple[object, ...]) -> None:
+        self.entries = entries
+        self.list_notice_ids: tuple[str, ...] | None = None
+
+    def list_by_scope(
+        self,
+        source_corpus: str,
+        source_collection: str,
+        *,
+        notice_ids: tuple[str, ...] = (),
+    ) -> tuple[object, ...]:
+        self.list_notice_ids = tuple(notice_ids)
+        return self.entries
+
+
+def _projection_entry(
+    notice_id: str,
+    candidate_kind: str,
+    consumption_status: str,
+) -> object:
+    return SimpleNamespace(
+        source_notice_id=notice_id,
+        target_surface="campus_services/service_status_candidate",
+        consumption_status=consumption_status,
+        role_metadata={"service_status_candidate_kind": candidate_kind},
+    )
 
 
 if __name__ == "__main__":

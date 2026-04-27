@@ -221,6 +221,7 @@ TransportScheduleLookupResult
 - clarification_reason: str
 - stop_refs[]: TransportStopRef
 - related_notice_refs[]: str
+- operational_notices[]: TransportOperationalNotice
 - historical_downgrade_reason:
   - current_year_miss
   - current_effective_miss
@@ -277,6 +278,19 @@ TransportRouteCandidate
 - clarification_hint: str
 ```
 
+### `TransportOperationalNotice`
+
+```text
+TransportOperationalNotice
+- notice_id: str
+- source_ref: str
+- notice_kind: str
+- route_ids[]: str
+- effective_from: RFC3339 datetime | null
+- effective_until: RFC3339 datetime | null
+- operational_comment: str
+```
+
 固定语义：
 
 - `resolved_route` 表示已收敛到唯一 canonical route；它不是原始 `route_query` 的 echo
@@ -287,6 +301,8 @@ TransportRouteCandidate
 - `departure_options` 只用于 `departure_list`
 - `service_window` 只用于 `service_window`
 - `timetable_entries` 只用于 `timetable`
+- `operational_notices` 只承载已经离线物化的 transport operational facts，
+  不允许 query-time 回扫通知正文
 - `schedule_snapshot` 在以下情况应出现
   - `schedule_snapshot_metadata`
   - `resolved_historical_reference`
@@ -336,6 +352,8 @@ TransportRouteCandidate
   - 优先填 `service_window`
   - 若用户问的是“是否停运/还能不能跑”，允许只填 `service_status` 与
     `related_notice_refs`
+  - 如果命中同一路线的乘车点、候车点或路线运营说明，必须填
+    `operational_notices` 并把来源并入 `related_notice_refs`
 - `timetable`
   - `resolved_*` 时填 `timetable_entries`
   - 路线未收敛时必须 clarification，不默认把全部 route family 展平返回

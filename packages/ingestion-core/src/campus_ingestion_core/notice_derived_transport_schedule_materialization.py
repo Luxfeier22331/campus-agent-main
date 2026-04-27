@@ -74,6 +74,7 @@ _CHINESE_DATE_RANGE_RE = re.compile(
 )
 _ORDINAL_RE = re.compile(r"^\d+[\.、]?$")
 _BODY_TEXT_SPLIT_RE = re.compile(r"[\n。；;]")
+_MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _ONE_OFF_DATE_HINTS = ("本周", "周末", "临时", "当天", "当日")
 _SERVICE_STOP_KEYWORDS = ("停运", "暂停", "停止运营", "不运行")
 _REJECTED_SOURCE_SCHEMA_VERSION = "transport_schedule_rejected_sources.v1"
@@ -112,6 +113,17 @@ class NoticeDerivedTransportServiceException:
     schedule_scope: str
     service_date_ranges: tuple[tuple[str, str], ...]
     precedence: int
+
+
+@dataclass(frozen=True, slots=True)
+class NoticeDerivedTransportOperationalNotice:
+    source_notice_id: str
+    source_ref: str
+    notice_kind: str
+    route_ids: tuple[str, ...]
+    effective_from: str
+    effective_until: str
+    operational_comment: str
 
 
 def extract_notice_derived_transport_schedule_rows(
@@ -195,6 +207,34 @@ def extract_notice_derived_transport_service_exceptions(
     )
 
 
+def extract_notice_derived_transport_operational_notices(
+    *,
+    projection_entry: NoticeConsumptionProjectionEntry,
+    registry: DocumentRegistry,
+    object_store: NoticeDerivedTransportScheduleObjectStore,
+    derived_bucket: str,
+) -> tuple[NoticeDerivedTransportOperationalNotice, ...]:
+    if not _is_ready_transport_candidate(projection_entry):
+        return ()
+    source_ref = _source_ref(projection_entry)
+    parent_record = _resolve_registry_record(
+        registry=registry,
+        document_id=projection_entry.source_notice_document_id,
+    )
+    parent_text = _read_record_text(
+        record=parent_record,
+        object_store=object_store,
+        derived_bucket=derived_bucket,
+    )
+    return tuple(
+        _extract_operational_notices_from_parent_text(
+            parent_text=parent_text,
+            projection_entry=projection_entry,
+            source_ref=source_ref,
+        )
+    )
+
+
 def build_notice_derived_transport_schedule_projection_bundle(
     *,
     projection_entries: Sequence[NoticeConsumptionProjectionEntry],
@@ -209,6 +249,7 @@ def build_notice_derived_transport_schedule_projection_bundle(
         raise ValueError("service_horizon_days must be positive")
     rows: list[NoticeDerivedTransportScheduleRow] = []
     exceptions: list[NoticeDerivedTransportServiceException] = []
+    operational_notices: list[NoticeDerivedTransportOperationalNotice] = []
     entries_by_notice: dict[str, NoticeConsumptionProjectionEntry] = {}
     rejection_reason_by_notice: dict[str, str] = {}
     for entry in projection_entries:
@@ -243,12 +284,23 @@ def build_notice_derived_transport_schedule_projection_bundle(
                 derived_bucket=derived_bucket,
             )
         )
+        operational_notices.extend(
+            extract_notice_derived_transport_operational_notices(
+                projection_entry=entry,
+                registry=registry,
+                object_store=object_store,
+                derived_bucket=derived_bucket,
+            )
+        )
     rows_by_notice: dict[str, list[NoticeDerivedTransportScheduleRow]] = {}
     for row in rows:
         rows_by_notice.setdefault(row.source_notice_id, []).append(row)
     exceptions_by_notice: dict[str, list[NoticeDerivedTransportServiceException]] = {}
     for exception in exceptions:
         exceptions_by_notice.setdefault(exception.source_notice_id, []).append(exception)
+    operational_notices_by_notice: dict[str, list[NoticeDerivedTransportOperationalNotice]] = {}
+    for notice in operational_notices:
+        operational_notices_by_notice.setdefault(notice.source_notice_id, []).append(notice)
     rejected_sources = build_notice_derived_transport_rejected_sources(
         entries_by_notice=entries_by_notice,
         rows_by_notice=rows_by_notice,
@@ -257,6 +309,12 @@ def build_notice_derived_transport_schedule_projection_bundle(
         schema_version=_REJECTED_SOURCE_SCHEMA_VERSION,
         reason_by_notice=rejection_reason_by_notice,
     )
+    rejected_sources = [
+        record
+        for record in rejected_sources
+        if record.get("source_notice_id") not in operational_notices_by_notice
+        and record.get("reason") != "reservation_open_time_only"
+    ]
 
     snapshots: list[dict[str, Any]] = []
     for notice_id, notice_rows in rows_by_notice.items():
@@ -335,6 +393,9 @@ def build_notice_derived_transport_schedule_projection_bundle(
         exceptions=exceptions,
         snapshot_id_by_notice=snapshot_id_by_notice,
     )
+    operational_notice_records = _build_transport_operational_notice_records(
+        operational_notices,
+    )
     bundle = {
         "schema_version": TRANSPORT_SCHEDULE_PROJECTION_SCHEMA_VERSION,
         "service_status_records": [],
@@ -342,6 +403,8 @@ def build_notice_derived_transport_schedule_projection_bundle(
         "transport_routes": [route_payload(route) for route in TRANSPORT_ROUTES],
         "scheduled_departures": scheduled_departures,
         "transport_service_exceptions": service_exceptions,
+        "transport_operational_notices": operational_notice_records,
+        "transport_rejected_sources": rejected_sources,
     }
     validation_report = validate_transport_schedule_projection_bundle(bundle)
     return TransportScheduleProjectionBuildResult(
@@ -365,6 +428,70 @@ def _parent_text_rejection_reason(parent_text: str) -> str:
         if reservation_open_time_segment("".join(segment.split())):
             return "reservation_open_time_only"
     return ""
+
+
+def _extract_operational_notices_from_parent_text(
+    *,
+    parent_text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+    source_ref: str,
+) -> list[NoticeDerivedTransportOperationalNotice]:
+    notices: list[NoticeDerivedTransportOperationalNotice] = []
+    for segment in _text_segments(parent_text):
+        if _MARKDOWN_HEADING_RE.match(segment):
+            continue
+        notice_kind = _operational_notice_kind(segment)
+        if not notice_kind:
+            continue
+        route_ids = _operational_notice_route_ids(segment)
+        if not route_ids:
+            continue
+        effective_from = _start_of_day(
+            _resolve_effective_date(
+                text=segment,
+                release_time=projection_entry.source_notice_release_time,
+            )
+        )
+        notices.append(
+            NoticeDerivedTransportOperationalNotice(
+                source_notice_id=projection_entry.source_notice_id,
+                source_ref=source_ref,
+                notice_kind=notice_kind,
+                route_ids=route_ids,
+                effective_from=effective_from,
+                effective_until="",
+                operational_comment=_clean_cell(segment),
+            )
+        )
+    return notices
+
+
+def _operational_notice_kind(segment: str) -> str:
+    compact = "".join(str(segment or "").split())
+    if not compact:
+        return ""
+    if not any(keyword in compact for keyword in ("调整", "更改", "变更", "迁至", "改为")):
+        return ""
+    if any(
+        keyword in compact
+        for keyword in ("乘车点", "乘车地点", "发车地点", "候车点", "站点", "上车点", "下车点")
+    ):
+        return "boarding_point_change"
+    return ""
+
+
+def _operational_notice_route_ids(segment: str) -> tuple[str, ...]:
+    route = _resolve_route(segment)
+    if route is not None:
+        return (route.route_id,)
+    compact = "".join(str(segment or "").split())
+    if "通勤" in compact and "丰台" in compact:
+        return ("route:fengtai-to-haidian",)
+    if "通勤" in compact and "海淀" in compact:
+        return ("route:haidian-to-fengtai",)
+    if "接驳" in compact or "地铁" in compact:
+        return ("route:subway-shuttle",)
+    return ()
 
 
 def _resolve_attachment_records(
@@ -767,5 +894,36 @@ def _build_transport_service_exceptions(
             str(item["service_date"]),
             str(item["route_id"]),
             tuple(item["related_notice_refs"]),
+        ),
+    )
+
+
+def _build_transport_operational_notice_records(
+    operational_notices: Sequence[NoticeDerivedTransportOperationalNotice],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for notice in operational_notices:
+        key = (notice.source_notice_id, notice.notice_kind, ",".join(notice.route_ids))
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "notice_id": notice.source_notice_id,
+                "source_ref": notice.source_ref,
+                "notice_kind": notice.notice_kind,
+                "route_ids": list(notice.route_ids),
+                "effective_from": notice.effective_from,
+                "effective_until": notice.effective_until,
+                "operational_comment": notice.operational_comment,
+            }
+        )
+    return sorted(
+        rows,
+        key=lambda item: (
+            str(item["effective_from"]),
+            str(item["notice_id"]),
+            str(item["notice_kind"]),
         ),
     )

@@ -181,6 +181,7 @@ class ServiceStatusLookupResult:
     outcome: ToolBusinessOutcome
     resolved_subject: str = ""
     observed_status: ServiceStatusValue | str = field(default="", compare=False)
+    status_note: str = ""
     queried_time_anchor: str = ""
     effective_from: str = ""
     effective_until: str = ""
@@ -499,6 +500,25 @@ class TransportRouteCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class TransportOperationalNotice:
+    notice_id: str
+    source_ref: str
+    notice_kind: str
+    route_ids: tuple[str, ...] = field(default_factory=tuple)
+    effective_from: str = ""
+    effective_until: str = ""
+    operational_comment: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.notice_id.strip():
+            raise ValueError("notice_id must not be empty")
+        if not self.source_ref.strip():
+            raise ValueError("source_ref must not be empty")
+        if not self.notice_kind.strip():
+            raise ValueError("notice_kind must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class TransportScheduleLookupPayload:
     query_text: str
     intent: TransportScheduleIntent | str
@@ -539,6 +559,7 @@ class TransportScheduleLookupResult:
     )
     stop_refs: tuple[TransportStopRef, ...] = field(default_factory=tuple)
     related_notice_refs: tuple[str, ...] = field(default_factory=tuple)
+    operational_notices: tuple[TransportOperationalNotice, ...] = field(default_factory=tuple)
     historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
 

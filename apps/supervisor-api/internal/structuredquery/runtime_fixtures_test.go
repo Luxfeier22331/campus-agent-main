@@ -129,6 +129,50 @@ func transportProjectionFixtureWithDepartures(count int) string {
 	}`, departures.String())
 }
 
+func transportProjectionFixtureWithOperationalNotice() string {
+	return `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-01-01",
+				"published_at":"2026-01-01T08:00:00+08:00",
+				"effective_from":"2026-01-01T00:00:00+08:00",
+				"source_ref":"notice:muc_internal_portal:baseline",
+				"is_current":true,
+				"schedule_scope":"baseline_revision"
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:fengtai-to-haidian",
+				"display_name":"丰台到海淀通勤车",
+				"service_family":"intercampus_commute",
+				"origin_campus":"fengtai",
+				"destination_campus":"haidian",
+				"stops":[
+					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"},
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{"snapshot_id":"snapshot:bus:2026-01-01","route_id":"route:fengtai-to-haidian","service_dates":["2026-01-02"],"departure_time":"07:30","origin_stop_id":"stop:fengtai-main-gate","destination_stop_id":"stop:haidian-east-gate"}
+		],
+		"transport_service_exceptions":[],
+		"transport_operational_notices":[
+			{
+				"notice_id":"353903",
+				"source_ref":"notice:muc_internal_portal:353903",
+				"notice_kind":"boarding_point_change",
+				"route_ids":["route:fengtai-to-haidian"],
+				"effective_from":"2026-01-01T00:00:00+08:00",
+				"effective_until":"",
+				"operational_comment":"通勤班车丰台校区乘车点调整至南门外停车区"
+			}
+		]
+	}`
+}
+
 func transportProjectionFixtureWithTemporaryOverlay() string {
 	return `{
 		"schema_version":"campus_services_projection_bundle.v1",
@@ -189,6 +233,7 @@ func serviceStatusProjectionFixture() string {
 				"aliases":["图书馆","海淀校区图书馆"],
 				"campus_scope":"haidian",
 				"observed_status":"open",
+				"status_note":"工作日开放，节假日另行通知",
 				"effective_from":"2026-04-24T08:00:00+08:00",
 				"effective_until":"2026-04-24T22:00:00+08:00",
 				"override_source_refs":["notice:library-hours"],

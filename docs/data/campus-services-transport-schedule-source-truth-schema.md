@@ -146,6 +146,8 @@ source 写入 rejected-source report，不得猜测写入 current projection。
 - `transport_routes`
 - `scheduled_departures`
 - `transport_service_exceptions`
+- `transport_operational_notices`
+- `transport_rejected_sources`
 
 `transport_schedule_snapshots` 保存版本与来源：
 
@@ -191,6 +193,26 @@ service date 覆盖 baseline。范围外查询必须回落到 current baseline�
 - `related_notice_refs`
 - `operational_comment`
 
+`transport_operational_notices` 保存不改变班次表、但会影响乘坐方式或路线说明的运行通知：
+
+- `notice_id`
+- `source_ref`
+- `notice_kind`
+  - `boarding_point_change`
+- `route_ids`
+- `effective_from`
+- `effective_until`
+- `operational_comment`
+
+`transport_rejected_sources` 保存已准入但未物化为 schedule / exception /
+operational notice 的候选：
+
+- `schema_version`
+- `source_notice_id`
+- `source_ref`
+- `reason`
+- `candidate_kind`
+
 ## Publication
 
 versioned artifact：
@@ -217,7 +239,8 @@ mounted readonly current projection file fallback 已下线。
   validation status 与 source notice provenance
 - current pointer：事务性指向当前 `(campus_services, transport_schedule)` release
 - typed read model：按 `release_id` 保存 routes、snapshots、scheduled departures、
-  service exceptions 与 release-notice provenance
+  service exceptions、operational notices、rejected sources 与 release-notice
+  provenance
 
 Go `apps/supervisor-api` 长期不直接读对象存储、不持有对象存储凭据，也不在 query-time
 解析 projection JSON。它通过 projection-backed internal query service 读取 PG current

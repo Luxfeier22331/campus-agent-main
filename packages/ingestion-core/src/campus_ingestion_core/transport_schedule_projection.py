@@ -162,6 +162,8 @@ def build_transport_schedule_projection_bundle(
         "transport_routes": [route_payload(route) for route in TRANSPORT_ROUTES],
         "scheduled_departures": scheduled_departures,
         "transport_service_exceptions": exceptions,
+        "transport_operational_notices": [],
+        "transport_rejected_sources": rejected_source_records,
     }
     validation_report = validate_transport_schedule_projection_bundle(bundle)
     return TransportScheduleProjectionBuildResult(
@@ -182,6 +184,8 @@ def validate_transport_schedule_projection_bundle(
     routes = _list_of_dicts(bundle.get("transport_routes"))
     departures = _list_of_dicts(bundle.get("scheduled_departures"))
     exceptions = _list_of_dicts(bundle.get("transport_service_exceptions"))
+    operational_notices = _list_of_dicts(bundle.get("transport_operational_notices"))
+    rejected_sources = _list_of_dicts(bundle.get("transport_rejected_sources"))
 
     current_count = sum(1 for row in snapshots if bool(row.get("is_current")))
     if current_count > 1:
@@ -306,6 +310,8 @@ def validate_transport_schedule_projection_bundle(
             "routes": len(routes),
             "scheduled_departures": len(departures),
             "service_exceptions": len(exceptions),
+            "operational_notices": len(operational_notices),
+            "rejected_sources": len(rejected_sources),
         },
     )
 

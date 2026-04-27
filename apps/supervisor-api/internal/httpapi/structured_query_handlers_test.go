@@ -19,6 +19,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 				"aliases":["图书馆","海淀校区图书馆"],
 				"campus_scope":"haidian",
 				"observed_status":"open",
+				"status_note":"工作日开放，节假日另行通知",
 				"effective_from":"2026-04-24T08:00:00+08:00",
 				"effective_until":"2026-04-24T22:00:00+08:00",
 				"override_source_refs":["notice:library-hours"],
@@ -64,6 +65,9 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 	}
 	if body["observed_status"] != "open" {
 		t.Fatalf("observed_status = %v", body["observed_status"])
+	}
+	if body["status_note"] != "工作日开放，节假日另行通知" {
+		t.Fatalf("status_note = %v", body["status_note"])
 	}
 	if body["queried_time_anchor"] != "2026-04-24T10:30:00+08:00" {
 		t.Fatalf("queried_time_anchor = %v", body["queried_time_anchor"])
