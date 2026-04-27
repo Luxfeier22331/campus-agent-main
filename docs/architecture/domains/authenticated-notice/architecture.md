@@ -192,6 +192,9 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
 - taxonomy rule 变更必须可通过 repo-tracked deterministic JSONL gate 回放，至少
   校验 `notice_family`、`suggested_consumption_route` 与
   `machine_processing_policy`
+- 当前 taxonomy 已把稳定制度正文（管理办法、实施细则、实施办法、规定、管理规范、
+  实施意见、章程、规则、规程等）归入 `regulation_candidate`；制度学习、解读会、宣传材料、
+  方案和报告不作为 regulation 正文消费
 - 当前 taxonomy 已把教务生命周期、课程/考试运行、培养项目选拔、学生状态注册、学生项目/奖励选拔、
   交换/公派留学、财务缴费/补贴/报销、健康医疗/福利、表格模板、问卷反馈、IT 操作说明、图书馆资源/荐购等高价值通知归入
   `notice_level_query`；把设施、教室、自习室、交通/班车、IT 平台、图书馆开放/关闭等可用性/开放时间变化归入

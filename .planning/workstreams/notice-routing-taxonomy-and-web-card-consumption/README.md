@@ -17,8 +17,8 @@ workstream 入口。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 0`
-- current slice: workstream setup and current-state audit
+- current phase: `Phase 1`
+- current slice: regulation routing matrix update before selected admission
 - active implementation: yes
 
 ## Native Planning Truth
@@ -38,6 +38,12 @@ workstream 入口。
   检索命中并返回 title/url
 - 这条线可以调整 routing taxonomy、selected batch admission policy、
   read-model title/url contract、Web card acceptance 和 eval/audit fixtures
+
+## Current Routing Note
+
+- regulation 类 notice 进入消费面之前，先收紧 taxonomy：稳定制度文本进入
+  `policy_regulation -> regulation_candidate`，制度学习、解读会、宣传材料和方案报告
+  不作为 regulation 正文消费。
 
 ## Inputs
 

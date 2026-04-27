@@ -110,6 +110,11 @@ Current interpretation is:
 
 Current routing taxonomy groups include:
 
+- `regulation_candidate`: stable policy/regulation texts such as management
+  measures, implementation rules, implementation measures, provisions,
+  management norms, implementation opinions, charters, bylaws, and work
+  procedures; learning sessions, interpretation meetings, promotional
+  materials, plans, and reports are not treated as regulation bodies
 - high-value `notice_level_query`: course/teaching, academic lifecycle,
   academic course/exam operations, academic program selection, student
   applications, student status / registration, student program / award

@@ -10,8 +10,8 @@ updated: 2026-04-28
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 0`
-- current slice: planning truth and baseline audit
+- current phase: `Phase 1`
+- current slice: regulation routing matrix update before selected admission
 - owner: unassigned
 - active implementation: yes
 
@@ -47,6 +47,13 @@ updated: 2026-04-28
   - current row target surface: `notice_level_query`
 - 该 audit 说明当前已入库 queryable row 满足 title/url contract，但不覆盖
   procurement/internal notice 全量链路。
+- 2026-04-28 regulation routing update：
+  - `policy_regulation` 继续映射到 `regulation_candidate`。
+  - 稳定制度文本扩展覆盖 `实施办法`、`暂行办法`、`试行办法`、`若干规定`、
+    `处分规定`、`管理规范`、`实施意见`，以及发布/印发/修订/公布/颁布/
+    废止动作。
+  - 制度专题学习、解读会、宣传材料和方案/报告不作为 regulation 正文消费；
+    学习/解读会归入 `meeting_training -> defer`。
 
 ## Current Open Questions
 
@@ -61,5 +68,5 @@ updated: 2026-04-28
 
 ## Immediate Next Step
 
-Phase 0 结束前需要确认 registry/docs 干净；Phase 1 从 routing matrix review
-开始，不直接改采集或下游 tool。
+继续 Phase 1，下一步在进入 selected regulation admission 前复核当前
+`regulation_candidate` 样本是否都应进入 institutional/scoped downstream。

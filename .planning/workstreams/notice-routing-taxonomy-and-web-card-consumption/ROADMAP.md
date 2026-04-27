@@ -9,7 +9,7 @@ updated: 2026-04-28
 
 ## Phase 0: Planning Truth And Baseline Audit
 
-**Status:** active
+**Status:** completed
 
 **Goal:** 建立 native workstream，并记录当前 notice routing / read-model baseline。
 
@@ -22,7 +22,7 @@ updated: 2026-04-28
 
 ## Phase 1: Routing Matrix Review
 
-**Status:** pending
+**Status:** active
 
 **Goal:** 复核 family、route、target surface、status 的当前矩阵。
 
