@@ -361,11 +361,11 @@ def _normalize_text_list(value: object) -> tuple[str, ...]:
 
 __all__ = [
     "AUTHENTICATED_NOTICE_NOTICE_FAMILY_SCHEMA_VERSION",
+    "AuthenticatedNoticeDefaultFamilyRouteOverride",
     "AuthenticatedNoticeFamilyRoutePolicy",
     "AuthenticatedNoticeNoticeFamilyClassification",
     "AuthenticatedNoticeNoticeFamilyConfig",
     "AuthenticatedNoticeNoticeFamilyRule",
-    "AuthenticatedNoticeDefaultFamilyRouteOverride",
     "AuthenticatedNoticeRoutingPolicyConfig",
     "classify_authenticated_notice_bundle_payload",
     "classify_authenticated_notice_bundle_record",
