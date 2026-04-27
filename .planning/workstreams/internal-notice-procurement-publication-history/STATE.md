@@ -2,7 +2,7 @@
 doc_type: state
 status: backlog
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-28
 ---
 
 # State: Internal-Notice Procurement Notice Classification
@@ -13,8 +13,34 @@ updated: 2026-04-24
 - current slice: none
 - owner: unassigned
 - active implementation: no
+- current posture: backlog scope updated from classification foundation to
+  procurement/history title-url card productization
 
 ## Captured Context
+
+2026-04-28 重新评估结论：
+
+- `procurement_notice` family 与 `procurement_notice_history` target surface
+  已在 notice consumption layer 中存在；本 backlog 不再表示“还没分类”。
+- 采购类 notice 的正确下游是 `campus_notice_discover/get` 的
+  notice/history card，不是 `regulations/*`、`campus_services/*` 或新
+  procurement tool。
+- 对采购类和低优先级 notice，当前最低产品要求是：
+  - 正确分类
+  - 正确分流到 target surface 或 defer/no-adoption
+  - 检索时能够命中
+  - 返回 title + source url，供 Web 侧消费
+- 不是所有 notice 都需要正文解析、附件 OCR、VLM、summary 或 tool
+  materialization。低价值宣传/活动类可以 skip machine processing；如果进入
+  queryable read model，必须仍满足 title/url card contract。
+- 当前 contract 事实：
+  - `InternalNoticeReadModelEntry` 已有 `title`、`source_url`、
+    `canonical_url`、`published_at`、`target_surface`
+  - `NoticeCard` contract 要求 `notice_id`、`title`、`source_url`
+    非空
+  - Go `campus_notice_discover` 会返回 card-level title/source_url
+  - Go `campus_notice_get` 对 resolved notice 会 fail-close 缺失 title/source_url；
+    public/reference-only notice 可只返回原文链接
 
 2026-04-24 人工样本审阅结论：
 
@@ -27,27 +53,36 @@ updated: 2026-04-24
   - 应归类为 `procurement_notice`，不额外要求 `stage`
 - 当前正确 posture：
   - `internal_notice` source-triage / provenance truth 保留
-  - downstream 保持 `audit/holding`
+  - downstream 已可投向 `procurement_notice_history` 作为 notice/history
+    read-model surface
   - 不误投到 `regulations/institutional_rules`
   - 不误投到 `regulations/scoped_rules`
   - 不误投到 `campus_services/*`
-- future storage truth 是在现有 notice / publication 存储中新增 `procurement_notice` 分类，
-  而不是单独引入 procurement lifecycle object
+- storage truth 是在现有 notice / publication/read-model 中保留
+  `procurement_notice` / `procurement_notice_history` 分类，而不是单独引入
+  procurement lifecycle object
 
 ## Blockers
 
-- 当前 repo 还没有 `procurement_notice` 分类落到 storage / projection contract
-- 当前产品主路径尚未开放 restricted notice runtime
-- 当前 backlog 只冻结分类方向，不承诺立即开放 history query
+- 需要为采购历史 query facet 增加产品级验收样例，而不是只依赖分类单测
+- 需要确认 Web 侧 notice card 是否消费并展示 `title` + `source_url`
+- 需要审计 queryable notice read-model rows 是否都具备非空 title/source_url
+- restricted notice auth boundary 仍必须保留；title/url card 不等于公开访问
 
 ## Verification
 
-- 本 backlog 捕获来自真实 authenticated notice 样本审阅与 planning truth 对齐；未执行 runtime
+- 本 backlog 捕获来自真实 authenticated notice 样本审阅、当前 notice
+  consumption layer truth 与 structured query contract 对齐；本次未执行 runtime
   或 ingestion implementation
-- 恢复为 active 后，第一步应先冻结分类与最小 metadata contract，而不是直接改 query/runtime
+- 恢复为 active 后，第一步应先做 current-state contract audit：read model、
+  `campus_notice_discover/get`、notice-agent adapter 与 Web card 是否一致
+  保证 title/url
 
 ## Continuity Notes
 
 - future canonical category 是 `procurement_notice`
 - 不要求 `stage` 字段
-- attachment-backed procurement notice 不能因为当前没有 dedicated target，就被误归为 regulation body
+- attachment-backed procurement notice 不能因为没有 dedicated procurement tool，
+  就被误归为 regulation body
+- 采购类默认不需要新 tool；先通过 notice target surface facet 消费
+- 低优先级 notice 现阶段只需要分类、分流、检索命中和 title/url card

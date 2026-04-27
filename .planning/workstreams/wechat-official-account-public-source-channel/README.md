@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: completed
+status: active
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Workstream: WeChat Official-Account Public Source Channel
@@ -14,28 +14,52 @@ notice consumption 输入，而不是混入 `official_web` crawl policy、generi
 
 ## Current Status
 
-- status: `completed`
-- current phase: `closeout`
+- status: `active`
+- current phase: `Phase 7`
 - current focus:
-  `wechat_public_notice` 已完成真实 `mp.weixin.qq.com` 页面抓取与 source-truth
-  收口；FeedWe 仅承担发现层。notice 仍通过统一
-  `campus_notice_discover/get` source-family policy 服务，且只有
-  `bodyState=captured` 的条目会进入 queryable notice read model。
+  重开此前 closeout。live verification 已确认 FeedWe `/articles/{articleId}` 详情页与
+  `/api/articles/download` / `/api/articles/download-local` 产物并不是 canonical body
+  owner；当前要把 collector 主链恢复为
+  `FeedWe discovery -> real mp.weixin page capture -> canonical source-truth -> notice consumption`
+  并继续规划 Phase 8-12 的 page capture、fail-close、OCR 与 replay drift guard。
+
+## Reopen Basis
+
+- FeedWe article detail page `/articles/{accountId}/{articleId}` 实际只展示标题、封面、
+  摘要、作者与 `阅读原文` 按钮，不承载完整正文。
+- `GET /api/articles/{articleId}` 当前只返回 metadata / summary / cover / source URL，
+  不返回正文 HTML、inline images、OCR 或富投影字段。
+- `POST /api/articles/download` 对已验证样本返回的 `article.html` 只有
+  `无法提取文章内容` 占位正文。
+- `POST /api/articles/download-local` 返回 zip，但其中 HTML 与上面的占位正文一致。
+- 使用浏览器型 `Mozilla` `User-Agent` 访问真实 `mp.weixin.qq.com/s/...` 链接时，
+  当前环境可拿到原始文章 HTML，并能观测到 `js_content` 与图片标记。
+- repo 已冻结的 source-truth schema 本来就要求真实采集路径为
+  `FeedWe discovery -> real mp.weixin article URL -> canonical source-truth`。
 
 ## Provider Selection
 
-- selected acquisition provider: `FeedWe`
+- selected discovery provider: `FeedWe authenticated web API`
+- selected body capture source: real `mp.weixin.qq.com/s/...` article page
 - docs: `https://feedwe.apifox.cn/390426961e0`
-- runtime base URL observed from docs: `https://feedwe.cloud`
-- current verified endpoint: `GET /api/v1/articles/history`
-- auth shape: `x-api-key`
-- verification on 2026-04-27:
-  - request with the operator-provided key returned HTTP `200`
-  - response contained `articles`, `begin`, `count`, `hasMore`, `size`, `total`
-  - sample article came from `中央民族大学学生会`
+- runtime base URL observed from live service: `https://www.feedwe.top`
+- current verified FeedWe endpoints:
+  - `POST /api/auth/login`
+  - `GET /api/auth/me`
+  - `GET /api/subscriptions`
+  - `GET /api/articles`
+  - `GET /api/articles/{articleId}`
+  - `POST /api/articles/export`
+  - `POST /api/articles/download`
+  - `POST /api/articles/download-local`
+- auth shape:
+  - FeedWe web API: `Bearer` token from authenticated login
+  - FeedWe API key: current web `/api/*` validation returned `401`; not an accepted primary auth path
+  - WeChat article page fetch: browser-profile GET request, no repo-tracked credentials
 
-The API key is operator secret material and must not be committed to the repo.
-FeedWe is only the acquisition provider. It is not canonical source truth,
+The authenticated credentials are operator secret material and must not be
+committed to the repo.
+FeedWe remains the discovery provider only. It is not canonical source truth,
 not the long-term audit boundary, and not a query-time runtime dependency.
 
 ## Notice Consumption Decision
@@ -48,8 +72,8 @@ content:
 - intended downstream: notice consumption projection / notice read model
 - initial target surface: public notice-level query candidates
 - serving surface: admitted through `campus_notice_discover/get` source-family
-  policy; captured-body rows may be queryable, metadata-only / fetch-failed rows
-  remain non-queryable notice references
+  policy; only rows with real captured body and successful downstream
+  materialization may become queryable
 
 They do not enter:
 
@@ -64,8 +88,9 @@ They do not enter:
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
-- final phase summary:
+- superseded historical closeout evidence:
   `./phases/phase-6-notice-source-family-serving-admission/SUMMARY.md`
+  仅保留为 reopen 前的历史快照，不再代表当前 merged/worktree truth
 
 ## Archived Snapshot
 

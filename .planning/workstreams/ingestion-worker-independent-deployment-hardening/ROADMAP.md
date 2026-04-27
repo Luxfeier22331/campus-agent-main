@@ -1,15 +1,38 @@
 ---
 doc_type: roadmap
-status: backlog
+status: completed
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Roadmap: Ingestion Worker Independent Deployment Hardening
 
-当前为 detailed backlog plan，不代表已经进入 active implementation。恢复为 active workstream
-前，应确认首个服务器部署目标、调度方式、需要启用的 batch kind，以及是否只部署 internal
-notice drain。
+该 roadmap 对应的 phases 已全部完成并完成服务器侧验收闭环。
+
+## Phase Status
+
+- [x] Phase 0: Baseline And Resource Risk Confirmation
+- [x] Phase 1: Resource Policy, Cache Bounds, And Report Metrics
+- [x] Phase 2: Batch Operator Shell, Lock, And Retention
+- [x] Phase 3: File-Backed Object Read And MinerU Upload / Download
+- [x] Phase 4: Provider Artifact References And Oversized PDF Segment Persistence
+- [x] Phase 5: Docker Image And Local Dev Parity
+- [x] Phase 6: Systemd Hardening And Alerting
+- [x] Phase 7: Deployment Acceptance Smoke
+
+## Final Acceptance Evidence
+
+- remote artifacts:
+  - `/home/ubuntu/campus-agent-ingestion-acceptance/artifacts/20260427T165723Z`
+- local mirror:
+  - `.tmp/phase7-ingestion-acceptance/server/20260427T165723Z`
+- phase 7 completion signals:
+  - local help/static/live preflight passed
+  - Docker help/static preflight passed
+  - server live preflight passed
+  - writable small batches (`internal-notice`, `official-web`) passed
+  - timer dry-run + real-run evidence captured
+  - resource profile summary recorded (`within_budget`)
 
 ## Phase 0: Baseline And Resource Risk Confirmation
 

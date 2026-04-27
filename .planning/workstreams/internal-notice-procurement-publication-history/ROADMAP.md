@@ -2,65 +2,72 @@
 doc_type: roadmap
 status: backlog
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-28
 ---
 
-# Roadmap: Internal-Notice Procurement Notice Classification
+# Roadmap: Internal-Notice Procurement Publication History
 
-当前为 backlog draft，不代表 active execution order。恢复为 active workstream 前，应先确认产品范围确实要支持
-在 restricted notice / publication 存储中稳定保留 `procurement_notice` 分类，而不是继续停留在
-source-triage / audit-holding。
+当前为 backlog draft，不代表 active execution order。恢复为 active workstream
+前，应先确认产品范围确实要把采购类 notice 作为 Web 可消费的历史卡片打开。
+分类与 `procurement_notice_history` target surface 已在 notice consumption layer
+存在；本路线图只收口 title/url card、检索 facet 和最低产品验收。
 
-## Phase 1: Category Boundary Admission
+## Phase 1: Current-State Contract Audit
 
-**Goal:** 冻结 `procurement_notice` 与 regulation / service / ordinary notice / news 的边界。
-
-**Scope:**
-
-- `procurement_notice` 分类命名
-- 与 `regulations/*`、`campus_services/*`、generic notice 的边界
-- restricted source family 下的 storage admission
-
-## Phase 2: Minimal Metadata Contract
-
-**Goal:** 冻结 `procurement_notice` 的最小字段，不引入 `stage`。
+**Goal:** 确认当前 notice read model、Go structured query、notice-agent 与
+Web-facing response 是否都保持 title + url contract。
 
 **Scope:**
 
-- `publication_category`
-- canonical notice fields reuse
-- attachment refs
-- storage / projection mapping
+- `InternalNoticeReadModelEntry.title/source_url`
+- `NoticeCard.title/source_url`
+- `CampusNoticeGetResult.title/source_url`
+- `campus_notice_discover/get` response shape
+- missing-title/url fail-close 或 data-quality report
 
-## Phase 3: Attachment And Authority Semantics
+## Phase 2: Procurement History Query Facet
 
-**Goal:** 明确附件型采购通知与正文型采购通知的 authority / completeness 关系。
-
-**Scope:**
-
-- attachment-backed procurement notice handling
-- result-like body handling
-- declared / captured attachment semantics
-- fail-close and holding rules
-
-## Phase 4: Archive-Only Consumption Posture
-
-**Goal:** 明确 `procurement_notice` 的 non-default consumption posture。
+**Goal:** 固化采购历史通过 `target_surfaces=["procurement_notice_history"]`
+检索，不新增 dedicated procurement tool。
 
 **Scope:**
 
-- archive-only / audit-only posture
-- restricted visibility and auth boundary
-- future history query prerequisites
-- non-default route contract
+- procurement title/query examples
+- `355222` / `355325` acceptance cases
+- date and organization metadata preservation
+- restricted auth boundary
 
-## Phase 5: Worked Example And Acceptance Closeout
+## Phase 3: Low-Priority Notice Minimum Consumption
 
-**Goal:** 用真实 procurement notice 样本验证分类与 holding truth。
+**Goal:** 明确不是所有 notice 都要深处理；低优先级 notice 只需正确分类、
+分流、检索命中并返回 title/url。
+
+**Scope:**
+
+- `defer` / `review_later` / `no_adoption` 与 queryable admission 的边界
+- low-value publicity/event notice skip policy
+- machine-processing skip vs title/url card availability
+- Web card no-body/reference-only rendering
+
+## Phase 4: Web Card Acceptance
+
+**Goal:** 为采购类与低优先级 notice 建立 Web 侧消费验收。
+
+**Scope:**
+
+- card fields and ordering
+- source URL display and canonical URL fallback
+- no body / reference-only behavior
+- public/restricted visibility guard
+
+## Phase 5: Backlog Closeout
+
+**Goal:** 用真实样本关闭 backlog，确认不需要独立 procurement runtime。
 
 **Scope:**
 
 - procurement notice exemplar set
-- metadata completeness review
+- title/url completeness review
 - no-regression check against existing regulation lanes
+- low-priority notice exemplar set
 - planning closeout

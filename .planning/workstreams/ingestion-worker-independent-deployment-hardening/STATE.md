@@ -1,19 +1,20 @@
 ---
 doc_type: state
-status: backlog
+status: completed
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # State: Ingestion Worker Independent Deployment Hardening
 
 ## Current Status
 
-- status: `backlog`
-- current slice: local/dev implementation completed through phase 6; phase 7 server acceptance
-  evidence is parked
+- status: `completed`
+- completed phase: `Phase 0-7`
 - owner: unassigned
 - active implementation: no
+- target host: `ubuntu-43`
+- target host hostname: `VM-0-2-ubuntu`
 
 ## Current Repo Facts
 
@@ -71,27 +72,60 @@ server scheduling.
 - `Phase 6`: hardened systemd templates landed for internal notice, official web,
   authenticated notice closeout, and wechat.
 
-## Remaining
+## Phase 7 Acceptance Outcomes
 
-- `Phase 7` deployment acceptance is environment-dependent:
-  - server read-only preflight (`--live`)
-  - writable small-batch evidence
-  - scheduled timer dry-run and real-run evidence
-  - same-host supervisor-api + ingestion resource profile confirmation
-- Current WSL host is non-systemd PID1, so full `systemd service/timer` acceptance evidence cannot be
-  closed in this environment.
+- Local lane evidence completed:
+  - `campus-ingestion-run-on-demand-batch --help`
+  - `campus-ingestion-preflight --help`
+  - `campus-ingestion-preflight --live`
+- Docker lane evidence completed:
+  - ingestion worker image build (`apps/ingestion-worker/Dockerfile`)
+  - container `help/static preflight`
+- Server lane evidence completed on `ubuntu-43`:
+  - `--live preflight` passed
+  - writable small batches passed:
+    - `internal-notice-multimodal-drain`
+    - `official-web-handoffs`
+  - systemd timer dry-run evidence captured
+  - systemd timer real-run evidence captured
+  - resource profile summary generated and recorded
 
-## Immediate Next Slice
+## Verification Evidence
 
-Backlog parked. Reopen when a Linux server/VM target is admitted for deployment acceptance.
+- remote artifact root:
+  - `/home/ubuntu/campus-agent-ingestion-acceptance/artifacts/20260427T165723Z`
+- local mirrored artifact root:
+  - `.tmp/phase7-ingestion-acceptance/server/20260427T165723Z`
+- key files:
+  - `server-preflight-live.json`
+  - `internal-notice-small-batch-report.json`
+  - `official-web-small-batch-report.json`
+  - `timer-dry-run-status.txt`
+  - `timer-dry-run-list.txt`
+  - `timer-real-run-report.json`
+  - `timer-real-run-service-status.txt`
+  - `timer-real-run-journal.txt`
+  - `resource-profile-summary.json`
+- resource profile summary:
+  - `internal_small_batch.max_step_peak_rss_kb = 180248` (`within_budget`)
+  - `official_web_small_batch.max_step_peak_rss_kb = 180172` (`within_budget`)
+  - `timer_real_run.max_step_peak_rss_kb = 191568` (`within_budget`)
 
-Expected first write set:
+## Scope Guardrail Confirmation
 
-- server env file and runtime directories
-- systemd/timer install evidence
-- on-host smoke reports under retention policy
+Validated as out of scope in this workstream:
 
-Do not reopen runtime rewrite discussions before phase 7 evidence shows persistent bottlenecks.
+- long-running resident ingestion daemon
+- data-plane canonical chain rewrite
+- ingestion worker query-serving admission
+- Go/Rust runtime migration
+
+## Continuity Notes
+
+- This workstream closes the independent deployment hardening gap for `apps/ingestion-worker`.
+- Reopen only when:
+  - new deployment substrate or runtime contract invalidates current acceptance evidence, or
+  - resource profile evidence shows sustained budget breach requiring runtime migration.
 
 ## Verification Baseline
 

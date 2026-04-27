@@ -1,0 +1,38 @@
+---
+doc_type: roadmap
+status: active
+created: 2026-04-28
+updated: 2026-04-28
+---
+
+# Roadmap: Official Web Collection Restart Closeout
+
+## Overview
+
+这条 workstream 只收口 official web 采集重启与部署前 ops 缺口。它不是
+`fresh_news` / `news_archive` opening workstream。
+
+## Phases
+
+- [x] **Phase 0: Boundary Confirmation** — 确认本轮目标是恢复 `official_web -> fresh_news`
+  本地采集与证据记录，不重开 official web news query-serving opening。
+- [x] **Phase 1: Local Batch Restart Evidence** — 完成 dry-run、真实 batch、DB inspection、
+  unittest、ruff check 与 ruff format check；记录 run id 与 report 路径。
+- [ ] **Phase 2: Dev Scheduler And Preflight Closeout** — 补齐 dev/local scheduler entry、
+  worker 专属 preflight 检查项和 repeated-run 操作口径。
+- [ ] **Phase 3: Report Retention And Alert Closeout** — 明确 batch report retention、
+  failure alert、zero-candidate alert 与 operator handoff 口径。
+- [ ] **Phase 4: Deployment Handoff Evidence** — 等待部署窗口时补服务器侧或容器侧 evidence；
+  不在当前本地记录中声明线上完成。
+
+## Reopen / Close Rule
+
+本 workstream 可在以下条件满足后关闭：
+
+- dev/local scheduler 与 preflight 路径明确；
+- report retention 与 alert 规则明确；
+- repeated-run 验收能证明 batch 可重复执行且不会制造 duplicate side effects；
+- 所有证据路径写入 `STATE.md`。
+
+如果产品范围决定正式打开 `fresh_news` 或 `news_archive` query-serving，再恢复 backlog 中的
+`official-web-source-channel-news-opening`，不要在本 workstream 内扩展 opening。

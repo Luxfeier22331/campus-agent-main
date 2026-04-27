@@ -1,24 +1,28 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Workstream: Campus Services Runtime Tool Gap Closeout
 
-这是 `campus-services-runtime-tool-gap-closeout` 的 native active workstream 入口。
-它记录 `campus-services-agent` 当前 structured runtime tools 在 product-path opening 前仍需收口的缺口。
+这是 `campus-services-runtime-tool-gap-closeout` 的 native completed workstream 入口。
+它记录 `campus-services-agent` structured runtime tools 在 product-path opening
+前完成的 runtime readiness closeout。
 
 ## Current Status
 
-- status: `active`
-- active implementation: yes
-- current phase: `Phase 1`
-- current slice: `service_status_lookup` precedence / conflict regression follow-up
-- reopen rule: 只有在 product path 准备打开或强化 `service_status_lookup`、
-  `transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup`
-  的真实用户可用性时恢复
+- status: `completed`
+- active implementation: no
+- current phase: `Phase 5 completed`
+- current slice: none
+- closeout artifact:
+  `.tmp/evals/campus-services-product-path-opening-gate-accept-20260428T034731/`
+- reopen rule: 只有在 campus-services tool denominator、新 product-path tool、
+  admission profile、opening verdict 或 runtime gate contract 被显式改写，或
+  `public-chat-campus-services-e2e-acceptance` 发现真实入口证据与当前 local gate
+  漂移时恢复
 
 ## Native Planning Truth
 
