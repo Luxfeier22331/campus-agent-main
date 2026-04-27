@@ -38,7 +38,7 @@ def validate_service_guide_projection_bundle(
             service_ids.add(service_id)
 
         extraction_status = _required_text(record.get("extraction_status"))
-        if extraction_status not in {"ready", "needs_manual_review", "conflicted", "incomplete"}:
+        if extraction_status not in {"ready", "conflicted", "incomplete"}:
             issues.append(_issue(f"{path}.extraction_status", "unsupported extraction_status"))
 
         _validate_required_text(record, "display_name", path, issues)

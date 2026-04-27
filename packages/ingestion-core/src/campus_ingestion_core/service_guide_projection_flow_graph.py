@@ -75,7 +75,9 @@ def _coerce_handbook_flow_graph_source(
         "source_document_id": resolved_source_document_id,
         "source_page_start": resolved_page_start,
         "source_page_end": resolved_page_end,
-        "global_manual_review_required": bool(flow_graph.get("global_manual_review_required")),
+        "global_manual_review_required": _reject_manual_review_required(
+            flow_graph.get("global_manual_review_required")
+        ),
         "page_findings": page_findings,
     }
 
@@ -88,10 +90,8 @@ def _coerce_handbook_flow_graph_document_data_source(
 ) -> dict[str, Any]:
     payload = _require_mapping(document_data, "document_data")
     extraction_status = _required_text(payload.get("extractionStatus")) or ""
-    if extraction_status not in {"ready", "needs_review"}:
-        raise ValueError(
-            "handbook flow graph document data extractionStatus must be ready or needs_review"
-        )
+    if extraction_status != "ready":
+        raise ValueError("handbook flow graph document data extractionStatus must be ready")
     title = _required_text(payload.get("title"))
     if title is None:
         raise ValueError("handbook flow graph document data title is required")
@@ -140,10 +140,17 @@ def _coerce_handbook_flow_graph_document_data_source(
         "source_document_id": source_document_id or "",
         "source_page_start": page_start,
         "source_page_end": page_end,
-        "global_manual_review_required": bool(payload.get("manualReviewRequired"))
-        or extraction_status == "needs_review",
+        "global_manual_review_required": _reject_manual_review_required(
+            payload.get("manualReviewRequired")
+        ),
         "page_findings": page_findings,
     }
+
+
+def _reject_manual_review_required(value: object) -> bool:
+    if bool(value):
+        raise ValueError("service guide projection no longer supports manual review required")
+    return False
 
 
 __all__ = [

@@ -442,6 +442,8 @@ def _build_service_guide_projection_bundle_from_handbook_source(
     manual_review_sources: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
     global_manual_review_required = bool(source.get("global_manual_review_required"))
+    if global_manual_review_required:
+        raise ValueError("service guide projection no longer supports manual review sources")
     for page_finding in source["page_findings"]:
         page = int(page_finding["source_page"])
         page_heading = str(page_finding.get("page_heading") or "").strip()
@@ -459,9 +461,9 @@ def _build_service_guide_projection_bundle_from_handbook_source(
             display_name = _normalize_flow_heading(flow_heading)
             procedure_content = _procedure_content(steps)
             notes = _string_list(flow.get("manual_review_notes"))
-            extraction_status = (
-                "needs_manual_review" if notes or global_manual_review_required else "ready"
-            )
+            if notes:
+                raise ValueError("service guide projection no longer supports manual review notes")
+            extraction_status = "ready"
             service_id = _service_id(
                 target_document_id=source["target_document_id"],
                 page=page,
@@ -506,17 +508,6 @@ def _build_service_guide_projection_bundle_from_handbook_source(
                 "extraction_status": extraction_status,
             }
             records.append(record)
-            if notes or global_manual_review_required:
-                manual_review_sources.append(
-                    {
-                        "service_id": service_id,
-                        "source_ref": source_ref,
-                        "reason": "handbook_flow_manual_review_notes"
-                        if notes
-                        else "handbook_flow_graph_global_manual_review_required",
-                        "notes": notes or ["flow graph source marked manual review required"],
-                    }
-                )
 
     records.sort(key=lambda item: (item["source_refs"][0], item["display_name"]))
     bundle = {

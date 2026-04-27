@@ -51,10 +51,10 @@ def assert_service_guide_projection_release_ready(
         record for record in records if _required_text(record.get("extraction_status")) != "ready"
     ]
     if non_ready_records:
-        raise ValueError("service guide projection release blocked by manual review records")
+        raise ValueError("service guide projection release blocked by non-ready records")
     manual_review_sources = _list_of_dicts(bundle.get("manual_review_sources"))
     if manual_review_sources:
-        raise ValueError("service guide projection release blocked by manual review sources")
+        raise ValueError("service guide projection release blocked by legacy manual review sources")
     if expected_ready_records is not None and len(records) != expected_ready_records:
         raise ValueError(
             "service guide projection ready record count mismatch: "

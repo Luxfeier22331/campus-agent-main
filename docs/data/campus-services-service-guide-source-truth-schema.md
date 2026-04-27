@@ -140,7 +140,7 @@ current artifact：
 
 - `validation-summary.json`
 - `release-manifest.json`
-- `manual-review-report.json`
+- `manual-review-report.json`（legacy release layout compatibility；新 release 必须为空）
 
 长期 serving truth 由 PostgreSQL 持有：ingestion worker 在 immutable object artifact
 写入成功后，发布 release catalog、`structured_projection_current` current pointer 与
@@ -175,7 +175,6 @@ ServiceGuideRecord
 - eligibility_notes[]: str
 - extraction_status:
   - ready
-  - needs_manual_review
   - conflicted
   - incomplete
 ```
@@ -187,7 +186,8 @@ ServiceGuideRecord
 - `category` 用于 observability 与 panel filter，不作为权限边界
 - `effective_from/effective_until` 为空或非法时不得发布为 current-ready record
 - `source_refs` 必须覆盖 record-level provenance
-- `extraction_status != ready` 的 record 不得返回 `resolved_current`
+- `extraction_status != ready` 的 record 不得返回 `resolved_current`；新 release 不接受
+  人工审核状态，无法机器确认的来源必须阻断发布或标记为 `incomplete`
 
 ## Guide Section Record
 

@@ -24,8 +24,8 @@ def _coerce_curated_service_guide_records(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     payload = _require_mapping(document_data, "document_data")
     extraction_status = _required_text(payload.get("extractionStatus")) or ""
-    if extraction_status not in {"ready", "needs_review"}:
-        raise ValueError("curated service guide extractionStatus must be ready or needs_review")
+    if extraction_status != "ready":
+        raise ValueError("curated service guide extractionStatus must be ready")
     title = _required_text(payload.get("title"))
     if title is None:
         raise ValueError("curated service guide title is required")
@@ -35,9 +35,8 @@ def _coerce_curated_service_guide_records(
     else:
         page_start = _optional_positive_int(payload.get("sourcePageStart"))
         page_end = _optional_positive_int(payload.get("sourcePageEnd"))
-    global_manual_review_required = bool(payload.get("manualReviewRequired")) or (
-        extraction_status == "needs_review"
-    )
+    if bool(payload.get("manualReviewRequired")):
+        raise ValueError("curated service guide no longer supports manualReviewRequired")
     records: list[dict[str, Any]] = []
     manual_review_sources: list[dict[str, Any]] = []
     for service in _list_of_dicts(payload.get("services")):
@@ -55,13 +54,11 @@ def _coerce_curated_service_guide_records(
             aliases=service.get("aliases"),
         )
         notes = _string_list(service.get("manualReviewNotes"))
-        service_status = _required_text(service.get("extractionStatus")) or (
-            "needs_manual_review" if global_manual_review_required else "ready"
-        )
-        if service_status == "needs_review":
-            service_status = "needs_manual_review"
-        if global_manual_review_required and service_status == "ready":
-            service_status = "needs_manual_review"
+        if notes:
+            raise ValueError("curated service guide no longer supports manualReviewNotes")
+        service_status = _required_text(service.get("extractionStatus")) or "ready"
+        if service_status != "ready":
+            raise ValueError("curated service guide service extractionStatus must be ready")
         record = {
             "service_id": service_id,
             "display_name": display_name,
@@ -102,15 +99,6 @@ def _coerce_curated_service_guide_records(
             "extraction_status": service_status,
         }
         records.append(record)
-        if notes or service_status != "ready":
-            manual_review_sources.append(
-                {
-                    "service_id": service_id,
-                    "source_ref": service_source_refs[0],
-                    "reason": "curated_service_guide_manual_review_required",
-                    "notes": notes or [f"service extraction status is {service_status}"],
-                }
-            )
     if not records:
         raise ValueError("curated service guide documentData.services has no usable services")
     return records, manual_review_sources

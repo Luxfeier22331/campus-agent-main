@@ -278,19 +278,22 @@ class ServiceGuideProjectionTest(unittest.TestCase):
 
         leave = bundle["service_guide_records"][1]
         self.assertEqual(leave["display_name"], "公寓楼毕业生办理离校手续流程")
-        self.assertEqual(leave["extraction_status"], "needs_manual_review")
+        self.assertEqual(leave["extraction_status"], "ready")
         self.assertIn("离校", leave["aliases"])
-        self.assertEqual(
-            result.manual_review_sources,
-            [
-                {
-                    "service_id": leave["service_id"],
-                    "source_ref": "handbook:student_rules:pages:252-255#page=253",
-                    "reason": "handbook_flow_manual_review_notes",
-                    "notes": ["步骤2文字需要人工确认。"],
-                }
-            ],
-        )
+        self.assertEqual(result.manual_review_sources, [])
+
+    def test_flow_graph_manual_review_notes_are_rejected_before_projection(self) -> None:
+        artifact = _handbook_flow_graph_artifact()
+        flow = artifact["flow_graph"]["page_findings"][1]["flows"][1]
+        flow["manual_review_notes"] = ["步骤2文字需要人工确认。"]
+
+        with self.assertRaisesRegex(ValueError, "manual review"):
+            build_service_guide_projection_bundle_from_handbook_flow_graph(
+                flow_graph_artifact=artifact,
+                generated_at="2026-04-25T10:00:00+08:00",
+                effective_from="2018-09-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+            )
 
     def test_validation_rejects_ready_record_without_source_refs(self) -> None:
         report = validate_service_guide_projection_bundle(
@@ -325,17 +328,6 @@ class ServiceGuideProjectionTest(unittest.TestCase):
 
         self.assertFalse(report.valid)
         self.assertIn("source_refs is required", report.issues[0]["message"])
-
-    def test_release_gate_rejects_manual_review_records(self) -> None:
-        result = build_service_guide_projection_bundle_from_handbook_flow_graph(
-            flow_graph_artifact=_handbook_flow_graph_artifact(),
-            generated_at="2026-04-25T10:00:00+08:00",
-            effective_from="2018-09-01T00:00:00+08:00",
-            effective_until="2099-12-31T23:59:59+08:00",
-        )
-
-        with self.assertRaisesRegex(ValueError, "manual review"):
-            assert_service_guide_projection_release_ready(result.bundle)
 
     def test_write_release_publishes_versioned_and_current_projection(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -436,7 +428,7 @@ def _handbook_flow_graph_artifact() -> dict[str, object]:
                         {
                             "flow_heading": "二、公寓楼毕业生办理离校手续流程",
                             "audience_scope": "",
-                            "manual_review_notes": ["步骤2文字需要人工确认。"],
+                            "manual_review_notes": [],
                             "steps": [
                                 {
                                     "step_id": "p253-f2-s1",
