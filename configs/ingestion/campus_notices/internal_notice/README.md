@@ -99,8 +99,8 @@ Current interpretation is:
     env is available so residual routing can use body text; pass
     `--skip-content-blocks` for fast title/type-only sampling
   - pass `--audit-output-path <path>` to write a full read-only taxonomy audit
-    artifact with terminal default-family residual notices and deterministic clusters; this
-    artifact is operator evidence, not an admission manifest
+    artifact with terminal default-family residual notices and deterministic
+    clusters; this artifact is operator evidence, not an admission manifest
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.evaluate_authenticated_notice_routing_taxonomy
   --fail-on-error`

@@ -185,8 +185,8 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
 
 - 它可以从 historical bundle 或 source-truth inventory 生成 stratified sample report
 - `--audit-output-path` 可生成全量只读 taxonomy audit artifact，包含全部
-  terminal default-family residual notices 与 deterministic clusters；该 artifact 只用于 operator
-  审计，不是 selected admission manifest
+  terminal default-family residual notices 与 deterministic clusters；该 artifact
+  只用于 operator 审计，不是 selected admission manifest
 - 它产出 reviewer 可复核的 `notice_family`、`suggested_consumption_route` 与
   `machine_processing_policy`
 - taxonomy rule 变更必须可通过 repo-tracked deterministic JSONL gate 回放，至少
