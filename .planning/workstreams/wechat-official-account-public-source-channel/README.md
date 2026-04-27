@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -14,12 +14,12 @@ notice consumption 输入，而不是混入 `official_web` crawl policy、generi
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 4`
+- status: `completed`
+- current phase: `closeout`
 - current focus:
-  `Phase 3` 已完成 metadata-first WeChat article source-truth / replay
-  contract；下一步按 `Phase 4` plan 打开 `wechat_public_notice`
-  notice-consumption projection，但保持 query-serving closed。
+  `Phase 5` 已完成 acceptance evidence 与 planning closeout；
+  `wechat_public_notice` 已具备 projection-level deterministic evidence，且
+  Go runtime 仍保持 fail-close，不存在 query-serving opening。
 
 ## Provider Selection
 
@@ -61,7 +61,7 @@ They do not enter:
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
 - current phase plan:
-  `./phases/phase-4-notice-consumption-projection-opening/PLAN.md`
+  `./phases/phase-5-acceptance-evidence-and-planning-closeout/PLAN.md`
 
 ## Archived Snapshot
 

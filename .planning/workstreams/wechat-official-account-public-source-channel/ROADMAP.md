@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -33,14 +33,14 @@ routes collected content into notice consumption.
     publish time, and deletion/update posture.
   - Add replay validator and fixture-backed tests.
 
-- [ ] **Phase 4: Notice Consumption Projection Opening**
+- [x] **Phase 4: Notice Consumption Projection Opening**
   - Add `wechat_public_notice` into notice-family consumption/read-model
     semantics.
   - Materialize public notice candidates without query-time source scans.
   - Add cross-source dedupe against official-web reposts and authenticated
     notice references.
 
-- [ ] **Phase 5: Acceptance Evidence And Planning Closeout**
+- [x] **Phase 5: Acceptance Evidence And Planning Closeout**
   - Run real FeedWe sample capture and replay.
   - Verify notice discover/get behavior stays gate-controlled.
   - Record residual provider/compliance risks and close the workstream.

@@ -8,38 +8,37 @@ updated: 2026-04-27
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 4
-**Current Phase Name:** Notice Consumption Projection Opening
+**Status:** Completed
+**Current Phase:** closeout
+**Current Phase Name:** Acceptance Evidence And Planning Closeout Complete
 **Current Plan:**
-`.planning/workstreams/wechat-official-account-public-source-channel/phases/phase-4-notice-consumption-projection-opening/PLAN.md`
+`.planning/workstreams/wechat-official-account-public-source-channel/phases/phase-5-acceptance-evidence-and-planning-closeout/PLAN.md`
 **Total Phases:** 5
-**Progress:** 3/5 phases complete
+**Progress:** 5/5 phases complete
 **Last Activity:** 2026-04-27
-**Last Activity Description:** Completed Phase 3. FeedWe history metadata now
-replays into provider-agnostic `wechat_official_account` article source-truth
-artifacts, app-api accepts source-truth refs, and query-serving remains closed.
+**Last Activity Description:** Completed Phase 5. Added deterministic acceptance
+smoke worker for `wechat_public_notice` projection, verified contract + ingestion
+tests and Go notice fail-close runtime guard, and closed planning state.
 
 ## Current Slice
 
-- Implement Phase 4 notice consumption projection opening from the planned
-  `wechat_public_notice` source-family contract.
-- Materialize WeChat source-truth into offline notice-consumption projection
-  candidates with deterministic dedupe.
-- Keep query-serving closed until read-model, dedupe, and leakage evidence exist.
+- `campus-ingestion-smoke-wechat-public-notice-phase5` now provides a repeatable
+  acceptance-evidence path from selected source-truth refs.
+- Projection admission remains offline/runtime-safe:
+  `query_serving_opened=false` and `wechat_public_notice` still fail-closes in
+  Go notice runtime.
+- Workstream lifecycle moved from active to completed.
 
 ## Blockers / Open Questions
 
 - FeedWe rate limits, retention guarantees, account scoping, deletion/update
-  semantics, and SLA must be verified before production scheduling.
-- Notice runtime source-family contract currently has `official_web_public_notice`
-  and `internal_notice_restricted`; `wechat_public_notice` must be introduced
-  deliberately in Phase 4.
-- Downstream public notice query-serving must remain closed until read-model and
-  leakage/dedupe evidence exist.
+  semantics, and SLA are still deferred risks for production scheduling.
+- `wechat_public_notice` runtime opening is intentionally not part of this
+  workstream and requires a separate explicit runtime-admission phase.
 
 ## Session Continuity
 
-**Stopped At:** Phase 3 completed; Phase 4 planning pending.
+**Stopped At:** Workstream complete. WeChat public source channel now has
+source-truth -> projection acceptance evidence, with runtime gate still closed.
 **Resume File:**
 `.planning/workstreams/wechat-official-account-public-source-channel/README.md`
