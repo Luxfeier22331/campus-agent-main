@@ -27,6 +27,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--entitlement-group", action="append", default=[])
     parser.add_argument("--visibility-scope", default="campus")
     parser.add_argument(
+        "--mode",
+        default="plan",
+        choices=("plan", "dry-run", "dry_run", "admit-and-materialize", "admit_and_materialize"),
+        help=(
+            "Import admission mode. Defaults to plan/dry-run; use admit-and-materialize "
+            "to write source artifacts, registries, projections, and read models."
+        ),
+    )
+    parser.add_argument(
         "--replace-scope",
         action="store_true",
         help="Allow this import to refresh the entire source corpus/collection scope.",
@@ -52,6 +61,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         collection=args.collection,
         default_entitlement_groups=(entitlement_groups or ("campus_members",)),
         visibility_scope=args.visibility_scope,
+        mode=args.mode,
         replace_scope=args.replace_scope,
     )
     result = import_authenticated_notice_export(request=request)

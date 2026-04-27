@@ -104,6 +104,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    mode="admit_and_materialize",
                 ),
                 env=env,
                 object_store=object_store,
@@ -158,6 +159,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                         export_manifest_path=manifest_path,
                         site_id="muc_internal_portal",
                         source_home_url="https://portal.example.edu/home",
+                        mode="admit_and_materialize",
                     ),
                     env=env,
                     object_store=object_store,
@@ -431,6 +433,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    mode="admit_and_materialize",
                 ),
                 env={
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",

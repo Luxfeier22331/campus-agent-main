@@ -10,6 +10,9 @@ from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
     AuthenticatedNoticeAttachmentFetchStatusStore,
+    DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
+    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
+    DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     build_attachment_fetch_status_records_from_bundle_records,
 )
 from campus_ingestion_core.authenticated_notice_defaults import (
@@ -66,6 +69,9 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     rebuild_internal_notice_consumption_projection,
 )
 from campus_ingestion_core.internal_notice_read_model import (
+    DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
+    DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
+    DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
     InternalNoticeReadModelStore,
     rebuild_internal_notice_read_model,
 )
@@ -97,6 +103,13 @@ from campus_ingestion_core.registry import (
 from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.settings import ObjectStoreSettings
 
+AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN = "plan"
+AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE = "admit_and_materialize"
+_SUPPORTED_AUTHENTICATED_NOTICE_IMPORT_MODES = {
+    AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
+    AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeImportRequest:
@@ -112,6 +125,7 @@ class AuthenticatedNoticeImportRequest:
     parser_version: str = DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION
     embedding_model: str = DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL
     import_source: str = DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE
+    mode: str = AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN
     replace_scope: bool = False
 
     def __post_init__(self) -> None:
@@ -125,6 +139,7 @@ class AuthenticatedNoticeImportRequest:
             "default_entitlement_groups",
             tuple(group.strip() for group in self.default_entitlement_groups if group.strip()),
         )
+        object.__setattr__(self, "mode", _normalize_import_mode(self.mode))
         assert_known_scope(self.corpus, self.collection)
         if not self.site_id.strip():
             raise ValueError("site_id is required")
@@ -214,23 +229,8 @@ def import_authenticated_notice_export(
     read_model_store: InternalNoticeReadModelStore | None = None,
 ) -> dict[str, Any]:
     source = env if env is not None else dict(os.environ)
-    object_store_settings = ObjectStoreSettings.from_env(source)
-    writer = object_store or S3ObjectStoreWriter(object_store_settings)
-    registry = document_registry or build_document_registry_from_env(source)
-    raw_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
-    inventory_store = source_truth_inventory_store
-    if inventory_store is None:
-        inventory_store = _build_inventory_store_from_env_if_configured(source)
-    fetch_status_store = attachment_fetch_status_store
-    if fetch_status_store is None:
-        fetch_status_store = _build_attachment_fetch_status_store_from_env_if_configured(source)
     export_manifest = load_authenticated_notice_export_manifest(request.export_manifest_path)
     bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
-    _assert_attachment_blob_root_precondition(
-        request=request,
-        export_manifest=export_manifest,
-        bundle_records=bundle_payload,
-    )
     prepared = prepare_authenticated_notice_bundle_records(
         request=request,
         bundle_records=bundle_payload,
@@ -245,6 +245,38 @@ def import_authenticated_notice_export(
         prepared_notice_ids=prepared_notice_ids,
         notice_count=prepared.notice_count,
     )
+    dry_run_report = _build_authenticated_notice_import_admission_report(
+        request=request,
+        prepared=prepared,
+        bundle_payload=bundle_payload,
+        selected_notice_ids=selected_notice_ids,
+        replace_scope=replace_scope,
+        source_truth_inventory_enabled=source_truth_inventory_store is not None
+        or _env_has_inventory_store_config(source),
+        attachment_fetch_status_enabled=attachment_fetch_status_store is not None
+        or _env_has_attachment_fetch_status_config(source),
+        consumption_projection_enabled=consumption_projection_store is not None
+        or _env_has_consumption_projection_config(source),
+        read_model_enabled=read_model_store is not None or _env_has_read_model_config(source),
+    )
+    if request.mode == AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN:
+        return dry_run_report
+
+    _assert_attachment_blob_root_precondition(
+        request=request,
+        export_manifest=export_manifest,
+        bundle_records=bundle_payload,
+    )
+    object_store_settings = ObjectStoreSettings.from_env(source)
+    writer = object_store or S3ObjectStoreWriter(object_store_settings)
+    registry = document_registry or build_document_registry_from_env(source)
+    raw_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
+    inventory_store = source_truth_inventory_store
+    if inventory_store is None:
+        inventory_store = _build_inventory_store_from_env_if_configured(source)
+    fetch_status_store = attachment_fetch_status_store
+    if fetch_status_store is None:
+        fetch_status_store = _build_attachment_fetch_status_store_from_env_if_configured(source)
 
     raw_uploaded_count = 0
     raw_reused_count = 0
@@ -384,6 +416,8 @@ def import_authenticated_notice_export(
             bucket_derived=object_store_settings.bucket_derived,
         )
     result = {
+        "mode": request.mode,
+        "write_enabled": True,
         "notice_count": prepared.notice_count,
         "created_document_ids": list(stats.created_document_ids),
         "updated_document_ids": list(stats.updated_document_ids),
@@ -392,6 +426,8 @@ def import_authenticated_notice_export(
         "raw_reused_count": raw_reused_count,
         "scope_write_mode": "replace_scope" if replace_scope else "upsert_selected",
         "selected_notice_ids": list(selected_notice_ids),
+        "admission_report": dry_run_report["admission_report"],
+        "write_plan": dry_run_report["write_plan"],
         "errors": list(stats.errors),
     }
     if projection_store is not None:
@@ -411,6 +447,173 @@ def import_authenticated_notice_export(
         fetch_status_store.upsert_many(fetch_status_records)
         result["attachment_fetch_status_record_count"] = len(fetch_status_records)
     return result
+
+
+def _normalize_import_mode(mode: str) -> str:
+    normalized = str(mode or "").strip().lower().replace("-", "_")
+    aliases = {
+        "dry_run": AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
+        "dryrun": AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
+        "preview": AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
+        "materialize": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
+        "write": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
+        "admit": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
+        "admit_and_write": AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE,
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in _SUPPORTED_AUTHENTICATED_NOTICE_IMPORT_MODES:
+        raise ValueError(
+            "unsupported authenticated notice import mode: "
+            f"{mode!r}; expected one of {sorted(_SUPPORTED_AUTHENTICATED_NOTICE_IMPORT_MODES)}"
+        )
+    return normalized
+
+
+def _build_authenticated_notice_import_admission_report(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+    prepared: AuthenticatedNoticeBundleImportResult,
+    bundle_payload: tuple[dict[str, Any], ...],
+    selected_notice_ids: tuple[str, ...],
+    replace_scope: bool,
+    source_truth_inventory_enabled: bool,
+    attachment_fetch_status_enabled: bool,
+    consumption_projection_enabled: bool,
+    read_model_enabled: bool,
+) -> dict[str, Any]:
+    attachment_ref_count = 0
+    reference_only_attachment_ref_count = 0
+    notices_with_attachments = 0
+    empty_body_notice_count = 0
+    for notice_import in prepared.notice_imports:
+        attachment_refs = _load_jsonl_rows(
+            notice_import.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
+        )
+        attachment_ref_count += len(attachment_refs)
+        if attachment_refs:
+            notices_with_attachments += 1
+        reference_only_attachment_ref_count += sum(
+            1 for row in attachment_refs if not str(row.get("object_key") or "").strip()
+        )
+        content_blocks = _load_jsonl_rows(
+            notice_import.source_truth_artifacts["source-truth/content-blocks.jsonl"]
+        )
+        body_blocks = [
+            row
+            for row in content_blocks
+            if str(row.get("block_role") or "").strip().lower() != "title"
+            and str(row.get("text_normalized") or "").strip()
+        ]
+        if not body_blocks:
+            empty_body_notice_count += 1
+
+    attachment_fetch_status_rows = 0
+    if attachment_fetch_status_enabled:
+        attachment_fetch_status_rows = len(
+            build_attachment_fetch_status_records_from_bundle_records(
+                bundle_records=bundle_payload,
+                site_id=request.site_id,
+                observed_at=None,
+            )
+        )
+
+    source_artifact_object_count = sum(
+        len(notice_import.source_artifact_keys) for notice_import in prepared.notice_imports
+    )
+    write_plan = {
+        "raw_asset_registry_rows": prepared.notice_count,
+        "document_registry_parent_rows": prepared.notice_count,
+        "source_truth_inventory_rows": prepared.notice_count
+        if source_truth_inventory_enabled
+        else 0,
+        "source_artifact_object_count": source_artifact_object_count,
+        "derived_document_object_count": prepared.notice_count * 2,
+        "attachment_fetch_status_rows": attachment_fetch_status_rows,
+        "consumption_projection_rebuild": consumption_projection_enabled,
+        "internal_notice_read_model_rebuild": read_model_enabled,
+    }
+    admission_report = {
+        "notice_count": prepared.notice_count,
+        "selected_notice_count": len(selected_notice_ids),
+        "selected_notice_ids": list(selected_notice_ids),
+        "scope_write_mode": "replace_scope" if replace_scope else "upsert_selected",
+        "replace_scope": replace_scope,
+        "attachment_ref_count": attachment_ref_count,
+        "reference_only_attachment_ref_count": reference_only_attachment_ref_count,
+        "notices_with_attachments": notices_with_attachments,
+        "empty_body_notice_count": empty_body_notice_count,
+    }
+    return {
+        "mode": request.mode,
+        "write_enabled": False,
+        "notice_count": prepared.notice_count,
+        "created_document_ids": [],
+        "updated_document_ids": [],
+        "skipped_document_ids": [],
+        "raw_uploaded_count": 0,
+        "raw_reused_count": 0,
+        "scope_write_mode": "replace_scope" if replace_scope else "upsert_selected",
+        "selected_notice_ids": list(selected_notice_ids),
+        "admission_report": admission_report,
+        "write_plan": write_plan,
+        "errors": [],
+    }
+
+
+def _env_has_inventory_store_config(env: dict[str, str]) -> bool:
+    return any(
+        env.get(key)
+        for key in (
+            DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
+            DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
+            DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
+            SHARED_POSTGRES_OPERATOR_ENV_KEY,
+            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+            SHARED_POSTGRES_ENV_KEY,
+            DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
+            DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
+            DOCUMENT_REGISTRY_ENV_KEY,
+            RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
+            RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
+            RAW_ASSET_REGISTRY_ENV_KEY,
+        )
+    )
+
+
+def _env_has_attachment_fetch_status_config(env: dict[str, str]) -> bool:
+    return any(
+        env.get(key)
+        for key in (
+            DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
+            DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
+            DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
+            SHARED_POSTGRES_OPERATOR_ENV_KEY,
+            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+            SHARED_POSTGRES_ENV_KEY,
+        )
+    )
+
+
+def _env_has_consumption_projection_config(env: dict[str, str]) -> bool:
+    return any(
+        env.get(key)
+        for key in (
+            "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+            "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
+            "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+        )
+    )
+
+
+def _env_has_read_model_config(env: dict[str, str]) -> bool:
+    return any(
+        env.get(key)
+        for key in (
+            DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
+            DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
+            DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
+        )
+    )
 
 
 def _build_inventory_store_from_env_if_configured(
@@ -695,6 +898,8 @@ def _load_optional_json(path: Path | None) -> dict[str, Any] | None:
 
 
 __all__ = [
+    "AUTHENTICATED_NOTICE_IMPORT_MODE_ADMIT_AND_MATERIALIZE",
+    "AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN",
     "AuthenticatedNoticeBundleImportResult",
     "AuthenticatedNoticeImportRequest",
     "AuthenticatedNoticePreparedImport",
