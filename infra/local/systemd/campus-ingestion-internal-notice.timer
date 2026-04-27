@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Campus Agent internal notice ingestion drain daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=campus-ingestion-internal-notice.service
+
+[Install]
+WantedBy=timers.target

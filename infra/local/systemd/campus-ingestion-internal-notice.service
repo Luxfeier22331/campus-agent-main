@@ -1,0 +1,9 @@
+[Unit]
+Description=Campus Agent internal notice ingestion drain
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/campus-agent
+ExecStart=/srv/campus-agent/scripts/run-internal-notice-multimodal-drain.sh

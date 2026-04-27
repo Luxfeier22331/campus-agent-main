@@ -58,6 +58,23 @@ report 固定包含：
 - 每个 step 的 `command`、`exit_code`、`elapsed_seconds`、`peak_rss_kb`
 - 若子命令 stdout 是 JSON，则记录 `stdout_json`
 
+## Read-Only Preflight
+
+调度前先确认 CLI、env bootstrap 与 operator DB lane 可用：
+
+```bash
+uv run --package campus-ingestion-worker \
+  campus-ingestion-run-on-demand-batch --help
+
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.list_internal_notice_consumption_admissions \
+  --collection internal_notice \
+  --limit 5
+```
+
+不要把 `show_authenticated_notice_control_plane_status` 作为通用 preflight；它会读取
+source attachment inventory 等对象存储 key，更适合具体 control-plane 审计。
+
 ## Authenticated Notice Closeout
 
 首次从 export bundle 计划并执行：
@@ -151,6 +168,12 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
 
 systemd timer 的执行单元只需要调用统一入口，例如：
 
+repo 已提供可复制到服务器的无 secret 文件：
+
+- `scripts/run-internal-notice-multimodal-drain.sh`
+- `infra/local/systemd/campus-ingestion-internal-notice.service`
+- `infra/local/systemd/campus-ingestion-internal-notice.timer`
+
 ```ini
 [Service]
 Type=oneshot
@@ -158,16 +181,13 @@ WorkingDirectory=/srv/campus-agent
 ExecStart=/srv/campus-agent/scripts/run-internal-notice-multimodal-drain.sh
 ```
 
-脚本内容保持普通 CLI 入口：
+脚本默认保持普通 CLI 入口，并支持通过环境变量覆盖 batch 参数：
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
-  internal-notice-multimodal-drain \
-  --limit 100 \
-  --batch-size 20 \
-  --report-path ".tmp/ingestion-reports/internal-notice-multimodal-$(date +%H).json"
+INGESTION_ON_DEMAND_DRAIN_LIMIT=100
+INGESTION_ON_DEMAND_DRAIN_BATCH_SIZE=20
+INGESTION_ON_DEMAND_DRAIN_MAX_ATTEMPTS=3
+INGESTION_ON_DEMAND_REPORT_DIR=.tmp/ingestion-reports
 ```
 
 约束：
