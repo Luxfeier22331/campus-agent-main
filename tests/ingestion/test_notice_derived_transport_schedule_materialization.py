@@ -403,6 +403,120 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
         self.assertEqual(departures[0]["service_dates"], ["2026-03-20"])
         self.assertIn("学生", departures[0]["operational_comment"])
 
+    def test_builds_fengtai_subway_shuttle_revision_from_recurring_weekday_tables(
+        self,
+    ) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="352325",
+            release_time="2025-09-25 17:06",
+            parent_markdown=(
+                "# 关于丰台校区地铁接驳车优化调整的通知\n\n"
+                "为进一步优化丰台校区地铁接驳车服务，班次安排调整如下。\n"
+            ),
+            attachment_document_ids=(
+                "notice_attachment:muc_internal_portal:352325:attachment-0001",
+            ),
+            document_units=[
+                {
+                    "unit_id": "image-1-table",
+                    "unit_type": "table_unit",
+                    "table_cells": [
+                        ["日期", "路线", "发车地点", "发车时间", "备注"],
+                        [
+                            "周五",
+                            "丰台校区→五棵松地铁站",
+                            "聚雅餐厅东侧停车场路口",
+                            "18:00",
+                            "新增班次",
+                        ],
+                        [
+                            "周六、日及法定节假日",
+                            "丰台校区→五棵松地铁站",
+                            "聚雅餐厅东侧停车场路口",
+                            "09:00",
+                            "新增班次",
+                        ],
+                        [
+                            "周六、日及法定节假日",
+                            "五棵松地铁站→丰台校区",
+                            "五棵松地铁站A口北侧国家开放大学东门口",
+                            "18:30",
+                            "新增班次",
+                        ],
+                    ],
+                },
+                {
+                    "unit_id": "image-2-table",
+                    "unit_type": "table_unit",
+                    "table_cells": [
+                        ["日期", "路线", "发车地点", "发车时间", "备注"],
+                        [
+                            "周六、日及法定节假日",
+                            "丰台校区→篱笆房地铁站",
+                            "学生活动中心西侧停车场路口",
+                            "08:00",
+                            "调整发车时间",
+                        ],
+                        [
+                            "周六、日及法定节假日",
+                            "篱笆房地铁站→丰台校区",
+                            "篱笆房地铁站 B2 口",
+                            "20:00",
+                            "调整发车时间",
+                        ],
+                    ],
+                },
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            {(row.route_id, row.departure_time, row.weekday_scope) for row in rows},
+            {
+                ("route:fengtai-to-wukesong-subway", "18:00", "weekday:4"),
+                ("route:fengtai-to-wukesong-subway", "09:00", "weekends"),
+                ("route:wukesong-subway-to-fengtai", "18:30", "weekends"),
+                ("route:fengtai-to-libafang-subway", "08:00", "weekends"),
+                ("route:libafang-subway-to-fengtai", "20:00", "weekends"),
+            },
+        )
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2025-09-26T09:00:00+08:00",
+            service_horizon_days=3,
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        departures = {
+            (row["route_id"], row["departure_time"]): row
+            for row in result.bundle["scheduled_departures"]
+        }
+        self.assertEqual(
+            departures[("route:fengtai-to-wukesong-subway", "18:00")]["service_dates"],
+            ["2025-09-26"],
+        )
+        self.assertEqual(
+            departures[("route:fengtai-to-libafang-subway", "08:00")]["service_dates"],
+            ["2025-09-27", "2025-09-28"],
+        )
+        self.assertIn(
+            "法定节假日",
+            departures[("route:fengtai-to-libafang-subway", "08:00")]["operational_comment"],
+        )
+
     def test_build_deduplicates_repeated_scheduled_departures(self) -> None:
         module = _load_module()
         self.assertIsNotNone(module, "notice-derived transport materializer module is required")

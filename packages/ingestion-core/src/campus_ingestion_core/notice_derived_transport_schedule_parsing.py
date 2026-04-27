@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from datetime import date, datetime, time, timedelta, timezone
 
 from campus_ingestion_core.transport_schedule_projection import (
+    _calendar_from_text,
     _calendar_matches,
     _date_range,
 )
@@ -202,6 +203,11 @@ def _resolve_route(row_text: str):
         if fengtai_index < wukesong_index:
             return route_by_id("route:fengtai-to-wukesong-subway")
         return route_by_id("route:wukesong-subway-to-fengtai")
+    libafang_index = compact.find("篱笆房")
+    if fengtai_index >= 0 and libafang_index >= 0:
+        if fengtai_index < libafang_index:
+            return route_by_id("route:fengtai-to-libafang-subway")
+        return route_by_id("route:libafang-subway-to-fengtai")
     haidian_index = compact.find("海淀")
     if haidian_index >= 0 and fengtai_index >= 0:
         if haidian_index < fengtai_index:
@@ -219,17 +225,13 @@ def _route_direction(route_id: str) -> str:
         "route:subway-shuttle": "subway_shuttle",
         "route:fengtai-to-wukesong-subway": "fengtai_to_wukesong_subway",
         "route:wukesong-subway-to-fengtai": "wukesong_subway_to_fengtai",
+        "route:fengtai-to-libafang-subway": "fengtai_to_libafang_subway",
+        "route:libafang-subway-to-fengtai": "libafang_subway_to_fengtai",
     }.get(route_id, route_id)
 
 
 def _resolve_weekday_scope(row_text: str, default_calendar: str) -> str:
-    if any(keyword in row_text for keyword in ("工作日", "周一至周五", "星期一至星期五")):
-        return "weekdays"
-    if any(keyword in row_text for keyword in ("周末", "周六", "周日", "星期六", "星期日")):
-        return "weekends"
-    if any(keyword in row_text for keyword in ("每日", "每天", "周一至周日")):
-        return "daily"
-    return default_calendar
+    return _calendar_from_text(row_text, default_calendar)
 
 
 def _resolve_rider_type(row_text: str) -> str:
@@ -267,6 +269,8 @@ def _extract_times(value: str) -> tuple[str, ...]:
 
 
 def _is_header_row(value: str) -> bool:
+    if _extract_times(value):
+        return False
     return "发车时间" in value or ("运行方向" in value and "乘车" in value)
 
 

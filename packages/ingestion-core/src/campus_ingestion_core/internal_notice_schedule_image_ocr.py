@@ -45,11 +45,13 @@ ScheduleImageOcrConfidence = Literal["high", "medium", "low"]
 ScheduleImageOcrAdmissionStatus = Literal["admitted", "rejected"]
 
 _TIME_RE = re.compile(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)")
-_DATE_HINT_RE = re.compile(
+_TEMPORAL_SCOPE_HINT_RE = re.compile(
     r"(20\d{2}年)?\d{1,2}月\d{1,2}日|"
     r"\d{1,2}月\d{1,2}日?\s*(?:至|到|-|—|~|～)\s*\d{1,2}月?\d{1,2}日?|"
     r"\d{1,2}月\d{1,2}日?起|"
-    r"工作日|周末|寒假|暑假|假期|近期|本周"
+    r"(?:每)?周[一二三四五六日天](?:\s*(?:至|到|-|—|~|～|、|,|，|和|及)\s*(?:周)?[一二三四五六日天])*|"
+    r"星期[一二三四五六日天](?:\s*(?:至|到|-|—|~|～|、|,|，|和|及)\s*(?:星期)?[一二三四五六日天])*|"
+    r"工作日|周末|每日|每天|法定节假日|节假日|寒假|暑假|假期|近期|本周"
 )
 _ROUTE_HINTS = (
     "海淀校区",
@@ -886,8 +888,8 @@ def admit_schedule_image_ocr_child_document(
         return ScheduleImageOcrAdmissionDecision(status="rejected", reason="missing_schedule_time")
     if not _has_route_hint(_combined_text(evidence, result)):
         return ScheduleImageOcrAdmissionDecision(status="rejected", reason="missing_route_hint")
-    if not _has_date_hint(_combined_text(evidence, result)):
-        return ScheduleImageOcrAdmissionDecision(status="rejected", reason="missing_date_hint")
+    if not _has_temporal_scope_hint(_combined_text(evidence, result)):
+        return ScheduleImageOcrAdmissionDecision(status="rejected", reason="missing_temporal_scope")
     schedule_tables = tuple(table for table in result.tables if _table_has_time(table))
     if not schedule_tables:
         return ScheduleImageOcrAdmissionDecision(status="rejected", reason="missing_schedule_table")
@@ -1717,8 +1719,8 @@ def _has_route_hint(text: str) -> bool:
     return any(hint in compact for hint in _ROUTE_HINTS)
 
 
-def _has_date_hint(text: str) -> bool:
-    return bool(_DATE_HINT_RE.search(text))
+def _has_temporal_scope_hint(text: str) -> bool:
+    return bool(_TEMPORAL_SCOPE_HINT_RE.search(text))
 
 
 def _contains_guide_hint(text: str) -> bool:

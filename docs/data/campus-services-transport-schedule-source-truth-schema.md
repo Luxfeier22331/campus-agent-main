@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-24
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 # Campus Services Transport Schedule Source-Truth Schema
 
@@ -100,7 +100,7 @@ export、raw HTML 或附件 OCR 输出。
 
 ## Route Canonical Seed
 
-第一版固定五条 route identity：
+第一版固定七条 route identity：
 
 - `route:haidian-to-fengtai`
   - display name: `海淀到丰台通勤车`
@@ -122,6 +122,14 @@ export、raw HTML 或附件 OCR 输出。
   - display name: `五棵松到丰台地铁接驳车`
   - service family: `subway_shuttle`
   - default calendar: daily
+- `route:fengtai-to-libafang-subway`
+  - display name: `丰台到篱笆房地铁接驳车`
+  - service family: `subway_shuttle`
+  - default calendar: daily
+- `route:libafang-subway-to-fengtai`
+  - display name: `篱笆房到丰台地铁接驳车`
+  - service family: `subway_shuttle`
+  - default calendar: daily
 
 站点第一版只保留 route-level stop refs，用于回答与后续 navigation handoff：
 
@@ -130,6 +138,8 @@ export、raw HTML 或附件 OCR 输出。
 - `stop:subway-station`
 - `stop:fengtai-juyacanting-parking-lot`
 - `stop:wukesong-subway-a-north`
+- `stop:fengtai-student-activity-center-west-parking-lot`
+- `stop:libafang-subway-b2`
 
 如果 notice 文本中的路线、方向或站点无法稳定映射到上述 identity，builder 必须把该
 source 写入 rejected-source report，不得猜测写入 current projection。

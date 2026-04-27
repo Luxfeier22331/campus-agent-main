@@ -40,6 +40,17 @@ _EFFECTIVE_DATE_RE = re.compile(
 )
 _SCHEDULE_KEYWORDS = ("校车", "班车", "通勤车", "接驳车", "时刻表", "发车")
 _EXCEPTION_KEYWORDS = ("停运", "暂停", "临时调整", "调整")
+_CHINESE_WEEKDAY_INDEX = {
+    "一": 0,
+    "二": 1,
+    "三": 2,
+    "四": 3,
+    "五": 4,
+    "六": 5,
+    "日": 6,
+    "天": 6,
+}
+_WEEKDAY_TOKEN_RE = re.compile(r"(?:周|星期)([一二三四五六日天])")
 
 
 class TransportScheduleProjectionObjectStore(Protocol):
@@ -526,10 +537,23 @@ def _build_exceptions(
 def _calendar_from_text(value: str, default: str) -> str:
     if any(keyword in value for keyword in ("工作日", "周一至周五", "星期一至星期五")):
         return "weekdays"
-    if any(keyword in value for keyword in ("周末", "星期六", "星期日")):
+    if any(keyword in value for keyword in ("周末", "周六、日", "周六日", "星期六、日")):
         return "weekends"
     if any(keyword in value for keyword in ("每日", "每天", "周一至周日", "全天")):
         return "daily"
+    weekday_tokens = [
+        _CHINESE_WEEKDAY_INDEX[match.group(1)] for match in _WEEKDAY_TOKEN_RE.finditer(value)
+    ]
+    if weekday_tokens:
+        unique_tokens = tuple(dict.fromkeys(weekday_tokens))
+        if set(unique_tokens) == {5, 6}:
+            return "weekends"
+        if len(unique_tokens) == 1 and unique_tokens[0] < 5:
+            return f"weekday:{unique_tokens[0]}"
+        if len(unique_tokens) == 1 and unique_tokens[0] >= 5:
+            return "weekends"
+    if "法定节假日" in value or "节假日" in value:
+        return "holidays"
     return default
 
 
@@ -538,7 +562,12 @@ def _calendar_matches(candidate: date, calendar: str) -> bool:
         return candidate.weekday() < 5
     if calendar == "weekends":
         return candidate.weekday() >= 5
-    return True
+    if calendar.startswith("weekday:"):
+        try:
+            return candidate.weekday() == int(calendar.split(":", maxsplit=1)[1])
+        except ValueError:
+            return False
+    return calendar != "holidays"
 
 
 def _source_text(*, manifest: dict[str, Any], blocks: list[dict[str, Any]]) -> str:
