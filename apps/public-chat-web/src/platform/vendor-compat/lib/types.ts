@@ -53,6 +53,11 @@ export interface SourceCardData {
 	pageLabel: string;
 }
 
+export interface CampusServiceTraceCardData {
+	title: string;
+	refs: string[];
+}
+
 interface WeatherToolOutput {
 	cityName?: string;
 	current: {
@@ -122,6 +127,7 @@ export type CustomUIDataTypes = {
 	kind: ArtifactKind;
 	"place-card": PlaceCardData;
 	"source-cards": SourceCardData[];
+	"campus-service-trace-cards": CampusServiceTraceCardData[];
 	sheetDelta: string;
 	suggestion: SuggestionRecord;
 	textDelta: string;

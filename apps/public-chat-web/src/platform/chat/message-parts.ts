@@ -25,6 +25,13 @@ function mapStructuredPartsToUiParts(message: ShellMessage): ChatMessage["parts"
 				type: "data-source-cards",
 			});
 		}
+
+		if (part.type === "campus_service_trace_cards") {
+			parts.push({
+				data: part.traceCards,
+				type: "data-campus-service-trace-cards",
+			});
+		}
 	}
 
 	return parts;

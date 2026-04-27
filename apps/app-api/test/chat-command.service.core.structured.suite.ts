@@ -89,6 +89,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 					"最新提示：受大风影响，晚间班次临时取消。",
 					"来源：校内通知",
 				],
+				expectedTraceRef: "认证通知 #355122",
 				forbidden: [
 					"projection_internal_state",
 					"service_status_release_v2",
@@ -119,6 +120,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 					"可用入口：统一预约入口",
 					"来源：校内通知",
 				],
+				expectedTraceRef: "认证通知 #354777",
 				forbidden: [
 					"raw_table_parser_state",
 					"service_guide_release_v3",
@@ -156,6 +158,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 					"办公地点：海淀校区研究生院",
 					"来源：学校官网",
 				],
+				expectedTraceRef: "官网来源：graduate-school/contact",
 				forbidden: [
 					"debug_contact_profile",
 					"contact_release_02",
@@ -236,6 +239,25 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
 			expect(finalizedWrite.assistantMessage.text).toBe(answerText);
 			expect(finalizedWrite.requestExecution.selectedTarget).toBe("campus-services-agent");
+			const tracePart = finalizedWrite.assistantMessage.structuredParts.find(
+				(part) => part.type === "campus_service_trace_cards",
+			);
+			expect(tracePart).toBeDefined();
+			if (!(tracePart && tracePart.type === "campus_service_trace_cards")) {
+				throw new Error("expected campus_service_trace_cards structured part");
+			}
+			expect(tracePart.traceCards.length).toBeGreaterThan(0);
+			const traceRefs = tracePart.traceCards.flatMap((card) => card.refs);
+			expect(traceRefs.join(" ")).toContain(currentCase.expectedTraceRef);
+			const tracePayload = JSON.stringify(tracePart);
+			expect(tracePayload).not.toContain("authenticated_notice:");
+			expect(tracePayload).not.toContain("official_web:");
+			expect(tracePayload).not.toContain("release_id");
+			expect(tracePayload).not.toContain("projection_internal_state");
+			expect(tracePayload).not.toContain("table_parser_state");
+			expect(response.answer.conversation.messages.at(-1)?.structuredParts).toContainEqual(
+				tracePart,
+			);
 		}
 	});
 	it("persists navigation place cards into assistant structured parts", async () => {

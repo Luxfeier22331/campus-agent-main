@@ -58,7 +58,20 @@ export interface ChatSourceCardsStructuredPart {
 	type: "source_cards";
 }
 
-export type ChatStructuredPart = ChatPlaceCardStructuredPart | ChatSourceCardsStructuredPart;
+export interface CampusServiceTraceCardPayload {
+	title: string;
+	refs: string[];
+}
+
+export interface ChatCampusServiceTraceCardsStructuredPart {
+	traceCards: CampusServiceTraceCardPayload[];
+	type: "campus_service_trace_cards";
+}
+
+export type ChatStructuredPart =
+	| ChatPlaceCardStructuredPart
+	| ChatSourceCardsStructuredPart
+	| ChatCampusServiceTraceCardsStructuredPart;
 
 export interface ChatMessage {
 	id: string;
