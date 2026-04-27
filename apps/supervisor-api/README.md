@@ -301,10 +301,19 @@ Docker smoke:
 docker run --rm -p 18080:8000 campus-supervisor-api:local
 ```
 
+`docker run` 单容器只验证 `supervisor-api` 自身监听和 `/healthz` 路径；它不会覆盖
+`supervisor-agent-worker` bridge、`/readyz` runtime aggregation 或 answer execution。
+
 Local two-container smoke:
 
 ```bash
-docker compose -f infra/local/docker-compose.supervisor-runtime.yml up --build
+infra/local/smoke-supervisor-runtime.sh closed_gate
+```
+
+Smoke artifacts default to:
+
+```bash
+.tmp/supervisor-api-local-smoke/<timestamp>-<profile>/
 ```
 
 Expected behavior:

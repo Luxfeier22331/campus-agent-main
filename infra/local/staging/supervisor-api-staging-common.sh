@@ -158,6 +158,7 @@ const keys = [
   "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
   "SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY",
   "SUPERVISOR_AGENT_WORKER_THREADS",
+  "SUPERVISOR_AGENT_WORKER_BASE_URL",
   "SUPERVISOR_API_SHARED_SECRET",
   "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
   "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
@@ -218,7 +219,11 @@ const bridgeSharedSecret =
   process.env.SUPERVISOR_AGENT_WORKER_SHARED_SECRET?.trim() ||
   process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
   "";
+const bridgeBaseUrl =
+  process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
+  "http://supervisor-agent-worker:18081";
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
+resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 
 for (const [key, value] of resolved.entries()) {
   if (

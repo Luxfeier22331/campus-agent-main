@@ -90,6 +90,14 @@ export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 
 ## Step 1. Start Runtime
 
+先跑 deploy-side doctor gate：
+
+```bash
+uv run --all-packages python -m scripts.doctor_env supervisor-api --json
+```
+
+再启动本地双容器 runtime：
+
 ```bash
 infra/local/start-supervisor-runtime.sh
 ```
@@ -167,6 +175,20 @@ runtime 不健康；只要未 draining 且 admission queue 仍能接收短突发
 返回 `200 ready`。队列满、draining 或 bridge 不健康才会让 readiness degraded。
 
 ## Step 3. Probe Answer Path
+
+推荐直接用固定 smoke profile，自动落盘 artifact：
+
+```bash
+infra/local/smoke-supervisor-runtime.sh closed_gate
+```
+
+默认 artifact 路径：
+
+```bash
+.tmp/supervisor-api-local-smoke/<timestamp>-closed_gate/
+```
+
+手动 answer probe 仍可保留为补充诊断：
 
 ```bash
 curl -sS -i \
@@ -258,7 +280,8 @@ infra/local/start-supervisor-runtime.sh down
 
 建议落盘：
 
-- `.tmp/supervisor-api-local-smoke/<timestamp>/healthz.json`
-- `.tmp/supervisor-api-local-smoke/<timestamp>/readyz.json`
-- `.tmp/supervisor-api-local-smoke/<timestamp>/metrics.txt`
-- `.tmp/supervisor-api-local-smoke/<timestamp>/answer.json`
+- `.tmp/supervisor-api-local-smoke/<timestamp>-<profile>/healthz.json`
+- `.tmp/supervisor-api-local-smoke/<timestamp>-<profile>/readyz.json`
+- `.tmp/supervisor-api-local-smoke/<timestamp>-<profile>/metrics.txt`
+- `.tmp/supervisor-api-local-smoke/<timestamp>-<profile>/answer.json`
+- `.tmp/supervisor-api-local-smoke/<timestamp>-<profile>/summary.json`
