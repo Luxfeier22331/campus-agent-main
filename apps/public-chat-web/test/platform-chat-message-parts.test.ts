@@ -97,7 +97,7 @@ describe("platform chat message parts", () => {
 		]);
 	});
 
-	it("adds data-source-cards after the assistant text part", () => {
+	it("adds data-source-items after the assistant text part", () => {
 		expect(
 			mapShellMessageToChatMessage({
 				createdAt: "2026-04-27T09:00:02.000Z",
@@ -108,18 +108,49 @@ describe("platform chat message parts", () => {
 				role: "assistant",
 				structuredParts: [
 					{
-						sourceCards: [
+						sourceItems: [
 							{
 								collectionLabel: "培养方案",
-								href: "/docs/curriculum/curriculum_plan/computer-science?hl=root-001#graduation-requirements",
 								pageLabel: "原文第 87-102 页",
+								primaryAction: {
+									disabledReason: null,
+									external: false,
+									href: "/docs/curriculum/curriculum_plan/computer-science?hl=root-001#graduation-requirements",
+									label: "查看文档",
+								},
+								publishedAt: "",
+								publisherLabel: "",
 								sectionTitle: "二、毕业要求",
+								secondaryActions: [],
 								snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+								sourceKind: "curriculum",
+								targetKind: "canonical_reader",
 								title: "计算机类本科人才培养方案",
+								trustLabel: "",
 								versionLabel: "现行版",
 							},
+							{
+								collectionLabel: "",
+								pageLabel: "",
+								primaryAction: {
+									disabledReason: null,
+									external: true,
+									href: "https://www.muc.edu.cn/info/1041/12345.htm",
+									label: "打开原通知",
+								},
+								publishedAt: "",
+								publisherLabel: "中央民族大学新闻网",
+								sectionTitle: "",
+								secondaryActions: [],
+								snippet: null,
+								sourceKind: "notice",
+								targetKind: "public_notice_url",
+								title: "关于校园开放日安排的通知",
+								trustLabel: "",
+								versionLabel: "",
+							},
 						],
-						type: "source_cards",
+						type: "source_items",
 					},
 				],
 				text: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
@@ -133,15 +164,46 @@ describe("platform chat message parts", () => {
 				data: [
 					{
 						collectionLabel: "培养方案",
-						href: "/docs/curriculum/curriculum_plan/computer-science?hl=root-001#graduation-requirements",
 						pageLabel: "原文第 87-102 页",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "/docs/curriculum/curriculum_plan/computer-science?hl=root-001#graduation-requirements",
+							label: "查看文档",
+						},
+						publishedAt: "",
+						publisherLabel: "",
 						sectionTitle: "二、毕业要求",
+						secondaryActions: [],
 						snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+						sourceKind: "curriculum",
+						targetKind: "canonical_reader",
 						title: "计算机类本科人才培养方案",
+						trustLabel: "",
 						versionLabel: "现行版",
 					},
+					{
+						collectionLabel: "",
+						pageLabel: "",
+						primaryAction: {
+							disabledReason: null,
+							external: true,
+							href: "https://www.muc.edu.cn/info/1041/12345.htm",
+							label: "打开原通知",
+						},
+						publishedAt: "",
+						publisherLabel: "中央民族大学新闻网",
+						sectionTitle: "",
+						secondaryActions: [],
+						snippet: null,
+						sourceKind: "notice",
+						targetKind: "public_notice_url",
+						title: "关于校园开放日安排的通知",
+						trustLabel: "",
+						versionLabel: "",
+					},
 				],
-				type: "data-source-cards",
+				type: "data-source-items",
 			},
 		]);
 	});

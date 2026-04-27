@@ -53,6 +53,29 @@ export interface SourceCardData {
 	pageLabel: string;
 }
 
+export interface SourceActionData {
+	label: "原通知" | "打开原通知" | "查看文档" | "查看整理版" | "需登录查看";
+	href: string | null;
+	external: boolean;
+	disabledReason: string | null;
+}
+
+export interface SourceItemData {
+	targetKind: "canonical_reader" | "notice_reader" | "public_notice_url" | "restricted_notice";
+	sourceKind: "campus_service" | "curriculum" | "document" | "notice" | "regulation";
+	title: string;
+	snippet: string | null;
+	primaryAction: SourceActionData;
+	secondaryActions: SourceActionData[];
+	sectionTitle: string;
+	collectionLabel: string;
+	publisherLabel: string;
+	publishedAt: string;
+	versionLabel: string;
+	pageLabel: string;
+	trustLabel: string;
+}
+
 export interface CampusServiceTraceCardData {
 	title: string;
 	refs: string[];
@@ -127,6 +150,7 @@ export type CustomUIDataTypes = {
 	kind: ArtifactKind;
 	"place-card": PlaceCardData;
 	"source-cards": SourceCardData[];
+	"source-items": SourceItemData[];
 	"campus-service-trace-cards": CampusServiceTraceCardData[];
 	sheetDelta: string;
 	suggestion: SuggestionRecord;

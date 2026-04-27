@@ -48,6 +48,37 @@ export interface SourceCardPayload {
 	pageLabel: string;
 }
 
+export type SourceTargetKind =
+	| "canonical_reader"
+	| "notice_reader"
+	| "public_notice_url"
+	| "restricted_notice";
+
+export type SourceKind = "campus_service" | "curriculum" | "document" | "notice" | "regulation";
+
+export interface SourceActionPayload {
+	label: "原通知" | "打开原通知" | "查看文档" | "查看整理版" | "需登录查看";
+	href: string | null;
+	external: boolean;
+	disabledReason: string | null;
+}
+
+export interface SourceItemPayload {
+	targetKind: SourceTargetKind;
+	sourceKind: SourceKind;
+	title: string;
+	snippet: string | null;
+	primaryAction: SourceActionPayload;
+	secondaryActions: SourceActionPayload[];
+	sectionTitle: string;
+	collectionLabel: string;
+	publisherLabel: string;
+	publishedAt: string;
+	versionLabel: string;
+	pageLabel: string;
+	trustLabel: string;
+}
+
 export interface ChatPlaceCardStructuredPart {
 	placeCard: PlaceCardPayload;
 	type: "place_card";
@@ -56,6 +87,11 @@ export interface ChatPlaceCardStructuredPart {
 export interface ChatSourceCardsStructuredPart {
 	sourceCards: SourceCardPayload[];
 	type: "source_cards";
+}
+
+export interface ChatSourceItemsStructuredPart {
+	sourceItems: SourceItemPayload[];
+	type: "source_items";
 }
 
 export interface CampusServiceTraceCardPayload {
@@ -71,6 +107,7 @@ export interface ChatCampusServiceTraceCardsStructuredPart {
 export type ChatStructuredPart =
 	| ChatPlaceCardStructuredPart
 	| ChatSourceCardsStructuredPart
+	| ChatSourceItemsStructuredPart
 	| ChatCampusServiceTraceCardsStructuredPart;
 
 export interface ChatMessage {

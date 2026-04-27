@@ -173,7 +173,7 @@ describe("platform chat mappers", () => {
 		});
 	});
 
-	it("maps assistant source cards into shell structured parts", () => {
+	it("maps assistant source items into shell structured parts", () => {
 		expect(
 			mapConversationDetail({
 				createdAt: "2026-04-27T09:00:00.000Z",
@@ -189,18 +189,29 @@ describe("platform chat mappers", () => {
 						role: "assistant",
 						structuredParts: [
 							{
-								sourceCards: [
+								sourceItems: [
 									{
 										collectionLabel: "学生手册",
-										href: "/docs/regulations/student_rules/student-handbook?hl=rule-001#article-1",
 										pageLabel: "原文第 12 页",
+										primaryAction: {
+											disabledReason: null,
+											external: false,
+											href: "/docs/regulations/student_rules/student-handbook?hl=rule-001#article-1",
+											label: "查看文档",
+										},
+										publishedAt: "",
+										publisherLabel: "",
 										sectionTitle: "第一条",
+										secondaryActions: [],
 										snippet: "学生应遵守学校管理规定。",
+										sourceKind: "regulation",
+										targetKind: "canonical_reader",
 										title: "中央民族大学学生管理规定",
+										trustLabel: "",
 										versionLabel: "现行版",
 									},
 								],
-								type: "source_cards",
+								type: "source_items",
 							},
 						],
 						text: "学生应遵守学校管理规定。",
@@ -214,13 +225,17 @@ describe("platform chat mappers", () => {
 				{
 					structuredParts: [
 						{
-							sourceCards: [
+							sourceItems: [
 								{
-									href: "/docs/regulations/student_rules/student-handbook?hl=rule-001#article-1",
+									primaryAction: {
+										href: "/docs/regulations/student_rules/student-handbook?hl=rule-001#article-1",
+										label: "查看文档",
+									},
+									targetKind: "canonical_reader",
 									title: "中央民族大学学生管理规定",
 								},
 							],
-							type: "source_cards",
+							type: "source_items",
 						},
 					],
 				},

@@ -1,12 +1,14 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
+import { useState } from "react";
 import type { Vote } from "@/lib/db/schema";
 import type {
   CampusServiceTraceCardData,
   ChatMessage,
   ChatMessagePart,
   PlaceCardData,
-  SourceCardData,
+  SourceActionData,
+  SourceItemData,
 } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { MessageContent, MessageResponse } from "../ai-elements/message";
@@ -178,11 +180,26 @@ function PlaceCardBlock({
   );
 }
 
-function SourceCardMeta({ card }: { card: SourceCardData }) {
+function sourceKindLabel(item: SourceItemData): string {
+  switch (item.sourceKind) {
+    case "curriculum":
+      return "培养方案";
+    case "regulation":
+      return "规章";
+    case "notice":
+      return item.targetKind === "restricted_notice" ? "校内通知" : "通知";
+    case "campus_service":
+      return "服务";
+    case "document":
+      return "文档";
+  }
+}
+
+function SourceMeta({ item }: { item: SourceItemData }) {
   const metaItems = [
-    card.collectionLabel,
-    card.versionLabel,
-    card.pageLabel,
+    item.collectionLabel || item.publisherLabel,
+    item.versionLabel || item.publishedAt,
+    item.pageLabel,
   ].filter(Boolean);
 
   if (metaItems.length === 0) {
@@ -198,48 +215,131 @@ function SourceCardMeta({ card }: { card: SourceCardData }) {
   );
 }
 
-function SourceCardsBlock({
+function SourceActionLink({
+  action,
+  title,
+}: {
+  action: SourceActionData;
+  title: string;
+}) {
+  const label = sourceActionText(action);
+  if (!action.href) {
+    return (
+      <span className="rounded-md border border-border/60 px-2.5 py-1 text-[12px] text-muted-foreground">
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <a
+      aria-label={`${label}：${title}`}
+      className="rounded-md border border-border/70 px-2.5 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:border-foreground/20 hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      href={action.href}
+    >
+      {label}
+    </a>
+  );
+}
+
+function sourceActionText(action: SourceActionData): string {
+  switch (action.label) {
+    case "查看文档":
+      return "查看文档";
+    case "打开原通知":
+      return "打开原通知";
+    case "查看整理版":
+      return "查看整理版";
+    case "需登录查看":
+      return "需登录查看";
+    case "原通知":
+      return "原通知";
+  }
+}
+
+function SourceItemRow({ item }: { item: SourceItemData }) {
+  const context = item.sectionTitle || item.pageLabel || item.publishedAt || item.publisherLabel;
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/15 px-3 py-2.5">
+      <div className="flex flex-wrap items-start gap-2">
+        <span className="shrink-0 rounded-md border border-border/70 bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
+          {sourceKindLabel(item)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium leading-[1.45] text-foreground">
+            {item.title}
+          </div>
+          {context ? (
+            <div className="mt-0.5 text-[12px] leading-[1.45] text-muted-foreground">
+              {context}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {item.snippet ? (
+        <p className="line-clamp-2 text-[12px] leading-[1.55] text-muted-foreground">
+          {item.snippet}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SourceMeta item={item} />
+        <div className="flex flex-wrap gap-1.5">
+          <SourceActionLink action={item.primaryAction} title={item.title} />
+          {item.secondaryActions.map((action) => (
+            <SourceActionLink action={action} key={`${action.label}:${action.href}`} title={item.title} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SourceItemsBlock({
   part,
 }: {
-  part: Extract<ChatMessagePart, { type: "data-source-cards" }>;
+  part: Extract<ChatMessagePart, { type: "data-source-items" }>;
 }) {
-  const cards = part.data;
-  if (!cards.length) {
+  const items = part.data;
+  const [expanded, setExpanded] = useState(false);
+  if (!items.length) {
     return null;
   }
+
+  const visibleItems = expanded ? items : items.slice(0, 3);
+  const hiddenCount = Math.max(0, items.length - visibleItems.length);
 
   return (
     <section
       aria-label="参考来源"
-      className="w-full max-w-[min(100%,40rem)] rounded-2xl border border-border/70 bg-background/80 p-3 shadow-[var(--shadow-card)]"
-      data-testid="source-cards"
+      className="w-full max-w-[min(100%,40rem)] rounded-xl border border-border/70 bg-background/80 p-3 shadow-[var(--shadow-card)]"
+      data-testid="source-items"
     >
-      <div className="mb-2 text-[12px] font-medium text-muted-foreground">参考来源</div>
-      <div className="grid gap-2">
-        {cards.map((card) => (
-          <a
-            className="group block rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5 transition-colors hover:border-foreground/20 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            href={card.href}
-            key={card.href}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-[12px] font-medium text-muted-foreground">参考来源</div>
+        {items.length > 3 ? (
+          <button
+            className="rounded-md px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setExpanded((value) => !value)}
+            type="button"
           >
-            <SourceCardMeta card={card} />
-            <div className="mt-1 font-medium text-[13px] text-foreground leading-[1.45]">
-              {card.title}
-            </div>
-            {card.sectionTitle ? (
-              <div className="mt-1 text-[12px] text-muted-foreground">
-                {card.sectionTitle}
-              </div>
-            ) : null}
-            <p className="mt-1.5 line-clamp-2 text-[12px] leading-[1.55] text-muted-foreground">
-              {card.snippet}
-            </p>
-            <div className="mt-2 text-[12px] font-medium text-foreground/75 group-hover:text-foreground">
-              查看原文
-            </div>
-          </a>
+            {expanded ? "收起" : `查看全部 ${items.length} 条`}
+          </button>
+        ) : null}
+      </div>
+      <div className="grid gap-2">
+        {visibleItems.map((item) => (
+          <SourceItemRow
+            item={item}
+            key={`${item.targetKind}:${item.primaryAction.href ?? item.title}`}
+          />
         ))}
       </div>
+      {hiddenCount > 0 ? (
+        <div className="mt-2 text-[11px] text-muted-foreground">
+          还有 {hiddenCount} 条来源未展开
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -391,8 +491,8 @@ const PurePreviewMessage = ({
       return <PlaceCardBlock key={key} part={part} />;
     }
 
-    if (type === "data-source-cards") {
-      return <SourceCardsBlock key={key} part={part} />;
+    if (type === "data-source-items") {
+      return <SourceItemsBlock key={key} part={part} />;
     }
 
     if (type === "data-campus-service-trace-cards") {
