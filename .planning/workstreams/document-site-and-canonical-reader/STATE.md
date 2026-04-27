@@ -1,22 +1,22 @@
 ---
 workstream: document-site-and-canonical-reader
 created: 2026-04-21
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Completed
-**Current Phase:** 6
-**Current Phase Name:** Restricted / Historical Reader Handoff And Acceptance
-**Current Plan:** `.planning/workstreams/document-site-and-canonical-reader/phases/phase-6-restricted-historical-reader-handoff-and-acceptance/PLAN.md`
-**Total Phases:** 6
-**Total Plans in Phase:** 0
-**Progress:** 6/6 phases complete
-**Last Activity:** 2026-04-27
-**Last Activity Description:** 完成 Phase 6 真实链路回放、staging 部署与授权态 gated docs 自动化验收：registry 中注入 1 条 real restricted current doc 后，publish/import/export/build 在 local+staging 全部跑通（`entries=116/public=115/gated=1`，`copiedAssetCount=464`）；`public-docs-staging` 已验证未授权 `/_gated-docs/...` 为 `404 + no-store + Vary: Cookie, Authorization`，授权态 `campus_members` 通过 repo-owned `docs:gated:smoke:staging` 验证 `200 + no-store + Vary: Cookie, Authorization`。
+**Status:** Implemented Local
+**Current Phase:** 7
+**Current Phase Name:** Type-aware Chat Source Surfaces And Notice Jump Contract
+**Current Plan:** `.planning/workstreams/document-site-and-canonical-reader/phases/phase-7-type-aware-chat-source-surfaces-and-notice-jump-contract/PLAN.md`
+**Total Phases:** 7
+**Total Plans in Phase:** 1
+**Progress:** 7/7 phases implemented locally
+**Last Activity:** 2026-04-28
+**Last Activity Description:** 完成 Phase 7 本地实现：`app-api` chat source projection 从 docs-only `source_cards` 升级为类型化 `source_items`，`public-chat-web` donor message renderer 改为紧凑来源列表，并覆盖 canonical reader、公开通知原始 URL、notice reader 与 restricted notice 的安全展示和动作文案；app-api/public-chat 验证通过，仓库级 `web:lint` 仍受其他 workstream 既有失败阻塞。
 
 ## Current Slice
 
@@ -47,9 +47,13 @@ updated: 2026-04-27
   - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-5-chat-source-cards-and-canonical-jump-integration/PLAN.md`
   - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-5-chat-source-cards-and-canonical-jump-integration/SUMMARY.md`
 
-- current `Phase 6` artifacts:
+- completed `Phase 6` artifacts:
   - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-6-restricted-historical-reader-handoff-and-acceptance/PLAN.md`
   - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-6-restricted-historical-reader-handoff-and-acceptance/SUMMARY.md`
+
+- completed local `Phase 7` artifacts:
+  - plan: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-7-type-aware-chat-source-surfaces-and-notice-jump-contract/PLAN.md`
+  - summary: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-7-type-aware-chat-source-surfaces-and-notice-jump-contract/SUMMARY.md`
 
 - 当前已冻结的决策：
   - 文档站采用独立 `public-docs` browser surface
@@ -58,6 +62,8 @@ updated: 2026-04-27
   - published reader assets 的长期真相固定在对象存储；Worker static
     assets 只是 deploy-time sync 复制品
   - chat 来源展示必须回链到 canonical reader，而不是暴露 raw chunk/source locator
+  - Phase 7 后，chat 来源展示必须显式区分 canonical reader、公开通知原始 URL、notice reader 与
+    restricted notice；前端不得用裸 `href` 推断来源语义
   - public / restricted reader 长期共用同一 reader truth，差异只在 admission / visibility
   - donor posture 采用成熟 docs-first shell 方向，而不是 chat-first shell
 
@@ -187,17 +193,24 @@ updated: 2026-04-27
     version source
   - `apps/public-docs` ReaderStateEnhancer 已在 native Rspress layout 上注入
     reader highlight 与低打扰版本切换，不替换 topnav/sidebar/layout
-  - `apps/app-api` chat response model 已支持 `source_cards` structured part；
-    runtime-command finalization 只会为 completed `rag-agent` answer 从
-    `result.evidence.sources` 投影 browser-safe canonical source cards，且只接受
-    `/docs/` 相对 reader URL
-  - `apps/app-api` source card projection 已按 canonical reader target 去重，最多
-    返回 5 张卡；browser payload 只复制 title、sectionTitle、snippet、href、
-    collectionLabel、versionLabel、pageLabel，不复制 `chunk_id`、
-    `source_unit_key`、object storage key 或 raw source locator
-  - `apps/public-chat-web` 已把 shell `source_cards` 映射为 AI SDK
-    `data-source-cards` part，并在 Vercel Chatbot donor message renderer 中以低打扰
-    “参考来源”卡片展示 “查看原文” 链接
+  - Phase 5 的 docs-only `source_cards` / `data-source-cards` 语义已被 Phase 7
+    supersede；当前只作为 persisted legacy compatibility path 保留
+  - `apps/app-api` chat response model 已新增 `source_items` structured part；
+    persisted legacy `source_cards` 会在 conversation detail normalization 时转换为
+    typed source items，避免 browser 继续消费 docs-only card semantics
+  - `apps/app-api` runtime-command finalization 现在为 completed `rag-agent`
+    answer 投影 typed `source_items`，显式区分 `canonical_reader`、
+    `public_notice_url`、`notice_reader` 与 `restricted_notice`
+  - `apps/app-api` public notice 原始 URL admission 只允许
+    `https://muc.edu.cn`、`https://*.muc.edu.cn`（排除 `my.muc.edu.cn`）与
+    `https://mp.weixin.qq.com`；restricted notice 不会把 portal URL 或 raw locator
+    写进 browser payload
+  - `apps/public-chat-web` 已把 shell `source_items` 映射为 AI SDK
+    `data-source-items` part；legacy `source_cards` 仍在前端 mapper 中转为
+    canonical-reader source items
+  - `apps/public-chat-web` Vercel Chatbot donor message renderer 已把来源 UI 从重卡片改为
+    紧凑来源列表：默认显示 3 条，超过可展开；动作文案使用 `查看文档`、
+    `打开原通知`、`查看整理版`、`原通知`、`需登录查看` 等类型化标签
   - `apps/public-docs/scripts/_sync_real_docs/regulations.py` 已新增 public-only
     regulation 同步入口；当前对象存储没有显式 public 的 notice-derived
     regulation，因此不会生成 `campus-regulations` 公开目录
@@ -247,7 +260,9 @@ updated: 2026-04-27
 
 ## Blockers
 
-- None for this workstream. Phase 6 acceptance is complete.
+- No Phase 7 implementation blocker.
+- Non-phase verification blocker remains in the dirty worktree:
+  - `pnpm web:lint` fails on unrelated files from other workstreams.
 
 ## Verification
 
@@ -284,7 +299,7 @@ updated: 2026-04-27
 - `pnpm --filter public-docs lint:generated`
 - `pnpm --filter public-docs build`
 - `pnpm --filter public-docs sync:real-docs`
-- `pnpm web:lint`
+- Blocked non-phase: `pnpm web:lint` currently fails on unrelated dirty workstream files, including WeChat official account collector and existing app-api docs formatting diagnostics
 - `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_provider_normalize`
 - static scans for dense `(1)` / `1)` enumerations, unstyled course-list lead-ins,
   stale global-competence slash, stale cross-discipline split, stale sample docs
@@ -335,6 +350,6 @@ updated: 2026-04-27
 
 ## Session Continuity
 
-**Stopped At:** Workstream completed. Phase 6 本地与 staging reader publish/deploy 链路、未授权 gated fail-close、授权态 gated `200` 自动化 live smoke 均已验收。
-后续只有在产品范围重新 admission restricted collection/query serving、authenticated document center、restricted retrieval，或 gated reader admission contract 变更时才重开。
+**Stopped At:** Phase 7 已本地实现，并通过 app-api/public-chat 验证。仓库级 `web:lint` 仍受其他 workstream 的既有失败阻塞，不应在本 workstream 内越界修复 WeChat collector、notice classification 或 app-api docs formatting 问题。
+后续若继续推进本 workstream，应优先做真实 public-chat source item live smoke，或在 notice source serving 正式进入 public chat 后补充端到端来源跳转验收。
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/ROADMAP.md

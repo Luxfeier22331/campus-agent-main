@@ -2,7 +2,7 @@
 doc_type: requirements
 status: active
 created: 2026-04-21
-updated: 2026-04-25
+updated: 2026-04-28
 ---
 
 # Requirements: Document Site And Canonical Reader
@@ -23,6 +23,8 @@ reader 的长期边界。
 - canonical reader projection 的逻辑模型
 - `anchor + rootUnitId` 作为用户态定位 contract
 - docs search 与 chat source card 的统一 reader target
+- chat 来源展示的类型化 source item contract：canonical reader、公开通知原始 URL、notice reader 与 restricted notice 必须显式区分
+- public notice URL 跳转的 allowlist、外链语义、权限提示与用户可理解动作文案
 - public / restricted reader 的统一 admission model
 - version-aware docs route 与 citation jump contract
 
@@ -61,6 +63,29 @@ consumption 层的结构化要求，不应通过手改 `apps/public-docs/docs/**
     `.gitignore` 治理；repo 只追踪文档站壳、主题、生成器、测试、必要 public asset 约定与少量
     bootstrap scaffold，不把本地生成的 reader 内容当作人工源文件提交。
 
+## Chat Source Surface Requirements
+
+这些要求来自 Phase 7 重新打开的 chatbot 来源展示设计。当前 Phase 5 的 docs-only source cards
+已经能把 RAG evidence 跳到 canonical reader；Phase 7 的目标是让同一浏览器来源区同时安全表达
+canonical 文档、公开通知原始 URL、notice reader 与 restricted notice。
+
+1. source item 必须携带显式 `targetKind`，不得让前端通过 `href` 猜测来源类型。
+2. canonical reader 来源必须继续只跳 `/docs/...` 相对路径，并保留 `anchor + rootUnitId`
+   highlight contract。
+3. public notice 原始链接必须走独立 allowlist；只允许已 admission 的学校官网、公开通知源或公开镜像源。
+4. restricted / internal notice 在未授权用户路径不得暴露 portal URL、object storage key、notice raw locator
+   或内部下载链接。
+5. 同一来源同时具备 canonical reader 与 public original URL 时，主操作必须表达用户将看到的内容，例如
+   `查看整理版`；原始通知只能作为明确的次操作 `原通知`。
+6. 浏览器可见动作文案必须按来源类型区分：`查看文档`、`打开原通知`、`查看整理版`、`需登录查看`
+   等，不得统一使用含混的 `查看原文`。
+7. 来源展示应从重卡片降为紧凑来源列表；默认最多展示 3 条，超过后允许展开，避免挤压回答正文。
+8. 来源 payload 不得重新暴露 `chunk_id`、`source_unit_key`、raw source locator、object storage key 或内部
+   notice id 作为用户态链接参数。
+9. 外链必须具备用户可理解的上下文；如果未来选择新标签打开，必须在可访问文本中说明。
+10. Phase 7 只调整 chat/browser-facing source surface 与 app-api projection contract，不重开 notice
+    acquisition、canonical ingestion、retrieval ranking 或 docs reader asset pipeline。
+
 ## Success Criteria
 
 1. repo 中存在独立 workstream，明确把文档站、reader model、source-card jump 与后续实现顺序收口到同一条线。
@@ -80,6 +105,8 @@ consumption 层的结构化要求，不应通过手改 `apps/public-docs/docs/**
     `Public Docs Rendering Requirements`，并通过抽样 smoke 证明不是只修单页样本。
 12. `public-docs` 的 dev 生成内容不得作为 tracked truth 留在 git 中；清理 tracked 生成产物后，
     `sync:real-docs`、`lint:generated`、`typecheck` 与 `build` 仍必须可重复恢复同等可浏览文档站。
+13. chatbot 来源展示支持类型化来源列表：用户能区分文档、通知、整理版与 restricted 来源，并能通过安全
+    allowlist 跳到 canonical reader 或公开原始通知 URL。
 
 ## Canonical Entry
 

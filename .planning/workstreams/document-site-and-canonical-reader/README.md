@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: completed
+status: active
 created: 2026-04-22
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Workstream: Document Site And Canonical Reader
@@ -12,9 +12,9 @@ updated: 2026-04-27
 
 ## Current Status
 
-- status: `completed`
-- current phase: `Phase 6`
-- current focus: `Phase 6` 已完成本地与 staging 的 reader assets 同步链路、staging deploy、未授权 gated fail-close 与授权态 gated `200` 自动化 live smoke；本 workstream 已收口。
+- status: `implemented-local`
+- current phase: `Phase 7`
+- current focus: Phase 7 已把 docs-only chat source cards 升级为类型化来源列表；app-api/public-chat 定向验证已通过，仓库级 `web:lint` 仍受其他 workstream 既有失败阻塞。
 
 ## Native Planning Truth
 
