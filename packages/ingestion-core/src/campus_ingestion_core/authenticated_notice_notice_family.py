@@ -44,7 +44,7 @@ class AuthenticatedNoticeFamilyRoutePolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeReviewLaterRouteOverride:
+class AuthenticatedNoticeDefaultFamilyRouteOverride:
     name: str
     consumption_route: str
     machine_processing_policy: str
@@ -55,7 +55,7 @@ class AuthenticatedNoticeReviewLaterRouteOverride:
 class AuthenticatedNoticeRoutingPolicyConfig:
     family_policies: dict[str, AuthenticatedNoticeFamilyRoutePolicy]
     terminal_no_adoption_title_patterns: tuple[str, ...]
-    review_later_route_overrides: tuple[AuthenticatedNoticeReviewLaterRouteOverride, ...]
+    default_family_route_overrides: tuple[AuthenticatedNoticeDefaultFamilyRouteOverride, ...]
     machine_processing_value_terms: tuple[str, ...]
 
 
@@ -126,7 +126,7 @@ def load_authenticated_notice_notice_family_config(
         collection=str(payload.get("collection") or ""),
         source_channel=str(payload.get("source_channel") or ""),
         default_family=str(payload.get("default_family") or "other"),
-        default_admission_policy=str(payload.get("default_admission_policy") or "review_later"),
+        default_admission_policy=str(payload.get("default_admission_policy") or "no_adoption"),
         default_priority=int(payload.get("default_priority") or 0),
         rules=rules,
         routing_policy=routing_policy,
@@ -217,9 +217,9 @@ def _load_routing_policy(payload: object) -> AuthenticatedNoticeRoutingPolicyCon
         terminal_no_adoption_title_patterns=_normalize_text_list(
             raw.get("terminal_no_adoption_title_patterns")
         ),
-        review_later_route_overrides=tuple(
-            _load_review_later_route_override(item)
-            for item in list(raw.get("review_later_route_overrides") or [])
+        default_family_route_overrides=tuple(
+            _load_default_family_route_override(item)
+            for item in list(raw.get("default_family_route_overrides") or [])
         ),
         machine_processing_value_terms=_normalize_text_list(
             raw.get("machine_processing_value_terms")
@@ -250,20 +250,22 @@ def _load_family_route_policy(
     )
 
 
-def _load_review_later_route_override(
+def _load_default_family_route_override(
     payload: object,
-) -> AuthenticatedNoticeReviewLaterRouteOverride:
+) -> AuthenticatedNoticeDefaultFamilyRouteOverride:
     raw = dict(payload or {})
     name = str(raw.get("name") or "").strip()
     if not name:
-        raise ValueError("review_later route override requires name")
+        raise ValueError("default family route override requires name")
     consumption_route = str(raw.get("consumption_route") or "").strip()
     if not consumption_route:
-        raise ValueError(f"review_later route override {name} requires consumption_route")
+        raise ValueError(f"default family route override {name} requires consumption_route")
     machine_processing_policy = str(raw.get("machine_processing_policy") or "").strip()
     if not machine_processing_policy:
-        raise ValueError(f"review_later route override {name} requires machine_processing_policy")
-    return AuthenticatedNoticeReviewLaterRouteOverride(
+        raise ValueError(
+            f"default family route override {name} requires machine_processing_policy"
+        )
+    return AuthenticatedNoticeDefaultFamilyRouteOverride(
         name=name,
         consumption_route=consumption_route,
         machine_processing_policy=machine_processing_policy,
@@ -363,7 +365,7 @@ __all__ = [
     "AuthenticatedNoticeNoticeFamilyClassification",
     "AuthenticatedNoticeNoticeFamilyConfig",
     "AuthenticatedNoticeNoticeFamilyRule",
-    "AuthenticatedNoticeReviewLaterRouteOverride",
+    "AuthenticatedNoticeDefaultFamilyRouteOverride",
     "AuthenticatedNoticeRoutingPolicyConfig",
     "classify_authenticated_notice_bundle_payload",
     "classify_authenticated_notice_bundle_record",

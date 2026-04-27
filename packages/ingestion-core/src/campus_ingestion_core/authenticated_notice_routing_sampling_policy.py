@@ -24,7 +24,7 @@ def resolve_authenticated_notice_routing_decision(
     suggested_consumption_route = policy.consumption_route
     machine_processing_policy = policy.machine_processing_policy
     if family == config.default_family and admission_policy == config.default_admission_policy:
-        override = _resolve_review_later_route_override(
+        override = _resolve_default_family_route_override(
             config=config,
             title=title,
             body=body,
@@ -73,14 +73,14 @@ def _resolve_family_route_policy(
     raise ValueError(f"routing policy is missing family {family!r}")
 
 
-def _resolve_review_later_route_override(
+def _resolve_default_family_route_override(
     *,
     config: AuthenticatedNoticeNoticeFamilyConfig,
     title: str,
     body: str,
 ):
     text = _compact_routing_text(f"{title}\n{body}")
-    for override in config.routing_policy.review_later_route_overrides:
+    for override in config.routing_policy.default_family_route_overrides:
         if any(_compact_routing_text(term) in text for term in override.any_terms):
             return override
     return None
@@ -91,14 +91,14 @@ def _is_terminal_no_adoption_title(
     config: AuthenticatedNoticeNoticeFamilyConfig,
     title: str,
 ) -> bool:
-    normalized = _compact_review_later_title(title)
+    normalized = _compact_terminal_title(title)
     return any(
         re.search(pattern, normalized, flags=re.IGNORECASE)
         for pattern in config.routing_policy.terminal_no_adoption_title_patterns
     )
 
 
-def _compact_review_later_title(title: str) -> str:
+def _compact_terminal_title(title: str) -> str:
     return re.sub(r"[\s《》“”\"'：:，,、（）()【】/\\—-]+", "", str(title or ""))
 
 
@@ -115,7 +115,7 @@ def _resolve_machine_processing_policy(
     body: str,
     multimodal_processing_required_count: int,
 ) -> str:
-    if suggested_consumption_route in {"defer", "review_later", "no_adoption"}:
+    if suggested_consumption_route in {"defer", "no_adoption"}:
         return "skip"
     if base_policy in {"skip", "not_required", "process"}:
         return base_policy
@@ -136,7 +136,7 @@ def _resolve_attachment_processing_policy(
     suggested_consumption_route: str,
     attachment_counts: Mapping[str, int],
 ) -> str:
-    if suggested_consumption_route in {"defer", "review_later", "no_adoption"}:
+    if suggested_consumption_route in {"defer", "no_adoption"}:
         return "metadata_only"
     attachment_ref_count = int(attachment_counts.get("attachment_ref_count") or 0)
     if attachment_ref_count <= 0:
@@ -150,8 +150,6 @@ def _resolve_attachment_processing_reason(
     suggested_consumption_route: str,
     attachment_counts: Mapping[str, int],
 ) -> str:
-    if suggested_consumption_route == "review_later":
-        return "low_confidence_residual_not_attachment_backlog"
     if suggested_consumption_route == "no_adoption":
         return policy.terminal_reason or "no_adoption_or_out_of_scope"
     if suggested_consumption_route == "defer":

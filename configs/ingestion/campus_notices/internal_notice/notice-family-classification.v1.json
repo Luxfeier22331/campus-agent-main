@@ -4,7 +4,7 @@
 	"collection": "internal_notice",
 	"source_channel": "authenticated_notice_portal",
 	"default_family": "other",
-	"default_admission_policy": "review_later",
+	"default_admission_policy": "no_adoption",
 	"default_priority": 40,
 	"routing_policy": {
 		"family_policies": {
@@ -121,9 +121,9 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"other": {
-				"consumption_route": "review_later",
+				"consumption_route": "no_adoption",
 				"machine_processing_policy": "skip",
-				"terminal_reason": "low_confidence_residual"
+				"terminal_reason": "low_confidence_residual_without_actionable_signal"
 			},
 			"policy_regulation": {
 				"consumption_route": "regulation_candidate",
@@ -180,7 +180,7 @@
 			}
 		},
 		"terminal_no_adoption_title_patterns": ["^讣告$"],
-		"review_later_route_overrides": [
+		"default_family_route_overrides": [
 			{
 				"name": "service_status_signal",
 				"consumption_route": "service_status_candidate",

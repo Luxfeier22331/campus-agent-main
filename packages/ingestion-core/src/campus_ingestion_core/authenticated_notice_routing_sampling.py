@@ -11,12 +11,12 @@ from campus_ingestion_core.authenticated_notice_routing_sampling_models import (
     AuthenticatedNoticeRoutingAuditReport,
     AuthenticatedNoticeRoutingDecision,
     AuthenticatedNoticeRoutingObjectStore,
-    AuthenticatedNoticeRoutingReviewLaterCluster,
+    AuthenticatedNoticeRoutingResidualCluster,
     AuthenticatedNoticeRoutingSample,
     AuthenticatedNoticeRoutingSampleReport,
 )
-from campus_ingestion_core.authenticated_notice_routing_sampling_review import (
-    build_authenticated_notice_review_later_clusters,
+from campus_ingestion_core.authenticated_notice_routing_sampling_residual import (
+    build_authenticated_notice_residual_clusters,
 )
 from campus_ingestion_core.authenticated_notice_routing_sampling_samples import (
     sample_authenticated_notice_routing_from_bundle_record,
@@ -137,8 +137,10 @@ def _build_audit_report(
     source_corpus: str,
     source_collection: str,
 ) -> AuthenticatedNoticeRoutingAuditReport:
-    review_later_notices = tuple(
-        sample for sample in samples if sample.suggested_consumption_route == "review_later"
+    residual_notices = tuple(
+        sample
+        for sample in samples
+        if sample.notice_family == "other" and sample.suggested_consumption_route == "no_adoption"
     )
     return AuthenticatedNoticeRoutingAuditReport(
         source_corpus=source_corpus,
@@ -158,11 +160,9 @@ def _build_audit_report(
             sorted(Counter(sample.attachment_processing_policy for sample in samples).items())
         ),
         attachment_processing_ref_counts=_attachment_processing_ref_counts(samples),
-        review_later_count=len(review_later_notices),
-        review_later_notices=review_later_notices,
-        review_later_clusters=build_authenticated_notice_review_later_clusters(
-            review_later_notices
-        ),
+        residual_count=len(residual_notices),
+        residual_notices=residual_notices,
+        residual_clusters=build_authenticated_notice_residual_clusters(residual_notices),
     )
 
 
@@ -253,7 +253,7 @@ __all__ = [
     "AuthenticatedNoticeRoutingAuditReport",
     "AuthenticatedNoticeRoutingDecision",
     "AuthenticatedNoticeRoutingObjectStore",
-    "AuthenticatedNoticeRoutingReviewLaterCluster",
+    "AuthenticatedNoticeRoutingResidualCluster",
     "AuthenticatedNoticeRoutingSample",
     "AuthenticatedNoticeRoutingSampleReport",
     "build_authenticated_notice_routing_audit_report_from_bundle_records",

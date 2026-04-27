@@ -256,7 +256,7 @@ def _expected_attachment_processing_policy(
     if explicit:
         return explicit
     route = _required_text(raw, "expected_consumption_route", line_number=line_number)
-    if route in {"defer", "review_later", "no_adoption"}:
+    if route in {"defer", "no_adoption"}:
         return "metadata_only"
     attachment_ref_count = _int_field(raw, "attachment_ref_count")
     if attachment_ref_count <= 0:

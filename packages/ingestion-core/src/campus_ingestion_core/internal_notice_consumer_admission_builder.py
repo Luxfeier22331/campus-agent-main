@@ -187,7 +187,6 @@ def _map_sample_to_decision(
     route = str(sample.suggested_consumption_route or "").strip()
     if _has_high_value_multimodal_gap(sample) and route not in {
         "defer",
-        "review_later",
         "no_adoption",
     }:
         return (
