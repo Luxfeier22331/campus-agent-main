@@ -229,8 +229,7 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
                 "child_document_units_key": "derived/child.jsonl",
                 "processed_at": "2026-04-28T10:00:00+08:00",
                 "error": "",
-                "image_object_key": "capture/original.png",
-                "fetch_manifest_key": artifact_keys.fetch_manifest_key,
+                "image_object_key": "wechat_official_account/muc/2026/woa_ver_multimodal_ready/capture/media/inline-1/original.png",
                 "ocr_manifest_key": artifact_keys.ocr_manifest_key,
             },
             ensure_ascii=False,
@@ -310,8 +309,7 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
                 "child_document_units_key": "",
                 "processed_at": "2026-04-28T10:00:00+08:00",
                 "error": "provider timeout",
-                "image_object_key": "capture/original.png",
-                "fetch_manifest_key": artifact_keys.fetch_manifest_key,
+                "image_object_key": "wechat_official_account/muc/2026/woa_ver_multimodal_failed/capture/media/inline-1/original.png",
                 "ocr_manifest_key": artifact_keys.ocr_manifest_key,
             },
             ensure_ascii=False,
@@ -331,6 +329,63 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
         self.assertEqual(
             entry.role_metadata.get("multimodal_processing_status"),
             "terminal_failure",
+        )
+        self.assertEqual(
+            entry.role_metadata.get("processing_gap_reason"),
+            "multimodal_terminal_failure",
+        )
+
+    def test_rebuild_closes_captured_inline_image_articles_when_source_capture_failed(
+        self,
+    ) -> None:
+        object_store, refs = _build_source_truth_fixture(
+            bucket="source",
+            prefix="wechat_official_account/muc/2026/woa_ver_multimodal_source_failed",
+            article_stable_id="woa_article_multimodal_source_failed",
+            normalized_article_url="https://mp.weixin.qq.com/s/multimodal-source-failed",
+            publish_time="2026-04-20T08:00:00+08:00",
+            provider_article_id="feedwe-multimodal-source-failed",
+            title_raw="实践周班车安排图示",
+            title_normalized="实践周班车安排图示",
+            body_state="captured",
+            body_block_texts=("详情见配图。",),
+            inline_image_urls=("https://cdn.example.com/inline-1.png",),
+            manifest_overrides={
+                "capturedInlineImageCount": 0,
+                "failedInlineImageCount": 1,
+            },
+        )
+        media_rows = [
+            json.loads(line)
+            for line in object_store.payloads[("source", refs.media_refs_key)]
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        media_rows[1]["captureStatus"] = "fetch_failed"
+        media_rows[1]["objectKey"] = None
+        media_rows[1]["contentSha256"] = None
+        media_rows[1]["mimeType"] = None
+        media_rows[1]["byteSize"] = None
+        media_rows[1]["finalUrl"] = None
+        media_rows[1]["fetchErrorMessage"] = "403 Forbidden"
+        object_store.payloads[("source", refs.media_refs_key)] = (
+            "\n".join(json.dumps(row, ensure_ascii=False) for row in media_rows) + "\n"
+        ).encode("utf-8")
+
+        report = rebuild_wechat_public_notice_projection(
+            request=WeChatPublicNoticeProjectionRequest(artifact_refs=(refs,)),
+            object_store=object_store,
+            projection_store=InMemoryNoticeConsumptionProjectionStore(),
+            dry_run=True,
+        )
+
+        entry = report.projection_entries[0]
+        self.assertEqual(entry.target_surface, NOTICE_TARGET_SURFACE_UNSUPPORTED)
+        self.assertEqual(entry.consumption_status, NOTICE_CONSUMPTION_STATUS_NO_ADOPTION)
+        self.assertEqual(entry.role_metadata.get("ocr_status"), "terminal_failure")
+        self.assertEqual(
+            entry.role_metadata.get("capture_gate_status"), "multimodal_terminal_failure"
         )
         self.assertEqual(
             entry.role_metadata.get("processing_gap_reason"),
@@ -631,7 +686,7 @@ def _build_source_truth_fixture(
         bucket=bucket,
     )
     manifest = {
-        "schemaVersion": "wechat_official_account_article_manifest.v1",
+        "schemaVersion": "wechat_official_account_article_manifest.v2",
         "sourceChannel": "wechat_official_account",
         "accountName": "中央民族大学学生会",
         "accountSlug": "muc",
@@ -654,6 +709,13 @@ def _build_source_truth_fixture(
         "blockCount": 1 + len(body_block_texts),
         "mediaRefCount": 1 + len(inline_image_urls),
         "availabilityState": "observed",
+        "captureBoundary": "real_mp_weixin_page",
+        "pageKind": "article" if body_state == "captured" else "verification",
+        "pageParserVersion": "wechat-page-parser.v1",
+        "capturedPageFinalUrl": normalized_article_url,
+        "inlineImageCount": len(inline_image_urls),
+        "capturedInlineImageCount": len(inline_image_urls),
+        "failedInlineImageCount": 0,
     }
     manifest.update(manifest_overrides or {})
     content_blocks = [
@@ -685,7 +747,7 @@ def _build_source_truth_fixture(
         )
     media_refs = [
         {
-            "schemaVersion": "wechat_official_account_media_ref.v1",
+            "schemaVersion": "wechat_official_account_media_ref.v2",
             "rawAssetId": manifest["rawAssetId"],
             "rawVersionId": manifest["rawVersionId"],
             "mediaRefId": f"{article_stable_id}:media:0",
@@ -693,12 +755,20 @@ def _build_source_truth_fixture(
             "resourceRole": "cover_image",
             "sourceUrl": "https://cdn.example.com/cover.png",
             "normalizedSourceUrl": "https://cdn.example.com/cover.png",
+            "captureStatus": "captured",
+            "finalUrl": "https://cdn.example.com/cover.png",
+            "objectKey": f"{prefix}/capture/media/cover/original.png",
+            "contentSha256": "c" * 64,
+            "mimeType": "image/png",
+            "byteSize": 11,
+            "capturedAt": "2026-04-22T00:00:00+08:00",
+            "fetchErrorMessage": None,
         }
     ]
     for index, image_url in enumerate(inline_image_urls, start=1):
         media_refs.append(
             {
-                "schemaVersion": "wechat_official_account_media_ref.v1",
+                "schemaVersion": "wechat_official_account_media_ref.v2",
                 "rawAssetId": manifest["rawAssetId"],
                 "rawVersionId": manifest["rawVersionId"],
                 "mediaRefId": f"{article_stable_id}:media:{index}",
@@ -706,6 +776,14 @@ def _build_source_truth_fixture(
                 "resourceRole": "inline_image",
                 "sourceUrl": image_url,
                 "normalizedSourceUrl": image_url,
+                "captureStatus": "captured",
+                "finalUrl": image_url,
+                "objectKey": f"{prefix}/capture/media/inline-{index}/original.png",
+                "contentSha256": str(index) * 64,
+                "mimeType": "image/png",
+                "byteSize": 100 + index,
+                "capturedAt": "2026-04-22T00:00:00+08:00",
+                "fetchErrorMessage": None,
             }
         )
     payloads = {

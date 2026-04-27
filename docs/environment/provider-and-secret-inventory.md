@@ -108,12 +108,12 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - Provider / system: FeedWe public WeChat article acquisition
   作用: `wechat_official_account` source channel 的公开公众号文章 acquisition
-  主要 env keys: `FEEDWE_API_KEY` `FEEDWE_BASE_URL`
+  主要 env keys: `FEEDWE_EMAIL` `FEEDWE_PASSWORD` `FEEDWE_BASE_URL`
   `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`
   `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`
   放置位置: root `.env` 或 command-scoped env；生产调度使用 deploy-side secret store
   何时必需: 只有运行 FeedWe capture / provider contract verification 时需要
-  获取方式: 从 FeedWe 控制台或 operator-managed key store 获取；API key 不得提交到 repo
+  获取方式: 从 operator-managed credential store 获取登录邮箱/密码；不得提交到 repo
 
 ### App-local / deploy provider
 
@@ -584,15 +584,16 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 相关键：
 
-- `FEEDWE_API_KEY`
-- `FEEDWE_BASE_URL`（默认 `https://feedwe.cloud`）
+- `FEEDWE_EMAIL`
+- `FEEDWE_PASSWORD`
+- `FEEDWE_BASE_URL`（当前 runtime 基线 `https://www.feedwe.top`）
 - `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`
 - `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`
 
 获取方式：
 
-1. 从 FeedWe 控制台或 operator-managed key store 获取 API key。
-1. 本地验证时只把 key 放到未跟踪的 `.env` 或命令级环境变量。
+1. 从 operator-managed credential store 获取 FeedWe 登录邮箱和密码。
+1. 本地验证时只把凭证放到未跟踪的 `.env` 或命令级环境变量。
 1. 生产调度时放入 deploy-side secret store，不写入 tracked config。
 
 外部参考：
@@ -602,11 +603,14 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 说明：
 
 - FeedWe 是 acquisition provider，不是 canonical truth owner。
+- Provider response 只承担 discovery / audit；canonical body 与 media 必须来自后续的真实
+  `mp.weixin.qq.com` 页面抓取。
 - Provider response 必须先镜像进现有 MinIO-backed source bucket，并只通过 app-api
   control-plane 记录 artifact refs，再进入 notice consumption。
-- 当前已验证 endpoint 为 `GET /api/v1/articles/history`，鉴权 header 为
-  `x-api-key`。
-- `FEEDWE_API_KEY` 是高敏感 secret，不得进入 logs、planning docs、fixture 或 sample output。
+- 当前 accepted authenticated path 为 web API 登录流：`POST /api/auth/login` ->
+  `GET /api/auth/me` -> `GET /api/subscriptions` -> `GET /api/articles`。
+- `FEEDWE_EMAIL` / `FEEDWE_PASSWORD` 是高敏感 secret，不得进入 logs、planning docs、fixture
+  或 sample output。
 
 ## 7. Better Auth
 

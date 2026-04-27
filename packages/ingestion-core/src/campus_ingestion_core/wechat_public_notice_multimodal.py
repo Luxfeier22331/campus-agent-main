@@ -119,6 +119,14 @@ class WeChatPublicNoticeInlineImageRef:
     ref_order: int
     source_url: str
     normalized_source_url: str
+    capture_status: str = ""
+    final_url: str = ""
+    object_key: str = ""
+    content_sha256: str = ""
+    mime_type: str = ""
+    byte_size: int = 0
+    captured_at: str = ""
+    fetch_error_message: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -749,33 +757,39 @@ def process_wechat_public_notice_pending_multimodal_entries(
             )
             attempted_image_count += 1
             try:
-                fetched = _load_or_fetch_inline_image(
+                fetched = _load_inline_image_object(
                     object_store=object_store,
                     bucket=source_truth_bucket,
-                    media_refs_key=media_refs_key,
                     inline_ref=inline_ref,
-                    entry=entry,
-                    image_fetcher=image_fetcher,
                 )
             except Exception as exc:
                 terminal = attempt_number >= max_attempts
                 if terminal:
-                    write_wechat_public_notice_inline_image_fetch_manifest(
+                    write_wechat_public_notice_inline_image_ocr_manifest(
                         object_store=object_store,
                         bucket=source_truth_bucket,
                         media_refs_key=media_refs_key,
                         inline_ref=inline_ref,
-                        payload=_build_fetch_manifest(
-                            entry=entry,
-                            inline_ref=inline_ref,
-                            status="fetch_failed",
-                            image_object_key="",
-                            content_type="",
-                            byte_size=0,
-                            sha256="",
-                            final_url="",
-                            error=str(exc),
-                        ),
+                        payload={
+                            "schema_version": WECHAT_PUBLIC_NOTICE_MULTIMODAL_OCR_MANIFEST_SCHEMA,
+                            "source_notice_id": entry.source_notice_id,
+                            "source_collection": entry.source_collection,
+                            "media_ref_id": inline_ref.media_ref_id,
+                            "status": "fetch_failed",
+                            "provider": "",
+                            "model": "",
+                            "confidence": "",
+                            "summary": "",
+                            "extracted_text": "",
+                            "provider_response_key": "",
+                            "layout_elements_key": "",
+                            "child_document_id": "",
+                            "child_canonical_markdown_key": "",
+                            "child_document_units_key": "",
+                            "processed_at": utc_now(),
+                            "image_object_key": inline_ref.object_key,
+                            "error": str(exc),
+                        },
                     )
                     terminal_failure_count += 1
                 else:
@@ -789,10 +803,7 @@ def process_wechat_public_notice_pending_multimodal_entries(
                     status="fetch_failed",
                     provider="",
                     model="",
-                    fetch_manifest_key=build_wechat_public_notice_inline_image_artifact_keys(
-                        media_refs_key=media_refs_key,
-                        media_ref_id=inline_ref.media_ref_id,
-                    ).fetch_manifest_key,
+                    fetch_manifest_key="",
                     ocr_manifest_key=build_wechat_public_notice_inline_image_artifact_keys(
                         media_refs_key=media_refs_key,
                         media_ref_id=inline_ref.media_ref_id,
@@ -872,12 +883,7 @@ def process_wechat_public_notice_pending_multimodal_entries(
                             inline_ref=inline_ref,
                             result=result,
                             status="admitted",
-                            image_object_key=fetched_image_object_key(
-                                object_store=object_store,
-                                bucket=source_truth_bucket,
-                                media_refs_key=media_refs_key,
-                                inline_ref=inline_ref,
-                            ),
+                            image_object_key=inline_ref.object_key,
                             provider_response_key=provider_response_key,
                             layout_elements_key=layout_elements_key,
                             child_document_id=child_document.document_id,
@@ -907,12 +913,7 @@ def process_wechat_public_notice_pending_multimodal_entries(
                             inline_ref=inline_ref,
                             result=result,
                             status="no_extractable_text",
-                            image_object_key=fetched_image_object_key(
-                                object_store=object_store,
-                                bucket=source_truth_bucket,
-                                media_refs_key=media_refs_key,
-                                inline_ref=inline_ref,
-                            ),
+                            image_object_key=inline_ref.object_key,
                             provider_response_key=provider_response_key,
                             layout_elements_key=layout_elements_key,
                             child_document_id="",
@@ -933,10 +934,7 @@ def process_wechat_public_notice_pending_multimodal_entries(
                     status=status,
                     provider=result.provider,
                     model=result.model,
-                    fetch_manifest_key=build_wechat_public_notice_inline_image_artifact_keys(
-                        media_refs_key=media_refs_key,
-                        media_ref_id=inline_ref.media_ref_id,
-                    ).fetch_manifest_key,
+                    fetch_manifest_key="",
                     ocr_manifest_key=build_wechat_public_notice_inline_image_artifact_keys(
                         media_refs_key=media_refs_key,
                         media_ref_id=inline_ref.media_ref_id,
@@ -978,6 +976,7 @@ def process_wechat_public_notice_pending_multimodal_entries(
                             "child_canonical_markdown_key": "",
                             "child_document_units_key": "",
                             "processed_at": utc_now(),
+                            "image_object_key": inline_ref.object_key,
                             "error": str(exc),
                         },
                     )
@@ -993,10 +992,7 @@ def process_wechat_public_notice_pending_multimodal_entries(
                     status="ocr_failed",
                     provider="",
                     model="",
-                    fetch_manifest_key=build_wechat_public_notice_inline_image_artifact_keys(
-                        media_refs_key=media_refs_key,
-                        media_ref_id=inline_ref.media_ref_id,
-                    ).fetch_manifest_key,
+                    fetch_manifest_key="",
                     ocr_manifest_key=build_wechat_public_notice_inline_image_artifact_keys(
                         media_refs_key=media_refs_key,
                         media_ref_id=inline_ref.media_ref_id,
@@ -1046,10 +1042,10 @@ def build_wechat_public_notice_inline_image_artifact_keys(
 ) -> WeChatPublicNoticeInlineImageArtifactKeys:
     article_prefix = media_refs_key.rsplit("/source-truth/media-refs.jsonl", 1)[0]
     ref_slug = _slugify_segment(media_ref_id)
-    base_prefix = f"{article_prefix}/capture/inline-images/{ref_slug}"
+    base_prefix = f"{article_prefix}/projection/wechat_public_notice/multimodal/{ref_slug}"
     return WeChatPublicNoticeInlineImageArtifactKeys(
         base_prefix=base_prefix,
-        fetch_manifest_key=f"{base_prefix}/fetch-manifest.json",
+        fetch_manifest_key=f"{base_prefix}/source-image-reference.json",
         ocr_manifest_key=f"{base_prefix}/ocr-manifest.json",
     )
 
@@ -1071,6 +1067,14 @@ def list_wechat_public_notice_inline_image_refs(
                     row.get("normalizedSourceUrl"),
                     label="normalizedSourceUrl",
                 ),
+                capture_status=str(row.get("captureStatus") or "").strip(),
+                final_url=str(row.get("finalUrl") or "").strip(),
+                object_key=str(row.get("objectKey") or "").strip(),
+                content_sha256=str(row.get("contentSha256") or "").strip(),
+                mime_type=str(row.get("mimeType") or "").strip(),
+                byte_size=int(row.get("byteSize") or 0),
+                captured_at=str(row.get("capturedAt") or "").strip(),
+                fetch_error_message=str(row.get("fetchErrorMessage") or "").strip(),
             )
         )
     return tuple(sorted(refs, key=lambda item: (item.ref_order, item.media_ref_id)))
@@ -1098,9 +1102,9 @@ def load_wechat_public_notice_inline_image_outcome(
             source_url=inline_ref.source_url,
             normalized_source_url=inline_ref.normalized_source_url,
             status=_coerce_outcome_status(ocr_payload.get("status")),
-            fetch_manifest_key=artifact_keys.fetch_manifest_key,
+            fetch_manifest_key="",
             ocr_manifest_key=artifact_keys.ocr_manifest_key,
-            image_object_key=str(ocr_payload.get("image_object_key") or ""),
+            image_object_key=str(ocr_payload.get("image_object_key") or inline_ref.object_key),
             summary=str(ocr_payload.get("summary") or "").strip(),
             extracted_text=str(ocr_payload.get("extracted_text") or "").strip(),
             confidence=str(ocr_payload.get("confidence") or "").strip(),
@@ -1115,39 +1119,36 @@ def load_wechat_public_notice_inline_image_outcome(
             child_document_units_key=str(ocr_payload.get("child_document_units_key") or "").strip(),
             error=str(ocr_payload.get("error") or "").strip(),
         )
-    fetch_payload = _load_json_if_present(
-        object_store=object_store,
-        bucket=bucket,
-        key=artifact_keys.fetch_manifest_key,
-    )
-    if fetch_payload is None:
-        return WeChatPublicNoticeInlineImageOutcome(
-            media_ref_id=inline_ref.media_ref_id,
-            source_url=inline_ref.source_url,
-            normalized_source_url=inline_ref.normalized_source_url,
-            status="pending",
-            fetch_manifest_key=artifact_keys.fetch_manifest_key,
-            ocr_manifest_key=artifact_keys.ocr_manifest_key,
-        )
-    fetch_status = str(fetch_payload.get("status") or "").strip()
-    if fetch_status == "fetch_failed":
+    capture_status = str(inline_ref.capture_status or "").strip()
+    if capture_status == "fetch_failed":
         return WeChatPublicNoticeInlineImageOutcome(
             media_ref_id=inline_ref.media_ref_id,
             source_url=inline_ref.source_url,
             normalized_source_url=inline_ref.normalized_source_url,
             status="fetch_failed",
-            fetch_manifest_key=artifact_keys.fetch_manifest_key,
+            fetch_manifest_key="",
             ocr_manifest_key=artifact_keys.ocr_manifest_key,
-            error=str(fetch_payload.get("error") or "").strip(),
+            image_object_key=inline_ref.object_key,
+            error=inline_ref.fetch_error_message,
+        )
+    if not inline_ref.object_key:
+        return WeChatPublicNoticeInlineImageOutcome(
+            media_ref_id=inline_ref.media_ref_id,
+            source_url=inline_ref.source_url,
+            normalized_source_url=inline_ref.normalized_source_url,
+            status="fetch_failed",
+            fetch_manifest_key="",
+            ocr_manifest_key=artifact_keys.ocr_manifest_key,
+            error="missing source image object",
         )
     return WeChatPublicNoticeInlineImageOutcome(
         media_ref_id=inline_ref.media_ref_id,
         source_url=inline_ref.source_url,
         normalized_source_url=inline_ref.normalized_source_url,
         status="pending",
-        fetch_manifest_key=artifact_keys.fetch_manifest_key,
+        fetch_manifest_key="",
         ocr_manifest_key=artifact_keys.ocr_manifest_key,
-        image_object_key=str(fetch_payload.get("image_object_key") or "").strip(),
+        image_object_key=inline_ref.object_key,
     )
 
 
@@ -1423,74 +1424,25 @@ def upsert_wechat_public_notice_inline_image_registry_record(
     registry.upsert_many(tuple(records_to_write))
 
 
-def _load_or_fetch_inline_image(
+def _load_inline_image_object(
     *,
     object_store: WeChatPublicNoticeMultimodalObjectStore,
     bucket: str,
-    media_refs_key: str,
     inline_ref: WeChatPublicNoticeInlineImageRef,
-    entry,
-    image_fetcher: WeChatPublicNoticeInlineImageFetcher,
 ) -> WeChatPublicNoticeFetchedInlineImage:
-    existing_fetch_manifest = _load_json_if_present(
-        object_store=object_store,
-        bucket=bucket,
-        key=build_wechat_public_notice_inline_image_artifact_keys(
-            media_refs_key=media_refs_key,
-            media_ref_id=inline_ref.media_ref_id,
-        ).fetch_manifest_key,
-    )
-    if existing_fetch_manifest is not None:
-        image_object_key = str(existing_fetch_manifest.get("image_object_key") or "").strip()
-        if (
-            str(existing_fetch_manifest.get("status") or "").strip() == "fetched"
-            and image_object_key
-        ):
-            image_bytes = object_store.get_bytes(bucket=bucket, key=image_object_key)
-            return WeChatPublicNoticeFetchedInlineImage(
-                content_type=str(existing_fetch_manifest.get("content_type") or "image/png").strip()
-                or "image/png",
-                image_bytes=image_bytes,
-                final_url=str(
-                    existing_fetch_manifest.get("final_url") or inline_ref.normalized_source_url
-                ),
-            )
-
-    metadata = dict(entry.role_metadata or {})
-    fetched = image_fetcher.fetch(
-        WeChatPublicNoticeInlineImageFetchRequest(
-            source_notice_id=entry.source_notice_id,
-            notice_title=_resolve_notice_title(entry),
-            article_source_url=str(metadata.get("source_url") or inline_ref.normalized_source_url),
-            media_ref_id=inline_ref.media_ref_id,
-            image_url=inline_ref.normalized_source_url or inline_ref.source_url,
+    if not inline_ref.object_key.strip():
+        raise ValueError(f"{inline_ref.media_ref_id} missing source image object")
+    image_bytes = object_store.get_bytes(bucket=bucket, key=inline_ref.object_key)
+    content_type = inline_ref.mime_type.strip() or "image/png"
+    if not _IMAGE_CONTENT_TYPE_RE.match(content_type):
+        raise ValueError(
+            f"{inline_ref.media_ref_id} expected image content-type, got {content_type or 'unknown'}"
         )
+    return WeChatPublicNoticeFetchedInlineImage(
+        content_type=content_type,
+        image_bytes=image_bytes,
+        final_url=inline_ref.final_url or inline_ref.normalized_source_url or inline_ref.source_url,
     )
-    image_object_key = _write_inline_image_object(
-        object_store=object_store,
-        bucket=bucket,
-        media_refs_key=media_refs_key,
-        inline_ref=inline_ref,
-        fetched=fetched,
-    )
-    write_wechat_public_notice_inline_image_fetch_manifest(
-        object_store=object_store,
-        bucket=bucket,
-        media_refs_key=media_refs_key,
-        inline_ref=inline_ref,
-        payload=_build_fetch_manifest(
-            entry=entry,
-            inline_ref=inline_ref,
-            status="fetched",
-            image_object_key=image_object_key,
-            content_type=fetched.content_type,
-            byte_size=len(fetched.image_bytes),
-            sha256=_sha256_hex(fetched.image_bytes),
-            final_url=fetched.final_url,
-            error="",
-        ),
-    )
-    return fetched
 
 
 def _write_inline_image_object(

@@ -852,10 +852,8 @@ def _build_article_role_metadata(article: WeChatArticleSourceTruth) -> dict[str,
         "multimodal_processing_status": processing_status,
         "processing_gap_reason": processing_gap_reason,
         "inline_image_status_counts": status_counts,
-        "fetch_manifest_keys": tuple(
-            item.fetch_manifest_key
-            for item in article.inline_image_outcomes
-            if item.fetch_manifest_key
+        "source_image_object_keys": tuple(
+            item.image_object_key for item in article.inline_image_outcomes if item.image_object_key
         ),
         "ocr_manifest_keys": tuple(
             item.ocr_manifest_key for item in article.inline_image_outcomes if item.ocr_manifest_key
@@ -1163,7 +1161,7 @@ def _build_wechat_read_model_provenance_refs(
             metadata.get("manifest_key"),
             metadata.get("content_blocks_key"),
             metadata.get("media_refs_key"),
-            *tuple(metadata.get("fetch_manifest_keys") or ()),
+            *tuple(metadata.get("source_image_object_keys") or ()),
             *tuple(metadata.get("ocr_manifest_keys") or ()),
             *tuple(metadata.get("multimodal_child_document_ids") or ()),
             entry.unit_id,

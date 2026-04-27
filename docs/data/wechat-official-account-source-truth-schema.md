@@ -17,9 +17,9 @@ FeedWe is the discovery provider only. The accepted capture path is:
 1. fetch the real `mp.weixin.qq.com/s/...` article URL
 1. derive canonical source-truth from the fetched WeChat article page
 
-The schema therefore permits both metadata-only fallback rows and captured-body
-rows from the real page. It must not invent body content when the real page was
-not captured successfully.
+The canonical source-truth is the real WeChat article page plus the media bytes
+captured in the same collector run. It must not invent body content or defer
+inline image acquisition to later OCR stages.
 
 This schema does not define notice projection, read-model rows, document
 registry records, chunks, embeddings, serving aliases, or query runtime gates.
@@ -236,7 +236,8 @@ suppressed audit row with:
 - dedupe evidence in `role_metadata`
 
 Phase 4 may emit read-model rows through the unified notice family runtime, but
-only captured-body rows are queryable:
+only rows with captured body and completed multimodal requirements are
+queryable:
 
 - retained rows with `bodyState = "captured"` may materialize canonical notice
   markdown and become queryable notice rows

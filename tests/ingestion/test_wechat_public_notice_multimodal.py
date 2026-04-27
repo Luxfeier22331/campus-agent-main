@@ -68,12 +68,15 @@ class _FakeProvider:
 class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
     def test_process_pending_multimodal_entries_writes_manifests_and_child_document(self) -> None:
         projection_store = _InMemoryProjectionStore((_pending_entry("woa_article_1"),))
+        image_object_key = "wechat/woa_article_1/capture/media/inline-1/original.png"
         object_store = _FakeObjectStore(
             {
                 ("source", "wechat/woa_article_1/source-truth/media-refs.jsonl"): _media_refs_jsonl(
                     article_id="woa_article_1",
                     image_url="https://cdn.example.com/inline-1.png",
+                    image_object_key=image_object_key,
                 ),
+                ("source", image_object_key): b"PNGDATA",
             }
         )
         registry = InMemoryDocumentRegistry()
@@ -131,12 +134,13 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
             inline_ref=_inline_ref("woa_article_1"),
         )
         self.assertEqual(outcome.status, "admitted")
-        self.assertTrue(object_store.payloads[("source", artifact_keys.fetch_manifest_key)])
         self.assertTrue(object_store.payloads[("source", artifact_keys.ocr_manifest_key)])
+        self.assertNotIn(("source", artifact_keys.fetch_manifest_key), object_store.payloads)
         registry_records = registry.list_by_scope("campus_notices", "wechat_public_notice")
         self.assertEqual(len(registry_records), 1)
         self.assertTrue(registry_records[0].is_current)
         self.assertTrue(registry_records[0].canonical_markdown_object_key)
+        self.assertEqual(fetcher.calls, [])
         self.assertEqual(
             len(
                 attempt_store.list_by_image(
@@ -149,6 +153,7 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
 
     def test_process_pending_multimodal_entries_retries_before_terminal_ocr_failure(self) -> None:
         projection_store = _InMemoryProjectionStore((_pending_entry("woa_article_retry"),))
+        image_object_key = "wechat/woa_article_retry/capture/media/inline-1/original.png"
         object_store = _FakeObjectStore(
             {
                 (
@@ -157,7 +162,9 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
                 ): _media_refs_jsonl(
                     article_id="woa_article_retry",
                     image_url="https://cdn.example.com/inline-1.png",
+                    image_object_key=image_object_key,
                 ),
+                ("source", image_object_key): b"PNGDATA",
             }
         )
         registry = InMemoryDocumentRegistry()
@@ -258,13 +265,13 @@ def _pending_entry(source_notice_id: str) -> NoticeConsumptionProjectionEntry:
     )
 
 
-def _media_refs_jsonl(*, article_id: str, image_url: str) -> bytes:
+def _media_refs_jsonl(*, article_id: str, image_url: str, image_object_key: str) -> bytes:
     return (
         "\n".join(
             [
                 json.dumps(
                     {
-                        "schemaVersion": "wechat_official_account_media_ref.v1",
+                        "schemaVersion": "wechat_official_account_media_ref.v2",
                         "rawAssetId": f"woa_asset:{article_id}",
                         "rawVersionId": f"woa_ver:{article_id}",
                         "mediaRefId": f"{article_id}:media:1",
@@ -272,6 +279,14 @@ def _media_refs_jsonl(*, article_id: str, image_url: str) -> bytes:
                         "resourceRole": "inline_image",
                         "sourceUrl": image_url,
                         "normalizedSourceUrl": image_url,
+                        "captureStatus": "captured",
+                        "finalUrl": image_url,
+                        "objectKey": image_object_key,
+                        "contentSha256": "a" * 64,
+                        "mimeType": "image/png",
+                        "byteSize": 7,
+                        "capturedAt": "2026-04-28T10:00:00+08:00",
+                        "fetchErrorMessage": None,
                     },
                     ensure_ascii=False,
                 )
@@ -291,6 +306,14 @@ def _inline_ref(article_id: str):
         ref_order=1,
         source_url="https://cdn.example.com/inline-1.png",
         normalized_source_url="https://cdn.example.com/inline-1.png",
+        capture_status="captured",
+        final_url="https://cdn.example.com/inline-1.png",
+        object_key=f"wechat/{article_id}/capture/media/inline-1/original.png",
+        content_sha256="a" * 64,
+        mime_type="image/png",
+        byte_size=7,
+        captured_at="2026-04-28T10:00:00+08:00",
+        fetch_error_message="",
     )
 
 
