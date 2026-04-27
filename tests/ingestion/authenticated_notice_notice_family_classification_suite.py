@@ -19,9 +19,44 @@ CLASSIFICATION_CASES = (
         "priority_now",
     ),
     (
+        "关于印发《中央民族大学本科生转专业实施办法（试行）》的通知",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "关于发布《中央民族大学学生违纪处分规定》的通知",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "关于公布《中央民族大学信息化项目建设管理规范》的通知",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "中央民族大学关于进一步加强科研诚信建设的实施意见",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "关于废止《中央民族大学旧版校园卡管理办法》的通知",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
         "关于发布《中央民族大学新一轮本科教育教学审核评估自评报告》的通知",
         "other",
         "no_adoption",
+    ),
+    (
+        "关于开展《中央民族大学学生违纪处分规定》专题学习的通知",
+        "meeting_training",
+        "defer",
+    ),
+    (
+        "关于举办《中央民族大学信息化项目建设管理规范》解读会的通知",
+        "meeting_training",
+        "defer",
     ),
     (
         "关于领取《新时代高校教师职业行为十项准则》宣传海报的通知",
