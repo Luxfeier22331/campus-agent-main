@@ -75,6 +75,35 @@ uv run --package campus-ingestion-worker python -m \
 不要把 `show_authenticated_notice_control_plane_status` 作为通用 preflight；它会读取
 source attachment inventory 等对象存储 key，更适合具体 control-plane 审计。
 
+## Local Development Flow
+
+当前还没有服务器侧时，按本地开发流程执行；不要安装或启动 systemd timer。
+
+执行顺序：
+
+1. 先确认当前 worktree `.env` 只指向 dev DB 与 dev object store。
+2. 先跑 `Read-Only Preflight`，确认 CLI 与 operator DB lane 可用。
+3. 再跑小批量 writable drain，并先跳过 read model rebuild：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
+  internal-notice-multimodal-drain \
+  --limit 1 \
+  --batch-size 1 \
+  --max-attempts 1 \
+  --skip-read-model-rebuild \
+  --report-path .tmp/ingestion-reports/internal-notice-multimodal-local-smoke.json
+```
+
+1. 检查 report 中的 `status`、`failed_step`、`elapsed_seconds`、`peak_rss_kb`。
+2. 只在上一步稳定后，才用小批量运行包含 read model rebuild 的 drain。
+
+本地流程约束：
+
+- 本地阶段不安装 `infra/local/systemd/*.service` 或 `*.timer`
+- 不把 `--promote` 纳入本地首跑
+- report 统一落到 `.tmp/ingestion-reports/`
+
 ## Authenticated Notice Closeout
 
 首次从 export bundle 计划并执行：
@@ -165,6 +194,8 @@ uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
 ## Scheduling Shape
 
 低频 notice 场景建议使用 timer 拉起 CLI，而不是常驻进程。
+
+本节是未来服务器部署口径；本地开发阶段不要求安装或启动 timer。
 
 systemd timer 的执行单元只需要调用统一入口，例如：
 

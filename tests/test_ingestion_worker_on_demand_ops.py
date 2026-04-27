@@ -7,6 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RUN_SCRIPT = REPO_ROOT / "scripts/run-internal-notice-multimodal-drain.sh"
 SERVICE_UNIT = REPO_ROOT / "infra/local/systemd/campus-ingestion-internal-notice.service"
 TIMER_UNIT = REPO_ROOT / "infra/local/systemd/campus-ingestion-internal-notice.timer"
+RUNBOOK = REPO_ROOT / "docs/runbooks/ingestion-worker-on-demand-batch-runbook.md"
 
 
 class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
@@ -38,6 +39,22 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
         self.assertIn("OnCalendar=*-*-* 03:30:00", timer)
         self.assertIn("Persistent=true", timer)
         self.assertIn("WantedBy=timers.target", timer)
+
+    def test_runbook_documents_local_dev_flow_before_server_timer_install(self) -> None:
+        runbook = RUNBOOK.read_text(encoding="utf-8")
+
+        self.assertIn("## Local Development Flow", runbook)
+        self.assertIn("不要安装或启动 systemd timer", runbook)
+        self.assertIn("Read-Only Preflight", runbook)
+        self.assertIn("campus-ingestion-run-on-demand-batch --help", runbook)
+        self.assertIn("list_internal_notice_consumption_admissions", runbook)
+        self.assertIn("worktree `.env`", runbook)
+        self.assertIn("dev DB 与 dev object store", runbook)
+        self.assertIn("--limit 1", runbook)
+        self.assertIn("--batch-size 1", runbook)
+        self.assertIn("--max-attempts 1", runbook)
+        self.assertIn("--skip-read-model-rebuild", runbook)
+        self.assertIn(".tmp/ingestion-reports", runbook)
 
 
 if __name__ == "__main__":
