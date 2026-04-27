@@ -254,6 +254,26 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             "official_web_public_notice",
         )
 
+    def test_notice_source_family_accepts_wechat_public_notice(self) -> None:
+        card = NoticeCard(
+            notice_id="wechat:article:001",
+            title="关于校园活动的通知",
+            source_family="wechat_public_notice",
+            source_url="https://mp.weixin.qq.com/s/example",
+        )
+        discover = CampusNoticeDiscoverPayload(
+            query_text="校园活动",
+            source_families=("wechat_public_notice",),
+        )
+        get_payload = CampusNoticeGetPayload(
+            notice_id="wechat:article:001",
+            source_family="wechat_public_notice",
+        )
+
+        self.assertEqual(card.source_family, "wechat_public_notice")
+        self.assertEqual(discover.source_families, ("wechat_public_notice",))
+        self.assertEqual(get_payload.source_family, "wechat_public_notice")
+
     def test_service_status_historical_result_allows_missing_downgrade_reason(self) -> None:
         result = ServiceStatusLookupResult(
             subject_query="2024年图书馆开放状态",

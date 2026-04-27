@@ -168,6 +168,39 @@ The source-truth layer must not contain:
 Those fields belong to projection, document registry, chunking, authorization,
 or serving stages.
 
+## Phase 4 Projection Handoff
+
+Phase 4 admits an offline notice-consumption projection lane for this source
+channel:
+
+- source family: `wechat_public_notice`
+- source corpus/collection: `campus_notices/wechat_public_notice`
+- primary role default: `notice_window`
+- semantic owner default: `notice_body`
+
+Projection must consume only source-truth artifacts from this document and must
+not read raw provider bytes at query time.
+
+Deterministic dedupe precedence is:
+
+1. `internal_notice_restricted`
+1. `official_web_public_notice`
+1. `wechat_public_notice`
+
+When a WeChat article is deduped by higher precedence truth, projection keeps a
+suppressed audit row with:
+
+- `target_surface = "unsupported"`
+- `consumption_status = "no_adoption"`
+- dedupe evidence in `role_metadata`
+
+Phase 4 may emit optional read-model evidence rows for operator/offline use,
+but query-serving is still closed:
+
+- Go runtime keeps `wechat_public_notice` fail-closed in
+  `campus_notice_discover` / `campus_notice_get`
+- no runtime opening is implied by projection admission
+
 ## Replay Boundary
 
 When these source-truth artifacts exist, later notice projection must start

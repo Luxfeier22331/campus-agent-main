@@ -79,7 +79,11 @@ ServiceGuideClarificationReason = Literal[
     "guide_focus_required",
 ]
 HistoricalDowngradeReason = Literal["current_year_miss", "current_effective_miss"]
-NoticeSourceFamily = Literal["official_web_public_notice", "internal_notice_restricted"]
+NoticeSourceFamily = Literal[
+    "official_web_public_notice",
+    "internal_notice_restricted",
+    "wechat_public_notice",
+]
 NoticeTargetSurface = Literal[
     "notice_level_query",
     "procurement_notice_history",
@@ -199,7 +203,11 @@ ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS = (
     "guide_focus_required",
 )
 ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
-ALLOWED_NOTICE_SOURCE_FAMILIES = ("official_web_public_notice", "internal_notice_restricted")
+ALLOWED_NOTICE_SOURCE_FAMILIES = (
+    "official_web_public_notice",
+    "internal_notice_restricted",
+    "wechat_public_notice",
+)
 ALLOWED_NOTICE_TARGET_SURFACES = (
     "notice_level_query",
     "procurement_notice_history",

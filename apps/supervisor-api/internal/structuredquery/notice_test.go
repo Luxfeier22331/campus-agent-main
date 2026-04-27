@@ -332,6 +332,48 @@ func TestLookupCampusNoticeDiscoverFailsClosedWithoutRestrictedAuthorization(t *
 	}
 }
 
+func TestLookupCampusNoticeDiscoverFailsClosedForWechatPublicNoticeSourceFamily(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{{SourceNoticeID: "355222"}},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		NoticeBodyStore:      &fakeNoticeBodyStore{},
+		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticeDiscover(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"校园活动",
+			"source_families":["wechat_public_notice"]
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	result, ok := response.Body.(noticeDiscoverResult)
+	if !ok {
+		t.Fatalf("body = %T, want noticeDiscoverResult", response.Body)
+	}
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "source_family_unavailable" {
+		t.Fatalf("fail_close_reason = %q", result.FailCloseReason)
+	}
+	if store.searchCount != 0 {
+		t.Fatalf("search count = %d, want 0", store.searchCount)
+	}
+}
+
 func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
 	runtime := NewRuntime(Options{
 		NoticeReadModelDatabaseURL:     "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
