@@ -199,7 +199,7 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
   `defer`，且默认跳过低价值视觉处理
 - fallback `other` 在缺少动作、服务、宣传或高价值证据时直接关闭为
   `no_adoption`，默认 `machine_processing_policy=skip`；需要视觉/附件理解的
-  高价值通知进入 `pending_multimodal_processing`，不形成 human review-later 状态
+  高价值通知进入 `pending_multimodal_processing`，不形成延后人工处理状态
 - 它不代表 consumer admission，不写 projection/read model，也不打开 query-serving
 
 新写入的 consumption projection 不再使用 `notice_runtime` 同时表示 holding、

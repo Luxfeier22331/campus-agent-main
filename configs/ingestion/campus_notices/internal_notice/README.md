@@ -129,7 +129,7 @@ Current routing taxonomy groups include:
   are promoted into explicit routes, while clearly unconsumable terminal titles
   such as obituaries also close as `no_adoption`. Bare "通知/公告/通告" titles
   require source-truth body text before they can be promoted into a service or
-  action route. There is no human review-later state in this taxonomy
+  action route. There is no deferred human handling state in this taxonomy
 - attachment processing policy is derived from route: admitted high-value
   routes with attachment refs use `process`; body-only admitted routes use
   `not_required`; `defer` and `no_adoption` use
