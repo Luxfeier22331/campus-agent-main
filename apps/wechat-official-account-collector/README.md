@@ -2,7 +2,7 @@
 
 Collector runtime shell for the `wechat_official_account` public source channel.
 
-Phase 2 responsibilities:
+Current responsibilities:
 
 - call FeedWe authenticated web APIs:
   - `POST /api/auth/login`
@@ -13,11 +13,16 @@ Phase 2 responsibilities:
 - write ADR-0002 artifact families under:
   - `wechat_official_account/{account_slug}/{year}/{raw_version_id}/provider/feedwe/provider-response.jsonl`
   - `wechat_official_account/{account_slug}/{year}/{raw_version_id}/capture/feedwe-request-summary.json`
-- materialize source-truth directly from authenticated article payloads
+- fetch real `mp.weixin.qq.com/s/...` article pages discovered through FeedWe
+- persist page fetch metadata, raw article HTML when available, parser
+  extraction output, and captured media objects under the article capture prefix
+- materialize source-truth from the real article page, with metadata-only
+  fallback only when the page is a verification wall, non-article page, or fetch
+  failure
 - report run metadata and artifact refs to `app-api`
 
-It does not write source-truth, projections, document registry, Qdrant, release
-aliases, notice read models, or query-serving runtime state.
+It does not write projections, document registry, Qdrant, release aliases,
+notice read models, or query-serving runtime state.
 
 ## Local Command
 

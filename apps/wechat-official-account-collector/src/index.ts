@@ -37,7 +37,3 @@ export {
 	normalizeFeedWeHistoryPage,
 	resolveFeedWeSubscription,
 } from "./feedwe-client.ts";
-export {
-	replayFeedWeProviderResponseSourceTruth,
-	writeWeChatOfficialAccountSourceTruthArtifacts,
-} from "./replay-source-truth.ts";

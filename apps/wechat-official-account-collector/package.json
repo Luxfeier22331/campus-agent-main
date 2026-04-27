@@ -6,7 +6,6 @@
 	"type": "module",
 	"scripts": {
 		"capture": "node --experimental-strip-types src/capture-cli.ts",
-		"replay-source-truth": "node --experimental-strip-types src/replay-source-truth-cli.ts",
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},

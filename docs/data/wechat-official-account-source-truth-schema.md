@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 # WeChat Official-Account Source-Truth Schema
 
@@ -32,6 +32,9 @@ Capture and provider artifacts remain owned by the collector:
 - `capture/feedwe-request-summary.json`
 - `capture/wechat-article-fetch-metadata.json`
 - `capture/wechat-article-page.html`
+- `provider/wechat-page-parser/page-extraction.json`
+- `capture/media/{media_identity}/original.{ext}`
+- `capture/media/{media_identity}/fetch-metadata.json`
 
 Article source-truth artifacts are written under the same source-channel
 prefix:
@@ -77,14 +80,24 @@ Required fields:
 - `blockCount`
 - `mediaRefCount`
 - `availabilityState`
+- `captureBoundary`
+- `pageKind`
+- `pageParserVersion`
+- `capturedPageFinalUrl`
+- `inlineImageCount`
+- `capturedInlineImageCount`
+- `failedInlineImageCount`
 
-Allowed first-version values:
+Allowed current values:
 
+- `schemaVersion`: `wechat_official_account_article_manifest.v2`
 - `sourceChannel`: `wechat_official_account`
 - `provider`: `feedwe`
 - `articleIdentityBasis`: `article_url` or `provider_article_id`
 - `bodyState`: `captured`, `not_captured`, or `fetch_failed`
 - `availabilityState`: `observed`
+- `captureBoundary`: `real_mp_weixin_page`
+- `pageKind`: `article`, `verification`, `non_article`, or `fetch_error`
 
 ## Content Blocks
 
@@ -117,9 +130,10 @@ Allowed first-version block roles:
 
 ## Media Refs
 
-`media-refs.jsonl` stores referenced media URLs from the captured article page.
-The collector may record the cover image plus inline image URLs. It does not
-download the images into source-truth.
+`media-refs.jsonl` stores referenced media URLs from the captured article page
+and the capture state of each media object. The collector may record the cover
+image plus inline image URLs. Captured media bytes are stored under `capture/`;
+source-truth stores only stable object metadata and fetch status.
 
 Each row contains:
 
@@ -131,11 +145,21 @@ Each row contains:
 - `resourceRole`
 - `sourceUrl`
 - `normalizedSourceUrl`
+- `captureStatus`
+- `finalUrl`
+- `objectKey`
+- `contentSha256`
+- `mimeType`
+- `byteSize`
+- `capturedAt`
+- `fetchErrorMessage`
 
-Allowed first-version resource roles:
+Allowed current values:
 
+- `schemaVersion`: `wechat_official_account_media_ref.v2`
 - `cover_image`
 - `inline_image`
+- `captureStatus`: `captured` or `fetch_failed`
 
 ## Identity And Versioning
 
@@ -226,4 +250,6 @@ When these source-truth artifacts exist, later notice projection must start
 from `article-manifest.json`, `content-blocks.jsonl`, and `media-refs.jsonl`.
 
 Provider response JSONL remains useful for audit and source-truth replay, but
-it is not the long-term downstream contract.
+it is not the long-term downstream contract. The repo-owned collector command
+path for producing new source-truth is the real article capture path, not a
+metadata-only provider-response replay CLI.
