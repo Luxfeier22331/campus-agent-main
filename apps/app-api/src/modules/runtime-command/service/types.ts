@@ -5,6 +5,7 @@ import type {
 	SupervisorExecutionClient,
 	SupervisorExecutionResponse,
 } from "../../integration";
+import type { ProfileMemoryProjectionStore } from "../../profile-memory";
 import type { AppTelemetry } from "../../telemetry";
 import type { VersionQuery } from "../../version-query";
 
@@ -93,6 +94,7 @@ export interface ChatCommandServiceDependencies {
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;
 	now?: () => Date;
+	profileMemoryStore?: ProfileMemoryProjectionStore;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	supervisor: SupervisorExecutionClient;

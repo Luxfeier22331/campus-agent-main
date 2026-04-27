@@ -20,6 +20,10 @@ SUPERVISOR_API_BASE_URL=https://supervisor.internal
 SUPERVISOR_API_SHARED_SECRET=replace-with-supervisor-shared-secret
 SUPERVISOR_API_TIMEOUT_MS=8000
 SUPERVISOR_API_EVAL_TIMEOUT_MS=30000
+# Optional. Required only when SUPERVISOR_API_BASE_URL is protected by
+# Cloudflare Access service-token authentication.
+SUPERVISOR_API_ACCESS_CLIENT_ID=
+SUPERVISOR_API_ACCESS_CLIENT_SECRET=
 # Comma-separated exact operator emails allowed through the panel bridge.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 # Must match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`.

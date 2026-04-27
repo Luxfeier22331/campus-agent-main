@@ -6,6 +6,7 @@ import type {
 	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
+	ProfileMemoryProjectionStore,
 } from "../src/modules/runtime-command";
 import type { AppTelemetry } from "../src/modules/telemetry";
 
@@ -16,6 +17,7 @@ export type {
 	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
+	ProfileMemoryProjectionStore,
 } from "../src/modules/runtime-command";
 export {
 	buildChatCommandService,
@@ -182,6 +184,14 @@ export function createCommandStore(input?: {
 		conversation,
 		finalWrites,
 		store,
+	};
+}
+
+export function createProfileMemoryProjectionStore(input?: {
+	items?: Awaited<ReturnType<ProfileMemoryProjectionStore["listProjectionItems"]>>;
+}): ProfileMemoryProjectionStore {
+	return {
+		listProjectionItems: vi.fn(async () => input?.items ?? []),
 	};
 }
 

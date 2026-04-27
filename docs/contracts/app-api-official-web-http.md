@@ -62,6 +62,9 @@ contract。
 - 必须使用 machine-to-machine service credentials
 - `Authorization: Bearer <service-token-or-equivalent>` 是第一版接受形态
 - 可以额外携带 `x-trace-id`
+- 如果 command endpoint 通过 `campus-api-staging.ayafeed.com` 或等价 hostname 进入
+  `app-api`，该 hostname 必须按 machine ingress 保护；Cloudflare Access service token /
+  Tunnel / private network policy 不能替代本节 bearer token
 
 ### Operator Query Endpoints
 

@@ -1,4 +1,11 @@
 export {
+	docsCollections,
+	docsDocuments,
+	docsDocumentVersions,
+	docsReaderAssets,
+	docsSearchUnits,
+} from "./docs";
+export {
 	crawlRuns,
 	pageFreshness,
 	pageObservations,
@@ -16,8 +23,16 @@ export {
 	requestProjection,
 	traceBacklinkProjection,
 } from "./operator";
+export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 
+import {
+	docsCollections,
+	docsDocuments,
+	docsDocumentVersions,
+	docsReaderAssets,
+	docsSearchUnits,
+} from "./docs";
 import {
 	crawlRuns,
 	pageFreshness,
@@ -36,6 +51,7 @@ import {
 	requestProjection,
 	traceBacklinkProjection,
 } from "./operator";
+import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 
 export const appApiOwnedSchema = {
@@ -45,6 +61,13 @@ export const appApiOwnedSchema = {
 	runHeartbeats,
 	runArtifacts,
 	runOutbox,
+	docsCollections,
+	docsDocuments,
+	docsDocumentVersions,
+	docsReaderAssets,
+	docsSearchUnits,
+	profileMemorySettings,
+	profileMemoryItems,
 	requestExecution,
 	projectionOutbox,
 	requestObservabilityFact,

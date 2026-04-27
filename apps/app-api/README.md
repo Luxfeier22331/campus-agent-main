@@ -146,9 +146,9 @@ Database baseline:
 - migration / schema management uses canonical `APP_API_OPERATOR_DATABASE_URL`
   with legacy `APP_API_MANAGEMENT_DATABASE_URL` kept as a compatibility alias
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`,
-  `runtime.*`, `operator.*`, and `official_web.*`
+  `runtime.*`, `operator.*`, `official_web.*`, and `profile.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and
-  `official_web.*`
+  `official_web.*` / `profile.*`
 - Better Auth uses repo-owned `app_auth.*`; `apps/app-api` is now the shared-db
   bootstrap owner for `app_auth.*` / `chat.*`
 - Better Auth runtime now uses the shared Drizzle/runtime DB seam with explicit
@@ -263,6 +263,9 @@ Deployment minimum gate:
   expected to use the protected panel bridge
 - `SUPERVISOR_API_BASE_URL` and `SUPERVISOR_API_SHARED_SECRET` must be present
   together; partial configuration does not produce a ready runtime
+- `SUPERVISOR_API_ACCESS_CLIENT_ID` and `SUPERVISOR_API_ACCESS_CLIENT_SECRET`
+  are optional, and are sent only when the supervisor machine ingress is
+  protected by Cloudflare Access service-token authentication
 - password reset callback is frozen to the same-site public auth family and
   resolves only to `PUBLIC_CHAT_WEB_ORIGIN` `/reset-password`
 

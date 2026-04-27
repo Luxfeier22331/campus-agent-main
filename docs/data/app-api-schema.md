@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-25
+updated: 2026-04-27
 ---
 # App API Schema
 
@@ -45,6 +45,8 @@ updated: 2026-04-25
 - `runtime.*`
 - `operator.*`
 - `official_web.*`
+- `docs.*`
+- `profile.*`
 
 补充说明：
 
@@ -69,6 +71,8 @@ updated: 2026-04-25
 - `runtime.*`
 - `operator.*`
 - `official_web.*`
+- `docs.*`
+- `profile.*`
 
 `official_web` control-plane 落地时，可以在保持同一 migration pipeline 的前提下新增
 `official_web.*`；具体规则另见 `docs/data/app-api-official-web-schema.md`。
@@ -80,8 +84,8 @@ updated: 2026-04-25
 
 但 migration ownership 已显式拆分为：
 
-- `apps/app-api` 的 `drizzle.app_api_migrations` 只拥有 `runtime.*` / `operator.*` /
-  `official_web.*`
+- `apps/app-api` 的 `drizzle.app_api_migrations` 拥有 `runtime.*` / `operator.*` /
+  `official_web.*` / `docs.*` / `profile.*`
 - `apps/app-api` shared-product bootstrap 负责 `app_auth.*` / `chat.*` 的 bootstrap
   / adoption，不与 `drizzle.app_api_migrations` 混用同一 ownership 语义
 
@@ -220,6 +224,200 @@ updated: 2026-04-25
   truth，避免过期 follow-up 状态继续回灌
 - `chat` API response 不把 `session_slots` 作为 C 端公开 contract 暴露；它是 app-layer
   session projection
+
+## `docs.collections`
+
+用途：
+
+- document reader control-plane 的 collection read model
+- 支撑 `public-docs` same-site `/api/docs/*` navigation / search / resolve seam
+
+最小列：
+
+- `corpus`
+- `collection`
+- `display_name`
+- `description`
+- `updated_at`
+
+主键：
+
+- `(corpus, collection)`
+
+规则：
+
+- `docs.*` 是 app-api runtime read model，不是 canonical document artifact truth
+- object storage 仍是 reader asset bytes 的 publish truth
+- browser-facing response 不得暴露 object store key、raw provider path、raw source
+  locator 或 chunk id
+
+## `docs.documents`
+
+用途：
+
+- public/current document identity read model
+- 把 canonical `doc_id` / `document_slug` / current version 归一化为 browser-facing 摘要
+
+最小列：
+
+- `doc_id`
+- `corpus`
+- `collection`
+- `document_slug`
+- `title`
+- `canonical_url`
+- `current_version_id`
+- `current_version_slug`
+- `updated_at`
+
+最小索引：
+
+- unique `(corpus, collection, document_slug)`
+- `(corpus, collection, title)`
+
+## `docs.document_versions`
+
+用途：
+
+- reader 可见 version / visibility / delivery-mode read model
+
+最小列：
+
+- `version_id`
+- `doc_id`
+- `version_slug`
+- `label`
+- `effective_from`
+- `is_current`
+- `visibility_level`
+- `entitlement_groups_json`
+- `delivery_mode`
+- `updated_at`
+
+最小索引：
+
+- `(doc_id, is_current)`
+- unique `(doc_id, version_slug)`
+- `(delivery_mode, visibility_level, is_current)`
+
+规则：
+
+- Phase 2 首发只开放 `visibility_level=public`、`delivery_mode=public_static_asset` 且无
+  entitlement groups 的 public current subset
+- `gated_asset` 只能进入受控 delivery phase，不得误入匿名 `public-docs` static bundle
+
+## `docs.reader_assets`
+
+用途：
+
+- reader asset descriptor read model
+- 连接 `app-api` resolve response 与 deploy 后 `/_docs/...` static asset path
+
+最小列：
+
+- `version_id`
+- `static_prefix`
+- `content_url`
+- `outline_url`
+- `manifest_url`
+- `source_objects_json`
+- `target_objects_json`
+- `updated_at`
+
+规则：
+
+- `source_objects_json` 可以保存对象存储 key 供 deploy/control-plane 内部使用
+- browser-facing resolve response 只能返回 `content_url` / `outline_url` /
+  delivery mode，不返回 `source_objects_json`
+- `target_objects_json` 必须是 Worker static asset 相对路径，不是外部 URL
+
+## `docs.search_units`
+
+用途：
+
+- source-card compatible docs search read model
+- 只保存 reader target 需要的 section hit 信息
+
+最小列：
+
+- `search_unit_id`
+- `doc_id`
+- `version_id`
+- `title`
+- `anchor`
+- `canonical_url`
+- `highlight_root_unit_ids_json`
+- `snippet`
+- `search_text`
+- `unit_order`
+
+最小索引：
+
+- `(doc_id, version_id, unit_order)`
+- `(version_id, search_text)`
+
+规则：
+
+- `search_units` 不保存 `chunk_id`；docs search 返回的是 reader target，不是 retrieval trace
+- snippet 来自 canonical reader units / blocks，不得把 raw chunk payload 直出到 browser contract
+
+## `profile.memory_settings`
+
+用途：
+
+- user-owned profile memory projection setting
+- 控制 profile memory 是否进入 execution `ContextProjection`
+
+最小列：
+
+- `owner_user_id`
+- `profile_memory_enabled`
+- `updated_at`
+
+主键：
+
+- `owner_user_id`
+
+规则：
+
+- 缺省 setting 等价于 `profile_memory_enabled=true`
+- 关闭 projection 不删除 memory item，但后续 supervisor input 必须投影为空
+- setting 只影响 personalization input，不影响 authz / serving surface / approval truth
+
+## `profile.memory_items`
+
+用途：
+
+- user-owned long-term profile memory truth
+- 当前仅承载用户显式声明的 user-visible personalization items
+
+最小列：
+
+- `item_id`
+- `owner_user_id`
+- `key`
+- `value`
+- `source_type`
+- `confidence`
+- `visibility`
+- `created_at`
+- `updated_at`
+- `last_verified_at`
+
+最小索引：
+
+- unique `(owner_user_id, key)`
+- `(owner_user_id, updated_at)`
+
+规则：
+
+- `source_type=user_declared` / `confidence=low` / `visibility=user_visible` 是当前
+  browser-facing control surface 的默认写入姿态
+- `key` 必须是安全 typed key，不能表达 authorization / permission / ACL / visibility
+  语义
+- `value` 只作为 personalization weak truth，不得写入 retrieval source truth 或 authz truth
+- projection path 只读取当前 owner 的 enabled + user-visible items
+- 删除 item 后，不得再进入后续 `ContextProjection.profile_memory.items`
 
 ## `runtime.request_execution`
 

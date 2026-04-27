@@ -8,6 +8,7 @@ import { registerDocsRoutes } from "./docs";
 import { registerInternalRoutes } from "./internal";
 import { registerOfficialWebRoutes } from "./official-web";
 import { registerOperatorRoutes } from "./operator";
+import { registerProfileMemoryRoutes } from "./profile-memory";
 import { registerRuntimeRoutes } from "./runtime";
 
 export function registerAppRoutes(input: {
@@ -43,6 +44,12 @@ export function registerAppRoutes(input: {
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerDocsRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerProfileMemoryRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

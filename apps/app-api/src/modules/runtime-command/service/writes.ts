@@ -6,6 +6,7 @@ import {
 	toConversationResponse,
 } from "../../chat";
 import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
+import type { ProfileMemoryProjectionItem } from "../../profile-memory";
 import { extractRequestDiagnosticsSummary } from "../../request-diagnostics";
 import {
 	buildAcceptedRequestObservabilityFact,
@@ -36,6 +37,7 @@ export function buildConversationTitle(currentTitle: string, prompt: string): st
 export function buildSupervisorContextProjection(input: {
 	actor: ResolvedAppPrincipal["actor"];
 	authorization: ResolvedAppPrincipal["authorization"];
+	profileMemoryItems?: ProfileMemoryProjectionItem[];
 	sessionSlots: ChatConversation["sessionSlots"];
 	turnCount: number;
 }) {
@@ -43,7 +45,16 @@ export function buildSupervisorContextProjection(input: {
 		actor: input.actor,
 		authorization: input.authorization ?? buildExecutionAuthorizationContext(input.actor),
 		profileMemory: {
-			items: [],
+			items:
+				input.profileMemoryItems?.map((item) => ({
+					confidence: item.confidence,
+					itemId: item.itemId,
+					key: item.key,
+					lastVerifiedAt: item.lastVerifiedAt,
+					sourceType: item.sourceType,
+					value: item.value,
+					visibility: item.visibility,
+				})) ?? [],
 		},
 		session: buildSupervisorSessionProjection({
 			sessionSlots: input.sessionSlots,

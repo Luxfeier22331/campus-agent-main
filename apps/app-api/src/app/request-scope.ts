@@ -1,6 +1,6 @@
 import type { Env } from "../config";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
-import { buildUnavailableDocsService } from "../modules/docs";
+import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import { createSupervisorExecutionClient } from "../modules/integration";
 import {
 	buildOfficialWebCommandService,
@@ -22,6 +22,7 @@ import {
 	createPgOperatorObservabilityCommandStore,
 } from "../modules/operator-observability-command";
 import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
+import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
 import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
@@ -53,6 +54,7 @@ export function createRequestScopeFactory(input: {
 			let operatorObservabilityCommandService =
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
+			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
 
 			function resolveChatConversationService() {
 				if (chatConversationService) {
@@ -75,6 +77,9 @@ export function createRequestScopeFactory(input: {
 				});
 				chatCommandService = buildChatCommandService({
 					conversationStore: chatConversationStore,
+					profileMemoryStore: createPgProfileMemoryStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
 					supervisor: createSupervisorExecutionClient(input.env),
@@ -103,7 +108,9 @@ export function createRequestScopeFactory(input: {
 					return docsService;
 				}
 
-				docsService = buildUnavailableDocsService();
+				docsService = buildDocsService({
+					store: createPgDocsReadModelStore(input.env, { getDb: runtime.getDb }),
+				});
 				return docsService;
 			}
 
@@ -143,6 +150,17 @@ export function createRequestScopeFactory(input: {
 				return operatorObservabilityCommandService;
 			}
 
+			function resolveProfileMemoryService() {
+				if (profileMemoryService) {
+					return profileMemoryService;
+				}
+
+				profileMemoryService = buildProfileMemoryService({
+					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
+				});
+				return profileMemoryService;
+			}
+
 			return {
 				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
 				resolveChatCommandService,
@@ -152,6 +170,7 @@ export function createRequestScopeFactory(input: {
 				resolveOfficialWebQueryService,
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
+				resolveProfileMemoryService,
 			};
 		},
 		officialWebExecutionStatusService,

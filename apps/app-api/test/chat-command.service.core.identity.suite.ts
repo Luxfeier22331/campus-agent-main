@@ -7,6 +7,7 @@ import {
 	createDeterministicIdGenerator,
 	createHmac,
 	createPrincipal,
+	createProfileMemoryProjectionStore,
 	createTelemetryMock,
 	deriveSafetyIdentifier,
 	type SupervisorExecutionClient,
@@ -262,5 +263,77 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			}),
 		);
 		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
+	});
+
+	it("injects active user-visible profile memory into supervisor context without changing authz", async () => {
+		const { store } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const profileMemoryStore = createProfileMemoryProjectionStore({
+			items: [
+				{
+					confidence: "low",
+					itemId: "mem_recent_goal",
+					key: "recent_goal",
+					lastVerifiedAt: "2026-04-27T00:00:00.000Z",
+					sourceType: "user_declared",
+					value: "准备保研材料",
+					visibility: "user_visible",
+				},
+			],
+		});
+		const supervisor: SupervisorExecutionClient = {
+			execute: vi.fn().mockResolvedValue({
+				answerText: "可以，先看培养方案和学院通知。",
+				error: null,
+				followUpQuestion: "",
+				result: {},
+				selectedTarget: "rag-agent",
+				status: "completed",
+				traceId: "trace_0002",
+			}),
+		};
+
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T08:00:00.000Z"),
+			conversationStore,
+			profileMemoryStore,
+			store,
+			supervisor,
+		});
+
+		await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "我接下来该看什么？",
+				requestedCapability: "knowledge",
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
+		});
+
+		expect(profileMemoryStore.listProjectionItems).toHaveBeenCalledWith({
+			ownerUserId: "user_01HQ",
+		});
+		expect(supervisor.execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				context: expect.objectContaining({
+					authorization: createPrincipal().authorization,
+					profileMemory: {
+						items: [
+							{
+								confidence: "low",
+								itemId: "mem_recent_goal",
+								key: "recent_goal",
+								lastVerifiedAt: "2026-04-27T00:00:00.000Z",
+								sourceType: "user_declared",
+								value: "准备保研材料",
+								visibility: "user_visible",
+							},
+						],
+					},
+				}),
+			}),
+		);
 	});
 }

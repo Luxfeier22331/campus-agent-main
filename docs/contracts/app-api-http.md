@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-25
+updated: 2026-04-27
 ---
 # App API HTTP Contract
 
@@ -49,8 +49,23 @@ browser-facing HTTP contract。
 - browser 默认不直连 `app-api` public hostname
 - web surface 可以做 route proxy / BFF
 - 但 proxy 后的 contract 必须保持与这里一致
+- Worker web surfaces 必须通过 `APP_API` Service Binding 调用 `app-api`；其中
+  `https://app-api.internal` 只是内部 Request URL origin
+- `campus-api-staging.ayafeed.com` 如存在，只能作为 staging machine / ops ingress，
+  不是本文 browser-facing app contract
 - `official_web` collector command surface 与 app-owned run APIs 不属于本文范围，另见
   `docs/contracts/app-api-official-web-http.md`
+
+## Route Exposure Classes
+
+`apps/app-api/src/app/route-exposure.ts` 是当前 route exposure inventory 的代码侧
+contract test carrier。新增 route 必须声明：
+
+- `browser-surface`：由 public chat / docs same-site proxy 调用
+- `operator-via-panel`：由 protected panel internal bridge 调用
+- `machine-internal`：由 supervisor / eval / ingestion 等 trusted machine caller 调用
+- `collector-machine`：由 official-web collector command caller 调用
+- `system`：health / readiness probe
 
 ## Cross-Cutting Rules
 
@@ -73,6 +88,13 @@ browser-facing HTTP contract。
 
 - `ALL /api/auth/*`
 - `GET /api/me`
+
+### Profile Memory
+
+- `GET /api/me/profile-memory`
+- `POST /api/me/profile-memory/items`
+- `PATCH /api/me/profile-memory/settings`
+- `DELETE /api/me/profile-memory/items/:itemId`
 
 ### Chat
 
@@ -150,6 +172,29 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
   "messages": []
 }
 ```
+
+### Profile Memory Item
+
+```json
+{
+  "itemId": "mem_01HQ...",
+  "key": "recent_goal",
+  "value": "准备保研材料",
+  "sourceType": "user_declared",
+  "confidence": "low",
+  "visibility": "user_visible",
+  "lastVerifiedAt": "2026-04-27T00:00:00.000Z",
+  "updatedAt": "2026-04-27T00:00:00.000Z"
+}
+```
+
+规则：
+
+- `profile memory` 是 app-owned personalization truth，不是 authorization truth
+- browser-facing control surface 只允许当前 signed-in principal 管理自己的 user-visible memory
+- `key` 必须是安全的 typed key，不接受 authorization / permission / ACL 类 key
+- `value` 是用户声明的短文本偏好或目标，不能作为 ACL、serving surface 或 approval 权限来源
+- 关闭 memory projection 后，后续 execution `ContextProjection.profile_memory.items` 必须为空
 
 ### Request Projection Summary
 
@@ -285,6 +330,100 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
 - v1 不要求单独的 operator 用户系统或 operator session 表
 - 当前 chat routes 继续要求 resolved principal；无 principal 请求返回
   `session_required`，不会创建 anonymous chat conversation
+
+## Profile Memory Endpoints
+
+这些接口是当前 signed-in end-user 的 profile memory 控制面。
+
+### `GET /api/me/profile-memory`
+
+返回当前用户 profile memory projection setting 与 user-visible memory items。
+
+```json
+{
+  "profileMemory": {
+    "enabled": true,
+    "items": [
+      {
+        "itemId": "mem_01HQ...",
+        "key": "recent_goal",
+        "value": "准备保研材料",
+        "sourceType": "user_declared",
+        "confidence": "low",
+        "visibility": "user_visible",
+        "lastVerifiedAt": "2026-04-27T00:00:00.000Z",
+        "updatedAt": "2026-04-27T00:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### `POST /api/me/profile-memory/items`
+
+Upsert 一个用户声明的 profile memory item。
+
+```json
+{
+  "key": "recent_goal",
+  "value": "准备保研材料"
+}
+```
+
+返回：
+
+```json
+{
+  "item": {
+    "itemId": "mem_01HQ...",
+    "key": "recent_goal",
+    "value": "准备保研材料",
+    "sourceType": "user_declared",
+    "confidence": "low",
+    "visibility": "user_visible",
+    "lastVerifiedAt": "2026-04-27T00:00:00.000Z",
+    "updatedAt": "2026-04-27T00:00:00.000Z"
+  }
+}
+```
+
+### `PATCH /api/me/profile-memory/settings`
+
+打开或关闭 profile memory projection。
+
+```json
+{
+  "enabled": false
+}
+```
+
+返回：
+
+```json
+{
+  "profileMemory": {
+    "enabled": false
+  }
+}
+```
+
+### `DELETE /api/me/profile-memory/items/:itemId`
+
+删除当前用户名下的 profile memory item。
+
+```json
+{
+  "deleted": true
+}
+```
+
+规则：
+
+- 所有接口都要求 resolved session principal
+- memory item `key` 使用小写 typed key，并拒绝 authorization / permission / ACL 类 key
+- `profileMemory.enabled=false` 不删除已有 item，但 execution projection 必须返回空 memory
+- 删除 item 后，该 item 不得再进入后续 `ContextProjection.profile_memory.items`
+- profile memory 不进入 authorization filter、serving surface、approval 或 tool permission
 
 ## Chat Endpoints
 

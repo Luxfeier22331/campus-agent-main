@@ -294,11 +294,20 @@ export function buildChatCommandService(
 		};
 	}
 
-	function buildSupervisorInput(context: AcceptedChatCommandContext): SupervisorExecutionInput {
+	async function buildSupervisorInput(
+		context: AcceptedChatCommandContext,
+	): Promise<SupervisorExecutionInput> {
+		const profileMemoryItems = dependencies.profileMemoryStore
+			? await dependencies.profileMemoryStore.listProjectionItems({
+					ownerUserId: context.input.principal.principal.principalId,
+				})
+			: [];
+
 		return {
 			context: buildSupervisorContextProjection({
 				actor: context.input.principal.actor,
 				authorization: context.input.principal.authorization,
+				profileMemoryItems,
 				sessionSlots: context.conversation.sessionSlots,
 				turnCount: context.conversation.messages.length,
 			}),
@@ -500,7 +509,7 @@ export function buildChatCommandService(
 
 		try {
 			return {
-				response: await dependencies.supervisor.execute(buildSupervisorInput(context)),
+				response: await dependencies.supervisor.execute(await buildSupervisorInput(context)),
 				transportError: null,
 			};
 		} catch (error) {
@@ -581,7 +590,7 @@ export function buildChatCommandService(
 			let upstreamResponse: Response;
 			try {
 				upstreamResponse = await dependencies.supervisor.executeStream(
-					buildSupervisorInput(context),
+					await buildSupervisorInput(context),
 				);
 			} catch (error) {
 				const handled = toHandledErrorTransportOutcome(error);

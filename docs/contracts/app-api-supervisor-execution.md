@@ -110,6 +110,10 @@ lifecycle endpoint。它复用非流式 answer request body、auth header、trac
 - `content-type: application/json`
 - `x-trace-id: <trace-id>`
 - `x-worker-origin-auth: <shared-secret-or-equivalent>`
+- optional Cloudflare Access service token headers when the Docker supervisor
+  ingress is Access-protected:
+  - `CF-Access-Client-Id: <client-id>`
+  - `CF-Access-Client-Secret: <client-secret>`
 
 规则：
 
@@ -118,6 +122,8 @@ lifecycle endpoint。它复用非流式 answer request body、auth header、trac
   第一版可以直接复用这个名字
 - `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `supervisor-api` 的长期 contract
   一部分
+- Cloudflare Access service token 只保护 machine ingress，不替代 `x-worker-origin-auth`
+  这层 app-level shared secret
 
 ## Cancellation Endpoint
 
@@ -200,8 +206,8 @@ product/control-plane endpoint。
 
 当前状态：
 
-- `service_status_lookup` 已具备 file projection fixture backed foundation，用于
-  deterministic runtime tests
+- `service_status_lookup` 已迁移到 PostgreSQL release current pointer + typed read
+  model，用于 deterministic runtime tests 与后续打开 gate 的一致 serving 路径
 - `transport_schedule_lookup` 已具备 projection-backed deterministic query
   kernel，可解析 current snapshot metadata、route clarification、first / next /
   last departure、departure list、service window、timetable 与 temporary
@@ -303,8 +309,12 @@ payload 或 provider raw response。
 - `conversation_id` 来自 chat domain truth
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
-  `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与
+  `actor`、`authorization.retrieval_filter`、`profile_memory.items` 与
   `session.confirmed_slots`、可选的 `session.selected_notice_ref`，以及 turn count 摘要
+- `profile_memory.items` 只包含当前 principal 名下、已启用 projection、且
+  `visibility=user_visible` 的 profile memory item；关闭 profile memory projection
+  时必须为空。它只能用于 personalization，不得参与 authorization filter、serving
+  surface、approval 或 tool permission 判定
 - `requested_capability` 当前 wire 允许 `knowledge`、`place_lookup`、
   `campus_services`、`notice`。这只是 internal execution capability label，不等于对应
   browser surface 已开放；当前公开 chat surface 仍由 `app-api` surface capability

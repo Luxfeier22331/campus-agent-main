@@ -1,6 +1,17 @@
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 
+export {
+	buildDocsService,
+	type DocsCollectionRecord,
+	type DocsDocumentVersionRecord,
+	type DocsReaderAssetRecord,
+	type DocsReadModelStore,
+	type DocsSearchUnitRecord,
+	type DocsVersionAccessRecord,
+} from "./service";
+export { createPgDocsReadModelStore } from "./store";
+
 export type DocsVersionMode = "current";
 export type ReaderAssetDeliveryMode = "public_static_asset" | "gated_asset";
 

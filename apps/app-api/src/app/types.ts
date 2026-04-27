@@ -8,6 +8,7 @@ import type { OfficialWebPlannerService } from "../modules/official-web-planner"
 import type { OfficialWebQueryService } from "../modules/official-web-query";
 import type { OperatorObservabilityCommandService } from "../modules/operator-observability-command";
 import type { OperatorQueryService } from "../modules/operator-query";
+import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { AppTelemetry } from "../modules/telemetry";
 
@@ -32,6 +33,7 @@ export interface AppDependencies {
 	officialWebQueryService?: OfficialWebQueryService;
 	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
 	operatorQueryService?: OperatorQueryService;
+	profileMemoryService?: ProfileMemoryService;
 	scheduleRequestProjectionDrain?: (input: {
 		requestId: string;
 		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
@@ -63,4 +65,5 @@ export interface AppRequestScope {
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
+	resolveProfileMemoryService(): ProfileMemoryService;
 }
