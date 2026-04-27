@@ -124,9 +124,20 @@ describe("published reader docs sync", () => {
 						sections: [
 							{
 								anchor: "section-1",
-								blocks: [{ kind: "paragraph", rootUnitId: "root-1", text: "第一学期开设法理学。" }],
+								blocks: [
+									{
+										kind: "paragraph",
+										rootUnitId: "root-1",
+										text: "第一学期,开设法理学(导论);",
+									},
+									{
+										kind: "table",
+										rootUnitId: "root-1-table",
+										text: "<table><tr><td>考核项</td><td>说明</td></tr><tr><td>*实践</td><td>课堂汇报</td></tr></table>",
+									},
+								],
 								order: 1,
-								title: "第一节",
+								title: "第一节(导论)",
 							},
 						],
 					}),
@@ -185,7 +196,11 @@ describe("published reader docs sync", () => {
 							{
 								anchor: "section-1",
 								blocks: [
-									{ kind: "paragraph", rootUnitId: "root-2", text: "学生应按时参加教学活动。" },
+									{
+										kind: "paragraph",
+										rootUnitId: "root-2",
+										text: "学生应按时参加教学活动，参照《办法<试行>》执行。",
+									},
 								],
 								order: 1,
 								title: "第一条",
@@ -226,19 +241,23 @@ describe("published reader docs sync", () => {
 		).toContain("当前公开发布 1 篇文档");
 		const page = readFileSync(join(docsRoot, "docs/curriculum/curriculum_plan/law.mdx"), "utf8");
 		expect(page).toContain('title: "法学本科人才培养方案"');
-		expect(page).toContain("第一学期开设法理学。");
+		expect(page).toContain("## 第一节（导论）");
+		expect(page).toContain("第一学期，开设法理学（导论）；");
 		expect(page).toContain("document-meta-panel");
 		expect(page).toContain('data-docs-reader-meta="true"');
 		expect(page).toContain('data-docs-version-slug="2026-current"');
 		expect(page).toContain('data-docs-is-current="true"');
 		expect(page).toContain("原文第 1-8 页");
 		expect(page).toContain("来源详情");
+		expect(page).toContain("|考核项|说明|");
+		expect(page).toContain("课堂汇报");
+		expect(page).not.toContain("<table>");
 		expect(page).not.toContain("reader-assets/law");
 		const currentVersionPage = readFileSync(
 			join(docsRoot, "docs/curriculum/curriculum_plan/law/v/2026-current.mdx"),
 			"utf8",
 		);
-		expect(currentVersionPage).toContain("第一学期开设法理学。");
+		expect(currentVersionPage).toContain("第一学期，开设法理学（导论）；");
 		const historicalPage = readFileSync(
 			join(docsRoot, "docs/curriculum/curriculum_plan/law/v/2025-history.mdx"),
 			"utf8",
@@ -246,6 +265,11 @@ describe("published reader docs sync", () => {
 		expect(historicalPage).toContain("旧版第四学期开设课程。");
 		expect(historicalPage).toContain('data-docs-version-slug="2025-history"');
 		expect(historicalPage).toContain('data-docs-is-current="false"');
+		const handbookPage = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/student-attendance-management.mdx"),
+			"utf8",
+		);
+		expect(handbookPage).toContain("《办法&lt;试行&gt;》");
 		expect(buildRspressSidebarConfig(docsRoot)["/"]).toMatchObject([
 			{ link: "/", text: "文档首页" },
 			{
@@ -345,5 +369,78 @@ describe("published reader docs sync", () => {
 				manifestObjectKey: "manifest.json",
 			}),
 		).rejects.toThrow("unsafe documentSlug");
+	});
+
+	it("falls back to plain text when published table html is structurally broken", async () => {
+		const docsRoot = createDocsRoot();
+		const objectStore = new FakeObjectStore(
+			new Map([
+				[
+					"manifest.json",
+					JSON.stringify({
+						entries: [
+							{
+								collection: "curriculum_plan",
+								corpus: "curriculum",
+								deliveryMode: "public_static_asset",
+								docId: "curriculum:broken-table",
+								documentSlug: "broken-table",
+								isCurrent: true,
+								sourceObjects: {
+									meta: "reader-assets/broken/meta.json",
+									outline: "reader-assets/broken/outline.json",
+									reader: "reader-assets/broken/reader.json",
+								},
+								targetObjects: {},
+								title: "破损表格示例",
+								versionId: "ver_broken_table",
+								versionSlug: "2026-current",
+							},
+						],
+					}),
+				],
+				[
+					"reader-assets/broken/reader.json",
+					JSON.stringify({
+						document: {
+							collection: "curriculum_plan",
+							corpus: "curriculum",
+							documentSlug: "broken-table",
+							title: "破损表格示例",
+						},
+						sections: [
+							{
+								anchor: "broken",
+								blocks: [
+									{
+										kind: "table",
+										rootUnitId: "broken-1",
+										text: "<table><tr><td>课程</td><td>说明</tr></table>",
+									},
+								],
+								order: 1,
+								title: "表格",
+							},
+						],
+					}),
+				],
+				["reader-assets/broken/meta.json", JSON.stringify({})],
+				["reader-assets/broken/outline.json", JSON.stringify({ nodes: [] })],
+			]),
+		);
+
+		await syncPublishedReaderDocs({
+			client: objectStore,
+			docsRoot,
+			manifestObjectKey: "manifest.json",
+		});
+
+		const page = readFileSync(
+			join(docsRoot, "docs/curriculum/curriculum_plan/broken-table.mdx"),
+			"utf8",
+		);
+		expect(page).toContain("课程 说明");
+		expect(page).not.toContain("<td>");
+		expect(page).not.toContain("</tr></table>");
 	});
 });
