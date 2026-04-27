@@ -233,6 +233,9 @@ describe("docs service", () => {
 			outlineUrl:
 				"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2025-history/outline.json",
 		});
+		expect(historical.document.canonicalUrl).toBe(
+			"/docs/curriculum/curriculum_plan/law-ethnic-class-program/v/2025-history",
+		);
 		expect(historical.resolvedVersion).toEqual({
 			isCurrent: false,
 			label: "2025 版",
