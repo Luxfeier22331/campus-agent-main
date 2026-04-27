@@ -107,8 +107,6 @@ func serviceGuideReadyMatches(matches []serviceGuideMatch) []serviceGuideMatch {
 
 func serviceGuideNonReadyReason(record serviceGuideRecord) string {
 	switch strings.TrimSpace(record.ExtractionStatus) {
-	case "needs_manual_review", "incomplete":
-		return "manual_review_required"
 	case "conflicted":
 		return "source_conflict"
 	default:

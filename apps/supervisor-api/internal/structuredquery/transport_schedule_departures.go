@@ -3,6 +3,7 @@ package structuredquery
 import (
 	"errors"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -42,7 +43,8 @@ func matchTransportServiceException(
 	snapshot transportScheduleSnapshotRecord,
 	route transportRouteRecord,
 	serviceDate string,
-) (transportServiceExceptionRecord, bool) {
+) (transportServiceExceptionRecord, bool, error) {
+	matches := []transportServiceExceptionRecord{}
 	for _, exception := range exceptions {
 		if exception.RouteID != route.RouteID {
 			continue
@@ -56,9 +58,30 @@ func matchTransportServiceException(
 		if exception.ServiceStatus == "" {
 			continue
 		}
-		return exception, true
+		matches = append(matches, exception)
 	}
-	return transportServiceExceptionRecord{}, false
+	if len(matches) == 0 {
+		return transportServiceExceptionRecord{}, false, nil
+	}
+	selected := matches[0]
+	for _, candidate := range matches[1:] {
+		if transportServiceExceptionsConflict(selected, candidate) {
+			return transportServiceExceptionRecord{}, false, errors.New("source_conflict")
+		}
+		selected.RelatedNoticeRefs = appendUniqueTransportRefs(
+			selected.RelatedNoticeRefs,
+			candidate.RelatedNoticeRefs,
+		)
+	}
+	return selected, true, nil
+}
+
+func transportServiceExceptionsConflict(
+	left transportServiceExceptionRecord,
+	right transportServiceExceptionRecord,
+) bool {
+	return strings.TrimSpace(left.ServiceStatus) != strings.TrimSpace(right.ServiceStatus) ||
+		strings.TrimSpace(left.OperationalComment) != strings.TrimSpace(right.OperationalComment)
 }
 
 func buildTransportDepartures(

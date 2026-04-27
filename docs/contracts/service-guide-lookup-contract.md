@@ -68,8 +68,8 @@ updated: 2026-04-26
   - 只负责 deterministic projection lookup、alias resolution、temporal validation 与
     typed result shaping
 - service guide projection
-  - 拥有 normalized guide facts、source refs、effective window、manual-review state 与
-    conflict state
+  - 拥有 normalized guide facts、source refs、effective window、non-ready blocking 与
+    conflict state；不再向 runtime 暴露人工审核状态
 
 ## Request Contract
 
@@ -139,7 +139,6 @@ ServiceGuideLookupResult
   - temporal_scope_ambiguous
   - source_family_unavailable
   - source_conflict
-  - manual_review_required
 ```
 
 ### `ServiceGuideServiceRef`
@@ -287,7 +286,7 @@ ServiceGuideCandidate
   `contact_directory_lookup`
 - builder 离线抽取 service records、section facts、materials、entry refs、office hours、
   contacts 与 source refs
-- builder 必须输出 validation summary 与 manual-review report
+- builder 必须输出 validation summary；带人工审核标记的旧 source truth 不能进入新 release
 - Go `apps/supervisor-api` 通过 PostgreSQL `structured_projection_current` current
   pointer 与 typed `service_guide_read_model` 读取当前 release，不直接读取对象存储，也不再支持
   mounted current projection file fallback
@@ -339,7 +338,7 @@ metrics label。
 - shared contract 已实现并有 contract tests
 - Go internal query endpoint 已实现并有 deterministic fixture tests
 - Python thin adapter 已实现并验证 allowed tools / payload kind
-- service guide projection builder、validation summary 与 manual-review report 已落地
+- service guide projection builder 与 validation summary 已落地，且新 release 不接受人工审核状态
 - app-api typed observability summary 能展示 selected tool、business outcome 与 fail-close
   reason
 - intent eval / release gate 覆盖 guide query、ambiguity、fail-close 与 transaction guardrail

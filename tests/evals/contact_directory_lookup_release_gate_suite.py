@@ -14,12 +14,21 @@ from campus_evals.intent_models import IntentEvalReport
 
 
 class ContactDirectoryLookupReleaseGateTest(unittest.TestCase):
-    def test_intent_case_subset_covers_contact_directory_lookup(self) -> None:
+    def test_intent_case_subset_covers_contact_directory_lookup_and_action_guardrails(
+        self,
+    ) -> None:
         cases = contact_directory_lookup_intent_gate_cases()
 
-        self.assertGreaterEqual(len(cases), 4)
+        self.assertGreaterEqual(len(cases), 6)
         self.assertTrue(
-            all(case.expected_allowed_tools == ("contact_directory_lookup",) for case in cases)
+            any(case.expected_allowed_tools == ("contact_directory_lookup",) for case in cases)
+        )
+        self.assertTrue(
+            any(
+                case.expected_next_action == "approval_required"
+                and case.expected_capability == "campus_services"
+                for case in cases
+            )
         )
 
     def test_release_gate_writes_projection_intent_and_runtime_checks(self) -> None:
@@ -68,6 +77,7 @@ class ContactDirectoryLookupReleaseGateTest(unittest.TestCase):
                 "intent_contact_directory_cases",
                 "supervisor_go_contact_directory_tests",
                 "campus_services_agent_contract_tests",
+                "app_api_contact_directory_structured_answer_tests",
             ],
         )
         self.assertIn(
@@ -89,6 +99,20 @@ class ContactDirectoryLookupReleaseGateTest(unittest.TestCase):
                 "-m",
                 "unittest",
                 "tests.agent.test_campus_services_agent",
+            ),
+            commands,
+        )
+        self.assertIn(
+            (
+                "pnpm",
+                "--dir",
+                "apps/app-api",
+                "exec",
+                "vitest",
+                "run",
+                "-c",
+                "vitest.node.config.mts",
+                "test/chat-command.service.test.ts",
             ),
             commands,
         )

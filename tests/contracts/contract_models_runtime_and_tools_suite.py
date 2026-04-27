@@ -181,6 +181,15 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(payload["result"]["contact_focus"], "phone")
         self.assertEqual(payload["result"]["resolved_contact"]["contact_id"], "contact:admission-office")
 
+    def test_tool_fail_close_reason_rejects_legacy_manual_review_required(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported tool fail-close reason"):
+            ServiceGuideLookupResult(
+                service_query="校园卡丢了怎么办",
+                guide_focus="full_guide",
+                outcome="temporarily_unverifiable",
+                fail_close_reason="manual_review_required",
+            )
+
     def test_version_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when version mode is as_of"):
             VersionQuery(mode="as_of")

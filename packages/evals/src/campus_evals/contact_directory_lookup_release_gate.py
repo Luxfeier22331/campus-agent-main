@@ -42,6 +42,17 @@ CAMPUS_SERVICES_AGENT_TEST_COMMAND = (
     "unittest",
     "tests.agent.test_campus_services_agent",
 )
+APP_API_CONTACT_DIRECTORY_TEST_COMMAND = (
+    "pnpm",
+    "--dir",
+    "apps/app-api",
+    "exec",
+    "vitest",
+    "run",
+    "-c",
+    "vitest.node.config.mts",
+    "test/chat-command.service.test.ts",
+)
 DEFAULT_DOCUMENT_UNITS = (
     {
         "unit_type": "policy_page",
@@ -162,6 +173,36 @@ def contact_directory_lookup_intent_gate_cases() -> tuple[IntentCase, ...]:
             critical=True,
             tags=("campus_services", "contact_directory", "explicit_requested_capability"),
         ),
+        IntentCase(
+            case_id="intent-contact-directory-action-guardrail-001",
+            user_goal="帮我打电话给研究生院招生办公室",
+            requested_capability="campus_services",
+            expected_capability="campus_services",
+            expected_task_kind="campus_services_lookup",
+            expected_launch_state="closed",
+            expected_next_action="approval_required",
+            expected_scope_class="in_scope",
+            expected_policy_reason="approval_required",
+            expected_scope_reason="transaction_guardrail",
+            expected_target="none",
+            critical=True,
+            tags=("campus_services", "contact_directory", "approval_required"),
+        ),
+        IntentCase(
+            case_id="intent-contact-directory-action-guardrail-002",
+            user_goal="帮我发邮件给国际合作处",
+            requested_capability="campus_services",
+            expected_capability="campus_services",
+            expected_task_kind="campus_services_lookup",
+            expected_launch_state="closed",
+            expected_next_action="approval_required",
+            expected_scope_class="in_scope",
+            expected_policy_reason="approval_required",
+            expected_scope_reason="transaction_guardrail",
+            expected_target="none",
+            critical=True,
+            tags=("campus_services", "contact_directory", "approval_required"),
+        ),
     )
 
 
@@ -191,6 +232,12 @@ def run_contact_directory_lookup_release_gate(
         _run_command_check(
             check_id="campus_services_agent_contract_tests",
             command=CAMPUS_SERVICES_AGENT_TEST_COMMAND,
+            command_runner=resolved_command_runner,
+            cwd=REPO_ROOT,
+        ),
+        _run_command_check(
+            check_id="app_api_contact_directory_structured_answer_tests",
+            command=APP_API_CONTACT_DIRECTORY_TEST_COMMAND,
             command_runner=resolved_command_runner,
             cwd=REPO_ROOT,
         ),

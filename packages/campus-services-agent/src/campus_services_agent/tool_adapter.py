@@ -305,9 +305,15 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
         return AgentResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=f"{route_name}当前状态：{result.service_status}。{operational_suffix}"
-            if route_name
-            else f"当前状态：{result.service_status}。{operational_suffix}",
+            answer_text=(
+                f"{route_name}当前状态：{_transport_service_status_label(result.service_status)}。"
+                f"{operational_suffix}"
+                if route_name
+                else (
+                    f"当前状态：{_transport_service_status_label(result.service_status)}。"
+                    f"{operational_suffix}"
+                )
+            ),
             confidence="high",
             result=result,
         )
@@ -394,35 +400,103 @@ def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentRe
 
 
 def _service_guide_text(result: ServiceGuideLookupResult) -> str:
+    parts: list[str] = []
     if result.guide_sections:
-        return "\n".join(section.content for section in result.guide_sections if section.content)
+        parts.extend(
+            (
+                f"{section.title}：{section.content}"
+                if section.title and section.title != section.content
+                else section.content
+            )
+            for section in result.guide_sections
+            if section.content
+        )
     if result.required_materials:
-        return "、".join(material.name for material in result.required_materials)
+        parts.append(
+            "所需材料："
+            + "、".join(
+                _service_guide_material_text(material) for material in result.required_materials
+            )
+        )
     if result.entry_refs:
-        return "、".join(entry.label for entry in result.entry_refs)
+        parts.append(
+            "可用入口："
+            + "、".join(_service_guide_entry_text(entry) for entry in result.entry_refs)
+        )
     if result.office_hours:
-        return "、".join(hours.time_range or hours.effective_note for hours in result.office_hours)
+        parts.append(
+            "办理时间："
+            + "、".join(
+                _service_guide_hours_text(hours)
+                for hours in result.office_hours
+                if _service_guide_hours_text(hours)
+            )
+        )
     if result.contact_refs:
-        return "、".join(_service_guide_contact_text(contact) for contact in result.contact_refs)
+        parts.append(
+            "联系方式："
+            + "、".join(_service_guide_contact_text(contact) for contact in result.contact_refs)
+        )
     if result.eligibility_notes:
-        return "、".join(result.eligibility_notes)
-    return ""
+        parts.append("适用范围：" + "、".join(result.eligibility_notes))
+    return "\n".join(part for part in dict.fromkeys(parts) if part)
+
+
+def _service_guide_material_text(material) -> str:
+    parts = [material.name]
+    if not material.required:
+        parts.append("可选")
+    if material.note:
+        parts.append(material.note)
+    return " ".join(parts).strip() or material.name
+
+
+def _service_guide_entry_text(entry) -> str:
+    parts = [entry.label]
+    if entry.location_ref and entry.location_ref != entry.label:
+        parts.append(entry.location_ref)
+    if entry.url:
+        parts.append(entry.url)
+    return " ".join(parts).strip() or entry.label
+
+
+def _service_guide_hours_text(hours) -> str:
+    parts = []
+    if hours.label:
+        parts.append(hours.label)
+    if hours.day_pattern:
+        parts.append(hours.day_pattern)
+    if hours.time_range:
+        parts.append(hours.time_range)
+    elif hours.effective_note:
+        parts.append(hours.effective_note)
+    return " ".join(parts).strip()
 
 
 def _contact_directory_text(result: ContactDirectoryLookupResult) -> str:
+    parts: list[str] = []
     if result.contact_points:
-        return "、".join(_contact_directory_point_text(point) for point in result.contact_points)
+        parts.append(
+            "联系方式："
+            + "、".join(_contact_directory_point_text(point) for point in result.contact_points)
+        )
     if result.location_refs:
-        return "、".join(
-            _contact_directory_location_text(location) for location in result.location_refs
+        parts.append(
+            "办公地点："
+            + "、".join(
+                _contact_directory_location_text(location) for location in result.location_refs
+            )
         )
     if result.office_hours:
-        return "、".join(
-            _contact_directory_hours_text(hours)
-            for hours in result.office_hours
-            if _contact_directory_hours_text(hours)
+        parts.append(
+            "办公时间："
+            + "、".join(
+                hours_text
+                for hours in result.office_hours
+                if (hours_text := _contact_directory_hours_text(hours))
+            )
         )
-    return ""
+    return "\n".join(part for part in dict.fromkeys(parts) if part)
 
 
 def _contact_directory_point_text(point) -> str:
@@ -458,13 +532,26 @@ def _contact_directory_hours_text(hours) -> str:
 
 def _transport_operational_suffix(result: TransportScheduleLookupResult) -> str:
     comments = tuple(
-        notice.operational_comment
-        for notice in result.operational_notices
-        if notice.operational_comment
+        dict.fromkeys(
+            notice.operational_comment.strip()
+            for notice in result.operational_notices
+            if notice.operational_comment.strip()
+        )
     )
     if not comments:
         return ""
     return "运营提示：" + "；".join(comments) + "。"
+
+
+def _transport_service_status_label(status: str) -> str:
+    labels = {
+        "running": "正常运行",
+        "not_running": "未运行",
+        "temporarily_suspended": "临时停运",
+        "limited_service": "有限运行",
+        "unknown": "状态未确认",
+    }
+    return labels.get(status.strip(), "状态未确认")
 
 
 def _service_guide_contact_text(contact) -> str:

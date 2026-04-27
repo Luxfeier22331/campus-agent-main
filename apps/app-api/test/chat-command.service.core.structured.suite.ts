@@ -168,6 +168,110 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 			},
 			{
 				answerText:
+					"debug guide_release=service_guide_release_v3 official_web:campus-card authenticated_notice:354777",
+				expected: [
+					"校园卡挂失与补卡：挂失与补卡流程：先办理挂失，再在自助补卡机补卡。",
+					"所需材料：本人有效证件",
+					"可用入口：学生自助补卡机",
+					"办理时间：卡务中心 09:00-17:00",
+					"联系方式：海淀校区校园卡管理中心 010-68933381",
+					"适用范围：学生和教职工均可办理。",
+					"来源：学校官网、校内通知",
+				],
+				expectedTraceRef: "官网来源：campus-card",
+				forbidden: [
+					"guide_release",
+					"service_guide_release_v3",
+					"official_web:campus-card",
+					"authenticated_notice:354777",
+				],
+				prompt: "校园卡丢了怎么办",
+				result: {
+					allowed_tools: ["service_guide_lookup"],
+					tool_result: {
+						contact_refs: [
+							{
+								label: "海淀校区校园卡管理中心",
+								phone: "010-68933381",
+								source_refs: ["official_web:campus-card"],
+							},
+						],
+						eligibility_notes: ["学生和教职工均可办理。"],
+						entry_refs: [
+							{
+								label: "学生自助补卡机",
+								location_ref: "中慧楼二层",
+								source_refs: ["official_web:campus-card"],
+							},
+						],
+						guide_sections: [
+							{
+								content: "先办理挂失，再在自助补卡机补卡。",
+								source_refs: ["official_web:campus-card"],
+								title: "挂失与补卡流程",
+							},
+						],
+						office_hours: [
+							{
+								label: "卡务中心",
+								source_refs: ["official_web:campus-card"],
+								time_range: "09:00-17:00",
+							},
+						],
+						required_materials: [
+							{
+								name: "本人有效证件",
+								source_refs: ["official_web:campus-card"],
+							},
+						],
+						resolved_service: {
+							display_name: "校园卡挂失与补卡",
+						},
+						source_refs: ["official_web:campus-card", "authenticated_notice:354777"],
+					},
+				},
+			},
+			{
+				answerText: "debug transport_schedule_release=transport_v3 authenticated_notice:354777",
+				expected: [
+					"地铁接驳车首班车时间为 08:00（海淀东门 -> 五棵松地铁站）",
+					"最新提示：今日接驳车候车点调整至海淀东门。",
+					"来源：校内通知",
+				],
+				expectedTraceRef: "认证通知 #354777",
+				forbidden: [
+					"transport_schedule_release",
+					"authenticated_notice:354777",
+					"notice:muc_internal_portal:354777",
+				],
+				prompt: "今天地铁接驳车最早几点",
+				result: {
+					payload_kind: "transport_schedule_lookup",
+					tool_result: {
+						operational_notices: [
+							{
+								operational_comment: "今日接驳车候车点调整至海淀东门。",
+								source_ref: "notice:muc_internal_portal:354777",
+							},
+						],
+						related_notice_refs: ["authenticated_notice:354777"],
+						resolved_route: {
+							display_name: "地铁接驳车",
+						},
+						selected_departure: {
+							departure_at: "2026-04-24T08:00:00+08:00",
+							destination_stop_ref: {
+								display_name: "五棵松地铁站",
+							},
+							origin_stop_ref: {
+								display_name: "海淀东门",
+							},
+						},
+					},
+				},
+			},
+			{
+				answerText:
 					"debug_contact_profile release_id=contact_release_02 official_web:graduate-school:contact",
 				expected: [
 					"研究生院办公室联系方式：办公室电话：010-68930001",
@@ -199,6 +303,62 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 						],
 						resolved_contact: {
 							display_name: "研究生院办公室",
+						},
+						source_refs: ["official_web:graduate-school:contact"],
+					},
+				},
+			},
+			{
+				answerText:
+					"debug_contact_profile release_id=contact_release_03 official_web:graduate-school:contact",
+				expected: [
+					"研究生院招生办公室联系方式：招生咨询电话：010-68930001；招生邮箱：admission@muc.edu.cn",
+					"办公地点：办公室：海淀校区研究生院",
+					"办公时间：招生咨询 工作日 09:00-17:00",
+					"来源：学校官网",
+				],
+				expectedTraceRef: "官网来源：graduate-school/contact",
+				forbidden: [
+					"debug_contact_profile",
+					"contact_release_03",
+					"official_web:graduate-school:contact",
+				],
+				prompt: "研究生院招生办公室联系方式",
+				result: {
+					payload_kind: "contact_directory_lookup",
+					tool_result: {
+						contact_points: [
+							{
+								channel_type: "phone",
+								label: "招生咨询电话",
+								source_refs: ["official_web:graduate-school:contact"],
+								value: "010-68930001",
+							},
+							{
+								channel_type: "email",
+								label: "招生邮箱",
+								source_refs: ["official_web:graduate-school:contact"],
+								value: "admission@muc.edu.cn",
+							},
+						],
+						location_refs: [
+							{
+								address_text: "海淀校区研究生院",
+								label: "办公室",
+								location_ref: "海淀校区研究生院",
+								source_refs: ["official_web:graduate-school:contact"],
+							},
+						],
+						office_hours: [
+							{
+								day_pattern: "工作日",
+								label: "招生咨询",
+								source_refs: ["official_web:graduate-school:contact"],
+								time_range: "09:00-17:00",
+							},
+						],
+						resolved_contact: {
+							display_name: "研究生院招生办公室",
 						},
 						source_refs: ["official_web:graduate-school:contact"],
 					},

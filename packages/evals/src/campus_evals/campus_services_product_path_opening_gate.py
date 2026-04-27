@@ -12,7 +12,7 @@ from typing import Protocol
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
 DEFAULT_REPORT_NAME = "campus-services-product-path-opening-gate.json"
-DEFAULT_SCHEMA_VERSION = "campus_services_product_path_opening_gate.v1"
+DEFAULT_SCHEMA_VERSION = "campus_services_product_path_opening_gate.v2"
 DEFAULT_GATE_ID = "campus_services_product_path"
 
 
@@ -39,6 +39,15 @@ class ToolOpeningVerdict:
     status: str
     required_checks: tuple[str, ...]
     failed_checks: tuple[str, ...]
+    reason: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ToolOpeningProfile:
+    tool_name: str
+    product_path_status: str
+    required_checks: tuple[str, ...]
+    reason: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,42 +67,74 @@ class CommandRunner(Protocol):
     ) -> CommandResult: ...
 
 
-_TOOL_REQUIREMENTS = {
-    "service_status_lookup": (
-        "supervisor_go_structured_runtime_tests",
-        "campus_services_agent_adapter_tests",
-        "app_api_campus_services_runtime_tests",
-        "public_chat_worker_e2e_tests",
-        "app_api_typecheck",
-        "public_chat_typecheck",
+_SHARED_OPENING_CHECKS = (
+    "supervisor_go_structured_runtime_tests",
+    "campus_services_agent_adapter_tests",
+    "app_api_campus_services_runtime_tests",
+    "public_chat_worker_e2e_tests",
+    "app_api_typecheck",
+    "public_chat_typecheck",
+)
+
+_TOOL_OPENING_PROFILES = (
+    ToolOpeningProfile(
+        tool_name="service_status_lookup",
+        product_path_status="open_candidate",
+        required_checks=_SHARED_OPENING_CHECKS,
+        reason="opened_by_campus_services_product_path",
     ),
-    "transport_schedule_lookup": (
-        "supervisor_go_structured_runtime_tests",
-        "campus_services_agent_adapter_tests",
-        "app_api_campus_services_runtime_tests",
-        "public_chat_worker_e2e_tests",
-        "app_api_typecheck",
-        "public_chat_typecheck",
+    ToolOpeningProfile(
+        tool_name="transport_schedule_lookup",
+        product_path_status="open_candidate",
+        required_checks=_SHARED_OPENING_CHECKS,
+        reason="opened_by_campus_services_product_path",
     ),
-    "service_guide_lookup": (
-        "service_guide_lookup_release_gate",
-        "supervisor_go_structured_runtime_tests",
-        "campus_services_agent_adapter_tests",
-        "app_api_campus_services_runtime_tests",
-        "public_chat_worker_e2e_tests",
-        "app_api_typecheck",
-        "public_chat_typecheck",
+    ToolOpeningProfile(
+        tool_name="service_guide_lookup",
+        product_path_status="open_candidate",
+        required_checks=("service_guide_lookup_release_gate", *_SHARED_OPENING_CHECKS),
+        reason="opened_by_campus_services_product_path",
     ),
-    "contact_directory_lookup": (
-        "contact_directory_lookup_release_gate",
-        "supervisor_go_structured_runtime_tests",
-        "campus_services_agent_adapter_tests",
-        "app_api_campus_services_runtime_tests",
-        "public_chat_worker_e2e_tests",
-        "app_api_typecheck",
-        "public_chat_typecheck",
+    ToolOpeningProfile(
+        tool_name="contact_directory_lookup",
+        product_path_status="open_candidate",
+        required_checks=("contact_directory_lookup_release_gate", *_SHARED_OPENING_CHECKS),
+        reason="opened_by_campus_services_product_path",
     ),
-}
+    ToolOpeningProfile(
+        tool_name="service_process_lookup",
+        product_path_status="keep_closed",
+        required_checks=(),
+        reason="later_wave_tool_not_admitted_to_product_path",
+    ),
+)
+
+
+def validate_tool_opening_profiles(
+    profiles: tuple[ToolOpeningProfile, ...],
+) -> tuple[ToolOpeningProfile, ...]:
+    seen: set[str] = set()
+    for profile in profiles:
+        tool_name = profile.tool_name.strip()
+        if not tool_name:
+            raise ValueError("tool opening profile tool_name must not be empty")
+        if tool_name in seen:
+            raise ValueError(f"duplicate tool opening profile: {tool_name}")
+        seen.add(tool_name)
+        if profile.product_path_status not in {"open_candidate", "keep_closed"}:
+            raise ValueError(
+                f"unsupported product_path_status for {tool_name}: {profile.product_path_status}"
+            )
+        if profile.product_path_status == "open_candidate" and not profile.required_checks:
+            raise ValueError(f"open_candidate requires required_checks: {tool_name}")
+        if profile.product_path_status == "keep_closed" and profile.required_checks:
+            raise ValueError(f"keep_closed must not require checks: {tool_name}")
+        if not profile.reason.strip():
+            raise ValueError(f"tool opening profile reason must not be empty: {tool_name}")
+    return profiles
+
+
+TOOL_OPENING_PROFILES = validate_tool_opening_profiles(_TOOL_OPENING_PROFILES)
 
 
 def _service_guide_release_gate_command(output_dir: Path) -> tuple[str, ...]:
@@ -224,7 +265,8 @@ def run_campus_services_product_path_opening_gate(
             command=_contact_directory_release_gate_command(contact_directory_output_dir),
             command_runner=command,
             cwd=REPO_ROOT,
-            artifact_path=contact_directory_output_dir / "contact-directory-lookup-release-gate.json",
+            artifact_path=contact_directory_output_dir
+            / "contact-directory-lookup-release-gate.json",
         ),
         _run_command_check(
             check_id="supervisor_go_structured_runtime_tests",
@@ -314,16 +356,28 @@ def _build_tool_opening_verdicts(
 ) -> tuple[ToolOpeningVerdict, ...]:
     passed_checks = {check.check_id for check in checks if check.passed}
     tool_verdicts: list[ToolOpeningVerdict] = []
-    for tool_name, required_checks in _TOOL_REQUIREMENTS.items():
+    for profile in TOOL_OPENING_PROFILES:
+        if profile.product_path_status == "keep_closed":
+            tool_verdicts.append(
+                ToolOpeningVerdict(
+                    tool_name=profile.tool_name,
+                    status="keep_closed",
+                    required_checks=(),
+                    failed_checks=(),
+                    reason=profile.reason,
+                )
+            )
+            continue
         failed_checks = tuple(
-            check_id for check_id in required_checks if check_id not in passed_checks
+            check_id for check_id in profile.required_checks if check_id not in passed_checks
         )
         tool_verdicts.append(
             ToolOpeningVerdict(
-                tool_name=tool_name,
+                tool_name=profile.tool_name,
                 status="open" if not failed_checks else "blocked",
-                required_checks=required_checks,
+                required_checks=profile.required_checks,
                 failed_checks=failed_checks,
+                reason=profile.reason,
             )
         )
     return tuple(tool_verdicts)
@@ -340,7 +394,10 @@ def _report_payload(
     failed_checks = len(report.checks) - passed_checks
     opened_tools = sorted(item.tool_name for item in report.tool_verdicts if item.status == "open")
     blocked_tools = sorted(
-        item.tool_name for item in report.tool_verdicts if item.status != "open"
+        item.tool_name for item in report.tool_verdicts if item.status == "blocked"
+    )
+    closed_tools = sorted(
+        item.tool_name for item in report.tool_verdicts if item.status == "keep_closed"
     )
     return {
         "schema_version": DEFAULT_SCHEMA_VERSION,
@@ -352,6 +409,7 @@ def _report_payload(
             "failed_checks": failed_checks,
             "opened_tools": opened_tools,
             "blocked_tools": blocked_tools,
+            "closed_tools": closed_tools,
         },
         "checks": checks,
         "tool_verdicts": tool_verdicts,
@@ -375,20 +433,20 @@ def _report_payload(
 
 def render_summary_text(report: CampusServicesProductPathOpeningGateReport) -> str:
     opened = [item.tool_name for item in report.tool_verdicts if item.status == "open"]
-    blocked = [item.tool_name for item in report.tool_verdicts if item.status != "open"]
+    blocked = [item.tool_name for item in report.tool_verdicts if item.status == "blocked"]
+    closed = [item.tool_name for item in report.tool_verdicts if item.status == "keep_closed"]
     return (
         "campus-services product-path opening gate: "
         f"{'PASS' if report.passed else 'FAIL'} "
         f"opened={','.join(opened) if opened else 'none'} "
         f"blocked={','.join(blocked) if blocked else 'none'} "
+        f"closed={','.join(closed) if closed else 'none'} "
         f"artifact={report.output_path}"
     )
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run campus-services product-path opening gate."
-    )
+    parser = argparse.ArgumentParser(description="Run campus-services product-path opening gate.")
     subparsers = parser.add_subparsers(dest="command", required=True)
     accept_parser = subparsers.add_parser(
         "accept",
@@ -457,14 +515,17 @@ __all__ = [
     "DEFAULT_GATE_ID",
     "DEFAULT_REPORT_NAME",
     "DEFAULT_SCHEMA_VERSION",
+    "TOOL_OPENING_PROFILES",
     "CampusServicesProductPathOpeningGateReport",
     "CommandResult",
     "OpeningGateCheck",
+    "ToolOpeningProfile",
     "ToolOpeningVerdict",
     "build_parser",
     "main",
     "render_summary_text",
     "run_campus_services_product_path_opening_gate",
+    "validate_tool_opening_profiles",
 ]
 
 

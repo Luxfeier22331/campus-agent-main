@@ -173,6 +173,140 @@ func transportProjectionFixtureWithOperationalNotice() string {
 	}`
 }
 
+func transportProjectionFixtureWithConflictingExceptions() string {
+	return `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:muc_internal_portal:baseline",
+				"is_current":true
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:subway-shuttle",
+				"display_name":"地铁接驳车",
+				"service_family":"subway_shuttle",
+				"aliases":["地铁接驳车"],
+				"origin_campus":"haidian",
+				"destination_campus":"subway",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:subway-station","display_name":"地铁站"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{"snapshot_id":"snapshot:bus:2026-04-20","route_id":"route:subway-shuttle","service_dates":["2026-04-24"],"departure_time":"08:00","origin_stop_id":"stop:haidian-east-gate","destination_stop_id":"stop:subway-station"}
+		],
+		"transport_service_exceptions":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:subway-shuttle",
+				"service_date":"2026-04-24",
+				"service_status":"temporarily_suspended",
+				"related_notice_refs":["notice:muc_internal_portal:metro-suspended"]
+			},
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:subway-shuttle",
+				"service_date":"2026-04-24",
+				"service_status":"running",
+				"related_notice_refs":["notice:muc_internal_portal:metro-running"]
+			}
+		]
+	}`
+}
+
+func transportProjectionFixtureWithDuplicateExceptions() string {
+	return `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:muc_internal_portal:baseline",
+				"is_current":true
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:subway-shuttle",
+				"display_name":"地铁接驳车",
+				"service_family":"subway_shuttle",
+				"aliases":["地铁接驳车"],
+				"origin_campus":"haidian",
+				"destination_campus":"subway",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:subway-station","display_name":"地铁站"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{"snapshot_id":"snapshot:bus:2026-04-20","route_id":"route:subway-shuttle","service_dates":["2026-04-24"],"departure_time":"08:00","origin_stop_id":"stop:haidian-east-gate","destination_stop_id":"stop:subway-station"}
+		],
+		"transport_service_exceptions":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:subway-shuttle",
+				"service_date":"2026-04-24",
+				"service_status":"temporarily_suspended",
+				"operational_comment":"地铁接驳车今日暂停运行",
+				"related_notice_refs":["notice:muc_internal_portal:metro-suspended-a"]
+			},
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:subway-shuttle",
+				"service_date":"2026-04-24",
+				"service_status":"temporarily_suspended",
+				"operational_comment":"地铁接驳车今日暂停运行",
+				"related_notice_refs":["notice:muc_internal_portal:metro-suspended-b"]
+			}
+		]
+	}`
+}
+
+func transportProjectionFixtureWithExplicitNoServiceDateRange() string {
+	return `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:muc_internal_portal:baseline",
+				"is_current":true,
+				"service_date_ranges":[
+					{"start_date":"2026-04-24","end_date":"2026-04-26"}
+				]
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:haidian-to-fengtai",
+				"display_name":"海淀到丰台通勤车",
+				"service_family":"intercampus_commute",
+				"origin_campus":"haidian",
+				"destination_campus":"fengtai",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{"snapshot_id":"snapshot:bus:2026-04-20","route_id":"route:haidian-to-fengtai","service_dates":["2026-04-24"],"departure_time":"08:00","origin_stop_id":"stop:haidian-east-gate","destination_stop_id":"stop:fengtai-main-gate"},
+			{"snapshot_id":"snapshot:bus:2026-04-20","route_id":"route:haidian-to-fengtai","service_dates":["2026-04-25"],"departure_time":"08:00","origin_stop_id":"stop:haidian-east-gate","destination_stop_id":"stop:fengtai-main-gate"}
+		],
+		"transport_service_exceptions":[]
+	}`
+}
+
 func transportProjectionFixtureWithTemporaryOverlay() string {
 	return `{
 		"schema_version":"campus_services_projection_bundle.v1",

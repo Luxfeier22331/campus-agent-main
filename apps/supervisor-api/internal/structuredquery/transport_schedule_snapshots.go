@@ -76,19 +76,15 @@ func selectTransportScheduleSnapshotForServiceDate(
 ) (transportSnapshotSelection, bool) {
 	switch request.SnapshotQuery.Mode {
 	case "current", "effective", "":
-		serviceDateText := serviceDate.Format(transportLocalDateLayout)
 		candidates := make([]transportScheduleSnapshotRecord, 0, len(bundle.TransportScheduleSnapshots))
 		for _, snapshot := range bundle.TransportScheduleSnapshots {
-			if !snapshotAppliesToServiceDate(snapshot, serviceDate) {
-				continue
-			}
-			if !snapshotHasRouteServiceData(bundle, snapshot, route, serviceDateText) {
+			if !snapshotCoversRouteServiceDate(bundle, snapshot, route, serviceDate) {
 				continue
 			}
 			candidates = append(candidates, snapshot)
 		}
 		if len(candidates) == 0 {
-			return selectTransportScheduleSnapshot(bundle, request, anchor)
+			return transportSnapshotSelection{}, false
 		}
 		sort.SliceStable(candidates, func(i, j int) bool {
 			leftPrecedence := snapshotPrecedence(candidates[i])
@@ -156,6 +152,116 @@ func snapshotAppliesToServiceDate(
 	return snapshot.IsCurrent || snapshot.EffectiveFrom != "" || snapshot.PublishedAt != ""
 }
 
+func snapshotCoversRouteServiceDate(
+	bundle projectionBundle,
+	snapshot transportScheduleSnapshotRecord,
+	route transportRouteRecord,
+	serviceDate time.Time,
+) bool {
+	if len(snapshot.ServiceDateRanges) > 0 {
+		return snapshotAppliesToServiceDate(snapshot, serviceDate) &&
+			snapshotHasAnyRouteServiceData(bundle, snapshot, route)
+	}
+	return snapshotInferredRouteServiceDateSpanCovers(bundle, snapshot, route, serviceDate)
+}
+
+func snapshotHasAnyRouteServiceData(
+	bundle projectionBundle,
+	snapshot transportScheduleSnapshotRecord,
+	route transportRouteRecord,
+) bool {
+	for _, departure := range bundle.ScheduledDepartures {
+		if departure.RouteID == route.RouteID && departureMatchesSnapshot(departure, snapshot) {
+			return true
+		}
+	}
+	for _, exception := range bundle.TransportServiceExceptions {
+		if exception.RouteID == route.RouteID && exceptionMatchesSnapshot(exception, snapshot) {
+			return true
+		}
+	}
+	return false
+}
+
+func snapshotInferredRouteServiceDateSpanCovers(
+	bundle projectionBundle,
+	snapshot transportScheduleSnapshotRecord,
+	route transportRouteRecord,
+	serviceDate time.Time,
+) bool {
+	serviceDay := beginningOfTransportDay(serviceDate)
+	var earliest time.Time
+	var latest time.Time
+	hasDatedService := false
+	for _, departure := range bundle.ScheduledDepartures {
+		if departure.RouteID != route.RouteID || !departureMatchesSnapshot(departure, snapshot) {
+			continue
+		}
+		if len(departure.ServiceDates) == 0 {
+			return snapshotAppliesToServiceDate(snapshot, serviceDate)
+		}
+		for _, serviceDateText := range departure.ServiceDates {
+			parsed, err := time.ParseInLocation(
+				transportLocalDateLayout,
+				serviceDateText,
+				transportLocation,
+			)
+			if err != nil {
+				continue
+			}
+			earliest, latest = expandTransportServiceDateSpan(earliest, latest, parsed)
+			hasDatedService = true
+		}
+	}
+	for _, exception := range bundle.TransportServiceExceptions {
+		if exception.RouteID != route.RouteID || !exceptionMatchesSnapshot(exception, snapshot) {
+			continue
+		}
+		parsed, err := time.ParseInLocation(
+			transportLocalDateLayout,
+			exception.ServiceDate,
+			transportLocation,
+		)
+		if err != nil {
+			continue
+		}
+		earliest, latest = expandTransportServiceDateSpan(earliest, latest, parsed)
+		hasDatedService = true
+	}
+	return hasDatedService &&
+		!serviceDay.Before(beginningOfTransportDay(earliest)) &&
+		!serviceDay.After(beginningOfTransportDay(latest))
+}
+
+func expandTransportServiceDateSpan(
+	earliest time.Time,
+	latest time.Time,
+	candidate time.Time,
+) (time.Time, time.Time) {
+	candidate = beginningOfTransportDay(candidate)
+	if earliest.IsZero() || candidate.Before(earliest) {
+		earliest = candidate
+	}
+	if latest.IsZero() || candidate.After(latest) {
+		latest = candidate
+	}
+	return earliest, latest
+}
+
+func departureMatchesSnapshot(
+	departure scheduledDepartureRecord,
+	snapshot transportScheduleSnapshotRecord,
+) bool {
+	return departure.SnapshotID == "" || departure.SnapshotID == snapshot.SnapshotID
+}
+
+func exceptionMatchesSnapshot(
+	exception transportServiceExceptionRecord,
+	snapshot transportScheduleSnapshotRecord,
+) bool {
+	return exception.SnapshotID == "" || exception.SnapshotID == snapshot.SnapshotID
+}
+
 func transportServiceDateInRange(
 	serviceDate time.Time,
 	dateRange transportSnapshotServiceDateRange,
@@ -187,7 +293,7 @@ func snapshotHasRouteServiceData(
 	serviceDate string,
 ) bool {
 	for _, departure := range bundle.ScheduledDepartures {
-		if departure.SnapshotID != snapshot.SnapshotID {
+		if !departureMatchesSnapshot(departure, snapshot) {
 			continue
 		}
 		if departure.RouteID != route.RouteID {
@@ -198,7 +304,7 @@ func snapshotHasRouteServiceData(
 		}
 	}
 	for _, exception := range bundle.TransportServiceExceptions {
-		if exception.SnapshotID != "" && exception.SnapshotID != snapshot.SnapshotID {
+		if !exceptionMatchesSnapshot(exception, snapshot) {
 			continue
 		}
 		if exception.RouteID == route.RouteID && exception.ServiceDate == serviceDate {

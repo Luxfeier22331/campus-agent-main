@@ -67,7 +67,7 @@ func TestLookupServiceGuideClarifiesAmbiguousService(t *testing.T) {
 	}
 }
 
-func TestLookupServiceGuideFailsClosedForManualReviewRecord(t *testing.T) {
+func TestLookupServiceGuideFailsClosedForLegacyManualReviewRecordAsSourceUnavailable(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,
 		serviceGuideManualReviewFixture(),
@@ -85,8 +85,8 @@ func TestLookupServiceGuideFailsClosedForManualReviewRecord(t *testing.T) {
 	if result.Outcome != "temporarily_unverifiable" {
 		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
 	}
-	if result.FailCloseReason != "manual_review_required" {
-		t.Fatalf("fail_close_reason = %q, want manual_review_required", result.FailCloseReason)
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
 	}
 }
 
@@ -316,7 +316,7 @@ func TestLookupServiceGuideResolvesCampusCardEntryAndContactFocus(t *testing.T) 
 	}
 }
 
-func TestLookupServiceGuideFailsClosedForManualReviewSource(t *testing.T) {
+func TestLookupServiceGuideFailsClosedForLegacyManualReviewSourceAsSourceUnavailable(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,
 		serviceGuideManualReviewSourceFixture(),
@@ -334,8 +334,8 @@ func TestLookupServiceGuideFailsClosedForManualReviewSource(t *testing.T) {
 	if result.Outcome != "temporarily_unverifiable" {
 		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
 	}
-	if result.FailCloseReason != "manual_review_required" {
-		t.Fatalf("fail_close_reason = %q, want manual_review_required", result.FailCloseReason)
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
 	}
 }
 

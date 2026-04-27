@@ -101,6 +101,13 @@ Evaluation helpers for campus-agent v2.
   它验证 contact directory projection eval、contact intent 子集、
   supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
   contract tests，同样不产生 operator observability live case-results publish。
+- `campus-services-product-path` opening gate 是 product-path admission gate，
+  入口为：`uv run --all-packages python -m scripts.eval_gate accept --profile
+  campus-services-product-path`；v2 artifact 用 `open_candidate` /
+  `keep_closed` profile 区分正式开放工具和 later-wave 工具。当前
+  `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`
+  与 `contact_directory_lookup` 是 opened tools，`service_process_lookup`
+  明确记录为 `keep_closed`。
 
 ## Orchestration / Workflow Trace Eval Gap
 

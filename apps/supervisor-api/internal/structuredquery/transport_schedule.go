@@ -328,12 +328,20 @@ func (r *Runtime) lookupTransportSchedule(
 	}
 	base.RelatedNoticeRefs = transportOperationalNoticeRefs(base.OperationalNotices)
 
-	if exception, ok := matchTransportServiceException(
+	exception, hasException, exceptionErr := matchTransportServiceException(
 		bundle.TransportServiceExceptions,
 		snapshot.record,
 		routeSelection.record,
 		serviceDateText,
-	); ok {
+	)
+	if exceptionErr != nil {
+		return failClosedTransportScheduleWithReason(
+			request,
+			anchor.Format(time.RFC3339),
+			exceptionErr.Error(),
+		)
+	}
+	if hasException {
 		base.ServiceStatus = exception.ServiceStatus
 		base.RelatedNoticeRefs = appendUniqueTransportRefs(
 			exception.RelatedNoticeRefs,
@@ -352,7 +360,6 @@ func (r *Runtime) lookupTransportSchedule(
 	if len(departures) == 0 {
 		base.Outcome = "not_found"
 		base.ServiceStatus = "not_running"
-		base.ScheduleSnapshot = nil
 		return Response{StatusCode: 200, Outcome: base.Outcome, Body: base}
 	}
 

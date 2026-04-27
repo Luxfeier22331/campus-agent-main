@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-28
 ---
 # Transport Schedule Lookup Contract
 
@@ -100,6 +100,9 @@ projection schema 细节见
   `service_window`
   - 结果可以只填 `service_status` 与 `related_notice_refs`
   - 如果 current truth 不可证，必须 fail-close
+- “班车怎么坐”“接驳车怎么预约”“乘车规则是什么”这类 how-to / 规则 /
+  预约说明问题不属于 `transport_schedule_lookup`；应路由到 `service_guide_lookup`
+  的只读办理 / 使用说明语义
 
 ## Request Contract
 
@@ -158,6 +161,8 @@ TransportRouteSelector
   - 用于“去丰台”“从丰台回海淀”这类方向性约束
 - `origin_stop_query` / `destination_stop_query`
   - 用于站点级约束；如果站点 alias 不唯一，tool 必须 clarification
+  - 当两者同时出现时，runtime 必须按 route stop 顺序消歧；只包含两个站但方向相反的 route
+    不能保留为同等候选
 
 ### `TransportServiceTimeQuery`
 
@@ -226,6 +231,7 @@ TransportScheduleLookupResult
   - source_truth_unavailable
   - temporal_scope_ambiguous
   - source_family_unavailable
+  - source_conflict
 ```
 
 ### `TransportRouteRef`
@@ -299,9 +305,12 @@ TransportOperationalNotice
 - `timetable_entries` 只用于 `timetable`
 - `operational_notices` 只承载已经离线物化的 transport operational facts，
   不允许 query-time 回扫通知正文
+- `operational_notices.operational_comment` 是唯一允许进入自然语言回答的运营提示字段；
+  `notice_id`、`source_ref` 与 raw release locator 只能进入 safe source trace，不得写入正文
 - `schedule_snapshot` 在以下情况应出现
   - `schedule_snapshot_metadata`
   - `resolved_historical_reference`
+  - 已命中可信 snapshot 但该服务日 / 时段无可用班次的 `not_found`
   - 回答里需要显式暴露所用 snapshot provenance
 - `candidate_routes` 只在 `clarification_required` 时出现
 - `related_notice_refs` 用于临时停运、限流、节假日调整等与运营状态直接相关的 notice 引用
@@ -326,9 +335,11 @@ TransportOperationalNotice
 - `clarification_required`
   - 路线、方向、站点或服务日约束不足，不能猜
 - `not_found`
-  - 无法分辨出任何可信 route / snapshot
+  - 已分辨出可信 route / snapshot，但所请求服务日 / 时段没有可用班次
 - `temporarily_unverifiable`
   - 当前状态、当前有效 snapshot 或 source truth 不可证，必须 fail-close
+  - 请求服务日超出当前 projection 对该 route 的服务日覆盖窗口时，必须使用
+    `fail_close_reason=current_state_unverifiable`，不得降级成 `not_found`
 
 ## Validation Rules
 
@@ -341,6 +352,8 @@ TransportOperationalNotice
   - 如未能唯一确定路线，必须 `clarification_required`
   - `resolved_*` 时只能填 `selected_departure`，不得同时填 `departure_options` 或
     `timetable_entries`
+  - `next_departure` 查询当天且可信当前时间已过最后一班时，返回 `not_found`
+  - `first_departure` / `last_departure` 按服务日取首末班，不受可信当前时间过滤
 - `departure_list`
   - `resolved_*` 时填 `departure_options`
   - `selected_departure` 必须为空

@@ -82,6 +82,34 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{"intent": "service_window"},
 		},
 		{
+			name: "transport how to board routes to service guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "地铁接驳车怎么预约",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "地铁接驳车怎么预约",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "transport boarding rule routes to service guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "通勤班车乘车规则是什么",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "通勤班车乘车规则是什么",
+				"guide_focus":   "full_guide",
+			},
+		},
+		{
 			name: "transport route selector",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -350,12 +378,24 @@ func TestPlanSkipsTransactionalStructuredRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load intent policy: %v", err)
 	}
-	handoff := PlanWithPolicy(Request{
-		EffectiveCapability: "notice",
-		UserGoal:            "帮我提交采购公告",
-	}, policy)
-	if handoff != nil {
-		t.Fatalf("transactional request must not be preplanned: %#v", handoff)
+	for _, request := range []Request{
+		{
+			EffectiveCapability: "notice",
+			UserGoal:            "帮我提交采购公告",
+		},
+		{
+			EffectiveCapability: "campus_services",
+			UserGoal:            "帮我打电话给研究生院招生办公室",
+		},
+		{
+			EffectiveCapability: "campus_services",
+			UserGoal:            "帮我发邮件给国际合作处",
+		},
+	} {
+		handoff := PlanWithPolicy(request, policy)
+		if handoff != nil {
+			t.Fatalf("transactional request must not be preplanned for %q: %#v", request.UserGoal, handoff)
+		}
 	}
 }
 

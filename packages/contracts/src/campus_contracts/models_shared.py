@@ -60,7 +60,6 @@ ToolFailCloseReason = Literal[
     "temporal_scope_ambiguous",
     "source_family_unavailable",
     "source_conflict",
-    "manual_review_required",
     "privacy_policy_restricted",
     "stable_contact_unavailable",
 ]
@@ -153,6 +152,7 @@ ALLOWED_SOURCE_CHANNELS = (
     "official_web",
     "manual_curated",
     "authenticated_notice_portal",
+    "wechat_official_account",
 )
 ALLOWED_SOURCE_TRUST_TIERS = ("T0", "T1", "T2", "T3")
 ALLOWED_REMOTE_CONTENT_SUSPICION_LABELS = (
@@ -212,7 +212,6 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
     "temporal_scope_ambiguous",
     "source_family_unavailable",
     "source_conflict",
-    "manual_review_required",
     "privacy_policy_restricted",
     "stable_contact_unavailable",
 )

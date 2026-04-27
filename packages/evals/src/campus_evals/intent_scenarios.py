@@ -77,6 +77,21 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
         )
     ) and any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
         return ("service_status_lookup",)
+    if any(
+        signal in goal
+        for signal in (
+            "怎么坐",
+            "如何乘坐",
+            "乘车规则",
+            "乘车说明",
+            "需要预约",
+            "怎么预约",
+            "如何预约",
+            "预约流程",
+            "预约入口",
+        )
+    ) and any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
+        return ("service_guide_lookup",)
     if any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
         return ("transport_schedule_lookup",)
     if any(
@@ -215,6 +230,8 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
         "海淀去丰台的校车时刻表",
         "丰台回海淀的通勤车运营时间",
         "地铁接驳车下午还有吗",
+        "地铁接驳车怎么预约",
+        "通勤班车乘车规则是什么",
         "图书馆今天开门吗",
         "图书馆开放时间是什么",
         "食堂营业到几点",
@@ -303,6 +320,8 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
         "会议室开放状态",
         "校医院办公时间",
         "海淀去丰台的校车时刻表",
+        "地铁接驳车怎么预约",
+        "通勤班车乘车规则是什么",
         "宿舍入住怎么办理",
         "本科生退宿需要什么材料",
         "毕业生离校流程是什么",

@@ -176,6 +176,117 @@ func TestLookupTransportScheduleFindsTomorrowMorningFirstDepartureToFengtai(t *t
 	}
 }
 
+func TestLookupTransportScheduleResolvesDirectionFromOriginAndDestinationStops(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixture(),
+		"2026-04-24T16:45:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"海淀东门到丰台南门下一班车几点",
+		"intent":"next_departure",
+		"route_selector":{"origin_stop_query":"海淀东门","destination_stop_query":"丰台南门"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedRoute == nil || result.ResolvedRoute.RouteID != "route:haidian-to-fengtai" {
+		t.Fatalf("resolved_route = %#v", result.ResolvedRoute)
+	}
+	if result.SelectedDeparture == nil ||
+		result.SelectedDeparture.DepartureAt != "2026-04-24T17:10:00+08:00" {
+		t.Fatalf("selected_departure = %#v", result.SelectedDeparture)
+	}
+}
+
+func TestLookupTransportScheduleNextDepartureAfterLastBusReturnsNotFoundWithSnapshot(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixture(),
+		"2026-04-24T20:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天去丰台下一班车几点",
+		"intent":"next_departure",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "not_found" {
+		t.Fatalf("outcome = %q, want not_found", result.Outcome)
+	}
+	if result.ServiceStatus != "not_running" {
+		t.Fatalf("service_status = %q, want not_running", result.ServiceStatus)
+	}
+	if result.SelectedDeparture != nil {
+		t.Fatalf("selected_departure = %#v, want nil", result.SelectedDeparture)
+	}
+	if result.ScheduleSnapshot == nil ||
+		result.ScheduleSnapshot.SnapshotID != "snapshot:bus:2026-04-20" {
+		t.Fatalf("schedule_snapshot = %#v", result.ScheduleSnapshot)
+	}
+}
+
+func TestLookupTransportScheduleFailsClosedOutsideProjectedServiceWindow(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixture(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"4月26日去丰台最早一班车几点",
+		"intent":"first_departure",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"date","service_date":"2026-04-26","daypart":"morning"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "current_state_unverifiable" {
+		t.Fatalf("fail_close_reason = %q, want current_state_unverifiable", result.FailCloseReason)
+	}
+}
+
+func TestLookupTransportScheduleReturnsNotFoundInsideExplicitNoServiceDateRange(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixtureWithExplicitNoServiceDateRange(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"4月26日去丰台最早一班车几点",
+		"intent":"first_departure",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"date","service_date":"2026-04-26","daypart":"morning"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "not_found" {
+		t.Fatalf("outcome = %q, want not_found", result.Outcome)
+	}
+	if result.ServiceStatus != "not_running" {
+		t.Fatalf("service_status = %q, want not_running", result.ServiceStatus)
+	}
+	if result.ScheduleSnapshot == nil ||
+		result.ScheduleSnapshot.SnapshotID != "snapshot:bus:2026-04-20" {
+		t.Fatalf("schedule_snapshot = %#v", result.ScheduleSnapshot)
+	}
+}
+
 func TestLookupTransportScheduleListsDeparturesAfterTimeWithLimit(t *testing.T) {
 	runtime := newRuntimeWithTransportReadModel(
 		t,
@@ -265,6 +376,59 @@ func TestLookupTransportScheduleAppliesTemporarySuspension(t *testing.T) {
 	}
 	if result.ServiceWindow != nil {
 		t.Fatalf("service_window = %#v, want nil", result.ServiceWindow)
+	}
+}
+
+func TestLookupTransportScheduleFailsClosedOnConflictingServiceExceptions(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixtureWithConflictingExceptions(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天地铁接驳车是不是停运了",
+		"intent":"service_window",
+		"route_selector":{"service_family":"subway_shuttle"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "source_conflict" {
+		t.Fatalf("fail_close_reason = %q, want source_conflict", result.FailCloseReason)
+	}
+}
+
+func TestLookupTransportScheduleMergesDuplicateServiceExceptionRefs(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixtureWithDuplicateExceptions(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天地铁接驳车是不是停运了",
+		"intent":"service_window",
+		"route_selector":{"service_family":"subway_shuttle"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ServiceStatus != "temporarily_suspended" {
+		t.Fatalf("service_status = %q, want temporarily_suspended", result.ServiceStatus)
+	}
+	if len(result.RelatedNoticeRefs) != 2 ||
+		result.RelatedNoticeRefs[0] != "notice:muc_internal_portal:metro-suspended-a" ||
+		result.RelatedNoticeRefs[1] != "notice:muc_internal_portal:metro-suspended-b" {
+		t.Fatalf("related_notice_refs = %#v", result.RelatedNoticeRefs)
 	}
 }
 

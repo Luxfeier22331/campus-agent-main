@@ -74,7 +74,7 @@ func (r *Runtime) lookupServiceGuide(ctx context.Context, request serviceGuideRe
 		return failClosedServiceGuide(request, timeAnchor, "source_conflict")
 	}
 	if serviceGuideRequiresManualReview(record.ServiceID, bundle.ServiceGuideManualReviews) {
-		return failClosedServiceGuide(request, timeAnchor, "manual_review_required")
+		return failClosedServiceGuide(request, timeAnchor, "source_truth_unavailable")
 	}
 	status, err := validateServiceGuideRecord(record)
 	if err != nil {

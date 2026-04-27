@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 # Contact Directory Lookup Contract
 
@@ -41,6 +41,10 @@ updated: 2026-04-27
   campus-services-product-path --json`
 - rollout flag 仍由 Go runtime 持有：
   `SUPERVISOR_API_OPEN_CAPABILITIES=campus_services`；未设置时产品路径仍应 fail-close。
+- 2026-04-28 readiness closeout 已补齐：field-aware matching 覆盖
+  `contact_points` / `office_hours`，agent 与 app-api answer shaping 组合
+  phone / email / location / office hours，`帮我打电话` / `帮我发邮件` 等执行动作
+  进入 transaction guardrail，release gate 纳入 app-api structured answer lane。
 
 ## Core Conclusion
 

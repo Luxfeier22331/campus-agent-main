@@ -149,7 +149,13 @@
 			"取消",
 			"修改",
 			"确认",
-			"代办"
+			"代办",
+			"打电话",
+			"拨电话",
+			"拨打电话",
+			"拨打",
+			"发邮件",
+			"发邮箱"
 		],
 		"notice_context_reference": [
 			"这条通知",
@@ -369,6 +375,17 @@
 			"乘车地点",
 			"乘车位置"
 		],
+		"structured_transport_service_guide_action": [
+			"怎么坐",
+			"如何乘坐",
+			"乘车规则",
+			"乘车说明",
+			"需要预约",
+			"怎么预约",
+			"如何预约",
+			"预约流程",
+			"预约入口"
+		],
 		"service_guide_focus_contact": ["联系方式", "联系谁", "电话"],
 		"service_guide_focus_eligibility": ["条件", "资格", "谁能"],
 		"service_guide_focus_entry": [
@@ -382,7 +399,17 @@
 			"在哪补卡",
 			"哪里补卡"
 		],
-		"service_guide_focus_full_guide": ["说明", "全部", "完整", "丢了", "遗失", "挂失"],
+		"service_guide_focus_full_guide": [
+			"说明",
+			"规则",
+			"乘车规则",
+			"乘车说明",
+			"全部",
+			"完整",
+			"丢了",
+			"遗失",
+			"挂失"
+		],
 		"service_guide_focus_office_hours": ["办理时间", "办公时间", "开放时间"],
 		"service_guide_focus_required_materials": ["材料", "需要什么"],
 		"contact_directory_focus_phone": ["电话", "联系电话", "联系方式", "热线"],

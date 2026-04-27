@@ -44,6 +44,17 @@ CAMPUS_SERVICES_AGENT_TEST_COMMAND = (
     "unittest",
     "tests.agent.test_campus_services_agent",
 )
+APP_API_SERVICE_GUIDE_TEST_COMMAND = (
+    "pnpm",
+    "--dir",
+    "apps/app-api",
+    "exec",
+    "vitest",
+    "run",
+    "-c",
+    "vitest.node.config.mts",
+    "test/chat-command.service.test.ts",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +147,12 @@ def run_service_guide_lookup_release_gate(
         _run_command_check(
             check_id="campus_services_agent_contract_tests",
             command=CAMPUS_SERVICES_AGENT_TEST_COMMAND,
+            command_runner=resolved_command_runner,
+            cwd=REPO_ROOT,
+        ),
+        _run_command_check(
+            check_id="app_api_service_guide_structured_answer_tests",
+            command=APP_API_SERVICE_GUIDE_TEST_COMMAND,
             command_runner=resolved_command_runner,
             cwd=REPO_ROOT,
         ),
@@ -313,6 +330,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
+    "APP_API_SERVICE_GUIDE_TEST_COMMAND",
     "CAMPUS_SERVICES_AGENT_TEST_COMMAND",
     "DEFAULT_REPORT_NAME",
     "SUPERVISOR_GO_SERVICE_GUIDE_TEST_COMMAND",

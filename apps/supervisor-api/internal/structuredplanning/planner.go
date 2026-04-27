@@ -57,6 +57,14 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
 			}
 		}
+		if isTransportServiceGuideLookup(normalizedGoal, policy) {
+			return &Handoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "service_guide_lookup",
+				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
+			}
+		}
 		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
 			return &Handoff{
 				Target:       "campus-services-agent",
@@ -393,6 +401,14 @@ func isTransportBoardingStatusLookup(
 ) bool {
 	return containsAny(normalizedGoal, policy.Signals("structured_transport")) &&
 		containsAny(normalizedGoal, policy.Signals("structured_transport_boarding_status"))
+}
+
+func isTransportServiceGuideLookup(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return containsAny(normalizedGoal, policy.Signals("structured_transport")) &&
+		containsAny(normalizedGoal, policy.Signals("structured_transport_service_guide_action"))
 }
 
 func classifyServiceGuideFocus(

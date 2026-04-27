@@ -8,14 +8,18 @@ from campus_contracts import (
     AuthorizationProjection,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
+    ContactDirectoryLocationRef,
     ContactDirectoryLookupPayload,
     ContactDirectoryLookupResult,
+    ContactDirectoryOfficeHours,
     ContextProjection,
     ScheduledDeparture,
     ServiceGuideContactRef,
+    ServiceGuideEntryRef,
     ServiceGuideLookupPayload,
     ServiceGuideLookupResult,
     ServiceGuideMaterial,
+    ServiceGuideOfficeHours,
     ServiceGuideSection,
     ServiceGuideServiceRef,
     ServiceStatusLookupPayload,
@@ -298,6 +302,66 @@ class CampusServicesAgentTest(unittest.TestCase):
             "研究生院招生办公室电话是多少",
         )
 
+    def test_contact_directory_all_contacts_response_combines_available_fact_groups(self) -> None:
+        response = campus_services_tool_adapter._contact_directory_response(
+            ContactDirectoryLookupResult(
+                query_text="研究生院招生办公室联系方式",
+                contact_focus="all_contacts",
+                outcome="resolved_current",
+                resolved_contact=ContactDirectoryContactRef(
+                    contact_id="contact:grad-admission-office",
+                    display_name="研究生院招生办公室",
+                    aliases=("研究生招生办",),
+                    entity_type="department",
+                    department="研究生院",
+                    contact_group="招生咨询",
+                    campus_scope="haidian",
+                    audience=("student",),
+                ),
+                contact_points=(
+                    ContactDirectoryContactPoint(
+                        channel_type="phone",
+                        label="招生咨询电话",
+                        value="010-68930001",
+                        normalized_value="01068930001",
+                        source_refs=("official_web:graduate-school:contact",),
+                    ),
+                    ContactDirectoryContactPoint(
+                        channel_type="email",
+                        label="招生邮箱",
+                        value="admission@muc.edu.cn",
+                        normalized_value="admission@muc.edu.cn",
+                        source_refs=("official_web:graduate-school:contact",),
+                    ),
+                ),
+                location_refs=(
+                    ContactDirectoryLocationRef(
+                        label="办公室",
+                        location_ref="海淀校区研究生院",
+                        address_text="海淀校区研究生院楼201",
+                        source_refs=("official_web:graduate-school:contact",),
+                    ),
+                ),
+                office_hours=(
+                    ContactDirectoryOfficeHours(
+                        hours_id="hours:grad-admission-office",
+                        label="办公时间",
+                        day_pattern="工作日",
+                        time_range="09:00-17:00",
+                        source_refs=("official_web:graduate-school:contact",),
+                    ),
+                ),
+                source_refs=("official_web:graduate-school:contact",),
+                queried_time_anchor="2026-04-27T10:30:00+08:00",
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("010-68930001", response.answer_text)
+        self.assertIn("admission@muc.edu.cn", response.answer_text)
+        self.assertIn("海淀校区研究生院楼201", response.answer_text)
+        self.assertIn("09:00-17:00", response.answer_text)
+
     def test_service_guide_contact_response_includes_contact_channels(self) -> None:
         response = campus_services_tool_adapter._service_guide_response(
             ServiceGuideLookupResult(
@@ -374,6 +438,75 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("公费医疗报销办理指南", response.answer_text)
         self.assertIn("急诊证明", response.answer_text)
         self.assertIn("住院收据", response.answer_text)
+
+    def test_service_guide_full_guide_response_combines_all_fact_groups(self) -> None:
+        response = campus_services_tool_adapter._service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="校园卡丢了怎么办",
+                guide_focus="full_guide",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:campus-card:lost-reissue",
+                    display_name="校园卡挂失与补卡",
+                    aliases=("校园卡丢了",),
+                    category="campus_card",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                guide_sections=(
+                    ServiceGuideSection(
+                        section_type="procedure",
+                        title="挂失与补卡流程",
+                        content="先通过民大通办理挂失，再到自助补卡机补卡。",
+                        source_refs=("official_web:campus-card",),
+                    ),
+                ),
+                required_materials=(
+                    ServiceGuideMaterial(
+                        name="本人有效证件",
+                        required=True,
+                        source_refs=("official_web:campus-card",),
+                    ),
+                ),
+                entry_refs=(
+                    ServiceGuideEntryRef(
+                        label="学生自助补卡机",
+                        entry_type="offline_location",
+                        location_ref="中慧楼二层",
+                        source_refs=("official_web:campus-card",),
+                    ),
+                ),
+                office_hours=(
+                    ServiceGuideOfficeHours(
+                        label="卡务中心",
+                        day_pattern="工作日",
+                        time_range="09:00-17:00",
+                        source_refs=("official_web:campus-card",),
+                    ),
+                ),
+                contact_refs=(
+                    ServiceGuideContactRef(
+                        label="海淀校区校园卡管理中心",
+                        phone="010-68933381",
+                        source_refs=("official_web:campus-card",),
+                    ),
+                ),
+                eligibility_notes=("学生和教职工均可办理。",),
+                source_refs=("official_web:campus-card",),
+                queried_time_anchor="2026-04-26T10:30:00+08:00",
+                effective_from="2018-09-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="campus_card",
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("挂失与补卡流程", response.answer_text)
+        self.assertIn("本人有效证件", response.answer_text)
+        self.assertIn("学生自助补卡机", response.answer_text)
+        self.assertIn("09:00-17:00", response.answer_text)
+        self.assertIn("010-68933381", response.answer_text)
+        self.assertIn("学生和教职工均可办理", response.answer_text)
 
     def test_missing_query_service_returns_error_response(self) -> None:
         response = delegate_to_campus_services_agent(
@@ -497,6 +630,49 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("时刻表", response.answer_text)
         self.assertIn("2026-04-24T08:00:00+08:00", response.answer_text)
         self.assertIn("2026-04-24T08:30:00+08:00", response.answer_text)
+
+    def test_transport_schedule_status_response_shapes_operational_notice_safely(self) -> None:
+        response = campus_services_tool_adapter._transport_schedule_response(
+            TransportScheduleLookupResult(
+                query_text="今天地铁接驳车是不是停运了",
+                intent="service_window",
+                outcome="resolved_current",
+                resolved_route=TransportRouteRef(
+                    route_id="route:subway-shuttle",
+                    display_name="地铁接驳车",
+                    service_family="subway_shuttle",
+                ),
+                service_status="temporarily_suspended",
+                queried_time_anchor="2026-04-24T10:30:00+08:00",
+                requested_service_date="2026-04-24",
+                operational_notices=(
+                    TransportOperationalNotice(
+                        notice_id="353903",
+                        source_ref="notice:muc_internal_portal:353903",
+                        notice_kind="temporary_suspension",
+                        route_ids=("route:subway-shuttle",),
+                        effective_from="2026-04-24T00:00:00+08:00",
+                        operational_comment="地铁接驳车今日暂停运行",
+                    ),
+                    TransportOperationalNotice(
+                        notice_id="353904",
+                        source_ref="notice:muc_internal_portal:353904",
+                        notice_kind="temporary_suspension",
+                        route_ids=("route:subway-shuttle",),
+                        effective_from="2026-04-24T00:00:00+08:00",
+                        operational_comment="地铁接驳车今日暂停运行",
+                    ),
+                ),
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("地铁接驳车", response.answer_text)
+        self.assertIn("临时停运", response.answer_text)
+        self.assertIn("运营提示：地铁接驳车今日暂停运行。", response.answer_text)
+        self.assertNotIn("temporarily_suspended", response.answer_text)
+        self.assertNotIn("353903", response.answer_text)
+        self.assertEqual(response.answer_text.count("地铁接驳车今日暂停运行"), 1)
 
     def test_http_query_service_posts_transport_schedule_payload_and_decodes_result(self) -> None:
         transport = _RecordingQueryHTTPTransport(

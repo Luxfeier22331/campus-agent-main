@@ -1332,13 +1332,42 @@ function renderTransportScheduleLookupAnswer(toolResult: Record<string, unknown>
 	if (!base) {
 		return null;
 	}
+	const operationalNotices = normalizeTransportOperationalNotices(toolResult);
+	const clauses = [
+		base,
+		operationalNotices.length > 0 ? `最新提示：${operationalNotices.join("；")}` : "",
+	].filter(Boolean);
 	const referenceCandidates = [
 		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
 		...recordStringArray(toolResult, "related_notice_refs", "relatedNoticeRefs"),
+		...collectNestedSourceRefs(toolResult.operational_notices ?? toolResult.operationalNotices),
 		...collectNestedSourceRefs(toolResult.schedule_items ?? toolResult.scheduleItems),
 		...collectNestedSourceRefs(toolResult.upcoming_departures ?? toolResult.upcomingDepartures),
 	];
-	return ensureSentenceEnd(appendSourceSummary(base, referenceCandidates));
+	return ensureSentenceEnd(appendSourceSummary(clauses.join(" "), referenceCandidates));
+}
+
+function normalizeTransportOperationalNotices(toolResult: Record<string, unknown>): string[] {
+	const notices = toolResult.operational_notices ?? toolResult.operationalNotices;
+	if (!Array.isArray(notices)) {
+		return [];
+	}
+	return dedupeStable(
+		notices
+			.map((notice) => {
+				if (!isRecord(notice)) {
+					return "";
+				}
+				return (
+					recordString(notice, "operational_comment", "operationalComment") ??
+					recordString(notice, "note", "note") ??
+					recordString(notice, "content", "content") ??
+					recordString(notice, "title", "title") ??
+					""
+				);
+			})
+			.filter(Boolean),
+	).slice(0, 2);
 }
 
 function renderServiceGuideLookupAnswer(toolResult: Record<string, unknown>): string | null {
@@ -1349,31 +1378,38 @@ function renderServiceGuideLookupAnswer(toolResult: Record<string, unknown>): st
 	const serviceName = resolvedService
 		? (recordString(resolvedService, "display_name", "displayName") ?? "该服务")
 		: "该服务";
-	const guideSections = Array.isArray(toolResult.guide_sections ?? toolResult.guideSections)
-		? ((toolResult.guide_sections ?? toolResult.guideSections) as unknown[])
-				.map((section) => {
-					if (!isRecord(section)) {
-						return null;
-					}
-					const content = recordString(section, "content", "content");
-					if (!content) {
-						return null;
-					}
-					const title = recordString(section, "title", "title");
-					return title ? `${title}：${content}` : content;
-				})
-				.filter((section): section is string => Boolean(section))
-				.slice(0, 2)
-		: [];
-	const entryRefs = Array.isArray(toolResult.entry_refs ?? toolResult.entryRefs)
-		? ((toolResult.entry_refs ?? toolResult.entryRefs) as unknown[])
-				.map((entry) => (isRecord(entry) ? recordString(entry, "label", "label") : null))
-				.filter((label): label is string => Boolean(label))
-				.slice(0, 2)
-		: [];
+	const guideSections = recordObjectArray(toolResult, "guide_sections", "guideSections")
+		.map(formatServiceGuideSection)
+		.filter((section): section is string => Boolean(section))
+		.slice(0, 2);
+	const materials = recordObjectArray(toolResult, "required_materials", "requiredMaterials")
+		.map(formatServiceGuideMaterial)
+		.filter((material): material is string => Boolean(material))
+		.slice(0, 4);
+	const entryRefs = recordObjectArray(toolResult, "entry_refs", "entryRefs")
+		.map(formatServiceGuideEntry)
+		.filter((entry): entry is string => Boolean(entry))
+		.slice(0, 3);
+	const officeHours = recordObjectArray(toolResult, "office_hours", "officeHours")
+		.map(formatServiceGuideHours)
+		.filter((hours): hours is string => Boolean(hours))
+		.slice(0, 3);
+	const contactRefs = recordObjectArray(toolResult, "contact_refs", "contactRefs")
+		.map(formatServiceGuideContact)
+		.filter((contact): contact is string => Boolean(contact))
+		.slice(0, 3);
+	const eligibilityNotes = recordStringArray(
+		toolResult,
+		"eligibility_notes",
+		"eligibilityNotes",
+	).slice(0, 3);
 	const clauses = [
 		guideSections.length > 0 ? `${serviceName}：${guideSections.join("；")}` : "",
+		materials.length > 0 ? `所需材料：${materials.join("、")}` : "",
 		entryRefs.length > 0 ? `可用入口：${entryRefs.join("、")}` : "",
+		officeHours.length > 0 ? `办理时间：${officeHours.join("、")}` : "",
+		contactRefs.length > 0 ? `联系方式：${contactRefs.join("、")}` : "",
+		eligibilityNotes.length > 0 ? `适用范围：${eligibilityNotes.join("、")}` : "",
 	].filter(Boolean);
 	if (clauses.length === 0) {
 		return null;
@@ -1382,9 +1418,59 @@ function renderServiceGuideLookupAnswer(toolResult: Record<string, unknown>): st
 		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
 		...recordStringArray(toolResult, "related_notice_refs", "relatedNoticeRefs"),
 		...collectNestedSourceRefs(toolResult.guide_sections ?? toolResult.guideSections),
+		...collectNestedSourceRefs(toolResult.required_materials ?? toolResult.requiredMaterials),
 		...collectNestedSourceRefs(toolResult.entry_refs ?? toolResult.entryRefs),
+		...collectNestedSourceRefs(toolResult.office_hours ?? toolResult.officeHours),
+		...collectNestedSourceRefs(toolResult.contact_refs ?? toolResult.contactRefs),
 	];
 	return ensureSentenceEnd(appendSourceSummary(clauses.join(" "), referenceCandidates));
+}
+
+function formatServiceGuideSection(section: Record<string, unknown>): string | null {
+	const content = recordString(section, "content", "content");
+	if (!content) {
+		return null;
+	}
+	const title = recordString(section, "title", "title");
+	return title ? `${title}：${content}` : content;
+}
+
+function formatServiceGuideMaterial(material: Record<string, unknown>): string | null {
+	const name = recordString(material, "name", "name");
+	if (!name) {
+		return null;
+	}
+	const note = recordString(material, "note", "note");
+	const requiredSuffix = material.required === false ? "（可选）" : "";
+	return [name + requiredSuffix, note].filter(Boolean).join(" ");
+}
+
+function formatServiceGuideEntry(entry: Record<string, unknown>): string | null {
+	const label = recordString(entry, "label", "label");
+	if (!label) {
+		return null;
+	}
+	const locationRef = recordString(entry, "location_ref", "locationRef");
+	const url = recordString(entry, "url", "url");
+	return [label, locationRef && locationRef !== label ? locationRef : "", url]
+		.filter(Boolean)
+		.join(" ");
+}
+
+function formatServiceGuideHours(hours: Record<string, unknown>): string | null {
+	const label = recordString(hours, "label", "label");
+	const dayPattern = recordString(hours, "day_pattern", "dayPattern");
+	const timeRange = recordString(hours, "time_range", "timeRange");
+	const effectiveNote = recordString(hours, "effective_note", "effectiveNote");
+	return [label, dayPattern, timeRange ?? effectiveNote].filter(Boolean).join(" ") || null;
+}
+
+function formatServiceGuideContact(contact: Record<string, unknown>): string | null {
+	const label = recordString(contact, "label", "label");
+	const phone = recordString(contact, "phone", "phone");
+	const email = recordString(contact, "email", "email");
+	const locationRef = recordString(contact, "location_ref", "locationRef");
+	return [label, phone, email, locationRef].filter(Boolean).join(" ") || null;
 }
 
 function renderContactDirectoryLookupAnswer(toolResult: Record<string, unknown>): string | null {
@@ -1397,41 +1483,26 @@ function renderContactDirectoryLookupAnswer(toolResult: Record<string, unknown>)
 		: "该部门";
 	const contactPoints = Array.isArray(toolResult.contact_points ?? toolResult.contactPoints)
 		? ((toolResult.contact_points ?? toolResult.contactPoints) as unknown[])
-				.map((point) => {
-					if (!isRecord(point)) {
-						return null;
-					}
-					const value = recordString(point, "value", "value");
-					if (!value) {
-						return null;
-					}
-					const label = recordString(point, "label", "label");
-					return label ? `${label}：${value}` : value;
-				})
+				.map((point) => (isRecord(point) ? formatContactDirectoryPoint(point) : null))
 				.filter((point): point is string => Boolean(point))
 				.slice(0, 2)
 		: [];
 	const locationRefs = Array.isArray(toolResult.location_refs ?? toolResult.locationRefs)
 		? ((toolResult.location_refs ?? toolResult.locationRefs) as unknown[])
-				.map((location) => {
-					if (!isRecord(location)) {
-						return null;
-					}
-					const locationRef =
-						recordString(location, "location_ref", "locationRef") ??
-						recordString(location, "value", "value");
-					if (!locationRef) {
-						return null;
-					}
-					const label = recordString(location, "label", "label");
-					return label ? `${label}：${locationRef}` : locationRef;
-				})
+				.map((location) => (isRecord(location) ? formatContactDirectoryLocation(location) : null))
 				.filter((location): location is string => Boolean(location))
 				.slice(0, 1)
+		: [];
+	const officeHours = Array.isArray(toolResult.office_hours ?? toolResult.officeHours)
+		? ((toolResult.office_hours ?? toolResult.officeHours) as unknown[])
+				.map((hours) => (isRecord(hours) ? formatContactDirectoryHours(hours) : null))
+				.filter((hours): hours is string => Boolean(hours))
+				.slice(0, 2)
 		: [];
 	const clauses = [
 		contactPoints.length > 0 ? `${contactName}联系方式：${contactPoints.join("；")}` : "",
 		locationRefs.length > 0 ? `办公地点：${locationRefs[0]}` : "",
+		officeHours.length > 0 ? `办公时间：${officeHours.join("；")}` : "",
 	].filter(Boolean);
 	if (clauses.length === 0) {
 		return null;
@@ -1440,8 +1511,38 @@ function renderContactDirectoryLookupAnswer(toolResult: Record<string, unknown>)
 		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
 		...collectNestedSourceRefs(toolResult.contact_points ?? toolResult.contactPoints),
 		...collectNestedSourceRefs(toolResult.location_refs ?? toolResult.locationRefs),
+		...collectNestedSourceRefs(toolResult.office_hours ?? toolResult.officeHours),
 	];
 	return ensureSentenceEnd(appendSourceSummary(clauses.join(" "), referenceCandidates));
+}
+
+function formatContactDirectoryPoint(point: Record<string, unknown>): string | null {
+	const value = recordString(point, "value", "value");
+	if (!value) {
+		return null;
+	}
+	const label = recordString(point, "label", "label");
+	return label ? `${label}：${value}` : value;
+}
+
+function formatContactDirectoryLocation(location: Record<string, unknown>): string | null {
+	const locationText =
+		recordString(location, "address_text", "addressText") ??
+		recordString(location, "location_ref", "locationRef") ??
+		recordString(location, "value", "value");
+	if (!locationText) {
+		return null;
+	}
+	const label = recordString(location, "label", "label");
+	return label && label !== locationText ? `${label}：${locationText}` : locationText;
+}
+
+function formatContactDirectoryHours(hours: Record<string, unknown>): string | null {
+	const label = recordString(hours, "label", "label");
+	const dayPattern = recordString(hours, "day_pattern", "dayPattern");
+	const timeRange = recordString(hours, "time_range", "timeRange");
+	const effectiveNote = recordString(hours, "effective_note", "effectiveNote");
+	return [label, dayPattern, timeRange ?? effectiveNote].filter(Boolean).join(" ") || null;
 }
 
 export function synthesizeCampusServicesAssistantText(input: {

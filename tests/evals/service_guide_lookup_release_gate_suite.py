@@ -73,6 +73,7 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                 "intent_service_guide_cases",
                 "supervisor_go_service_guide_tests",
                 "campus_services_agent_contract_tests",
+                "app_api_service_guide_structured_answer_tests",
             ],
         )
         self.assertIn(
@@ -94,6 +95,20 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                 "-m",
                 "unittest",
                 "tests.agent.test_campus_services_agent",
+            ),
+            commands,
+        )
+        self.assertIn(
+            (
+                "pnpm",
+                "--dir",
+                "apps/app-api",
+                "exec",
+                "vitest",
+                "run",
+                "-c",
+                "vitest.node.config.mts",
+                "test/chat-command.service.test.ts",
             ),
             commands,
         )

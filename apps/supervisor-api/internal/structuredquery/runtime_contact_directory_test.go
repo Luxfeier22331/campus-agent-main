@@ -37,6 +37,76 @@ func TestLookupContactDirectoryResolvesPhone(t *testing.T) {
 	}
 }
 
+func TestLookupContactDirectoryMatchesContactPointAndHoursLabels(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:security-duty-office",
+					"display_name":"校园安全值班室",
+					"department":"保卫处",
+					"entity_type":"office",
+					"contact_points":[
+						{
+							"channel_type":"phone",
+							"label":"夜间值班电话",
+							"value":"010-68931110",
+							"contact_type":"duty_hotline",
+							"area_served":"校园安全",
+							"source_refs":["official_web:security-office:contact"]
+						}
+					],
+					"office_hours":[
+						{
+							"hours_id":"hours:security-duty-office:night",
+							"label":"夜间值班",
+							"day_pattern":"每日",
+							"time_range":"18:00-08:00",
+							"source_refs":["official_web:security-office:contact"]
+						}
+					],
+					"source_refs":["official_web:security-office:contact"],
+					"extraction_status":"ready"
+				}
+			],
+			"contact_conflict_records":[],
+			"contact_manual_review_sources":[]
+		}`,
+		"2026-04-27T10:30:00+08:00",
+	)
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"校园安全夜间值班电话",
+		"contact_focus":"phone",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.ContactPoints) != 1 || result.ContactPoints[0].Value != "010-68931110" {
+		t.Fatalf("contact_points = %#v", result.ContactPoints)
+	}
+
+	hoursResponse := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"校园安全夜间值班时间",
+		"contact_focus":"office_hours",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+	hoursResult := hoursResponse.Body.(contactDirectoryResult)
+	if hoursResult.Outcome != "resolved_current" {
+		t.Fatalf("hours outcome = %q, want resolved_current", hoursResult.Outcome)
+	}
+	if len(hoursResult.OfficeHours) != 1 || hoursResult.OfficeHours[0].TimeRange != "18:00-08:00" {
+		t.Fatalf("office_hours = %#v", hoursResult.OfficeHours)
+	}
+}
+
 func TestLookupContactDirectoryClarifiesAmbiguousEntity(t *testing.T) {
 	runtime := newRuntimeWithContactDirectoryReadModel(
 		t,

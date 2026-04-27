@@ -49,6 +49,7 @@ func selectTransportRoute(
 	}
 
 	originStopMatches := []transportStopRef(nil)
+	originStopID := ""
 	if selector.OriginStopQuery != "" {
 		stopIDs, stopRefs := matchingTransportStopIDs(candidates, selector.OriginStopQuery)
 		if len(stopIDs) > 1 {
@@ -61,12 +62,14 @@ func selectTransportRoute(
 		if len(stopIDs) == 0 {
 			return transportRouteSelection{outcome: "not_found"}
 		}
+		originStopID = stopIDs[0]
 		originStopMatches = stopRefs
 		candidates = filterTransportRoutes(candidates, func(route transportRouteRecord) bool {
-			return routeContainsStop(route, stopIDs[0])
+			return routeContainsStop(route, originStopID)
 		})
 	}
 	destinationStopMatches := []transportStopRef(nil)
+	destinationStopID := ""
 	if selector.DestinationStopQuery != "" {
 		stopIDs, stopRefs := matchingTransportStopIDs(candidates, selector.DestinationStopQuery)
 		if len(stopIDs) > 1 {
@@ -79,9 +82,15 @@ func selectTransportRoute(
 		if len(stopIDs) == 0 {
 			return transportRouteSelection{outcome: "not_found"}
 		}
+		destinationStopID = stopIDs[0]
 		destinationStopMatches = stopRefs
 		candidates = filterTransportRoutes(candidates, func(route transportRouteRecord) bool {
-			return routeContainsStop(route, stopIDs[0])
+			return routeContainsStop(route, destinationStopID)
+		})
+	}
+	if originStopID != "" && destinationStopID != "" {
+		candidates = filterTransportRoutes(candidates, func(route transportRouteRecord) bool {
+			return routeContainsStopsInOrder(route, originStopID, destinationStopID)
 		})
 	}
 
@@ -205,4 +214,18 @@ func routeContainsStop(route transportRouteRecord, stopID string) bool {
 		}
 	}
 	return false
+}
+
+func routeContainsStopsInOrder(route transportRouteRecord, originStopID string, destinationStopID string) bool {
+	originIndex := -1
+	destinationIndex := -1
+	for index, stop := range route.Stops {
+		if stop.StopID == originStopID {
+			originIndex = index
+		}
+		if stop.StopID == destinationStopID {
+			destinationIndex = index
+		}
+	}
+	return originIndex >= 0 && destinationIndex >= 0 && originIndex < destinationIndex
 }

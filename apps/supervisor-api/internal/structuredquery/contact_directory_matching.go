@@ -134,10 +134,13 @@ func contactDirectoryQueryVariants(query string) []string {
 	variants := []string{normalized}
 	canonical := normalized
 	for _, phrase := range []string{
-		"电话",
 		"电话号码",
-		"联系方式",
 		"联系电话",
+		"办公电话",
+		"值班电话",
+		"咨询电话",
+		"联系方式",
+		"电话",
 		"邮箱",
 		"电子邮箱",
 		"在哪",
@@ -195,7 +198,9 @@ func contactDirectoryRecordSearchTexts(record contactDirectoryRecord) []string {
 		record.ContactGroup,
 	}
 	values = append(values, record.Aliases...)
+	values = append(values, contactDirectoryContactPointTexts(record)...)
 	values = append(values, contactDirectoryLocationTexts(record)...)
+	values = append(values, contactDirectoryOfficeHoursTexts(record)...)
 	return values
 }
 
@@ -256,6 +261,41 @@ func contactDirectoryLocationTexts(record contactDirectoryRecord) []string {
 	values := []string{}
 	for _, location := range contactDirectoryLocationEntries(record) {
 		values = append(values, location.Label, location.LocationRef, location.AddressText)
+	}
+	return values
+}
+
+func contactDirectoryContactPointTexts(record contactDirectoryRecord) []string {
+	values := []string{}
+	for _, point := range record.ContactPoints {
+		values = append(
+			values,
+			point.Label,
+			point.ContactType,
+			point.AreaServed,
+			point.AvailableLanguage,
+			point.HoursRef,
+		)
+	}
+	for _, phone := range record.Phones {
+		values = append(values, phone.Label)
+	}
+	for _, email := range record.Emails {
+		values = append(values, email.Label)
+	}
+	return values
+}
+
+func contactDirectoryOfficeHoursTexts(record contactDirectoryRecord) []string {
+	values := []string{}
+	for _, hours := range contactDirectoryOfficeHoursEntries(record) {
+		values = append(
+			values,
+			hours.Label,
+			hours.DayPattern,
+			hours.TimeRange,
+			hours.EffectiveNote,
+		)
 	}
 	return values
 }
