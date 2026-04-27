@@ -1,0 +1,17 @@
+{
+	"name": "wechat-official-account-core",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Provider-agnostic source-truth helpers for WeChat official-account public articles.",
+	"type": "module",
+	"exports": "./src/index.ts",
+	"scripts": {
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^24.12.0",
+		"typescript": "^5.8.2",
+		"vitest": "^4.1.0"
+	}
+}
