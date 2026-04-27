@@ -35,6 +35,7 @@ class SmokeWeChatPublicNoticePhase5WorkerCliTest(unittest.TestCase):
                     consumption_status="retained_for_notice_query",
                     target_surface="notice_level_query",
                     dedupe_status="unique",
+                    body_state="captured",
                 ),
                 _entry(
                     source_notice_id="woa_article_duplicate",
@@ -72,6 +73,10 @@ class SmokeWeChatPublicNoticePhase5WorkerCliTest(unittest.TestCase):
                     "1",
                     "--min-duplicate-suppressed-count",
                     "1",
+                    "--min-captured-count",
+                    "1",
+                    "--max-fetch-failed-count",
+                    "0",
                     "--require-suppressed-source-family",
                     "official_web_public_notice",
                 ]
@@ -82,6 +87,8 @@ class SmokeWeChatPublicNoticePhase5WorkerCliTest(unittest.TestCase):
         self.assertEqual(payload["ok"], True)
         self.assertEqual(payload["projection"]["article_count"], 2)
         self.assertEqual(payload["projection"]["duplicate_suppressed_count"], 1)
+        self.assertEqual(payload["projection"]["captured_entry_count"], 1)
+        self.assertEqual(payload["projection"]["fetch_failed_entry_count"], 0)
         self.assertEqual(payload["projection"]["query_serving_opened"], False)
 
     def test_main_exits_non_zero_when_projection_smoke_fails(self) -> None:
@@ -133,7 +140,15 @@ def _entry(
     consumption_status: str,
     target_surface: str,
     dedupe_status: str,
+    body_state: str = "not_captured",
 ) -> NoticeConsumptionProjectionEntry:
+    role_metadata = {
+        "body_state": body_state,
+        "dedupe_status": dedupe_status,
+    }
+    if body_state == "captured":
+        role_metadata["body_paragraph_count"] = 2
+        role_metadata["body_excerpt"] = "第一段正文"
     return NoticeConsumptionProjectionEntry(
         source_family="wechat_public_notice",
         source_corpus="campus_notices",
@@ -150,10 +165,7 @@ def _entry(
         consumption_status=consumption_status,
         source_notice_document_id=f"wechat_notice:{source_notice_id}",
         source_document_id=f"wechat_notice:{source_notice_id}",
-        role_metadata={
-            "body_state": "not_captured",
-            "dedupe_status": dedupe_status,
-        },
+        role_metadata=role_metadata,
     )
 
 

@@ -16,10 +16,10 @@ updated: 2026-04-27
 **Total Phases:** 6
 **Progress:** 6/6 phases complete
 **Last Activity:** 2026-04-27
-**Last Activity Description:** Completed Phase 6. `wechat_public_notice` is now
-served through the unified `campus_notice_discover/get` source-family policy,
-retained projection rows are materialized into the notice read model, and
-public notice get supports `reference_only=true` when no captured body exists.
+**Last Activity Description:** Reopened closeout to replace metadata-only
+source-truth with real `mp.weixin.qq.com` page capture. FeedWe now remains
+discovery-only, captured-body rows materialize canonical markdown into the
+notice read model, and only captured-body rows are queryable.
 
 ## Current Slice
 
@@ -32,7 +32,7 @@ public notice get supports `reference_only=true` when no captured body exists.
   `woa_article_1335feaf76d3fc90b63b3999`.
 - Go `supervisor-api` internal notice endpoints returned:
   - `campus_notice_discover`: `outcome=resolved_current`
-  - `campus_notice_get`: `outcome=resolved_current`, `reference_only=true`
+  - `campus_notice_get`: `outcome=resolved_current`
   - source URL:
     `https://mp.weixin.qq.com/s/I_0ji-iVJWm_ukb6UNDMiw`
 
@@ -43,13 +43,13 @@ public notice get supports `reference_only=true` when no captured body exists.
 - The physical read model table is still named `internal_notice_read_model`;
   Phase 6 may use it because the schema is source-family capable, but the name
   should not define the long-term domain boundary.
-- WeChat article body capture remains deferred; serving is intentionally
-  reference-only until a body-capture source-truth contract is admitted.
+- Live closeout evidence should be refreshed after the captured-page pipeline
+  replay so the workstream archive points at post-capture acceptance output.
 
 ## Session Continuity
 
 **Stopped At:** Workstream complete. Reopen only for provider contract changes,
-WeChat body capture, deletion/update synchronization, or a new explicit notice
-source-family serving policy change.
+deletion/update synchronization, or a new explicit notice source-family serving
+policy change.
 **Resume File:**
 `.planning/workstreams/wechat-official-account-public-source-channel/README.md`

@@ -339,9 +339,11 @@ def build_wechat_public_notice_read_model_entries(
             or _text(metadata.get("title_normalized"))
             or entry.source_notice_id
         )
-        source_url = _text(metadata.get("source_url")) or _text(
-            metadata.get("normalized_article_url")
-        ) or _text(metadata.get("article_url"))
+        source_url = (
+            _text(metadata.get("source_url"))
+            or _text(metadata.get("normalized_article_url"))
+            or _text(metadata.get("article_url"))
+        )
         canonical_document_id = entry.source_notice_document_id or entry.source_document_id
         body_excerpt = _build_wechat_read_model_body_excerpt(metadata=metadata, title=title)
         canonical_markdown_object_key = ""
@@ -980,14 +982,18 @@ def _write_wechat_canonical_markdown(
     canonical_key = build_document_artifact_key(
         corpus=entry.source_corpus,
         collection=entry.source_collection,
-        document_id=entry.source_document_id or entry.source_notice_document_id or entry.source_notice_id,
+        document_id=entry.source_document_id
+        or entry.source_notice_document_id
+        or entry.source_notice_id,
         revision_track="source-faithful",
         version_id=_text(metadata.get("metadata_hash")) or entry.source_notice_id,
         filename="canonical.md",
         title=title,
         year=_text(metadata.get("publish_day")) or "",
     )
-    canonical_markdown = _render_wechat_canonical_markdown(metadata=metadata, title=title, body=body)
+    canonical_markdown = _render_wechat_canonical_markdown(
+        metadata=metadata, title=title, body=body
+    )
     derived_object_store.put_bytes(
         bucket=derived_bucket,
         key=canonical_key,

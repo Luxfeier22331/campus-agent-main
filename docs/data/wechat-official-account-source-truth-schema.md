@@ -8,13 +8,18 @@ updated: 2026-04-27
 
 ## Boundary
 
-This document freezes the Phase 3 canonical source-truth schema for the
+This document freezes the canonical source-truth schema for the
 `wechat_official_account` source channel.
 
-Phase 3 is metadata-first. FeedWe history currently provides public article
-metadata such as id, title, URL, cover image, publish time, and account name.
-It does not provide article body HTML in the accepted Phase 3 path, so this
-schema records `bodyState: "not_captured"` instead of inventing body content.
+FeedWe is the discovery provider only. The accepted capture path is:
+
+1. fetch FeedWe history for article discovery
+1. fetch the real `mp.weixin.qq.com/s/...` article URL
+1. derive canonical source-truth from the fetched WeChat article page
+
+The schema therefore permits both metadata-only fallback rows and captured-body
+rows from the real page. It must not invent body content when the real page was
+not captured successfully.
 
 This schema does not define notice projection, read-model rows, document
 registry records, chunks, embeddings, serving aliases, or query runtime gates.
@@ -25,6 +30,8 @@ Capture and provider artifacts remain owned by the collector:
 
 - `provider/feedwe/provider-response.jsonl`
 - `capture/feedwe-request-summary.json`
+- `capture/wechat-article-fetch-metadata.json`
+- `capture/wechat-article-page.html`
 
 Article source-truth artifacts are written under the same source-channel
 prefix:
@@ -76,17 +83,19 @@ Allowed first-version values:
 - `sourceChannel`: `wechat_official_account`
 - `provider`: `feedwe`
 - `articleIdentityBasis`: `article_url` or `provider_article_id`
-- `bodyState`: `not_captured`
+- `bodyState`: `captured`, `not_captured`, or `fetch_failed`
 - `availabilityState`: `observed`
 
 ## Content Blocks
 
 `content-blocks.jsonl` stores only content that is actually present in the
-provider metadata.
+canonical source page or trusted fallback metadata.
 
-Phase 3 always writes one title block. It may write a summary block later if a
-provider response includes a real summary field. It must not fabricate article
-body paragraphs.
+The collector always writes one title block. It may also write:
+
+- one summary block when the page exposes a real summary
+- one or more `body_paragraph` blocks when the real WeChat page body is
+  captured successfully
 
 Each row contains:
 
@@ -104,11 +113,13 @@ Allowed first-version block roles:
 
 - `title`
 - `summary`
+- `body_paragraph`
 
 ## Media Refs
 
-`media-refs.jsonl` stores metadata-only media references. Phase 3 may record a
-cover image URL but does not download the image.
+`media-refs.jsonl` stores referenced media URLs from the captured article page.
+The collector may record the cover image plus inline image URLs. It does not
+download the images into source-truth.
 
 Each row contains:
 
@@ -124,6 +135,7 @@ Each row contains:
 Allowed first-version resource roles:
 
 - `cover_image`
+- `inline_image`
 
 ## Identity And Versioning
 
@@ -144,8 +156,13 @@ projection:
 - normalized title
 - publish time
 - cover image URL
+- normalized summary text
+- normalized body paragraph content
+- normalized inline image URLs
+- page parser version / fetch projection inputs
 
-Capture time alone must not advance `rawVersionId`.
+Capture time alone must not advance `rawVersionId`, but a changed captured body
+must.
 
 ## Forbidden Fields
 
@@ -194,12 +211,14 @@ suppressed audit row with:
 - `consumption_status = "no_adoption"`
 - dedupe evidence in `role_metadata`
 
-Phase 4 may emit optional read-model evidence rows for operator/offline use,
-but query-serving is still closed:
+Phase 4 may emit read-model rows through the unified notice family runtime, but
+only captured-body rows are queryable:
 
-- Go runtime keeps `wechat_public_notice` fail-closed in
-  `campus_notice_discover` / `campus_notice_get`
-- no runtime opening is implied by projection admission
+- retained rows with `bodyState = "captured"` may materialize canonical notice
+  markdown and become queryable notice rows
+- retained rows with `bodyState = "not_captured"` or `fetch_failed` remain
+  non-queryable reference/audit rows
+- no separate WeChat query runtime is introduced
 
 ## Replay Boundary
 

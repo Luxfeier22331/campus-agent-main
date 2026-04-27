@@ -36,6 +36,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-article-count", type=int, default=1)
     parser.add_argument("--min-retained-count", type=int, default=0)
     parser.add_argument("--min-duplicate-suppressed-count", type=int, default=0)
+    parser.add_argument("--min-captured-count", type=int, default=0)
+    parser.add_argument("--max-fetch-failed-count", type=int)
     parser.add_argument("--require-suppressed-source-family", action="append", default=[])
     parser.add_argument("--summary-output-path")
     return parser
@@ -57,6 +59,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit("--min-retained-count must be >= 0")
     if args.min_duplicate_suppressed_count < 0:
         raise SystemExit("--min-duplicate-suppressed-count must be >= 0")
+    if args.min_captured_count < 0:
+        raise SystemExit("--min-captured-count must be >= 0")
+    if args.max_fetch_failed_count is not None and args.max_fetch_failed_count < 0:
+        raise SystemExit("--max-fetch-failed-count must be >= 0")
 
     explicit_refs = _build_explicit_manifest_refs(
         manifest_keys=explicit_manifest_keys,
@@ -90,6 +96,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         min_article_count=int(args.min_article_count),
         min_retained_count=int(args.min_retained_count),
         min_duplicate_suppressed_count=int(args.min_duplicate_suppressed_count),
+        min_captured_count=int(args.min_captured_count),
+        max_fetch_failed_count=(
+            int(args.max_fetch_failed_count) if args.max_fetch_failed_count is not None else None
+        ),
         required_suppressed_source_families=tuple(
             str(item).strip() for item in args.require_suppressed_source_family if str(item).strip()
         ),
@@ -114,6 +124,8 @@ def build_phase5_smoke_summary(
     min_article_count: int,
     min_retained_count: int,
     min_duplicate_suppressed_count: int,
+    min_captured_count: int,
+    max_fetch_failed_count: int | None,
     required_suppressed_source_families: Sequence[str],
     selection_path: str,
     explicit_manifest_count: int,
@@ -131,6 +143,9 @@ def build_phase5_smoke_summary(
     body_state_counter: Counter[str] = Counter()
     target_surface_counter: Counter[str] = Counter()
     consumption_status_counter: Counter[str] = Counter()
+    captured_entries = 0
+    fetch_failed_entries = 0
+    allowed_body_states = {"captured", "not_captured", "fetch_failed"}
     for entry in entries:
         if entry.source_family != WECHAT_PUBLIC_NOTICE_SOURCE_FAMILY:
             errors.append(f"unexpected source_family in projection entry: {entry.source_family!r}")
@@ -138,6 +153,19 @@ def build_phase5_smoke_summary(
         body_state = str(metadata.get("body_state") or "").strip()
         if body_state:
             body_state_counter[body_state] += 1
+            if body_state not in allowed_body_states:
+                errors.append(f"unexpected body_state for wechat source-truth: {body_state!r}")
+            if body_state == "captured":
+                captured_entries += 1
+                body_paragraph_count = metadata.get("body_paragraph_count")
+                if int(body_paragraph_count or 0) <= 0:
+                    errors.append(
+                        "captured entry is missing positive body_paragraph_count in role metadata"
+                    )
+                if not str(metadata.get("body_excerpt") or "").strip():
+                    errors.append("captured entry is missing body_excerpt in role metadata")
+            if body_state == "fetch_failed":
+                fetch_failed_entries += 1
         target_surface_counter[entry.target_surface] += 1
         consumption_status_counter[entry.consumption_status] += 1
         if entry.consumption_status == "no_adoption":
@@ -146,8 +174,6 @@ def build_phase5_smoke_summary(
                 errors.append("suppressed duplicate entry must use target_surface='unsupported'")
         if entry.consumption_status == "retained_for_notice_query":
             retained_entries += 1
-        if body_state and body_state != "not_captured":
-            errors.append(f"unexpected body_state for metadata-first source: {body_state!r}")
 
     if total_article_count < min_article_count:
         errors.append(
@@ -161,6 +187,15 @@ def build_phase5_smoke_summary(
         errors.append(
             "duplicate_suppressed_count="
             f"{duplicate_suppressed_count} below required minimum {min_duplicate_suppressed_count}"
+        )
+    if captured_entries < min_captured_count:
+        errors.append(
+            f"captured_entry_count={captured_entries} below required minimum {min_captured_count}"
+        )
+    if max_fetch_failed_count is not None and fetch_failed_entries > max_fetch_failed_count:
+        errors.append(
+            "fetch_failed_entry_count="
+            f"{fetch_failed_entries} exceeds maximum {max_fetch_failed_count}"
         )
     if suppressed_entries != duplicate_suppressed_count:
         errors.append(
@@ -186,6 +221,8 @@ def build_phase5_smoke_summary(
             "duplicate_source_family_counts": duplicate_source_family_counts,
             "retained_entry_count": retained_entries,
             "suppressed_entry_count": suppressed_entries,
+            "captured_entry_count": captured_entries,
+            "fetch_failed_entry_count": fetch_failed_entries,
             "body_state_counts": dict(sorted(body_state_counter.items())),
             "target_surface_counts": dict(sorted(target_surface_counter.items())),
             "consumption_status_counts": dict(sorted(consumption_status_counter.items())),

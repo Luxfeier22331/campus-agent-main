@@ -220,7 +220,9 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
             "wechat_official_account/muc/2026/woa_ver_sel/source-truth/media-refs.jsonl",
         )
 
-    def test_build_wechat_read_model_entries_marks_queryable_by_consumption_and_surface(self) -> None:
+    def test_build_wechat_read_model_entries_marks_queryable_by_consumption_and_surface(
+        self,
+    ) -> None:
         retained_entry = _projection_entry(
             source_family=NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
             source_collection="wechat_public_notice",
@@ -276,7 +278,9 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
             "https://mp.weixin.qq.com/s/queryable",
         )
 
-    def test_materialize_wechat_read_model_writes_canonical_markdown_for_captured_body(self) -> None:
+    def test_materialize_wechat_read_model_writes_canonical_markdown_for_captured_body(
+        self,
+    ) -> None:
         object_store, refs = _build_source_truth_fixture(
             bucket="source",
             prefix="wechat_official_account/muc/2026/woa_ver_captured",

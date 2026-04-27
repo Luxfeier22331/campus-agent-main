@@ -410,8 +410,7 @@ def _load_capture_run_refs(
             latest_row = cursor.fetchone()
             if latest_row is None:
                 raise ValueError(
-                    "no completed capture run found for "
-                    f"account_slug={capture_account_slug!r}"
+                    f"no completed capture run found for account_slug={capture_account_slug!r}"
                 )
             resolved_capture_run_id = str(latest_row[0]).strip()
         cursor.execute(
@@ -487,21 +486,18 @@ def _build_capture_refs_from_artifacts(
     for manifest_key in sorted(manifest_keys):
         if not manifest_key.endswith("/source-truth/article-manifest.json"):
             raise ValueError(
-                "capture run artifact has unexpected manifest key shape: "
-                f"{manifest_key!r}"
+                f"capture run artifact has unexpected manifest key shape: {manifest_key!r}"
             )
         prefix = manifest_key.rsplit("/source-truth/article-manifest.json", 1)[0]
         content_blocks_key = f"{prefix}/source-truth/content-blocks.jsonl"
         media_refs_key = f"{prefix}/source-truth/media-refs.jsonl"
         if content_blocks_key not in content_blocks_keys:
             raise ValueError(
-                "capture run missing source-truth content blocks for manifest: "
-                f"{manifest_key!r}"
+                f"capture run missing source-truth content blocks for manifest: {manifest_key!r}"
             )
         if media_refs_key not in media_refs_keys:
             raise ValueError(
-                "capture run missing source-truth media refs for manifest: "
-                f"{manifest_key!r}"
+                f"capture run missing source-truth media refs for manifest: {manifest_key!r}"
             )
         refs.append(
             WeChatSourceTruthArtifactRefs(
