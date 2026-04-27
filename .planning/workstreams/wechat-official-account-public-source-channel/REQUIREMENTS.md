@@ -24,6 +24,8 @@ artifacts as the canonical handoff boundary.
 - projection into notice consumption read model
 - notice-family contract expansion for `wechat_public_notice`
 - acceptance evidence for source replay, dedupe, and notice query readiness
+- unified notice `source_family` serving admission for public WeChat notice
+  cards
 
 ## Non-goals
 
@@ -31,7 +33,9 @@ artifacts as the canonical handoff boundary.
 - 把 FeedWe、Apifox、浏览器缓存或 SaaS 面板作为 canonical truth owner
 - 把公众号内容混进 `official_web` source channel
 - 让 collector 直接写 document registry、Qdrant、release alias 或 query-serving runtime
-- 在 notice consumption/read-model 未冻结前开放 public query-serving
+- 在 notice source-family admission / read-model materialization 未冻结前开放
+  public query-serving
+- 为 `wechat_public_notice` 新建独立 query runtime 或独立 tool
 - 把公众号文章直接升格为 `regulations/*` 或 `curriculum/*` 语义 owner
 
 ## Success Criteria
@@ -51,6 +55,9 @@ artifacts as the canonical handoff boundary.
    internal notice reference overlap.
 8. No query-serving alias or runtime opening is created without explicit
    notice-family admission and acceptance evidence.
+9. `wechat_public_notice` query serving, once admitted, is implemented through
+   `campus_notice_discover/get` source-family policy rather than a separate
+   runtime.
 
 ## Key Decisions
 
@@ -60,3 +67,5 @@ artifacts as the canonical handoff boundary.
 - The first consumer is notice consumption, not generic knowledge retrieval.
 - Provider secrets stay in environment/operator configuration and are never
   tracked.
+- Query serving is a notice source-family policy decision, not a WeChat-specific
+  runtime decision.

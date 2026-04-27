@@ -45,6 +45,15 @@ routes collected content into notice consumption.
   - Verify notice discover/get behavior stays gate-controlled.
   - Record residual provider/compliance risks and close the workstream.
 
+- [x] **Phase 6: Notice Source-family Serving Admission**
+  - Admit `wechat_public_notice` through the existing
+    `campus_notice_discover/get` tool family instead of a separate WeChat
+    runtime.
+  - Materialize retained WeChat public notice projection rows into the notice
+    read model.
+  - Add reference-only `campus_notice_get` semantics for public notice rows
+    with URL/title metadata but no captured body.
+
 ## Guardrails
 
 - FeedWe is acquisition only; the existing MinIO source bucket and app-api
@@ -52,5 +61,6 @@ routes collected content into notice consumption.
 - WeChat public articles do not become `official_web` pages.
 - Phase 2 must reuse ADR-0002 `capture/`, `provider/`, `source-truth/`, and
   `projection/` conventions instead of inventing a new file layout.
-- Query-serving remains closed until Phase 4/5 explicitly admits notice runtime.
+- Query-serving can open only through the unified notice source-family policy;
+  `wechat_public_notice` must not create a separate runtime/tool.
 - No private WeChat content, logged-in content, group chat, or direct user data.

@@ -17,9 +17,9 @@ notice consumption 输入，而不是混入 `official_web` crawl policy、generi
 - status: `completed`
 - current phase: `closeout`
 - current focus:
-  `Phase 5` 已完成 acceptance evidence 与 planning closeout；
-  `wechat_public_notice` 已具备 projection-level deterministic evidence，且
-  Go runtime 仍保持 fail-close，不存在 query-serving opening。
+  `Phase 6` 已完成 `wechat_public_notice` 通过统一
+  `campus_notice_discover/get` source-family policy 进入 notice serving；
+  reference-only get 与 read-model materialization 已通过本地真实链路验收。
 
 ## Provider Selection
 
@@ -46,6 +46,8 @@ content:
 - initial source family: `wechat_public_notice`
 - intended downstream: notice consumption projection / notice read model
 - initial target surface: public notice-level query candidates
+- serving surface: admitted through `campus_notice_discover/get` source-family
+  policy with reference-only get semantics until article body capture exists
 
 They do not enter:
 
@@ -53,15 +55,15 @@ They do not enter:
 - `authenticated_notice_portal`
 - `regulations/*` direct materialization
 - default public knowledge retrieval
-- query-serving runtime before explicit notice-family admission
+- query-serving runtime outside explicit notice-family source-family admission
 
 ## Native Planning Truth
 
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
-- current phase plan:
-  `./phases/phase-5-acceptance-evidence-and-planning-closeout/PLAN.md`
+- final phase summary:
+  `./phases/phase-6-notice-source-family-serving-admission/SUMMARY.md`
 
 ## Archived Snapshot
 
