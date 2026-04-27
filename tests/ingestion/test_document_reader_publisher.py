@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 
+from campus_ingestion_core.curriculum_course_map_docs_surface import (
+    build_curriculum_course_map_docs_surface_object_key,
+)
 from campus_ingestion_core.document_reader_publisher import publish_document_reader_assets
 from campus_ingestion_core.models import DocumentRegistryRecord
 
@@ -76,7 +80,7 @@ class DocumentReaderPublisherTest(unittest.TestCase):
         self.assertEqual(manifest["schemaVersion"], "document_reader_publish_manifest_v1")
         self.assertEqual(len(manifest["documents"]), 2)
         self.assertEqual(len(manifest["readerAssets"]), 2)
-        self.assertEqual(len(manifest["publicDocsSyncManifest"]["entries"]), 1)
+        self.assertEqual(len(manifest["publicDocsSyncManifest"]["entries"]), 2)
 
         search_units = manifest["searchUnits"]
         self.assertTrue(search_units[0]["anchor"].startswith("section-"))
@@ -84,12 +88,44 @@ class DocumentReaderPublisherTest(unittest.TestCase):
         self.assertIn("第一学期开设法理学", search_units[0]["snippet"])
         self.assertNotIn("chunk_id", json.dumps(manifest, ensure_ascii=False))
 
-    def test_publish_document_reader_assets_fails_fast_on_missing_canonical_artifacts(self) -> None:
+    def test_publish_document_reader_assets_accepts_missing_canonical_key_when_units_exist(self) -> None:
+        record = _make_record(
+            document_id="curriculum:missing-canonical-key",
+            title_slug="missing-canonical-key",
+            visibility_level="public",
+            entitlement_groups=(),
+        )
+        record = replace(record, canonical_markdown_object_key=None)
+        object_store = FakeObjectStore(
+            {
+                ("campus-rag-derived", record.document_units_object_key or ""): (
+                    _document_units_jsonl(record, "无 canonical key 的培养方案")
+                ).encode(),
+            }
+        )
+
+        report = publish_document_reader_assets(
+            bucket_derived="campus-rag-derived",
+            generated_at="2026-04-27T08:00:00+00:00",
+            object_store=object_store,
+            records=(record,),
+        )
+
+        self.assertEqual(report.document_count, 1)
+        self.assertEqual(report.public_entry_count, 1)
+        self.assertEqual(report.gated_entry_count, 0)
+
+    def test_publish_document_reader_assets_fails_fast_on_missing_required_artifacts(self) -> None:
         record = _make_record(
             document_id="curriculum:missing",
             title_slug="missing",
             visibility_level="public",
             entitlement_groups=(),
+        )
+        missing_units_record = replace(
+            record,
+            canonical_markdown_object_key=None,
+            document_units_object_key=None,
         )
 
         with self.assertRaisesRegex(ValueError, "missing canonical reader input"):
@@ -97,8 +133,42 @@ class DocumentReaderPublisherTest(unittest.TestCase):
                 bucket_derived="campus-rag-derived",
                 generated_at="2026-04-27T08:00:00+00:00",
                 object_store=FakeObjectStore({}),
-                records=(record,),
+                records=(missing_units_record,),
             )
+
+    def test_publish_document_reader_assets_skips_invalid_course_map_surface(self) -> None:
+        record = _make_record(
+            document_id="curriculum:invalid-course-map-surface",
+            title_slug="invalid-course-map-surface",
+            visibility_level="public",
+            entitlement_groups=(),
+        )
+        surface_key = build_curriculum_course_map_docs_surface_object_key(
+            record.document_units_object_key or ""
+        )
+        object_store = FakeObjectStore(
+            {
+                ("campus-rag-derived", record.canonical_markdown_object_key or ""): (
+                    "# 无效课程地图培养方案\n\n## 培养目标\n\n正文。\n"
+                ).encode(),
+                ("campus-rag-derived", record.document_units_object_key or ""): (
+                    _document_units_jsonl(record, "无效课程地图培养方案")
+                ).encode(),
+                ("campus-rag-derived", surface_key): b"{\"blocks\":[{\"node_id\":\"\"}]}",
+            }
+        )
+
+        report = publish_document_reader_assets(
+            bucket_derived="campus-rag-derived",
+            generated_at="2026-04-27T08:00:00+00:00",
+            object_store=object_store,
+            records=(record,),
+        )
+
+        self.assertEqual(report.document_count, 1)
+        self.assertFalse(
+            any(key.endswith("course-maps.json") for _, key in object_store.writes.keys())
+        )
 
 
 def _make_record(

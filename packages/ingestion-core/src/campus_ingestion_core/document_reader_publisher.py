@@ -16,6 +16,7 @@ from campus_ingestion_core.document_reader_assets import (
     build_public_docs_sync_manifest,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.process_loading import load_default_structured_units
 
 _SCHEMA_VERSION = "document_reader_publish_manifest_v1"
 
@@ -129,7 +130,9 @@ def publish_document_reader_assets(
         document_count=len(documents),
         gated_entry_count=sum(1 for entry in entries if entry.get("deliveryMode") == "gated_asset"),
         manifest=manifest,
-        public_entry_count=len(public_manifest["entries"]),
+        public_entry_count=sum(
+            1 for entry in entries if entry.get("deliveryMode") == "public_static_asset"
+        ),
     )
 
 
@@ -143,15 +146,48 @@ def _load_required_reader_inputs(
     object_store: DocumentReaderPublisherObjectStore,
     record: DocumentRegistryRecord,
 ) -> tuple[bytes, bytes]:
-    if not (record.canonical_markdown_object_key and record.document_units_object_key):
+    if not record.document_units_object_key:
         raise ValueError(f"missing canonical reader input for {record.document_id}")
     try:
-        return (
-            object_store.get_bytes(bucket=bucket, key=record.canonical_markdown_object_key),
-            object_store.get_bytes(bucket=bucket, key=record.document_units_object_key),
+        document_units_bytes = object_store.get_bytes(
+            bucket=bucket,
+            key=record.document_units_object_key,
         )
     except Exception as exc:
         raise ValueError(f"missing canonical reader input for {record.document_id}") from exc
+    if record.canonical_markdown_object_key:
+        try:
+            canonical_markdown_bytes = object_store.get_bytes(
+                bucket=bucket,
+                key=record.canonical_markdown_object_key,
+            )
+            return canonical_markdown_bytes, document_units_bytes
+        except Exception as exc:
+            raise ValueError(f"missing canonical reader input for {record.document_id}") from exc
+    return _build_fallback_canonical_markdown(record, document_units_bytes), document_units_bytes
+
+
+def _build_fallback_canonical_markdown(
+    record: DocumentRegistryRecord,
+    document_units_bytes: bytes,
+) -> bytes:
+    title = record.document_id
+    try:
+        units = load_default_structured_units(record, document_units_bytes)
+    except Exception:
+        units = ()
+    for unit in units:
+        candidate = str(unit.metadata.get("title") or "").strip()
+        if candidate:
+            title = candidate
+            break
+    else:
+        for unit in units:
+            candidate = unit.text.strip()
+            if candidate:
+                title = candidate
+                break
+    return f"# {title}\n".encode("utf-8")
 
 
 def _load_optional_course_map_assets(
@@ -171,14 +207,17 @@ def _load_optional_course_map_assets(
     except Exception:
         return None, None
 
-    surface = load_curriculum_course_map_docs_surface(surface_bytes)
-    image_objects: dict[str, bytes] = {}
-    for block in surface.blocks:
-        image_objects[block.image_object_key] = object_store.get_bytes(
-            bucket=bucket,
-            key=block.image_object_key,
-        )
-    return surface_bytes, image_objects
+    try:
+        surface = load_curriculum_course_map_docs_surface(surface_bytes)
+        image_objects: dict[str, bytes] = {}
+        for block in surface.blocks:
+            image_objects[block.image_object_key] = object_store.get_bytes(
+                bucket=bucket,
+                key=block.image_object_key,
+            )
+        return surface_bytes, image_objects
+    except Exception:
+        return None, None
 
 
 def _load_reader_title(reader_json: bytes) -> str:
