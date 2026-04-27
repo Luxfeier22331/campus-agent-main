@@ -59,9 +59,9 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind",
+		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug/admission",
 		callerClass: "browser-surface",
-		admission: "docs gated reader asset admission",
+		admission: "docs gated static asset admission",
 	},
 	{
 		method: "GET",

@@ -67,10 +67,6 @@ id = "c697741c51ca42eb912cdb3e013728f3"
 binding = "APP_API_DB_FRESH"
 id = "bcb527f5de2d4de49b2be59fac991838"
 
-[[env.staging.r2_buckets]]
-binding = "DOCS_READER_ASSETS"
-bucket_name = "campus-agent-reader-assets-staging"
-
 [[env.local.hyperdrive]]
 binding = "APP_API_DB"
 # Local development loads the actual connection string from
@@ -85,7 +81,3 @@ binding = "APP_API_DB_FRESH"
 # from `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`.
 # If it is absent, runtime resolution falls back to `APP_API_DB`.
 id = "00000000-0000-0000-0000-000000000000"
-
-[[env.local.r2_buckets]]
-binding = "DOCS_READER_ASSETS"
-bucket_name = "campus-agent-reader-assets-local"

@@ -8,16 +8,6 @@ export interface HyperdriveBindingLike {
 	connectionString?: string;
 }
 
-export interface DocsReaderAssetObjectLike {
-	body: ReadableStream;
-	httpEtag?: string;
-	writeHttpMetadata?(headers: Headers): void;
-}
-
-export interface DocsReaderAssetBucketLike {
-	get(key: string): Promise<DocsReaderAssetObjectLike | null>;
-}
-
 export interface Env {
 	APP_API_NAME?: string;
 	APP_API_ENVIRONMENT?: AppApiEnvironment;
@@ -57,7 +47,6 @@ export interface Env {
 	SENTRY_RELEASE?: string;
 	APP_API_DB?: HyperdriveBindingLike;
 	APP_API_DB_FRESH?: HyperdriveBindingLike;
-	DOCS_READER_ASSETS?: DocsReaderAssetBucketLike;
 }
 
 export interface AppApiConfig {
