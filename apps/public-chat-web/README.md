@@ -102,6 +102,9 @@ Readiness expectations:
 
 - `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`, and
   `PUBLIC_CHAT_HOSTNAME` are all configured
+- `GET /readyz` forwards the app-api `preflight.campusServicesProductPath`
+  diagnostic block when it is present, so public/chat campus-services opening
+  checks can distinguish capability-gate, projection, and read-model blockers
 - public chat shell routes such as `/login` and `/chat` also stay fail-closed
   when the `APP_API` bridge is missing, so a bad deploy does not expose a broken
   SPA

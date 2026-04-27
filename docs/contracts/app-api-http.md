@@ -265,11 +265,35 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
     "operatorBridge": "configured",
     "publicChatOrigin": "configured",
     "supervisorApi": "ready"
+  },
+  "preflight": {
+    "campusServicesProductPath": {
+      "status": "ready",
+      "capabilityGate": "open",
+      "projectionSource": "postgres",
+      "checks": {
+        "serviceStatusProjection": "ready",
+        "serviceStatusReadModel": "ready",
+        "transportSchedule": "ready",
+        "transportScheduleReadModel": "ready",
+        "serviceGuideProjection": "ready",
+        "serviceGuideReadModel": "ready",
+        "contactDirectoryProjection": "ready",
+        "contactDirectoryReadModel": "ready",
+        "structuredQueryRuntime": "ready"
+      },
+      "blockers": {}
+    }
   }
 }
 ```
 
 当 runtime config 缺失时，返回 `503 dependency_not_ready`，并在 `details.missing` 中列出缺失键。
+
+`preflight.campusServicesProductPath` 是 public/chat campus services opening gate
+的诊断块。
+它不改变 `app-api` 对非 campus-services 产品路径的基础 readiness 语义；当 status 为
+`blocked` 时，`blockers` 会指出具体 gate / projection / read-model 缺口。
 
 当 config 已齐但实际依赖未 ready 时，返回 `503 dependency_not_ready`，并在 `details.failed`
 中列出失败 probe，例如：

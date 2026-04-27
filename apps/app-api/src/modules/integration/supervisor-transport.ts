@@ -3,6 +3,31 @@ import { applyTracePropagationHeaders, resolveTracePropagationHeaders } from "..
 
 import type { SupervisorExecutionInput } from "./supervisor-types";
 
+type SupervisorReadyzRecord = Record<string, unknown>;
+type SupervisorReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
+
+export interface SupervisorCampusServicesProductPathPreflight {
+	status: "ready" | "blocked" | "not_reported";
+	capabilityGate: "open" | "closed" | "not_reported";
+	projectionSource: string;
+	checks: {
+		contactDirectoryProjection: SupervisorReadinessCheckStatus;
+		contactDirectoryReadModel: SupervisorReadinessCheckStatus;
+		serviceGuideProjection: SupervisorReadinessCheckStatus;
+		serviceGuideReadModel: SupervisorReadinessCheckStatus;
+		serviceStatusProjection: SupervisorReadinessCheckStatus;
+		serviceStatusReadModel: SupervisorReadinessCheckStatus;
+		structuredQueryRuntime: SupervisorReadinessCheckStatus;
+		transportSchedule: SupervisorReadinessCheckStatus;
+		transportScheduleReadModel: SupervisorReadinessCheckStatus;
+	};
+	blockers: Record<string, string>;
+}
+
+export interface SupervisorReadinessProbeResult {
+	campusServicesProductPath: SupervisorCampusServicesProductPathPreflight;
+}
+
 export async function probeSupervisorApiReady(
 	env: Pick<
 		Env,
@@ -14,7 +39,7 @@ export async function probeSupervisorApiReady(
 	input: {
 		fetchImplementation?: typeof fetch;
 	} = {},
-): Promise<void> {
+): Promise<SupervisorReadinessProbeResult> {
 	const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
 	if (!baseUrl) {
 		throw new SupervisorTransportError({
@@ -93,6 +118,139 @@ export async function probeSupervisorApiReady(
 			status: response.status,
 		});
 	}
+
+	const payload = (await response.json().catch(() => null)) as SupervisorReadyzRecord | null;
+	return {
+		campusServicesProductPath: buildCampusServicesProductPathPreflight(payload),
+	};
+}
+
+function buildCampusServicesProductPathPreflight(
+	payload: SupervisorReadyzRecord | null,
+): SupervisorCampusServicesProductPathPreflight {
+	const capabilityGate = resolveCampusServicesCapabilityGate(payload);
+	const structuredRuntime = readRecord(payload?.structured_query_runtime);
+	const projectionSource = readString(structuredRuntime?.projection_source);
+	const checks: SupervisorCampusServicesProductPathPreflight["checks"] = {
+		contactDirectoryProjection: readinessFromBoolean(
+			structuredRuntime?.contact_directory_projection_ready,
+		),
+		contactDirectoryReadModel: readinessFromConfiguredAndHealthy(
+			structuredRuntime?.contact_directory_read_model_configured,
+			structuredRuntime?.contact_directory_read_model_healthy,
+		),
+		serviceGuideProjection: readinessFromBoolean(structuredRuntime?.service_guide_projection_ready),
+		serviceGuideReadModel: readinessFromConfiguredAndHealthy(
+			structuredRuntime?.service_guide_read_model_configured,
+			structuredRuntime?.service_guide_read_model_healthy,
+		),
+		serviceStatusProjection: readinessFromBoolean(
+			structuredRuntime?.service_status_projection_ready,
+		),
+		serviceStatusReadModel: readinessFromConfiguredAndHealthy(
+			structuredRuntime?.service_status_read_model_configured,
+			structuredRuntime?.service_status_read_model_healthy,
+		),
+		structuredQueryRuntime: readinessFromBoolean(structuredRuntime?.configured),
+		transportSchedule: readinessFromBoolean(structuredRuntime?.transport_schedule_implemented),
+		transportScheduleReadModel: readinessFromConfiguredAndHealthy(
+			structuredRuntime?.transport_schedule_read_model_configured,
+			structuredRuntime?.transport_schedule_read_model_healthy,
+		),
+	};
+	const blockers = collectCampusServicesProductPathBlockers(capabilityGate, checks);
+	const hasReportedCheck = Object.values(checks).some((status) => status !== "not_reported");
+	const status =
+		capabilityGate === "not_reported" && !hasReportedCheck
+			? "not_reported"
+			: Object.keys(blockers).length === 0
+				? "ready"
+				: "blocked";
+
+	return {
+		status,
+		capabilityGate,
+		projectionSource,
+		checks,
+		blockers,
+	};
+}
+
+function collectCampusServicesProductPathBlockers(
+	capabilityGate: SupervisorCampusServicesProductPathPreflight["capabilityGate"],
+	checks: SupervisorCampusServicesProductPathPreflight["checks"],
+): Record<string, string> {
+	const blockers: Record<string, string> = {};
+	if (capabilityGate === "closed") {
+		blockers.capabilityGate = "campus_services capability gate is closed";
+	}
+	if (checks.structuredQueryRuntime === "not_ready") {
+		blockers.structuredQueryRuntime = "structured_query_runtime.configured is false";
+	}
+	const requiredChecks: readonly [
+		keyof SupervisorCampusServicesProductPathPreflight["checks"],
+		string,
+	][] = [
+		["serviceStatusProjection", "service_status_projection_ready is false"],
+		["serviceStatusReadModel", "service_status_read_model is not configured or unhealthy"],
+		["transportSchedule", "transport_schedule_implemented is false"],
+		["transportScheduleReadModel", "transport_schedule_read_model is not configured or unhealthy"],
+		["serviceGuideProjection", "service_guide_projection_ready is false"],
+		["serviceGuideReadModel", "service_guide_read_model is not configured or unhealthy"],
+		["contactDirectoryProjection", "contact_directory_projection_ready is false"],
+		["contactDirectoryReadModel", "contact_directory_read_model is not configured or unhealthy"],
+	];
+	for (const [key, message] of requiredChecks) {
+		if (checks[key] === "not_ready") {
+			blockers[key] = message;
+		}
+	}
+	return blockers;
+}
+
+function resolveCampusServicesCapabilityGate(
+	payload: SupervisorReadyzRecord | null,
+): SupervisorCampusServicesProductPathPreflight["capabilityGate"] {
+	const capabilityGates = readRecord(payload?.capability_gates);
+	const campusServices = readRecord(capabilityGates?.campus_services);
+	if (campusServices?.open === true) {
+		return "open";
+	}
+	if (campusServices?.open === false) {
+		return "closed";
+	}
+	return "not_reported";
+}
+
+function readinessFromBoolean(value: unknown): SupervisorReadinessCheckStatus {
+	if (value === true) {
+		return "ready";
+	}
+	if (value === false) {
+		return "not_ready";
+	}
+	return "not_reported";
+}
+
+function readinessFromConfiguredAndHealthy(
+	configured: unknown,
+	healthy: unknown,
+): SupervisorReadinessCheckStatus {
+	if (configured === undefined && healthy === undefined) {
+		return "not_reported";
+	}
+	return configured === true && healthy === true ? "ready" : "not_ready";
+}
+
+function readRecord(value: unknown): SupervisorReadyzRecord | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+	return value as SupervisorReadyzRecord;
+}
+
+function readString(value: unknown): string {
+	return typeof value === "string" ? value : "";
 }
 
 export class SupervisorTransportError extends Error {

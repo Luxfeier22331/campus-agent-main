@@ -50,6 +50,11 @@ const JSON_HEADERS = {
 const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
+interface AppApiRuntimeProbeResult {
+	error: string | null;
+	preflight?: unknown;
+}
+
 function scrubSensitiveRecord(value: unknown): void {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return;
@@ -133,13 +138,14 @@ const worker = {
 				});
 			}
 
-			const appApiRuntimeError = await probeAppApiRuntime(env);
-			if (appApiRuntimeError) {
+			const appApiRuntime = await probeAppApiRuntime(env);
+			if (appApiRuntime.error) {
 				return jsonResponse(503, {
 					error: {
 						code: "dependency_not_ready",
 						details: {
-							appApiRuntime: appApiRuntimeError,
+							appApiRuntime: appApiRuntime.error,
+							...(appApiRuntime.preflight ? { appApiPreflight: appApiRuntime.preflight } : {}),
 						},
 						message: "Runtime configuration is incomplete.",
 					},
@@ -154,6 +160,7 @@ const worker = {
 					appApiRuntime: "ready",
 					assets: "configured",
 				},
+				...(appApiRuntime.preflight ? { preflight: appApiRuntime.preflight } : {}),
 				public_hostname: env.PUBLIC_CHAT_HOSTNAME || "",
 				runtime: "cloudflare-worker",
 			});
@@ -373,9 +380,9 @@ function withNoStore(response: Response): Response {
 	});
 }
 
-async function probeAppApiRuntime(env: Env): Promise<string | null> {
+async function probeAppApiRuntime(env: Env): Promise<AppApiRuntimeProbeResult> {
 	if (!(env.APP_API && env.APP_API_BASE_URL)) {
-		return "App API binding is not configured.";
+		return { error: "App API binding is not configured." };
 	}
 
 	try {
@@ -384,19 +391,36 @@ async function probeAppApiRuntime(env: Env): Promise<string | null> {
 				method: "GET",
 			}),
 		);
+		const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+		const preflight =
+			readRecord(payload?.preflight) ?? readRecord(readRecord(payload?.error)?.details)?.preflight;
 		if (response.status !== 200) {
-			return `app-api readyz returned ${response.status}`;
+			return {
+				error: `app-api readyz returned ${response.status}`,
+				...(preflight ? { preflight } : {}),
+			};
 		}
-
-		const payload = (await response.json().catch(() => null)) as { status?: unknown } | null;
 		if (payload?.status !== "ready") {
-			return "app-api readyz returned an invalid payload";
+			return {
+				error: "app-api readyz returned an invalid payload",
+				...(preflight ? { preflight } : {}),
+			};
 		}
 
-		return null;
+		return {
+			error: null,
+			...(preflight ? { preflight } : {}),
+		};
 	} catch (error) {
-		return error instanceof Error ? error.message : "app-api readyz probe failed";
+		return { error: error instanceof Error ? error.message : "app-api readyz probe failed" };
 	}
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+	return value as Record<string, unknown>;
 }
 
 export default Sentry.withSentry(createSentryOptions, worker);

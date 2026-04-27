@@ -21,6 +21,7 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 		supervisorApi: "not_ready",
 	};
 	const failed: AppRuntimeReadinessResult["failed"] = {};
+	const preflight: AppRuntimeReadinessResult["preflight"] = {};
 
 	try {
 		const config = readAppApiConfig(env);
@@ -64,8 +65,9 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	}
 
 	try {
-		await probeSupervisorApiReady(env);
+		const supervisorReadiness = await probeSupervisorApiReady(env);
 		dependencies.supervisorApi = "ready";
+		preflight.campusServicesProductPath = supervisorReadiness.campusServicesProductPath;
 	} catch (error) {
 		failed.supervisorApi = formatRuntimeDependencyFailure(error);
 	}
@@ -73,5 +75,6 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 	return {
 		dependencies,
 		failed,
+		preflight,
 	};
 }

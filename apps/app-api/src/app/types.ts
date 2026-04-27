@@ -2,6 +2,7 @@ import type { Env } from "../config";
 import type { AppAuthGetter, AppAuthResolutionInput, ResolvedAppPrincipal } from "../modules/auth";
 import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
+import type { SupervisorCampusServicesProductPathPreflight } from "../modules/integration";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
 import type { OfficialWebPlannerService } from "../modules/official-web-planner";
@@ -56,6 +57,9 @@ export interface AppRuntimeReadinessResult {
 		supervisorApi: "ready" | "not_ready";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;
+	preflight?: {
+		campusServicesProductPath?: SupervisorCampusServicesProductPathPreflight;
+	};
 }
 
 export interface AppRequestScope {

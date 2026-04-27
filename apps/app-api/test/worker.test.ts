@@ -91,6 +91,25 @@ function createRuntimeReadinessResult() {
 			supervisorApi: "ready",
 		},
 		failed: {},
+		preflight: {
+			campusServicesProductPath: {
+				status: "ready",
+				capabilityGate: "open",
+				projectionSource: "postgres",
+				checks: {
+					contactDirectoryProjection: "ready",
+					contactDirectoryReadModel: "ready",
+					serviceGuideProjection: "ready",
+					serviceGuideReadModel: "ready",
+					serviceStatusProjection: "ready",
+					serviceStatusReadModel: "ready",
+					structuredQueryRuntime: "ready",
+					transportSchedule: "ready",
+					transportScheduleReadModel: "ready",
+				},
+				blockers: {},
+			},
+		},
 	};
 }
 
@@ -257,6 +276,25 @@ describe("app-api worker foundation", () => {
 				publicChatOrigin: "configured",
 				supervisorApi: "ready",
 			},
+			preflight: {
+				campusServicesProductPath: {
+					status: "ready",
+					capabilityGate: "open",
+					projectionSource: "postgres",
+					checks: {
+						contactDirectoryProjection: "ready",
+						contactDirectoryReadModel: "ready",
+						serviceGuideProjection: "ready",
+						serviceGuideReadModel: "ready",
+						serviceStatusProjection: "ready",
+						serviceStatusReadModel: "ready",
+						structuredQueryRuntime: "ready",
+						transportSchedule: "ready",
+						transportScheduleReadModel: "ready",
+					},
+					blockers: {},
+				},
+			},
 		});
 	});
 
@@ -337,6 +375,61 @@ describe("app-api worker foundation", () => {
 					failed: {
 						auth: "better-auth session runtime failed probe",
 						supervisorApi: "supervisor /readyz returned 503",
+					},
+				},
+			},
+		});
+	});
+
+	it("publishes campus services product-path preflight blockers on readyz", async () => {
+		const runtime = createWorkerRuntime(env, {
+			runtimeReadinessProbe: vi.fn().mockResolvedValue({
+				dependencies: {
+					auth: "ready",
+					database: "ready",
+					officialWebHandoff: "not_configured",
+					operatorBridge: "configured",
+					publicChatOrigin: "configured",
+					supervisorApi: "ready",
+				},
+				failed: {},
+				preflight: {
+					campusServicesProductPath: {
+						status: "blocked",
+						capabilityGate: "open",
+						projectionSource: "postgres",
+						checks: {
+							contactDirectoryProjection: "ready",
+							contactDirectoryReadModel: "ready",
+							serviceGuideProjection: "not_ready",
+							serviceGuideReadModel: "ready",
+							serviceStatusProjection: "ready",
+							serviceStatusReadModel: "ready",
+							structuredQueryRuntime: "ready",
+							transportSchedule: "ready",
+							transportScheduleReadModel: "ready",
+						},
+						blockers: {
+							serviceGuideProjection: "service_guide_projection_ready is false",
+						},
+					},
+				},
+			}),
+		});
+
+		const response = await runtime.fetch(
+			new Request("https://app-api.internal/readyz"),
+			createExecutionContext(),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			status: "ready",
+			preflight: {
+				campusServicesProductPath: {
+					status: "blocked",
+					blockers: {
+						serviceGuideProjection: "service_guide_projection_ready is false",
 					},
 				},
 			},

@@ -19,6 +19,10 @@ import type {
 } from "./supervisor-types";
 
 export { parseSupervisorExecutionResponsePayload } from "./supervisor-response";
+export type {
+	SupervisorCampusServicesProductPathPreflight,
+	SupervisorReadinessProbeResult,
+} from "./supervisor-transport";
 export { probeSupervisorApiReady, SupervisorTransportError } from "./supervisor-transport";
 export type {
 	RequestedScope,

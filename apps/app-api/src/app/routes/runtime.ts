@@ -31,6 +31,10 @@ export function registerRuntimeRoutes(input: {
 		}
 
 		const readiness = await input.runtimeReadinessProbe();
+		const preflight =
+			readiness.preflight && Object.keys(readiness.preflight).length > 0
+				? readiness.preflight
+				: undefined;
 		if (Object.keys(readiness.failed).length > 0) {
 			return jsonResponse(
 				errorEnvelope({
@@ -39,6 +43,7 @@ export function registerRuntimeRoutes(input: {
 					retryable: true,
 					details: {
 						failed: readiness.failed,
+						...(preflight ? { preflight } : {}),
 					},
 				}),
 				{ status: 503 },
@@ -48,6 +53,7 @@ export function registerRuntimeRoutes(input: {
 		return jsonResponse({
 			status: "ready",
 			dependencies: readiness.dependencies,
+			...(preflight ? { preflight } : {}),
 		});
 	});
 }

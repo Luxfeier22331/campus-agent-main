@@ -1,6 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp as createAppApi } from "../../app-api/src/app";
+import type {
+	SupervisorExecutionInput,
+	SupervisorExecutionResponse,
+} from "../../app-api/src/modules/integration";
+import {
+	buildChatCommandService,
+	createCommandStore,
+	createConversationStore,
+	createDeterministicIdGenerator,
+	createPrincipal,
+	type FinalizeRequestWrite,
+	type SupervisorExecutionClient,
+} from "../../app-api/test/chat-command.service.test-support";
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
@@ -10,6 +23,202 @@ import wranglerConfig from "../wrangler.toml?raw";
 const packageManifest = JSON.parse(packageManifestRaw) as {
 	scripts?: Record<string, string | undefined>;
 };
+
+type CampusServicesTool =
+	| "contact_directory_lookup"
+	| "service_guide_lookup"
+	| "service_status_lookup"
+	| "transport_schedule_lookup";
+
+interface CampusServicesRoutingCase {
+	expectedAnswerFragment: string;
+	expectedTool: CampusServicesTool;
+	prompt: string;
+	toolResult: Record<string, unknown>;
+}
+
+const CAMPUS_SERVICES_ROUTING_CASES: CampusServicesRoutingCase[] = [
+	{
+		expectedAnswerFragment: "丰台校区北门",
+		expectedTool: "service_status_lookup",
+		prompt: "丰台校区通勤班车在哪里上车",
+		toolResult: {
+			subject_query: "丰台校区通勤班车在哪里上车",
+			outcome: "resolved_current",
+			resolved_subject: "丰台校区通勤班车乘车点",
+			observed_status: "limited_service",
+			status_note: "当前乘车点为丰台校区北门外班车候车点。",
+			queried_time_anchor: "2026-04-27T09:00:00+08:00",
+			effective_from: "2026-03-18T00:00:00+08:00",
+			effective_until: "2099-12-31T23:59:59+08:00",
+			override_source_refs: ["authenticated_notice:355122"],
+			related_notice_refs: ["authenticated_notice:355122"],
+		},
+	},
+	{
+		expectedAnswerFragment: "07:30",
+		expectedTool: "transport_schedule_lookup",
+		prompt: "2月24日丰台回海淀最早的班车是几点",
+		toolResult: {
+			query_text: "2月24日丰台回海淀最早的班车是几点",
+			intent: "first_departure",
+			outcome: "resolved_current",
+			resolved_route: {
+				route_id: "transport:intercampus:fengtai-to-haidian",
+				display_name: "丰台至海淀通勤班车",
+				service_family: "intercampus_commute",
+			},
+			service_status: "running",
+			queried_time_anchor: "2026-04-27T09:00:00+08:00",
+			requested_service_date: "2026-02-24",
+			selected_departure: {
+				departure_at: "2026-02-24T07:30:00+08:00",
+				origin_stop_ref: {
+					stop_id: "stop:fengtai:north-gate",
+					display_name: "丰台校区北门",
+				},
+				destination_stop_ref: {
+					stop_id: "stop:haidian:east-gate",
+					display_name: "海淀校区东门",
+				},
+			},
+			related_notice_refs: ["authenticated_notice:354777"],
+		},
+	},
+	{
+		expectedAnswerFragment: "预约入口",
+		expectedTool: "service_guide_lookup",
+		prompt: "地铁接驳车怎么预约",
+		toolResult: {
+			service_query: "地铁接驳车怎么预约",
+			guide_focus: "entry",
+			outcome: "resolved_current",
+			resolved_service: {
+				service_id: "service:transport:metro-shuttle-reservation",
+				display_name: "地铁接驳车预约",
+				aliases: ["地铁接驳车", "接驳车预约"],
+				category: "transport",
+				campus_scope: "fengtai",
+				audience: ["student", "faculty"],
+			},
+			guide_sections: [
+				{
+					section_type: "entry",
+					title: "预约入口",
+					content: "通过学校统一预约入口提交地铁接驳车预约。",
+					source_refs: ["authenticated_notice:354777"],
+				},
+			],
+			entry_refs: [
+				{
+					label: "统一预约入口",
+					entry_type: "instructions_only",
+					source_refs: ["authenticated_notice:354777"],
+				},
+			],
+			source_refs: ["authenticated_notice:354777"],
+			queried_time_anchor: "2026-04-27T09:00:00+08:00",
+			effective_from: "2026-02-27T00:00:00+08:00",
+			effective_until: "2099-12-31T23:59:59+08:00",
+			matched_service_category: "transport",
+		},
+	},
+	{
+		expectedAnswerFragment: "010-68930001",
+		expectedTool: "contact_directory_lookup",
+		prompt: "研究生院办公室电话是多少",
+		toolResult: {
+			query_text: "研究生院办公室电话是多少",
+			contact_focus: "phone",
+			outcome: "resolved_current",
+			resolved_contact: {
+				contact_id: "contact:graduate-school:office",
+				display_name: "研究生院办公室",
+				entity_type: "office",
+			},
+			contact_points: [
+				{
+					label: "办公室电话",
+					contact_type: "phone",
+					value: "010-68930001",
+					source_refs: ["official_web:graduate-school:contact"],
+				},
+			],
+			location_refs: [
+				{
+					label: "办公地点",
+					location_ref: "海淀校区研究生院",
+					source_refs: ["official_web:graduate-school:contact"],
+				},
+			],
+			source_refs: ["official_web:graduate-school:contact"],
+			queried_time_anchor: "2026-04-27T09:00:00+08:00",
+			effective_from: "2026-04-01T00:00:00+08:00",
+			effective_until: "2099-12-31T23:59:59+08:00",
+		},
+	},
+];
+
+function findCampusServicesRoutingCase(prompt: string): CampusServicesRoutingCase {
+	const route = CAMPUS_SERVICES_ROUTING_CASES.find((item) => item.prompt === prompt);
+	if (!route) {
+		throw new Error(`Unexpected campus-services routing prompt: ${prompt}`);
+	}
+	return route;
+}
+
+function buildCampusServicesExecutionResponse(
+	input: SupervisorExecutionInput,
+	route: CampusServicesRoutingCase,
+): SupervisorExecutionResponse {
+	return {
+		answerText: `${route.expectedAnswerFragment}。`,
+		error: null,
+		followUpQuestion: "",
+		observability: {
+			aclAnomalyCode: null,
+			aclDecision: null,
+			cachedInputTokens: null,
+			candidateCount: 1,
+			citationCount: null,
+			citationExpected: null,
+			citationMissing: null,
+			estimatedCostMicrousd: null,
+			failClosed: false,
+			inputTokens: null,
+			intentCapability: "campus_services",
+			intentNextAction: "delegate",
+			intentResolvedSlots: {
+				allowed_tool: route.expectedTool,
+				payload_kind: route.expectedTool,
+			},
+			intentRoutingConfidence: "high",
+			intentScopeClass: "in_scope",
+			intentTaskKind: "campus_services_lookup",
+			modelName: null,
+			modelProvider: null,
+			outputTokens: null,
+			refusalClass: null,
+			retrievedSourceCount: null,
+			retrievalAttempted: false,
+			semanticOutcome: "resolved_current",
+		},
+		result: {
+			allowed_tools: [route.expectedTool],
+			payload_kind: route.expectedTool,
+			target: "campus-services-agent",
+			tool_result: route.toolResult,
+			diagnostics: {
+				grounding_verdict: "supported",
+				retrieved_title_summary: [route.expectedTool],
+				semantic_outcome: "resolved_current",
+			},
+		},
+		selectedTarget: "campus-services-agent",
+		status: "completed",
+		traceId: input.traceId,
+	};
+}
 
 describe("public chat web worker shell", () => {
 	it("declares the staging custom domain, app-api staging binding, and deploy gates", () => {
@@ -93,6 +302,25 @@ describe("public chat web worker shell", () => {
 								publicChatOrigin: "configured",
 								supervisorApi: "ready",
 							},
+							preflight: {
+								campusServicesProductPath: {
+									status: "ready",
+									capabilityGate: "open",
+									projectionSource: "postgres",
+									checks: {
+										contactDirectoryProjection: "ready",
+										contactDirectoryReadModel: "ready",
+										serviceGuideProjection: "ready",
+										serviceGuideReadModel: "ready",
+										serviceStatusProjection: "ready",
+										serviceStatusReadModel: "ready",
+										structuredQueryRuntime: "ready",
+										transportSchedule: "ready",
+										transportScheduleReadModel: "ready",
+									},
+									blockers: {},
+								},
+							},
 						}),
 						{
 							status: 200,
@@ -122,6 +350,25 @@ describe("public chat web worker shell", () => {
 								operatorBridge: "configured",
 								publicChatOrigin: "configured",
 								supervisorApi: "ready",
+							},
+							preflight: {
+								campusServicesProductPath: {
+									status: "ready",
+									capabilityGate: "open",
+									projectionSource: "postgres",
+									checks: {
+										contactDirectoryProjection: "ready",
+										contactDirectoryReadModel: "ready",
+										serviceGuideProjection: "ready",
+										serviceGuideReadModel: "ready",
+										serviceStatusProjection: "ready",
+										serviceStatusReadModel: "ready",
+										structuredQueryRuntime: "ready",
+										transportSchedule: "ready",
+										transportScheduleReadModel: "ready",
+									},
+									blockers: {},
+								},
 							},
 						}),
 						{
@@ -158,6 +405,25 @@ describe("public chat web worker shell", () => {
 				appApiBinding: "configured",
 				appApiRuntime: "ready",
 				assets: "configured",
+			},
+			preflight: {
+				campusServicesProductPath: {
+					status: "ready",
+					capabilityGate: "open",
+					projectionSource: "postgres",
+					checks: {
+						contactDirectoryProjection: "ready",
+						contactDirectoryReadModel: "ready",
+						serviceGuideProjection: "ready",
+						serviceGuideReadModel: "ready",
+						serviceStatusProjection: "ready",
+						serviceStatusReadModel: "ready",
+						structuredQueryRuntime: "ready",
+						transportSchedule: "ready",
+						transportScheduleReadModel: "ready",
+					},
+					blockers: {},
+				},
 			},
 			public_hostname: "chat.example.com",
 			runtime: "cloudflare-worker",
@@ -220,6 +486,72 @@ describe("public chat web worker shell", () => {
 					appApiRuntime: "app-api readyz returned 503",
 				},
 				message: "Runtime configuration is incomplete.",
+			},
+		});
+	});
+
+	it("publishes app-api campus services product-path preflight blockers on readyz", async () => {
+		const response = await worker.fetch(new Request("https://chat.example.com/readyz"), {
+			APP_API: {
+				fetch: async () =>
+					new Response(
+						JSON.stringify({
+							status: "ready",
+							dependencies: {
+								auth: "ready",
+								database: "ready",
+								officialWebHandoff: "not_configured",
+								operatorBridge: "configured",
+								publicChatOrigin: "configured",
+								supervisorApi: "ready",
+							},
+							preflight: {
+								campusServicesProductPath: {
+									status: "blocked",
+									capabilityGate: "open",
+									projectionSource: "postgres",
+									checks: {
+										contactDirectoryProjection: "ready",
+										contactDirectoryReadModel: "ready",
+										serviceGuideProjection: "not_ready",
+										serviceGuideReadModel: "ready",
+										serviceStatusProjection: "ready",
+										serviceStatusReadModel: "ready",
+										structuredQueryRuntime: "ready",
+										transportSchedule: "ready",
+										transportScheduleReadModel: "ready",
+									},
+									blockers: {
+										serviceGuideProjection: "service_guide_projection_ready is false",
+									},
+								},
+							},
+						}),
+						{
+							headers: {
+								"content-type": "application/json",
+							},
+							status: 200,
+						},
+					),
+			},
+			APP_API_BASE_URL: "https://app-api.internal",
+			ASSETS: {
+				fetch: async () => new Response("ok", { status: 200 }),
+			},
+			PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+		});
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			status: "ready",
+			preflight: {
+				campusServicesProductPath: {
+					status: "blocked",
+					blockers: {
+						serviceGuideProjection: "service_guide_projection_ready is false",
+					},
+				},
 			},
 		});
 	});
@@ -766,6 +1098,131 @@ describe("public chat web worker shell", () => {
 				},
 			},
 		});
+	});
+
+	it("routes campus-services prompts through public-chat-web into structured agent handoffs", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const observedResults: Record<string, unknown>[] = [];
+		const supervisor: SupervisorExecutionClient = {
+			execute: vi.fn(async (input: SupervisorExecutionInput) => {
+				const route = findCampusServicesRoutingCase(input.userGoal);
+				const response = buildCampusServicesExecutionResponse(input, route);
+				observedResults.push(response.result as Record<string, unknown>);
+				return response;
+			}),
+		};
+		const chatCommandService = buildChatCommandService({
+			conversationStore,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			store,
+			supervisor,
+		});
+		const appApiEnv = {
+			APP_API_NAME: "campus-agent-app-api",
+			APP_API_ENVIRONMENT: "test" as const,
+			BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+			PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
+			SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+			SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+			APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+			APP_API_DB: {
+				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+			},
+		};
+		const appApi = createAppApi(appApiEnv, {
+			chatCommandService,
+			getPrincipal: vi.fn().mockResolvedValue(createPrincipal()),
+		});
+
+		for (const route of CAMPUS_SERVICES_ROUTING_CASES) {
+			const response = await worker.fetch(
+				new Request("https://chat.example.com/api/chat/requests", {
+					body: JSON.stringify({
+						prompt: route.prompt,
+					}),
+					headers: {
+						"content-type": "application/json",
+						cookie: "better-auth.session_token=test",
+						"idempotency-key": `idem-${route.expectedTool}`,
+					},
+					method: "POST",
+				}),
+				{
+					APP_API: {
+						fetch: async (request: Request) => appApi.fetch(request, appApiEnv),
+					},
+					APP_API_BASE_URL: "https://app-api.internal",
+					ASSETS: {
+						fetch: async () =>
+							new Response('<!doctype html><html><body><div id="root"></div></body></html>', {
+								headers: {
+									"content-type": "text/html; charset=utf-8",
+								},
+								status: 200,
+							}),
+					},
+					PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+				},
+			);
+			const payload = (await response.json()) as {
+				answer?: {
+					result?: {
+						kind?: string;
+						text?: string;
+					};
+				};
+			};
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("cache-control")).toBe("no-store");
+			expect(payload.answer?.result).toMatchObject({
+				kind: "answer",
+				text: expect.stringContaining(route.expectedAnswerFragment),
+			});
+		}
+
+		expect(supervisor.execute).toHaveBeenCalledTimes(CAMPUS_SERVICES_ROUTING_CASES.length);
+		for (const [index, route] of CAMPUS_SERVICES_ROUTING_CASES.entries()) {
+			const supervisorInput = vi.mocked(supervisor.execute).mock.calls[index]?.[0];
+			expect(supervisorInput).toMatchObject({
+				requestedCapability: null,
+				surface: "public_chat_web",
+				userGoal: route.prompt,
+			});
+			expect(supervisorInput?.context.actor).toMatchObject({
+				principalId: "user_01HQ",
+				principalType: "student",
+				userId: "user_01HQ",
+			});
+
+			expect(observedResults[index]).toMatchObject({
+				allowed_tools: [route.expectedTool],
+				payload_kind: route.expectedTool,
+				target: "campus-services-agent",
+				tool_result: {
+					outcome: "resolved_current",
+				},
+			});
+
+			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
+			expect(finalizedWrite.requestExecution).toMatchObject({
+				diagnostics: {
+					groundingVerdict: "supported",
+					retrievedTitleSummary: [route.expectedTool],
+					semanticOutcome: "resolved_current",
+				},
+				selectedTarget: "campus-services-agent",
+				status: "completed",
+				surface: "public_chat_web",
+			});
+			expect(finalizedWrite.assistantMessage).toMatchObject({
+				kind: "answer",
+				text: expect.stringContaining(route.expectedAnswerFragment),
+			});
+		}
 	});
 
 	it("fails closed when app-api binding is missing", async () => {

@@ -126,6 +126,9 @@ pnpm --dir apps/public-chat-web dev:live-smoke
 
 - `app-api` 的 `GET /healthz` 与 `GET /readyz` 正常
 - `app-api` 的 fail-closed readiness 门禁正常工作
+- `app-api` / `public-chat-web` 的 readiness 会透出
+  `preflight.campusServicesProductPath`，用于 campus services product-path
+  opening gate 诊断 capability / projection / read-model blocker
 - `public-chat-web -> app-api` 的 same-site chat request 链路可用
 - `public-chat-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
 - public chat shell 在 `app-api` bridge 缺失时不会对外暴露一个必坏的 SPA

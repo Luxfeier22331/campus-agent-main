@@ -8,11 +8,13 @@ export {
 } from "./official-web-handoff";
 export type {
 	RequestedScope,
+	SupervisorCampusServicesProductPathPreflight,
 	SupervisorContextProjection,
 	SupervisorExecutionClient,
 	SupervisorExecutionInput,
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
+	SupervisorReadinessProbeResult,
 } from "./supervisor";
 export {
 	createSupervisorExecutionClient,
