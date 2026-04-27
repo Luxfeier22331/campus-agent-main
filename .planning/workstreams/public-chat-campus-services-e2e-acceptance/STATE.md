@@ -10,11 +10,12 @@ updated: 2026-04-27
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 3`
-- current slice: answer rendering and source trace acceptance
+- current phase: `Phase 4`
+- current slice: fail-close, clarification, and no-action guardrails
 - owner: current Codex session
-- active implementation: Phase 2 complete; deterministic Worker harness now covers positive
-  public/chat routing and structured handoff matrix for the four campus-services tools
+- active implementation: Phase 3 complete; deterministic Worker harness now covers positive
+  routing/handoff matrix plus browser-safe answer rendering and source-trace-safe text for the four
+  campus-services tools
 
 ## Current Context
 
@@ -32,8 +33,10 @@ updated: 2026-04-27
 - Phase 2 已完成：public/chat deterministic Worker test 逐个 prompt 验证 app-api
   handoff input、`campus-services-agent` selected target、allowed tool / payload kind 与
   structured result shape。
-- 当前缺口转入 Phase 3：验证 final answer text 与 source trace rendering 只使用 structured
-  result facts，且不暴露 release id、projection internals 或 debug-only fields。
+- Phase 3 已完成：`app-api` completed answer path 对 `campus-services-agent` 改为优先消费
+  `tool_result` 生成产品化回答，并把 source refs 归并为安全来源类别展示，避免暴露 release id、
+  projection internals、raw parser/debug fields、或原始 source ref id。
+- 当前缺口转入 Phase 4：覆盖 ambiguity clarification、fail-close、与 no-action guardrails。
 
 ## Phase 0 Completion
 
@@ -79,6 +82,28 @@ Phase 2 completed on 2026-04-27.
   - finalized request projection records selected target, completed status, and diagnostics summary
 - Phase 2 intentionally does not expose raw supervisor response on the browser-facing chat response.
   The public HTTP contract still returns the browser-safe `answer` envelope only.
+
+## Phase 3 Completion
+
+Phase 3 completed on 2026-04-27.
+
+- `apps/app-api/src/modules/runtime-command/service/normalize.ts` 新增
+  campus-services answer synthesis，`completed + campus-services-agent` 会从
+  `tool_result` 渲染用户回答，覆盖：
+  - `status_note` / `operational_notices`
+  - guide sections / entry refs
+  - contact points / location refs
+  - transport departure fact
+- source refs / notice refs / contact source refs 不再原样外露，统一降维到来源类别
+  （如“校内通知”“学校官网”“服务目录”）。
+- `apps/app-api/src/modules/runtime-command/service/writes.ts` 在 `completed` 分支优先使用
+  campus-services synthesis 文本，再执行 browser-safe sanitizer。
+- `apps/app-api/test/chat-command.service.core.structured.suite.ts` 新增 Phase 3 用例：
+  给出带 `release_id`/`projection_internal_state`/原始 ref id 的上游 `answerText`，断言
+  最终用户文案由 structured facts 渲染且不泄漏内部字段。
+- `apps/public-chat-web/test/worker.test.ts` 强化产品路径 E2E：
+  上游返回污染 `answerText` 时，`public-chat-web -> app-api -> chat response`
+  仍输出结构化安全文案。
 
 ## Captured Acceptance Prompts
 
@@ -131,9 +156,9 @@ Phase 1 verification note:
 
 Later phases add:
 
-- answer/source trace rendering acceptance on top of the routing matrix prompts
 - `campus-services-product-path` unified gate profile
 - optional staging smoke once local deterministic gate is stable
+- fail-close / clarification / no-action guardrail acceptance
 
 ## Continuity Notes
 

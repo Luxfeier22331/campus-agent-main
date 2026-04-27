@@ -14,11 +14,12 @@ release gate 与 opening verdict 收口到同一条线。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 3`
-- current slice: answer rendering and source trace acceptance
+- current phase: `Phase 4`
+- current slice: fail-close, clarification, and no-action guardrails
 - current posture: internal structured query、agent adapter 与部分 tool release gate 已有 focused
-  验证；public/chat 入口已具备 deterministic Worker harness、campus-services preflight 与
-  tool-level positive routing matrix，下一步进入 answer rendering / source trace acceptance
+  验证；public/chat 入口已具备 deterministic Worker harness、campus-services preflight、
+  tool-level positive routing matrix，以及 answer rendering / source trace acceptance，
+  下一步进入 fail-close / clarification / no-action guardrail
 
 ## Native Planning Truth
 

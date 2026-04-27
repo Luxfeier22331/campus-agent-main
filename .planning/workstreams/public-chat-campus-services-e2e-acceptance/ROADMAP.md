@@ -38,7 +38,7 @@ structured tools 放到 public/chat 产品路径里验收，并产出 opening ve
   - 覆盖 `contact_directory_lookup` positive cases：电话、邮箱、地点、联系人
   - 断言 selected target、allowed tool / payload kind、agent handoff 与 structured result shape
 
-- [ ] **Phase 3: Answer Rendering And Source Trace Acceptance**
+- [x] **Phase 3: Answer Rendering And Source Trace Acceptance**
   - 验证 final answer text 只使用 structured result facts
   - 验证 `status_note`、`operational_notices`、guide sections、contact points 的产品化表达
   - 验证 source refs / notice refs / contact source refs 的 safe rendering
