@@ -67,12 +67,12 @@ class SampleAuthenticatedNoticeRoutingCandidatesWorkerCliTest(unittest.TestCase)
             )
             self.assertEqual(json.loads(output_path.read_text())["notice_count"], 1)
 
-    def test_main_writes_review_later_audit_report(self) -> None:
+    def test_main_writes_residual_audit_report(self) -> None:
         bundle = [
             {
-                "notice_id": "review-later-1",
+                "notice_id": "default-other-1",
                 "notice": {
-                    "notice_id": "review-later-1",
+                    "notice_id": "default-other-1",
                     "notice_title": "关于校园道路树木修剪温馨提醒",
                     "notice_content": "",
                     "categories": [
@@ -122,14 +122,14 @@ class SampleAuthenticatedNoticeRoutingCandidatesWorkerCliTest(unittest.TestCase)
 
             audit = json.loads(audit_path.read_text())
             self.assertEqual(audit["notice_count"], 2)
-            self.assertEqual(audit["review_later_count"], 1)
+            self.assertEqual(audit["residual_count"], 1)
             self.assertEqual(
-                audit["review_later_notices"][0]["notice_id"],
-                "review-later-1",
+                audit["residual_notices"][0]["notice_id"],
+                "default-other-1",
             )
             self.assertEqual(
-                audit["review_later_clusters"][0]["recommended_action"],
-                "keep_other_review_later",
+                audit["residual_clusters"][0]["recommended_action"],
+                "keep_terminal_no_adoption",
             )
 
     def test_main_samples_source_truth_inventory_when_bundle_path_is_absent(self) -> None:

@@ -142,11 +142,11 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         self.assertEqual(sample.machine_processing_policy, "process")
         self.assertEqual(sample.reviewer_verdict, "")
 
-    def test_review_later_other_skips_machine_processing_even_with_attachment_signal(
+    def test_default_other_no_adopts_even_with_attachment_signal(
         self,
     ) -> None:
         inventory = _inventory_entry(
-            notice_id="review-later",
+            notice_id="default-other",
             notice_title="关于校园道路树木修剪温馨提醒附件说明",
         )
         inventory = replace(
@@ -168,12 +168,12 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
 
         sample = report.samples[0]
         self.assertEqual(sample.notice_family, "other")
-        self.assertEqual(sample.suggested_consumption_route, "review_later")
+        self.assertEqual(sample.suggested_consumption_route, "no_adoption")
         self.assertEqual(sample.machine_processing_policy, "skip")
         self.assertEqual(sample.attachment_processing_policy, "metadata_only")
         self.assertEqual(
             sample.attachment_processing_reason,
-            "low_confidence_residual_not_attachment_backlog",
+            "low_confidence_residual_without_actionable_signal",
         )
 
     def test_low_value_defer_family_keeps_attachment_metadata_only(self) -> None:
@@ -243,7 +243,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         self.assertEqual(report.attachment_processing_policy_counts["process"], 1)
         self.assertEqual(report.attachment_processing_ref_counts["process"], 1)
 
-    def test_audit_report_exports_review_later_notices_and_clusters(self) -> None:
+    def test_audit_report_exports_terminal_residual_notices_and_clusters(self) -> None:
         report = build_authenticated_notice_routing_audit_report_from_bundle_records(
             bundle_records=(
                 _bundle_record(
@@ -265,26 +265,26 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         )
 
         self.assertEqual(report.notice_count, 3)
-        self.assertEqual(report.review_later_count, 2)
+        self.assertEqual(report.residual_count, 2)
         self.assertEqual(
-            [sample.notice_id for sample in report.review_later_notices],
+            [sample.notice_id for sample in report.residual_notices],
             ["other-unsignaled-1", "other-unsignaled-2"],
         )
-        self.assertEqual(len(report.review_later_clusters), 1)
-        cluster = report.review_later_clusters[0]
+        self.assertEqual(len(report.residual_clusters), 1)
+        cluster = report.residual_clusters[0]
         self.assertEqual(cluster.count, 2)
         self.assertEqual(cluster.notice_type_names, ("办公通知",))
         self.assertEqual(cluster.action_signals, ())
         self.assertEqual(cluster.service_signals, ())
         self.assertEqual(cluster.publicity_signals, ())
         self.assertEqual(cluster.attachment_bucket, "no_attachments")
-        self.assertEqual(cluster.recommended_action, "keep_other_review_later")
+        self.assertEqual(cluster.recommended_action, "keep_terminal_no_adoption")
         self.assertEqual(
             cluster.sample_notice_ids,
             ("other-unsignaled-1", "other-unsignaled-2"),
         )
 
-    def test_audit_report_clusters_unsignaled_review_later_without_regex_error(
+    def test_audit_report_clusters_unsignaled_residual_without_regex_error(
         self,
     ) -> None:
         report = build_authenticated_notice_routing_audit_report_from_bundle_records(
@@ -297,15 +297,15 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
             config=self.config,
         )
 
-        self.assertEqual(report.review_later_count, 1)
-        cluster = report.review_later_clusters[0]
-        self.assertEqual(cluster.recommended_action, "keep_other_review_later")
+        self.assertEqual(report.residual_count, 1)
+        cluster = report.residual_clusters[0]
+        self.assertEqual(cluster.recommended_action, "keep_terminal_no_adoption")
         self.assertEqual(cluster.action_signals, ())
         self.assertEqual(cluster.service_signals, ())
         self.assertEqual(cluster.publicity_signals, ())
         self.assertTrue(cluster.title_signature)
 
-    def test_review_later_fallback_converges_only_terminal_low_value_titles(self) -> None:
+    def test_default_other_fallback_converges_to_automated_terminal_routes(self) -> None:
         report = build_authenticated_notice_routing_sample_report_from_bundle_records(
             bundle_records=(
                 _bundle_record(
@@ -496,9 +496,9 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
 
         sample = report.samples[0]
         self.assertEqual(sample.notice_family, "other")
-        self.assertEqual(sample.suggested_consumption_route, "review_later")
+        self.assertEqual(sample.suggested_consumption_route, "no_adoption")
 
-    def test_review_later_service_override_does_not_treat_general_maintain_as_status(
+    def test_default_fallback_service_override_does_not_treat_general_maintain_as_status(
         self,
     ) -> None:
         report = build_authenticated_notice_routing_sample_report_from_bundle_records(

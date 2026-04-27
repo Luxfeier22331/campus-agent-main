@@ -21,12 +21,12 @@ CLASSIFICATION_CASES = (
     (
         "关于发布《中央民族大学新一轮本科教育教学审核评估自评报告》的通知",
         "other",
-        "review_later",
+        "no_adoption",
     ),
     (
         "关于领取《新时代高校教师职业行为十项准则》宣传海报的通知",
         "other",
-        "review_later",
+        "no_adoption",
     ),
     ("关于校园监控录像查询申请流程的通知", "operational_procedure", "admit_next"),
     (
@@ -611,7 +611,7 @@ PRECEDENCE_CASES = (
         "8",
         "科研通知",
     ),
-    ("关于校园道路树木修剪温馨提醒", "other", "review_later"),
+    ("关于校园道路树木修剪温馨提醒", "other", "no_adoption"),
     ("中央民族大学丰台校区家具采购项目比选公告", "procurement_notice", "archive_notice"),
     ("关于暑假期间办理就业相关事务的通知", "service_status_override", "hold_notice_runtime"),
     ("关于修订《中央民族大学采购工作管理办法》的通知", "policy_regulation", "priority_now"),

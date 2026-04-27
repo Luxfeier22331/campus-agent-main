@@ -179,9 +179,7 @@
 				"machine_processing_policy": "process_multimodal"
 			}
 		},
-		"terminal_no_adoption_title_patterns": [
-			"^讣告$"
-		],
+		"terminal_no_adoption_title_patterns": ["^讣告$"],
 		"review_later_route_overrides": [
 			{
 				"name": "service_status_signal",
@@ -327,15 +325,7 @@
 			"admission_policy": "defer",
 			"priority": 14,
 			"description": "讲座、讲堂、论坛和读书会等宣传型通知，当前不进入优先处理范围。",
-			"title_any_patterns": [
-				"讲座预告",
-				"讲堂",
-				"论坛",
-				"大讲堂",
-				"读书会",
-				"前沿讲堂",
-				"文华讲堂"
-			]
+			"title_any_patterns": ["讲座预告", "讲堂", "论坛", "大讲堂", "读书会", "前沿讲堂", "文华讲堂"]
 		},
 		{
 			"family": "event_activity",
@@ -355,20 +345,8 @@
 				"挑战杯",
 				"读书会"
 			],
-			"body_any_patterns": [
-				"活动主题",
-				"活动时间",
-				"活动内容",
-				"青春返乡行"
-			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册"
-			]
+			"body_any_patterns": ["活动主题", "活动时间", "活动内容", "青春返乡行"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
 		},
 		{
 			"family": "procurement_notice",
@@ -699,14 +677,7 @@
 				"排课",
 				"调课"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
 		},
 		{
 			"family": "academic_course_exam_operation",
@@ -828,15 +799,7 @@
 				"国际合作培养",
 				"派出研究生"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "student_affairs_application",
@@ -901,15 +864,7 @@
 				"户籍业务",
 				"集中住宿"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "student_program_award_selection",
@@ -969,15 +924,7 @@
 				"材料报送",
 				"稿件"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "research_project_application",
@@ -1003,29 +950,14 @@
 				"中期检查",
 				"科研诚信"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "safety_compliance_notice",
 			"admission_policy": "notice_level_query",
 			"priority": 66,
 			"description": "安全、消防、保密、交通安全和专项检查类通知；优先保留 notice-level 查询，不直接 promotion。",
-			"title_any_patterns": [
-				"安全",
-				"消防",
-				"保密",
-				"交通安全",
-				"专项检查",
-				"检查"
-			],
+			"title_any_patterns": ["安全", "消防", "保密", "交通安全", "专项检查", "检查"],
 			"title_exclude_patterns": [
 				"安全管理办法",
 				"安全管理规定",
@@ -1139,14 +1071,7 @@
 				"传染病",
 				"HPV"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
 		},
 		{
 			"family": "health_welfare_service_notice",
@@ -1163,15 +1088,7 @@
 				"餐厅.*供餐",
 				"晚餐服务"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "form_template_download",
@@ -1222,15 +1139,7 @@
 				"满意度",
 				"信息采集"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "library_resource_notice",
@@ -1349,26 +1258,14 @@
 				"申报",
 				"安排的通知"
 			],
-			"title_exclude_patterns": [
-				"讲座预告",
-				"比赛",
-				"活动预告"
-			]
+			"title_exclude_patterns": ["讲座预告", "比赛", "活动预告"]
 		},
 		{
 			"family": "meeting_training",
 			"admission_policy": "defer",
 			"priority": 30,
 			"description": "培训、会议、说明会、启动会、座谈会和研讨会；默认延后，除非后续样本证明需要行动型查询。",
-			"title_any_patterns": [
-				"培训",
-				"会议",
-				"工作部署会",
-				"说明会",
-				"启动会",
-				"座谈会",
-				"研讨会"
-			],
+			"title_any_patterns": ["培训", "会议", "工作部署会", "说明会", "启动会", "座谈会", "研讨会"],
 			"title_exclude_patterns": [
 				"管理办法",
 				"管理规定",
@@ -1413,54 +1310,23 @@
 				"赛事通知",
 				"实战赛"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
 		},
 		{
 			"family": "event_activity",
 			"admission_policy": "defer",
 			"priority": 19,
 			"description": "无需正文配合即可识别的普通主题活动和训练营活动；默认延后并跳过机器处理。",
-			"title_any_patterns": [
-				"主题活动",
-				"训练营活动"
-			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_any_patterns": ["主题活动", "训练营活动"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "job_recruitment",
 			"admission_policy": "defer",
 			"priority": 18,
 			"description": "招聘、实习岗位和勤工助学类通知；当前默认延后，不进入 deep consumption。",
-			"title_any_patterns": [
-				"招聘",
-				"勤工助学",
-				"实习岗位",
-				"就业"
-			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"规范",
-				"手册",
-				"指南"
-			]
+			"title_any_patterns": ["招聘", "勤工助学", "实习岗位", "就业"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "staff_internal_admin",

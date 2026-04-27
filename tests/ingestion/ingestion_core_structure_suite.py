@@ -24,7 +24,9 @@ NOTICE_CONSUMPTION_PROJECTION_STATUS = (
 NOTICE_ROUTING_SAMPLING = INGESTION_CORE / "authenticated_notice_routing_sampling.py"
 NOTICE_ROUTING_SAMPLING_MODELS = INGESTION_CORE / "authenticated_notice_routing_sampling_models.py"
 NOTICE_ROUTING_SAMPLING_POLICY = INGESTION_CORE / "authenticated_notice_routing_sampling_policy.py"
-NOTICE_ROUTING_SAMPLING_REVIEW = INGESTION_CORE / "authenticated_notice_routing_sampling_review.py"
+NOTICE_ROUTING_SAMPLING_RESIDUAL = (
+    INGESTION_CORE / "authenticated_notice_routing_sampling_residual.py"
+)
 NOTICE_ROUTING_SAMPLING_SAMPLES = (
     INGESTION_CORE / "authenticated_notice_routing_sampling_samples.py"
 )
@@ -198,19 +200,19 @@ class IngestionCoreStructureTest(unittest.TestCase):
         self.assertNotIn("def check_internal_notice_processing_gaps", projection_source)
         self.assertLessEqual(len(projection_source.splitlines()), 1450)
 
-    def test_authenticated_notice_routing_sampling_has_models_policy_review_and_samples_modules(
+    def test_authenticated_notice_routing_sampling_has_models_policy_residual_and_samples_modules(
         self,
     ) -> None:
         routing_source = NOTICE_ROUTING_SAMPLING.read_text(encoding="utf-8")
 
         self.assertTrue(NOTICE_ROUTING_SAMPLING_MODELS.exists())
         self.assertTrue(NOTICE_ROUTING_SAMPLING_POLICY.exists())
-        self.assertTrue(NOTICE_ROUTING_SAMPLING_REVIEW.exists())
+        self.assertTrue(NOTICE_ROUTING_SAMPLING_RESIDUAL.exists())
         self.assertTrue(NOTICE_ROUTING_SAMPLING_SAMPLES.exists())
         self.assertNotIn("class AuthenticatedNoticeRoutingSample", routing_source)
         self.assertNotIn("def _sample_from_bundle_record", routing_source)
         self.assertNotIn("def _resolve_routing_decision", routing_source)
-        self.assertNotIn("def _build_review_later_clusters", routing_source)
+        self.assertNotIn("def _build_residual_clusters", routing_source)
         self.assertLessEqual(len(routing_source.splitlines()), 520)
 
     def test_authenticated_notice_notice_family_tests_are_split_by_responsibility(

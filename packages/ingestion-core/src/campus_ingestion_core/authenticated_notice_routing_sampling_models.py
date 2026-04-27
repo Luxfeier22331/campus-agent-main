@@ -56,7 +56,7 @@ class AuthenticatedNoticeRoutingSampleReport:
 
 
 @dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeRoutingReviewLaterCluster:
+class AuthenticatedNoticeRoutingResidualCluster:
     cluster_id: str
     count: int
     notice_type_names: tuple[str, ...]
@@ -81,16 +81,16 @@ class AuthenticatedNoticeRoutingAuditReport:
     machine_processing_policy_counts: dict[str, int]
     attachment_processing_policy_counts: dict[str, int]
     attachment_processing_ref_counts: dict[str, int]
-    review_later_count: int
-    review_later_notices: tuple[AuthenticatedNoticeRoutingSample, ...]
-    review_later_clusters: tuple[AuthenticatedNoticeRoutingReviewLaterCluster, ...]
+    residual_count: int
+    residual_notices: tuple[AuthenticatedNoticeRoutingSample, ...]
+    residual_clusters: tuple[AuthenticatedNoticeRoutingResidualCluster, ...]
 
 
 __all__ = [
     "AuthenticatedNoticeRoutingAuditReport",
     "AuthenticatedNoticeRoutingDecision",
     "AuthenticatedNoticeRoutingObjectStore",
-    "AuthenticatedNoticeRoutingReviewLaterCluster",
+    "AuthenticatedNoticeRoutingResidualCluster",
     "AuthenticatedNoticeRoutingSample",
     "AuthenticatedNoticeRoutingSampleReport",
 ]

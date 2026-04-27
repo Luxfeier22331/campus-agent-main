@@ -4,11 +4,11 @@ import re
 from collections.abc import Sequence
 
 from campus_ingestion_core.authenticated_notice_routing_sampling_models import (
-    AuthenticatedNoticeRoutingReviewLaterCluster,
+    AuthenticatedNoticeRoutingResidualCluster,
     AuthenticatedNoticeRoutingSample,
 )
 
-_REVIEW_LATER_ACTION_TERMS = (
+_RESIDUAL_ACTION_TERMS = (
     "报名",
     "提交",
     "报送",
@@ -26,7 +26,7 @@ _REVIEW_LATER_ACTION_TERMS = (
     "招录",
     "选拔",
 )
-_REVIEW_LATER_SERVICE_TERMS = (
+_RESIDUAL_SERVICE_TERMS = (
     "开放",
     "暂停",
     "调整",
@@ -43,7 +43,7 @@ _REVIEW_LATER_SERVICE_TERMS = (
     "图书馆",
     "门户",
 )
-_REVIEW_LATER_PUBLICITY_TERMS = (
+_RESIDUAL_PUBLICITY_TERMS = (
     "预告",
     "展映",
     "活动总结",
@@ -60,9 +60,9 @@ _REVIEW_LATER_PUBLICITY_TERMS = (
 )
 
 
-def build_authenticated_notice_review_later_clusters(
+def build_authenticated_notice_residual_clusters(
     samples: Sequence[AuthenticatedNoticeRoutingSample],
-) -> tuple[AuthenticatedNoticeRoutingReviewLaterCluster, ...]:
+) -> tuple[AuthenticatedNoticeRoutingResidualCluster, ...]:
     grouped: dict[
         tuple[
             tuple[str, ...],
@@ -77,16 +77,16 @@ def build_authenticated_notice_review_later_clusters(
     ] = {}
     for sample in samples:
         text = "".join(f"{sample.notice_title}".split())
-        action_signals = _matched_terms(_REVIEW_LATER_ACTION_TERMS, text)
-        service_signals = _matched_terms(_REVIEW_LATER_SERVICE_TERMS, text)
-        publicity_signals = _matched_terms(_REVIEW_LATER_PUBLICITY_TERMS, text)
+        action_signals = _matched_terms(_RESIDUAL_ACTION_TERMS, text)
+        service_signals = _matched_terms(_RESIDUAL_SERVICE_TERMS, text)
+        publicity_signals = _matched_terms(_RESIDUAL_PUBLICITY_TERMS, text)
         attachment_bucket = _attachment_bucket(sample)
-        recommended_action = _recommend_review_later_action(
+        recommended_action = _recommend_residual_action(
             action_signals=action_signals,
             service_signals=service_signals,
             publicity_signals=publicity_signals,
         )
-        title_signature = _review_later_title_signature(
+        title_signature = _residual_title_signature(
             title=sample.notice_title,
             action_signals=action_signals,
             service_signals=service_signals,
@@ -104,7 +104,7 @@ def build_authenticated_notice_review_later_clusters(
         )
         grouped.setdefault(key, []).append(sample)
 
-    clusters: list[AuthenticatedNoticeRoutingReviewLaterCluster] = []
+    clusters: list[AuthenticatedNoticeRoutingResidualCluster] = []
     for index, (key, cluster_samples) in enumerate(
         sorted(
             grouped.items(),
@@ -121,10 +121,10 @@ def build_authenticated_notice_review_later_clusters(
             attachment_bucket,
             recommended_action,
         ) = key
-        cluster_id = f"review_later_cluster_{index:03d}"
+        cluster_id = f"residual_cluster_{index:03d}"
         preview_samples = tuple(cluster_samples[:8])
         clusters.append(
-            AuthenticatedNoticeRoutingReviewLaterCluster(
+            AuthenticatedNoticeRoutingResidualCluster(
                 cluster_id=cluster_id,
                 count=len(cluster_samples),
                 notice_type_names=notice_type_names,
@@ -153,7 +153,7 @@ def _attachment_bucket(sample: AuthenticatedNoticeRoutingSample) -> str:
     return "no_attachments"
 
 
-def _recommend_review_later_action(
+def _recommend_residual_action(
     *,
     action_signals: tuple[str, ...],
     service_signals: tuple[str, ...],
@@ -165,10 +165,10 @@ def _recommend_review_later_action(
         return "candidate_notice_level_query_rule"
     if publicity_signals:
         return "candidate_defer_skip_rule"
-    return "keep_other_review_later"
+    return "keep_terminal_no_adoption"
 
 
-def _review_later_title_signature(
+def _residual_title_signature(
     *,
     title: str,
     action_signals: tuple[str, ...],
@@ -188,4 +188,4 @@ def _review_later_title_signature(
     return (normalized[:18] or "uncategorized").strip()
 
 
-__all__ = ["build_authenticated_notice_review_later_clusters"]
+__all__ = ["build_authenticated_notice_residual_clusters"]
