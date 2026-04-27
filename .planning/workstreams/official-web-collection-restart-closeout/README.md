@@ -15,10 +15,15 @@ updated: 2026-04-28
 
 - status: `active`
 - current phase: `Phase 2`
-- current slice: 本地 `official_web -> fresh_news` dry-run、真实 batch、DB inspection 与局部验证已完成；后续收口 scheduler / preflight / retention / alert / 重复运行验收
+- current slice: 本地 `official_web` source-truth projection replay 已完成，当前 replay 产物为
+  `85` 个 documents：`75` 个 `muc_public_pages`、`10` 个 `stable_reference`
 - active implementation: yes, planning and ops follow-up only
-- latest successful run id: `e0ed85dd-81fc-4882-b122-dae0246ac524`
-- latest report: `.tmp/official-web-restart-batch/official_web_batch_e0ed85dd-81fc-4882-b122-dae0246ac524.json`
+- latest projection artifact:
+  `.tmp/official-web-restart/official-web-restart-20260427T213902Z/projection-replay.json`
+- latest validation artifact:
+  `.tmp/official-web-restart/official-web-restart-20260427T213902Z/projection-validation.json`
+- current `.env` registry count for `official_web/*`: `0` records across
+  `muc_public_pages` / `stable_reference` / `fresh_news` / `news_archive`
 
 ## Native Planning Truth
 
@@ -28,8 +33,9 @@ updated: 2026-04-28
 
 ## Boundary Notes
 
-- 本 workstream 只处理 official web 采集重启、dev/local batch 证据和部署前 ops 缺口记录。
+- 本 workstream 只处理 official web 采集重启、dev/local projection evidence 和部署前 ops 缺口记录。
 - 本 workstream 不把 `fresh_news` 或 `news_archive` 提升为默认 query-serving surface。
+- 本 workstream 不把 projection replay 产物冒充为 registry current truth。
 - 本 workstream 不重开 backlog 中的 `official-web source channel / news opening`。
 - 本 workstream 不改写 `apps/app-api` 对 official web control-plane 的 ownership。
 - 本 workstream 不改变 retrieval serving profile、product routing gate 或 accepted merged truth。

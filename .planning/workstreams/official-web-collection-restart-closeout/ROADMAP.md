@@ -14,10 +14,11 @@ updated: 2026-04-28
 
 ## Phases
 
-- [x] **Phase 0: Boundary Confirmation** — 确认本轮目标是恢复 `official_web -> fresh_news`
-  本地采集与证据记录，不重开 official web news query-serving opening。
-- [x] **Phase 1: Local Batch Restart Evidence** — 完成 dry-run、真实 batch、DB inspection、
-  unittest、ruff check 与 ruff format check；记录 run id 与 report 路径。
+- [x] **Phase 0: Boundary Confirmation** — 确认本轮目标是恢复 `official_web`
+  本地 source-truth projection evidence，不重开 official web news query-serving opening。
+- [x] **Phase 1: Local Projection Restart Evidence** — 完成 projection replay 与 validation；
+  当前产物为 `85` 个 documents：`75` 个 `muc_public_pages`、`10` 个 `stable_reference`；
+  当前 `.env` registry official-web scope 对照为 `0`。
 - [ ] **Phase 2: Dev Scheduler And Preflight Closeout** — 补齐 dev/local scheduler entry、
   worker 专属 preflight 检查项和 repeated-run 操作口径。
 - [ ] **Phase 3: Report Retention And Alert Closeout** — 明确 batch report retention、
@@ -31,7 +32,7 @@ updated: 2026-04-28
 
 - dev/local scheduler 与 preflight 路径明确；
 - report retention 与 alert 规则明确；
-- repeated-run 验收能证明 batch 可重复执行且不会制造 duplicate side effects；
+- repeated-run 验收能证明 projection / handoff batch 可重复执行且不会制造 duplicate side effects；
 - 所有证据路径写入 `STATE.md`。
 
 如果产品范围决定正式打开 `fresh_news` 或 `news_archive` query-serving，再恢复 backlog 中的
