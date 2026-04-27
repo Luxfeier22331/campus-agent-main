@@ -758,6 +758,9 @@ Behavior:
   review.
 - Writes local release artifacts and publishes versioned/current projection
   artifacts to the derived bucket.
+- When `CAMPUS_SHARED_POSTGRES_URL` is configured, publishes the same validated
+  release to PostgreSQL release catalog, current pointer, and `service_guide`
+  typed read-model tables.
 
 ### `campus-ingestion-build-service-catalog-projection`
 
@@ -812,7 +815,51 @@ Behavior:
   context, and publishes `campus_services_projection_bundle.v1`.
 - It writes local release artifacts and publishes versioned/current projection
   artifacts to the derived bucket.
+- When `CAMPUS_SHARED_POSTGRES_URL` is configured, publishes the same validated
+  release to PostgreSQL release catalog, current pointer, and
+  `transport_schedule` typed read-model tables.
 - It does not open `transport_schedule_lookup` serving by itself.
+
+### `campus-ingestion-manage-structured-projection-release`
+
+Operator shell for PostgreSQL structured projection release pointers.
+
+Required CLI args:
+
+- `--collection` (`service_status`, `service_guide`, or `transport_schedule`)
+- subcommand: `current`, `list`, or `promote`
+
+Optional CLI args:
+
+- `--corpus` (defaults to `campus_services`)
+- `--limit` for `list`
+- `--release-id` for `promote`
+
+Behavior:
+
+- Reads `CAMPUS_SHARED_POSTGRES_URL`.
+- `current` prints the PG current pointer.
+- `list` prints recent release catalog rows.
+- `promote` verifies the target release exists for the selected corpus /
+  collection, then updates `structured_projection_current` transactionally.
+- It does not read or promote mounted projection files.
+
+### `campus-ingestion-smoke-structured-projection-postgres`
+
+Real PostgreSQL smoke for structured campus-service projections.
+
+Optional CLI args:
+
+- `--release-id`
+- `--generated-at`
+
+Behavior:
+
+- Publishes small `service_status`, `transport_schedule`, and `service_guide`
+  smoke releases to the PG release catalog and typed read-model tables.
+- Verifies that each collection's current pointer resolves to the smoke release.
+- Intended for local `open_structured` runtime smoke and deployment readiness
+  checks. It requires a real PG URL and does not create file fallback fixtures.
 
 ### `migrate_student_handbook_source_faithful`
 
@@ -953,6 +1000,52 @@ Behavior:
 - Writes `notices-bundle.normalized.json`, `export-manifest.normalized.json`,
   and `normalization-summary.json` under the target output dir.
 - Does not write object store, Postgres, embedding, or Qdrant state.
+
+### `campus-ingestion-backfill-authenticated-notice-browser-urls`
+
+Bundle-level audit/backfill shell for authenticated notice browser URL metadata.
+
+Required CLI args:
+
+- `--bundle-path`
+- `--source-home-url`
+- `--summary-output-path`
+
+Optional CLI args:
+
+- `--bundle-output-path`
+
+Behavior:
+
+- Adds `portal_print_url`, `notice_browser_url`, and
+  `notice_browser_url_source` to bundle notice rows when they are missing.
+- Reports missing `notice_type` rows that cannot construct a portal print URL.
+- Writes a normalized bundle only when `--bundle-output-path` is provided.
+- Does not write object store, Postgres, embedding, or Qdrant state.
+
+### `campus-ingestion-audit-authenticated-notice-browser-url-bundles`
+
+Multi-bundle coverage audit/backfill shell for authenticated notice browser URL
+metadata.
+
+Required CLI args:
+
+- one or more `--bundle-path`
+- `--source-home-url`
+- `--summary-output-path`
+
+Optional CLI args:
+
+- `--output-dir`
+
+Behavior:
+
+- Runs the same URL metadata backfill over each input bundle.
+- Aggregates `records_seen`, present/backfilled counts, missing notice-type
+  counts, unavailable counts, and URL source counts across all bundles.
+- Writes backfilled bundle copies under `--output-dir` when provided.
+- Does not import source truth, mutate object store, write Postgres, embed, or
+  publish query-serving state.
 
 ### `campus-ingestion-check-authenticated-notice-reference-only-attachments`
 

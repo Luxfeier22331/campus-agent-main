@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 
 # Workstream: Handbook Curriculum MinerU Cutover
@@ -14,12 +14,12 @@ updated: 2026-04-23
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 2`
+- status: `completed`
+- current phase: `closeout`
 - current focus:
-  handbook source-truth hard gate 已开始补齐；
-  当前继续收口 runtime/test/runbook/reference truth，
-  然后进入 shadow rebuild 与 alias cutover
+  `Phase 4` release dry run 与 `Phase 5` alias publish 已完成；
+  `curriculum_plan` 与 `student_rules` serving aliases 已切到本轮 MinerU
+  physical collections，post-publish retrieval alias path 已验收。
 
 ## Native Planning Truth
 

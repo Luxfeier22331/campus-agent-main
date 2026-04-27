@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Workstreams
@@ -39,17 +39,15 @@ updated: 2026-04-26
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `handbook curriculum MinerU cutover` | `handbook-curriculum-mineru-cutover` | `yes` | `.planning/workstreams/handbook-curriculum-mineru-cutover/README.md` | `Phase 2` | `student_rules` 与 `curriculum_plan` 的 runtime profile 已指向 MinerU；当前补齐 handbook source-truth hard gate、对齐测试/runbook/reference，到位后再进入 shadow rebuild 与 alias cutover |
-| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 2` | 正式 `public-docs` app 已提升为 docs shell；当前继续收口 published reader assets、runtime-backed `app-api` docs seams 与 shell consumption truth；notice-derived/internal regulation 仅允许显式 public 子集进入公开 docs，restricted 子集保持 gated |
-| `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 10` | reopened decomposition inventory 当前 admission 了 `internal_notice_regulation_materialization.py`、`tests/ingestion/test_curriculum_provider_normalize.py` 与 `tests/test_public_docs_sync.py`；`pnpm decomposition:lint` 继续作为 canonical gate，后续必须回到独立 split phase 收口 |
+| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 4` | `Phase 3` 已完成 Rspress native shell IA、`/docs/:corpus/:collection/:documentSlug` published reader source route、sidebar builder、local scaffold 与 generated guard 收口；下一步规划 docs search UX、version navigation 与 deep-link state |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
-| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 63 agent worker and contract hardcut` | Go `apps/supervisor-api` 已拥有 bridge v6 projection、capability/scope/version guard、runtime policy、`place_lookup` Go direct runtime、structured/direct paths、audit/metrics/readiness truth、canonical `AgentRequest -> AgentResponse` handoff 与 `AgentResponse -> SupervisorResponse` finalization；Python `apps/supervisor-agent-worker` 已收口为 delegate-only semantic worker，剩余 `AgentDispatcher` / `dispatch_agent_request` 已内联到 worker，standalone `packages/supervisor-core` 已退役；默认 agent delegate map 已迁到 worker，旧 policy/response/routing/audit helpers、旧 `SupervisorAgent` 命名与 `specialist` contract aliases 已删除，worker/test/docs active naming 已收口到 agent worker / agent handoff / agent request，`campus_services` / `notice` 产品主路由 gate 仍保持关闭 |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
 | `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/archive/completed/execution-capability-family-convergence.md` | 只有在 repo 重新 admission raw runtime target family rename、显式改写 `selected_target` / `selectedTarget` 语义，或新增 capability family 需要重开 repo-wide naming / label convergence 规则时才恢复 |
+| `handbook curriculum MinerU cutover` | `handbook-curriculum-mineru-cutover` | `yes` | `.planning/workstreams/handbook-curriculum-mineru-cutover/README.md` | 只有在 `student_rules` / `curriculum_plan` 需要重新切换 OCR provider、回滚 serving alias、或重开 Paddle/MinerU source-truth cutover 时才恢复 |
 | `bounded agentic retrieval productization` | `bounded-agentic-retrieval-productization` | `yes` | `docs/plans/archive/completed/bounded-agentic-retrieval-productization.md` | 只有在 repo 重新 admission 新的 retrieval step / planner-executor lifecycle、某个具体产品面决定正式消费 generic `live_source_lookup`、显式改写 raw retrieved trace / supporting evidence / operator observability contract，或把 non-current runtime acceptance 提升为 retrieval owner 时才恢复 |
 | `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/archive/completed/operator-observability-control-plane-foundation.md` | 只有在 repo 重新 admission 新的 operator observability domain、显式改写 `app-api` owned operator truth / sink participation contract，或 panel 需要从 read-only observability control-plane 扩成新的 write/action surface 时才恢复 |
 | `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` | 只有在 public auth family / same-site auth contract / Turnstile posture 被显式改写、public browser answer contract 再次出现 raw agent locator 泄漏或 curriculum semester chunk-boundary corruption，或 shared `app-api + public-chat-web + protected-panel-web` 联合验收被重新 admission 为 active hardening 时才恢复 |
@@ -64,6 +62,8 @@ updated: 2026-04-26
 | `notice consumption layer` | `notice-consumption-layer` | `yes` | `.planning/workstreams/notice-consumption-layer/README.md` | 只有在 repo 重新 admission internal_notice consumption projection schema/route semantics、打开新的 notice-derived downstream target，或发现 projection store/rebuild/operator status truth 与代码漂移时才恢复 |
 | `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | 只有在新 admission authenticated-notice regulation target、显式改写 `institutional_rules` / `scoped_rules` 边界，或把 stop point 从 `offline_preparation` 提升到 release / query-serving 时恢复 |
 | `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | 只有在课程地图重新 admission 为 RAG/query-serving、source-truth canonical 或新的 multimodal extraction contract 时恢复；单纯 UI/UX 展示打磨走 `curriculum-course-map-docs-presentation-refinement` |
+| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | 只有在 repo 重新 admission 新的 supervisor execution runtime migration slice、显式改写 `supervisor-api -> supervisor-agent-worker` bridge contract、重新打开 Python public supervisor runtime entry，或 profiling 证明 prompt/provider executor 或其他 semantic runtime 成为下一条 Go migration 瓶颈时恢复 |
+| `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | 只有在 repo 重新 admission 新的 tracked handwritten code/test monolith decomposition inventory、`pnpm decomposition:lint` 发现新超阈值 tracked 文件、baseline 出现回流，或已拆文件重新长回阈值外时才恢复 |
 
 ## Deferred
 
@@ -81,6 +81,7 @@ updated: 2026-04-26
 | `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `no` | `docs/plans/archive/historical/wechat-official-account-public-source-channel.md` | 只有在产品范围显式 admission 校园公众号公开内容采集，且 `notice` / `official_web` downstream consumption 已准备好时才恢复 |
 | `internal-notice procurement notice classification` | `internal-notice-procurement-publication-history` | `yes` | `.planning/workstreams/internal-notice-procurement-publication-history/README.md` | 只有在产品范围显式 admission 为 restricted notice / publication storage 新增稳定 `procurement_notice` 分类，或基于该分类继续做历史查询时才恢复 |
 | `chat capacity and cancellation hardening` | `chat-capacity-and-cancellation-hardening` | `yes` | `.planning/workstreams/chat-capacity-and-cancellation-hardening/README.md` | 只有在产品范围决定为 public chat 正式收口 100 人同时提问、热点削峰、ChatGPT 式提交/中止体验或 K8s/多实例容量治理时恢复 |
+| `public-chat profile memory management UI` | `public-chat-profile-memory-management-ui` | `yes` | `.planning/workstreams/public-chat-profile-memory-management-ui/README.md` | 只有在产品范围决定为 public-chat-web 暴露 end-user profile memory 列表、开关、删除与新增入口时恢复；不得重新打开 `app-api` owned memory truth、authorization semantics 或 serving-surface policy |
 | `supervisor Docker runtime language split` | `supervisor-docker-runtime-language-split` | `yes` | `.planning/workstreams/supervisor-docker-runtime-language-split/README.md` | 只有在 Docker 侧性能预算、服务器成本或 profiling 结果显示 Python execution runtime / CPU-heavy kernel 成为正式迁移瓶颈时恢复 |
 
 ## Legacy / Follow-up References

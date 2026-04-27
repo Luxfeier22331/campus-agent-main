@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-23
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Workstream: go-shell
@@ -30,9 +30,9 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 63 agent worker and contract hardcut`
-- current slice: Go `supervisor-api` 已承接 bridge v6 canonical request
+- status: `completed`
+- current phase: `<none>`
+- current slice: Phase 0-63 repo-local implementation 已完成；Go `supervisor-api` 已承接 bridge v6 canonical request
   projection、deterministic capability/scope/version 裁决、structured runtime
   payload planner、prompt config admission summary、runtime readiness truth 与
   execution audit ownership；Python `supervisor-agent-worker` 已收窄为 private
@@ -277,7 +277,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   - bridge/shared contract hardcut 到 canonical `AgentRequest` / `AgentResponse` /
     `agent_response`
 
-## Remaining Work
+## Closeout State
 
 - repo 内当前没有 Phase 8-63 的剩余必做实现项
 - `place_lookup` 已由 Go direct runtime 承接 repo-owned place catalog 查询；
@@ -292,6 +292,13 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   deterministic orchestration checkpoints 观测 cancel
 - 实际环境 cutover / rollback drill 执行属于 environment-side rollout，不阻塞
   repo-local closeout
+
+## Reopen Rule
+
+只有在 repo 重新 admission 新的 supervisor execution runtime migration slice、显式改写
+`supervisor-api -> supervisor-agent-worker` bridge contract、重新打开 Python public
+supervisor runtime entry，或 profiling 证明 prompt/provider executor 或其他 semantic
+runtime 成为下一条 Go migration 瓶颈时，才恢复本 workstream。
 
 ## Native Planning Truth
 

@@ -1,15 +1,15 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-23
-updated: 2026-04-25
+updated: 2026-04-27
 ---
 
 # Roadmap: go-shell
 
 ## Current Progress
 
-- `Phase 0-54` repo-local implementation 已完成。
+- `Phase 0-63` repo-local implementation 已完成，go-shell workstream 已 closeout。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
 - `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
@@ -68,6 +68,8 @@ updated: 2026-04-25
   default agent registry 与 standalone supervisor-core package 全部收口；剩余
   `AgentDispatcher` / `dispatch_agent_request` 已内联到
   `apps/supervisor-agent-worker`，`packages/supervisor-core` 已退役。
+- `Phase 63` 已完成 agent worker runtime/package/env hardcut 与 canonical
+  `AgentRequest` / `AgentResponse` / `agent_response` bridge contract hardcut。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze

@@ -308,6 +308,7 @@ uv sync --all-packages --dev
 pnpm web:lint
 pnpm docs:lint
 pnpm yaml:lint
+pnpm decomposition:lint
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 uv run --all-packages python -m unittest discover -s tests -t .
@@ -342,6 +343,9 @@ pnpm web:build:affected
 - JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Markdown lint 通过 `pnpm
   docs:lint` 执行；YAML 结构检查通过 `pnpm yaml:lint` 执行；Python lint/format 默认通过 `uv run
   --all-packages ruff ...` 执行
+- repo-wide handwritten code/test 分解 gate 默认通过 `pnpm decomposition:lint` 执行；新增或修改
+  tracked handwritten `py/ts/tsx/js/jsx/mjs/cjs/go` code/test 文件时，不得超过 `800` 行，也不得通过
+  `configs/lint/decomposition-baseline.json` 新增 admission 回流
 - `pnpm web:test` 是 JS/TS 默认稳定 gate；不要把它表述成自动覆盖所有 worker / integration lane
 - `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration`
   是显式外部依赖 integration lane

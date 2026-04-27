@@ -1,17 +1,17 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-23
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # State: go-shell
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 63 agent worker and contract hardcut`
-- current slice: Go `supervisor-api` runtime kernel hardening、bridge v6
+- status: `completed`
+- current phase: `<none>`
+- current slice: Phase 0-63 repo-local implementation 已完成；Go `supervisor-api` runtime kernel hardening、bridge v6
   canonical projection、deterministic capability/scope/version 裁决、structured
   runtime payload planner、prompt config admission summary、readiness runtime
   truth、execution audit batching/retry/spool、OTel sample accounting 与
@@ -43,7 +43,7 @@ updated: 2026-04-26
   active code / tests / docs 移除；`campus_services` /
   `notice` 产品主路由 gate 仍默认关闭
 - owner: unassigned
-- active implementation: yes, Go `apps/supervisor-api` plus Python
+- active implementation: completed, Go `apps/supervisor-api` plus Python
   `apps/supervisor-agent-worker`
 
 ## Captured Context
@@ -149,7 +149,7 @@ updated: 2026-04-26
 
 ## Blockers
 
-- repo-local Phase 8-60 implementation 当前无 blocker。
+- no repo-local closeout blocker
 - repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
   stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
@@ -161,7 +161,7 @@ updated: 2026-04-26
   opening gate 仍需要 eval / regression evidence 与产品路由 admission 决策。
 - `place_lookup` 的 Go direct runtime 已实现；地图 UI、route planning 与
   `place_card` product consumption 仍属于 navigation rollout backlog，不在本线继续扩展。
-- `Phase 16-60` 已完成 repo-local implementation；剩余 opening gate 不在
+- `Phase 16-63` 已完成 repo-local implementation；剩余 opening gate 不在
   `go-shell` execution runtime control-plane 范围内。
 
 ## Verification

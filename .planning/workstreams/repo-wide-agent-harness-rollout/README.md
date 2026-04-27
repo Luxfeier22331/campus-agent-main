@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 
 # Workstream: Repo-wide Agent Harness Rollout
