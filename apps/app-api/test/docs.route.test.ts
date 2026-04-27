@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
+import { AppApiRouteError } from "../src/http";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { DocsService } from "../src/modules/docs";
 
@@ -353,12 +354,14 @@ describe("docs routes", () => {
 			getNavigation: vi.fn(),
 			getVersions: vi.fn(),
 			resolveReader: vi.fn(),
-			checkReaderAdmission: vi.fn().mockRejectedValue({
+			checkReaderAdmission: vi.fn().mockRejectedValue(
+				new AppApiRouteError({
 				code: "docs_document_not_found",
 				message: "Document was not found.",
 				retryable: false,
 				status: 404,
-			}),
+				}),
+			),
 			search: vi.fn(),
 		};
 		const app = createApp(env, {

@@ -75,7 +75,7 @@ export interface PublicDocsSyncManifest {
 	entries: Array<{
 		collection: string;
 		corpus: string;
-		deliveryMode: "public_static_asset";
+		deliveryMode: "public_static_asset" | "gated_asset";
 		docId: string;
 		documentSlug: string;
 		sourceObjects: Record<string, string>;
@@ -118,13 +118,12 @@ export function buildPublicDocsSyncManifestFromReadModel(
 	generatedAt: string,
 ): PublicDocsSyncManifest {
 	const documentsByDocId = new Map(plan.documents.map((document) => [document.docId, document]));
-	const publicVersionsById = new Map(
+	const exportedVersionsById = new Map(
 		plan.documentVersions
 			.filter(
 				(version) =>
-					version.deliveryMode === "public_static_asset" &&
-					version.visibilityLevel === "public" &&
-					version.entitlementGroups.length === 0,
+					isPublicExportedVersion(version) ||
+					isGatedExportedVersion(version),
 			)
 			.map((version) => [version.versionId, version]),
 	);
@@ -132,7 +131,7 @@ export function buildPublicDocsSyncManifestFromReadModel(
 	return {
 		entries: plan.readerAssets
 			.flatMap((asset) => {
-				const version = publicVersionsById.get(asset.versionId);
+				const version = exportedVersionsById.get(asset.versionId);
 				const document = version ? documentsByDocId.get(version.docId) : null;
 				if (!(version && document)) {
 					return [];
@@ -141,7 +140,7 @@ export function buildPublicDocsSyncManifestFromReadModel(
 					{
 						collection: document.collection,
 						corpus: document.corpus,
-						deliveryMode: "public_static_asset" as const,
+						deliveryMode: version.deliveryMode,
 						docId: document.docId,
 						documentSlug: document.documentSlug,
 						sourceObjects: asset.sourceObjects,
@@ -160,6 +159,18 @@ export function buildPublicDocsSyncManifestFromReadModel(
 		generatedAt,
 		surface: "public_docs",
 	};
+}
+
+function isPublicExportedVersion(version: DocsReadModelDocumentVersionInput): boolean {
+	return (
+		version.deliveryMode === "public_static_asset" &&
+		version.visibilityLevel === "public" &&
+		version.entitlementGroups.length === 0
+	);
+}
+
+function isGatedExportedVersion(version: DocsReadModelDocumentVersionInput): boolean {
+	return version.deliveryMode === "gated_asset" && version.visibilityLevel === "restricted";
 }
 
 function uniqueSortedScopes(

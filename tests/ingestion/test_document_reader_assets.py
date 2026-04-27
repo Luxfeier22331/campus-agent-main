@@ -334,7 +334,49 @@ class DocumentReaderAssetsTest(unittest.TestCase):
             },
         )
 
-    def test_build_public_docs_sync_manifest_keeps_public_entries_only(self) -> None:
+    def test_build_document_reader_publish_entry_marks_gated_static_delivery(self) -> None:
+        restricted_record = DocumentRegistryRecord(
+            document_id="curriculum:restricted-program",
+            revision_track="current-effective",
+            version_id="ver_2026_restricted",
+            source_uri="campus-agent://curriculum/curriculum_plan/docs/curriculum:restricted-program",
+            content_hash="sha256:restricted",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            cleaning_policy_version="curriculum_plan_cleaning_v1",
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            visibility_level="restricted",
+            status="active",
+            ingestion_timestamp="2026-04-23T08:00:00+00:00",
+            parser_version="mineru_api_v1",
+            embedding_model="text-embedding-3-large",
+            source_channel="pdf_ocr",
+            is_current=True,
+            effective_date="2026-02-01",
+            published_date="2026-02-15",
+            document_units_object_key=(
+                "curriculum/documents/curriculum_plan/"
+                "restricted-program--restricted/current-effective/2026/document-units.jsonl"
+            ),
+            canonical_markdown_object_key=(
+                "curriculum/documents/curriculum_plan/"
+                "restricted-program--restricted/current-effective/2026/canonical.md"
+            ),
+            import_source="raw_online_ocr",
+        )
+        entry = build_document_reader_publish_entry(
+            record=restricted_record,
+            title="受限培养方案",
+        )
+
+        self.assertEqual(entry["deliveryMode"], "gated_asset")
+        self.assertEqual(
+            entry["targetObjects"]["reader"],
+            "_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+        )
+
+    def test_build_public_docs_sync_manifest_keeps_public_and_gated_entries(self) -> None:
         public_entry = build_document_reader_publish_entry(
             record=_make_public_curriculum_record(),
             title="法学（民族班）培养方案",
@@ -381,7 +423,7 @@ class DocumentReaderAssetsTest(unittest.TestCase):
 
         self.assertEqual(manifest["surface"], "public_docs")
         self.assertEqual(manifest["generatedAt"], "2026-04-23T08:30:00+00:00")
-        self.assertEqual(manifest["entries"], [public_entry])
+        self.assertEqual(manifest["entries"], [public_entry, restricted_entry])
 
 
 if __name__ == "__main__":

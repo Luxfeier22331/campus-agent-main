@@ -57,7 +57,7 @@ control-plane HTTP contract。
 - proxy 可以转发 `accept`、`content-type`、`cookie`、conditional cache
   headers 与 trace id 等最小必要 header；不得转发 spoofable origin / operator headers
   作为授权依据
-- gated reader asset 的逐请求 admission 仍由 `app-api` 决定，`public-docs` 不缓存或重建
+- gated static reader 的逐请求 admission 仍由 `app-api` 决定，`public-docs` 不缓存或重建
   visibility truth
 
 ## Cross-Cutting Rules
@@ -81,7 +81,7 @@ control-plane HTTP contract。
 - `GET
   /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
 - `GET
-  /api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind`
+  /api/docs/collections/:corpus/:collection/documents/:documentSlug/admission`
 
 ## Navigation Contract
 
@@ -203,8 +203,8 @@ control-plane HTTP contract。
   "readerAsset": {
     "deliveryMode": "gated_asset",
     "canonicalUrl": "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
-    "contentUrl": "/_docs-gated/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/reader.json",
-    "outlineUrl": "/_docs-gated/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/outline.json"
+    "contentUrl": "/_gated-docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/reader.json",
+    "outlineUrl": "/_gated-docs/curriculum/curriculum_plan/law-ethnic-class-program/2026-current/outline.json"
   },
   "readerState": {
     "anchor": "semester-4",
@@ -221,36 +221,31 @@ control-plane HTTP contract。
   - `gated_asset`
 - `anchor` 是稳定导航单位
 - response 不返回 `chunkId`、`score`、`sourceUnitKey`、raw snippet dump
-- `gated_asset` 的默认 URL 继续保持 same-site，由 `public-docs` 受控代理交付
+- `gated_asset` 的默认 URL 为 same-site `/_gated-docs/*`，由 `public-docs` Worker-first
+  校验后交付
 - `gated_asset` 的 v1 delivery 默认要求 `public-docs` 逐请求向 `app-api` 做 authz 校验
 - `gated_asset` 不应把对象存储 endpoint、presigned URL 或 bucket key 暴露给 browser
 - short-lived grant token / local verification 不属于当前默认 contract
 - future restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
   path
 
-## Gated Reader Asset Contract
+## Gated Reader Admission Contract
 
-### `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind`
+### `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/admission`
 
 查询参数：
 
 - `version`
-  - 必填于 browser descriptor；缺省时服务端按当前版本解析
-
-路径参数：
-
-- `assetKind`
-  - 只允许 `reader`、`outline`、`meta`、`asset-manifest`
+  - 可选；缺省时服务端按当前版本解析
 
 固定规则：
 
-- 该 endpoint 只服务 `gated_asset`，公开静态文档继续走 `public-docs` static assets
+- 该 endpoint 只服务 `gated_asset` admission，公开静态文档继续走 `public-docs` static assets
 - 每次请求必须重新解析 principal 并校验 document version visibility / entitlement
-- response body 来自服务端读取 reader asset object，不返回 JSON envelope
+- 授权通过返回 `204 No Content`
 - response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`
 - 授权失败、对象不存在或 projection 不可安全判定时 fail-close
-- browser response 不暴露 bucket、object key、source object map、raw locator、
-  chunk id 或 provider artifact path
+- `public-docs` 必须在 Worker 内先调用 admission，再尝试读取 `/_gated-docs/*` 静态资产
 
 ## Docs Search Contract
 

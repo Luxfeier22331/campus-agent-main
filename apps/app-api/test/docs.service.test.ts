@@ -72,9 +72,9 @@ function createStore(): DocsReadModelStore {
 			if (input.documentSlug === restrictedDoc.documentSlug) {
 				return {
 					...restrictedDoc,
-					contentUrl: "/_docs-gated/curriculum/restricted-program/reader.json",
-					manifestUrl: "/_docs-gated/curriculum/restricted-program/asset-manifest.json",
-					outlineUrl: "/_docs-gated/curriculum/restricted-program/outline.json",
+					contentUrl: "/_gated-docs/curriculum/restricted-program/reader.json",
+					manifestUrl: "/_gated-docs/curriculum/restricted-program/asset-manifest.json",
+					outlineUrl: "/_gated-docs/curriculum/restricted-program/outline.json",
 					sourceObjects: {
 						"asset-manifest": "reader-assets/restricted-program/asset-manifest.json",
 						meta: "reader-assets/restricted-program/meta.json",

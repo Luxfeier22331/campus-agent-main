@@ -134,7 +134,13 @@ def build_document_reader_publish_entry(
 ) -> dict[str, object]:
     document_slug = _resolve_document_slug(record=record, title=title)
     version_slug = _resolve_version_slug(record)
-    target_prefix = f"_docs/{record.corpus}/{record.collection}/{document_slug}/{version_slug}"
+    delivery_mode = (
+        "public_static_asset" if _resolve_visibility(record) == "public" else "gated_asset"
+    )
+    static_root = "_docs" if delivery_mode == "public_static_asset" else "_gated-docs"
+    target_prefix = (
+        f"{static_root}/{record.corpus}/{record.collection}/{document_slug}/{version_slug}"
+    )
     source_objects: dict[str, str] = {}
     target_objects: dict[str, str] = {}
 
@@ -155,9 +161,7 @@ def build_document_reader_publish_entry(
         ),
         "collection": record.collection,
         "corpus": record.corpus,
-        "deliveryMode": (
-            "public_static_asset" if _resolve_visibility(record) == "public" else "gated_asset"
-        ),
+        "deliveryMode": delivery_mode,
         "docId": record.document_id,
         "documentSlug": document_slug,
         "sourceObjects": source_objects,
@@ -178,7 +182,8 @@ def build_public_docs_sync_manifest(
         "entries": [
             entry
             for entry in entries
-            if str(entry.get("deliveryMode") or "").strip() == "public_static_asset"
+            if str(entry.get("deliveryMode") or "").strip()
+            in ("public_static_asset", "gated_asset")
         ],
         "generatedAt": generated_at,
         "surface": "public_docs",

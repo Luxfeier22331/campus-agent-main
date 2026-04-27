@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -51,9 +51,12 @@ describe("published reader asset sync", () => {
 					deliveryMode: "gated_asset",
 					docId: "curriculum:restricted-program",
 					sourceObjects: {
+						manifest: "reader-assets/restricted/asset-manifest.json",
 						reader: "reader-assets/restricted/reader.json",
 					},
 					targetObjects: {
+						"asset-manifest":
+							"_docs/curriculum/curriculum_plan/restricted/2026-current/asset-manifest.json",
 						reader: "_docs/curriculum/curriculum_plan/restricted/2026-current/reader.json",
 					},
 				},
@@ -73,6 +76,12 @@ describe("published reader asset sync", () => {
 						"reader.json": '{"sections":[]}',
 					}),
 				],
+				[
+					"reader-assets/restricted/asset-manifest.json",
+					assetManifest({
+						"reader.json": '{"restricted":true}',
+					}),
+				],
 				["reader-assets/restricted/reader.json", '{"restricted":true}'],
 			]),
 		);
@@ -84,8 +93,10 @@ describe("published reader asset sync", () => {
 		});
 
 		expect(result).toEqual({
-			copiedAssetCount: 3,
-			copiedDocumentCount: 1,
+			copiedAssetCount: 5,
+			copiedDocumentCount: 2,
+			copiedGatedDocumentCount: 1,
+			copiedPublicDocumentCount: 1,
 		});
 		expect(
 			readFileSync(
@@ -94,10 +105,14 @@ describe("published reader asset sync", () => {
 			),
 		).toBe('{"sections":[]}');
 		expect(
-			existsSync(
-				join(targetRoot, "_docs/curriculum/curriculum_plan/restricted/2026-current/reader.json"),
+			readFileSync(
+				join(
+					targetRoot,
+					"_gated-docs/curriculum/curriculum_plan/restricted/2026-current/reader.json",
+				),
+				"utf8",
 			),
-		).toBe(false);
+		).toBe('{"restricted":true}');
 	});
 
 	it("fails closed on unsafe target paths, duplicate targets, and missing source objects", async () => {
@@ -133,7 +148,7 @@ describe("published reader asset sync", () => {
 				manifestObjectKey: "manifest.json",
 				targetRoot: unsafeTargetRoot,
 			}),
-		).rejects.toThrow("reader asset target must stay under _docs/");
+		).rejects.toThrow("public reader asset target must stay under _docs/");
 
 		const duplicateTargetRoot = createTargetRoot();
 		await expect(

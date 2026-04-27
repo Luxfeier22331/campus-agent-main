@@ -271,4 +271,84 @@ describe("public docs worker shell", () => {
 			"/reader-fallback.html",
 		]);
 	});
+
+	it("serves gated static assets only after app-api admission check passes", async () => {
+		const worker = await importWorker();
+		let admissionUrl: string | null = null;
+		let admissionCookie: string | null = null;
+		let assetsCalled = false;
+		const response = await worker.fetch(
+			new Request(
+				"https://docs.example.com/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+				{
+					headers: {
+						cookie: "better-auth.session_token=test",
+					},
+				},
+			),
+			{
+				APP_API: {
+					fetch: async (request: Request) => {
+						admissionUrl = request.url;
+						admissionCookie = request.headers.get("cookie");
+						return new Response(null, { status: 204 });
+					},
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async () => {
+						assetsCalled = true;
+						return new Response('{"sections":[]}', {
+							headers: {
+								"cache-control": "public, max-age=3600",
+								"content-type": "application/json; charset=utf-8",
+							},
+							status: 200,
+						});
+					},
+				},
+				PUBLIC_DOCS_HOSTNAME: "docs.example.com",
+			},
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(response.headers.get("vary")).toContain("Cookie");
+		expect(response.headers.get("vary")).toContain("Authorization");
+		await expect(response.text()).resolves.toBe('{"sections":[]}');
+		expect(assetsCalled).toBe(true);
+		expect(admissionUrl).toBe(
+			"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/admission?version=2026-current",
+		);
+		expect(admissionCookie).toBe("better-auth.session_token=test");
+	});
+
+	it("fails closed for gated static assets when admission is denied", async () => {
+		const worker = await importWorker();
+		let assetsCalled = false;
+		const response = await worker.fetch(
+			new Request(
+				"https://docs.example.com/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+			),
+			{
+				APP_API: {
+					fetch: async () => new Response(null, { status: 404 }),
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async () => {
+						assetsCalled = true;
+						return new Response("unexpected", { status: 200 });
+					},
+				},
+				PUBLIC_DOCS_HOSTNAME: "docs.example.com",
+			},
+		);
+
+		expect(response.status).toBe(404);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(response.headers.get("vary")).toContain("Cookie");
+		expect(response.headers.get("vary")).toContain("Authorization");
+		expect(assetsCalled).toBe(false);
+	});
 });

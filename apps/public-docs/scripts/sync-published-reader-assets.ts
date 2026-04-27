@@ -7,6 +7,8 @@ import { createS3ObjectStore, type ObjectStoreClient } from "./sync-real-docs/st
 export interface PublishedReaderAssetsSyncResult {
 	copiedAssetCount: number;
 	copiedDocumentCount: number;
+	copiedGatedDocumentCount: number;
+	copiedPublicDocumentCount: number;
 }
 
 interface PublishedReaderAssetEntry {
@@ -53,32 +55,37 @@ export async function syncPublishedReaderAssets(input: {
 	targetRoot: string;
 }): Promise<PublishedReaderAssetsSyncResult> {
 	const manifest = await loadManifest(input);
-	const publicEntries = manifest.entries.filter((entry) => {
-		if (entry.deliveryMode === "public_static_asset") {
+	const syncedEntries = manifest.entries.filter((entry) => {
+		if (entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset") {
 			return true;
-		}
-		if (entry.deliveryMode === "gated_asset") {
-			return false;
 		}
 		throw new Error(`unsupported reader asset delivery mode: ${entry.deliveryMode}`);
 	});
+	const publicEntries = syncedEntries.filter((entry) => entry.deliveryMode === "public_static_asset");
+	const gatedEntries = syncedEntries.filter((entry) => entry.deliveryMode === "gated_asset");
 	const targetRoot = resolve(input.targetRoot);
 	const docsTargetRoot = resolve(targetRoot, "_docs");
+	const gatedTargetRoot = resolve(targetRoot, "_gated-docs");
 	const seenTargets = new Set<string>();
 	let copiedAssetCount = 0;
 
 	rmSync(docsTargetRoot, { force: true, recursive: true });
+	rmSync(gatedTargetRoot, { force: true, recursive: true });
 
-	for (const entry of publicEntries) {
+	for (const entry of syncedEntries) {
 		const entryCopies: AssetCopy[] = [];
 		for (const [targetLabel, targetObject] of Object.entries(entry.targetObjects)) {
 			const sourceObject = resolveSourceObjectKey(entry, targetLabel);
-			const target = resolveSafeReaderAssetTarget({
+			const resolvedTargetObject = resolveTargetObjectByDeliveryMode({
+				deliveryMode: entry.deliveryMode,
 				targetObject,
+			});
+			const target = resolveSafeReaderAssetTarget({
+				targetObject: resolvedTargetObject,
 				targetRoot,
 			});
 			if (seenTargets.has(target.targetPath)) {
-				throw new Error(`duplicate reader asset target: ${targetObject}`);
+				throw new Error(`duplicate reader asset target: ${resolvedTargetObject}`);
 			}
 			seenTargets.add(target.targetPath);
 
@@ -106,7 +113,9 @@ export async function syncPublishedReaderAssets(input: {
 
 	return {
 		copiedAssetCount,
-		copiedDocumentCount: publicEntries.length,
+		copiedDocumentCount: syncedEntries.length,
+		copiedGatedDocumentCount: gatedEntries.length,
+		copiedPublicDocumentCount: publicEntries.length,
 	};
 }
 
@@ -168,22 +177,45 @@ function resolveSafeReaderAssetTarget(input: { targetObject: string; targetRoot:
 } {
 	const normalized = input.targetObject.trim().replaceAll("\\", "/");
 	if (
-		!normalized.startsWith("_docs/") ||
+		!(normalized.startsWith("_docs/") || normalized.startsWith("_gated-docs/")) ||
 		isAbsolute(normalized) ||
 		normalized.split("/").includes("..")
 	) {
-		throw new Error("reader asset target must stay under _docs/");
+		throw new Error("reader asset target must stay under _docs/ or _gated-docs/");
 	}
 
 	const targetPath = resolve(input.targetRoot, normalized);
 	const targetPrefix = `${resolve(input.targetRoot)}${sep}`;
 	if (!targetPath.startsWith(targetPrefix)) {
-		throw new Error("reader asset target must stay under _docs/");
+		throw new Error("reader asset target must stay under _docs/ or _gated-docs/");
 	}
 	return {
 		filePath: resolveReaderAssetFilePath(normalized),
 		targetPath,
 	};
+}
+
+function resolveTargetObjectByDeliveryMode(input: {
+	deliveryMode: string;
+	targetObject: string;
+}): string {
+	const normalized = input.targetObject.trim().replaceAll("\\", "/");
+	if (input.deliveryMode === "public_static_asset") {
+		if (!normalized.startsWith("_docs/")) {
+			throw new Error("public reader asset target must stay under _docs/");
+		}
+		return normalized;
+	}
+	if (input.deliveryMode === "gated_asset") {
+		if (normalized.startsWith("_gated-docs/")) {
+			return normalized;
+		}
+		if (normalized.startsWith("_docs/")) {
+			return normalized.replace(/^_docs\//u, "_gated-docs/");
+		}
+		throw new Error("gated reader asset target must stay under _gated-docs/");
+	}
+	throw new Error(`unsupported reader asset delivery mode: ${input.deliveryMode}`);
 }
 
 function resolveReaderAssetFilePath(targetObject: string): string {

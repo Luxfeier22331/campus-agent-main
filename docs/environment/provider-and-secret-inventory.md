@@ -413,14 +413,9 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 Worker gated reader 交付：
 
-- `apps/app-api` 的 restricted reader asset endpoint 通过 Worker binding
-  `DOCS_READER_ASSETS` 读取 derived reader asset bytes
-- 该 binding 指向承载 `reader-assets/*` 的 derived object bucket；browser response 不暴露
-  bucket / object key
-- 当前 staging binding bucket 为 `campus-agent-reader-assets-staging`
-- `apps/public-docs` 的 `sync:gated-reader-assets` 使用
-  `DOCS_READ_MODEL_MANIFEST_PATH` 与 `DOCS_READER_ASSETS_R2_*` 把 gated reader source
-  objects 复制进该 bucket；该同步不把 restricted 内容写入 Worker static assets
+- `apps/public-docs` 在 build/deploy 阶段把 `deliveryMode=gated_asset` 同步进
+  `doc_build/_gated-docs/...`；运行时由 Worker-first admission 后读取静态资产
+- `apps/app-api` 仅提供 `/api/docs/.../admission` 控制面校验，不再承担 gated bytes streaming
 - 本地 ingestion / publish 命令仍使用上面的 `OBJECT_STORE_*` S3-compatible 配置写入同一 object
   key 体系
 

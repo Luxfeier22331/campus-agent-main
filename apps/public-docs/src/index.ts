@@ -11,6 +11,7 @@ export interface Env {
 }
 
 const DOCS_API_PREFIX = "/api/docs/";
+const GATED_DOCS_PREFIX = "/_gated-docs/";
 const READER_FALLBACK_PATH = "/reader-fallback.html";
 const FORWARDED_HEADERS = [
 	"accept",
@@ -45,6 +46,18 @@ const worker = {
 
 		if (url.pathname.startsWith(DOCS_API_PREFIX)) {
 			return proxyDocsControlPlane(request, env);
+		}
+
+		if (url.pathname.startsWith(GATED_DOCS_PREFIX)) {
+			if (request.method !== "GET" && request.method !== "HEAD") {
+				return jsonResponse(404, {
+					error: {
+						code: "not_found",
+						message: "Route not found.",
+					},
+				});
+			}
+			return serveGatedReaderAsset(request, env);
 		}
 
 		if (url.pathname.startsWith("/api/")) {
@@ -244,19 +257,157 @@ async function serveStaticDocs(request: Request, env: Env): Promise<Response> {
 	return withNoStore(response);
 }
 
+async function serveGatedReaderAsset(request: Request, env: Env): Promise<Response> {
+	if (!env.ASSETS) {
+		return jsonResponse(503, {
+			error: {
+				code: "frontend_assets_not_ready",
+				message: "Public docs frontend assets are not configured.",
+			},
+		});
+	}
+
+	const gatedTarget = parseGatedReaderTarget(new URL(request.url).pathname);
+	if (!gatedTarget) {
+		return withNoStore(new Response(null, { status: 404 }), { varyAuth: true });
+	}
+
+	const admissionResponse = await checkGatedReaderAdmission({
+		env,
+		request,
+		target: gatedTarget,
+	});
+	if (admissionResponse) {
+		return admissionResponse;
+	}
+
+	const response = await env.ASSETS.fetch(request);
+	if (response.status === 404) {
+		return withNoStore(response, { varyAuth: true });
+	}
+
+	return withNoStore(response, { varyAuth: true });
+}
+
+async function checkGatedReaderAdmission(input: {
+	env: Env;
+	request: Request;
+	target: {
+		collection: string;
+		corpus: string;
+		documentSlug: string;
+		versionSlug: string;
+	};
+}): Promise<Response | null> {
+	if (!(input.env.APP_API && input.env.APP_API_BASE_URL)) {
+		return appApiBridgeNotConfiguredResponse();
+	}
+
+	const admissionUrl = new URL(
+		`/api/docs/collections/${encodeURIComponent(input.target.corpus)}/${encodeURIComponent(
+			input.target.collection,
+		)}/documents/${encodeURIComponent(input.target.documentSlug)}/admission?version=${encodeURIComponent(input.target.versionSlug)}`,
+		input.env.APP_API_BASE_URL,
+	);
+	const headers = new Headers();
+	for (const headerName of ["cookie", "authorization", "x-trace-id"]) {
+		const value = input.request.headers.get(headerName);
+		if (value) {
+			headers.set(headerName, value);
+		}
+	}
+
+	let response: Response;
+	try {
+		response = await input.env.APP_API.fetch(
+			new Request(admissionUrl.toString(), {
+				headers,
+				method: "GET",
+			}),
+		);
+	} catch {
+		return appApiUpstreamUnavailableResponse();
+	}
+
+	if (response.status === 204) {
+		return null;
+	}
+
+	return withNoStore(new Response(null, { status: 404 }), { varyAuth: true });
+}
+
+function parseGatedReaderTarget(pathname: string): {
+	collection: string;
+	corpus: string;
+	documentSlug: string;
+	versionSlug: string;
+} | null {
+	const segments = pathname.split("/").filter(Boolean);
+	if (segments.length < 6 || segments[0] !== "_gated-docs") {
+		return null;
+	}
+	const [, corpus, collection, documentSlug, versionSlug] = segments;
+	if (!(corpus && collection && documentSlug && versionSlug)) {
+		return null;
+	}
+
+	try {
+		return {
+			collection: decodeURIComponent(collection),
+			corpus: decodeURIComponent(corpus),
+			documentSlug: decodeURIComponent(documentSlug),
+			versionSlug: decodeURIComponent(versionSlug),
+		};
+	} catch {
+		return null;
+	}
+}
+
 function isDocsReaderRoute(pathname: string): boolean {
 	return pathname.startsWith("/docs/") && pathname.split("/").filter(Boolean).length >= 4;
 }
 
-function withNoStore(response: Response): Response {
+function withNoStore(response: Response, options?: { varyAuth?: boolean }): Response {
 	const headers = new Headers(response.headers);
 	headers.set("cache-control", "no-store");
+	if (options?.varyAuth) {
+		addVary(headers, "Cookie, Authorization");
+	}
 
 	return new Response(response.body, {
 		headers,
 		status: response.status,
 		statusText: response.statusText,
 	});
+}
+
+function addVary(headers: Headers, value: string): void {
+	const existing = headers.get("vary");
+	if (!existing) {
+		headers.set("vary", value);
+		return;
+	}
+	const normalized = existing
+		.split(",")
+		.map((item) => item.trim().toLowerCase())
+		.filter(Boolean);
+	for (const part of value.split(",")) {
+		const trimmed = part.trim();
+		if (!trimmed) {
+			continue;
+		}
+		if (!normalized.includes(trimmed.toLowerCase())) {
+			normalized.push(trimmed.toLowerCase());
+		}
+	}
+	headers.set(
+		"vary",
+		normalized
+			.map((item) =>
+				item === "cookie" ? "Cookie" : item === "authorization" ? "Authorization" : item,
+			)
+			.join(", "),
+	);
 }
 
 export default worker;

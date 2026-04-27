@@ -192,7 +192,7 @@ canonical doc 的正文交付长期采用：
 - `public-docs` static assets 只是 deploy-time sync 复制品
 - repo tracked `assets/` 目录不承担长期 reader publish truth
 - browser/runtime 不直连对象存储；docs shell 运行时只消费 same-site `/api/docs/*` 与
-  `public-docs` 自己交付的 `/_docs/...` 静态路径
+  `public-docs` 自己交付的 `/_docs/...`、`/_gated-docs/...` 静态路径
 - 对象存储只属于 publish/deploy pipeline 输入，不属于 browser-facing dependency
 
 当前 `apps/public-docs` 的 deploy-time 资产目录为 `doc_build/`，Worker `ASSETS`
@@ -201,14 +201,13 @@ binding 负责交付静态 reader shell / assets；动态 docs control-plane 请
 
 restricted reader 的当前实现约束：
 
-- `public-docs` 不把 `gated_asset` 同步进 `doc_build/_docs/...`
-- 静态 reader route 未命中时，`public-docs` 返回通用 reader fallback shell，不在该层暴露正文或
-  object key
-- fallback shell 继续通过 same-site `/api/docs/*` 调用 `app-api` resolve 与 gated asset
-  endpoint
-- `app-api` 在 gated asset endpoint 内逐请求重做 principal / entitlement 校验，再读取
-  reader asset object bytes
-- gated asset response 默认 `Cache-Control: no-store`，不得使用 presigned URL 作为默认交付路径
+- `public-docs` 会同步 `gated_asset` 到 `doc_build/_gated-docs/...` 静态路径
+- `/_gated-docs/*` 采用 Worker-first：先调用 `app-api`
+  `/api/docs/.../admission`，通过后才读取 `ASSETS`
+- admission 非 204 时必须 fail-close，不返回正文 bytes
+- gated 交付 response 默认 `Cache-Control: no-store` 且 `Vary: Cookie, Authorization`
+- `app-api` 只负责 admission/control-plane，不再承担 gated bytes streaming
+- 不得使用 presigned URL 作为默认交付路径
 
 Cloudflare Workers 当前官方 static assets 路由模型允许：
 

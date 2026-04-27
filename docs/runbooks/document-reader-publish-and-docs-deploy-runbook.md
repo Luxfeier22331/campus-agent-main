@@ -9,8 +9,8 @@ updated: 2026-04-27
 
 ## 用途
 
-这份 runbook 固定公开文档站的 Phase 2 发布链路，并记录 Phase 6 gated reader
-asset staging handoff：
+这份 runbook 固定公开文档站的发布链路，并记录 Phase 6 gated reader
+Worker-first 静态交付：
 
 - `canonical artifacts -> reader-assets`
 - `reader-assets -> app-api docs read model`
@@ -26,7 +26,7 @@ asset staging handoff：
   read-model manifest。
 - `app-api` 负责导入 `docs.*` read model，并导出 public docs sync manifest。
 - `public-docs` 负责在 build/deploy 期间按 manifest 生成 Rspress source，并把
-  object storage reader assets 复制到 `doc_build/_docs/...`。
+  object storage reader assets 复制到 `doc_build/_docs/...` 与 `doc_build/_gated-docs/...`。
 - `public-docs` 不扫描对象存储决定公开文档子集。
 - `sync-real-docs` 是 legacy/manual path；默认 deploy path 必须走 published reader
   assets。
@@ -100,6 +100,7 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 - 执行 generated docs guard
 - 构建 Rspress `doc_build`
 - 按 manifest 复制公开 reader assets 到 `doc_build/_docs/...`
+- 按 manifest 复制受限 reader assets 到 `doc_build/_gated-docs/...`
 - 校验 `asset-manifest.json` 的 size / sha256
 
 ### 5. 部署 staging
@@ -115,41 +116,24 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 pnpm --filter public-docs deploy:verify-config:staging
 ```
 
-### 6. 同步 gated reader assets 到 staging R2
+### 6. 验证 gated static admission
 
-restricted reader 不进入 `public-docs` static bundle。staging 需要把 read-model manifest
-中 `deliveryMode=gated_asset` 的 `sourceObjects` 复制到 `app-api` 的
-`DOCS_READER_ASSETS` binding bucket。
+部署后，用同一登录态访问任意受限路径（`/_gated-docs/...`）：
 
-```bash
-DOCS_READ_MODEL_MANIFEST_PATH=var/docs-read-model-manifest.json \
-DOCS_READER_ASSETS_R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
-DOCS_READER_ASSETS_R2_ACCESS_KEY=<r2-access-key> \
-DOCS_READER_ASSETS_R2_SECRET_KEY=<r2-secret-key> \
-DOCS_READER_ASSETS_R2_BUCKET=campus-agent-reader-assets-staging \
-  pnpm --filter public-docs sync:gated-reader-assets
-```
-
-先做 dry run：
-
-```bash
-DOCS_READ_MODEL_MANIFEST_PATH=var/docs-read-model-manifest.json \
-DOCS_READER_ASSETS_R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
-DOCS_READER_ASSETS_R2_ACCESS_KEY=<r2-access-key> \
-DOCS_READER_ASSETS_R2_SECRET_KEY=<r2-secret-key> \
-DOCS_READER_ASSETS_R2_BUCKET=campus-agent-reader-assets-staging \
-  pnpm --filter public-docs sync:gated-reader-assets -- --dry-run
-```
+- 已授权 principal：应返回正文资产（`200`，`Cache-Control: no-store`）
+- 未授权 principal：应 fail-close（`404`）
+- `public-docs` 只通过 same-site `/api/docs/.../admission` 做校验，不直连对象存储
 
 ## 验收点
 
 - `app-api` 的 `/api/docs/*` 只返回 public current static subset。
 - `/api/docs/*` response 不包含 object storage key、raw provider locator 或
   `chunkId`。
-- `public-docs` build output 包含 Rspress reader pages 与 `/_docs/...` static assets。
-- `gated_asset` 不进入 `doc_build/_docs/...`。
-- restricted reader asset response 只经 same-site `/api/docs/.../assets/:assetKind`
-  返回，且必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
+- `public-docs` build output 包含 Rspress reader pages、`/_docs/...` 与
+  `/_gated-docs/...` static assets。
+- restricted reader asset 只经 `/_gated-docs/...` 返回，且必须在 Worker 内先走
+  same-site `/api/docs/.../admission` 校验后再读取静态资产。
+- gated reader asset response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
 - 缺失 source object、重复 target object、unsafe target path 或 hash/size 不一致时，
   sync 必须失败。
 
