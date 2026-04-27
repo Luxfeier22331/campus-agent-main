@@ -107,3 +107,12 @@ ServiceStatusLookupResult
   `resolved_current`；应返回 `temporarily_unverifiable`，并用
   `historical_downgrade_reason=current_effective_miss` 标识当前有效性缺口
 - 需要 canonical notice 正文或公告发现时，应切到 `notice-agent`
+
+## Observability Summary
+
+- supervisor execution finalizer 必须从 `related_notice_refs` / `override_source_refs`
+  推导 low-cardinality `notice_source_family_summary`，用于 operator/runtime summary。
+- `authenticated_notice:*` 与 `notice:muc_internal_portal:*` 均归入
+  `internal_notice_restricted`。
+- observability summary 只保留 selected tool、business outcome、fail-close reason、
+  temporal posture 与 source family；不得把 raw notice id 当 metrics label 暴露。

@@ -11,7 +11,7 @@ updated: 2026-04-28
 
 - status: `active`
 - current phase: `Phase 1`
-- current slice: `service_status_lookup` precedence / conflict regression follow-up
+- current slice: `service_status_lookup` source trace / observability summary follow-up
 - owner: current Codex session
 - active implementation: yes
 
@@ -44,6 +44,11 @@ Phase 6 已完成 `campus-services-product-path` opening verdict。当前四个�
 - `status_note` 的回答表达继续压测，确保只暴露用户可执行事实，不泄露内部字段
   - 2026-04-27 slice 已补：Python agent 与 app-api browser-facing answer 不再暴露
     `open` / `limited_service` 等内部枚举
+- source trace / observability summary
+  - 2026-04-28 slice 已补：execution finalizer 从 `related_notice_refs` /
+    `override_source_refs` 推导 `notice_source_family_summary`，使 service status 的
+    resolved / fail-close 路径都能给 operator summary 提供安全来源族，不把 raw notice id
+    写入低基数字段
 
 ### `transport_schedule_lookup`
 
@@ -90,8 +95,9 @@ Phase 6 已完成 `campus-services-product-path` opening verdict。当前四个�
 ## Latest Verification (2026-04-28)
 
 - `go test ./internal/structuredquery -run 'TestLookupServiceStatus'`：pass
+- `go test ./internal/httpapi -run 'TestBuildStructuredSupervisorObservabilitySummarizesServiceStatus|TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope'`：pass
 - `uv run --all-packages python -m scripts.eval_gate accept --profile campus-services-product-path --json`：pass；artifact
-  `.tmp/evals/campus-services-product-path-opening-gate-accept-20260428T002247/campus-services-product-path-opening-gate.json`
+  `.tmp/evals/campus-services-product-path-opening-gate-accept-20260428T003002/campus-services-product-path-opening-gate.json`
   - gate `passed=true`
   - `service_status_lookup` / `transport_schedule_lookup` / `service_guide_lookup` /
     `contact_directory_lookup` verdicts all remain `open`

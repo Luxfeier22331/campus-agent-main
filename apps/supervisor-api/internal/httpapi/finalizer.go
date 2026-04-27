@@ -228,23 +228,63 @@ func candidateCountForTool(tool string, result map[string]any) int {
 }
 
 func noticeSourceFamilySummary(result map[string]any) string {
-	if sourceFamily := stringValue(result["source_family"]); sourceFamily != "" {
-		return sourceFamily
-	}
-	families := stringArrayValue(result["source_families"])
-	if len(families) == 0 {
-		for _, rawCard := range arrayValue(result["notice_cards"]) {
-			card, ok := rawCard.(map[string]any)
-			if !ok {
-				continue
+	families := []string{}
+	collectNoticeSourceFamiliesFromValue(result, &families)
+	return joinStrings(families, ",")
+}
+
+func collectNoticeSourceFamiliesFromValue(value any, families *[]string) {
+	switch current := value.(type) {
+	case map[string]any:
+		for key, item := range current {
+			switch key {
+			case "source_family", "sourceFamily":
+				appendNoticeSourceFamily(families, stringValue(item))
+			case "source_families", "sourceFamilies":
+				for _, family := range stringArrayValue(item) {
+					appendNoticeSourceFamily(families, family)
+				}
+			case "source_ref", "sourceRef":
+				appendNoticeSourceFamily(families, noticeSourceFamilyFromRef(stringValue(item)))
+			case "source_refs", "sourceRefs", "related_notice_refs", "relatedNoticeRefs",
+				"override_source_refs", "overrideSourceRefs", "notice_refs", "noticeRefs":
+				for _, ref := range stringArrayValue(item) {
+					appendNoticeSourceFamily(families, noticeSourceFamilyFromRef(ref))
+				}
 			}
-			family := stringValue(card["source_family"])
-			if family != "" && !containsString(families, family) {
-				families = append(families, family)
-			}
+			collectNoticeSourceFamiliesFromValue(item, families)
+		}
+	case []any:
+		for _, item := range current {
+			collectNoticeSourceFamiliesFromValue(item, families)
 		}
 	}
-	return joinStrings(families, ",")
+}
+
+func appendNoticeSourceFamily(families *[]string, family string) {
+	normalized := strings.TrimSpace(family)
+	if normalized == "" || containsString(*families, normalized) {
+		return
+	}
+	*families = append(*families, normalized)
+}
+
+func noticeSourceFamilyFromRef(ref string) string {
+	normalized := strings.ToLower(strings.TrimSpace(ref))
+	switch {
+	case strings.HasPrefix(normalized, "authenticated_notice:"),
+		strings.HasPrefix(normalized, "notice:muc_internal_portal:"),
+		strings.HasPrefix(normalized, "notice:internal_notice_restricted:"):
+		return "internal_notice_restricted"
+	case strings.HasPrefix(normalized, "official_web:"),
+		strings.HasPrefix(normalized, "notice:official_web:"):
+		return "official_web_public_notice"
+	case strings.HasPrefix(normalized, "wechat_public_notice:"),
+		strings.HasPrefix(normalized, "notice:wechat_public_notice:"):
+		return "wechat_public_notice"
+	default:
+		return ""
+	}
 }
 
 func temporalPosture(result map[string]any) string {
