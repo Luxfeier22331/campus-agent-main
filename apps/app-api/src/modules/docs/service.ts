@@ -195,7 +195,7 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 
 			return {
 				document: {
-					canonicalUrl: readerAsset.canonicalUrl,
+					canonicalUrl: buildVersionCanonicalUrl(readerAsset),
 					collection: readerAsset.collection,
 					corpus: readerAsset.corpus,
 					docId: readerAsset.docId,
