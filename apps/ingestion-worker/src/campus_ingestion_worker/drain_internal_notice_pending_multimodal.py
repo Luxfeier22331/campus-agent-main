@@ -4,8 +4,17 @@ import argparse
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
+from pathlib import Path
 
 from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
+from campus_ingestion_core.internal_notice_consumer_admission_gate import (
+    CONSUMER_ADMISSION_GATE_OPERATION_MULTIMODAL_DRAIN,
+    ConsumerAdmissionGateRequest,
+    check_internal_notice_consumer_admission_gate,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    load_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.internal_notice_consumption_admission import (
     build_internal_notice_consumption_admission_store_from_env,
     record_internal_notice_consumption_admission,
@@ -37,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=20)
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--skip-read-model-rebuild", action="store_true")
+    parser.add_argument("--consumer-admission-manifest-path")
     return parser
 
 
@@ -57,6 +67,29 @@ def main(argv: Sequence[str] | None = None) -> None:
     selection_source = selection.selection_source or "projection_pending_scan"
     command_args = dict(selection.command_args)
     command_args["selection_source"] = selection_source
+    if not args.consumer_admission_manifest_path:
+        parser.error(
+            "consumer admission manifest is required before internal notice multimodal drain"
+        )
+    manifest = load_internal_notice_consumer_admission_manifest(
+        Path(args.consumer_admission_manifest_path)
+    )
+    gate_report = check_internal_notice_consumer_admission_gate(
+        manifest=manifest,
+        request=ConsumerAdmissionGateRequest(
+            operation=CONSUMER_ADMISSION_GATE_OPERATION_MULTIMODAL_DRAIN,
+            source_corpus=args.corpus,
+            source_collection=args.collection,
+            selected_notice_ids=selection.notice_ids,
+            scope_write_mode="upsert_selected",
+        ),
+    )
+    if not gate_report.allowed:
+        parser.error(
+            "consumer admission manifest gate blocked multimodal drain: "
+            + ", ".join(gate_report.reason_codes)
+        )
+    command_args["consumer_admission_manifest_path"] = args.consumer_admission_manifest_path
     projection_store = build_notice_consumption_projection_store_from_env()
     admission_store = build_internal_notice_consumption_admission_store_from_env()
     admission_created_at = utc_now()

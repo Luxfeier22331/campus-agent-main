@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: completed
 created: 2026-04-21
-updated: 2026-04-24
+updated: 2026-04-27
 ---
 
 # Roadmap: Notice Consumption Layer
@@ -25,3 +25,4 @@ derived-unit truth，而不是继续直接扫 `internal_notice` source holding c
 - [x] **Phase 6: Projection And Consumer Foundation** — 落地 persistent notice consumption projection store / rebuild path，并让 `internal_notice` regulation/scoped downstream materialization 通过 projection 过滤 ready candidates。
 - [x] **Phase 7: Non-Regulation Derived-Unit Coverage** — 把 `procurement_notice`、publication-like / no-adoption family、future `service_status_override` 等尚未代码化的 derived-unit coverage 显式补齐到 projection truth。
 - [x] **Phase 8: Operator Query And Closeout** — 为 operator/read-model 补查询与审计入口，关闭 “notice 是否已消费、为何 hold/manual/no-adoption” 的观测缺口，并完成这条 implementation line 的 closeout。
+- [x] **Phase 9: Consumer Admission Manifest And Release Gate** — 在 import dry-run / source-truth inventory 与 projection/read-model/materializer 写入之间补齐显式 admission manifest 与 release gate，确保历史或 full-scope materialization 不能绕过 selected ids、target surface 与 reason-code 审计。

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +64,17 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     utc_now,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.internal_notice_consumer_admission_gate import (
+    CONSUMER_ADMISSION_GATE_OPERATION_PROJECTION_REBUILD,
+    CONSUMER_ADMISSION_GATE_OPERATION_READ_MODEL_REBUILD,
+    ConsumerAdmissionGateRequest,
+    admitted_notice_ids_for_target_surface,
+    check_internal_notice_consumer_admission_gate,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    InternalNoticeConsumerAdmissionManifest,
+    load_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NoticeConsumptionProjectionStore,
     rebuild_internal_notice_consumption_projection,
@@ -79,6 +90,10 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+    NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+)
 from campus_ingestion_core.object_store import (
     build_raw_asset_key,
     build_source_provider_artifact_key,
@@ -117,6 +132,7 @@ class AuthenticatedNoticeImportRequest:
     export_manifest_path: Path | None
     site_id: str
     source_home_url: str
+    consumer_admission_manifest_path: Path | None = None
     attachment_blob_root: Path | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
@@ -132,6 +148,12 @@ class AuthenticatedNoticeImportRequest:
         object.__setattr__(self, "bundle_path", Path(self.bundle_path))
         if self.export_manifest_path is not None:
             object.__setattr__(self, "export_manifest_path", Path(self.export_manifest_path))
+        if self.consumer_admission_manifest_path is not None:
+            object.__setattr__(
+                self,
+                "consumer_admission_manifest_path",
+                Path(self.consumer_admission_manifest_path),
+            )
         if self.attachment_blob_root is not None:
             object.__setattr__(self, "attachment_blob_root", Path(self.attachment_blob_root))
         object.__setattr__(
@@ -258,6 +280,7 @@ def import_authenticated_notice_export(
         consumption_projection_enabled=consumption_projection_store is not None
         or _env_has_consumption_projection_config(source),
         read_model_enabled=read_model_store is not None or _env_has_read_model_config(source),
+        consumer_admission_manifest_supplied=request.consumer_admission_manifest_path is not None,
     )
     if request.mode == AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN:
         return dry_run_report
@@ -379,15 +402,31 @@ def import_authenticated_notice_export(
     projection_store = consumption_projection_store
     if projection_store is None:
         projection_store = _build_consumption_projection_store_from_env_if_configured(source)
+    consumer_admission_manifest = _load_consumer_admission_manifest_if_needed(
+        request=request,
+        projection_store=projection_store,
+        read_model_store=read_model_store,
+        source=source,
+    )
+    prepared_consumer_notice_ids = tuple(
+        notice_import.notice_id for notice_import in prepared.notice_imports
+    )
+    consumer_projection_notice_ids = prepared_consumer_notice_ids
+    consumer_projection_gate_report: dict[str, Any] | None = None
+    if projection_store is not None:
+        consumer_projection_gate_report = _assert_consumer_admission_gate_allows_projection(
+            manifest=consumer_admission_manifest,
+            request=request,
+            selected_notice_ids=prepared_consumer_notice_ids,
+            replace_scope=replace_scope,
+        )
     projection_entries = ()
     if inventory_store is not None and projection_store is not None:
         projection_entries = rebuild_internal_notice_consumption_projection(
             request=InternalNoticeRegulationPromotionRequest(
                 corpus=request.corpus,
                 collection=request.collection,
-                notice_ids=tuple(
-                    notice_import.notice_id for notice_import in prepared.notice_imports
-                ),
+                notice_ids=consumer_projection_notice_ids,
             ),
             env=source,
             registry=registry,
@@ -398,16 +437,40 @@ def import_authenticated_notice_export(
     runtime_read_model_store = read_model_store
     if projection_store is not None and runtime_read_model_store is None:
         runtime_read_model_store = _build_read_model_store_from_env_if_configured(source)
+    read_model_admitted_notice_ids = (
+        admitted_notice_ids_for_target_surface(
+            consumer_admission_manifest,
+            target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        )
+        if consumer_admission_manifest is not None
+        else prepared_consumer_notice_ids
+    )
+    read_model_admitted_notice_id_set = set(read_model_admitted_notice_ids)
+    read_model_notice_ids = tuple(
+        notice_id
+        for notice_id in prepared_consumer_notice_ids
+        if notice_id in read_model_admitted_notice_id_set
+    )
+    consumer_read_model_gate_report: dict[str, Any] | None = None
+    if runtime_read_model_store is not None and read_model_notice_ids:
+        consumer_read_model_gate_report = _assert_consumer_admission_gate_allows_read_model(
+            manifest=consumer_admission_manifest,
+            request=request,
+            selected_notice_ids=read_model_notice_ids,
+            replace_scope=replace_scope,
+        )
     read_model_entries = ()
     if (
         inventory_store is not None
         and projection_store is not None
         and runtime_read_model_store is not None
+        and read_model_notice_ids
     ):
         read_model_entries = rebuild_internal_notice_read_model(
             source_corpus=request.corpus,
             source_collection=request.collection,
-            notice_ids=tuple(notice_import.notice_id for notice_import in prepared.notice_imports),
+            notice_ids=read_model_notice_ids,
             env=source,
             projection_store=projection_store,
             read_model_store=runtime_read_model_store,
@@ -434,6 +497,10 @@ def import_authenticated_notice_export(
         result["consumption_projection_entry_count"] = len(projection_entries)
     if runtime_read_model_store is not None:
         result["internal_notice_read_model_entry_count"] = len(read_model_entries)
+    if consumer_projection_gate_report is not None:
+        result["consumer_admission_projection_gate"] = consumer_projection_gate_report
+    if consumer_read_model_gate_report is not None:
+        result["consumer_admission_read_model_gate"] = consumer_read_model_gate_report
     if attachment_object_backfill_summary is not None:
         result["attachment_object_backfill"] = attachment_object_backfill_summary
     if fetch_status_store is not None:
@@ -447,6 +514,80 @@ def import_authenticated_notice_export(
         fetch_status_store.upsert_many(fetch_status_records)
         result["attachment_fetch_status_record_count"] = len(fetch_status_records)
     return result
+
+
+def _load_consumer_admission_manifest_if_needed(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+    projection_store: NoticeConsumptionProjectionStore | None,
+    read_model_store: InternalNoticeReadModelStore | None,
+    source: dict[str, str],
+) -> InternalNoticeConsumerAdmissionManifest | None:
+    downstream_write_requested = (
+        projection_store is not None
+        or read_model_store is not None
+        or _env_has_read_model_config(source)
+    )
+    if not downstream_write_requested:
+        return None
+    if request.consumer_admission_manifest_path is None:
+        raise ValueError(
+            "consumer admission manifest is required before authenticated notice "
+            "projection/read-model materialization"
+        )
+    return load_internal_notice_consumer_admission_manifest(
+        request.consumer_admission_manifest_path
+    )
+
+
+def _assert_consumer_admission_gate_allows_projection(
+    *,
+    manifest: InternalNoticeConsumerAdmissionManifest | None,
+    request: AuthenticatedNoticeImportRequest,
+    selected_notice_ids: tuple[str, ...],
+    replace_scope: bool,
+) -> dict[str, Any]:
+    report = check_internal_notice_consumer_admission_gate(
+        manifest=manifest,
+        request=ConsumerAdmissionGateRequest(
+            operation=CONSUMER_ADMISSION_GATE_OPERATION_PROJECTION_REBUILD,
+            source_corpus=request.corpus,
+            source_collection=request.collection,
+            selected_notice_ids=selected_notice_ids,
+            scope_write_mode="replace_scope" if replace_scope else "upsert_selected",
+        ),
+    )
+    if not report.allowed:
+        raise ValueError(
+            "consumer admission manifest gate blocked projection materialization: "
+            + ", ".join(report.reason_codes)
+        )
+    return asdict(report)
+
+
+def _assert_consumer_admission_gate_allows_read_model(
+    *,
+    manifest: InternalNoticeConsumerAdmissionManifest | None,
+    request: AuthenticatedNoticeImportRequest,
+    selected_notice_ids: tuple[str, ...],
+    replace_scope: bool,
+) -> dict[str, Any]:
+    report = check_internal_notice_consumer_admission_gate(
+        manifest=manifest,
+        request=ConsumerAdmissionGateRequest(
+            operation=CONSUMER_ADMISSION_GATE_OPERATION_READ_MODEL_REBUILD,
+            source_corpus=request.corpus,
+            source_collection=request.collection,
+            selected_notice_ids=selected_notice_ids,
+            scope_write_mode="replace_scope" if replace_scope else "upsert_selected",
+        ),
+    )
+    if not report.allowed:
+        raise ValueError(
+            "consumer admission manifest gate blocked read-model materialization: "
+            + ", ".join(report.reason_codes)
+        )
+    return asdict(report)
 
 
 def _normalize_import_mode(mode: str) -> str:
@@ -480,6 +621,7 @@ def _build_authenticated_notice_import_admission_report(
     attachment_fetch_status_enabled: bool,
     consumption_projection_enabled: bool,
     read_model_enabled: bool,
+    consumer_admission_manifest_supplied: bool = False,
 ) -> dict[str, Any]:
     attachment_ref_count = 0
     reference_only_attachment_ref_count = 0
@@ -531,6 +673,7 @@ def _build_authenticated_notice_import_admission_report(
         "attachment_fetch_status_rows": attachment_fetch_status_rows,
         "consumption_projection_rebuild": consumption_projection_enabled,
         "internal_notice_read_model_rebuild": read_model_enabled,
+        "consumer_admission_manifest_supplied": consumer_admission_manifest_supplied,
     }
     admission_report = {
         "notice_count": prepared.notice_count,
@@ -542,6 +685,7 @@ def _build_authenticated_notice_import_admission_report(
         "reference_only_attachment_ref_count": reference_only_attachment_ref_count,
         "notices_with_attachments": notices_with_attachments,
         "empty_body_notice_count": empty_body_notice_count,
+        "consumer_admission_manifest_supplied": consumer_admission_manifest_supplied,
     }
     return {
         "mode": request.mode,

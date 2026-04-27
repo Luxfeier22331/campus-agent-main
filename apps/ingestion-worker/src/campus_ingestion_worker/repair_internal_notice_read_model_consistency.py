@@ -4,8 +4,17 @@ import argparse
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
+from pathlib import Path
 
 from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
+from campus_ingestion_core.internal_notice_consumer_admission_gate import (
+    CONSUMER_ADMISSION_GATE_OPERATION_READ_MODEL_REBUILD,
+    ConsumerAdmissionGateRequest,
+    check_internal_notice_consumer_admission_gate,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    load_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.internal_notice_consumption_admission import (
     build_internal_notice_consumption_admission_store_from_env,
     record_internal_notice_consumption_admission,
@@ -28,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", default="internal_notice")
     parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
     parser.add_argument("--selection-path")
+    parser.add_argument("--consumer-admission-manifest-path")
     return parser
 
 
@@ -44,6 +54,32 @@ def main(argv: Sequence[str] | None = None) -> None:
             "refusing implicit full-scope read model repair; pass --notice-id "
             "or --selection-path for notices selected by the consumer layer"
         )
+    if not args.consumer_admission_manifest_path:
+        parser.error(
+            "consumer admission manifest is required before internal notice read model repair"
+        )
+    manifest = load_internal_notice_consumer_admission_manifest(
+        Path(args.consumer_admission_manifest_path)
+    )
+    gate_report = check_internal_notice_consumer_admission_gate(
+        manifest=manifest,
+        request=ConsumerAdmissionGateRequest(
+            operation=CONSUMER_ADMISSION_GATE_OPERATION_READ_MODEL_REBUILD,
+            source_corpus=args.corpus,
+            source_collection=args.collection,
+            selected_notice_ids=selection.notice_ids,
+            scope_write_mode="upsert_selected",
+        ),
+    )
+    if not gate_report.allowed:
+        parser.error(
+            "consumer admission manifest gate blocked read model repair: "
+            + ", ".join(gate_report.reason_codes)
+        )
+    command_args = {
+        **selection.command_args,
+        "consumer_admission_manifest_path": args.consumer_admission_manifest_path,
+    }
     admission_store = build_internal_notice_consumption_admission_store_from_env()
     admission_created_at = utc_now()
     batch_id = record_internal_notice_consumption_admission(
@@ -56,7 +92,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         selection_source=selection.selection_source,
         selection_path=selection.selection_path,
         selection_sha256=selection.selection_sha256,
-        command_args=selection.command_args,
+        command_args=command_args,
         store=admission_store,
     )
     try:
@@ -78,7 +114,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             selection_source=selection.selection_source,
             selection_path=selection.selection_path,
             selection_sha256=selection.selection_sha256,
-            command_args=selection.command_args,
+            command_args=command_args,
             store=admission_store,
         )
         raise
@@ -95,7 +131,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         selection_source=selection.selection_source,
         selection_path=selection.selection_path,
         selection_sha256=selection.selection_sha256,
-        command_args=selection.command_args,
+        command_args=command_args,
         store=admission_store,
     )
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

@@ -45,7 +45,30 @@ EXPECTED_SEARCH_TEXT_MAX_CHARS = 2_000
 
 
 class InternalNoticeReadModelTest(unittest.TestCase):
-    def test_build_entries_materializes_queryable_notice_and_procurement_rows(self) -> None:
+    def test_build_entries_excludes_non_notice_level_consumer_surfaces(self) -> None:
+        registry, object_store, projection_entries = _runtime()
+
+        rows = build_internal_notice_read_model_entries(
+            projection_entries,
+            registry=registry,
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            {row.target_surface for row in rows},
+            {NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY},
+        )
+        self.assertNotIn(
+            "notice_unit:355222:procurement_notice",
+            {row.unit_id for row in rows},
+        )
+        self.assertNotIn(
+            "notice_unit:355111:service_status_override",
+            {row.unit_id for row in rows},
+        )
+
+    def test_build_entries_materializes_queryable_notice_level_rows(self) -> None:
         registry, object_store, projection_entries = _runtime()
 
         rows = build_internal_notice_read_model_entries(
@@ -64,38 +87,23 @@ class InternalNoticeReadModelTest(unittest.TestCase):
             },
             {
                 NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-                NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
-                NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
             },
         )
-        procurement = next(
-            row for row in rows if row.primary_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
+        notice_row = next(
+            row for row in rows if row.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
         )
-        self.assertTrue(procurement.queryable)
-        self.assertEqual(procurement.title, "中央民族大学丰台校区家具采购项目比选公告")
+        self.assertTrue(notice_row.queryable)
+        self.assertEqual(notice_row.title, "中央民族大学丰台校区家具采购项目比选公告")
         self.assertEqual(
-            procurement.canonical_markdown_object_key,
+            notice_row.canonical_markdown_object_key,
             "campus_notices/documents/internal_notice/355222/canonical.md",
         )
-        self.assertIn("家具采购项目", procurement.search_text)
-        self.assertIn("投标", procurement.search_text)
+        self.assertIn("家具采购项目", notice_row.search_text)
+        self.assertIn("投标", notice_row.search_text)
         self.assertEqual(
-            procurement.body_excerpt,
+            notice_row.body_excerpt,
             "# 中央民族大学丰台校区家具采购项目比选公告\n\n供应商应按要求投标。",
         )
-
-        roster = next(
-            row for row in rows if row.primary_role == NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
-        )
-        self.assertFalse(roster.queryable)
-        self.assertEqual(roster.target_surface, NOTICE_TARGET_SURFACE_UNSUPPORTED)
-
-        pending_multimodal = next(
-            row
-            for row in rows
-            if row.target_surface == NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE
-        )
-        self.assertFalse(pending_multimodal.queryable)
 
     def test_build_entries_keeps_full_body_out_of_read_model_storage(self) -> None:
         registry, object_store, projection_entries = _runtime()
@@ -114,20 +122,20 @@ class InternalNoticeReadModelTest(unittest.TestCase):
             object_store=object_store,
             bucket_derived="campus-rag-derived",
         )
-        procurement = next(
-            row for row in rows if row.primary_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
+        notice_row = next(
+            row for row in rows if row.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
         )
 
         self.assertLessEqual(
-            len(procurement.body_excerpt),
+            len(notice_row.body_excerpt),
             EXPECTED_BODY_EXCERPT_MAX_CHARS,
         )
         self.assertLessEqual(
-            len(procurement.search_text),
+            len(notice_row.search_text),
             EXPECTED_SEARCH_TEXT_MAX_CHARS,
         )
-        self.assertNotIn(long_tail, procurement.body_excerpt)
-        self.assertNotIn(long_tail, procurement.search_text)
+        self.assertNotIn(long_tail, notice_row.body_excerpt)
+        self.assertNotIn(long_tail, notice_row.search_text)
 
     def test_build_entries_indexes_multimodal_processing_summary(self) -> None:
         registry, object_store, projection_entries = _runtime()
@@ -236,15 +244,9 @@ class InternalNoticeReadModelTest(unittest.TestCase):
 
         self.assertFalse(report.ok)
         self.assertEqual(report.projection_entry_count, 5)
-        self.assertEqual(report.projection_queryable_count, 3)
+        self.assertEqual(report.projection_queryable_count, 1)
         self.assertEqual(report.read_model_entry_count, 2)
-        self.assertEqual(
-            report.missing_queryable_projection_unit_ids,
-            (
-                "notice_unit:355111:service_status_override",
-                "notice_unit:355222:procurement_notice",
-            ),
-        )
+        self.assertEqual(report.missing_queryable_projection_unit_ids, ())
         self.assertEqual(report.extra_read_model_unit_ids, ("orphan-unit",))
 
     def test_repair_read_model_consistency_replaces_selected_notice_rows(self) -> None:
@@ -271,7 +273,7 @@ class InternalNoticeReadModelTest(unittest.TestCase):
 
         self.assertFalse(report.before.ok)
         self.assertTrue(report.after.ok)
-        self.assertEqual(report.rebuilt_count, 2)
+        self.assertEqual(report.rebuilt_count, 1)
         stored_355222 = read_model_store.list_by_scope(
             "campus_notices",
             "internal_notice",
@@ -279,10 +281,7 @@ class InternalNoticeReadModelTest(unittest.TestCase):
         )
         self.assertEqual(
             {row.unit_id for row in stored_355222},
-            {
-                "notice_unit:355222:notice_window",
-                "notice_unit:355222:procurement_notice",
-            },
+            {"notice_unit:355222:notice_window"},
         )
         self.assertEqual(
             {

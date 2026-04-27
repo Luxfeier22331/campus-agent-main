@@ -29,6 +29,8 @@ class ImportAuthenticatedNoticeExportWorkerCliTest(unittest.TestCase):
                     "/tmp/notices-bundle.json",
                     "--manifest-path",
                     "/tmp/export-manifest.json",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission-manifest.json",
                     "--attachment-blob-root",
                     "/tmp/blob-store",
                     "--site-id",
@@ -45,6 +47,10 @@ class ImportAuthenticatedNoticeExportWorkerCliTest(unittest.TestCase):
         request = run_import.call_args.kwargs["request"]
         self.assertEqual(str(request.bundle_path), "/tmp/notices-bundle.json")
         self.assertEqual(str(request.export_manifest_path), "/tmp/export-manifest.json")
+        self.assertEqual(
+            str(request.consumer_admission_manifest_path),
+            "/tmp/consumer-admission-manifest.json",
+        )
         self.assertEqual(str(request.attachment_blob_root), "/tmp/blob-store")
         self.assertEqual(request.site_id, "muc_internal_portal")
         self.assertEqual(request.source_home_url, "https://portal.example.edu/home")

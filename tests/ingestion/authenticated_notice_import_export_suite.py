@@ -2,12 +2,22 @@ from __future__ import annotations
 
 import copy
 import unittest
+from pathlib import Path
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
     FETCH_STATUS_COLLECTED_INTERNAL,
     FETCH_STATUS_TERMINAL_UNAVAILABLE,
     TERMINAL_REASON_HTTP_404,
     InMemoryAuthenticatedNoticeAttachmentFetchStatusStore,
+)
+from campus_ingestion_core.authenticated_notice_notice_family import (
+    load_authenticated_notice_notice_family_config,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_builder import (
+    build_internal_notice_consumer_admission_manifest_from_bundle_records,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    write_internal_notice_consumer_admission_manifest,
 )
 from campus_ingestion_core.internal_notice_read_model import InMemoryInternalNoticeReadModelStore
 from campus_ingestion_core.notice_consumption_projection import (
@@ -387,8 +397,14 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
             root = Path(temp_dir)
             bundle_path = root / "notices-bundle.json"
             manifest_path = root / "export-manifest.json"
+            consumer_manifest_path = root / "consumer-admission-manifest.json"
             _write_json(bundle_path, _sample_notice_bundle())
             _write_json(manifest_path, _sample_export_manifest())
+            _write_consumer_manifest(
+                consumer_manifest_path,
+                bundle_records=_sample_notice_bundle(),
+                selection_path=str(bundle_path),
+            )
 
             object_store = _FakeObjectStore()
             document_registry = InMemoryDocumentRegistry(
@@ -409,6 +425,7 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
+                    consumer_admission_manifest_path=consumer_manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="admit_and_materialize",
@@ -430,7 +447,86 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
         )
         self.assertIn(NOTICE_PRIMARY_ROLE_NOTICE_WINDOW, {entry.primary_role for entry in entries})
 
-    def test_import_authenticated_notice_export_can_rebuild_read_model_for_imported_notices(
+    def test_import_authenticated_notice_export_does_not_expand_projection_scope_to_manifest(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first_bundle_path = root / "notices-bundle-first.json"
+            second_bundle_path = root / "notices-bundle-second.json"
+            first_manifest_path = root / "export-manifest-first.json"
+            second_manifest_path = root / "export-manifest-second.json"
+            consumer_manifest_path = root / "consumer-admission-manifest.json"
+            first_bundle = _sample_notice_bundle()
+            second_bundle = _sample_notice_bundle_with_id(
+                355120,
+                title="第二条类型补宽通知",
+                content="<p>第二条类型补宽通知正文</p>",
+            )
+            _write_json(first_bundle_path, first_bundle)
+            _write_json(second_bundle_path, second_bundle)
+            _write_json(first_manifest_path, _sample_export_manifest())
+            _write_json(second_manifest_path, _sample_export_manifest())
+            _write_consumer_manifest(
+                consumer_manifest_path,
+                bundle_records=first_bundle + second_bundle,
+                selection_path=str(root / "broad-selection.json"),
+            )
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            projection_store = InMemoryNoticeConsumptionProjectionStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+            shared_kwargs = {
+                "env": env,
+                "object_store": object_store,
+                "document_registry": document_registry,
+                "raw_asset_registry": raw_asset_registry,
+                "source_truth_inventory_store": inventory_store,
+            }
+            for bundle_path, manifest_path in (
+                (first_bundle_path, first_manifest_path),
+                (second_bundle_path, second_manifest_path),
+            ):
+                import_authenticated_notice_export(
+                    request=AuthenticatedNoticeImportRequest(
+                        bundle_path=bundle_path,
+                        export_manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/home",
+                        mode="admit_and_materialize",
+                    ),
+                    **shared_kwargs,
+                )
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=first_bundle_path,
+                    export_manifest_path=first_manifest_path,
+                    consumer_admission_manifest_path=consumer_manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    mode="admit_and_materialize",
+                ),
+                consumption_projection_store=projection_store,
+                **shared_kwargs,
+            )
+
+        self.assertEqual(report["errors"], [])
+        entries = projection_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual({entry.source_notice_id for entry in entries}, {"355119"})
+
+    def test_import_authenticated_notice_export_requires_consumer_manifest_for_projection_writes(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -439,6 +535,54 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
             manifest_path = root / "export-manifest.json"
             _write_json(bundle_path, _sample_notice_bundle())
             _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            projection_store = InMemoryNoticeConsumptionProjectionStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            with self.assertRaisesRegex(ValueError, "consumer admission manifest"):
+                import_authenticated_notice_export(
+                    request=AuthenticatedNoticeImportRequest(
+                        bundle_path=bundle_path,
+                        export_manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/home",
+                        mode="admit_and_materialize",
+                    ),
+                    env=env,
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    source_truth_inventory_store=inventory_store,
+                    consumption_projection_store=projection_store,
+                )
+
+    def test_import_authenticated_notice_export_can_rebuild_read_model_for_imported_notices(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            consumer_manifest_path = root / "consumer-admission-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, _sample_export_manifest())
+            _write_consumer_manifest(
+                consumer_manifest_path,
+                bundle_records=_sample_notice_bundle(),
+                selection_path=str(bundle_path),
+            )
 
             object_store = _FakeObjectStore()
             document_registry = InMemoryDocumentRegistry(
@@ -460,6 +604,7 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
                     export_manifest_path=manifest_path,
+                    consumer_admission_manifest_path=consumer_manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                     mode="admit_and_materialize",
@@ -701,3 +846,49 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
         entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].attachment_document_count, 0)
+
+
+def _write_consumer_manifest(
+    path: Path,
+    *,
+    bundle_records: list[dict[str, object]],
+    selection_path: str,
+) -> None:
+    config = load_authenticated_notice_notice_family_config(
+        Path(
+            "configs/ingestion/campus_notices/internal_notice/notice-family-classification.v1.json"
+        )
+    )
+    manifest = build_internal_notice_consumer_admission_manifest_from_bundle_records(
+        bundle_records=bundle_records,
+        config=config,
+        admission_run_id="consumer-admission-test",
+        selection_source="bundle_dry_run",
+        selection_path=selection_path,
+        site_id="muc_internal_portal",
+        created_at="2026-04-27T00:00:00+00:00",
+    )
+    write_internal_notice_consumer_admission_manifest(path, manifest)
+
+
+def _sample_notice_bundle_with_id(
+    notice_id: int,
+    *,
+    title: str,
+    content: str,
+) -> list[dict[str, object]]:
+    bundle = copy.deepcopy(_sample_notice_bundle())
+    bundle[0]["notice_id"] = notice_id
+    notice = bundle[0]["notice"]
+    if isinstance(notice, dict):
+        notice["notice_id"] = notice_id
+        notice["notice_title"] = title
+        notice["notice_content"] = content
+        for category in notice.get("categories") or ():
+            if isinstance(category, dict):
+                category["notice_id"] = notice_id
+    for relation_key in ("links", "notice_attachments"):
+        for relation in bundle[0].get(relation_key) or ():
+            if isinstance(relation, dict):
+                relation["notice_id"] = notice_id
+    return bundle

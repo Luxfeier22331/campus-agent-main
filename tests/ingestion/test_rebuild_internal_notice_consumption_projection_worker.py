@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from hashlib import sha256
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from campus_ingestion_core.notice_consumption_projection import (
@@ -78,6 +79,14 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                 "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.build_internal_notice_consumption_admission_store_from_env",
                 return_value=admission_store,
             ) as build_admission_store,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             worker.main(
@@ -86,6 +95,8 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                     "351907",
                     "--promotion-routing-path",
                     "/tmp/promotion-routing.v1.json",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
                 ]
             )
 
@@ -129,6 +140,23 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
             payload["consumption_status_counts"],
         )
 
+    def test_main_requires_consumer_admission_manifest_for_selected_projection(
+        self,
+    ) -> None:
+        with (
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.rebuild_internal_notice_consumption_projection"
+            ) as rebuild,
+            patch("sys.stderr", new_callable=io.StringIO),
+            self.assertRaises(SystemExit),
+        ):
+            worker.main(["--notice-id", "351907"])
+
+        rebuild.assert_not_called()
+
     def test_main_reports_pending_multimodal_processing_without_manual_review_count(
         self,
     ) -> None:
@@ -157,9 +185,24 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                 "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
                 side_effect=("batch-projection-001", "batch-projection-001"),
             ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            worker.main(["--notice-id", "351907"])
+            worker.main(
+                [
+                    "--notice-id",
+                    "351907",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
+                ]
+            )
 
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["pending_multimodal_processing_count"], 1)
@@ -197,6 +240,14 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                     "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
                     side_effect=("batch-projection-001", "batch-projection-001"),
                 ) as record_admission,
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.load_internal_notice_consumer_admission_manifest",
+                    return_value=object(),
+                ),
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.check_internal_notice_consumer_admission_gate",
+                    return_value=SimpleNamespace(allowed=True, reason_codes=()),
+                ),
                 patch("sys.stdout", new_callable=io.StringIO),
             ):
                 worker.main(
@@ -205,6 +256,8 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                         "355222",
                         "--selection-path",
                         str(selection_path),
+                        "--consumer-admission-manifest-path",
+                        "/tmp/consumer-admission.json",
                     ]
                 )
 

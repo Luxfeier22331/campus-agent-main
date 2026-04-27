@@ -251,6 +251,64 @@ gate 通过只表示本批可以进入对应 offline write target，不表示：
 - typed campus-services runtime 已经完成
 - index release / alias publish 已经完成
 
+### Consumer Admission Operator Sequence
+
+下游 consumer materialization 的安全顺序固定为：
+
+1. 先运行 authenticated notice import dry-run / plan，确认 bundle 与写入计划：
+
+   ```bash
+   uv run --all-packages python \
+     -m campus_ingestion_worker.import_authenticated_notice_export \
+     --bundle-path <notices-bundle.json> \
+     --manifest-path <export-manifest.json> \
+     --site-id muc_internal_portal \
+     --source-home-url <portal-home-url> \
+     --mode plan
+   ```
+
+2. 从 dry-run bundle 或已选择的 source-truth inventory 生成 consumer admission
+   manifest：
+
+   ```bash
+   m=campus_ingestion_worker.build_internal_notice_consumer_admission_manifest
+   uv run --all-packages python -m "$m" \
+     --bundle-path <notices-bundle.json> \
+     --output-path <consumer-admission-manifest.json> \
+     --admission-run-id <consumer-admission-run-id> \
+     --selection-path <notices-bundle.json> \
+     --site-id muc_internal_portal
+   ```
+
+3. 在任何 read-model、projection、typed candidate 或 multimodal 写入前，单独跑
+   release gate；如果 verdict 为 `block`，命令必须非零退出：
+
+   ```bash
+   uv run --all-packages python \
+     -m campus_ingestion_worker.check_internal_notice_consumer_admission_gate \
+     --manifest-path <consumer-admission-manifest.json> \
+     --operation projection-rebuild
+   ```
+
+4. 只有 gate 通过后，才允许 bounded materialization。import 路径必须显式携带
+   consumer manifest。manifest 只负责证明当前 bundle / selection 已获准进入下游，
+   不得把本次 bundle / selection 之外的 notice id 扩张进写入范围：
+
+   ```bash
+   uv run --all-packages python \
+     -m campus_ingestion_worker.import_authenticated_notice_export \
+     --bundle-path <notices-bundle.json> \
+     --manifest-path <export-manifest.json> \
+     --consumer-admission-manifest-path <consumer-admission-manifest.json> \
+     --site-id muc_internal_portal \
+     --source-home-url <portal-home-url> \
+     --mode admit-and-materialize
+   ```
+
+projection / read-model / repair / multimodal drain 的 operator CLI 也必须携带
+`--consumer-admission-manifest-path`。缺少 manifest 时 fail closed；manifest 之外的
+notice id 不得通过重新扫描 source-truth inventory 扩张 downstream scope。
+
 ## Related Docs
 
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`

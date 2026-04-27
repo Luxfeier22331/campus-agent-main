@@ -4,6 +4,7 @@ import importlib
 import io
 import json
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_multimodal_processing import (
@@ -65,12 +66,31 @@ class DrainInternalNoticePendingMultimodalWorkerCliTest(unittest.TestCase):
             ) as record_admission,
             patch(
                 "campus_ingestion_worker.drain_internal_notice_pending_multimodal."
+                "load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.drain_internal_notice_pending_multimodal."
+                "check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
+            patch(
+                "campus_ingestion_worker.drain_internal_notice_pending_multimodal."
                 "rebuild_internal_notice_read_model",
                 return_value=(),
             ) as rebuild_read_model,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            worker.main(["--limit", "10", "--batch-size", "5"])
+            worker.main(
+                [
+                    "--limit",
+                    "10",
+                    "--batch-size",
+                    "5",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
+                ]
+            )
 
         build_projection_store.assert_called_once()
         self.assertIs(drain.call_args.kwargs["projection_store"], projection_store)

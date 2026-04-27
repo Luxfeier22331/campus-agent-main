@@ -19,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Import authenticated notice bootstrap exports")
     parser.add_argument("--bundle-path", required=True)
     parser.add_argument("--manifest-path")
+    parser.add_argument("--consumer-admission-manifest-path")
     parser.add_argument("--attachment-blob-root")
     parser.add_argument("--site-id", required=True)
     parser.add_argument("--source-home-url", required=True)
@@ -52,6 +53,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     request = AuthenticatedNoticeImportRequest(
         bundle_path=Path(args.bundle_path),
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
+        consumer_admission_manifest_path=(
+            Path(args.consumer_admission_manifest_path)
+            if args.consumer_admission_manifest_path
+            else None
+        ),
         attachment_blob_root=(
             Path(args.attachment_blob_root) if args.attachment_blob_root else None
         ),

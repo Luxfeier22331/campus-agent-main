@@ -1,7 +1,7 @@
 ---
 workstream: notice-consumption-layer
 created: 2026-04-21
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Project State
@@ -9,14 +9,21 @@ updated: 2026-04-26
 ## Current Position
 
 **Status:** Completed
-**Current Phase:** Closeout
-**Current Phase Name:** Operator Query And Closeout
-**Current Plan:** `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/PLAN.md`
-**Total Phases:** 8
+**Current Phase:** Phase 9
+**Current Phase Name:** Consumer Admission Manifest And Release Gate
+**Current Plan:** `.planning/workstreams/notice-consumption-layer/phases/phase-9-consumer-admission-manifest-and-release-gate/PLAN.md`
+**Total Phases:** 9
 **Total Plans in Phase:** 1
-**Progress:** 8/8 phases complete
-**Last Activity:** 2026-04-26
-**Last Activity Description:** Added consumption-layer multimodal token-spend
+**Progress:** 9/9 phases complete
+**Last Activity:** 2026-04-27
+**Last Activity Description:** Reopened notice-consumption-layer for authenticated
+notice consumer admission. Phase 9 implemented a repo-owned consumer admission
+manifest, deterministic builder, release gate, import integration, worker CLIs,
+read-model target-surface guard, and downstream worker gate requirements. The
+implementation explicitly excludes historical backfill, live portal collection,
+runtime query-serving opening, and real PG/object-store smoke.
+
+Previous closeout activity: Added consumption-layer multimodal token-spend
 policy: source-truth `multimodal_processing_required` remains capture truth, but
 projection now splits action-required multimodal work from low-value ephemeral
 event poster skips. Skipped lecture/activity/workshop inline-image posters stay
@@ -81,6 +88,9 @@ create selected consumer admission.
 - completed `Phase 8` artifacts:
   - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/PLAN.md`
   - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/SUMMARY.md`
+- planned `Phase 9` artifacts:
+  - context: `.planning/workstreams/notice-consumption-layer/phases/phase-9-consumer-admission-manifest-and-release-gate/CONTEXT.md`
+  - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-9-consumer-admission-manifest-and-release-gate/PLAN.md`
 
 - preserved modeling truth:
   - `source_notice -> notice_attachment -> derived consumption unit` fan-out

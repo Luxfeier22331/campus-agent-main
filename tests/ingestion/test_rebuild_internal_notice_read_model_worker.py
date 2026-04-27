@@ -29,6 +29,19 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
 
         rebuild.assert_not_called()
 
+    def test_main_requires_consumer_admission_manifest_for_selected_rebuild(self) -> None:
+        with (
+            patch("campus_ingestion_worker.rebuild_internal_notice_read_model.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.rebuild_internal_notice_read_model"
+            ) as rebuild,
+            patch("sys.stderr", new_callable=io.StringIO),
+            self.assertRaises(SystemExit),
+        ):
+            worker.main(["--notice-id", "355222"])
+
+        rebuild.assert_not_called()
+
     def test_main_rebuilds_read_model_for_selected_notice_ids(self) -> None:
         rows = (
             InternalNoticeReadModelEntry(
@@ -69,9 +82,24 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
                 side_effect=("batch-read-model-001", "batch-read-model-001"),
                 create=True,
             ) as record_admission,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            worker.main(["--notice-id", "355222"])
+            worker.main(
+                [
+                    "--notice-id",
+                    "355222",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
+                ]
+            )
 
         self.assertEqual(rebuild.call_args.kwargs["notice_ids"], ("355222",))
         build_admission_store.assert_called_once()
@@ -121,6 +149,14 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
                     side_effect=("batch-read-model-001", "batch-read-model-001"),
                     create=True,
                 ) as record_admission,
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_read_model.load_internal_notice_consumer_admission_manifest",
+                    return_value=object(),
+                ),
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_read_model.check_internal_notice_consumer_admission_gate",
+                    return_value=SimpleNamespace(allowed=True, reason_codes=()),
+                ),
                 patch("sys.stdout", new_callable=io.StringIO),
             ):
                 worker.main(
@@ -129,6 +165,8 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
                         "355222",
                         "--selection-path",
                         str(selection_path),
+                        "--consumer-admission-manifest-path",
+                        "/tmp/consumer-admission.json",
                     ]
                 )
 
@@ -176,9 +214,23 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
                 side_effect=("batch-read-model-001", "batch-read-model-001"),
                 create=True,
             ) as record_admission,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
             patch("sys.stdout", new_callable=io.StringIO),
         ):
-            worker.main(["--all-ready-transport-candidates"])
+            worker.main(
+                [
+                    "--all-ready-transport-candidates",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
+                ]
+            )
 
         build_projection_store.assert_called_once()
         self.assertEqual(projection_store.list_notice_ids, ())
@@ -210,9 +262,24 @@ class RebuildInternalNoticeReadModelWorkerCliTest(unittest.TestCase):
                 side_effect=("batch-read-model-001", "batch-read-model-001"),
                 create=True,
             ) as record_admission,
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_read_model.check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
             self.assertRaisesRegex(RuntimeError, "read model failed"),
         ):
-            worker.main(["--notice-id", "355222"])
+            worker.main(
+                [
+                    "--notice-id",
+                    "355222",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
+                ]
+            )
 
         self.assertEqual(record_admission.call_count, 2)
         failed_kwargs = record_admission.call_args_list[1].kwargs

@@ -4,6 +4,7 @@ import importlib
 import io
 import json
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_read_model import (
@@ -64,9 +65,24 @@ class RepairInternalNoticeReadModelConsistencyWorkerCliTest(unittest.TestCase):
                 "campus_ingestion_worker.repair_internal_notice_read_model_consistency.record_internal_notice_consumption_admission",
                 return_value="batch-repair-001",
             ) as record_admission,
+            patch(
+                "campus_ingestion_worker.repair_internal_notice_read_model_consistency.load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.repair_internal_notice_read_model_consistency.check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            worker.main(["--notice-id", "355222"])
+            worker.main(
+                [
+                    "--notice-id",
+                    "355222",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
+                ]
+            )
 
         self.assertEqual(repair.call_args.kwargs["notice_ids"], ("355222",))
         build_admission_store.assert_called_once()
@@ -105,9 +121,24 @@ class RepairInternalNoticeReadModelConsistencyWorkerCliTest(unittest.TestCase):
                 "campus_ingestion_worker.repair_internal_notice_read_model_consistency.record_internal_notice_consumption_admission",
                 side_effect=("batch-repair-001", "batch-repair-001"),
             ) as record_admission,
+            patch(
+                "campus_ingestion_worker.repair_internal_notice_read_model_consistency.load_internal_notice_consumer_admission_manifest",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.repair_internal_notice_read_model_consistency.check_internal_notice_consumer_admission_gate",
+                return_value=SimpleNamespace(allowed=True, reason_codes=()),
+            ),
             self.assertRaisesRegex(RuntimeError, "repair failed"),
         ):
-            worker.main(["--notice-id", "355222"])
+            worker.main(
+                [
+                    "--notice-id",
+                    "355222",
+                    "--consumer-admission-manifest-path",
+                    "/tmp/consumer-admission.json",
+                ]
+            )
 
         self.assertEqual(record_admission.call_count, 2)
         failed_kwargs = record_admission.call_args_list[1].kwargs

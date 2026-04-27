@@ -2,23 +2,29 @@
 doc_type: index
 status: completed
 created: 2026-04-22
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Workstream: Notice Consumption Layer
 
 这是 `notice-consumption-layer` 的本地 workstream 入口。
-这条线的 `Phase 1-5` 已完成 semantic modeling closeout，但
-“implementation 应完全回到 adoption target、因此本线可关闭” 这一判断已被证实过早。
-当前这条 workstream 已完成 active implementation closeout：repo-owned notice
-consumption projection 已落成代码与持久化 metadata truth，并已把 archive /
-consumption projection / query read model / query runtime 语义拆开。
+这条线的 `Phase 1-8` 已完成 projection / read-model / runtime closeout，但
+authenticated notice historical materialization 暴露出新的 admission 缺口：下游
+consumer projection、read model、typed candidate 与 multimodal drain 需要由显式
+manifest + release gate 约束，不能再从 source-truth inventory 或 historical bundle
+隐式扩张范围。因此本 workstream 重新打开 `Phase 9`。
 
 ## Current Status
 
 - status: `completed`
-- current phase: `closeout`
+- current phase: `Phase 9 complete`
 - closeout focus:
+  - 补齐 consumer admission manifest 与 release gate
+  - 将 import dry-run / source-truth inventory 之后的 downstream 写入范围固定到
+    selected ids、target surface 与 reason code
+  - 防止 `admit_and_materialize`、projection rebuild、read-model rebuild、
+    typed materializer 或 multimodal drain 绕过 manifest
+- completed closeout retained truth:
   - `source_notice -> derived consumption unit` projection store / rebuild path
     已落地
   - `internal_notice` regulation/scoped downstream consumer 已通过 projection ready

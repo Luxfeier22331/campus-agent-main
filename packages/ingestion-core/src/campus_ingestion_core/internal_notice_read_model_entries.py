@@ -12,8 +12,6 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-    NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
-    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
     NOTICE_TARGET_SURFACE_UNSUPPORTED,
     NoticeConsumptionProjectionEntry,
     is_notice_query_retained_consumption_status,
@@ -40,6 +38,8 @@ def build_internal_notice_read_model_entries(
     )
     rows: list[InternalNoticeReadModelEntry] = []
     for entry in projection_entries:
+        if not _is_notice_read_model_surface(entry):
+            continue
         document_id = entry.source_document_id or entry.source_notice_document_id
         record = records_by_document_id.get(document_id) or records_by_document_id.get(
             entry.source_notice_document_id
@@ -99,15 +99,14 @@ def _resolve_title(
 
 
 def _is_queryable(entry: NoticeConsumptionProjectionEntry) -> bool:
+    return _is_notice_read_model_surface(entry)
+
+
+def _is_notice_read_model_surface(entry: NoticeConsumptionProjectionEntry) -> bool:
     return (
         is_notice_query_retained_consumption_status(entry.consumption_status)
         and entry.consumption_status != NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
-        and entry.target_surface
-        in {
-            NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-            NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
-            NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
-        }
+        and entry.target_surface == NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
         and entry.target_surface != NOTICE_TARGET_SURFACE_UNSUPPORTED
     )
 
