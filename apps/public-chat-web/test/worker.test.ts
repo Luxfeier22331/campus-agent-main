@@ -1170,6 +1170,17 @@ describe("public chat web worker shell", () => {
 			);
 			const payload = (await response.json()) as {
 				answer?: {
+					conversation?: {
+						messages?: Array<{
+							structuredParts?: Array<{
+								type?: string;
+								traceCards?: Array<{
+									refs?: string[];
+									title?: string;
+								}>;
+							}>;
+						}>;
+					};
 					result?: {
 						kind?: string;
 						text?: string;
@@ -1189,6 +1200,19 @@ describe("public chat web worker shell", () => {
 				expect(payload.answer.result.text).not.toContain("authenticated_notice:");
 				expect(payload.answer.result.text).not.toContain("official_web:");
 			}
+			const lastMessage = payload.answer?.conversation?.messages?.at(-1);
+			const tracePart = lastMessage?.structuredParts?.find(
+				(part) => part.type === "campus_service_trace_cards",
+			);
+			expect(tracePart).toBeDefined();
+			const tracePayload = JSON.stringify(tracePart ?? {});
+			expect(tracePayload).not.toContain("authenticated_notice:");
+			expect(tracePayload).not.toContain("official_web:");
+			expect(tracePayload).not.toContain("release_id");
+			expect(tracePayload).not.toContain("projection_internal_state");
+			expect(tracePayload).not.toContain("table_parser_state");
+			expect(tracePayload).toContain("title");
+			expect(tracePayload).toContain("refs");
 		}
 
 		expect(supervisor.execute).toHaveBeenCalledTimes(CAMPUS_SERVICES_ROUTING_CASES.length);
@@ -1229,6 +1253,10 @@ describe("public chat web worker shell", () => {
 				kind: "answer",
 				text: expect.stringContaining(route.expectedAnswerFragment),
 			});
+			const tracePart = finalizedWrite.assistantMessage.structuredParts.find(
+				(part) => part.type === "campus_service_trace_cards",
+			);
+			expect(tracePart).toBeDefined();
 		}
 	});
 
