@@ -143,10 +143,5 @@ export const docsSearchUnits = docs.table(
 			table.versionId,
 			table.unitOrder,
 		),
-		searchTextIndex: index("docs_search_units_search_text_idx").on(table.searchText),
-		versionSearchTextIndex: index("docs_search_units_version_search_text_idx").on(
-			table.versionId,
-			table.searchText,
-		),
 	}),
 );

@@ -169,6 +169,13 @@
       "when": 1777259939475,
       "tag": "0023_graceful_robin_chapel",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1777267894669,
+      "tag": "0024_dazzling_warpath",
+      "breakpoints": true
     }
   ]
 }

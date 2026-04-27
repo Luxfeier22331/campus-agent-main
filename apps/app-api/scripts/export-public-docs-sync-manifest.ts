@@ -22,23 +22,21 @@ function buildEnv(source: NodeJS.ProcessEnv): Env {
 }
 
 async function loadReadModelManifest(client: Client): Promise<DocsReadModelManifestInput> {
-	const [collections, documents, versions, assets, searchUnits] = await Promise.all([
-		client.query(
-			"select corpus, collection, display_name, description, updated_at from docs.collections order by corpus, collection",
-		),
-		client.query(
-			"select doc_id, corpus, collection, document_slug, title, canonical_url, current_version_id, current_version_slug, updated_at from docs.documents order by corpus, collection, document_slug",
-		),
-		client.query(
-			"select version_id, doc_id, version_slug, label, effective_from, is_current, visibility_level, entitlement_groups_json, delivery_mode, updated_at from docs.document_versions order by doc_id, version_slug",
-		),
-		client.query(
-			"select version_id, static_prefix, content_url, outline_url, manifest_url, source_objects_json, target_objects_json, updated_at from docs.reader_assets order by version_id",
-		),
-		client.query(
-			"select search_unit_id, doc_id, version_id, title, anchor, canonical_url, highlight_root_unit_ids_json, snippet, search_text, unit_order from docs.search_units order by version_id, unit_order",
-		),
-	]);
+	const collections = await client.query(
+		"select corpus, collection, display_name, description, updated_at from docs.collections order by corpus, collection",
+	);
+	const documents = await client.query(
+		"select doc_id, corpus, collection, document_slug, title, canonical_url, current_version_id, current_version_slug, updated_at from docs.documents order by corpus, collection, document_slug",
+	);
+	const versions = await client.query(
+		"select version_id, doc_id, version_slug, label, effective_from, is_current, visibility_level, entitlement_groups_json, delivery_mode, updated_at from docs.document_versions order by doc_id, version_slug",
+	);
+	const assets = await client.query(
+		"select version_id, static_prefix, content_url, outline_url, manifest_url, source_objects_json, target_objects_json, updated_at from docs.reader_assets order by version_id",
+	);
+	const searchUnits = await client.query(
+		"select search_unit_id, doc_id, version_id, title, anchor, canonical_url, highlight_root_unit_ids_json, snippet, search_text, unit_order from docs.search_units order by version_id, unit_order",
+	);
 
 	return {
 		collections: collections.rows.map((row) => ({
