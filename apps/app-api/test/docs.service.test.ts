@@ -323,35 +323,29 @@ describe("docs service", () => {
 
 		expect(response.readerAsset).toEqual({
 			canonicalUrl: "/docs/curriculum/curriculum_plan/restricted-program",
-			contentUrl:
-				"/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/assets/reader?version=2026-current",
+			contentUrl: "/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
 			deliveryMode: "gated_asset",
 			outlineUrl:
-				"/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/assets/outline?version=2026-current",
+				"/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/outline.json",
 		});
 		expect(JSON.stringify(response)).not.toContain("reader-assets/restricted-program");
 
-		const source = await service.resolveReaderAssetSource({
-			assetKind: "reader",
-			collection: "curriculum_plan",
-			corpus: "curriculum",
-			documentSlug: "restricted-program",
-			principal,
-			version: "2026-current",
-		});
-
-		expect(source).toEqual({
-			contentType: "application/json; charset=utf-8",
-			sourceObjectKey: "reader-assets/restricted-program/reader.json",
-		});
+		await expect(
+			service.checkReaderAdmission({
+				collection: "curriculum_plan",
+				corpus: "curriculum",
+				documentSlug: "restricted-program",
+				principal,
+				version: "2026-current",
+			}),
+		).resolves.toBeUndefined();
 	});
 
-	it("fails closed for restricted source object lookup without matching entitlement", async () => {
+	it("fails closed for restricted reader admission without matching entitlement", async () => {
 		const service = buildDocsService({ store: createStore() });
 
 		await expect(
-			service.resolveReaderAssetSource({
-				assetKind: "reader",
+			service.checkReaderAdmission({
 				collection: "curriculum_plan",
 				corpus: "curriculum",
 				documentSlug: "restricted-program",
