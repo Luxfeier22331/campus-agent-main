@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: backlog
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -9,80 +9,51 @@ updated: 2026-04-27
 
 ## Current Status
 
-- status: `backlog`
-- current slice: planning created; no implementation started
+- status: `completed`
+- current slice: `Phase 0-7` 已执行完成（本地部署包闭环）
 - owner: unassigned
 - active implementation: no
 
-## Current Repo Facts
+## Completed Outcomes
 
-- `apps/supervisor-api/Dockerfile` exists and builds the Go `supervisor-api` binary.
-- `infra/local/docker-compose.supervisor-runtime.yml` defines the local two-container runtime:
-  `supervisor-api + supervisor-agent-worker`.
-- `infra/local/start-supervisor-runtime.sh` loads repo root `.env` and `apps/app-api/.dev.vars`,
-  rewrites local hostnames for Docker, then runs compose.
-- `infra/local/smoke-supervisor-runtime.sh` already supports `closed_gate`, `bridge_semantic`,
-  `open_structured`, and `readyz_degraded` profiles.
-- `docs/runbooks/supervisor-api-local-runtime-smoke.md` documents local Docker-first smoke.
-- `docs/runbooks/supervisor-api-staging-operations.md` documents the current WSL scheduled task +
-  named tunnel staging host lifecycle.
-- `uv run --all-packages python -m scripts.doctor_env supervisor-api --json` currently reports
-  `overall_ready=true` on this machine, but many execution-runtime deployment inputs are still
-  optional in the doctor surface.
+- `scripts/doctor_env.py`
+  - `supervisor-api` required inputs收紧：bridge base URL + shared secret 必填。
+  - 新增条件校验：execution audit / opened `campus_services|notice` 对应依赖必须齐备。
+  - text/json 输出都包含 condition 结果。
+- `infra/local/docker-compose.supervisor-runtime.yml`
+  - 双服务增加 `init`, `restart`, `no-new-privileges`, log rotation, healthcheck。
+  - `supervisor-api` 等待 `supervisor-agent-worker: service_healthy`。
+  - worker healthcheck 使用 `x-supervisor-bridge-auth`，避免 401 假性 unhealthy。
+- `infra/local/smoke-supervisor-runtime.sh`
+  - 增加标准 artifact bundle（`healthz/readyz/metrics/answer/summary`）。
+  - 失败保留 artifact。
+  - 启动失败场景下也会触发 compose 清理（`started_compose` 置位顺序修复）。
+- env/docs
+  - 新增 `env/commands/supervisor-runtime.env.example`。
+  - README/runbook/environment 文档完成命令口径与 owner 边界修正。
+  - 新增 `docs/runbooks/supervisor-api-server-handoff.md`。
 
-## Captured Gaps
+## Verification Evidence
 
-- Doctor gate is too weak for deploy readiness:
-  - bridge base URL / secret are optional
-  - worker timeout and admission budgets are optional
-  - structured runtime dependencies are not conditional on opened capabilities
-- README single-container Docker smoke can be misread as full execution smoke.
-- Compose lacks healthcheck / restart / logging / resource / security posture.
-- Local smoke does not produce a standard evidence artifact bundle.
-- Env ownership lacks a supervisor-runtime command-scoped template.
-- Staging lifecycle docs are WSL-host specific and should not be reused as generic Linux server
-  deployment instructions.
-- Package-level acceptance commands are spread across README/runbooks rather than captured as one
-  deployment gate.
+- passed
+  - `pnpm go:check`
+  - `pnpm shell:lint`
+  - `pnpm docker:lint`
+  - `pnpm yaml:lint`
+  - `pnpm docs:lint`
+  - `uv run --all-packages python -m unittest tests.test_supervisor_api_local_runtime -q`
+  - `docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .`
+  - `infra/local/smoke-supervisor-runtime.sh closed_gate`
+- runtime artifact
+  - `.tmp/supervisor-api-local-smoke/20260427T145119Z-closed_gate/summary.json`
 
-## Planned Execution Order
+## Remaining Live-Only Gap
 
-1. `Phase 0`: package truth and gap baseline.
-2. `Phase 1`: supervisor-api doctor gate hardening.
-3. `Phase 2`: compose runtime hardening.
-4. `Phase 3`: env inventory and command template.
-5. `Phase 4`: local smoke evidence artifact.
-6. `Phase 5`: README and runbook command correction.
-7. `Phase 6`: server handoff package.
-8. `Phase 7`: deployment package acceptance.
-
-## Immediate Next Slice
-
-When this workstream is promoted, start with Phase 0 and Phase 1. Do not start with compose
-resource knobs before the readiness gate is corrected, otherwise package smoke may still produce
-false-positive deploy readiness.
-
-## Verification Baseline
-
-Use these after planning-only edits:
-
-```bash
-pnpm docs:lint
-```
-
-Use these after initial implementation:
-
-```bash
-uv run --all-packages python -m unittest \
-  tests.test_doctor_env \
-  tests.test_supervisor_api_local_runtime -q
-pnpm shell:lint
-pnpm yaml:lint
-pnpm docs:lint
-```
+- 非 WSL 的服务器实机验收（host policy、systemd/container runtime 运维约束、真实 ingress）
+  仍需在后续部署 workstream 执行。
 
 ## Continuity Notes
 
-- Keep this separate from `supervisor-docker-runtime-language-split`.
-- Keep product capability gates closed unless another workstream explicitly opens them.
-- Treat WSL scheduled task evidence as staging-host evidence only, not general server proof.
+- 与 `supervisor-docker-runtime-language-split` 保持解耦；本线只做部署包硬化，不做语言迁移。
+- 继续维持 `campus_services / notice` 默认 gate-closed，除非其他 workstream 显式打开。
+- WSL staging 文档继续仅作为 staging-host 生命周期参考，通用服务器以 handoff runbook 为准。

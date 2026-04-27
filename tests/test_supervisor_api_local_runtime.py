@@ -68,6 +68,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("restart: unless-stopped", compose)
         self.assertIn("no-new-privileges:true", compose)
         self.assertIn("max-size: \"10m\"", compose)
+        self.assertIn("x-supervisor-bridge-auth", compose)
 
         self.assertIn('"SUPERVISOR_API_DOCKER_GOPROXY"', script)
         self.assertIn('"SUPERVISOR_API_DOCKER_GOSUMDB"', script)
@@ -166,6 +167,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("summary.json", script)
         self.assertIn("campus_supervisor_runtime_smoke.v1", script)
         self.assertIn("artifacts: ${artifact_dir}", script)
+        self.assertIn('started_compose="true"\n    "${start_script}" up -d --build', script)
         self.assertIn("closed_gate", script)
         self.assertIn("bridge_semantic", script)
         self.assertIn("open_structured", script)

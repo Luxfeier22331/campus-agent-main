@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: backlog
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -13,13 +13,12 @@ updated: 2026-04-27
 
 ## Current Status
 
-- status: `backlog`
+- status: `completed`
 - active implementation: no
-- current posture: `apps/supervisor-api` 已是 Docker-first internal execution service；
-  当前缺口主要在部署包闭环，不在 Go runtime 基本能力
-- reopen rule: 只有在准备补齐 `supervisor-api + supervisor-agent-worker` 本地 Docker/dev
-  smoke、部署 preflight、compose hardening、env inventory、artifact evidence 或 staging/server
-  handoff 时恢复
+- current posture: 已完成 `Phase 0-7` 的本地部署包硬化与验收（含 static gates、Docker build、
+  `closed_gate` runtime smoke artifact）。
+- reopen rule: 只有在准备继续补 server 实机验收、扩展 profile smoke 验收、或新增 supervisor runtime
+  部署 contract 变更时恢复
 
 ## Native Planning Truth
 

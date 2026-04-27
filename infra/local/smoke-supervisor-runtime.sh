@@ -283,8 +283,8 @@ main() {
   trap cleanup EXIT
 
   if [[ "${skip_start}" != "true" ]]; then
-    "${start_script}" up -d --build
     started_compose="true"
+    "${start_script}" up -d --build
   fi
   run_profile_assertions
   smoke_result="passed"

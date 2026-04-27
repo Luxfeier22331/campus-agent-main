@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: backlog
+status: completed
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -9,6 +9,23 @@ updated: 2026-04-27
 
 当前为 detailed backlog plan，不代表 active execution order。恢复为 active workstream 前，应确认当前目标是
 local/dev package closeout、staging host closeout，还是 server handoff package。
+
+## Execution Status (2026-04-27)
+
+- `Phase 0` 完成：基线缺口与 package truth 已落盘到 state/docs。
+- `Phase 1` 完成：doctor gate 增加 bridge required + capability/audit 条件校验，测试补齐。
+- `Phase 2` 完成：compose 增加 healthcheck/restart/logging/security posture，依赖改为
+  `service_healthy`。
+- `Phase 3` 完成：新增 `env/commands/supervisor-runtime.env.example`，env ownership docs 更新。
+- `Phase 4` 完成：smoke 产出标准 artifact bundle，失败保留证据，`summary.json` 增加状态字段。
+- `Phase 5` 完成：README/runbook 明确 health-only vs execution smoke 口径。
+- `Phase 6` 完成：新增 server handoff runbook，拆分 WSL staging 与通用 server contract。
+- `Phase 7` 完成：static gates + Docker build + `closed_gate` runtime smoke 已通过；
+  artifact：`.tmp/supervisor-api-local-smoke/20260427T145119Z-closed_gate/summary.json`。
+
+## Remaining Live-Only Gap
+
+- 服务器实机验收（非 WSL staging host）仍是后续 backlog，不阻塞本地 Docker/dev 部署包闭环。
 
 ## Phase 0: Package Truth And Gap Baseline
 
