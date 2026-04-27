@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import { buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWePage } from "wechat-official-account-core";
+import {
+	buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage,
+	type CapturedWeChatOfficialAccountArticlePage,
+} from "wechat-official-account-core";
 
 import type { StoredArtifactRef, WeChatOfficialAccountArtifactStore } from "./artifact-store.ts";
 import {
@@ -8,6 +11,7 @@ import {
 	fetchFeedWeHistoryPage,
 } from "./feedwe-client.ts";
 import { writeWeChatOfficialAccountSourceTruthArtifacts } from "./replay-source-truth.ts";
+import { fetchWeChatOfficialAccountArticlePage } from "./wechat-article-page.ts";
 
 export interface CaptureFeedWeHistoryInput {
 	accountName: string;
@@ -31,6 +35,8 @@ export interface WeChatOfficialAccountCaptureArtifactRef extends StoredArtifactR
 	artifactType:
 		| "provider_response"
 		| "request_summary"
+		| "page_fetch_metadata"
+		| "page_raw_html"
 		| "source_truth_article_manifest"
 		| "source_truth_content_blocks"
 		| "source_truth_media_refs";
@@ -46,6 +52,9 @@ export interface CaptureFeedWeHistoryResult {
 		articlesSeen: number;
 		failures: number;
 		pagesFetched: number;
+		pageCaptureArtifacts: number;
+		pageCapturesFailed: number;
+		pageCapturesSucceeded: number;
 		sourceTruthArtifacts: number;
 	};
 }
@@ -76,6 +85,8 @@ export async function captureFeedWeHistory(
 	let begin = input.begin?.trim() || "0";
 	let articlesSeen = 0;
 	let articlesMaterialized = 0;
+	let pageCapturesFailed = 0;
+	let pageCapturesSucceeded = 0;
 	const artifacts: WeChatOfficialAccountCaptureArtifactRef[] = [];
 	let planningOutcome: FeedWeCapturePlanningOutcome = "complete";
 
@@ -91,14 +102,19 @@ export async function captureFeedWeHistory(
 			},
 		});
 		articlesSeen += page.articles.length;
-		articlesMaterialized += page.articles.length;
+		const remainingBudget = input.maxArticles - articlesMaterialized;
+		const pageArticles =
+			remainingBudget > 0 ? page.articles.slice(0, Math.max(remainingBudget, 0)) : [];
 
 		const stored = await writeFeedWePageArtifacts({
 			accountName,
 			accountSlug,
 			artifactStore: input.artifactStore,
 			capturedAt,
+			fetchImplementation,
+			now,
 			page,
+			pageArticles,
 			providerBaseUrl: input.provider.baseUrl,
 			request: {
 				begin,
@@ -107,8 +123,14 @@ export async function captureFeedWeHistory(
 			},
 		});
 		artifacts.push(...stored);
+		articlesMaterialized += pageArticles.length;
+		const pageFailures = stored.filter(
+			(item) => item.artifactType === "page_fetch_metadata" && item.recordCount === 0,
+		).length;
+		pageCapturesFailed += pageFailures;
+		pageCapturesSucceeded += pageArticles.length - pageFailures;
 
-		if (articlesSeen >= input.maxArticles) {
+		if (articlesMaterialized >= input.maxArticles) {
 			planningOutcome = "article_budget_exhausted";
 			break;
 		}
@@ -130,8 +152,13 @@ export async function captureFeedWeHistory(
 			artifactUploads: artifacts.length,
 			articlesMaterialized,
 			articlesSeen,
-			failures: 0,
+			failures: pageCapturesFailed,
 			pagesFetched: artifacts.filter((item) => item.artifactType === "provider_response").length,
+			pageCaptureArtifacts: artifacts.filter((item) =>
+				item.artifactType === "page_fetch_metadata" || item.artifactType === "page_raw_html",
+			).length,
+			pageCapturesFailed,
+			pageCapturesSucceeded,
 			sourceTruthArtifacts: artifacts.filter((item) =>
 				item.artifactType.startsWith("source_truth_"),
 			).length,
@@ -157,7 +184,10 @@ async function writeFeedWePageArtifacts(input: {
 	accountSlug: string;
 	artifactStore: WeChatOfficialAccountArtifactStore;
 	capturedAt: string;
+	fetchImplementation: typeof fetch;
+	now: () => Date;
 	page: FeedWeHistoryPage;
+	pageArticles: unknown[];
 	providerBaseUrl: string;
 	request: {
 		begin: string;
@@ -182,6 +212,7 @@ async function writeFeedWePageArtifacts(input: {
 				accountName: input.accountName,
 				accountSlug: input.accountSlug,
 				articleCount: input.page.articles.length,
+				articleProcessedCount: input.pageArticles.length,
 				begin: input.request.begin,
 				capturedAt: input.capturedAt,
 				hasMore: input.page.hasMore,
@@ -207,22 +238,143 @@ async function writeFeedWePageArtifacts(input: {
 		objectKey: `${sourcePrefix}/capture/feedwe-request-summary.json`,
 		recordCount: 1,
 	});
-	const sourceTruthMaterials = buildWeChatOfficialAccountArticleSourceTruthMaterialsFromFeedWePage({
-		accountName: input.accountName,
-		accountSlug: input.accountSlug,
-		capturedAt: input.capturedAt,
-		page: input.page,
-	});
-	const sourceTruthRefs = await writeWeChatOfficialAccountSourceTruthArtifacts({
-		artifactStore: input.artifactStore,
-		materials: sourceTruthMaterials,
-	});
+	const articleRefs: WeChatOfficialAccountCaptureArtifactRef[] = [];
+	for (const article of input.pageArticles) {
+		const pageCapture = await captureWeChatArticlePage({
+			accountName: input.accountName,
+			accountSlug: input.accountSlug,
+			article,
+			artifactStore: input.artifactStore,
+			capturedAt: input.capturedAt,
+			fetchImplementation: input.fetchImplementation,
+			now: input.now,
+		});
+		articleRefs.push(...pageCapture);
+	}
 
 	return [
 		{ ...providerRef, artifactType: "provider_response" },
 		{ ...summaryRef, artifactType: "request_summary" },
-		...sourceTruthRefs,
+		...articleRefs,
 	];
+}
+
+async function captureWeChatArticlePage(input: {
+	accountName: string;
+	accountSlug: string;
+	article: unknown;
+	artifactStore: WeChatOfficialAccountArtifactStore;
+	capturedAt: string;
+	fetchImplementation: typeof fetch;
+	now: () => Date;
+}): Promise<WeChatOfficialAccountCaptureArtifactRef[]> {
+	const articleRecord =
+		input.article && typeof input.article === "object" && !Array.isArray(input.article)
+			? (input.article as Record<string, unknown>)
+			: {};
+	const articleUrl = typeof articleRecord.url === "string" ? articleRecord.url.trim() : "";
+	let page: CapturedWeChatOfficialAccountArticlePage;
+	if (articleUrl) {
+		page = await fetchWeChatOfficialAccountArticlePage({
+			articleUrl,
+			fetchImplementation: input.fetchImplementation,
+			now: input.now,
+		});
+	} else {
+		page = {
+			bodyBlocks: [],
+			contentType: null,
+			coverImageUrl: null,
+			fetchedAt: input.now().toISOString(),
+			finalUrl: "",
+			inlineImageUrls: [],
+			parserVersion: "wechat-page-parser.v1",
+			publishTime: null,
+			publishTimeSource: null,
+			rawHtml: null,
+			statusCode: 0,
+			summary: null,
+			title: null,
+		};
+	}
+	const material = buildWeChatOfficialAccountArticleSourceTruthMaterialFromCapturedPage({
+		accountName: input.accountName,
+		accountSlug: input.accountSlug,
+		article: input.article,
+		capturedAt: input.capturedAt,
+		page,
+	});
+	const captureRefs = await writeWeChatOfficialAccountArticleCaptureArtifacts({
+		artifactStore: input.artifactStore,
+		material,
+		page,
+	});
+	const sourceTruthRefs = await writeWeChatOfficialAccountSourceTruthArtifacts({
+		artifactStore: input.artifactStore,
+		materials: [material],
+	});
+	return [...captureRefs, ...sourceTruthRefs];
+}
+
+async function writeWeChatOfficialAccountArticleCaptureArtifacts(input: {
+	artifactStore: WeChatOfficialAccountArtifactStore;
+	material: {
+		accountName: string;
+		accountSlug: string;
+		articleStableId: string;
+		rawAssetId: string;
+		rawVersionId: string;
+		year: string;
+		manifest: {
+			articleUrl: string | null;
+			bodyState: string;
+			providerArticleId: string | null;
+		};
+	};
+	page: CapturedWeChatOfficialAccountArticlePage;
+}): Promise<WeChatOfficialAccountCaptureArtifactRef[]> {
+	const prefix = `wechat_official_account/${input.material.accountSlug}/${input.material.year}/${input.material.rawVersionId}`;
+	const fetchMetadataData = textEncoder.encode(
+		`${JSON.stringify(
+			{
+				schemaVersion: "wechat_official_account_article_fetch_metadata.v1",
+				accountName: input.material.accountName,
+				accountSlug: input.material.accountSlug,
+				articleStableId: input.material.articleStableId,
+				articleUrl: input.material.manifest.articleUrl,
+				bodyState: input.material.manifest.bodyState,
+				contentType: input.page.contentType,
+				fetchedAt: input.page.fetchedAt,
+				finalUrl: input.page.finalUrl,
+				parserVersion: input.page.parserVersion,
+				providerArticleId: input.material.manifest.providerArticleId,
+				rawAssetId: input.material.rawAssetId,
+				rawVersionId: input.material.rawVersionId,
+				statusCode: input.page.statusCode,
+			},
+			null,
+			2,
+		)}\n`,
+	);
+	const fetchMetadataRef = await input.artifactStore.putObject({
+		contentType: "application/json",
+		data: fetchMetadataData,
+		objectKey: `${prefix}/capture/wechat-article-fetch-metadata.json`,
+		recordCount: input.page.statusCode >= 200 && input.page.statusCode < 300 ? 1 : 0,
+	});
+	const refs: WeChatOfficialAccountCaptureArtifactRef[] = [
+		{ ...fetchMetadataRef, artifactType: "page_fetch_metadata" },
+	];
+	if (input.page.rawHtml?.trim()) {
+		const pageHtmlRef = await input.artifactStore.putObject({
+			contentType: "text/html; charset=utf-8",
+			data: textEncoder.encode(input.page.rawHtml),
+			objectKey: `${prefix}/capture/wechat-article-page.html`,
+			recordCount: 1,
+		});
+		refs.push({ ...pageHtmlRef, artifactType: "page_raw_html" });
+	}
+	return refs;
 }
 
 function extractPageYear(page: FeedWeHistoryPage, capturedAt: string): string {

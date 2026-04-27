@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_read_model import InternalNoticeReadModelEntry
 from campus_ingestion_core.notice_consumption_projection import NoticeConsumptionProjectionEntry
+from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.wechat_public_notice_projection import (
     WeChatPublicNoticeProjectionBuildReport,
     WeChatReadModelEvidenceEntry,
@@ -17,6 +18,13 @@ from campus_ingestion_core.wechat_public_notice_projection import (
 )
 
 worker = importlib.import_module("campus_ingestion_worker.project_wechat_public_notices")
+_OBJECT_STORE_SETTINGS = ObjectStoreSettings(
+    endpoint="http://minio.local",
+    access_key="minio",
+    secret_key="minio123",
+    bucket_source="source",
+    bucket_derived="campus-rag-derived",
+)
 
 
 class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
@@ -66,6 +74,18 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
                 return_value=read_model_rows,
             ) as materialize_read_model,
             patch(
+                "campus_ingestion_worker.project_wechat_public_notices.ObjectStoreSettings.from_env",
+                return_value=_OBJECT_STORE_SETTINGS,
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.S3ObjectStoreAdmin",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.S3ObjectStoreWriter",
+                return_value=object(),
+            ),
+            patch(
                 "campus_ingestion_worker.project_wechat_public_notices.record_internal_notice_consumption_admission",
                 side_effect=("batch-wechat-001", "batch-wechat-001"),
             ) as record_admission,
@@ -82,10 +102,13 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
 
         build_admission_store.assert_called_once()
         build_read_model_store.assert_called_once()
-        materialize_read_model.assert_called_once_with(
-            projection_entries=report.projection_entries,
-            read_model_store=read_model_store,
-        )
+        materialize_kwargs = materialize_read_model.call_args.kwargs
+        self.assertEqual(materialize_kwargs["projection_entries"], report.projection_entries)
+        self.assertIs(materialize_kwargs["read_model_store"], read_model_store)
+        self.assertEqual(materialize_kwargs["source_bucket"], "source")
+        self.assertEqual(materialize_kwargs["derived_bucket"], "campus-rag-derived")
+        self.assertIsNotNone(materialize_kwargs["source_object_store"])
+        self.assertIsNotNone(materialize_kwargs["derived_object_store"])
         self.assertEqual(rebuild.call_args.kwargs["dry_run"], False)
         request = rebuild.call_args.kwargs["request"]
         self.assertEqual(request.source_corpus, "campus_notices")
@@ -297,6 +320,18 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
             patch(
                 "campus_ingestion_worker.project_wechat_public_notices.materialize_wechat_public_notice_read_model",
                 return_value=(_read_model_entry("woa_article_gamma"),),
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.ObjectStoreSettings.from_env",
+                return_value=_OBJECT_STORE_SETTINGS,
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.S3ObjectStoreAdmin",
+                return_value=object(),
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.S3ObjectStoreWriter",
+                return_value=object(),
             ),
             patch(
                 "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_consumption_admission_store_from_env",

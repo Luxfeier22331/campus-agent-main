@@ -38,6 +38,31 @@ describe("FeedWe capture", () => {
 			)
 			.mockResolvedValueOnce(
 				new Response(
+					`<!doctype html>
+					<html>
+					  <head>
+					    <meta property="og:title" content="2026 春季通知" />
+					    <meta property="og:description" content="春季通知正文第一段&#10;春季通知正文第二段" />
+					    <meta property="og:image" content="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/spring-cover/0?wx_fmt=jpeg" />
+					  </head>
+					  <body>
+					    <h1 id="activity-name">2026 春季通知</h1>
+					    <div id="js_content">
+					      <section><p>春季通知正文第一段</p></section>
+					      <section><p>春季通知正文第二段</p></section>
+					      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/spring-inline/0?wx_fmt=jpeg" />
+					    </div>
+					    <script>window.ct = 1777166101;</script>
+					  </body>
+					</html>`,
+					{
+						headers: { "content-type": "text/html; charset=utf-8" },
+						status: 200,
+					},
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
 					JSON.stringify({
 						articles: [
 							{
@@ -53,6 +78,29 @@ describe("FeedWe capture", () => {
 						total: 2,
 					}),
 					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					`<!doctype html>
+					<html>
+					  <head>
+					    <meta property="og:title" content="2026 夏季通知" />
+					    <meta property="og:description" content="夏季通知正文第一段&#10;夏季通知正文第二段" />
+					  </head>
+					  <body>
+					    <h1 id="activity-name">2026 夏季通知</h1>
+					    <div id="js_content">
+					      <section><p>夏季通知正文第一段</p></section>
+					      <section><p>夏季通知正文第二段</p></section>
+					    </div>
+					    <script>window.ct = 1777252501;</script>
+					  </body>
+					</html>`,
+					{
+						headers: { "content-type": "text/html; charset=utf-8" },
+						status: 200,
+					},
 				),
 			);
 		const writes: Array<{ objectKey: string; text: string }> = [];
@@ -83,13 +131,16 @@ describe("FeedWe capture", () => {
 			size: 1,
 		});
 
-		expect(fetchImplementation).toHaveBeenCalledTimes(2);
+		expect(fetchImplementation).toHaveBeenCalledTimes(4);
 		expect(result.summary).toEqual({
-			artifactUploads: 10,
+			artifactUploads: 14,
 			articlesMaterialized: 2,
 			articlesSeen: 2,
 			failures: 0,
 			pagesFetched: 2,
+			pageCaptureArtifacts: 4,
+			pageCapturesFailed: 0,
+			pageCapturesSucceeded: 2,
 			sourceTruthArtifacts: 6,
 		});
 		const objectKeys = writes.map((item) => item.objectKey);
@@ -102,6 +153,12 @@ describe("FeedWe capture", () => {
 					/^wechat_official_account\/中央民族大学学生会\/2026\/raw_[a-f0-9]{16}\/capture\/feedwe-request-summary\.json$/,
 				),
 				expect.stringMatching(
+					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-fetch-metadata\.json$/,
+				),
+				expect.stringMatching(
+					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/capture\/wechat-article-page\.html$/,
+				),
+				expect.stringMatching(
 					/^wechat_official_account\/中央民族大学学生会\/2026\/woa_ver_[a-f0-9]{24}\/source-truth\/article-manifest\.json$/,
 				),
 				expect.stringMatching(
@@ -112,39 +169,59 @@ describe("FeedWe capture", () => {
 				),
 			]),
 		);
-		expect(objectKeys).toHaveLength(10);
+		expect(objectKeys).toHaveLength(14);
 		expect(writes.some((item) => item.objectKey.includes("/source-truth/"))).toBe(true);
+		expect(writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-page.html"))).toBe(
+			true,
+		);
 		expect(writes.some((item) => item.objectKey.includes("/projection/"))).toBe(false);
 		expect(JSON.stringify(writes)).not.toContain(apiKey);
 	});
 
 	it("enforces page and article budgets before downstream processing", async () => {
-		const fetchImplementation = vi.fn().mockResolvedValue(
-			new Response(
-				JSON.stringify({
-					articles: [
-						{
-							id: "article-a",
-							title: "A",
-							url: "https://mp.weixin.qq.com/s/article-a",
-							publishTime: "2026-04-27T12:00:00+08:00",
-						},
-						{
-							id: "article-b",
-							title: "B",
-							url: "https://mp.weixin.qq.com/s/article-b",
-							publishTime: "2026-04-27T12:01:00+08:00",
-						},
-					],
-					begin: "0",
-					count: 2,
-					hasMore: true,
-					size: 2,
-					total: 100,
-				}),
-				{ status: 200 },
-			),
-		);
+		const fetchImplementation = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						articles: [
+							{
+								id: "article-a",
+								title: "A",
+								url: "https://mp.weixin.qq.com/s/article-a",
+								publishTime: "2026-04-27T12:00:00+08:00",
+							},
+							{
+								id: "article-b",
+								title: "B",
+								url: "https://mp.weixin.qq.com/s/article-b",
+								publishTime: "2026-04-27T12:01:00+08:00",
+							},
+						],
+						begin: "0",
+						count: 2,
+						hasMore: true,
+						size: 2,
+						total: 100,
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					`<!doctype html>
+					<html>
+					  <body>
+					    <h1 id="activity-name">A</h1>
+					    <div id="js_content"><section><p>A 正文</p></section></div>
+					  </body>
+					</html>`,
+					{
+						headers: { "content-type": "text/html; charset=utf-8" },
+						status: 200,
+					},
+				),
+			);
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
 			async putObject(input) {
 				return {
@@ -170,9 +247,10 @@ describe("FeedWe capture", () => {
 			size: 2,
 		});
 
-		expect(fetchImplementation).toHaveBeenCalledTimes(1);
+		expect(fetchImplementation).toHaveBeenCalledTimes(2);
 		expect(result.planningOutcome).toBe("article_budget_exhausted");
 		expect(result.summary.articlesSeen).toBe(2);
+		expect(result.summary.articlesMaterialized).toBe(1);
 	});
 
 	it("replays source-truth artifacts from provider-response JSONL", async () => {

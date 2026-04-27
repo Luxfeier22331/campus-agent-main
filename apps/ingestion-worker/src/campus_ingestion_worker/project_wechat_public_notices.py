@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
+from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.internal_notice_consumption_admission import (
     DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY,
     build_internal_notice_consumption_admission_store_from_env,
@@ -22,10 +23,12 @@ from campus_ingestion_core.notice_consumption_projection import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
 )
 from campus_ingestion_core.postgres_runtime import open_postgres_connection
+from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
 )
+from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.wechat_public_notice_projection import (
     WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION,
     WECHAT_PUBLIC_NOTICE_SOURCE_CORPUS,
@@ -193,14 +196,18 @@ def main(argv: Sequence[str] | None = None) -> None:
             request=request,
             dry_run=bool(args.dry_run),
         )
-        read_model_entries = (
-            ()
-            if args.dry_run
-            else materialize_wechat_public_notice_read_model(
+        if args.dry_run:
+            read_model_entries = ()
+        else:
+            object_store_settings = ObjectStoreSettings.from_env(dict(os.environ))
+            read_model_entries = materialize_wechat_public_notice_read_model(
                 projection_entries=build_report.projection_entries,
                 read_model_store=build_internal_notice_read_model_store_from_env(),
+                source_object_store=S3ObjectStoreAdmin(object_store_settings),
+                derived_object_store=S3ObjectStoreWriter(object_store_settings),
+                source_bucket=request.source_bucket or object_store_settings.bucket_source,
+                derived_bucket=object_store_settings.bucket_derived,
             )
-        )
     except Exception as exc:
         record_internal_notice_consumption_admission(
             source_corpus=request.source_corpus,

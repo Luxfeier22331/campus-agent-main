@@ -163,11 +163,14 @@ describe("wechat official-account command service", () => {
 			finishedAt: "2026-04-27T08:01:00.000Z",
 			status: "completed_with_errors",
 			summary: {
-				artifactUploads: 5,
+				artifactUploads: 7,
 				articlesMaterialized: 1,
 				articlesSeen: 1,
 				failures: 1,
 				pagesFetched: 1,
+				pageCaptureArtifacts: 2,
+				pageCapturesFailed: 0,
+				pageCapturesSucceeded: 1,
 				sourceTruthArtifacts: 3,
 			},
 			terminalErrorCode: "provider_http_error",
@@ -207,6 +210,22 @@ describe("wechat official-account command service", () => {
 						recordCount: 1,
 					},
 					{
+						artifactType: "page_fetch_metadata",
+						byteSize: 512,
+						contentSha256: "cc".repeat(32),
+						objectKey:
+							"wechat_official_account/zhong_yang_min_zu_da_xue_xue_sheng_hui/2026/woa_ver_1234567890abcdef12345678/capture/wechat-article-fetch-metadata.json",
+						recordCount: 1,
+					},
+					{
+						artifactType: "page_raw_html",
+						byteSize: 4096,
+						contentSha256: "cd".repeat(32),
+						objectKey:
+							"wechat_official_account/zhong_yang_min_zu_da_xue_xue_sheng_hui/2026/woa_ver_1234567890abcdef12345678/capture/wechat-article-page.html",
+						recordCount: 1,
+					},
+					{
 						artifactType: "source_truth_article_manifest",
 						byteSize: 1024,
 						contentSha256: "d".repeat(64),
@@ -237,11 +256,14 @@ describe("wechat official-account command service", () => {
 				},
 				finishedAt: "2026-04-27T08:01:00.000Z",
 				summary: {
-					artifactUploads: 5,
+					artifactUploads: 7,
 					articlesMaterialized: 1,
 					articlesSeen: 1,
 					failures: 1,
 					pagesFetched: 1,
+					pageCaptureArtifacts: 2,
+					pageCapturesFailed: 0,
+					pageCapturesSucceeded: 1,
 					sourceTruthArtifacts: 3,
 				},
 				terminalStatus: "completed_with_errors",
@@ -260,6 +282,10 @@ describe("wechat official-account command service", () => {
 				expect.objectContaining({
 					artifactType: "source_truth_article_manifest",
 					objectKey: expect.stringContaining("/source-truth/article-manifest.json"),
+				}),
+				expect.objectContaining({
+					artifactType: "page_raw_html",
+					objectKey: expect.stringContaining("/capture/wechat-article-page.html"),
 				}),
 			]),
 			run: expect.objectContaining({

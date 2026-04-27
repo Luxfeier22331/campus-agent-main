@@ -458,6 +458,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.913.0
         version: 3.1022.0
+      cheerio:
+        specifier: 1.0.0-rc.12
+        version: 1.0.0-rc.12
       wechat-official-account-core:
         specifier: workspace:*
         version: link:../../packages/wechat-official-account-core

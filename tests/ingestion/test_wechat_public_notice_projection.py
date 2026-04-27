@@ -34,6 +34,21 @@ class _FakeObjectStore:
         return self.payloads[(bucket, key)]
 
 
+class _FakeDerivedObjectStore:
+    def __init__(self) -> None:
+        self.payloads: dict[tuple[str, str], bytes] = {}
+
+    def put_bytes(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        data: bytes,
+        content_type: str,
+    ) -> None:
+        self.payloads[(bucket, key)] = data
+
+
 class WeChatPublicNoticeProjectionTest(unittest.TestCase):
     def test_rebuild_retains_unique_wechat_article(self) -> None:
         object_store, refs = _build_source_truth_fixture(
@@ -213,6 +228,7 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
             title_normalized="保留用于查询",
             publish_time="2026-04-21T08:00:00+08:00",
             normalized_article_url="https://mp.weixin.qq.com/s/queryable",
+            body_state="captured",
         )
         suppressed_entry = NoticeConsumptionProjectionEntry(
             source_family=NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
@@ -232,21 +248,74 @@ class WeChatPublicNoticeProjectionTest(unittest.TestCase):
             source_document_id="notice:woa_article_suppressed",
             role_metadata={
                 "notice_title": "抑制样例",
+                "body_state": "captured",
                 "source_url": "https://mp.weixin.qq.com/s/suppressed",
             },
         )
+        reference_only_entry = _projection_entry(
+            source_family=NOTICE_SOURCE_FAMILY_WECHAT_PUBLIC,
+            source_collection="wechat_public_notice",
+            source_notice_id="woa_article_reference_only",
+            title_normalized="只有链接",
+            publish_time="2026-04-21T08:00:00+08:00",
+            normalized_article_url="https://mp.weixin.qq.com/s/reference-only",
+            body_state="not_captured",
+        )
 
-        rows = build_wechat_public_notice_read_model_entries((retained_entry, suppressed_entry))
+        rows = build_wechat_public_notice_read_model_entries(
+            (retained_entry, suppressed_entry, reference_only_entry)
+        )
 
-        self.assertEqual(len(rows), 2)
+        self.assertEqual(len(rows), 3)
         by_notice_id = {row.source_notice_id: row for row in rows}
         self.assertTrue(by_notice_id["woa_article_queryable"].queryable)
         self.assertFalse(by_notice_id["woa_article_suppressed"].queryable)
+        self.assertFalse(by_notice_id["woa_article_reference_only"].queryable)
         self.assertEqual(
             by_notice_id["woa_article_queryable"].source_url,
             "https://mp.weixin.qq.com/s/queryable",
         )
-        self.assertEqual(by_notice_id["woa_article_queryable"].canonical_markdown_object_key, "")
+
+    def test_materialize_wechat_read_model_writes_canonical_markdown_for_captured_body(self) -> None:
+        object_store, refs = _build_source_truth_fixture(
+            bucket="source",
+            prefix="wechat_official_account/muc/2026/woa_ver_captured",
+            article_stable_id="woa_article_captured",
+            normalized_article_url="https://mp.weixin.qq.com/s/captured",
+            publish_time="2026-04-21T08:00:00+08:00",
+            provider_article_id="feedwe-captured",
+            title_raw="实践周班车安排",
+            title_normalized="实践周班车安排",
+            body_state="captured",
+            body_block_texts=("第一段正文", "第二段正文"),
+        )
+        report = rebuild_wechat_public_notice_projection(
+            request=WeChatPublicNoticeProjectionRequest(artifact_refs=(refs,)),
+            object_store=object_store,
+            projection_store=InMemoryNoticeConsumptionProjectionStore(),
+            dry_run=True,
+        )
+        derived_store = _FakeDerivedObjectStore()
+        read_model_store = InMemoryInternalNoticeReadModelStore()
+
+        rows = materialize_wechat_public_notice_read_model(
+            projection_entries=report.projection_entries,
+            read_model_store=read_model_store,
+            source_object_store=object_store,
+            derived_object_store=derived_store,
+            source_bucket="source",
+            derived_bucket="derived",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0].queryable)
+        self.assertTrue(rows[0].canonical_markdown_object_key)
+        canonical_payload = derived_store.payloads[
+            ("derived", rows[0].canonical_markdown_object_key)
+        ].decode("utf-8")
+        self.assertIn("# 实践周班车安排", canonical_payload)
+        self.assertIn("第一段正文", canonical_payload)
+        self.assertIn("第二段正文", canonical_payload)
 
     def test_materialize_wechat_read_model_replaces_selected_notices(self) -> None:
         stale_entry = _projection_entry(
@@ -289,6 +358,8 @@ def _build_source_truth_fixture(
     provider_article_id: str,
     title_raw: str,
     title_normalized: str,
+    body_state: str = "not_captured",
+    body_block_texts: tuple[str, ...] = (),
     manifest_overrides: dict[str, object] | None = None,
 ) -> tuple[_FakeObjectStore, WeChatSourceTruthArtifactRefs]:
     refs = WeChatSourceTruthArtifactRefs(
@@ -316,9 +387,9 @@ def _build_source_truth_fixture(
         "publishTime": publish_time,
         "publishTimeSource": "provider",
         "coverImageUrl": "https://cdn.example.com/cover.png",
-        "bodyState": "not_captured",
+        "bodyState": body_state,
         "metadataHash": f"sha256:{article_stable_id}",
-        "blockCount": 1,
+        "blockCount": 1 + len(body_block_texts),
         "mediaRefCount": 1,
         "availabilityState": "observed",
     }
@@ -336,6 +407,20 @@ def _build_source_truth_fixture(
             "textNormalized": title_normalized,
         }
     ]
+    for index, text in enumerate(body_block_texts, start=1):
+        content_blocks.append(
+            {
+                "schemaVersion": "wechat_official_account_content_block.v1",
+                "rawAssetId": manifest["rawAssetId"],
+                "rawVersionId": manifest["rawVersionId"],
+                "rowId": f"{article_stable_id}:block:{index}",
+                "rowIndex": index,
+                "blockOrder": index,
+                "blockRole": "body_paragraph",
+                "textRaw": text,
+                "textNormalized": text,
+            }
+        )
     media_refs = [
         {
             "schemaVersion": "wechat_official_account_media_ref.v1",
@@ -372,6 +457,7 @@ def _projection_entry(
     normalized_article_url: str,
     provider_article_id: str = "",
     account_slug: str = "",
+    body_state: str = "not_captured",
 ) -> NoticeConsumptionProjectionEntry:
     return NoticeConsumptionProjectionEntry(
         source_family=source_family,
@@ -395,6 +481,7 @@ def _projection_entry(
             "normalized_article_url": normalized_article_url,
             "provider_article_id": provider_article_id,
             "account_slug": account_slug,
+            "body_state": body_state,
         },
     )
 

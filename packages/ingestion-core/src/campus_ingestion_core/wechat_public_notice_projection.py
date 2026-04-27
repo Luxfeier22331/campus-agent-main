@@ -16,6 +16,7 @@ from campus_ingestion_core.internal_notice_read_model_shared import (
     InternalNoticeReadModelStore,
 )
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
+from campus_ingestion_core.object_store import build_document_artifact_key
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
@@ -65,6 +66,17 @@ class WeChatPublicNoticeProjectionObjectStore(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
 
+class WeChatPublicNoticeDerivedObjectStore(Protocol):
+    def put_bytes(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        data: bytes,
+        content_type: str,
+    ) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class WeChatSourceTruthArtifactRefs:
     article_manifest_key: str
@@ -111,6 +123,8 @@ class WeChatArticleSourceTruth:
     body_state: str
     content_block_count: int
     media_ref_count: int
+    summary_text: str
+    body_paragraphs: tuple[str, ...]
     metadata_hash: str
     manifest_key: str
     content_blocks_key: str
@@ -310,6 +324,11 @@ def build_wechat_public_notice_read_model_evidence_entries(
 
 def build_wechat_public_notice_read_model_entries(
     entries: Sequence[NoticeConsumptionProjectionEntry],
+    *,
+    source_object_store: WeChatPublicNoticeProjectionObjectStore | None = None,
+    derived_object_store: WeChatPublicNoticeDerivedObjectStore | None = None,
+    source_bucket: str = "",
+    derived_bucket: str = "",
 ) -> tuple[InternalNoticeReadModelEntry, ...]:
     rows: list[InternalNoticeReadModelEntry] = []
     for entry in entries:
@@ -325,6 +344,21 @@ def build_wechat_public_notice_read_model_entries(
         ) or _text(metadata.get("article_url"))
         canonical_document_id = entry.source_notice_document_id or entry.source_document_id
         body_excerpt = _build_wechat_read_model_body_excerpt(metadata=metadata, title=title)
+        canonical_markdown_object_key = ""
+        if (
+            _is_wechat_body_captured(metadata)
+            and source_object_store is not None
+            and derived_object_store is not None
+            and derived_bucket.strip()
+        ):
+            canonical_markdown_object_key, body_excerpt = _write_wechat_canonical_markdown(
+                entry=entry,
+                title=title,
+                source_object_store=source_object_store,
+                derived_object_store=derived_object_store,
+                source_bucket=source_bucket,
+                derived_bucket=derived_bucket,
+            )
         rows.append(
             InternalNoticeReadModelEntry(
                 source_family=entry.source_family,
@@ -342,7 +376,7 @@ def build_wechat_public_notice_read_model_entries(
                 source_url=source_url,
                 canonical_url=source_url,
                 canonical_document_id=canonical_document_id,
-                canonical_markdown_object_key="",
+                canonical_markdown_object_key=canonical_markdown_object_key,
                 attachment_refs=entry.source_attachment_ref_ids,
                 provenance_refs=_build_wechat_read_model_provenance_refs(
                     entry=entry,
@@ -367,6 +401,10 @@ def materialize_wechat_public_notice_read_model(
     *,
     projection_entries: Sequence[NoticeConsumptionProjectionEntry],
     read_model_store: InternalNoticeReadModelStore,
+    source_object_store: WeChatPublicNoticeProjectionObjectStore | None = None,
+    derived_object_store: WeChatPublicNoticeDerivedObjectStore | None = None,
+    source_bucket: str = "",
+    derived_bucket: str = "",
 ) -> tuple[InternalNoticeReadModelEntry, ...]:
     if not projection_entries:
         return ()
@@ -383,7 +421,13 @@ def materialize_wechat_public_notice_read_model(
     )
     if not notice_ids:
         return ()
-    rows = build_wechat_public_notice_read_model_entries(projection_entries)
+    rows = build_wechat_public_notice_read_model_entries(
+        projection_entries,
+        source_object_store=source_object_store,
+        derived_object_store=derived_object_store,
+        source_bucket=source_bucket,
+        derived_bucket=derived_bucket,
+    )
     read_model_store.replace_notices(
         source_corpus,
         source_collection,
@@ -521,8 +565,8 @@ def _load_wechat_article_source_truth(
     if source_channel != WECHAT_PUBLIC_NOTICE_SOURCE_CHANNEL:
         raise ValueError(f"unsupported sourceChannel for wechat projection: {source_channel}")
     body_state = _text(manifest.get("bodyState"))
-    if body_state != "not_captured":
-        raise ValueError("wechat source-truth bodyState must be not_captured")
+    if body_state not in {"captured", "not_captured", "fetch_failed"}:
+        raise ValueError(f"unsupported wechat source-truth bodyState: {body_state}")
 
     article_stable_id = _required_text(manifest, "articleStableId")
     raw_asset_id = _required_text(manifest, "rawAssetId")
@@ -551,6 +595,8 @@ def _load_wechat_article_source_truth(
         raise ValueError("wechat source-truth blockCount does not match content-block rows")
     if expected_media_ref_count is not None and expected_media_ref_count != len(media_refs):
         raise ValueError("wechat source-truth mediaRefCount does not match media-ref rows")
+    summary_text = _extract_wechat_summary_text(content_blocks)
+    body_paragraphs = _extract_wechat_body_paragraphs(content_blocks)
 
     return WeChatArticleSourceTruth(
         article_stable_id=article_stable_id,
@@ -571,6 +617,8 @@ def _load_wechat_article_source_truth(
         body_state=body_state,
         content_block_count=len(content_blocks),
         media_ref_count=len(media_refs),
+        summary_text=summary_text,
+        body_paragraphs=body_paragraphs,
         metadata_hash=metadata_hash,
         manifest_key=artifact_refs.article_manifest_key,
         content_blocks_key=artifact_refs.content_blocks_key,
@@ -736,6 +784,9 @@ def _build_retained_notice_entry(
             "publish_time_source": article.publish_time_source,
             "publish_day": article.publish_day,
             "cover_image_url": article.cover_image_url,
+            "summary_text": article.summary_text,
+            "body_excerpt": _build_article_body_excerpt(article),
+            "body_paragraph_count": len(article.body_paragraphs),
             "content_block_count": article.content_block_count,
             "media_ref_count": article.media_ref_count,
             "metadata_hash": article.metadata_hash,
@@ -839,6 +890,7 @@ def _is_wechat_read_model_queryable(entry: NoticeConsumptionProjectionEntry) -> 
     return (
         is_notice_query_retained_consumption_status(entry.consumption_status)
         and entry.target_surface == NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
+        and _is_wechat_body_captured(entry.role_metadata or {})
     )
 
 
@@ -848,7 +900,9 @@ def _build_wechat_read_model_body_excerpt(
     title: str,
 ) -> str:
     excerpt = (
-        _text(metadata.get("title_normalized"))
+        _text(metadata.get("body_excerpt"))
+        or _text(metadata.get("summary_text"))
+        or _text(metadata.get("title_normalized"))
         or _text(metadata.get("title"))
         or _text(metadata.get("notice_title"))
         or title
@@ -897,6 +951,128 @@ def _build_wechat_read_model_search_text(
     return "\n".join(part for part in parts if part).strip()[
         :DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS
     ]
+
+
+def _write_wechat_canonical_markdown(
+    *,
+    entry: NoticeConsumptionProjectionEntry,
+    title: str,
+    source_object_store: WeChatPublicNoticeProjectionObjectStore,
+    derived_object_store: WeChatPublicNoticeDerivedObjectStore,
+    source_bucket: str,
+    derived_bucket: str,
+) -> tuple[str, str]:
+    metadata = dict(entry.role_metadata or {})
+    source_truth_bucket = _text(metadata.get("source_bucket")) or source_bucket
+    if not source_truth_bucket:
+        raise ValueError("wechat read-model materialization requires source bucket")
+    content_blocks_key = _text(metadata.get("content_blocks_key"))
+    if not content_blocks_key:
+        raise ValueError("wechat read-model materialization requires content_blocks_key")
+    content_blocks = _load_jsonl_rows(
+        source_object_store.get_bytes(bucket=source_truth_bucket, key=content_blocks_key),
+        field_name="content-blocks",
+    )
+    body_paragraphs = _extract_wechat_body_paragraphs(content_blocks)
+    if not body_paragraphs:
+        raise ValueError("captured wechat article is missing body_paragraph blocks")
+    body = "\n\n".join(body_paragraphs).strip()
+    canonical_key = build_document_artifact_key(
+        corpus=entry.source_corpus,
+        collection=entry.source_collection,
+        document_id=entry.source_document_id or entry.source_notice_document_id or entry.source_notice_id,
+        revision_track="source-faithful",
+        version_id=_text(metadata.get("metadata_hash")) or entry.source_notice_id,
+        filename="canonical.md",
+        title=title,
+        year=_text(metadata.get("publish_day")) or "",
+    )
+    canonical_markdown = _render_wechat_canonical_markdown(metadata=metadata, title=title, body=body)
+    derived_object_store.put_bytes(
+        bucket=derived_bucket,
+        key=canonical_key,
+        data=canonical_markdown.encode("utf-8"),
+        content_type="text/markdown; charset=utf-8",
+    )
+    return canonical_key, _build_body_excerpt_from_text(body)
+
+
+def _extract_wechat_summary_text(content_blocks: Sequence[Mapping[str, Any]]) -> str:
+    for row in content_blocks:
+        if _text(row.get("blockRole")) != "summary":
+            continue
+        text = _text(row.get("textRaw")) or _text(row.get("textNormalized"))
+        if text:
+            return text
+    return ""
+
+
+def _extract_wechat_body_paragraphs(
+    content_blocks: Sequence[Mapping[str, Any]],
+) -> tuple[str, ...]:
+    rows: list[str] = []
+    for row in content_blocks:
+        if _text(row.get("blockRole")) != "body_paragraph":
+            continue
+        text = _text(row.get("textRaw")) or _text(row.get("textNormalized"))
+        if text:
+            rows.append(text)
+    return tuple(rows)
+
+
+def _build_article_body_excerpt(article: WeChatArticleSourceTruth) -> str:
+    if article.summary_text:
+        return article.summary_text[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
+    if article.body_paragraphs:
+        return _build_body_excerpt_from_text("\n\n".join(article.body_paragraphs))
+    return article.title_normalized[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
+
+
+def _build_body_excerpt_from_text(value: str) -> str:
+    return value.strip()[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
+
+
+def _is_wechat_body_captured(metadata: Mapping[str, object]) -> bool:
+    return _text(metadata.get("body_state")) == "captured"
+
+
+def _render_wechat_canonical_markdown(
+    *,
+    metadata: Mapping[str, object],
+    title: str,
+    body: str,
+) -> str:
+    front_matter: dict[str, object] = {
+        "source_family": WECHAT_PUBLIC_NOTICE_SOURCE_FAMILY,
+        "source_channel": WECHAT_PUBLIC_NOTICE_SOURCE_CHANNEL,
+        "account_name": _text(metadata.get("account_name")),
+        "account_slug": _text(metadata.get("account_slug")),
+        "source_url": _text(metadata.get("source_url")),
+        "published_at": _text(metadata.get("publish_time")),
+        "provider": _text(metadata.get("provider")),
+        "provider_article_id": _text(metadata.get("provider_article_id")),
+        "body_state": _text(metadata.get("body_state")),
+    }
+    lines = ["---"]
+    for key, value in front_matter.items():
+        if value is None or value == "":
+            continue
+        lines.append(f"{key}: {_format_front_matter_value(value)}")
+    lines.extend(["---", "", f"# {title}", "", body.strip(), ""])
+    return "\n".join(lines)
+
+
+def _format_front_matter_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    text = str(value)
+    if not text:
+        return '""'
+    if any(ch in text for ch in ["#", "[", "]", "{", "}", ","]) or text != text.strip():
+        return json.dumps(text, ensure_ascii=False)
+    return text
 
 
 def _source_family_priority(source_family: str) -> int:

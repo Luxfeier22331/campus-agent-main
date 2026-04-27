@@ -120,6 +120,8 @@ const FINALIZEABLE_TERMINAL_STATUSES = new Set<WeChatOfficialAccountTerminalRunS
 const ALLOWED_ARTIFACT_TYPES = new Set([
 	"provider_response",
 	"request_summary",
+	"page_fetch_metadata",
+	"page_raw_html",
 	"source_truth_article_manifest",
 	"source_truth_content_blocks",
 	"source_truth_media_refs",
@@ -317,6 +319,12 @@ function isAllowedSourceBucketArtifactKey(
 	}
 	if (artifactType === "request_summary") {
 		return objectKey.endsWith("/capture/feedwe-request-summary.json");
+	}
+	if (artifactType === "page_fetch_metadata") {
+		return objectKey.endsWith("/capture/wechat-article-fetch-metadata.json");
+	}
+	if (artifactType === "page_raw_html") {
+		return objectKey.endsWith("/capture/wechat-article-page.html");
 	}
 	return false;
 }
