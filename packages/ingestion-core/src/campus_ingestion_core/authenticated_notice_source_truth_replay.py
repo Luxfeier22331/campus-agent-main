@@ -24,6 +24,9 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
+from campus_ingestion_core.authenticated_notice_source_projections_engine import (
+    _build_ocr_provider_response_cache,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     HIGH_RISK_NOTICE_LABELS,
     AuthenticatedNoticeSourceTruthInventoryEntry,
@@ -147,7 +150,7 @@ def build_authenticated_notice_source_truth_replay_documents(
         object_store=object_store,
         object_store_settings=object_store_settings,
     )
-    ocr_provider_response_cache: dict[str, bytes] = {}
+    ocr_provider_response_cache = _build_ocr_provider_response_cache(env=source)
     runtime_ocr = (
         _resolve_authenticated_notice_ocr_runtime(env=source, ocr_client=ocr_client)
         if ocr_client is not None

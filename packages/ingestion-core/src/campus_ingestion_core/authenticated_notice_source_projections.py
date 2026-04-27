@@ -10,6 +10,7 @@ from campus_ingestion_core.authenticated_notice_source_projections_engine import
     _project_parent_source_truth as _project_parent_source_truth_impl,
 )
 from campus_ingestion_core.authenticated_notice_source_projections_engine import (
+    _read_positive_env_int,
     _resolve_authenticated_notice_ocr_runtime,
     rebuild_authenticated_notice_source_projections_impl,
 )
@@ -77,6 +78,16 @@ def _project_parent_source_truth(
     ocr_provider_response_cache,
     env,
 ):
+    max_attachment_bytes = _read_positive_env_int(
+        env=env,
+        key="INGESTION_MAX_ATTACHMENT_BYTES",
+        default=25 * 1024 * 1024,
+    )
+    max_ocr_input_bytes = _read_positive_env_int(
+        env=env,
+        key="INGESTION_MAX_OCR_INPUT_BYTES",
+        default=25 * 1024 * 1024,
+    )
     return _project_parent_source_truth_impl(
         parent_source_truth=parent_source_truth,
         config=config,
@@ -85,6 +96,8 @@ def _project_parent_source_truth(
         runtime_profile=runtime_profile,
         ocr_runtime=ocr_runtime,
         ocr_provider_response_cache=ocr_provider_response_cache,
+        max_attachment_bytes=max_attachment_bytes,
+        max_ocr_input_bytes=max_ocr_input_bytes,
         env=env,
         text_extractable_extractor=extract_text_extractable_file_asset,
         layout_elements_builder=build_text_extractable_layout_elements_bytes,
