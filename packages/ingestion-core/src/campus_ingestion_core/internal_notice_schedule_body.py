@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import Literal
+
+ScheduleBodyExtractionStatus = Literal["extracted", "no_schedule_body"]
+
+_TIME_RE = re.compile(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)")
+_BUS_SEQUENCE_RE = re.compile(
+    r"(?P<label>第[一二三四五六七八九十]+班)\s*"
+    r"(?P<hour>[01]?\d|2[0-3])[:：](?P<minute>[0-5]\d)"
+)
+_DIRECTION_SECTION_RE = re.compile(
+    r"(?:\d+[.、]\s*)?(?P<label>出发|接站|返程|去程)\s*[:：]\s*"
+    r"(?P<body>.*?)(?=(?:\d+[.、]\s*)?(?:出发|接站|返程|去程)\s*[:：]|三、|四、|$)",
+    re.S,
+)
+_LOCATION_SECTION_RE = re.compile(
+    r"乘车地点[:：]?\s*(?P<body>.*?)(?=乘车方式|预约|特此通知|$)",
+    re.S,
+)
+_LOCATION_ITEM_RE = re.compile(
+    r"(?:\d+[.、]\s*)?(?P<label>出发|接站|返程|去程)\s*[:：]\s*"
+    r"(?P<body>.*?)(?=(?:\d+[.、]\s*)?(?:出发|接站|返程|去程)\s*[:：]|$)",
+    re.S,
+)
+_SERVICE_WINDOW_RE = re.compile(r"\d{1,2}月\d{1,2}日\s*(?:-|—|至|到)\s*\d{1,2}日(?:之间|期间)?")
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleNoticeBody:
+    notice_id: str
+    notice_title: str
+    release_time: str
+    organization: str
+    context_before: str
+    context_after: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleNoticeBodyExtraction:
+    notice_id: str
+    status: ScheduleBodyExtractionStatus
+    source: str
+    service_window: str
+    rows: tuple[dict[str, str], ...]
+
+
+def extract_schedule_from_notice_body(
+    body: ScheduleNoticeBody,
+) -> ScheduleNoticeBodyExtraction:
+    text = _normalize_text("\n".join((body.notice_title, body.context_before, body.context_after)))
+    locations = _extract_direction_locations(text)
+    rows: list[dict[str, str]] = []
+    for section in _DIRECTION_SECTION_RE.finditer(text):
+        direction_label = section.group("label")
+        section_body = section.group("body")
+        for match in _BUS_SEQUENCE_RE.finditer(section_body):
+            rows.append(
+                {
+                    "notice_id": body.notice_id,
+                    "direction_label": direction_label,
+                    "sequence_label": match.group("label"),
+                    "departure_time": f"{int(match.group('hour')):02d}:{match.group('minute')}",
+                    "boarding_location": locations.get(direction_label, ""),
+                }
+            )
+    if not rows:
+        return ScheduleNoticeBodyExtraction(
+            notice_id=body.notice_id,
+            status="no_schedule_body",
+            source="authenticated_notice_body",
+            service_window="",
+            rows=(),
+        )
+    return ScheduleNoticeBodyExtraction(
+        notice_id=body.notice_id,
+        status="extracted",
+        source="authenticated_notice_body",
+        service_window=_extract_service_window(text),
+        rows=tuple(rows),
+    )
+
+
+def _extract_direction_locations(text: str) -> dict[str, str]:
+    locations: dict[str, str] = {}
+    section = _LOCATION_SECTION_RE.search(text)
+    if section is None:
+        return locations
+    location_body = section.group("body")
+    for item in _LOCATION_ITEM_RE.finditer(location_body):
+        locations[item.group("label")] = _clean_location(item.group("body"))
+    return locations
+
+
+def _extract_service_window(text: str) -> str:
+    match = _SERVICE_WINDOW_RE.search(text)
+    return match.group(0) if match else ""
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _clean_location(text: str) -> str:
+    value = re.sub(r"\s+", " ", text or "").strip()
+    value = re.sub(r"(?:四、|乘车方式).*$", "", value).strip()
+    value = re.sub(r"\d{1,2}月\d{1,2}日.*$", "", value).strip()
+    return value.rstrip("。；;，, ")
+
+
+__all__ = [
+    "ScheduleBodyExtractionStatus",
+    "ScheduleNoticeBody",
+    "ScheduleNoticeBodyExtraction",
+    "extract_schedule_from_notice_body",
+]

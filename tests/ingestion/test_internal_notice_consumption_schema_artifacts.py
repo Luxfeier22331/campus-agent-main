@@ -20,6 +20,7 @@ class InternalNoticeConsumptionSchemaArtifactsTest(unittest.TestCase):
             "ingestion_projection.internal_notice_consumption_admission",
             "ingestion_projection.internal_notice_consumption_admission_event",
             "ingestion_projection.internal_notice_multimodal_attempt",
+            "ingestion_projection.internal_notice_schedule_image_ocr_attempt",
         ):
             self.assertIn(table_name, sql)
 
@@ -29,6 +30,9 @@ class InternalNoticeConsumptionSchemaArtifactsTest(unittest.TestCase):
             "selection_sha256",
             "event_id",
             "attempt_number",
+            "provider_response_key",
+            "layout_elements_key",
+            "ocr_manifest_key",
             "search_vector",
         ):
             self.assertIn(required_column, sql)

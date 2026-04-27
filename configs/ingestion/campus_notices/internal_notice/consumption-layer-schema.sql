@@ -175,5 +175,48 @@ ON ingestion_projection.internal_notice_multimodal_attempt (
     admission_batch_id
 );
 
+CREATE TABLE IF NOT EXISTS ingestion_projection.internal_notice_schedule_image_ocr_attempt (
+    source_corpus text NOT NULL,
+    source_collection text NOT NULL,
+    source_notice_id text NOT NULL,
+    attachment_ref_id text NOT NULL,
+    image_index integer NOT NULL,
+    attempt_number integer NOT NULL,
+    admission_batch_id text NOT NULL DEFAULT '',
+    provider text NOT NULL,
+    model text NOT NULL,
+    status text NOT NULL,
+    confidence text NOT NULL,
+    provider_response_key text NOT NULL,
+    layout_elements_key text NOT NULL,
+    ocr_manifest_key text NOT NULL,
+    run_id text NOT NULL DEFAULT '',
+    error text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL,
+    record jsonb NOT NULL,
+    PRIMARY KEY (
+        source_corpus,
+        source_collection,
+        source_notice_id,
+        attachment_ref_id,
+        image_index,
+        attempt_number
+    )
+);
+
+CREATE INDEX IF NOT EXISTS internal_notice_schedule_image_ocr_attempt_notice_idx
+ON ingestion_projection.internal_notice_schedule_image_ocr_attempt (
+    source_corpus,
+    source_collection,
+    source_notice_id
+);
+
+CREATE INDEX IF NOT EXISTS internal_notice_schedule_image_ocr_attempt_admission_idx
+ON ingestion_projection.internal_notice_schedule_image_ocr_attempt (
+    source_corpus,
+    source_collection,
+    admission_batch_id
+);
+
 -- Projection and read-model admission provenance is stored inside record jsonb:
 -- consumer_admission_batch_id, consumer_admission_command, consumer_admission_created_at.
