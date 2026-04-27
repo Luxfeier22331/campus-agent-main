@@ -111,6 +111,50 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{"campus_scope": "fengtai"},
 		},
 		{
+			name: "service status card center open alias",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "卡务中心今天开不开",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"subject_query": "卡务中心今天开不开"},
+		},
+		{
+			name: "service status clinic suspension alias",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校医院今天停诊了吗",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"subject_query": "校医院今天停诊了吗"},
+		},
+		{
+			name: "service status canteen closed alias",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "食堂现在关门了吗",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"subject_query": "食堂现在关门了吗"},
+		},
+		{
+			name: "service status transport boarding point change",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "丰台校区通勤班车在哪里上车",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"campus_scope": "fengtai"},
+		},
+		{
 			name: "contact directory phone",
 			request: Request{
 				EffectiveCapability: "campus_services",

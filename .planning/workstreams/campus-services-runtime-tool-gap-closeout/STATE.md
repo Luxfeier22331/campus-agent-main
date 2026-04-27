@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: backlog
+status: active
 created: 2026-04-27
 updated: 2026-04-27
 ---
@@ -9,10 +9,11 @@ updated: 2026-04-27
 
 ## Current Status
 
-- status: `backlog`
-- current slice: none
-- owner: unassigned
-- active implementation: no
+- status: `active`
+- current phase: `Phase 1`
+- current slice: `service_status_lookup` readiness closeout
+- owner: current Codex session
+- active implementation: yes
 
 ## Phase 6 Handoff (2026-04-27)
 

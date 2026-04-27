@@ -1,19 +1,21 @@
 ---
 doc_type: index
-status: backlog
+status: active
 created: 2026-04-27
 updated: 2026-04-27
 ---
 
 # Workstream: Campus Services Runtime Tool Gap Closeout
 
-这是 `campus-services-runtime-tool-gap-closeout` 的 native backlog workstream 入口。
+这是 `campus-services-runtime-tool-gap-closeout` 的 native active workstream 入口。
 它记录 `campus-services-agent` 当前 structured runtime tools 在 product-path opening 前仍需收口的缺口。
 
 ## Current Status
 
-- status: `backlog`
-- active implementation: no
+- status: `active`
+- active implementation: yes
+- current phase: `Phase 1`
+- current slice: `service_status_lookup` readiness closeout
 - reopen rule: 只有在 product path 准备打开或强化 `service_status_lookup`、
   `transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup`
   的真实用户可用性时恢复

@@ -211,7 +211,9 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.resolved_subject, "海淀校区图书馆")
         self.assertIn("海淀校区图书馆", response.answer_text)
+        self.assertIn("正常开放", response.answer_text)
         self.assertIn("工作日开放，节假日另行通知", response.answer_text)
+        self.assertNotIn("open", response.answer_text)
         self.assertEqual(
             query_service.last_service_status_query,
             ServiceStatusQuery(

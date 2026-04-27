@@ -114,6 +114,22 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 			},
 			{
 				answerText:
+					"debug projection_internal_state release_id=service_status_release_v2 authenticated_notice:355999",
+				expected: ["海淀校区图书馆：当前状态：正常开放", "来源：校内通知"],
+				expectedTraceRef: "认证通知 #355999",
+				forbidden: ["open", "projection_internal_state", "service_status_release_v2"],
+				prompt: "海淀图书馆今天开门吗",
+				result: {
+					payload_kind: "service_status_lookup",
+					tool_result: {
+						observed_status: "open",
+						related_notice_refs: ["authenticated_notice:355999"],
+						resolved_subject: "海淀校区图书馆",
+					},
+				},
+			},
+			{
+				answerText:
 					"raw_table_parser_state=true guide_release=service_guide_release_v3 authenticated_notice:354777",
 				expected: [
 					"地铁接驳车预约：预约入口：通过学校统一预约入口提交地铁接驳车预约。",

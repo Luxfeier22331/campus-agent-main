@@ -1,17 +1,18 @@
 ---
 doc_type: roadmap
-status: backlog
+status: active
 created: 2026-04-27
 updated: 2026-04-27
 ---
 
 # Roadmap: Campus Services Runtime Tool Gap Closeout
 
-当前为 backlog draft，不代表 active execution order。恢复为 active workstream 前，应确认
-shared PG current releases、capability flags、supervisor routing policy 与 public/chat E2E
-目标。
+当前 workstream 已恢复执行。Phase 6 handoff 后，四个首发 tool 的 local opening verdict
+已是 `open`；本路线图用于继续收口 runtime denominator、answer shaping 与真实部署证据。
 
 ## Phase 1: Service Status Lookup Readiness Closeout
+
+**Status:** active
 
 **Goal:** 收口当前状态、临时调整、乘车点变更、开放 / 关闭类问题的 runtime 可用性。
 
