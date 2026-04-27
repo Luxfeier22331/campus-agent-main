@@ -41,6 +41,7 @@ describe("public docs worker shell", () => {
 		expect(wranglerConfig).toContain("[assets]");
 		expect(wranglerConfig).toContain('directory = "./doc_build"');
 		expect(wranglerConfig).toContain('binding = "ASSETS"');
+		expect(wranglerConfig).toContain('not_found_handling = "404-page"');
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
@@ -231,5 +232,43 @@ describe("public docs worker shell", () => {
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		await expect(response.text()).resolves.toContain("docs");
+	});
+
+	it("serves the gated reader fallback shell when a docs route misses static assets", async () => {
+		const worker = await importWorker();
+		const assetRequests: string[] = [];
+		const response = await worker.fetch(
+			new Request("https://docs.example.com/docs/curriculum/curriculum_plan/restricted-program"),
+			{
+				APP_API: {
+					fetch: async () => new Response(null, { status: 204 }),
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async (request: Request) => {
+						assetRequests.push(new URL(request.url).pathname);
+						if (new URL(request.url).pathname === "/reader-fallback.html") {
+							return new Response("<!doctype html><html><body>reader fallback</body></html>", {
+								headers: {
+									"cache-control": "public, max-age=3600",
+									"content-type": "text/html; charset=utf-8",
+								},
+								status: 200,
+							});
+						}
+						return new Response("missing", { status: 404 });
+					},
+				},
+				PUBLIC_DOCS_HOSTNAME: "docs.example.com",
+			},
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		await expect(response.text()).resolves.toContain("reader fallback");
+		expect(assetRequests).toEqual([
+			"/docs/curriculum/curriculum_plan/restricted-program",
+			"/reader-fallback.html",
+		]);
 	});
 });

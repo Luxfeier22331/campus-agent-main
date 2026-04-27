@@ -18,6 +18,13 @@ function mapStructuredPartsToUiParts(message: ShellMessage): ChatMessage["parts"
 				type: "data-place-card",
 			});
 		}
+
+		if (part.type === "source_cards") {
+			parts.push({
+				data: part.sourceCards,
+				type: "data-source-cards",
+			});
+		}
 	}
 
 	return parts;

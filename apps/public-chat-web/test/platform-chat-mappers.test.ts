@@ -173,6 +173,61 @@ describe("platform chat mappers", () => {
 		});
 	});
 
+	it("maps assistant source cards into shell structured parts", () => {
+		expect(
+			mapConversationDetail({
+				createdAt: "2026-04-27T09:00:00.000Z",
+				id: "conv_456",
+				messages: [
+					{
+						conversationId: "conv_456",
+						createdAt: "2026-04-27T09:00:02.000Z",
+						id: "msg_assistant",
+						kind: "answer",
+						requestId: "req_456",
+						retryable: false,
+						role: "assistant",
+						structuredParts: [
+							{
+								sourceCards: [
+									{
+										collectionLabel: "学生手册",
+										href: "/docs/regulations/student_rules/student-handbook?hl=rule-001#article-1",
+										pageLabel: "原文第 12 页",
+										sectionTitle: "第一条",
+										snippet: "学生应遵守学校管理规定。",
+										title: "中央民族大学学生管理规定",
+										versionLabel: "现行版",
+									},
+								],
+								type: "source_cards",
+							},
+						],
+						text: "学生应遵守学校管理规定。",
+					},
+				],
+				title: "学生管理规定",
+				updatedAt: "2026-04-27T09:00:02.000Z",
+			}),
+		).toMatchObject({
+			messages: [
+				{
+					structuredParts: [
+						{
+							sourceCards: [
+								{
+									href: "/docs/regulations/student_rules/student-handbook?hl=rule-001#article-1",
+									title: "中央民族大学学生管理规定",
+								},
+							],
+							type: "source_cards",
+						},
+					],
+				},
+			],
+		});
+	});
+
 	it("maps chat request outcomes into shell request outcome shape", () => {
 		expect(
 			mapChatAnswerPayload({

@@ -23,6 +23,7 @@ const requiredSnippets = [
 	"[assets]",
 	'directory = "./doc_build"',
 	'binding = "ASSETS"',
+	'not_found_handling = "404-page"',
 ];
 
 for (const snippet of requiredSnippets) {

@@ -11,6 +11,7 @@ export interface Env {
 }
 
 const DOCS_API_PREFIX = "/api/docs/";
+const READER_FALLBACK_PATH = "/reader-fallback.html";
 const FORWARDED_HEADERS = [
 	"accept",
 	"content-type",
@@ -229,12 +230,22 @@ async function serveStaticDocs(request: Request, env: Env): Promise<Response> {
 	}
 
 	const response = await env.ASSETS.fetch(request);
+	if (response.status === 404 && isDocsReaderRoute(new URL(request.url).pathname)) {
+		const fallbackUrl = new URL(READER_FALLBACK_PATH, request.url);
+		const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
+		return withNoStore(fallbackResponse);
+	}
+
 	const contentType = response.headers.get("content-type") ?? "";
 	if (!contentType.includes("text/html")) {
 		return response;
 	}
 
 	return withNoStore(response);
+}
+
+function isDocsReaderRoute(pathname: string): boolean {
+	return pathname.startsWith("/docs/") && pathname.split("/").filter(Boolean).length >= 4;
 }
 
 function withNoStore(response: Response): Response {

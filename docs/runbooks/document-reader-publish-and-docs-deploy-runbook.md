@@ -9,14 +9,15 @@ updated: 2026-04-27
 
 ## 用途
 
-这份 runbook 固定公开文档站的 Phase 2 发布链路：
+这份 runbook 固定公开文档站的 Phase 2 发布链路，并记录 Phase 6 gated reader
+asset staging handoff：
 
 - `canonical artifacts -> reader-assets`
 - `reader-assets -> app-api docs read model`
 - `app-api docs read model -> public-docs static bundle`
 
-它只负责当前 public current reader surface，不负责 restricted reader、历史版本 admission
-或 chat source-card UI。
+它负责 docs reader publish/deploy 的可重复操作顺序；chat source-card UI 不在本 runbook
+内。
 
 ## 固定职责
 
@@ -114,6 +115,32 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 pnpm --filter public-docs deploy:verify-config:staging
 ```
 
+### 6. 同步 gated reader assets 到 staging R2
+
+restricted reader 不进入 `public-docs` static bundle。staging 需要把 read-model manifest
+中 `deliveryMode=gated_asset` 的 `sourceObjects` 复制到 `app-api` 的
+`DOCS_READER_ASSETS` binding bucket。
+
+```bash
+DOCS_READ_MODEL_MANIFEST_PATH=var/docs-read-model-manifest.json \
+DOCS_READER_ASSETS_R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
+DOCS_READER_ASSETS_R2_ACCESS_KEY=<r2-access-key> \
+DOCS_READER_ASSETS_R2_SECRET_KEY=<r2-secret-key> \
+DOCS_READER_ASSETS_R2_BUCKET=campus-agent-reader-assets-staging \
+  pnpm --filter public-docs sync:gated-reader-assets
+```
+
+先做 dry run：
+
+```bash
+DOCS_READ_MODEL_MANIFEST_PATH=var/docs-read-model-manifest.json \
+DOCS_READER_ASSETS_R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
+DOCS_READER_ASSETS_R2_ACCESS_KEY=<r2-access-key> \
+DOCS_READER_ASSETS_R2_SECRET_KEY=<r2-secret-key> \
+DOCS_READER_ASSETS_R2_BUCKET=campus-agent-reader-assets-staging \
+  pnpm --filter public-docs sync:gated-reader-assets -- --dry-run
+```
+
 ## 验收点
 
 - `app-api` 的 `/api/docs/*` 只返回 public current static subset。
@@ -121,6 +148,8 @@ pnpm --filter public-docs deploy:verify-config:staging
   `chunkId`。
 - `public-docs` build output 包含 Rspress reader pages 与 `/_docs/...` static assets。
 - `gated_asset` 不进入 `doc_build/_docs/...`。
+- restricted reader asset response 只经 same-site `/api/docs/.../assets/:assetKind`
+  返回，且必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
 - 缺失 source object、重复 target object、unsafe target path 或 hash/size 不一致时，
   sync 必须失败。
 

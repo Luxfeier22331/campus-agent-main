@@ -96,4 +96,53 @@ describe("platform chat message parts", () => {
 			},
 		]);
 	});
+
+	it("adds data-source-cards after the assistant text part", () => {
+		expect(
+			mapShellMessageToChatMessage({
+				createdAt: "2026-04-27T09:00:02.000Z",
+				id: "msg_assistant",
+				kind: "answer",
+				requestId: "req_789",
+				retryable: false,
+				role: "assistant",
+				structuredParts: [
+					{
+						sourceCards: [
+							{
+								collectionLabel: "培养方案",
+								href: "/docs/curriculum/curriculum_plan/computer-science?hl=root-001#graduation-requirements",
+								pageLabel: "原文第 87-102 页",
+								sectionTitle: "二、毕业要求",
+								snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+								title: "计算机类本科人才培养方案",
+								versionLabel: "现行版",
+							},
+						],
+						type: "source_cards",
+					},
+				],
+				text: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
+			}).parts,
+		).toEqual([
+			{
+				text: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
+				type: "text",
+			},
+			{
+				data: [
+					{
+						collectionLabel: "培养方案",
+						href: "/docs/curriculum/curriculum_plan/computer-science?hl=root-001#graduation-requirements",
+						pageLabel: "原文第 87-102 页",
+						sectionTitle: "二、毕业要求",
+						snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+						title: "计算机类本科人才培养方案",
+						versionLabel: "现行版",
+					},
+				],
+				type: "data-source-cards",
+			},
+		]);
+	});
 });

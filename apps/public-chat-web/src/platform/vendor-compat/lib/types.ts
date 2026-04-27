@@ -43,6 +43,16 @@ export interface PlaceCardData {
 	sourceRefs?: string[];
 }
 
+export interface SourceCardData {
+	title: string;
+	sectionTitle: string;
+	snippet: string;
+	href: string;
+	collectionLabel: string;
+	versionLabel: string;
+	pageLabel: string;
+}
+
 interface WeatherToolOutput {
 	cityName?: string;
 	current: {
@@ -111,6 +121,7 @@ export type CustomUIDataTypes = {
 	imageDelta: string;
 	kind: ArtifactKind;
 	"place-card": PlaceCardData;
+	"source-cards": SourceCardData[];
 	sheetDelta: string;
 	suggestion: SuggestionRecord;
 	textDelta: string;

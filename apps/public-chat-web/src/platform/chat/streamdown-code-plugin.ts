@@ -1,4 +1,5 @@
-import type { BundledLanguage, BundledTheme } from "shiki";
+import type { BundledTheme } from "shiki";
+import type { CodeHighlighterPlugin } from "streamdown";
 
 import {
 	type CampusCodeHighlightResult,
@@ -9,28 +10,15 @@ import {
 	supportsShikiLanguage,
 } from "./shiki-runtime";
 
-export type HighlightResult = CampusCodeHighlightResult;
-
-export interface HighlightOptions {
-	code: string;
-	language: BundledLanguage;
-	themes: [string, string];
-}
+type StreamdownHighlightResult = Exclude<ReturnType<CodeHighlighterPlugin["highlight"]>, null>;
+type StreamdownHighlightCallback = NonNullable<Parameters<CodeHighlighterPlugin["highlight"]>[1]>;
 
 export interface CodePluginOptions {
 	themes?: [BundledTheme, BundledTheme];
 }
 
-export interface CodeHighlighterPlugin {
-	getSupportedLanguages: () => BundledLanguage[];
-	getThemes: () => [BundledTheme, BundledTheme];
-	highlight: (
-		options: HighlightOptions,
-		callback?: (result: HighlightResult) => void,
-	) => HighlightResult | null;
-	name: "shiki";
-	supportsLanguage: (language: BundledLanguage) => boolean;
-	type: "code-highlighter";
+function toStreamdownHighlightResult(result: CampusCodeHighlightResult): StreamdownHighlightResult {
+	return result as unknown as StreamdownHighlightResult;
 }
 
 export const createCodePlugin = (options: CodePluginOptions = {}): CodeHighlighterPlugin => {
@@ -40,17 +28,24 @@ export const createCodePlugin = (options: CodePluginOptions = {}): CodeHighlight
 	];
 
 	return {
-		getSupportedLanguages: () => getSupportedShikiLanguages() as BundledLanguage[],
+		getSupportedLanguages: () =>
+			getSupportedShikiLanguages() as ReturnType<CodeHighlighterPlugin["getSupportedLanguages"]>,
 		getThemes: () => themes,
-		highlight: ({ code, language, themes: incomingThemes }, callback) =>
-			highlightCampusCode(
+		highlight: ({ code, language, themes: incomingThemes }, callback) => {
+			const result = highlightCampusCode(
 				{
 					code,
 					language,
 					themes: incomingThemes,
 				},
-				callback,
-			),
+				callback
+					? (campusResult) => {
+							(callback as StreamdownHighlightCallback)(toStreamdownHighlightResult(campusResult));
+						}
+					: undefined,
+			);
+			return result ? toStreamdownHighlightResult(result) : null;
+		},
 		name: "shiki",
 		supportsLanguage: (language) => supportsShikiLanguage(language),
 		type: "code-highlighter",

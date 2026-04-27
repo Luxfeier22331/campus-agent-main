@@ -80,6 +80,8 @@ control-plane HTTP contract。
   /api/docs/collections/:corpus/:collection/documents/:documentSlug/versions`
 - `GET
   /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
+- `GET
+  /api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind`
 
 ## Navigation Contract
 
@@ -225,6 +227,30 @@ control-plane HTTP contract。
 - short-lived grant token / local verification 不属于当前默认 contract
 - future restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
   path
+
+## Gated Reader Asset Contract
+
+### `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/assets/:assetKind`
+
+查询参数：
+
+- `version`
+  - 必填于 browser descriptor；缺省时服务端按当前版本解析
+
+路径参数：
+
+- `assetKind`
+  - 只允许 `reader`、`outline`、`meta`、`asset-manifest`
+
+固定规则：
+
+- 该 endpoint 只服务 `gated_asset`，公开静态文档继续走 `public-docs` static assets
+- 每次请求必须重新解析 principal 并校验 document version visibility / entitlement
+- response body 来自服务端读取 reader asset object，不返回 JSON envelope
+- response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`
+- 授权失败、对象不存在或 projection 不可安全判定时 fail-close
+- browser response 不暴露 bucket、object key、source object map、raw locator、
+  chunk id 或 provider artifact path
 
 ## Docs Search Contract
 

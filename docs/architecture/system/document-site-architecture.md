@@ -199,6 +199,17 @@ canonical doc 的正文交付长期采用：
 binding 负责交付静态 reader shell / assets；动态 docs control-plane 请求通过 same-site
 `/api/docs/*` 进入 `app-api`，且 response 默认 `no-store`。
 
+restricted reader 的当前实现约束：
+
+- `public-docs` 不把 `gated_asset` 同步进 `doc_build/_docs/...`
+- 静态 reader route 未命中时，`public-docs` 返回通用 reader fallback shell，不在该层暴露正文或
+  object key
+- fallback shell 继续通过 same-site `/api/docs/*` 调用 `app-api` resolve 与 gated asset
+  endpoint
+- `app-api` 在 gated asset endpoint 内逐请求重做 principal / entitlement 校验，再读取
+  reader asset object bytes
+- gated asset response 默认 `Cache-Control: no-store`，不得使用 presigned URL 作为默认交付路径
+
 Cloudflare Workers 当前官方 static assets 路由模型允许：
 
 - 命中静态资源时直接由 assets 层返回

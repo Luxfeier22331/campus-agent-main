@@ -1,7 +1,12 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { Vote } from "@/lib/db/schema";
-import type { ChatMessage, ChatMessagePart, PlaceCardData } from "@/lib/types";
+import type {
+  ChatMessage,
+  ChatMessagePart,
+  PlaceCardData,
+  SourceCardData,
+} from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { MessageContent, MessageResponse } from "../ai-elements/message";
 import { Shimmer } from "../ai-elements/shimmer";
@@ -172,6 +177,72 @@ function PlaceCardBlock({
   );
 }
 
+function SourceCardMeta({ card }: { card: SourceCardData }) {
+  const metaItems = [
+    card.collectionLabel,
+    card.versionLabel,
+    card.pageLabel,
+  ].filter(Boolean);
+
+  if (metaItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+      {metaItems.map((item) => (
+        <span key={item}>{item}</span>
+      ))}
+    </div>
+  );
+}
+
+function SourceCardsBlock({
+  part,
+}: {
+  part: Extract<ChatMessagePart, { type: "data-source-cards" }>;
+}) {
+  const cards = part.data;
+  if (!cards.length) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-label="参考来源"
+      className="w-full max-w-[min(100%,40rem)] rounded-2xl border border-border/70 bg-background/80 p-3 shadow-[var(--shadow-card)]"
+      data-testid="source-cards"
+    >
+      <div className="mb-2 text-[12px] font-medium text-muted-foreground">参考来源</div>
+      <div className="grid gap-2">
+        {cards.map((card) => (
+          <a
+            className="group block rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5 transition-colors hover:border-foreground/20 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={card.href}
+            key={card.href}
+          >
+            <SourceCardMeta card={card} />
+            <div className="mt-1 font-medium text-[13px] text-foreground leading-[1.45]">
+              {card.title}
+            </div>
+            {card.sectionTitle ? (
+              <div className="mt-1 text-[12px] text-muted-foreground">
+                {card.sectionTitle}
+              </div>
+            ) : null}
+            <p className="mt-1.5 line-clamp-2 text-[12px] leading-[1.55] text-muted-foreground">
+              {card.snippet}
+            </p>
+            <div className="mt-2 text-[12px] font-medium text-foreground/75 group-hover:text-foreground">
+              查看原文
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 const PurePreviewMessage = ({
   addToolApprovalResponse,
   chatId,
@@ -281,6 +352,10 @@ const PurePreviewMessage = ({
 
     if (type === "data-place-card") {
       return <PlaceCardBlock key={key} part={part} />;
+    }
+
+    if (type === "data-source-cards") {
+      return <SourceCardsBlock key={key} part={part} />;
     }
 
     if (type === "tool-getWeather") {

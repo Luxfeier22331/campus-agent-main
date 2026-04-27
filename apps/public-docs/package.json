@@ -18,6 +18,7 @@
 		"deploy:verify-config:staging": "node ./scripts/verify-worker-config.mjs",
 		"ensure:docs-scaffold": "tsx scripts/ensure-docs-scaffold.ts",
 		"preview": "rspress preview --host 127.0.0.1 --port 4177",
+		"sync:gated-reader-assets": "tsx scripts/sync-gated-reader-assets-to-r2.ts",
 		"sync:published-reader-assets": "tsx scripts/sync-published-reader-assets.ts",
 		"sync:published-reader-docs": "tsx scripts/sync-published-reader-docs.ts",
 		"sync:real-docs": "tsx scripts/sync-real-docs.ts",
