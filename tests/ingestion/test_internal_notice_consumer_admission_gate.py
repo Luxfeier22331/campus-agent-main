@@ -4,6 +4,7 @@ import unittest
 
 from campus_ingestion_core.internal_notice_consumer_admission_gate import (
     CONSUMER_ADMISSION_GATE_OPERATION_READ_MODEL_REBUILD,
+    CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
     CONSUMER_ADMISSION_GATE_REASON_ID_MISMATCH,
     CONSUMER_ADMISSION_GATE_REASON_MISSING_MANIFEST,
     CONSUMER_ADMISSION_GATE_REASON_REPLACE_SCOPE_NOT_AUTHORIZED,
@@ -22,6 +23,7 @@ from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+    NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
 )
 
@@ -110,6 +112,23 @@ class InternalNoticeConsumerAdmissionGateTest(unittest.TestCase):
 
         self.assertEqual(report.verdict, "block")
         self.assertIn(CONSUMER_ADMISSION_GATE_REASON_THRESHOLD_BREACH, report.reason_codes)
+
+    def test_gate_allows_regulation_family_typed_materialization(self) -> None:
+        report = check_internal_notice_consumer_admission_gate(
+            manifest=_manifest(
+                ("355119",),
+                target_surface=NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
+            ),
+            request=ConsumerAdmissionGateRequest(
+                operation=CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
+                source_corpus="campus_notices",
+                source_collection="internal_notice",
+                selected_notice_ids=("355119",),
+                target_surface=NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
+            ),
+        )
+
+        self.assertEqual(report.verdict, "allow")
 
 
 def _manifest(

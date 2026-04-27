@@ -18,7 +18,7 @@ workstream 入口。
 
 - status: `active`
 - current phase: `Phase 1`
-- current slice: regulation routing matrix update before selected admission
+- current slice: regulation selected dry-run into document storage / document reader
 - active implementation: yes
 
 ## Native Planning Truth
@@ -44,6 +44,10 @@ workstream 入口。
 - regulation 类 notice 进入消费面之前，先收紧 taxonomy：稳定制度文本进入
   `policy_regulation -> regulation_candidate`，制度学习、解读会、宣传材料和方案报告
   不作为 regulation 正文消费。
+- regulation 类 selected dry-run 使用 `target_surface=regulations/*` 做 admission
+  family，实际 target 由 consumption projection 解析到
+  `regulations/institutional_rules` 或 `regulations/scoped_rules`；当前只生成
+  document storage / document reader dry-run artifacts，不打开 RAG 或 query-serving。
 
 ## Inputs
 

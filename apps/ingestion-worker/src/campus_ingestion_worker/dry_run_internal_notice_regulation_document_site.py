@@ -33,8 +33,11 @@ from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
 )
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+    NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    NOTICE_TARGET_SURFACE_SCOPED_RULES,
     rebuild_internal_notice_consumption_projection,
 )
 from campus_ingestion_core.internal_notice_regulation_materialization import (
@@ -43,8 +46,12 @@ from campus_ingestion_core.internal_notice_regulation_materialization import (
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
+from campus_ingestion_core.internal_notice_scoped_rule_materialization import (
+    materialize_scoped_rules_from_internal_notice_scope,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
     InMemoryNoticeConsumptionProjectionStore,
     normalize_notice_ids,
 )
@@ -53,7 +60,9 @@ from campus_ingestion_core.registry import _document_record_from_dict
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 _SCHEMA_VERSION = "internal_notice_regulation_document_site_dry_run.v1"
-_TARGET_SCOPE = ("regulations", "institutional_rules")
+_INSTITUTIONAL_SCOPE = ("regulations", "institutional_rules")
+_SCOPED_RULES_SCOPE = ("regulations", "scoped_rules")
+_TARGET_SCOPES = (_INSTITUTIONAL_SCOPE, _SCOPED_RULES_SCOPE)
 
 
 class LocalFilesystemObjectStore:
@@ -85,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Dry-run selected campus_notices/internal_notice regulation candidates into "
-            "local regulations/institutional_rules storage and document-reader assets."
+            "local regulations/* storage and document-reader assets."
         )
     )
     parser.add_argument("--documents-json", required=True)
@@ -161,7 +170,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             source_corpus="campus_notices",
             source_collection="internal_notice",
             selected_notice_ids=selected_notice_ids,
-            target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+            target_surface=NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
         ),
     )
     gate_report_path = output_dir / "consumer-admission-gate-report.json"
@@ -202,12 +211,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     ready_projection_entries = tuple(
         entry
         for entry in projection_entries
-        if entry.target_surface == NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES
-        and entry.primary_role == NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY
+        if _is_ready_regulation_projection_entry(entry)
         and entry.consumption_status == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
     )
 
-    materialization_report = materialize_institutional_regulations_from_internal_notice_scope(
+    institutional_report = materialize_institutional_regulations_from_internal_notice_scope(
         request=request,
         env=env,
         object_store=object_store,
@@ -216,10 +224,23 @@ def main(argv: Sequence[str] | None = None) -> None:
         source_truth_inventory_store=inventory_store,
         consumption_projection_store=projection_store,
     )
+    scoped_report = materialize_scoped_rules_from_internal_notice_scope(
+        request=request,
+        env=env,
+        object_store=object_store,
+        registry=registry,
+        raw_asset_registry=raw_asset_registry,
+        source_truth_inventory_store=inventory_store,
+        consumption_projection_store=projection_store,
+    )
+    materialization_reports = {
+        "/".join(_INSTITUTIONAL_SCOPE): asdict(institutional_report),
+        "/".join(_SCOPED_RULES_SCOPE): asdict(scoped_report),
+    }
     materialization_report_path = output_dir / "materialization-report.json"
     materialization_report_path.write_text(
         json.dumps(
-            asdict(materialization_report),
+            materialization_reports,
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
@@ -230,7 +251,8 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     target_records = tuple(
         record
-        for record in registry.list_by_scope(*_TARGET_SCOPE)
+        for scope in _TARGET_SCOPES
+        for record in registry.list_by_scope(*scope)
         if record.status == "active" and record.is_current
     )
     reader_report = publish_document_reader_assets(
@@ -253,14 +275,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     report = {
         "schema_version": _SCHEMA_VERSION,
         "selected_notice_ids": list(selected_notice_ids),
-        "target_scope": "/".join(_TARGET_SCOPE),
+        "target_scopes": ["/".join(scope) for scope in _TARGET_SCOPES],
         "consumer_admission_manifest_path": str(manifest_path),
         "gate_report_path": str(gate_report_path),
         "projection_path": str(projection_path),
         "projection_entry_count": len(projection_entries),
         "ready_projection_entry_count": len(ready_projection_entries),
         "materialization_report_path": str(materialization_report_path),
-        "materialized_document_count": materialization_report.materialized_document_count,
+        "materialized_document_count": (
+            institutional_report.materialized_document_count
+            + scoped_report.materialized_document_count
+        ),
+        "materialized_document_counts_by_scope": {
+            "/".join(_INSTITUTIONAL_SCOPE): institutional_report.materialized_document_count,
+            "/".join(_SCOPED_RULES_SCOPE): scoped_report.materialized_document_count,
+        },
         "target_document_registry_path": str(registry.backing_path or ""),
         "target_raw_asset_registry_path": str(raw_asset_registry.backing_path or ""),
         "target_object_store_root": str(target_object_store_root),
@@ -285,6 +314,18 @@ def main(argv: Sequence[str] | None = None) -> None:
 def _load_notice_family_config(path: str | None):
     config_path = Path(path) if path else read_authenticated_notice_notice_family_config_path({})
     return load_authenticated_notice_notice_family_config(config_path)
+
+
+def _is_ready_regulation_projection_entry(entry: Any) -> bool:
+    if (
+        entry.target_surface == NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES
+        and entry.primary_role == NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY
+    ):
+        return True
+    return entry.target_surface == NOTICE_TARGET_SURFACE_SCOPED_RULES and entry.primary_role in {
+        NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+        NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+    }
 
 
 def _load_document_records(path: Path) -> tuple[DocumentRegistryRecord, ...]:

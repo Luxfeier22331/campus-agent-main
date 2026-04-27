@@ -38,6 +38,9 @@ Current scaffold note:
 - this collection is import-first and query-disabled
 - repo now has a completed `materialize_internal_notice_scoped_rules` worker
   path and a local-only `prepare_scoped_rule_chunks` acceptance path
+- selected `regulation_candidate` document-site dry-runs admit the broad
+  `regulations/*` family, then publish scoped-rule reader assets from resolved
+  `regulations/scoped_rules` projection truth without opening query-serving
 - target scope refresh must rewrite `document-units/chunks` when provenance
   metadata expands, even if semantic content hash and version id stay stable
 - local-only quality acceptance must use an isolated snapshot root instead of

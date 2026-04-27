@@ -40,7 +40,7 @@ class DryRunInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
                 for entry in inventory_store.list_by_scope(
                     "campus_notices",
                     "internal_notice",
-                    notice_ids=("187233",),
+                    notice_ids=("187233", "351907"),
                 )
             ]
             inventory_path.write_text(
@@ -70,18 +70,30 @@ class DryRunInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
                         str(output_dir),
                         "--notice-id",
                         "187233",
+                        "--notice-id",
+                        "351907",
                     ]
                 )
 
             payload = json.loads(stdout.getvalue())
-            self.assertEqual(payload["selected_notice_ids"], ["187233"])
-            self.assertEqual(payload["target_scope"], "regulations/institutional_rules")
+            self.assertEqual(payload["selected_notice_ids"], ["187233", "351907"])
+            self.assertEqual(
+                payload["target_scopes"],
+                ["regulations/institutional_rules", "regulations/scoped_rules"],
+            )
             self.assertEqual(payload["query_serving_opened"], False)
             self.assertEqual(payload["rag_release_opened"], False)
-            self.assertEqual(payload["materialized_document_count"], 1)
-            self.assertEqual(payload["reader_document_count"], 1)
-            self.assertEqual(payload["gated_entry_count"], 1)
+            self.assertEqual(payload["materialized_document_count"], 2)
+            self.assertEqual(payload["reader_document_count"], 2)
+            self.assertEqual(payload["gated_entry_count"], 2)
             self.assertGreater(payload["reader_asset_count"], 0)
+            self.assertEqual(
+                payload["materialized_document_counts_by_scope"],
+                {
+                    "regulations/institutional_rules": 1,
+                    "regulations/scoped_rules": 1,
+                },
+            )
             self.assertTrue(Path(payload["target_object_store_root"]).exists())
             self.assertFalse(
                 (object_store_root / "campus-rag-derived" / "regulations").exists(),
@@ -105,10 +117,22 @@ class DryRunInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
             reader_manifest = json.loads(
                 Path(payload["document_reader_manifest_path"]).read_text(encoding="utf-8")
             )
-            self.assertEqual(len(reader_manifest["documents"]), 1)
+            self.assertEqual(len(reader_manifest["documents"]), 2)
             self.assertEqual(
-                reader_manifest["documentVersions"][0]["deliveryMode"],
-                "gated_asset",
+                {
+                    (document["corpus"], document["collection"])
+                    for document in reader_manifest["documents"]
+                },
+                {
+                    ("regulations", "institutional_rules"),
+                    ("regulations", "scoped_rules"),
+                },
+            )
+            self.assertTrue(
+                all(
+                    version["deliveryMode"] == "gated_asset"
+                    for version in reader_manifest["documentVersions"]
+                )
             )
 
 

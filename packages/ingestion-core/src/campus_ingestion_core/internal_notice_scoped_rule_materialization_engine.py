@@ -264,7 +264,7 @@ def build_scoped_rule_scope_refresh_documents(
                 import_source=_TARGET_IMPORT_SOURCE,
                 revision_track=candidate.revision_track,
                 source_channel="manual_curated",
-                is_current=aggregation.source_record.is_current,
+                is_current=True,
                 corpus=corpus,
                 collection=collection,
                 visibility_scope=aggregation.source_record.visibility_scope,

@@ -11,7 +11,7 @@ updated: 2026-04-28
 
 - status: `active`
 - current phase: `Phase 1`
-- current slice: regulation routing matrix update before selected admission
+- current slice: regulation selected dry-run into document storage / document reader
 - owner: unassigned
 - active implementation: yes
 
@@ -54,6 +54,15 @@ updated: 2026-04-28
     废止动作。
   - 制度专题学习、解读会、宣传材料和方案/报告不作为 regulation 正文消费；
     学习/解读会归入 `meeting_training -> defer`。
+- 2026-04-28 regulation document-site dry-run update：
+  - `regulation_candidate` selected admission 使用 broad family
+    `target_surface=regulations/*`。
+  - consumption projection 继续解析 concrete target：
+    `institutional_regulation -> regulations/institutional_rules`，
+    `annual_cycle_rule / time_bound_operational_rule -> regulations/scoped_rules`。
+  - dry-run worker 已扩展为同时 materialize institutional/scoped target records，
+    并为两个 scope 生成 canonical document reader assets。
+  - 本 slice 仍保持 `query_serving_opened=false` 与 `rag_release_opened=false`。
 
 ## Current Open Questions
 
@@ -68,5 +77,6 @@ updated: 2026-04-28
 
 ## Immediate Next Step
 
-继续 Phase 1，下一步在进入 selected regulation admission 前复核当前
-`regulation_candidate` 样本是否都应进入 institutional/scoped downstream。
+继续 Phase 1/2 收口：regulation selected dry-run 已证明可以进入 document storage
+与 document reader artifact；下一步不要直接开放 query-serving，应转回 Web card /
+procurement minimum consumption 或先补 controlled publish/import 的真实 PG 路径。

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-11
-updated: 2026-04-20
+updated: 2026-04-28
 ---
 # Internal Notice Regulation Promotion Runbook
 
@@ -26,21 +26,27 @@ updated: 2026-04-20
 - `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
   `
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 
 ## Current Boundary
 
 - source scope 固定为 `campus_notices/internal_notice`
-- target scope 固定为 regulation target collection
+- consumer admission 对 regulation 使用 `target_surface=regulations/*`
+- concrete target scope 由 consumption projection / materializer 解析：
+  - `institutional_regulation` -> `regulations/institutional_rules`
+  - `annual_cycle_rule` / `time_bound_operational_rule` ->
+    `regulations/scoped_rules`
 - target posture 固定为 `offline_preparation`
-- 本 runbook 只覆盖 manifest build + target materialization
+- 本 runbook 覆盖 manifest build、selected dry-run、target materialization 与
+  document reader asset dry-run
 - 不覆盖 embedding、Qdrant、release、alias publish
 
 ## Step 1: Build Promotion Manifest
 
 ```bash
 uv run --package campus-ingestion-worker python -m \
-  campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest
+  campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest \
   --corpus campus_notices \
   --collection internal_notice
 ```
@@ -53,7 +59,8 @@ uv run --package campus-ingestion-worker python -m \
 
 operator 目标：
 
-- 先确认 `promote_candidate / hold_in_internal_notice / manual_review_required` 分布
+- 先确认 `promote_candidate / hold_in_internal_notice /
+  requires_multimodal_processing / no_adoption` 分布
 - 再确认 candidate 真的是独立 regulation owner body
 
 固定 operator 规则：
@@ -69,7 +76,7 @@ operator 目标：
 
 ```bash
 uv run --package campus-ingestion-worker python -m \
-  campus_ingestion_worker.rebuild_authenticated_notice_source_projections
+  campus_ingestion_worker.rebuild_authenticated_notice_source_projections \
   --corpus campus_notices \
   --collection internal_notice \
   --notice-id <notice_id>
@@ -82,9 +89,20 @@ uv run --package campus-ingestion-worker python -m \
 
 ## Step 3: Materialize Accepted Candidates
 
+institutional regulations:
+
 ```bash
 uv run --package campus-ingestion-worker python -m \
-  campus_ingestion_worker.materialize_internal_notice_regulation_candidates
+  campus_ingestion_worker.materialize_internal_notice_regulation_candidates \
+  --corpus campus_notices \
+  --collection internal_notice
+```
+
+scoped rules:
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.materialize_internal_notice_scoped_rules \
   --corpus campus_notices \
   --collection internal_notice
 ```
@@ -101,17 +119,68 @@ uv run --package campus-ingestion-worker python -m \
 - target `document_id` 不从 `notice_id` 派生
 - duplicate candidate 合并为一个 canonical target document
 - target scope 使用 scope refresh
+- downstream materializer 只读 consumption projection ready truth；projection
+  缺失时 fail closed，不回扫 source-truth inventory 扩张 candidate
 
-## Step 4: Repo-Local Snapshot Mode
+## Step 4: Document-Site Dry-Run
 
-如果需要脱离 env backend，用隔离 snapshot 运行：
+如果需要验证 selected `regulation_candidate` 是否能进入 document storage 与
+canonical document reader asset package，但仍不开放 query-serving，使用 dry-run
+入口：
 
 ```bash
 uv run --package campus-ingestion-worker python -m \
-  campus_ingestion_worker.materialize_internal_notice_regulation_candidates
+  campus_ingestion_worker.dry_run_internal_notice_regulation_document_site \
   --documents-json /tmp/internal-notice-documents.json \
   --source-truth-inventory-json \
-    /tmp/internal-notice-source-truth-inventory.json
+    /tmp/internal-notice-source-truth-inventory.json \
+  --object-store-root /tmp/object-store-root \
+  --output-dir /tmp/internal-notice-regulation-document-site-dry-run \
+  --notice-id <notice_id>
+```
+
+固定要求：
+
+- `--documents-json`
+- `--source-truth-inventory-json`
+- `--object-store-root`
+- `--output-dir`
+- `--notice-id` 或 `--selection-path`
+
+必须显式选择 notice；不允许全量扫描 source-truth inventory。
+
+operator 规则：
+
+- `--object-store-root` 不得直接指向长期 source snapshot 输出根
+- local-only dry-run 必须使用隔离 target 输出目录
+- admission manifest 使用 `target_surface=regulations/*`
+- generated target records 可以同时覆盖 `regulations/institutional_rules` 与
+  `regulations/scoped_rules`
+- 输出 document reader assets 只作为 dry-run artifact，不表示 public docs deploy、
+  RAG release 或 query-serving 已开放
+
+## Step 5: Repo-Local Materialization Snapshot Mode
+
+如果只需要脱离 env backend 验证某个 target materializer，可用隔离 snapshot 运行
+对应 materializer：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.materialize_internal_notice_regulation_candidates \
+  --documents-json /tmp/internal-notice-documents.json \
+  --source-truth-inventory-json \
+    /tmp/internal-notice-source-truth-inventory.json \
+  --object-store-root /tmp/object-store-root
+```
+
+或：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.materialize_internal_notice_scoped_rules \
+  --documents-json /tmp/internal-notice-documents.json \
+  --source-truth-inventory-json \
+    /tmp/internal-notice-source-truth-inventory.json \
   --object-store-root /tmp/object-store-root
 ```
 
@@ -123,12 +192,7 @@ uv run --package campus-ingestion-worker python -m \
 
 必须三者同时提供。
 
-operator 规则：
-
-- `--object-store-root` 不得直接指向长期 source snapshot 输出根
-- local-only acceptance 必须使用隔离 target 输出目录
-
-## Step 5: Hand Off To Target-Side Quality Acceptance
+## Step 6: Hand Off To Target-Side Quality Acceptance
 
 manifest build 与 target materialization 完成后，下一步固定进入：
 

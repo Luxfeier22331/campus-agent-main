@@ -18,6 +18,7 @@ from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
     write_internal_notice_consumer_admission_manifest,
 )
 from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
 )
 
@@ -139,6 +140,44 @@ class InternalNoticeConsumerAdmissionManifestTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "duplicate decision notice_id"):
             validate_internal_notice_consumer_admission_manifest(manifest)
+
+    def test_validation_accepts_regulation_family_target_surface(self) -> None:
+        manifest = InternalNoticeConsumerAdmissionManifest(
+            admission_run_id="consumer-admission-regulation",
+            source_channel="authenticated_notice_portal",
+            corpus="campus_notices",
+            collection="internal_notice",
+            selection_source="regulation_document_site_dry_run",
+            selection_path="355119",
+            selection_sha256=compute_consumer_admission_selection_sha256(("355119",)),
+            scope_write_mode="upsert_selected",
+            selected_notice_ids=("355119",),
+            decision_records=(
+                ConsumerAdmissionDecisionRecord(
+                    notice_id="355119",
+                    source_notice_id="355119",
+                    site_id="muc_internal_portal",
+                    raw_asset_id="asset:authenticated-notice:muc_internal_portal:355119",
+                    raw_version_id="sha256:raw-355119",
+                    notice_family="policy_regulation",
+                    suggested_consumption_route="regulation_candidate",
+                    target_surface=NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
+                    consumption_status=(
+                        CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION
+                    ),
+                    admission_decision=CONSUMER_ADMISSION_DECISION_ADMIT,
+                    admission_reason_codes=("regulation_candidate",),
+                    body_quality="body_present",
+                    attachment_ref_count=0,
+                    reference_only_attachment_ref_count=0,
+                    owner_expectation_count=0,
+                    pending_multimodal_attachment_count=0,
+                ),
+            ),
+            created_at="2026-04-28T00:00:00+00:00",
+        )
+
+        validate_internal_notice_consumer_admission_manifest(manifest)
 
 
 if __name__ == "__main__":

@@ -209,7 +209,10 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
 read-model 与 runtime execution。notice-level 查询候选使用
 `target_surface=notice_level_query` 与
 `consumption_status=retained_for_notice_query`；采购/招标通知使用
-`target_surface=procurement_notice_history`；service status 相关通知只作为
+`target_surface=procurement_notice_history`；稳定制度正文使用
+`target_surface=regulations/*` 作为 consumer admission family，后续由 projection
+解析到 `regulations/institutional_rules` 或 `regulations/scoped_rules`；service status
+相关通知只作为
 `campus_services/service_status_candidate` 候选；特殊服务预约/领取通知使用
 `campus_services/special_service_candidate` 候选；稳定部门联系方式变更使用
 `campus_services/stable_contact_candidate` 候选；internal restricted no-adoption 使用
@@ -450,6 +453,7 @@ consumer admission manifest 的最小 contract：
 
 - `notice_level_query`
 - `procurement_notice_history`
+- `regulations/*`
 - `campus_services/service_status_candidate`
 - `campus_services/special_service_candidate`
 - `campus_services/stable_contact_candidate`
@@ -459,6 +463,9 @@ consumer admission manifest 的最小 contract：
 固定决策语义：
 
 - `notice_level_query` 只能进入 notice read model；它不等于 chatbot / panel 已开放 serving
+- `regulations/*` 只表示 regulation family 的 typed materialization admission；
+  concrete projection/materializer 仍必须解析到 `regulations/institutional_rules` 或
+  `regulations/scoped_rules`，且不等于打开 query-serving
 - `campus_services/*_candidate` 只表示 typed materialization 输入；对应 service
   runtime 不得在 query time 回扫 notice body
 - `multimodal_processing_candidate` 只允许从 projection 的 pending units 产生，不允许由 worker
@@ -475,7 +482,8 @@ consumer admission release gate 必须在写入前生成可审计报告，至少
 - 空正文、reference-only attachment、owner expectation、unsupported binary、pending multimodal
   等计数没有超过本次 policy 阈值
 - `replace_scope` / full-scope refresh 只能由 manifest 显式声明
-- projection/read-model/campus-services materializer 只会消费 manifest admitted ids
+- projection/read-model/campus-services/regulations materializer 只会消费 manifest
+  admitted ids
 - gate 输出同时包含 allow / block verdict 与阻断 reason codes
 
 这条目标态的作用是把“历史通知源数据是否可信”和“哪些通知可以服务下游”分开。source-truth
@@ -505,9 +513,10 @@ projection truth。
 - 这条 promotion boundary 不改写 source-truth unit；原始 notice 仍继续作为 canonical upstream
   provenance 保留
 
-当前 repo 级 target collection 命名固定为：
+当前 repo 级 regulation target collection 固定为：
 
 - `regulations/institutional_rules`
+- `regulations/scoped_rules`
 
 ## Restricted Document Center And Original Resource Boundary
 
@@ -558,14 +567,14 @@ product surface，用于承接：
 
 对当前 internal notice 派生制度导入批次，固定补充规则为：
 
-- `document_nature=institutional_regulation / annual_cycle_rule /
-  time_bound_operational_rule` 都可以进入同一个 `regulations/institutional_rules`
-- `annual_cycle_rule` 与 `time_bound_operational_rule` 只作为 metadata
-  区分，不再因为时间范围或项目范围而被分流到另一条主导入 collection
+- `document_nature=institutional_regulation` 进入
+  `regulations/institutional_rules`
+- `document_nature=annual_cycle_rule / time_bound_operational_rule` 进入统一
+  holding collection `regulations/scoped_rules`
 - 真正继续留在 `campus_notices/internal_notice` 的，仍然是
   `wrapper_notice_only`、draft/consultation、明确非制度 owner 的 source-triage 结果
 
-这条 promotion boundary 不要求把当前批次再拆成多个 regulation collection；原始 notice 继续作为
+这条 promotion boundary 不把 wrapper notice 写入 regulation target；原始 notice 继续作为
 canonical upstream provenance 保留。
 
 对 regulation document 的标题与版本语义，已批准的下一步 contract 另见：
@@ -587,8 +596,8 @@ canonical upstream provenance 保留。
 
 ## Semantic Owner Resolution
 
-对当前 `internal_notice -> regulations/institutional_rules` 导入批次，固定再补一层 `semantic
-owner` 解析。
+对当前 `internal_notice -> regulations/*` 导入批次，固定再补一层 `semantic owner`
+解析。
 
 这层回答的不是：
 
@@ -612,7 +621,7 @@ owner` 解析。
 
 - `notice family` 只控制处理优先级，不决定 semantic owner
 - `attachment typed routing` 只控制提取路径，不决定 semantic owner
-- 只有 owner 已恢复出的 canonical 正文，才允许进入 `regulations/institutional_rules`
+- 只有 owner 已恢复出的 canonical 正文，才允许进入 `regulations/*`
 - wrapper notice 永远继续保留在 `campus_notices/internal_notice`
 
 当前批次固定采用 fail-close：

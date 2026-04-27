@@ -14,8 +14,8 @@ from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
 )
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+    NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
 )
 
@@ -97,7 +97,7 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
         decision = manifest.decision_records[0]
         self.assertEqual(decision.notice_family, "policy_regulation")
         self.assertEqual(decision.suggested_consumption_route, "regulation_candidate")
-        self.assertEqual(decision.target_surface, NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES)
+        self.assertEqual(decision.target_surface, NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE)
         self.assertEqual(
             decision.consumption_status,
             CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,

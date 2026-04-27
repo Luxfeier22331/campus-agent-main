@@ -16,6 +16,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+    NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE,
     normalize_notice_ids,
 )
 
@@ -157,9 +158,14 @@ def _operation_target_surfaces_are_allowed(
             for record in records
         )
     if request.operation == CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION:
-        return bool(request.target_surface) and all(
-            record.target_surface == request.target_surface for record in records
-        )
+        if not request.target_surface:
+            return False
+        if request.target_surface == NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE:
+            return all(
+                record.target_surface == NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE
+                for record in records
+            )
+        return all(record.target_surface == request.target_surface for record in records)
     if request.operation == CONSUMER_ADMISSION_GATE_OPERATION_MULTIMODAL_DRAIN:
         return all(
             record.target_surface == NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE

@@ -45,6 +45,7 @@ NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES = "campus-services-agent"
 
 NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY = "notice_level_query"
 NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY = "procurement_notice_history"
+NOTICE_TARGET_SURFACE_REGULATION_CANDIDATE = "regulations/*"
 NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES = "regulations/institutional_rules"
 NOTICE_TARGET_SURFACE_SCOPED_RULES = "regulations/scoped_rules"
 NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE = "campus_services/service_status_candidate"
