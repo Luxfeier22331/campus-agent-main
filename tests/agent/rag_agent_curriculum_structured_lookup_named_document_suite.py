@@ -342,3 +342,129 @@ class RagAgentCurriculumStructuredLookupNamedDocumentTest(unittest.TestCase):
                 ),
             ),
         )
+
+    def test_handbook_student_card_alias_passes_target_document_ids_to_retriever(self) -> None:
+        retriever_call: dict[str, object] = {}
+        target_doc_id = "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"
+        target_title = "中央民族大学本科(预科)学生证管理办法"
+        evidence = EvidenceBundle(
+            query_text="unused",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id=target_doc_id,
+                    title=target_title,
+                    snippet="学生如将学生证遗失或损坏，应及时到学院（系）挂失。学生遗失学生证应及时申请补办。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-reissue",
+                    detail_label="学生证补办",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return evidence
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="学生证丢了怎么办",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(retriever_call["target_document_ids"], (target_doc_id,))
+        self.assertIn(target_title, retriever_call["query_text"])
+        self.assertEqual(response.status, "completed")
+
+    def test_handbook_disciplinary_relief_alias_passes_target_document_ids_to_retriever(
+        self,
+    ) -> None:
+        retriever_call: dict[str, object] = {}
+        target_doc_id = "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8"
+        target_title = "中央民族大学解除学生纪律处分实施办法"
+        evidence = EvidenceBundle(
+            query_text="unused",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id=target_doc_id,
+                    title=target_title,
+                    snippet="学生受处分后符合条件的，可以按规定申请解除处分。",
+                    score=0.93,
+                    chunk_id_suffix="disciplinary-relief",
+                    detail_label="解除处分",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return evidence
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="被处分后多久可以申请解除处分",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(retriever_call["target_document_ids"], (target_doc_id,))
+        self.assertIn(target_title, retriever_call["query_text"])
+        self.assertEqual(response.status, "completed")
+
+    def test_handbook_disciplinary_appeal_does_not_lock_to_relief_policy(self) -> None:
+        retriever_call: dict[str, object] = {}
+        evidence = EvidenceBundle(
+            query_text="unused",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:1e404fb7e280b32c46f09280590255c57e6bd72d",
+                    title="中央民族大学学生申诉管理办法",
+                    snippet="学生对处分决定有异议时，可以按规定提出申诉。",
+                    score=0.93,
+                    chunk_id_suffix="appeal",
+                    detail_label="申诉",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return evidence
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="处分申诉流程是什么",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(retriever_call["target_document_ids"], ())
+        self.assertNotIn("中央民族大学解除学生纪律处分实施办法", retriever_call["query_text"])
+        self.assertEqual(response.status, "completed")

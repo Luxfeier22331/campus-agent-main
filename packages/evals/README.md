@@ -76,10 +76,12 @@ Evaluation helpers for campus-agent v2.
 - `student_rules` formal benchmark 的 policy / rubric fixture 分别固定在
   `student_handbook_judge_gate_policy.json` 与
   `student_handbook_judge_rubrics.json`
-- intent eval 现在把 `release_gate`、`context_follow_up`、`version_compat` 与
-  `observed_regression` 作为默认 gate suites；observed regression truth 固定在
-  `intent_observed_regression.json`，只接受 review decision 为 `accepted` 且带
-  request / trace / sampled_at correlation 的 case
+- intent eval 现在把 `release_gate`、`context_follow_up`、`version_compat`、
+  `observed_regression` 与 `synthetic_regression` 作为默认 gate suites；observed
+  regression truth 固定在 `intent_observed_regression.json`，只接受 review decision 为
+  `accepted` 且带 request / trace / sampled_at correlation 的 case；synthetic truth
+  固定在 `intent_synthetic_cases.v1.json`，只允许 `label_source=human_policy_matrix`
+  的受控模板矩阵进入 gate，`synthetic_exploratory` 只用于报告与人工晋升，不属于默认 gate
 - intent gate 报告现在携带 `case_set_version` 与 `policy_artifact` 摘要，来源为
   `configs/runtime/intent-policy.v1.json`；gate 结果必须绑定到具体 policy /
   classifier / intent schema / case-set 版本，而不是只记录通过数量
@@ -144,6 +146,8 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
   `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
 - `uv run --all-packages python -m unittest tests.evals.test_intent_eval`
 - `uv run --all-packages python -m scripts.intent_gate`
+- `uv run --all-packages python -m scripts.intent_gate --suite synthetic_exploratory
+  --report-only --output .tmp/evals/intent-synthetic-exploratory.json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup
   --json`
 

@@ -118,6 +118,8 @@ class IntentEvalRunnerTest(unittest.TestCase):
         self.assertGreater(len(intent_suite_cases("release_gate")), 0)
         self.assertGreater(len(intent_suite_cases("context_follow_up")), 0)
         self.assertGreater(len(intent_suite_cases("version_compat")), 0)
+        self.assertGreater(len(intent_suite_cases("synthetic_regression")), 0)
+        self.assertGreater(len(intent_suite_cases("synthetic_exploratory")), 0)
 
 
 if __name__ == "__main__":

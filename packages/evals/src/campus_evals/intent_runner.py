@@ -197,7 +197,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--suite",
         default="release_gate",
-        help="Intent suite name: release_gate, context_follow_up, observed_regression, version_compat.",
+        help=(
+            "Intent suite name: release_gate, context_follow_up, observed_regression, "
+            "version_compat, synthetic_regression, synthetic_exploratory."
+        ),
     )
     parser.add_argument(
         "--runner",

@@ -452,3 +452,110 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
         self.assertEqual(request.effective_entitlement_groups(), ("students",))
         self.assertEqual(request.effective_visibility_scope(), "south")
         self.assertEqual(request.effective_visibility_level(), "restricted")
+
+    def test_live_benchmark_main_applies_handbook_policy_alias_planning(self) -> None:
+        class FakeBackend:
+            def __init__(self) -> None:
+                self.requests = []
+
+            def retrieve(self, request):
+                self.requests.append(request)
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        EvidenceSource(
+                            doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                            revision_track="source-faithful",
+                            version_id="v1",
+                            chunk_id="chunk-1",
+                            anchor={"page": 1},
+                            canonical_url="s3://handbook/national-scholarship",
+                            latest_url="s3://handbook/national-scholarship",
+                            source_channel="pdf_ocr",
+                            collection="student_rules",
+                            is_current=True,
+                            snippet="国家奖学金评审办法。",
+                            score=0.9,
+                        ),
+                    ),
+                )
+
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "policy-alias",
+                                "split": "smoke",
+                                "query": "国奖第九条里对论文和著作怎么要求的？",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                                        "grade": 2,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manifest_path = Path(temp_dir) / "split-manifest.v1.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_rules_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "raw_asset_id": "asset:student-rules",
+                        "documents": [
+                            {
+                                "document_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                                "title": "中央民族大学本科学生国家奖学金评审办法",
+                                "page_start": 1,
+                                "page_end": 1,
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            output_path = Path(temp_dir) / "run-results.json"
+            fake_backend = FakeBackend()
+
+            with (
+                patch("campus_evals.retrieval_live_benchmark.load_repo_env"),
+                patch(
+                    "campus_evals.retrieval_live_benchmark.build_retrieval_backend",
+                    return_value=fake_backend,
+                ),
+            ):
+                exit_code = live_benchmark_main(
+                    [
+                        "--qrels",
+                        str(qrels_path),
+                        "--output",
+                        str(output_path),
+                        "--manifest",
+                        str(manifest_path),
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(fake_backend.requests), 1)
+        request = fake_backend.requests[0]
+        self.assertEqual(
+            request.target_document_ids,
+            ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+        self.assertIn("中央民族大学本科学生国家奖学金评审办法", request.query_text)

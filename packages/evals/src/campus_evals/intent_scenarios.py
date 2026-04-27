@@ -43,7 +43,23 @@ def intent_suite_cases(suite: str) -> tuple[IntentCase, ...]:
         )
 
         return load_intent_observed_regression_cases()
+    if suite == "synthetic_regression":
+        return intent_synthetic_regression_cases()
+    if suite == "synthetic_exploratory":
+        return intent_synthetic_exploratory_cases()
     raise ValueError(f"unsupported intent suite: {suite}")
+
+
+def intent_synthetic_regression_cases() -> tuple[IntentCase, ...]:
+    from campus_evals.intent_synthetic import load_intent_synthetic_regression_cases
+
+    return load_intent_synthetic_regression_cases()
+
+
+def intent_synthetic_exploratory_cases() -> tuple[IntentCase, ...]:
+    from campus_evals.intent_synthetic import load_intent_synthetic_exploratory_cases
+
+    return load_intent_synthetic_exploratory_cases()
 
 
 def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
@@ -756,5 +772,7 @@ __all__ = [
     "intent_context_follow_up_cases",
     "intent_release_gate_cases",
     "intent_suite_cases",
+    "intent_synthetic_exploratory_cases",
+    "intent_synthetic_regression_cases",
     "intent_version_compat_cases",
 ]

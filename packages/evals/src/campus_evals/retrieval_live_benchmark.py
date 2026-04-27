@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 from campus_contracts import AuthorizedRetrievalFilter
+from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
 from campus_retrieval_core import RetrievalRequest, build_retrieval_backend
 from campus_shared import load_repo_env
 
@@ -149,12 +150,23 @@ def _execute_live_retrieval_run(
 
 def _build_retrieval_request(*, case: RetrievalQrelsCase, default_top_k: int) -> RetrievalRequest:
     overrides = dict(case.request_overrides)
+    query_text = case.query
+    target_document_ids = _coerce_tuple(overrides.get("target_document_ids"))
+    if (
+        case.scope.corpus == "regulations"
+        and case.scope.collection == "student_rules"
+        and not target_document_ids
+    ):
+        handbook_plan = plan_student_handbook_query(case.query)
+        if handbook_plan.status == "resolved":
+            query_text = handbook_plan.rewritten_query_text
+            target_document_ids = handbook_plan.target_document_ids
     return RetrievalRequest(
-        query_text=case.query,
+        query_text=query_text,
         corpus=case.scope.corpus,
         collection=case.scope.collection,
         authorized_filter=_build_authorized_filter(overrides),
-        target_document_ids=_coerce_tuple(overrides.get("target_document_ids")),
+        target_document_ids=target_document_ids,
         preferred_document_ids=_coerce_tuple(overrides.get("preferred_document_ids")),
         top_k=_coerce_top_k(overrides.get("top_k"), default=default_top_k),
     )

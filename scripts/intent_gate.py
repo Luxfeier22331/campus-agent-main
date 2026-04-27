@@ -15,8 +15,10 @@ DEFAULT_SUITES = (
     "context_follow_up",
     "version_compat",
     "observed_regression",
+    "synthetic_regression",
 )
 DEFAULT_RUNNER = "supervisor-api-go"
+INTENT_SUITES = (*DEFAULT_SUITES, "synthetic_exploratory")
 INTENT_RUNNERS = ("supervisor-api-go",)
 
 
@@ -30,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--suite",
         action="append",
-        choices=DEFAULT_SUITES,
+        choices=INTENT_SUITES,
         help="Intent suite to run. Repeat to select multiple suites. Defaults to all gate suites.",
     )
     parser.add_argument(
@@ -38,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=INTENT_RUNNERS,
         default=DEFAULT_RUNNER,
         help="Intent runner to use. Defaults to supervisor-api-go.",
+    )
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Write the report but return success even when selected suites have failures.",
     )
     return parser
 
@@ -109,6 +116,8 @@ def main(argv: list[str] | None = None) -> int:
     payload = run_intent_gate(suites, runner=args.runner)
     write_report(payload, output_path)
     print(render_summary_text(payload, output_path))
+    if args.report_only:
+        return 0
     return 0 if int(payload["failed"]) == 0 else 1
 
 
@@ -127,6 +136,7 @@ __all__ = [
     "DEFAULT_RUNNER",
     "DEFAULT_SUITES",
     "INTENT_RUNNERS",
+    "INTENT_SUITES",
     "build_gate_payload",
     "build_parser",
     "main",
