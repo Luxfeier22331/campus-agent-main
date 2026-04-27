@@ -365,7 +365,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 			],
 		});
 	});
-	it("projects browser-safe canonical source cards for completed RAG answers", async () => {
+	it("projects typed browser-safe source items for completed RAG answers", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({
@@ -432,6 +432,49 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 									source_title: "内部材料",
 									version_id: "version_private",
 								},
+								{
+									original_url: "https://www.muc.edu.cn/info/1041/12345.htm",
+									published_at: "2026-04-20",
+									publisher_label: "中央民族大学新闻网",
+									snippet: "学校发布最新公开通知。",
+									source_kind: "notice",
+									source_title: "关于校园开放日安排的通知",
+									target_kind: "public_notice_url",
+								},
+								{
+									anchor: {
+										page_start: 12,
+										reader_anchor: "notice-summary",
+										root_unit_ids: ["notice-root-001"],
+										section_path: ["通知要点"],
+									},
+									canonical_url: "/docs/official_web/fresh_news/open-day-notice",
+									original_url: "https://mp.weixin.qq.com/s/public-notice-example",
+									published_at: "2026-04-21",
+									publisher_label: "中央民族大学公众号",
+									snippet: "整理版通知保留公开原通知链接。",
+									source_kind: "notice",
+									source_title: "校园开放日安排整理版",
+								},
+								{
+									internal_notice_id: "355122",
+									portal_url:
+										"https://my.muc.edu.cn/comsys-portal-notice-web/download?id=private&notice_id=355122",
+									published_at: "2026-04-22",
+									publisher_label: "校内通知",
+									snippet: "该来源需要登录后查看。",
+									source_kind: "notice",
+									source_title: "校内内部通知",
+									target_kind: "restricted_notice",
+								},
+								{
+									original_url:
+										"https://my.muc.edu.cn/comsys-portal-notice-web/download?id=private&notice_id=355122",
+									snippet: "内部通知不能向公开聊天暴露原始链接。",
+									source_kind: "notice",
+									source_title: "校内内部通知",
+									target_kind: "public_notice_url",
+								},
 							],
 						},
 					},
@@ -459,18 +502,62 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 			assistantMessage: {
 				structuredParts: [
 					{
-						sourceCards: [
+						sourceItems: [
 							{
 								collectionLabel: "培养方案",
-								href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
 								pageLabel: "原文第 87-102 页",
+								primaryAction: {
+									href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
+									label: "查看文档",
+								},
 								sectionTitle: "二、毕业要求",
 								snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+								sourceKind: "curriculum",
+								targetKind: "canonical_reader",
 								title: "计算机类本科人才培养方案",
 								versionLabel: "现行版",
 							},
+							{
+								primaryAction: {
+									external: true,
+									href: "https://www.muc.edu.cn/info/1041/12345.htm",
+									label: "打开原通知",
+								},
+								publishedAt: "2026-04-20",
+								publisherLabel: "中央民族大学新闻网",
+								snippet: "学校发布最新公开通知。",
+								sourceKind: "notice",
+								targetKind: "public_notice_url",
+								title: "关于校园开放日安排的通知",
+							},
+							{
+								primaryAction: {
+									href: "/docs/official_web/fresh_news/open-day-notice?hl=notice-root-001#notice-summary",
+									label: "查看整理版",
+								},
+								secondaryActions: [
+									{
+										external: true,
+										href: "https://mp.weixin.qq.com/s/public-notice-example",
+										label: "原通知",
+									},
+								],
+								sourceKind: "notice",
+								targetKind: "notice_reader",
+								title: "校园开放日安排整理版",
+							},
+							{
+								primaryAction: {
+									disabledReason: "该来源需要校内身份后才能查看。",
+									href: null,
+									label: "需登录查看",
+								},
+								sourceKind: "notice",
+								targetKind: "restricted_notice",
+								title: "校内内部通知",
+							},
 						],
-						type: "source_cards",
+						type: "source_items",
 					},
 				],
 			},
@@ -478,13 +565,46 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 		expect(response.answer.conversation.messages.at(-1)).toMatchObject({
 			structuredParts: [
 				{
-					sourceCards: [
+					sourceItems: [
 						{
-							href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
+							primaryAction: {
+								href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
+								label: "查看文档",
+							},
 							title: "计算机类本科人才培养方案",
 						},
+						{
+							primaryAction: {
+								href: "https://www.muc.edu.cn/info/1041/12345.htm",
+								label: "打开原通知",
+							},
+							targetKind: "public_notice_url",
+							title: "关于校园开放日安排的通知",
+						},
+						{
+							primaryAction: {
+								href: "/docs/official_web/fresh_news/open-day-notice?hl=notice-root-001#notice-summary",
+								label: "查看整理版",
+							},
+							secondaryActions: [
+								{
+									href: "https://mp.weixin.qq.com/s/public-notice-example",
+									label: "原通知",
+								},
+							],
+							targetKind: "notice_reader",
+							title: "校园开放日安排整理版",
+						},
+						{
+							primaryAction: {
+								href: null,
+								label: "需登录查看",
+							},
+							targetKind: "restricted_notice",
+							title: "校内内部通知",
+						},
 					],
-					type: "source_cards",
+					type: "source_items",
 				},
 			],
 		});
@@ -494,6 +614,10 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 		expect(browserFacingPayload).not.toContain("source_unit_key");
 		expect(browserFacingPayload).not.toContain("sourceUnitKey");
 		expect(browserFacingPayload).not.toContain("s3://");
+		expect(browserFacingPayload).not.toContain("my.muc.edu.cn");
+		expect(browserFacingPayload).not.toContain("notice_id=355122");
+		expect(browserFacingPayload).not.toContain("internal_notice_id");
+		expect(browserFacingPayload).not.toContain("portal_url");
 	});
 	it("persists navigation place cards even when point geometry is absent", async () => {
 		const { store, finalWrites } = createCommandStore();

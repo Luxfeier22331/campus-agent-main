@@ -43,6 +43,42 @@ export interface ChatSourceCardsStructuredPart {
 	sourceCards: ChatSourceCard[];
 }
 
+export type ChatSourceTargetKind =
+	| "canonical_reader"
+	| "notice_reader"
+	| "public_notice_url"
+	| "restricted_notice";
+
+export type ChatSourceKind = "campus_service" | "curriculum" | "document" | "notice" | "regulation";
+
+export interface ChatSourceAction {
+	label: "原通知" | "打开原通知" | "查看文档" | "查看整理版" | "需登录查看";
+	href: string | null;
+	external: boolean;
+	disabledReason: string | null;
+}
+
+export interface ChatSourceItem {
+	targetKind: ChatSourceTargetKind;
+	sourceKind: ChatSourceKind;
+	title: string;
+	snippet: string | null;
+	primaryAction: ChatSourceAction;
+	secondaryActions: ChatSourceAction[];
+	sectionTitle: string;
+	collectionLabel: string;
+	publisherLabel: string;
+	publishedAt: string;
+	versionLabel: string;
+	pageLabel: string;
+	trustLabel: string;
+}
+
+export interface ChatSourceItemsStructuredPart {
+	type: "source_items";
+	sourceItems: ChatSourceItem[];
+}
+
 export interface ChatCampusServiceTraceCard {
 	title: string;
 	refs: string[];
@@ -56,6 +92,7 @@ export interface ChatCampusServiceTraceCardsStructuredPart {
 export type ChatMessageStructuredPart =
 	| ChatPlaceCardStructuredPart
 	| ChatSourceCardsStructuredPart
+	| ChatSourceItemsStructuredPart
 	| ChatCampusServiceTraceCardsStructuredPart;
 
 export interface ChatSessionSlot {
@@ -256,6 +293,197 @@ function normalizeSourceCards(value: unknown): ChatSourceCard[] {
 		.slice(0, 5);
 }
 
+function normalizeSourceKind(value: unknown): ChatSourceKind | null {
+	const normalized = normalizeOptionalString(value);
+	if (
+		normalized === "campus_service" ||
+		normalized === "curriculum" ||
+		normalized === "document" ||
+		normalized === "notice" ||
+		normalized === "regulation"
+	) {
+		return normalized;
+	}
+	return null;
+}
+
+function normalizeSourceTargetKind(value: unknown): ChatSourceTargetKind | null {
+	const normalized = normalizeOptionalString(value);
+	if (
+		normalized === "canonical_reader" ||
+		normalized === "notice_reader" ||
+		normalized === "public_notice_url" ||
+		normalized === "restricted_notice"
+	) {
+		return normalized;
+	}
+	return null;
+}
+
+function isBrowserSafePublicNoticeHref(value: string): boolean {
+	try {
+		const url = new URL(value);
+		const hostname = url.hostname.toLowerCase();
+		const isMucPublicHost =
+			(hostname === "muc.edu.cn" || hostname.endsWith(".muc.edu.cn")) &&
+			hostname !== "my.muc.edu.cn";
+		return url.protocol === "https:" && (isMucPublicHost || hostname === "mp.weixin.qq.com");
+	} catch {
+		return false;
+	}
+}
+
+function normalizeSourceAction(
+	value: unknown,
+	targetKind: ChatSourceTargetKind,
+): ChatSourceAction | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const label = normalizeOptionalString(value.label);
+	const href = normalizeOptionalString(value.href);
+	const disabledReason = normalizeOptionalString(value.disabledReason);
+	if (
+		label !== "原通知" &&
+		label !== "打开原通知" &&
+		label !== "查看文档" &&
+		label !== "查看整理版" &&
+		label !== "需登录查看"
+	) {
+		return null;
+	}
+
+	if (targetKind === "restricted_notice") {
+		return {
+			label,
+			href: null,
+			external: false,
+			disabledReason,
+		};
+	}
+
+	if (!href) {
+		return null;
+	}
+	const external = Boolean(value.external);
+	const isAllowedHref =
+		targetKind === "public_notice_url"
+			? isBrowserSafePublicNoticeHref(href)
+			: isBrowserSafeDocsHref(href);
+	if (!isAllowedHref) {
+		return null;
+	}
+
+	return {
+		label,
+		href,
+		external,
+		disabledReason: null,
+	};
+}
+
+function normalizeSecondarySourceActions(value: unknown): ChatSourceAction[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value
+		.map((item) => {
+			if (!isRecord(item)) {
+				return null;
+			}
+			const href = normalizeOptionalString(item.href);
+			const label = normalizeOptionalString(item.label);
+			if (!(href && (label === "原通知" || label === "查看文档"))) {
+				return null;
+			}
+			const targetKind = label === "原通知" ? "public_notice_url" : "canonical_reader";
+			return normalizeSourceAction(
+				{
+					...item,
+					external: targetKind === "public_notice_url",
+				},
+				targetKind,
+			);
+		})
+		.filter((item): item is ChatSourceAction => item !== null)
+		.slice(0, 2);
+}
+
+function normalizeSourceItem(value: unknown): ChatSourceItem | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const targetKind = normalizeSourceTargetKind(value.targetKind);
+	const sourceKind = normalizeSourceKind(value.sourceKind);
+	const title = normalizeOptionalString(value.title);
+	if (!(targetKind && sourceKind && title)) {
+		return null;
+	}
+
+	const primaryAction = normalizeSourceAction(value.primaryAction, targetKind);
+	if (!primaryAction) {
+		return null;
+	}
+
+	return {
+		targetKind,
+		sourceKind,
+		title,
+		snippet: normalizeOptionalString(value.snippet),
+		primaryAction,
+		secondaryActions: normalizeSecondarySourceActions(value.secondaryActions),
+		sectionTitle: normalizeOptionalString(value.sectionTitle) ?? "",
+		collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
+		publisherLabel: normalizeOptionalString(value.publisherLabel) ?? "",
+		publishedAt: normalizeOptionalString(value.publishedAt) ?? "",
+		versionLabel: normalizeOptionalString(value.versionLabel) ?? "",
+		pageLabel: normalizeOptionalString(value.pageLabel) ?? "",
+		trustLabel: normalizeOptionalString(value.trustLabel) ?? "",
+	};
+}
+
+function legacySourceCardToSourceItem(card: ChatSourceCard): ChatSourceItem {
+	const sourceKind: ChatSourceKind =
+		card.collectionLabel === "培养方案"
+			? "curriculum"
+			: card.collectionLabel === "学生手册"
+				? "regulation"
+				: "document";
+	return {
+		targetKind: "canonical_reader",
+		sourceKind,
+		title: card.title,
+		snippet: card.snippet,
+		primaryAction: {
+			label: "查看文档",
+			href: card.href,
+			external: false,
+			disabledReason: null,
+		},
+		secondaryActions: [],
+		sectionTitle: card.sectionTitle,
+		collectionLabel: card.collectionLabel,
+		publisherLabel: "",
+		publishedAt: "",
+		versionLabel: card.versionLabel,
+		pageLabel: card.pageLabel,
+		trustLabel: "",
+	};
+}
+
+function normalizeSourceItems(value: unknown): ChatSourceItem[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value
+		.map((item) => normalizeSourceItem(item))
+		.filter((item): item is ChatSourceItem => item !== null)
+		.slice(0, 5);
+}
+
 const UNSAFE_TRACE_TOKEN_PATTERN =
 	/(?:release[_-]?id|ingestion_projection|table_parser_state|debug[_-]?only|s3:\/\/|postgres)/iu;
 
@@ -318,6 +546,18 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		};
 	}
 
+	if (value.type === "source_items") {
+		const sourceItems = normalizeSourceItems(value.sourceItems);
+		if (sourceItems.length === 0) {
+			return null;
+		}
+
+		return {
+			type: "source_items",
+			sourceItems,
+		};
+	}
+
 	if (value.type === "source_cards") {
 		const sourceCards = normalizeSourceCards(value.sourceCards);
 		if (sourceCards.length === 0) {
@@ -325,8 +565,8 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		}
 
 		return {
-			type: "source_cards",
-			sourceCards,
+			type: "source_items",
+			sourceItems: sourceCards.map(legacySourceCardToSourceItem),
 		};
 	}
 

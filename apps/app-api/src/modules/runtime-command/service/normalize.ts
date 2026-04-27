@@ -5,7 +5,7 @@ import type {
 	ChatCampusServiceTraceCard,
 	ChatMessageStructuredPart,
 	ChatPlaceCard,
-	ChatSourceCard,
+	ChatSourceItem,
 } from "../../chat";
 import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
 import {
@@ -381,7 +381,211 @@ function normalizeSectionTitle(
 	);
 }
 
-function normalizeSourceCard(source: unknown): ChatSourceCard | null {
+function normalizeSourceKind(source: Record<string, unknown>): ChatSourceItem["sourceKind"] {
+	const explicit = recordString(source, "source_kind", "sourceKind");
+	if (
+		explicit === "campus_service" ||
+		explicit === "curriculum" ||
+		explicit === "document" ||
+		explicit === "notice" ||
+		explicit === "regulation"
+	) {
+		return explicit;
+	}
+	const collection = recordString(source, "collection", "collection");
+	if (collection === "curriculum_plan") {
+		return "curriculum";
+	}
+	if (
+		collection === "student_rules" ||
+		collection === "institutional_rules" ||
+		collection === "scoped_rules"
+	) {
+		return "regulation";
+	}
+	return "document";
+}
+
+function normalizeSourceTargetKind(
+	source: Record<string, unknown>,
+	hasCanonicalReader: boolean,
+	hasPublicNoticeUrl: boolean,
+): ChatSourceItem["targetKind"] | null {
+	const explicit = recordString(source, "target_kind", "targetKind");
+	if (
+		explicit === "canonical_reader" ||
+		explicit === "notice_reader" ||
+		explicit === "public_notice_url" ||
+		explicit === "restricted_notice"
+	) {
+		return explicit;
+	}
+	const sourceKind = normalizeSourceKind(source);
+	if (hasCanonicalReader && sourceKind === "notice" && hasPublicNoticeUrl) {
+		return "notice_reader";
+	}
+	if (hasCanonicalReader) {
+		return "canonical_reader";
+	}
+	if (hasPublicNoticeUrl) {
+		return "public_notice_url";
+	}
+	return null;
+}
+
+function normalizePublicNoticeUrl(value: unknown): string | null {
+	const rawUrl = normalizeOptionalString(value);
+	if (!rawUrl) {
+		return null;
+	}
+	try {
+		const url = new URL(rawUrl);
+		const hostname = url.hostname.toLowerCase();
+		const isMucPublicHost =
+			(hostname === "muc.edu.cn" || hostname.endsWith(".muc.edu.cn")) &&
+			hostname !== "my.muc.edu.cn";
+		if (url.protocol !== "https:" || !(isMucPublicHost || hostname === "mp.weixin.qq.com")) {
+			return null;
+		}
+		return url.toString();
+	} catch {
+		return null;
+	}
+}
+
+function sourceOriginalNoticeUrl(source: Record<string, unknown>): string | null {
+	return normalizePublicNoticeUrl(
+		source.original_url ??
+			source.originalUrl ??
+			source.public_notice_url ??
+			source.publicNoticeUrl ??
+			source.notice_url ??
+			source.noticeUrl ??
+			source.source_url ??
+			source.sourceUrl,
+	);
+}
+
+function sourcePublisherLabel(source: Record<string, unknown>): string {
+	return (
+		recordString(source, "publisher_label", "publisherLabel") ??
+		recordString(source, "source_family_label", "sourceFamilyLabel") ??
+		""
+	);
+}
+
+function sourcePublishedAt(source: Record<string, unknown>): string {
+	return (
+		recordString(source, "published_at", "publishedAt") ??
+		recordString(source, "publish_time", "publishTime") ??
+		""
+	);
+}
+
+function buildCanonicalReaderSourceItem(input: {
+	basePath: string;
+	readerAnchor: string | null;
+	source: Record<string, unknown>;
+	targetKind: "canonical_reader" | "notice_reader";
+	title: string;
+	snippet: string | null;
+	originalNoticeUrl: string | null;
+}): ChatSourceItem {
+	const href = buildSourceCardHref({
+		anchor: input.readerAnchor,
+		basePath: input.basePath,
+		highlightUnitIds: normalizeHighlightUnitIds(normalizeAnchor(input.source.anchor)),
+	});
+	const sourceKind = normalizeSourceKind(input.source);
+	return {
+		targetKind: input.targetKind,
+		sourceKind,
+		title: input.title,
+		snippet: input.snippet,
+		primaryAction: {
+			label: input.targetKind === "notice_reader" ? "查看整理版" : "查看文档",
+			href,
+			external: false,
+			disabledReason: null,
+		},
+		secondaryActions:
+			input.targetKind === "notice_reader" && input.originalNoticeUrl
+				? [
+						{
+							label: "原通知",
+							href: input.originalNoticeUrl,
+							external: true,
+							disabledReason: null,
+						},
+					]
+				: [],
+		sectionTitle: normalizeSectionTitle(normalizeAnchor(input.source.anchor), input.source),
+		collectionLabel: collectionLabel(recordString(input.source, "collection", "collection")),
+		publisherLabel: sourcePublisherLabel(input.source),
+		publishedAt: sourcePublishedAt(input.source),
+		versionLabel:
+			input.source.is_current === false || input.source.isCurrent === false ? "历史版本" : "现行版",
+		pageLabel: pageLabel(normalizeAnchor(input.source.anchor)),
+		trustLabel: "",
+	};
+}
+
+function buildPublicNoticeSourceItem(input: {
+	source: Record<string, unknown>;
+	title: string;
+	snippet: string | null;
+	originalNoticeUrl: string;
+}): ChatSourceItem {
+	return {
+		targetKind: "public_notice_url",
+		sourceKind: "notice",
+		title: input.title,
+		snippet: input.snippet,
+		primaryAction: {
+			label: "打开原通知",
+			href: input.originalNoticeUrl,
+			external: true,
+			disabledReason: null,
+		},
+		secondaryActions: [],
+		sectionTitle: "",
+		collectionLabel: "",
+		publisherLabel: sourcePublisherLabel(input.source),
+		publishedAt: sourcePublishedAt(input.source),
+		versionLabel: "",
+		pageLabel: "",
+		trustLabel: "",
+	};
+}
+
+function buildRestrictedNoticeSourceItem(input: {
+	source: Record<string, unknown>;
+	title: string;
+	snippet: string | null;
+}): ChatSourceItem {
+	return {
+		targetKind: "restricted_notice",
+		sourceKind: "notice",
+		title: input.title,
+		snippet: input.snippet,
+		primaryAction: {
+			label: "需登录查看",
+			href: null,
+			external: false,
+			disabledReason: "该来源需要校内身份后才能查看。",
+		},
+		secondaryActions: [],
+		sectionTitle: "",
+		collectionLabel: "",
+		publisherLabel: sourcePublisherLabel(input.source),
+		publishedAt: sourcePublishedAt(input.source),
+		versionLabel: "",
+		pageLabel: "",
+		trustLabel: "",
+	};
+}
+
+function normalizeSourceItem(source: unknown): ChatSourceItem | null {
 	if (!isRecord(source)) {
 		return null;
 	}
@@ -396,29 +600,48 @@ function normalizeSourceCard(source: unknown): ChatSourceCard | null {
 		recordString(source, "source_title", "sourceTitle") ??
 		recordString(source, "title", "title");
 	const snippet = normalizeSnippet(source.snippet);
-	if (!(basePath && title && snippet)) {
+	const originalNoticeUrl = sourceOriginalNoticeUrl(source);
+	const targetKind = normalizeSourceTargetKind(
+		source,
+		Boolean(basePath),
+		Boolean(originalNoticeUrl),
+	);
+	if (!(targetKind && title)) {
 		return null;
 	}
 
-	const href = buildSourceCardHref({
-		anchor: readerAnchor,
-		basePath,
-		highlightUnitIds: normalizeHighlightUnitIds(anchor),
-	});
+	if (targetKind === "restricted_notice") {
+		return buildRestrictedNoticeSourceItem({ source, title, snippet });
+	}
 
-	return {
-		title,
-		sectionTitle: normalizeSectionTitle(anchor, source),
-		snippet,
-		href,
-		collectionLabel: collectionLabel(recordString(source, "collection", "collection")),
-		versionLabel: source.is_current === false || source.isCurrent === false ? "历史版本" : "现行版",
-		pageLabel: pageLabel(anchor),
-	};
+	if (targetKind === "public_notice_url") {
+		return originalNoticeUrl
+			? buildPublicNoticeSourceItem({ source, title, snippet, originalNoticeUrl })
+			: null;
+	}
+
+	if (targetKind === "canonical_reader" || targetKind === "notice_reader") {
+		return basePath
+			? buildCanonicalReaderSourceItem({
+					basePath,
+					readerAnchor,
+					source,
+					targetKind,
+					title,
+					snippet,
+					originalNoticeUrl,
+				})
+			: null;
+	}
+
+	return null;
 }
 
-function sourceCardDedupeKey(sourceCard: ChatSourceCard): string {
-	return sourceCard.href.replace(/\?hl=[^#]*/u, "");
+function sourceItemDedupeKey(sourceItem: ChatSourceItem): string {
+	const primaryHref = sourceItem.primaryAction.href ?? "";
+	return primaryHref
+		? primaryHref.replace(/\?hl=[^#]*/u, "")
+		: `${sourceItem.targetKind}:${sourceItem.title}`;
 }
 
 function resultEvidenceSources(result: unknown): unknown[] {
@@ -435,7 +658,7 @@ function resultEvidenceSources(result: unknown): unknown[] {
 		: [];
 }
 
-export function normalizeSourceCardsPart(input: {
+export function normalizeSourceItemsPart(input: {
 	selectedTarget: string | null;
 	status: SupervisorExecutionResponse["status"];
 	result: unknown;
@@ -444,29 +667,29 @@ export function normalizeSourceCardsPart(input: {
 		return [];
 	}
 
-	const sourceCards: ChatSourceCard[] = [];
+	const sourceItems: ChatSourceItem[] = [];
 	const seenSourceKeys = new Set<string>();
 	for (const source of resultEvidenceSources(input.result)) {
-		const sourceCard = normalizeSourceCard(source);
-		if (!sourceCard) {
+		const sourceItem = normalizeSourceItem(source);
+		if (!sourceItem) {
 			continue;
 		}
-		const dedupeKey = sourceCardDedupeKey(sourceCard);
+		const dedupeKey = sourceItemDedupeKey(sourceItem);
 		if (seenSourceKeys.has(dedupeKey)) {
 			continue;
 		}
 		seenSourceKeys.add(dedupeKey);
-		sourceCards.push(sourceCard);
-		if (sourceCards.length >= 5) {
+		sourceItems.push(sourceItem);
+		if (sourceItems.length >= 5) {
 			break;
 		}
 	}
 
-	return sourceCards.length > 0
+	return sourceItems.length > 0
 		? [
 				{
-					type: "source_cards",
-					sourceCards,
+					type: "source_items",
+					sourceItems,
 				},
 			]
 		: [];
@@ -666,7 +889,7 @@ export function normalizeChatResponseStructuredParts(input: {
 }): ChatMessageStructuredPart[] {
 	return [
 		...normalizePlaceCardPart(input),
-		...normalizeSourceCardsPart(input),
+		...normalizeSourceItemsPart(input),
 		...normalizeCampusServiceTracePart(input),
 	];
 }
