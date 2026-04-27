@@ -37,6 +37,16 @@ const restrictedDoc = {
 	visibilityLevel: "restricted",
 };
 
+const historicalPublicDoc = {
+	...publicDoc,
+	currentVersionId: "ver_2026_01",
+	currentVersionSlug: "2026-current",
+	isCurrent: false,
+	label: "2025 版",
+	versionId: "ver_2025_01",
+	versionSlug: "2025-history",
+};
+
 function createStore(): DocsReadModelStore {
 	return {
 		async getCollection() {
@@ -64,6 +74,18 @@ function createStore(): DocsReadModelStore {
 					contentUrl: "/_gated/curriculum/restricted-program/reader.json",
 					manifestUrl: "/_gated/curriculum/restricted-program/asset-manifest.json",
 					outlineUrl: "/_gated/curriculum/restricted-program/outline.json",
+				};
+			}
+			if (input.version === historicalPublicDoc.versionSlug) {
+				return {
+					...historicalPublicDoc,
+					canonicalUrl: publicDoc.canonicalUrl,
+					contentUrl:
+						"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2025-history/reader.json",
+					manifestUrl:
+						"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2025-history/asset-manifest.json",
+					outlineUrl:
+						"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2025-history/outline.json",
 				};
 			}
 			return {
@@ -106,14 +128,8 @@ function createStore(): DocsReadModelStore {
 					label: "现行版",
 				},
 				{
-					...publicDoc,
-					currentVersionId: "ver_2025_01",
-					currentVersionSlug: "2025-history",
+					...historicalPublicDoc,
 					effectiveFrom: "2025-02-01",
-					isCurrent: false,
-					label: "历史版本",
-					versionId: "ver_2025_01",
-					versionSlug: "2025-history",
 				},
 			];
 		},
@@ -122,7 +138,7 @@ function createStore(): DocsReadModelStore {
 				{
 					...publicDoc,
 					anchor: "semester-4",
-					canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program#semester-4",
+					canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
 					chunkId: "chunk-private-001",
 					documentTitle: publicDoc.title,
 					highlightRootUnitIds: ["semester-4-course-list"],
@@ -199,6 +215,31 @@ describe("docs service", () => {
 		expect(JSON.stringify(response)).not.toContain("reader-assets/private");
 		expect(JSON.stringify(response)).not.toContain("rawSourceLocator");
 
+		const historical = await service.resolveReader({
+			anchor: "semester-4",
+			collection: "curriculum_plan",
+			corpus: "curriculum",
+			documentSlug: "law-ethnic-class-program",
+			highlightRootUnitIds: ["semester-4-course-list"],
+			principal: null,
+			version: "2025-history",
+		});
+
+		expect(historical.readerAsset).toEqual({
+			canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program/v/2025-history",
+			contentUrl:
+				"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2025-history/reader.json",
+			deliveryMode: "public_static_asset",
+			outlineUrl:
+				"/_docs/curriculum/curriculum_plan/law-ethnic-class-program/2025-history/outline.json",
+		});
+		expect(historical.resolvedVersion).toEqual({
+			isCurrent: false,
+			label: "2025 版",
+			versionId: "ver_2025_01",
+			versionSlug: "2025-history",
+		});
+
 		await expect(
 			service.resolveReader({
 				anchor: null,
@@ -233,7 +274,7 @@ describe("docs service", () => {
 				{
 					anchor: "semester-4",
 					canonicalUrl:
-						"/docs/curriculum/curriculum_plan/law-ethnic-class-program#semester-4?hl=semester-4-course-list",
+						"/docs/curriculum/curriculum_plan/law-ethnic-class-program?hl=semester-4-course-list#semester-4",
 					documentTitle: "法学（民族班）培养方案",
 					highlightRootUnitIds: ["semester-4-course-list"],
 					kind: "section_hit",
