@@ -372,9 +372,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			throw new Error(`scheduler lane ${lane.laneId} must define notes`);
 		}
 		if (lane.maxTotalPages < lane.maxPagesPerHost) {
-			throw new Error(
-				`scheduler lane ${lane.laneId} must keep maxTotalPages >= maxPagesPerHost`,
-			);
+			throw new Error(`scheduler lane ${lane.laneId} must keep maxTotalPages >= maxPagesPerHost`);
 		}
 		for (const host of lane.hostFilter) {
 			if (!bundle.site.allowedHosts.includes(host)) {

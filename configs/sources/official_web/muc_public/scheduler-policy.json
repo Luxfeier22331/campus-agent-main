@@ -9,11 +9,7 @@
 			"enabled": true,
 			"run_intent": "hot",
 			"cadence_minutes": 30,
-			"host_filter": [
-				"www.muc.edu.cn",
-				"news.muc.edu.cn",
-				"xxgk.muc.edu.cn"
-			],
+			"host_filter": ["www.muc.edu.cn", "news.muc.edu.cn", "xxgk.muc.edu.cn"],
 			"max_pages_per_host": 20,
 			"max_total_pages": 80,
 			"notes": "High-frequency refresh for university-core homepage, news, and information disclosure surfaces."

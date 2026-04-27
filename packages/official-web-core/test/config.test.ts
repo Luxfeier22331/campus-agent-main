@@ -63,9 +63,7 @@ describe("official-web-core config loading", () => {
 		);
 		expect(config.qcPolicy.allowedReviewPageFamilies).toContain("dynamic_shell_page");
 		expect(config.schedulerPolicy.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
-		expect(
-			config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn"),
-		).toMatchObject({
+		expect(config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
 			hostGroup: "university_core",
 			ownerLabel: "学校主页",
 			rolloutOrder: 10,

@@ -13,7 +13,8 @@ updated: 2026-04-28
 - current phase: `Phase 2`
 - owner: unassigned
 - active implementation: planning and ops follow-up only
-- latest completed slice: local official web source-truth projection replay evidence
+- latest completed slice: local official web source-truth projection replay evidence plus
+  source-layer host split config
 
 ## Current Repo Facts
 
@@ -28,6 +29,15 @@ updated: 2026-04-28
 - Current `.env` raw asset registry has `0` records across the same four official-web scopes.
 - Server-side phase 7 official-web small batch consumed `0` handoff records.
 - This evidence does not change serving surface status.
+- `configs/sources/official_web/muc_public/hosts.json` now carries
+  `host_group`, `owner_label`, and `rollout_order` for university-core,
+  university-support, college, topic, and excluded hosts.
+- `configs/sources/official_web/muc_public/scheduler-policy.json` now uses
+  stable `lane_id` values and separates enabled university lanes from disabled
+  one-host college/topic baseline lane templates.
+- The host split is source-channel crawl segmentation only. It does not create
+  `college_web`, reopen `fresh_news` / `news_archive`, or change product routing
+  gates.
 
 ## Latest Evidence
 
@@ -59,6 +69,9 @@ updated: 2026-04-28
 
 ## Remaining Gaps
 
+- `OFFICIAL-WEB-OPS-00`: run fresh bounded crawl evidence for the enabled
+  university-core lanes, then capture at least one college-host single-host
+  validation artifact before widening recurring coverage.
 - `OFFICIAL-WEB-OPS-01`: dev/local scheduler entry still needs a documented command and repeated-run
   cadence.
 - `OFFICIAL-WEB-OPS-02`: worker preflight should explicitly verify official web source channel
@@ -77,5 +90,5 @@ updated: 2026-04-28
 - Keep `official-web-source-channel-news-opening` in backlog until product scope explicitly reopens
   news query-serving.
 - Do not use this workstream to change retrieval runtime profile or product routing gates.
-- Next implementation should start with `OFFICIAL-WEB-OPS-01` through `OFFICIAL-WEB-OPS-03` before
-  adding alert/retention policy.
+- Next implementation should start with `OFFICIAL-WEB-OPS-00` through `OFFICIAL-WEB-OPS-03`
+  before adding alert/retention policy.

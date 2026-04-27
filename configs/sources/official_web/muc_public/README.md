@@ -4,11 +4,13 @@ This directory freezes the initial public-web source config for the `muc_public`
 site.
 
 - `site.json`: top-level site identity and shared request baseline
-- `hosts.json`: explicit host allowlist, host-specific crawl policy, and
-  optional host-scoped dynamic-shell discovery policy
+- `hosts.json`: explicit host allowlist, host grouping, rollout order,
+  host-specific crawl policy, and optional host-scoped dynamic-shell discovery
+  policy
 - `seeds.json`: initial public seed set for enabled hosts
 - `crawl-policy.json`: shared URL admission and content-fetch policy
-- `scheduler-policy.json`: baseline / hot / repair lane cadence and budget truth
+- `scheduler-policy.json`: stable lane identity, cadence, host scope, and
+  budget truth
 - `qc-policy.json`: site-scoped QC allowlist for known review-only shell
   families
 - `credentials.schema.json`: anonymous public crawl posture for v1
@@ -28,6 +30,35 @@ Repo-level workflow split:
   batch result
 - `scheduler-policy.json`: baseline / hot / repair lane cadence truth; passing
   one expansion batch does not mean the host should enter `hot lane`
+
+Host rollout split:
+
+- `university_core`: school-level entry surfaces. Current first-pass set is
+  `www.muc.edu.cn`, `news.muc.edu.cn`, and `xxgk.muc.edu.cn`.
+- `university_support`: school-level support surfaces kept behind the daily
+  baseline lane. Current set is `lib.muc.edu.cn` and `xiaoyou.muc.edu.cn`.
+- `college`: college or institute-owned hosts. These are enabled source hosts
+  but should be validated one host at a time before widening recurring lanes.
+- `topic`: topic or campaign hosts. These are also one-host-at-a-time rollout
+  candidates, separate from college ownership.
+- `excluded`: known public hostnames that stay outside source-truth crawl
+  admission, such as portal/service app shells.
+
+Current scheduler lanes:
+
+- `university-core-hot`: enabled `hot` lane for `university_core` homepage,
+  news, and information disclosure surfaces.
+- `university-core-baseline`: enabled daily `baseline` lane for the school-level
+  core/support surfaces.
+- `college-single-host-baseline`: disabled lane template for operator-triggered
+  one-college validation; pass exactly one explicit `--host`.
+- `topic-single-host-baseline`: disabled lane template for operator-triggered
+  one-topic validation; pass exactly one explicit `--host`.
+- `repair`: enabled `repair` lane for retrying failed observations without
+  widening coverage.
+
+The split is a source-layer crawl control mechanism only. It does not open
+`fresh_news`, `news_archive`, or any college-specific query-serving surface.
 
 Current v1 declarations stay inside the existing quality-improvement scope:
 

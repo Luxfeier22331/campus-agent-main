@@ -43,6 +43,9 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					host: "www.example.edu",
 					publicKind: "directory_site",
+					hostGroup: "university_core",
+					ownerLabel: "Example homepage",
+					rolloutOrder: 10,
 					enabled: true,
 					seedUrls: ["https://www.example.edu/"],
 					allowedPathPrefixes: ["/", "/news"],
@@ -59,6 +62,9 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					host: "docs.example.edu",
 					publicKind: "content_site",
+					hostGroup: "college",
+					ownerLabel: "Example docs",
+					rolloutOrder: 20,
 					enabled: true,
 					seedUrls: ["https://docs.example.edu/"],
 					allowedPathPrefixes: ["/"],
@@ -75,6 +81,9 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					host: "portal.example.edu",
 					publicKind: "portal",
+					hostGroup: "excluded",
+					ownerLabel: "Example portal",
+					rolloutOrder: 30,
 					enabled: false,
 					seedUrls: [],
 					allowedPathPrefixes: ["/"],
@@ -144,6 +153,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			timezone: "Asia/Shanghai",
 			lanes: [
 				{
+					laneId: "baseline",
 					enabled: true,
 					hostFilter: [],
 					maxPagesPerHost: 50,
@@ -153,6 +163,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 					cadenceMinutes: 1440,
 				},
 				{
+					laneId: "hot",
 					enabled: true,
 					hostFilter: ["www.example.edu", "docs.example.edu"],
 					maxPagesPerHost: 20,
@@ -162,6 +173,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 					cadenceMinutes: 30,
 				},
 				{
+					laneId: "repair",
 					enabled: true,
 					hostFilter: [],
 					maxPagesPerHost: 10,

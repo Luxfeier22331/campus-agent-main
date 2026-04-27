@@ -19,6 +19,9 @@ updated: 2026-04-28
 - [x] **Phase 1: Local Projection Restart Evidence** — 完成 projection replay 与 validation；
   当前产物为 `85` 个 documents：`75` 个 `muc_public_pages`、`10` 个 `stable_reference`；
   当前 `.env` registry official-web scope 对照为 `0`。
+- [x] **Phase 2A: Source Host Split Config** — 补齐 `muc_public` host 分组、
+  rollout order 与 stable scheduler `lane_id`；当前形态为校级 lane 先跑，
+  院级/topic 通过 disabled single-host lane template 逐个 operator-triggered 验证。
 - [ ] **Phase 2: Dev Scheduler And Preflight Closeout** — 补齐 dev/local scheduler entry、
   worker 专属 preflight 检查项和 repeated-run 操作口径。
 - [ ] **Phase 3: Report Retention And Alert Closeout** — 明确 batch report retention、
@@ -31,6 +34,7 @@ updated: 2026-04-28
 本 workstream 可在以下条件满足后关闭：
 
 - dev/local scheduler 与 preflight 路径明确；
+- enabled university-core crawl 与至少一个 college single-host crawl 有 fresh evidence；
 - report retention 与 alert 规则明确；
 - repeated-run 验收能证明 projection / handoff batch 可重复执行且不会制造 duplicate side effects；
 - 所有证据路径写入 `STATE.md`。

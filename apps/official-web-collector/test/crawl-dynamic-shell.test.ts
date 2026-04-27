@@ -149,6 +149,9 @@ describe("official-web-collector dynamic shell crawl", () => {
 							{
 								host: "www.example.edu",
 								public_kind: "directory_site",
+								host_group: "university_core",
+								owner_label: "Example homepage",
+								rollout_order: 10,
 								enabled: true,
 								seed_urls: ["https://www.example.edu/"],
 								allowed_path_prefixes: ["/"],

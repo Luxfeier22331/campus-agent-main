@@ -15,8 +15,8 @@ updated: 2026-04-28
 
 - status: `active`
 - current phase: `Phase 2`
-- current slice: 本地 `official_web` source-truth projection replay 已完成，当前 replay 产物为
-  `85` 个 documents：`75` 个 `muc_public_pages`、`10` 个 `stable_reference`
+- current slice: 本地 `official_web` source-truth projection replay 已完成；source config 已补齐
+  校级优先、院级/topic 逐个 rollout 的 host 分组与 scheduler lane 形态
 - active implementation: yes, planning and ops follow-up only
 - latest projection artifact:
   `.tmp/official-web-restart/official-web-restart-20260427T213902Z/projection-replay.json`
@@ -39,6 +39,8 @@ updated: 2026-04-28
 - 本 workstream 不重开 backlog 中的 `official-web source channel / news opening`。
 - 本 workstream 不改写 `apps/app-api` 对 official web control-plane 的 ownership。
 - 本 workstream 不改变 retrieval serving profile、product routing gate 或 accepted merged truth。
+- 本 workstream 的校级/院级拆分只作用于 `official_web` source crawl admission 与
+  scheduler/operator rollout，不创建 `college_web` source channel。
 
 ## Related Work
 

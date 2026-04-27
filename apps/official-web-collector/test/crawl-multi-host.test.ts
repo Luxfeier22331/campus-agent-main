@@ -147,6 +147,9 @@ describe("official-web-collector multi-host crawl", () => {
 							{
 								host: "www.example.edu",
 								public_kind: "directory_site",
+								host_group: "university_core",
+								owner_label: "Example homepage",
+								rollout_order: 10,
 								enabled: true,
 								seed_urls: ["https://www.example.edu/"],
 								allowed_path_prefixes: ["/"],
@@ -162,6 +165,9 @@ describe("official-web-collector multi-host crawl", () => {
 							{
 								host: "news.example.edu",
 								public_kind: "content_site",
+								host_group: "university_support",
+								owner_label: "Example news",
+								rollout_order: 20,
 								enabled: true,
 								seed_urls: ["https://news.example.edu/"],
 								allowed_path_prefixes: ["/"],

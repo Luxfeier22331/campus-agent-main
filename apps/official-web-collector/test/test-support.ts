@@ -49,6 +49,9 @@ export function writeTestConfigRoot(): { configRoot: string; outputDir: string }
 					{
 						host: "www.example.edu",
 						public_kind: "directory_site",
+						host_group: "university_core",
+						owner_label: "Example homepage",
+						rollout_order: 10,
 						enabled: true,
 						seed_urls: ["https://www.example.edu/"],
 						allowed_path_prefixes: ["/"],
@@ -147,6 +150,7 @@ export function writeTestConfigRoot(): { configRoot: string; outputDir: string }
 				timezone: "Asia/Shanghai",
 				lanes: [
 					{
+						lane_id: "baseline",
 						enabled: true,
 						run_intent: "baseline",
 						cadence_minutes: 1440,
@@ -156,6 +160,7 @@ export function writeTestConfigRoot(): { configRoot: string; outputDir: string }
 						notes: "baseline coverage for all enabled hosts",
 					},
 					{
+						lane_id: "hot",
 						enabled: true,
 						run_intent: "hot",
 						cadence_minutes: 30,
@@ -165,6 +170,7 @@ export function writeTestConfigRoot(): { configRoot: string; outputDir: string }
 						notes: "hot listing and recent detail refresh",
 					},
 					{
+						lane_id: "repair",
 						enabled: true,
 						run_intent: "repair",
 						cadence_minutes: 120,
