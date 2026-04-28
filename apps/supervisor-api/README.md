@@ -121,6 +121,10 @@ Current admission boundary:
   `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no
   policy file is found, knowledge scoped requests fail closed. The Docker image
   sets this env var to `/etc/campus-agent/query-serving-scopes.v1.json`.
+- `SUPERVISOR_API_INTENT_POLICY_PATH` points at the Go-owned intent policy
+  artifact. The server loads this artifact once at startup and uses that runtime
+  snapshot for request routing; Docker sets it to
+  `/etc/campus-agent/intent-policy.v1.json`.
 
 Current cancellation boundary:
 
@@ -257,6 +261,7 @@ export SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES=10485760
 export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
 export SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000
+export SUPERVISOR_API_INTENT_POLICY_PATH=
 export SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=
 export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081
 export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret

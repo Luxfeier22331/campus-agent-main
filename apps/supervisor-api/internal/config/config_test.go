@@ -20,6 +20,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "")
 	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "")
+	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", "")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "")
@@ -208,6 +209,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "7500")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "20000")
 	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
 	t.Setenv("SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT", "2")
 	t.Setenv("SUPERVISOR_API_LANE_RAG_QUEUE_CAPACITY", "5")
 	t.Setenv("SUPERVISOR_API_LANE_RAG_QUEUE_TIMEOUT_MS", "1500")
@@ -255,6 +257,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.BridgeBreakerOpenMS != 7500 ||
 		cfg.ShutdownGraceMS != 20000 ||
 		cfg.MetricsBearerToken != "metrics-token" ||
+		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
 		cfg.LaneBudgets["rag"].MaxConcurrent != 2 ||
 		cfg.LaneBudgets["rag"].QueueCapacity != 5 ||
 		cfg.LaneBudgets["rag"].QueueTimeoutMS != 1500 ||

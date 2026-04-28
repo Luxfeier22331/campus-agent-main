@@ -143,6 +143,17 @@ func ParseAnswerRequest(
 	headers map[string]string,
 	cfg config.Config,
 ) (AnswerExecutionRequest, *HTTPError) {
+	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy(cfg.IntentPolicyPath)
+	return ParseAnswerRequestWithIntentPolicy(body, headers, cfg, intentPolicy, intentPolicyErr)
+}
+
+func ParseAnswerRequestWithIntentPolicy(
+	body json.RawMessage,
+	headers map[string]string,
+	cfg config.Config,
+	intentPolicy runtimepolicy.IntentPolicyArtifact,
+	intentPolicyErr error,
+) (AnswerExecutionRequest, *HTTPError) {
 	payload, err := parseObject(body, "request body")
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
@@ -255,7 +266,6 @@ func ParseAnswerRequest(
 			}
 		}
 	}
-	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy("")
 	capabilityResolution := runtimepolicy.ResolveCapability(
 		runtimepolicy.CapabilityResolutionRequest{
 			RequestedCapability: requestedCapability,

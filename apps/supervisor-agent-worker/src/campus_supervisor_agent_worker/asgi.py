@@ -71,12 +71,15 @@ class SupervisorBridgeAsgiApp:
                 ),
             )
             return
-        response = await self._dispatch_in_executor(
-            method=method,
-            path=full_path,
-            headers=headers,
-            raw_body=raw_body,
-        )
+        try:
+            response = await self._dispatch_in_executor(
+                method=method,
+                path=full_path,
+                headers=headers,
+                raw_body=raw_body,
+            )
+        except Exception:
+            response = _unexpected_worker_error_response()
         await self._send_response(send, response)
 
     async def _dispatch_in_executor(
@@ -170,6 +173,20 @@ def dispatch_http_request(
         )
 
     return app.handle(method, urlsplit(path).path, headers=headers, json_body=json_body)
+
+
+def _unexpected_worker_error_response() -> HttpResponse:
+    return HttpResponse(
+        status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+        json_body={
+            "error": {
+                "code": "supervisor_worker_error",
+                "message": "Supervisor worker failed while handling the bridge request.",
+                "retryable": True,
+            }
+        },
+        headers={"x-supervisor-bridge-kind": "supervisor_error"},
+    )
 
 
 def _bridge_auth_precheck(

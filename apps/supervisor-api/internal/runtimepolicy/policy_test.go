@@ -139,6 +139,37 @@ func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
 	}
 }
 
+func TestIntentPolicyArtifactValidateRequiresContactDirectorySignalGroups(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	for _, group := range []string{
+		"structured_contact_directory",
+		"structured_contact_directory_action",
+		"contact_directory_focus_phone",
+		"contact_directory_focus_email",
+		"contact_directory_focus_location",
+		"contact_directory_focus_office_hours",
+		"contact_directory_focus_contact_person",
+	} {
+		t.Run(group, func(t *testing.T) {
+			mutated := policy
+			mutated.SignalGroups = cloneSignalGroups(policy.SignalGroups)
+			delete(mutated.SignalGroups, group)
+
+			err := mutated.Validate()
+			if err == nil {
+				t.Fatalf("expected missing %s to fail validation", group)
+			}
+			if !strings.Contains(err.Error(), group) {
+				t.Fatalf("validation error = %v, want mention %s", err, group)
+			}
+		})
+	}
+}
+
 func TestIntentPolicyArtifactFailsClosedWhenMissing(t *testing.T) {
 	_, err := LoadIntentPolicy(filepath.Join(t.TempDir(), "missing-intent-policy.json"))
 	if err == nil {
@@ -662,4 +693,56 @@ func TestQueryServingScopePolicyReadsExplicitPolicyFile(t *testing.T) {
 	if !allowed {
 		t.Fatal("expected explicit policy scope to be allowed")
 	}
+}
+
+func TestQueryServingScopePolicyRejectsMissingPolicyVersion(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	if err := os.WriteFile(
+		policyPath,
+		[]byte(`{"scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write policy fixture: %v", err)
+	}
+
+	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
+	if err == nil {
+		t.Fatal("expected missing policy_version to fail")
+	}
+	if allowed {
+		t.Fatal("scope must not be allowed when policy_version is missing")
+	}
+	if !strings.Contains(err.Error(), "policy_version") {
+		t.Fatalf("error = %v, want policy_version failure", err)
+	}
+}
+
+func TestQueryServingScopePolicyRejectsMismatchedPolicyVersion(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	if err := os.WriteFile(
+		policyPath,
+		[]byte(`{"policy_version":"query-serving-scopes-v999","scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write policy fixture: %v", err)
+	}
+
+	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
+	if err == nil {
+		t.Fatal("expected mismatched policy_version to fail")
+	}
+	if allowed {
+		t.Fatal("scope must not be allowed when policy_version mismatches")
+	}
+	if !strings.Contains(err.Error(), "policy_version") {
+		t.Fatalf("error = %v, want policy_version failure", err)
+	}
+}
+
+func cloneSignalGroups(source map[string][]string) map[string][]string {
+	cloned := make(map[string][]string, len(source))
+	for key, values := range source {
+		cloned[key] = append([]string(nil), values...)
+	}
+	return cloned
 }

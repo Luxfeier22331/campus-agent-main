@@ -19,10 +19,12 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	if !ok {
 		return
 	}
-	executionRequest, httpErr := execution.ParseAnswerRequest(
+	executionRequest, httpErr := execution.ParseAnswerRequestWithIntentPolicy(
 		body,
 		lowerHeaders(request.Header),
 		s.config,
+		s.intentPolicy,
+		s.intentPolicyErr,
 	)
 	if httpErr != nil {
 		setOutcome(response, httpErr.Code)
@@ -41,15 +43,7 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	if s.bridge == nil || !s.bridge.Configured() {
-		setOutcome(response, "bridge_not_configured")
-		writeError(
-			response,
-			http.StatusServiceUnavailable,
-			"bridge_not_configured",
-			"Supervisor Python bridge is not configured.",
-			true,
-		)
+	if s.rejectBridgeNotConfigured(response, request.Context(), executionRequest, startedAt) {
 		return
 	}
 
@@ -87,10 +81,12 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 	if !ok {
 		return
 	}
-	executionRequest, httpErr := execution.ParseAnswerRequest(
+	executionRequest, httpErr := execution.ParseAnswerRequestWithIntentPolicy(
 		body,
 		lowerHeaders(request.Header),
 		s.config,
+		s.intentPolicy,
+		s.intentPolicyErr,
 	)
 	if httpErr != nil {
 		setOutcome(response, httpErr.Code)
@@ -117,19 +113,7 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 		return
 	}
 
-	if s.bridge == nil || !s.bridge.Configured() {
-		setOutcome(response, "bridge_not_configured")
-		emitSSE(response, "execution.failed", streamPayload{
-			RequestID:  executionRequest.RequestID,
-			TraceID:    executionRequest.TraceID,
-			EventType:  "execution.failed",
-			Status:     "failed",
-			Outcome:    "bridge_not_configured",
-			HTTPStatus: http.StatusServiceUnavailable,
-			Retryable:  true,
-			Error:      &errorInfo{Code: "bridge_not_configured", Message: "Supervisor Python bridge is not configured.", Retryable: true},
-			OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
-		})
+	if s.rejectBridgeNotConfiguredStream(response, request.Context(), executionRequest, startedAt) {
 		return
 	}
 
@@ -396,6 +380,94 @@ func (s *Server) rejectClosedStructuredRuntimeStream(
 			Message:   "Structured runtime capability is not opened for product serving.",
 			Retryable: false,
 		},
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	return true
+}
+
+func (s *Server) rejectBridgeNotConfigured(
+	response http.ResponseWriter,
+	ctx context.Context,
+	executionRequest execution.AnswerExecutionRequest,
+	startedAt time.Time,
+) bool {
+	if s.bridge != nil && s.bridge.Configured() {
+		return false
+	}
+	setOutcome(response, "bridge_not_configured")
+	s.telemetry.Emit(ctx, runtimeTelemetryEvent(telemetry.Event{
+		Name:                string(executionModeAnswer) + ".failed",
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Outcome:             "bridge_not_configured",
+		FailureCode:         "bridge_not_configured",
+		StatusCode:          http.StatusServiceUnavailable,
+		Duration:            time.Since(startedAt),
+	}, executionRequest))
+	s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
+		Duration:            time.Since(startedAt),
+		EventType:           "execution.bridge_failed",
+		FailureKind:         "bridge_not_configured",
+		HTTPStatus:          http.StatusServiceUnavailable,
+		Lane:                executionRequest.Lane,
+		RequestID:           executionRequest.RequestID,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Retryable:           true,
+		TraceID:             executionRequest.TraceID,
+	}, executionRequest))
+	writeError(
+		response,
+		http.StatusServiceUnavailable,
+		"bridge_not_configured",
+		"Supervisor Python bridge is not configured.",
+		true,
+	)
+	return true
+}
+
+func (s *Server) rejectBridgeNotConfiguredStream(
+	response http.ResponseWriter,
+	ctx context.Context,
+	executionRequest execution.AnswerExecutionRequest,
+	startedAt time.Time,
+) bool {
+	if s.bridge != nil && s.bridge.Configured() {
+		return false
+	}
+	setOutcome(response, "bridge_not_configured")
+	s.telemetry.Emit(ctx, runtimeTelemetryEvent(telemetry.Event{
+		Name:                string(executionModeAnswerStream) + ".failed",
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Outcome:             "bridge_not_configured",
+		FailureCode:         "bridge_not_configured",
+		StatusCode:          http.StatusServiceUnavailable,
+		Duration:            time.Since(startedAt),
+	}, executionRequest))
+	s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
+		Duration:            time.Since(startedAt),
+		EventType:           "execution.bridge_failed",
+		FailureKind:         "bridge_not_configured",
+		HTTPStatus:          http.StatusServiceUnavailable,
+		Lane:                executionRequest.Lane,
+		RequestID:           executionRequest.RequestID,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Retryable:           true,
+		TraceID:             executionRequest.TraceID,
+	}, executionRequest))
+	emitSSE(response, "execution.failed", streamPayload{
+		RequestID:  executionRequest.RequestID,
+		TraceID:    executionRequest.TraceID,
+		EventType:  "execution.failed",
+		Status:     "failed",
+		Outcome:    "bridge_not_configured",
+		HTTPStatus: http.StatusServiceUnavailable,
+		Retryable:  true,
+		Error:      &errorInfo{Code: "bridge_not_configured", Message: "Supervisor Python bridge is not configured.", Retryable: true},
 		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
 	})
 	return true

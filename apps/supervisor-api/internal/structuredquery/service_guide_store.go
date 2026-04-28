@@ -16,6 +16,7 @@ const defaultServiceGuideReadModelMaxConns int32 = 2
 type ServiceGuideReadModelStore interface {
 	HealthCheck(ctx context.Context) error
 	CurrentReleaseID(ctx context.Context) (string, error)
+	ProjectionReady(ctx context.Context) (bool, error)
 	LoadBundleForRelease(ctx context.Context, releaseID string) (projectionBundle, error)
 }
 
@@ -87,6 +88,17 @@ func (s *PostgresServiceGuideReadModelStore) CurrentReleaseID(ctx context.Contex
 		return "", errors.New("service guide read model store is not configured")
 	}
 	return s.currentReleaseID(ctx, "campus_services", "service_guide")
+}
+
+func (s *PostgresServiceGuideReadModelStore) ProjectionReady(ctx context.Context) (bool, error) {
+	if s == nil || s.pool == nil {
+		return false, errors.New("service guide read model store is not configured")
+	}
+	releaseID, err := s.CurrentReleaseID(ctx)
+	if err != nil {
+		return false, err
+	}
+	return projectionTableReady(ctx, s.pool, s.tableSQL, releaseID)
 }
 
 func (s *PostgresServiceGuideReadModelStore) LoadBundleForRelease(

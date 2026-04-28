@@ -32,6 +32,7 @@ type Config struct {
 	BridgeCancelTimeoutMS             int
 	ShutdownGraceMS                   int
 	MetricsBearerToken                string
+	IntentPolicyPath                  string
 	LaneBudgets                       map[string]LaneBudget
 	OTelEnabled                       bool
 	OTelEndpoint                      string
@@ -102,6 +103,7 @@ type envValues struct {
 	BridgeCancelTimeoutMS             int     `env:"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
 	ShutdownGraceMS                   int     `env:"SUPERVISOR_API_SHUTDOWN_GRACE_MS" envDefault:"45000"`
 	MetricsBearerToken                string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
+	IntentPolicyPath                  string  `env:"SUPERVISOR_API_INTENT_POLICY_PATH"`
 	OTelEndpoint                      string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
 	OTelHeaders                       string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS"`
 	OTelServiceName                   string  `env:"SUPERVISOR_API_OTEL_SERVICE_NAME" envDefault:"campus-supervisor-api"`
@@ -187,6 +189,7 @@ func LoadFromEnv() (Config, error) {
 		BridgeCancelTimeoutMS:             values.BridgeCancelTimeoutMS,
 		ShutdownGraceMS:                   values.ShutdownGraceMS,
 		MetricsBearerToken:                strings.TrimSpace(values.MetricsBearerToken),
+		IntentPolicyPath:                  strings.TrimSpace(values.IntentPolicyPath),
 		LaneBudgets:                       laneBudgets,
 		OTelEnabled:                       otelEnabled,
 		OTelEndpoint:                      strings.TrimSpace(values.OTelEndpoint),

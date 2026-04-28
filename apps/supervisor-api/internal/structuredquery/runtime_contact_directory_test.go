@@ -278,9 +278,12 @@ func newRuntimeWithContactDirectoryReadModel(
 }
 
 type fakeContactDirectoryReadModelStore struct {
-	releaseID string
-	bundle    projectionBundle
-	loadCount int
+	releaseID          string
+	bundle             projectionBundle
+	loadCount          int
+	projectionReady    bool
+	projectionReadySet bool
+	projectionReadyErr error
 }
 
 func (s fakeContactDirectoryReadModelStore) HealthCheck(context.Context) error {
@@ -292,6 +295,16 @@ func (s *fakeContactDirectoryReadModelStore) CurrentReleaseID(context.Context) (
 		return "contact-directory-release-1", nil
 	}
 	return s.releaseID, nil
+}
+
+func (s *fakeContactDirectoryReadModelStore) ProjectionReady(context.Context) (bool, error) {
+	if s.projectionReadyErr != nil {
+		return false, s.projectionReadyErr
+	}
+	if s.projectionReadySet {
+		return s.projectionReady, nil
+	}
+	return len(s.bundle.ContactDirectoryRecords) > 0, nil
 }
 
 func (s *fakeContactDirectoryReadModelStore) LoadBundleForRelease(

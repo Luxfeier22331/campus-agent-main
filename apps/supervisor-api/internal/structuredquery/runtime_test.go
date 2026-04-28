@@ -73,6 +73,58 @@ func TestLookupTransportScheduleReadsPostgresReadModelWithoutProjectionPath(t *t
 	}
 }
 
+func TestStatusUsesProjectionReadinessChecksWithoutLoadingBundles(t *testing.T) {
+	serviceStatusStore := &fakeServiceStatusReadModelStore{
+		projectionReadySet: true,
+		projectionReady:    true,
+	}
+	transportStore := &fakeTransportScheduleReadModelStore{
+		projectionReadySet: true,
+		projectionReady:    true,
+	}
+	serviceGuideStore := &fakeServiceGuideReadModelStore{
+		projectionReadySet: true,
+		projectionReady:    true,
+	}
+	contactDirectoryStore := &fakeContactDirectoryReadModelStore{
+		projectionReadySet: true,
+		projectionReady:    true,
+	}
+	runtime := NewRuntime(Options{
+		ServiceStatusReadModelStore:     serviceStatusStore,
+		TransportScheduleReadModelStore: transportStore,
+		ServiceGuideReadModelStore:      serviceGuideStore,
+		ContactDirectoryReadModelStore:  contactDirectoryStore,
+	})
+
+	status := runtime.Status(context.Background())
+
+	if !status.ServiceStatusProjectionReady {
+		t.Fatal("service status projection must be ready")
+	}
+	if !status.TransportScheduleImplemented {
+		t.Fatal("transport schedule projection must be ready")
+	}
+	if !status.ServiceGuideProjectionReady {
+		t.Fatal("service guide projection must be ready")
+	}
+	if !status.ContactDirectoryProjectionReady {
+		t.Fatal("contact directory projection must be ready")
+	}
+	if serviceStatusStore.loadCount != 0 {
+		t.Fatalf("service status load count = %d, want 0", serviceStatusStore.loadCount)
+	}
+	if transportStore.loadCount != 0 {
+		t.Fatalf("transport load count = %d, want 0", transportStore.loadCount)
+	}
+	if serviceGuideStore.loadCount != 0 {
+		t.Fatalf("service guide load count = %d, want 0", serviceGuideStore.loadCount)
+	}
+	if contactDirectoryStore.loadCount != 0 {
+		t.Fatalf("contact directory load count = %d, want 0", contactDirectoryStore.loadCount)
+	}
+}
+
 func TestLookupTransportScheduleCachesReadModelBundleUntilReleaseChanges(t *testing.T) {
 	store := &fakeTransportScheduleReadModelStore{
 		releaseID: "transport-release-1",
@@ -756,9 +808,12 @@ func newRuntimeWithServiceStatusReadModel(
 }
 
 type fakeTransportScheduleReadModelStore struct {
-	releaseID string
-	bundle    projectionBundle
-	loadCount int
+	releaseID          string
+	bundle             projectionBundle
+	loadCount          int
+	projectionReady    bool
+	projectionReadySet bool
+	projectionReadyErr error
 }
 
 func (s fakeTransportScheduleReadModelStore) HealthCheck(context.Context) error {
@@ -772,6 +827,16 @@ func (s *fakeTransportScheduleReadModelStore) CurrentReleaseID(context.Context) 
 	return s.releaseID, nil
 }
 
+func (s *fakeTransportScheduleReadModelStore) ProjectionReady(context.Context) (bool, error) {
+	if s.projectionReadyErr != nil {
+		return false, s.projectionReadyErr
+	}
+	if s.projectionReadySet {
+		return s.projectionReady, nil
+	}
+	return len(s.bundle.TransportScheduleSnapshots) > 0, nil
+}
+
 func (s *fakeTransportScheduleReadModelStore) LoadBundleForRelease(
 	_ context.Context,
 	_ string,
@@ -781,9 +846,12 @@ func (s *fakeTransportScheduleReadModelStore) LoadBundleForRelease(
 }
 
 type fakeServiceStatusReadModelStore struct {
-	releaseID string
-	bundle    projectionBundle
-	loadCount int
+	releaseID          string
+	bundle             projectionBundle
+	loadCount          int
+	projectionReady    bool
+	projectionReadySet bool
+	projectionReadyErr error
 }
 
 func (s fakeServiceStatusReadModelStore) HealthCheck(context.Context) error {
@@ -795,6 +863,16 @@ func (s *fakeServiceStatusReadModelStore) CurrentReleaseID(context.Context) (str
 		return "service-status-release-1", nil
 	}
 	return s.releaseID, nil
+}
+
+func (s *fakeServiceStatusReadModelStore) ProjectionReady(context.Context) (bool, error) {
+	if s.projectionReadyErr != nil {
+		return false, s.projectionReadyErr
+	}
+	if s.projectionReadySet {
+		return s.projectionReady, nil
+	}
+	return len(s.bundle.ServiceStatusRecords) > 0, nil
 }
 
 func (s *fakeServiceStatusReadModelStore) LoadBundleForRelease(

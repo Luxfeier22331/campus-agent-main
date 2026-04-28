@@ -3,9 +3,12 @@ from __future__ import annotations
 import asyncio
 import unittest
 
+from campus_contracts import AgentRequest
 from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.asgi import SupervisorBridgeAsgiApp, dispatch_http_request
 from campus_supervisor_agent_worker.settings import ApiSettings
+
+from tests.api.supervisor_api_bridge_support import _bridge_v6_payload
 
 
 class SupervisorApiAsgiTest(unittest.TestCase):
@@ -136,6 +139,64 @@ class SupervisorApiAsgiTest(unittest.TestCase):
         self.assertEqual(sent[0]["status"], 413)
         asgi_app.close()
         app.close()
+
+    def test_asgi_bridge_app_wraps_unexpected_worker_exception(self) -> None:
+        def exploding_agent(_request: AgentRequest):
+            raise RuntimeError("provider returned raw internal failure")
+
+        app = create_bridge_app(
+            settings=ApiSettings(bridge_shared_secret="bridge-secret"),
+            agent_handler=exploding_agent,
+        )
+        asgi_app = SupervisorBridgeAsgiApp(app)
+        raw_body = json_bytes(
+            _bridge_v6_payload(
+                user_goal="保研政策怎么准备？",
+                request_id="req-asgi-unexpected-exception",
+            )
+        )
+
+        async def receive() -> dict[str, object]:
+            return {"type": "http.request", "body": raw_body, "more_body": False}
+
+        sent: list[dict[str, object]] = []
+
+        async def send(message: dict[str, object]) -> None:
+            sent.append(message)
+
+        asyncio.run(
+            asgi_app(
+                {
+                    "type": "http",
+                    "method": "POST",
+                    "path": "/internal/bridge/supervisor/answer",
+                    "headers": [(b"x-supervisor-bridge-auth", b"bridge-secret")],
+                },
+                receive,
+                send,
+            )
+        )
+
+        self.assertEqual(sent[0]["status"], 500)
+        headers = dict(sent[0]["headers"])
+        self.assertEqual(headers[b"x-supervisor-bridge-kind"], b"supervisor_error")
+        payload = json_from_asgi_body(sent[1])
+        self.assertEqual(payload["error"]["code"], "supervisor_worker_error")
+        self.assertNotIn("provider returned raw internal failure", payload["error"]["message"])
+        asgi_app.close()
+        app.close()
+
+
+def json_bytes(payload: dict[str, object]) -> bytes:
+    import json
+
+    return json.dumps(payload).encode("utf-8")
+
+
+def json_from_asgi_body(message: dict[str, object]) -> dict[str, object]:
+    import json
+
+    return json.loads(bytes(message["body"]).decode("utf-8"))
 
 
 if __name__ == "__main__":

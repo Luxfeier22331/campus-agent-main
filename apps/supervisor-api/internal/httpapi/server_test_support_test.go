@@ -150,7 +150,11 @@ func decodeProjectionBundleFixture(t *testing.T, body string) structuredquery.Pr
 }
 
 type fakeStructuredReadModelStore struct {
-	bundle structuredquery.ProjectionBundle
+	bundle             structuredquery.ProjectionBundle
+	loadCount          int
+	projectionReady    bool
+	projectionReadySet bool
+	projectionReadyErr error
 }
 
 func (s *fakeStructuredReadModelStore) HealthCheck(context.Context) error {
@@ -161,10 +165,24 @@ func (s *fakeStructuredReadModelStore) CurrentReleaseID(context.Context) (string
 	return "test-release", nil
 }
 
+func (s *fakeStructuredReadModelStore) ProjectionReady(context.Context) (bool, error) {
+	if s.projectionReadyErr != nil {
+		return false, s.projectionReadyErr
+	}
+	if s.projectionReadySet {
+		return s.projectionReady, nil
+	}
+	return len(s.bundle.ServiceStatusRecords) > 0 ||
+		len(s.bundle.TransportScheduleSnapshots) > 0 ||
+		len(s.bundle.ServiceGuideRecords) > 0 ||
+		len(s.bundle.ContactDirectoryRecords) > 0, nil
+}
+
 func (s *fakeStructuredReadModelStore) LoadBundleForRelease(
 	context.Context,
 	string,
 ) (structuredquery.ProjectionBundle, error) {
+	s.loadCount++
 	return s.bundle, nil
 }
 

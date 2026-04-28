@@ -14,6 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/observability"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/telemetry"
 )
@@ -29,6 +30,8 @@ type Server struct {
 	telemetry       *telemetry.Emitter
 	executionAudit  *executionaudit.Emitter
 	structuredQuery *structuredquery.Runtime
+	intentPolicy    runtimepolicy.IntentPolicyArtifact
+	intentPolicyErr error
 }
 
 type errorInfo struct {
@@ -112,6 +115,7 @@ func NewServerWithDependencies(
 	registry := lifecycle.NewRegistry()
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
+	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy(cfg.IntentPolicyPath)
 	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
 		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
 		TrustedTimeRFC3339:              cfg.StructuredQueryTrustedTimeRFC3339,
@@ -139,6 +143,8 @@ func NewServerWithDependencies(
 		telemetry:       telemetryEmitter,
 		executionAudit:  executionAuditEmitter,
 		structuredQuery: structuredQueryRuntime,
+		intentPolicy:    intentPolicy,
+		intentPolicyErr: intentPolicyErr,
 	}
 }
 

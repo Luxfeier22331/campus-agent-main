@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,6 +138,87 @@ func TestAnswerQueueFullEmitsExecutionAuditEvent(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for execution audit event")
+	}
+}
+
+func TestDirectStructuredAnswerQueueFullEmitsExecutionAuditEvent(t *testing.T) {
+	received := make(chan map[string]any, 1)
+	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode audit body: %v", err)
+		}
+		received <- body
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer auditServer.Close()
+
+	controller := admission.NewController(admission.Config{
+		MaxConcurrent: 1,
+		QueueCapacity: 0,
+		QueueTimeout:  3 * time.Second,
+	})
+	lease, decision := controller.Acquire(context.Background())
+	if decision != admission.DecisionAdmittedImmediate {
+		t.Fatal("expected setup acquire to succeed")
+	}
+	defer lease.Release()
+
+	server := NewServerWithAdmission(
+		config.Config{
+			AuthMode:                    "bearer",
+			BearerToken:                 "secret-token",
+			DefaultActorID:              "runtime-bearer-user",
+			ExecutionAuditBatchSize:     1,
+			ExecutionAuditEnabled:       true,
+			ExecutionAuditQueueCapacity: 4,
+			ExecutionAuditSharedSecret:  "audit-secret",
+			ExecutionAuditTimeoutMS:     500,
+			ExecutionAuditURL:           auditServer.URL + "/api/internal/execution/audit-events",
+			RequestBodyLimitBytes:       1_048_576,
+			MaxConcurrentAnswers:        1,
+			QueueCapacity:               0,
+			QueueTimeoutMS:              3_000,
+			OpenCapabilities:            []string{"campus_services"},
+		},
+		&fakeBridge{configured: true},
+		controller,
+	)
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"校车什么时候发车","request_id":"req-direct-structured-audit-queue-full"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusServiceUnavailable, "transport_queue_full")
+	select {
+	case body := <-received:
+		events, ok := body["events"].([]any)
+		if !ok || len(events) != 1 {
+			t.Fatalf("events = %#v, want one event", body["events"])
+		}
+		event, ok := events[0].(map[string]any)
+		if !ok {
+			t.Fatalf("event = %#v, want object", events[0])
+		}
+		if event["event_type"] != "execution.admission_rejected" {
+			t.Fatalf("event_type = %v, want execution.admission_rejected", event["event_type"])
+		}
+		if event["request_id"] != "req-direct-structured-audit-queue-full" {
+			t.Fatalf("request_id = %v", event["request_id"])
+		}
+		if event["requested_capability"] != "campus_services" {
+			t.Fatalf("requested_capability = %v, want campus_services", event["requested_capability"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for direct structured execution audit event")
 	}
 }
 

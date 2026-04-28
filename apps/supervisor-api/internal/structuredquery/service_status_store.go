@@ -15,6 +15,7 @@ const defaultServiceStatusReadModelMaxConns int32 = 2
 type ServiceStatusReadModelStore interface {
 	HealthCheck(ctx context.Context) error
 	CurrentReleaseID(ctx context.Context) (string, error)
+	ProjectionReady(ctx context.Context) (bool, error)
 	LoadBundleForRelease(ctx context.Context, releaseID string) (projectionBundle, error)
 }
 
@@ -95,6 +96,19 @@ func (s *PostgresServiceStatusReadModelStore) CurrentReleaseID(
 		return "", errors.New("current service status release is empty")
 	}
 	return releaseID, nil
+}
+
+func (s *PostgresServiceStatusReadModelStore) ProjectionReady(
+	ctx context.Context,
+) (bool, error) {
+	if s == nil || s.pool == nil {
+		return false, errors.New("service status read model store is not configured")
+	}
+	releaseID, err := s.CurrentReleaseID(ctx)
+	if err != nil {
+		return false, err
+	}
+	return projectionTableReady(ctx, s.pool, s.tableSQL, releaseID)
 }
 
 func (s *PostgresServiceStatusReadModelStore) LoadBundleForRelease(

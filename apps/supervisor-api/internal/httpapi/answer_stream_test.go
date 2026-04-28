@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
@@ -53,6 +54,95 @@ func TestAnswerStreamExecutesTerminalEnvelopeDirectlyInGo(t *testing.T) {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("stream body missing %q:\n%s", snippet, body)
 		}
+	}
+}
+
+func TestAnswerStreamBridgeNotConfiguredEmitsTelemetryAndExecutionAudit(t *testing.T) {
+	telemetryServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer telemetryServer.Close()
+
+	received := make(chan map[string]any, 1)
+	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode audit body: %v", err)
+		}
+		received <- body
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer auditServer.Close()
+
+	server := NewServer(config.Config{
+		AuthMode:                    "bearer",
+		BearerToken:                 "secret-token",
+		DefaultActorID:              "runtime-bearer-user",
+		ExecutionAuditBatchSize:     1,
+		ExecutionAuditEnabled:       true,
+		ExecutionAuditQueueCapacity: 4,
+		ExecutionAuditSharedSecret:  "audit-secret",
+		ExecutionAuditTimeoutMS:     500,
+		ExecutionAuditURL:           auditServer.URL + "/api/internal/execution/audit-events",
+		OTelEnabled:                 true,
+		OTelEndpoint:                telemetryServer.URL,
+		OTelSampleRatio:             1,
+		RequestBodyLimitBytes:       1_048_576,
+		MaxConcurrentAnswers:        8,
+	}, nil)
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		delegateAnswerBody("req-stream-bridge-not-configured-audit"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "event: execution.failed") ||
+		!strings.Contains(body, `"code":"bridge_not_configured"`) {
+		t.Fatalf("stream body missing bridge_not_configured failure:\n%s", body)
+	}
+	status := server.telemetry.Status()
+	if status.ExportedCount != 1 {
+		t.Fatalf("telemetry exported count = %d, want 1", status.ExportedCount)
+	}
+	select {
+	case body := <-received:
+		events, ok := body["events"].([]any)
+		if !ok || len(events) != 1 {
+			t.Fatalf("events = %#v, want one event", body["events"])
+		}
+		event, ok := events[0].(map[string]any)
+		if !ok {
+			t.Fatalf("event = %#v, want object", events[0])
+		}
+		if event["event_type"] != "execution.bridge_failed" {
+			t.Fatalf("event_type = %v, want execution.bridge_failed", event["event_type"])
+		}
+		if event["failure_kind"] != "bridge_not_configured" {
+			t.Fatalf("failure_kind = %v, want bridge_not_configured", event["failure_kind"])
+		}
+		if event["http_status"] != float64(http.StatusServiceUnavailable) {
+			t.Fatalf("http_status = %v, want 503", event["http_status"])
+		}
+		if event["retryable"] != true {
+			t.Fatalf("retryable = %v, want true", event["retryable"])
+		}
+		if event["request_id"] != "req-stream-bridge-not-configured-audit" {
+			t.Fatalf("request_id = %v", event["request_id"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for execution audit event")
 	}
 }
 

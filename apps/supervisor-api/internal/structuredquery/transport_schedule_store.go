@@ -18,6 +18,7 @@ const (
 type TransportScheduleReadModelStore interface {
 	HealthCheck(ctx context.Context) error
 	CurrentReleaseID(ctx context.Context) (string, error)
+	ProjectionReady(ctx context.Context) (bool, error)
 	LoadBundleForRelease(ctx context.Context, releaseID string) (projectionBundle, error)
 }
 
@@ -82,6 +83,17 @@ func (s *PostgresTransportScheduleReadModelStore) CurrentReleaseID(ctx context.C
 		return "", errors.New("transport schedule read model store is not configured")
 	}
 	return s.currentReleaseID(ctx, "campus_services", "transport_schedule")
+}
+
+func (s *PostgresTransportScheduleReadModelStore) ProjectionReady(ctx context.Context) (bool, error) {
+	if s == nil || s.pool == nil {
+		return false, errors.New("transport schedule read model store is not configured")
+	}
+	releaseID, err := s.CurrentReleaseID(ctx)
+	if err != nil {
+		return false, err
+	}
+	return projectionTableReady(ctx, s.pool, s.tableSQL("transport_schedule_snapshots"), releaseID)
 }
 
 func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(

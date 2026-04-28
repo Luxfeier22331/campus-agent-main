@@ -247,6 +247,36 @@ func TestAnswerRejectsSupervisorErrorWith2xxStatus(t *testing.T) {
 	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_response")
 }
 
+func TestAnswerMapsBridgeResponseTooLargeToInvalidResponse(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeErr: bridge.ErrResponseTooLarge,
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-bridge-response-too-large"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_response")
+
+	metrics := httptest.NewRecorder()
+	server.ServeHTTP(metrics, newTestRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(metrics.Body.String(), `campus_supervisor_api_bridge_failures_total{kind="invalid_response"} 1`) {
+		t.Fatalf("metrics body missing invalid_response bridge failure:\n%s", metrics.Body.String())
+	}
+}
+
 func TestAnswerMapsSupervisorBridgeCancellationToCanceledLifecycle(t *testing.T) {
 	server := NewServer(config.Config{
 		AuthMode:              "bearer",

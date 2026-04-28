@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
 )
 
 func TestAnswerRejectsInvalidJSON(t *testing.T) {
@@ -95,6 +98,88 @@ func TestAnswerFailsClosedWhenBridgeIsMissing(t *testing.T) {
 	server.ServeHTTP(response, request)
 
 	assertError(t, response, http.StatusServiceUnavailable, "bridge_not_configured")
+}
+
+func TestAnswerBridgeNotConfiguredEmitsTelemetryAndExecutionAudit(t *testing.T) {
+	telemetryServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer telemetryServer.Close()
+
+	received := make(chan map[string]any, 1)
+	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode audit body: %v", err)
+		}
+		received <- body
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer auditServer.Close()
+
+	server := NewServer(config.Config{
+		AuthMode:                    "bearer",
+		BearerToken:                 "secret-token",
+		DefaultActorID:              "runtime-bearer-user",
+		ExecutionAuditBatchSize:     1,
+		ExecutionAuditEnabled:       true,
+		ExecutionAuditQueueCapacity: 4,
+		ExecutionAuditSharedSecret:  "audit-secret",
+		ExecutionAuditTimeoutMS:     500,
+		ExecutionAuditURL:           auditServer.URL + "/api/internal/execution/audit-events",
+		OTelEnabled:                 true,
+		OTelEndpoint:                telemetryServer.URL,
+		OTelSampleRatio:             1,
+		RequestBodyLimitBytes:       1_048_576,
+		MaxConcurrentAnswers:        8,
+	}, nil)
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-bridge-not-configured-audit"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusServiceUnavailable, "bridge_not_configured")
+	status := server.telemetry.Status()
+	if status.ExportedCount != 1 {
+		t.Fatalf("telemetry exported count = %d, want 1", status.ExportedCount)
+	}
+	select {
+	case body := <-received:
+		events, ok := body["events"].([]any)
+		if !ok || len(events) != 1 {
+			t.Fatalf("events = %#v, want one event", body["events"])
+		}
+		event, ok := events[0].(map[string]any)
+		if !ok {
+			t.Fatalf("event = %#v, want object", events[0])
+		}
+		if event["event_type"] != "execution.bridge_failed" {
+			t.Fatalf("event_type = %v, want execution.bridge_failed", event["event_type"])
+		}
+		if event["failure_kind"] != "bridge_not_configured" {
+			t.Fatalf("failure_kind = %v, want bridge_not_configured", event["failure_kind"])
+		}
+		if event["http_status"] != float64(http.StatusServiceUnavailable) {
+			t.Fatalf("http_status = %v, want 503", event["http_status"])
+		}
+		if event["retryable"] != true {
+			t.Fatalf("retryable = %v, want true", event["retryable"])
+		}
+		if event["request_id"] != "req-bridge-not-configured-audit" {
+			t.Fatalf("request_id = %v", event["request_id"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for execution audit event")
+	}
 }
 
 func TestAnswerRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
@@ -380,5 +465,62 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	observability := expectRecord(t, body["observability"], "observability")
 	if observability["selected_tool"] != "transport_schedule_lookup" {
 		t.Fatalf("observability.selected_tool = %v, want transport_schedule_lookup", observability["selected_tool"])
+	}
+}
+
+func TestAnswerUsesStartupIntentPolicySnapshot(t *testing.T) {
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+	rawPolicy, err := json.Marshal(policy)
+	if err != nil {
+		t.Fatalf("marshal intent policy: %v", err)
+	}
+	policyPath := t.TempDir() + "/intent-policy.v1.json"
+	if err := os.WriteFile(policyPath, rawPolicy, 0o600); err != nil {
+		t.Fatalf("write intent policy fixture: %v", err)
+	}
+	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", policyPath)
+
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+		OpenCapabilities:      []string{"campus_services"},
+	}, nil)
+	useStructuredQueryRuntimeFixture(
+		t,
+		server,
+		`{
+			"schema_version":"campus_services_projection.v1",
+			"service_status_records":[{"service_id":"shuttle_bus","status":"open","source_ref":"notice:bus"}],
+			"transport_schedule_snapshots":[{"snapshot_id":"snapshot:bus","is_current":true}],
+			"service_guide_records":[{"service_id":"shuttle_bus","service_name":"校车","required_materials":[],"contact_refs":[]}]
+		}`,
+		"2026-04-24T20:30:00+08:00",
+	)
+	if err := os.Remove(policyPath); err != nil {
+		t.Fatalf("remove intent policy fixture after startup: %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"校车什么时候发车","request_id":"req-intent-policy-snapshot"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	if body["selected_target"] != "campus-services-agent" {
+		t.Fatalf("selected_target = %v, want campus-services-agent", body["selected_target"])
 	}
 }

@@ -14,6 +14,7 @@ const defaultContactDirectoryReadModelMaxConns int32 = 2
 type ContactDirectoryReadModelStore interface {
 	HealthCheck(ctx context.Context) error
 	CurrentReleaseID(ctx context.Context) (string, error)
+	ProjectionReady(ctx context.Context) (bool, error)
 	LoadBundleForRelease(ctx context.Context, releaseID string) (projectionBundle, error)
 }
 
@@ -99,6 +100,19 @@ func (s *PostgresContactDirectoryReadModelStore) CurrentReleaseID(
 		return "", errors.New("current contact directory release is empty")
 	}
 	return releaseID, nil
+}
+
+func (s *PostgresContactDirectoryReadModelStore) ProjectionReady(
+	ctx context.Context,
+) (bool, error) {
+	if s == nil || s.pool == nil {
+		return false, errors.New("contact directory read model store is not configured")
+	}
+	releaseID, err := s.CurrentReleaseID(ctx)
+	if err != nil {
+		return false, err
+	}
+	return projectionTableReady(ctx, s.pool, s.tableSQL, releaseID)
 }
 
 func (s *PostgresContactDirectoryReadModelStore) LoadBundleForRelease(

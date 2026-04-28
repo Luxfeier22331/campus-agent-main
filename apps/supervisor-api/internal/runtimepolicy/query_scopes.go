@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const defaultQueryServingScopesPath = "configs/runtime/query-serving-scopes.v1.json"
+const queryServingScopesPolicyVersion = "query-serving-scopes-v1"
 
 type queryServingScopesDocument struct {
 	PolicyVersion string `json:"policy_version"`
@@ -38,6 +40,16 @@ func loadQueryServingScopes(policyPath string) (map[string]struct{}, error) {
 	var document queryServingScopesDocument
 	if err := json.Unmarshal(raw, &document); err != nil {
 		return nil, fmt.Errorf("parse query-serving scope policy: %w", err)
+	}
+	if strings.TrimSpace(document.PolicyVersion) == "" {
+		return nil, fmt.Errorf("query-serving scope policy policy_version must not be empty")
+	}
+	if document.PolicyVersion != queryServingScopesPolicyVersion {
+		return nil, fmt.Errorf(
+			"query-serving scope policy policy_version = %q, want %q",
+			document.PolicyVersion,
+			queryServingScopesPolicyVersion,
+		)
 	}
 	scopes := map[string]struct{}{}
 	for _, scope := range document.Scopes {

@@ -62,6 +62,36 @@ func (s *Server) beginDirectStructuredExecution(
 	lease, decision := s.admission.AcquireLane(requestCtx, executionRequest.Lane)
 	if lease == nil {
 		s.metrics.RecordAdmissionDecisionForLane(executionRequest.Lane, string(decision), 0)
+		code, _, retryable := admissionErrorForStream(
+			decision,
+			s.lifecycle.Canceled(executionRequest.RequestID),
+		)
+		status := http.StatusServiceUnavailable
+		if code == "execution_cancelled" || code == "client_canceled" {
+			status = statusClientClosedRequest
+		}
+		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			Name:                "answer.admission_rejected",
+			RequestID:           executionRequest.RequestID,
+			TraceID:             executionRequest.TraceID,
+			Lane:                executionRequest.Lane,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Decision:            string(decision),
+			Outcome:             code,
+			StatusCode:          status,
+			Duration:            time.Since(startedAt),
+		}, executionRequest))
+		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+			Decision:            string(decision),
+			Duration:            time.Since(startedAt),
+			EventType:           "execution.admission_rejected",
+			HTTPStatus:          status,
+			Lane:                executionRequest.Lane,
+			RequestID:           executionRequest.RequestID,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Retryable:           retryable,
+			TraceID:             executionRequest.TraceID,
+		}, executionRequest))
 		complete(s.lifecycleStateForRejectedAdmission(
 			executionRequest.RequestID,
 			decision,
@@ -73,7 +103,6 @@ func (s *Server) beginDirectStructuredExecution(
 	queueWait := lease.WaitDuration()
 	s.metrics.RecordAdmissionDecisionForLane(executionRequest.Lane, string(decision), queueWait)
 	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateRunningBridge)
-	_ = startedAt
 	return requestCtx, func(state lifecycle.State) {
 		lease.Release()
 		complete(state)

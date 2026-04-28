@@ -14,20 +14,16 @@ func (r *Runtime) Status(ctx context.Context) Status {
 		ProjectionSource: projectionSourceLabel(hasPostgresProjection),
 	}
 	if r.serviceStatusReadModelStore != nil {
-		bundle, err := r.loadServiceStatusBundle(ctx)
-		status.ServiceStatusProjectionReady = err == nil && len(bundle.ServiceStatusRecords) > 0
+		status.ServiceStatusProjectionReady = projectionReady(ctx, r.serviceStatusReadModelStore)
 	}
 	if r.transportScheduleReadModelStore != nil {
-		bundle, err := r.loadTransportScheduleBundle(ctx)
-		status.TransportScheduleImplemented = err == nil && len(bundle.TransportScheduleSnapshots) > 0
+		status.TransportScheduleImplemented = projectionReady(ctx, r.transportScheduleReadModelStore)
 	}
 	if r.serviceGuideReadModelStore != nil {
-		bundle, err := r.loadServiceGuideBundle(ctx)
-		status.ServiceGuideProjectionReady = err == nil && len(bundle.ServiceGuideRecords) > 0
+		status.ServiceGuideProjectionReady = projectionReady(ctx, r.serviceGuideReadModelStore)
 	}
 	if r.contactDirectoryReadModelStore != nil {
-		bundle, err := r.loadContactDirectoryBundle(ctx)
-		status.ContactDirectoryProjectionReady = err == nil && len(bundle.ContactDirectoryRecords) > 0
+		status.ContactDirectoryProjectionReady = projectionReady(ctx, r.contactDirectoryReadModelStore)
 	}
 	status.ServiceStatusReadModelConfigured = r.serviceStatusReadModelStore != nil
 	status.ServiceStatusReadModelHealthy, status.NoticeRuntimeLastError = noticeRuntimeComponentHealthy(
@@ -79,6 +75,19 @@ func projectionSourceLabel(hasPostgresProjection bool) string {
 		return "postgres"
 	}
 	return ""
+}
+
+func projectionReady(
+	ctx context.Context,
+	store interface {
+		ProjectionReady(context.Context) (bool, error)
+	},
+) bool {
+	if store == nil {
+		return false
+	}
+	ready, err := store.ProjectionReady(ctx)
+	return err == nil && ready
 }
 
 func noticeRuntimeComponentHealthy(

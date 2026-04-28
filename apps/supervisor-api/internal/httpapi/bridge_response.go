@@ -55,6 +55,13 @@ func (s *Server) bridgeExecutionError(
 			"timeout",
 			lifecycle.StateTimedOut
 	}
+	if errors.Is(err, bridge.ErrResponseTooLarge) {
+		return "supervisor_bridge_invalid_response",
+			"Supervisor Python bridge response exceeded the configured size limit.",
+			http.StatusBadGateway,
+			"invalid_response",
+			lifecycle.StateFailed
+	}
 	return "supervisor_bridge_unavailable",
 		"Supervisor Python bridge is unavailable.",
 		http.StatusBadGateway,
