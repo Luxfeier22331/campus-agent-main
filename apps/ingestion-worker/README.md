@@ -911,6 +911,24 @@ Behavior:
 - Writes local release artifacts and publishes versioned/current projection
   artifacts to the derived bucket.
 
+### `campus-ingestion-select-authenticated-notice-bundle`
+
+Selects a bounded subset from an authenticated notice export bundle before
+downstream admission or materialization.
+
+Required CLI args:
+
+- `--bundle-path`
+- `--output-bundle-path`
+- `--output-manifest-path`
+- `--notice-id` or `--selection-path`
+
+Behavior:
+
+- Writes a selected bundle containing only requested notice ids.
+- Writes an export manifest with `filters.selected_notice_ids`.
+- Fails if any requested notice id is absent from the source bundle.
+
 ### `campus-ingestion-build-transport-schedule-projection`
 
 Builds and publishes the `campus_services/transport_schedule` projection.

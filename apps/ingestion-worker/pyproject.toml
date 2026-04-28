@@ -33,6 +33,7 @@ campus-ingestion-backfill-official-web-history = "campus_ingestion_worker.offici
 campus-ingestion-backfill-authenticated-notice-browser-urls = "campus_ingestion_worker.backfill_authenticated_notice_browser_urls:main"
 campus-ingestion-audit-authenticated-notice-browser-url-bundles = "campus_ingestion_worker.audit_authenticated_notice_browser_url_bundles:main"
 campus-ingestion-audit-collection-runtime-state = "campus_ingestion_worker.audit_collection_runtime_state:main"
+campus-ingestion-select-authenticated-notice-bundle = "campus_ingestion_worker.select_authenticated_notice_bundle:main"
 campus-ingestion-build-service-guide-projection = "campus_ingestion_worker.build_service_guide_projection:main"
 campus-ingestion-build-transport-schedule-projection = "campus_ingestion_worker.build_transport_schedule_projection:main"
 campus-ingestion-manage-structured-projection-release = "campus_ingestion_worker.manage_structured_projection_release:main"
