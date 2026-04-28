@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-19
-updated: 2026-04-24
+updated: 2026-04-28
 ---
 # Internal Notice Regulation Target Quality Acceptance Runbook
 
@@ -33,6 +33,11 @@ updated: 2026-04-24
   - `validation-summary.json`
   - `document-reports.jsonl`
 - 当前 stop point 继续固定在 `offline_preparation`
+- chunk-prep 输入只认 target canonical scope：
+  `regulations/institutional_rules` 与 `regulations/scoped_rules`
+- `campus_notices/internal_notice` source records 即使出现在输入 registry snapshot
+  中，也必须被 regulation target chunk-prep 忽略；它们只能通过 notice-level
+  read-model/card/query 消费
 
 当前不包括：
 
@@ -143,3 +148,5 @@ uv run --package campus-ingestion-worker python -m \
 - 不把这一步误写成 release truth
 - 不从 acceptance worker 直接继续 embedding / indexing
 - 不对白名单外的更宽 source scope 做 unfiltered whole-scope rematerialization
+- 不把 held / partial source notice 当成 target regulation document 做 chunk
+  preparation

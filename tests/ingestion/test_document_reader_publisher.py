@@ -88,7 +88,9 @@ class DocumentReaderPublisherTest(unittest.TestCase):
         self.assertIn("第一学期开设法理学", search_units[0]["snippet"])
         self.assertNotIn("chunk_id", json.dumps(manifest, ensure_ascii=False))
 
-    def test_publish_document_reader_assets_accepts_missing_canonical_key_when_units_exist(self) -> None:
+    def test_publish_document_reader_assets_accepts_missing_canonical_key_when_units_exist(
+        self,
+    ) -> None:
         record = _make_record(
             document_id="curriculum:missing-canonical-key",
             title_slug="missing-canonical-key",
@@ -141,8 +143,7 @@ class DocumentReaderPublisherTest(unittest.TestCase):
         object_store = FakeObjectStore(
             {
                 ("campus-rag-derived", record.canonical_markdown_object_key or ""): (
-                    "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
-                    "主要修订内容如下。\n"
+                    "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n主要修订内容如下。\n"
                 ).encode(),
                 ("campus-rag-derived", record.document_units_object_key or ""): (
                     _document_units_jsonl(record, "关于修订《中央民族大学采购工作管理办法》的通知")
@@ -179,7 +180,7 @@ class DocumentReaderPublisherTest(unittest.TestCase):
                 ("campus-rag-derived", record.document_units_object_key or ""): (
                     _document_units_jsonl(record, "无效课程地图培养方案")
                 ).encode(),
-                ("campus-rag-derived", surface_key): b"{\"blocks\":[{\"node_id\":\"\"}]}",
+                ("campus-rag-derived", surface_key): b'{"blocks":[{"node_id":""}]}',
             }
         )
 
@@ -191,9 +192,7 @@ class DocumentReaderPublisherTest(unittest.TestCase):
         )
 
         self.assertEqual(report.document_count, 1)
-        self.assertFalse(
-            any(key.endswith("course-maps.json") for _, key in object_store.writes.keys())
-        )
+        self.assertFalse(any(key.endswith("course-maps.json") for _, key in object_store.writes))
 
 
 def _make_record(

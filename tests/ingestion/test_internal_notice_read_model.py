@@ -174,6 +174,67 @@ class InternalNoticeReadModelTest(unittest.TestCase):
         self.assertIn("丰台校区办事地点分布", multimodal_row.body_excerpt)
         self.assertIn("校园卡业务", multimodal_row.search_text)
 
+    def test_build_entries_preserves_held_regulation_notice_as_notice_level_card(
+        self,
+    ) -> None:
+        held_record = _record(
+            notice_id="187233",
+            title_slug="procurement-amendment-summary",
+            content_hash="sha256:187233",
+            body_key="campus_notices/documents/internal_notice/187233/canonical.md",
+            units_key="campus_notices/documents/internal_notice/187233/document-units.jsonl",
+            is_current=True,
+        )
+        registry = InMemoryDocumentRegistry((held_record,))
+        object_store = _FakeObjectStore(
+            objects={
+                (
+                    "campus-rag-derived",
+                    held_record.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
+                    "本通知仅说明主要修订内容，不包含完整管理办法正文。\n"
+                )
+            }
+        )
+        held_entry = _projection_entry(
+            notice_id="187233",
+            unit_id="notice_unit:187233:held_regulation_notice",
+            primary_role=NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
+            target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+            title="关于修订《中央民族大学采购工作管理办法》的通知",
+        )
+        held_entry.role_metadata.update(
+            {
+                "classification": "amendment_summary_only",
+                "regulation_title_normalized": "中央民族大学采购工作管理办法",
+                "rejection_reason": "parent_notice_body_not_full_regulation_text",
+            }
+        )
+
+        rows = build_internal_notice_read_model_entries(
+            (held_entry,),
+            registry=registry,
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+        )
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertTrue(row.queryable)
+        self.assertEqual(row.source_notice_id, "187233")
+        self.assertEqual(row.target_surface, NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY)
+        self.assertEqual(row.title, "关于修订《中央民族大学采购工作管理办法》的通知")
+        self.assertEqual(row.source_url, "https://portal.example.edu/notices/187233")
+        self.assertEqual(row.canonical_url, "https://portal.example.edu/notices/187233")
+        self.assertEqual(
+            row.canonical_document_id,
+            "notice:muc_internal_portal:187233",
+        )
+        self.assertIn("不包含完整管理办法正文", row.body_excerpt)
+        self.assertIn("中央民族大学采购工作管理办法", row.search_text)
+
     def test_rebuild_internal_notice_read_model_replaces_selected_notices(self) -> None:
         registry, object_store, projection_entries = _runtime()
         projection_store = InMemoryNoticeConsumptionProjectionStore(projection_entries)

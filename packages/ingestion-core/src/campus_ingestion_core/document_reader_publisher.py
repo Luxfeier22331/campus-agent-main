@@ -219,7 +219,7 @@ def _build_fallback_canonical_markdown(
             if candidate:
                 title = candidate
                 break
-    return f"# {title}\n".encode("utf-8")
+    return f"# {title}\n".encode()
 
 
 def _load_optional_course_map_assets(

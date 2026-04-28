@@ -34,6 +34,10 @@ updated: 2026-04-28
   chunks` 的结构性 preparation
 - 这不等于 attachment extraction、cleanup、chunk quality 已经通过
 - 在显式质量验收完成之前，不允许把这批 preparation 继续送进 embedding、Qdrant 或 alias publish
+- regulation-like source notice 的 chunk/preparation 质量通过，不等于它可以作为
+  `regulations/*` canonical document 进入文档站或 RAG；只有通过 target
+  materialization gate 的 `regulations/institutional_rules` /
+  `regulations/scoped_rules` records 才是 regulation docs/RAG 输入
 
 因此当前 collection 的 canonical stop point 固定为：
 

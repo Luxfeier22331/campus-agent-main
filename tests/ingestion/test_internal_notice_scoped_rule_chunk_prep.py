@@ -46,6 +46,40 @@ def _record(*, document_id: str, version_id: str, units_key: str) -> DocumentReg
     )
 
 
+def _source_notice_record(*, notice_id: str) -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id=f"notice:muc_internal_portal:{notice_id}",
+        revision_track="source-faithful",
+        version_id=f"sha256:{notice_id}:source-faithful",
+        source_uri=f"https://portal.example.edu/notices/{notice_id}",
+        content_hash=f"sha256:{notice_id}",
+        corpus="campus_notices",
+        collection="internal_notice",
+        cleaning_policy_version="authenticated_notice_projection_v1",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        status="active",
+        ingestion_timestamp="2026-04-10T00:00:00+00:00",
+        parser_version="authenticated_notice_source_projection_v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="authenticated_notice_portal",
+        is_current=True,
+        document_units_object_key=(
+            f"campus_notices/documents/internal_notice/{notice_id}/document-units.jsonl"
+        ),
+        canonical_markdown_object_key=(
+            f"campus_notices/documents/internal_notice/{notice_id}/canonical.md"
+        ),
+        processed_object_keys=(
+            f"campus_notices/documents/internal_notice/{notice_id}/canonical.md",
+            f"campus_notices/documents/internal_notice/{notice_id}/document-units.jsonl",
+        ),
+        import_source="authenticated_notice_source_projection",
+        published_date="2026-04-10",
+    )
+
+
 def _scoped_rule_rows(
     *,
     document_id: str,
@@ -151,6 +185,28 @@ def _row(
 
 
 class ScopedRuleChunkPrepTest(unittest.TestCase):
+    def test_prepare_scoped_rule_chunks_ignores_source_notice_records(self) -> None:
+        source_notice = _source_notice_record(notice_id="187233")
+
+        with TemporaryDirectory() as temp_dir:
+            report = prepare_scoped_rule_chunks(
+                records=(source_notice,),
+                object_store=_FakeObjectStore(),
+                output_dir=Path(temp_dir),
+            )
+
+            self.assertTrue(report.passed)
+            self.assertEqual(report.prepared_document_count, 0)
+            self.assertEqual(report.total_unit_count, 0)
+            self.assertEqual(report.total_chunk_count, 0)
+            self.assertEqual(report.prepared_documents, ())
+
+            manifest = json.loads(Path(report.manifest_path).read_text(encoding="utf-8"))
+            self.assertEqual(manifest["target_corpus"], "regulations")
+            self.assertEqual(manifest["target_collection"], "scoped_rules")
+            self.assertEqual(manifest["prepared_document_count"], 0)
+            self.assertEqual(manifest["documents"], [])
+
     def test_prepare_scoped_rule_chunks_emits_local_only_artifacts_and_validation(self) -> None:
         annual_record = _record(
             document_id="institutional_regulation:muc:推免工作实施细则:abc12345",

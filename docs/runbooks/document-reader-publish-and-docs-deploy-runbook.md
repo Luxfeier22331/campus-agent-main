@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Document Reader Publish And Docs Deploy Runbook
@@ -30,6 +30,9 @@ Worker-first 静态交付：
 - `public-docs` 不扫描对象存储决定公开文档子集。
 - `sync-real-docs` 是 legacy/manual path；默认 deploy path 必须走 published reader
   assets。
+- reader publisher 与 `app-api` docs read-model import 都必须 fail-close
+  unsupported scope。`campus_notices/internal_notice` 是 notice source/card scope，
+  不是文档站 document scope。
 
 ## 本地发布顺序
 
@@ -45,10 +48,17 @@ uv run --all-packages python -m \
 可用 `--dry-run` 验证读取 canonical artifacts 与生成 manifest，不写入 reader
 assets，也不会上传 manifest object。
 
-默认 scope 是：
+默认 first-launch scope 是：
 
 - `regulations/student_rules`
 - `curriculum/curriculum_plan`
+
+允许进入 docs reader / docs read-model 的 scope 固定为：
+
+- `curriculum/curriculum_plan`
+- `regulations/student_rules`
+- `regulations/institutional_rules`
+- `regulations/scoped_rules`
 
 如需显式限制范围：
 
@@ -57,6 +67,17 @@ uv run --all-packages python -m \
   campus_ingestion_worker.publish_document_reader_assets \
   --scope regulations/student_rules \
   --scope curriculum/curriculum_plan \
+  --manifest-path var/docs-read-model-manifest.json \
+  --manifest-object-key manifests/public-docs-reader-assets.json
+```
+
+如需发布 notice-derived regulation target，必须显式选择 target scope，例如：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.publish_document_reader_assets \
+  --scope regulations/institutional_rules \
+  --scope regulations/scoped_rules \
   --manifest-path var/docs-read-model-manifest.json \
   --manifest-object-key manifests/public-docs-reader-assets.json
 ```
@@ -127,6 +148,8 @@ pnpm --filter public-docs deploy:verify-config:staging
 ## 验收点
 
 - `app-api` 的 `/api/docs/*` 只返回 public current static subset。
+- docs read-model manifest 中的 `collections` 与 `documents` 不包含
+  `campus_notices/internal_notice`。
 - `/api/docs/*` response 不包含 object storage key、raw provider locator 或
   `chunkId`。
 - `public-docs` build output 包含 Rspress reader pages、`/_docs/...` 与

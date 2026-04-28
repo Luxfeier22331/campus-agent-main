@@ -74,7 +74,9 @@ class ListInternalNoticeServiceStatusCandidatesWorkerTest(unittest.TestCase):
             [candidate["source_notice_id"] for candidate in payload["candidates"]],
             ["353903", "355001"],
         )
-        self.assertEqual(payload["candidate_kind_counts"], {"service_status": 1, "transport_schedule": 1})
+        self.assertEqual(
+            payload["candidate_kind_counts"], {"service_status": 1, "transport_schedule": 1}
+        )
         self.assertEqual(payload["notice_family_counts"]["it_platform_service_status"], 1)
         self.assertEqual(
             payload["candidates"][0]["source_ref"],

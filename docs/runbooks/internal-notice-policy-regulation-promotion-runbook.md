@@ -41,6 +41,11 @@ updated: 2026-04-28
 - 本 runbook 覆盖 manifest build、selected dry-run、dry-run 后正式 selected
   import、target materialization 与 document reader asset publish
 - 不覆盖 embedding、Qdrant、release、alias publish
+- 文档站、docs read-model 与 RAG/chunk-prep 只消费 target canonical scope：
+  `regulations/institutional_rules` 与 `regulations/scoped_rules`
+- `campus_notices/internal_notice` 中被 hold 的 partial / wrapper / amendment-summary
+  notice 只保留 notice-level title/url/card/query，不允许直接进入 docs reader、
+  docs read-model 或 regulation chunk-prep
 
 ## Step 1: Build Promotion Manifest
 
@@ -194,6 +199,9 @@ uv run --package campus-ingestion-worker python -m \
   `regulations/institutional_rules` / `regulations/scoped_rules` records 必须保留
 - document reader manifest 必须包含 target scope 当前所有 active/current records，
   不能只包含 selected notice，否则 app-api docs read model 的 scope replace 会删掉既有文档
+- document reader manifest 的 `collections` / `documents` 必须是 docs read-model
+  allowlist scope；`campus_notices/internal_notice` 是 source notice scope，不是
+  document-site target scope
 
 如果要把 reader manifest 正式导入 app-api docs PG：
 
