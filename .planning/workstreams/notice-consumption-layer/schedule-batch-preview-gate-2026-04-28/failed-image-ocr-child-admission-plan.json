@@ -1,0 +1,94 @@
+{
+  "admitted_document_count": 5,
+  "admitted_document_ids": [
+    "notice_attachment:muc_internal_portal:247734:attachment-0001:schedule-ocr",
+    "notice_attachment:muc_internal_portal:348880:attachment-0001:schedule-ocr",
+    "notice_attachment:muc_internal_portal:350030:attachment-0001:schedule-ocr",
+    "notice_attachment:muc_internal_portal:354533:attachment-0001:schedule-ocr",
+    "notice_attachment:muc_internal_portal:354578:attachment-0001:schedule-ocr"
+  ],
+  "child_artifact_write_count": 0,
+  "generated_at": "2026-04-28T12:30:00+08:00",
+  "items": [
+    {
+      "admission_reason": "schedule_table_admitted",
+      "admission_status": "admitted",
+      "attachment_ref_id": "attachment-0001",
+      "child_write_status": "not_written",
+      "confidence": "medium",
+      "document_id": "notice_attachment:muc_internal_portal:247734:attachment-0001:schedule-ocr",
+      "image_index": 1,
+      "notice_id": "247734",
+      "registry_write_status": "not_written",
+      "source_write_status": "not_written",
+      "table_count": 1
+    },
+    {
+      "admission_reason": "schedule_table_admitted",
+      "admission_status": "admitted",
+      "attachment_ref_id": "attachment-0001",
+      "child_write_status": "not_written",
+      "confidence": "medium",
+      "document_id": "notice_attachment:muc_internal_portal:348880:attachment-0001:schedule-ocr",
+      "image_index": 1,
+      "notice_id": "348880",
+      "registry_write_status": "not_written",
+      "source_write_status": "not_written",
+      "table_count": 1
+    },
+    {
+      "admission_reason": "schedule_table_admitted",
+      "admission_status": "admitted",
+      "attachment_ref_id": "attachment-0001",
+      "child_write_status": "not_written",
+      "confidence": "medium",
+      "document_id": "notice_attachment:muc_internal_portal:350030:attachment-0001:schedule-ocr",
+      "image_index": 1,
+      "notice_id": "350030",
+      "registry_write_status": "not_written",
+      "source_write_status": "not_written",
+      "table_count": 1
+    },
+    {
+      "admission_reason": "schedule_table_admitted",
+      "admission_status": "admitted",
+      "attachment_ref_id": "attachment-0001",
+      "child_write_status": "not_written",
+      "confidence": "medium",
+      "document_id": "notice_attachment:muc_internal_portal:354533:attachment-0001:schedule-ocr",
+      "image_index": 1,
+      "notice_id": "354533",
+      "registry_write_status": "not_written",
+      "source_write_status": "not_written",
+      "table_count": 1
+    },
+    {
+      "admission_reason": "schedule_table_admitted",
+      "admission_status": "admitted",
+      "attachment_ref_id": "attachment-0001",
+      "child_write_status": "not_written",
+      "confidence": "medium",
+      "document_id": "notice_attachment:muc_internal_portal:354578:attachment-0001:schedule-ocr",
+      "image_index": 1,
+      "notice_id": "354578",
+      "registry_write_status": "not_written",
+      "source_write_status": "not_written",
+      "table_count": 1
+    }
+  ],
+  "materialized_document_ids": [],
+  "mode": "plan",
+  "ocr_item_count": 5,
+  "registry_upsert_count": 0,
+  "run_id": "schedule-image-ocr-child-admission-20260428T123000",
+  "schema_version": "schedule_image_ocr_admission_run.v1",
+  "selected_notice_ids": [
+    "247734",
+    "348880",
+    "350030",
+    "354533",
+    "354578"
+  ],
+  "source_artifact_write_count": 0,
+  "write_enabled": false
+}

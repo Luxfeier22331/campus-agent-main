@@ -1,0 +1,234 @@
+{
+  "buckets": {
+    "preview_failed": [],
+    "preview_passed": [
+      "354578",
+      "354533",
+      "354505",
+      "352218",
+      "351030",
+      "350030",
+      "349494",
+      "348880",
+      "348483",
+      "247970",
+      "247734",
+      "245395",
+      "203935"
+    ]
+  },
+  "generated_at": "2026-04-28T13:05:00+08:00",
+  "inputs": {
+    "candidate_gate_report_path": ".planning/workstreams/notice-consumption-layer/schedule-batch-preview-gate-2026-04-28/schedule-batch-preview-gate.json",
+    "projection_bundle_path": ".planning/workstreams/notice-consumption-layer/schedule-batch-preview-gate-2026-04-28/clean-auto-stage-preview-work/transport-schedule-clean-auto-stage-preview-20260428T130000/campus-services-projection.json",
+    "rejected_source_report_path": ".planning/workstreams/notice-consumption-layer/schedule-batch-preview-gate-2026-04-28/clean-auto-stage-preview-work/rejected-source-report.json",
+    "validation_summary_path": ".planning/workstreams/notice-consumption-layer/schedule-batch-preview-gate-2026-04-28/clean-auto-stage-preview-work/transport-schedule-clean-auto-stage-preview-20260428T130000/validation-summary.json"
+  },
+  "items": [
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 10,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "354578",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于寒假期间两校区通勤班车班次调整的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 4,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "354533",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于寒假期间两校区通勤班车运营安排的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 1,
+        "snapshots": 1
+      },
+      "notice_id": "354505",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于近期地铁接驳车运营安排的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "352218",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于两校区师生通勤班车运营时间的通知",
+      "warning_codes": [
+        "snapshot_only_superseded_baseline"
+      ]
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 1,
+        "snapshots": 1
+      },
+      "notice_id": "351030",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于暑假期间师生通勤班车、地铁接驳车运营调整的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 5,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "350030",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于通勤班车每周增加临时班次的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 1,
+        "snapshots": 1
+      },
+      "notice_id": "349494",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于近期两校区通勤班车及地铁接驳车安排的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "348880",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于两校区师生通勤班车运营时间的通知",
+      "warning_codes": [
+        "snapshot_only_superseded_baseline"
+      ]
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "348483",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于两校区师生通勤班车优化调整的通知",
+      "warning_codes": [
+        "snapshot_only_superseded_baseline"
+      ]
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 1,
+        "snapshots": 1
+      },
+      "notice_id": "247970",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于近期通勤班车、地铁接驳车运营时间调整的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "247734",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于增加两校区学生通勤班车班次的通知",
+      "warning_codes": [
+        "snapshot_only_superseded_baseline"
+      ]
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 1,
+        "snapshots": 1
+      },
+      "notice_id": "245395",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于本周六丰台校区地铁接驳车暂停运营的通知",
+      "warning_codes": []
+    },
+    {
+      "bucket": "preview_passed",
+      "materialization_counts": {
+        "operational_notices": 0,
+        "scheduled_departures": 0,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "notice_id": "203935",
+      "reason_codes": [],
+      "rejected_source": {},
+      "title": "关于中央民族大学丰台校区周末地铁接驳车运营时间调整的通知",
+      "warning_codes": [
+        "snapshot_only_superseded_baseline"
+      ]
+    }
+  ],
+  "remote_write_status": "not_written_pg_or_object_storage",
+  "run_id": "schedule-transport-preview-gate-20260428T130500",
+  "schema_version": "schedule_transport_preview_gate.v1",
+  "summary": {
+    "failed_reason_counts": {},
+    "preview_failed_count": 0,
+    "preview_passed_count": 13,
+    "selected_notice_count": 13,
+    "warning_counts": {
+      "snapshot_only_superseded_baseline": 5
+    }
+  },
+  "validation_valid": true
+}
