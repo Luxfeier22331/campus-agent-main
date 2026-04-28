@@ -59,6 +59,7 @@ campus-ingestion-smoke-wechat-public-notice-phase5 = "campus_ingestion_worker.sm
 campus-ingestion-smoke-wechat-public-notice-runtime = "campus_ingestion_worker.smoke_wechat_public_notice_runtime:main"
 campus-ingestion-audit-wechat-public-notice-state = "campus_ingestion_worker.audit_wechat_public_notice_state:main"
 campus-ingestion-purge-wechat-public-notices = "campus_ingestion_worker.purge_wechat_public_notices:main"
+campus-ingestion-reset-wechat-public-notice-downstream-state = "campus_ingestion_worker.reset_wechat_public_notice_downstream_state:main"
 campus-ingestion-check-internal-notice-read-model-consistency = "campus_ingestion_worker.check_internal_notice_read_model_consistency:main"
 campus-ingestion-repair-internal-notice-read-model-consistency = "campus_ingestion_worker.repair_internal_notice_read_model_consistency:main"
 campus-ingestion-check-internal-notice-processing-gaps = "campus_ingestion_worker.check_internal_notice_processing_gaps:main"
