@@ -93,6 +93,7 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
 		{name: "contact directory signal", goal: "招生办电话是多少", want: "campus_services"},
 		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "campus_services"},
+		{name: "bathroom service status signal", goal: "静园10号楼女浴室现在开放吗", want: "campus_services"},
 		{name: "transport boarding point status signal", goal: "摆渡车在哪里上车", want: "campus_services"},
 	}
 

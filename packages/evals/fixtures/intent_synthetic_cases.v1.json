@@ -333,6 +333,11 @@
 					"case_id": "synthetic-campus-services-status-012",
 					"user_goal": "丰台图书馆今天开门吗",
 					"axis": { "query_style": "standard" }
+				},
+				{
+					"case_id": "synthetic-campus-services-status-013",
+					"user_goal": "静园10号楼女浴室现在开放吗",
+					"axis": { "query_style": "standard" }
 				}
 			]
 		},

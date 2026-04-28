@@ -172,6 +172,17 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{"subject_query": "食堂现在关门了吗"},
 		},
 		{
+			name: "service status bathroom open alias",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "静园10号楼女浴室现在开放吗",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"subject_query": "静园10号楼女浴室现在开放吗"},
+		},
+		{
 			name: "service status transport boarding point change",
 			request: Request{
 				EffectiveCapability: "campus_services",
