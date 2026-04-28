@@ -241,6 +241,7 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                         str(inventory_path),
                         "--output-dir",
                         str(output_dir),
+                        "--yes",
                     ]
                 )
 

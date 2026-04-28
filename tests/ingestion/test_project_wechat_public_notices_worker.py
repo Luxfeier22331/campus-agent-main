@@ -62,6 +62,10 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
                 return_value=report,
             ) as rebuild,
             patch(
+                "campus_ingestion_worker.project_wechat_public_notices.build_notice_consumption_projection_store_from_env",
+                return_value=object(),
+            ),
+            patch(
                 "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_consumption_admission_store_from_env",
                 return_value=admission_store,
             ) as build_admission_store,
@@ -208,7 +212,7 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
                 ) as materialize_read_model,
                 patch(
                     "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_consumption_admission_store_from_env"
-                ),
+                ) as build_admission_store,
                 patch(
                     "campus_ingestion_worker.project_wechat_public_notices.record_internal_notice_consumption_admission",
                     side_effect=("batch-wechat-002", "batch-wechat-002"),
@@ -228,15 +232,16 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
 
         parse_selection.assert_called_once_with(selection_path, default_bucket="source")
         self.assertEqual(rebuild.call_args.kwargs["dry_run"], True)
+        request = rebuild.call_args.kwargs["request"]
+        self.assertEqual(request.consumer_admission_batch_id, "")
         build_evidence.assert_called_once()
         build_read_model_store.assert_not_called()
         materialize_read_model.assert_not_called()
-        started_kwargs = record_admission.call_args_list[0].kwargs
-        self.assertEqual(started_kwargs["command"], "wechat_public_notice_projection_dry_run")
-        self.assertEqual(started_kwargs["selection_source"], "selection_path")
-        self.assertEqual(started_kwargs["selection_path"], str(selection_path))
-        self.assertTrue(started_kwargs["selection_sha256"])
+        build_admission_store.assert_not_called()
+        record_admission.assert_not_called()
         payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["batch_id"], "")
+        self.assertEqual(payload["admission_write_performed"], False)
         self.assertEqual(payload["projection_write_performed"], False)
         self.assertEqual(payload["read_model_write_performed"], False)
         self.assertEqual(payload["read_model_evidence_emitted"], True)
@@ -254,6 +259,10 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
             patch(
                 "campus_ingestion_worker.project_wechat_public_notices.rebuild_wechat_public_notice_projection",
                 side_effect=RuntimeError("projection failed"),
+            ),
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.build_notice_consumption_projection_store_from_env",
+                return_value=object(),
             ),
             patch(
                 "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_consumption_admission_store_from_env",
@@ -314,6 +323,10 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
                 "campus_ingestion_worker.project_wechat_public_notices.rebuild_wechat_public_notice_projection",
                 return_value=report,
             ) as rebuild,
+            patch(
+                "campus_ingestion_worker.project_wechat_public_notices.build_notice_consumption_projection_store_from_env",
+                return_value=object(),
+            ),
             patch(
                 "campus_ingestion_worker.project_wechat_public_notices.build_internal_notice_read_model_store_from_env",
                 return_value=object(),

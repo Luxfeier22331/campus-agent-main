@@ -107,13 +107,9 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if not args.dry_run:
         for object_key in source_object_keys:
-            object_store.delete_prefix(
-                bucket=object_store_settings.bucket_source, prefix=object_key
-            )
+            object_store.delete_object(bucket=object_store_settings.bucket_source, key=object_key)
         for object_key in derived_object_keys:
-            object_store.delete_prefix(
-                bucket=object_store_settings.bucket_derived, prefix=object_key
-            )
+            object_store.delete_object(bucket=object_store_settings.bucket_derived, key=object_key)
         for row in registry_rows:
             registry.delete_document(str(row.document_id))
         projection_store.replace_scope(source_corpus, source_collection, ())

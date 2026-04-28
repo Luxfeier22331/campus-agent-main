@@ -38,6 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--corpus", default="campus_notices")
     parser.add_argument("--collection", default="wechat_public_notice")
     parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
+    parser.add_argument("--yes", action="store_true")
     return parser
 
 
@@ -48,6 +49,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     notice_ids = normalize_notice_ids(args.notice_ids)
     if not notice_ids:
         parser.error("pass at least one --notice-id")
+    if not args.yes:
+        parser.error("pass --yes to execute purge")
     source_corpus = str(args.corpus or "").strip() or "campus_notices"
     source_collection = str(args.collection or "").strip() or "wechat_public_notice"
     projection_store = build_notice_consumption_projection_store_from_env(prefer_operator=True)

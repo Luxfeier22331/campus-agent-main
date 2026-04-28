@@ -55,6 +55,10 @@ class _FakeObjectStoreAdmin:
                 continue
             del self.objects[bucket_key]
 
+    def delete_object(self, *, bucket: str, key: str) -> None:
+        self.cleared_prefixes.append((bucket, key, ()))
+        self.objects.pop((bucket, key), None)
+
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         return self.objects[(bucket, key)]
 

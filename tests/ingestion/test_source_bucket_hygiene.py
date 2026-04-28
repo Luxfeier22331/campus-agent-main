@@ -243,7 +243,9 @@ class SourceBucketHygieneTest(unittest.TestCase):
                 ),
                 patch("sys.stdout", new_callable=io.StringIO) as stdout,
             ):
-                cleanup_worker.main(["--prefix", "debug/", "--output-dir", str(output_dir)])
+                cleanup_worker.main(
+                    ["--prefix", "debug/", "--output-dir", str(output_dir), "--yes"]
+                )
 
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["prefix"], "debug/")

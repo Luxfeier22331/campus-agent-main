@@ -36,6 +36,8 @@ class ObjectStoreAdmin(Protocol):
         self, *, bucket: str, prefix: str, exclude_keys: tuple[str, ...] = ()
     ) -> None: ...
 
+    def delete_object(self, *, bucket: str, key: str) -> None: ...
+
 
 class ReplayObjectStore(ObjectStoreWriter, Protocol):
     def delete_prefix(
@@ -119,6 +121,9 @@ class S3ObjectStoreAdmin:
 
     def healthcheck(self, *, bucket: str) -> None:
         self._client.list_objects_v2(Bucket=bucket, MaxKeys=1)
+
+    def delete_object(self, *, bucket: str, key: str) -> None:
+        self._client.delete_object(Bucket=bucket, Key=key)
 
     def delete_prefix(
         self, *, bucket: str, prefix: str, exclude_keys: tuple[str, ...] = ()
@@ -308,7 +313,7 @@ def _delete_object_keys(
 ) -> None:
     excluded = set(exclude_keys)
     for object_key in dict.fromkeys(key for key in object_keys if key and key not in excluded):
-        object_store_admin.delete_prefix(bucket=bucket, prefix=object_key)
+        object_store_admin.delete_object(bucket=bucket, key=object_key)
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:

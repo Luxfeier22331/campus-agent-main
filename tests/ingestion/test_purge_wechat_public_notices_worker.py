@@ -17,6 +17,13 @@ class PurgeWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
         ):
             worker.main([])
 
+    def test_main_requires_yes_for_destructive_purge(self) -> None:
+        with (
+            patch("campus_ingestion_worker.purge_wechat_public_notices.load_worker_env"),
+            self.assertRaises(SystemExit),
+        ):
+            worker.main(["--notice-id", "woa_article_alpha"])
+
     def test_main_purges_projection_and_read_model_rows(self) -> None:
         projection_store = _ReplaceStore(existing_count=2)
         read_model_store = _ReplaceStore(existing_count=1)
@@ -41,7 +48,7 @@ class PurgeWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
             ) as record_admission,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            worker.main(["--notice-id", "woa_article_alpha"])
+            worker.main(["--notice-id", "woa_article_alpha", "--yes"])
 
         self.assertEqual(projection_store.replace_calls[0]["notice_ids"], ("woa_article_alpha",))
         self.assertEqual(read_model_store.replace_calls[0]["notice_ids"], ("woa_article_alpha",))

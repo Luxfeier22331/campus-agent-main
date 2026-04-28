@@ -22,6 +22,8 @@ from campus_ingestion_core.internal_notice_read_model import (
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
+    InMemoryNoticeConsumptionProjectionStore,
+    build_notice_consumption_projection_store_from_env,
 )
 from campus_ingestion_core.postgres_runtime import open_postgres_connection
 from campus_ingestion_core.registry import (
@@ -172,21 +174,26 @@ def main(argv: Sequence[str] | None = None) -> None:
         "selected_manifest_count": len(artifact_refs),
     }
 
-    admission_store = build_internal_notice_consumption_admission_store_from_env()
+    admission_store = None
     admission_created_at = utc_now()
-    batch_id = record_internal_notice_consumption_admission(
-        source_corpus=source_corpus,
-        source_collection=source_collection,
-        command=command,
-        notice_ids=(),
-        status="started",
-        created_at=admission_created_at,
-        selection_source=selection_source,
-        selection_path=selection_path,
-        selection_sha256=selection_sha256,
-        command_args=command_args,
-        store=admission_store,
-    )
+    batch_id = ""
+    if not args.dry_run:
+        admission_store = build_internal_notice_consumption_admission_store_from_env(
+            prefer_operator=True
+        )
+        batch_id = record_internal_notice_consumption_admission(
+            source_corpus=source_corpus,
+            source_collection=source_collection,
+            command=command,
+            notice_ids=(),
+            status="started",
+            created_at=admission_created_at,
+            selection_source=selection_source,
+            selection_path=selection_path,
+            selection_sha256=selection_sha256,
+            command_args=command_args,
+            store=admission_store,
+        )
     request_kwargs: dict[str, object] = {
         "artifact_refs": artifact_refs,
         "source_corpus": source_corpus,
@@ -201,6 +208,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         build_report = rebuild_wechat_public_notice_projection(
             request=request,
             dry_run=bool(args.dry_run),
+            projection_store=InMemoryNoticeConsumptionProjectionStore()
+            if args.dry_run
+            else build_notice_consumption_projection_store_from_env(prefer_operator=True),
         )
         if args.dry_run:
             read_model_entries = ()
@@ -208,28 +218,31 @@ def main(argv: Sequence[str] | None = None) -> None:
             object_store_settings = ObjectStoreSettings.from_env(dict(os.environ))
             read_model_entries = materialize_wechat_public_notice_read_model(
                 projection_entries=build_report.projection_entries,
-                read_model_store=build_internal_notice_read_model_store_from_env(),
+                read_model_store=build_internal_notice_read_model_store_from_env(
+                    prefer_operator=True
+                ),
                 source_object_store=S3ObjectStoreAdmin(object_store_settings),
                 derived_object_store=S3ObjectStoreWriter(object_store_settings),
                 source_bucket=request.source_bucket or object_store_settings.bucket_source,
                 derived_bucket=object_store_settings.bucket_derived,
             )
     except Exception as exc:
-        record_internal_notice_consumption_admission(
-            source_corpus=request.source_corpus,
-            source_collection=request.source_collection,
-            command=command,
-            notice_ids=(),
-            status="failed",
-            batch_id=batch_id,
-            created_at=admission_created_at,
-            error=str(exc),
-            selection_source=selection_source,
-            selection_path=selection_path,
-            selection_sha256=selection_sha256,
-            command_args=command_args,
-            store=admission_store,
-        )
+        if not args.dry_run and admission_store is not None:
+            record_internal_notice_consumption_admission(
+                source_corpus=request.source_corpus,
+                source_collection=request.source_collection,
+                command=command,
+                notice_ids=(),
+                status="failed",
+                batch_id=batch_id,
+                created_at=admission_created_at,
+                error=str(exc),
+                selection_source=selection_source,
+                selection_path=selection_path,
+                selection_sha256=selection_sha256,
+                command_args=command_args,
+                store=admission_store,
+            )
         raise
 
     evidence_entries = (
@@ -255,28 +268,31 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     if resolved_capture_run_id:
         report["capture_run_id"] = resolved_capture_run_id
-    report["batch_id"] = record_internal_notice_consumption_admission(
-        source_corpus=request.source_corpus,
-        source_collection=request.source_collection,
-        command=command,
-        notice_ids=notice_ids,
-        status="completed",
-        batch_id=batch_id,
-        created_at=admission_created_at,
-        result_counts={
-            "projection_entry_count": int(report["projection_entry_count"]),
-            "retained_count": int(report["retained_count"]),
-            "duplicate_suppressed_count": int(report["duplicate_suppressed_count"]),
-            "read_model_entry_count": int(report["read_model_entry_count"]),
-            "read_model_queryable_count": int(report["read_model_queryable_count"]),
-            "read_model_evidence_count": int(report["read_model_evidence_count"]),
-        },
-        selection_source=selection_source,
-        selection_path=selection_path,
-        selection_sha256=selection_sha256,
-        command_args=command_args,
-        store=admission_store,
-    )
+    if args.dry_run:
+        report["batch_id"] = ""
+    else:
+        report["batch_id"] = record_internal_notice_consumption_admission(
+            source_corpus=request.source_corpus,
+            source_collection=request.source_collection,
+            command=command,
+            notice_ids=notice_ids,
+            status="completed",
+            batch_id=batch_id,
+            created_at=admission_created_at,
+            result_counts={
+                "projection_entry_count": int(report["projection_entry_count"]),
+                "retained_count": int(report["retained_count"]),
+                "duplicate_suppressed_count": int(report["duplicate_suppressed_count"]),
+                "read_model_entry_count": int(report["read_model_entry_count"]),
+                "read_model_queryable_count": int(report["read_model_queryable_count"]),
+                "read_model_evidence_count": int(report["read_model_evidence_count"]),
+            },
+            selection_source=selection_source,
+            selection_path=selection_path,
+            selection_sha256=selection_sha256,
+            command_args=command_args,
+            store=admission_store,
+        )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
 
 
@@ -547,6 +563,7 @@ def _build_report(
             sorted(dict(getattr(build_report, "duplicate_source_family_counts", {})).items())
         ),
         "query_serving_opened": not dry_run and read_model_queryable_count > 0,
+        "admission_write_performed": not dry_run,
         "projection_write_performed": not dry_run,
         "read_model_write_performed": not dry_run,
         "read_model_entry_count": len(read_model_entries),

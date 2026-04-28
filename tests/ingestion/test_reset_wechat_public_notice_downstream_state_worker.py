@@ -176,7 +176,10 @@ class _DeleteRecordingObjectStore:
         return json.dumps(self.ocr_payloads[key], ensure_ascii=False).encode("utf-8")
 
     def delete_prefix(self, *, bucket: str, prefix: str, exclude_keys=()) -> None:
-        self.deleted.append((bucket, prefix))
+        raise AssertionError("reset must delete exact object keys, not prefixes")
+
+    def delete_object(self, *, bucket: str, key: str) -> None:
+        self.deleted.append((bucket, key))
 
 
 if __name__ == "__main__":
