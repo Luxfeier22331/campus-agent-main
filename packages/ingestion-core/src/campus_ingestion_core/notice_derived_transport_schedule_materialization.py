@@ -398,9 +398,15 @@ def build_notice_derived_transport_schedule_projection_bundle(
     snapshot_id_by_notice = {
         snapshot["source_ref"].split(":")[-1]: snapshot["snapshot_id"] for snapshot in snapshots
     }
+    current_unbounded_notice_ids = {
+        str(snapshot["source_ref"]).split(":")[-1]
+        for snapshot in snapshots
+        if bool(snapshot.get("is_current")) and not snapshot.get("service_date_ranges")
+    }
     scheduled_departures = _build_scheduled_departures(
         rows=rows,
         snapshot_id_by_notice=snapshot_id_by_notice,
+        current_unbounded_notice_ids=current_unbounded_notice_ids,
         anchor=anchor,
         service_horizon_days=service_horizon_days,
     )
@@ -681,6 +687,8 @@ def _extract_rows_from_parent_text(
     for segment in _text_segments(parent_text):
         if reservation_open_time_segment(segment):
             continue
+        if _contains_service_stop(segment):
+            continue
         if not _extract_times(segment):
             continue
         route = _resolve_route(segment)
@@ -825,43 +833,70 @@ def _extract_exceptions_from_parent_text(
 ) -> list[NoticeDerivedTransportServiceException]:
     exceptions: list[NoticeDerivedTransportServiceException] = []
     for segment in _text_segments(parent_text):
-        if not any(keyword in segment for keyword in _SERVICE_STOP_KEYWORDS):
+        if _MARKDOWN_HEADING_RE.match(segment):
             continue
-        route = _resolve_route(segment)
-        if route is None:
-            continue
-        service_date_ranges = _resolve_segment_service_date_ranges(
-            text=segment,
-            release_time=projection_entry.source_notice_release_time,
-            allow_open_ended_effective_date=True,
-        )
-        if not service_date_ranges:
-            service_date_ranges = _resolve_service_date_ranges(
-                text=parent_text,
+        for clause in _service_stop_clauses(segment):
+            route = _resolve_route(clause)
+            if route is None:
+                continue
+            service_date_ranges = _resolve_segment_service_date_ranges(
+                text=clause,
                 release_time=projection_entry.source_notice_release_time,
+                allow_open_ended_effective_date=True,
             )
-        if not service_date_ranges:
-            continue
-        for start_date, end_date in service_date_ranges:
-            for service_date in _date_range(
-                date.fromisoformat(start_date),
-                (date.fromisoformat(end_date) - date.fromisoformat(start_date)).days + 1,
-            ):
-                exceptions.append(
-                    NoticeDerivedTransportServiceException(
-                        source_notice_id=projection_entry.source_notice_id,
-                        source_ref=source_ref,
-                        route_id=route.route_id,
-                        service_date=service_date.isoformat(),
-                        service_status="temporarily_suspended",
-                        operational_comment=_clean_cell(segment),
-                        effective_from=start_date,
-                        schedule_scope="exception_status",
-                        service_date_ranges=((start_date, end_date),),
-                        precedence=_schedule_scope_precedence("exception_status"),
+            if not service_date_ranges:
+                continue
+            for start_date, end_date in service_date_ranges:
+                for service_date in _date_range(
+                    date.fromisoformat(start_date),
+                    (date.fromisoformat(end_date) - date.fromisoformat(start_date)).days + 1,
+                ):
+                    exceptions.append(
+                        NoticeDerivedTransportServiceException(
+                            source_notice_id=projection_entry.source_notice_id,
+                            source_ref=source_ref,
+                            route_id=route.route_id,
+                            service_date=service_date.isoformat(),
+                            service_status="temporarily_suspended",
+                            operational_comment=_clean_cell(clause),
+                            effective_from=start_date,
+                            schedule_scope="exception_status",
+                            service_date_ranges=((start_date, end_date),),
+                            precedence=_schedule_scope_precedence("exception_status"),
+                        )
                     )
-                )
     return exceptions
+
+
+def _contains_service_stop(segment: str) -> bool:
+    return any(keyword in segment for keyword in _SERVICE_STOP_KEYWORDS)
+
+
+def _service_stop_clauses(segment: str) -> tuple[str, ...]:
+    clauses: list[str] = []
+    date_context = ""
+    for raw_clause in re.split(r"[，,]", segment):
+        clause = _clean_cell(raw_clause)
+        if not clause:
+            continue
+        if _clause_contains_date(clause):
+            date_context = clause
+        if not _contains_service_stop(clause):
+            continue
+        if "正常运营" in clause or "正常运行" in clause:
+            continue
+        if not _clause_contains_date(clause) and date_context:
+            clause = _clean_cell(f"{date_context} {clause}")
+        clauses.append(clause)
+    return tuple(clauses)
+
+
+def _clause_contains_date(clause: str) -> bool:
+    return bool(
+        _FULL_DATE_RE.search(clause)
+        or _YEARLESS_SINGLE_DATE_RE.search(clause)
+        or _CHINESE_DATE_RANGE_RE.search(clause)
+    )
 
 
 def _fill_down_context(
@@ -930,6 +965,7 @@ def _build_scheduled_departures(
     *,
     rows: Sequence[NoticeDerivedTransportScheduleRow],
     snapshot_id_by_notice: Mapping[str, str],
+    current_unbounded_notice_ids: set[str],
     anchor: datetime,
     service_horizon_days: int,
 ) -> list[dict[str, Any]]:
@@ -939,6 +975,10 @@ def _build_scheduled_departures(
     ] = {}
     anchor_date = anchor.date()
     for row in rows:
+        if row.schedule_scope == "exception_status":
+            continue
+        if not row.service_date_ranges and row.source_notice_id not in current_unbounded_notice_ids:
+            continue
         snapshot_id = snapshot_id_by_notice.get(row.source_notice_id)
         if not snapshot_id:
             continue

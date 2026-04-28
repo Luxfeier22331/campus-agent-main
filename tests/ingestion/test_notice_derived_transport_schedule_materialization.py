@@ -599,7 +599,141 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
             ],
         )
 
-    def test_exception_only_snapshot_covers_all_exception_service_dates(self) -> None:
+    def test_batch_build_expands_only_latest_unbounded_baseline_to_current_horizon(
+        self,
+    ) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        old_registry, old_store, old_entry = _build_runtime(
+            notice_id="348483",
+            release_time="2025-03-07 12:00",
+            parent_markdown=(
+                "# 关于两校区师生通勤班车优化调整的通知\n\n"
+                "3月10日起，海淀校区至丰台校区工作日发车时间：08:10。\n"
+            ),
+            attachment_document_ids=(),
+        )
+        new_registry, new_store, new_entry = _build_runtime(
+            notice_id="352218",
+            release_time="2025-09-19 20:41",
+            parent_markdown=(
+                "# 关于两校区师生通勤班车运营时间的通知\n\n"
+                "9月22日起，海淀校区至丰台校区工作日发车时间：16:40。\n"
+            ),
+            attachment_document_ids=(),
+        )
+        registry = InMemoryDocumentRegistry(
+            old_registry.list_by_scope("campus_notices", "internal_notice")
+            + new_registry.list_by_scope("campus_notices", "internal_notice")
+        )
+        old_store.objects.update(new_store.objects)
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(old_entry, new_entry),
+            registry=registry,
+            object_store=old_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2026-04-28T09:00:00+08:00",
+            service_horizon_days=3,
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        self.assertEqual(
+            [
+                (row["departure_time"], tuple(row["related_notice_refs"]))
+                for row in result.bundle["scheduled_departures"]
+            ],
+            [("16:40", ("notice:muc_internal_portal:352218",))],
+        )
+
+    def test_suspension_notice_does_not_materialize_cancelled_time_as_departure(
+        self,
+    ) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="354271",
+            release_time="2025-12-30 17:46",
+            parent_markdown=(
+                "# 关于本学期暂停周五18:00由丰台校区发往五棵松地铁站接驳车的通知\n\n"
+                "周五晚上18:00由“丰台校区”发往“五棵松地铁站”的接驳车"
+                "自运行以来，乘坐人数一直较少，本学期暂停本班次的运行。\n"
+            ),
+            attachment_document_ids=(),
+        )
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2026-04-28T09:00:00+08:00",
+            service_horizon_days=8,
+        )
+
+        self.assertEqual(result.bundle["scheduled_departures"], [])
+        self.assertEqual(result.bundle["transport_service_exceptions"], [])
+        self.assertEqual(
+            result.rejected_source_records,
+            [
+                {
+                    "schema_version": "transport_schedule_rejected_sources.v1",
+                    "source_notice_id": "354271",
+                    "source_ref": "notice:muc_internal_portal:354271",
+                    "reason": "no_supported_transport_schedule_rows",
+                    "candidate_kind": "transport_schedule",
+                }
+            ],
+        )
+
+    def test_exception_extraction_skips_heading_and_normal_operation_clause(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="245395",
+            release_time="2024-09-05 15:39",
+            parent_markdown=(
+                "# 关于本周六丰台校区地铁接驳车暂停运营的通知\n\n"
+                "为确保迎新工作顺利，本周六（9月7日）地铁接驳车暂停运营，"
+                "周日（9月8日）正常运营。\n"
+            ),
+            attachment_document_ids=(),
+        )
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2024-09-06T09:00:00+08:00",
+            service_horizon_days=3,
+        )
+
+        self.assertEqual(result.bundle["scheduled_departures"], [])
+        self.assertEqual(
+            [
+                (
+                    row["route_id"],
+                    row["service_date"],
+                    row["service_status"],
+                    tuple(row["related_notice_refs"]),
+                )
+                for row in result.bundle["transport_service_exceptions"]
+            ],
+            [
+                (
+                    "route:subway-shuttle",
+                    "2024-09-07",
+                    "temporarily_suspended",
+                    ("notice:muc_internal_portal:245395",),
+                )
+            ],
+        )
+
+    def test_exception_only_snapshot_covers_supported_exception_service_dates(self) -> None:
         module = _load_module()
         self.assertIsNotNone(module, "notice-derived transport materializer module is required")
         assert module is not None
@@ -628,7 +762,7 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
         snapshot = result.bundle["transport_schedule_snapshots"][0]
         self.assertEqual(
             snapshot["service_date_ranges"],
-            [{"start_date": "2026-01-17", "end_date": "2026-01-19"}],
+            [{"start_date": "2026-01-19", "end_date": "2026-01-19"}],
         )
         self.assertEqual(snapshot["effective_until"], "2026-01-20T00:00:00+08:00")
 

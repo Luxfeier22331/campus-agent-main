@@ -44,6 +44,8 @@ _LEDGER_ROW_RE = re.compile(
     r"^\|\s*`(?P<notice_id>[^`]+)`\s*\|\s*[^|]+\|\s*(?P<kind>[^|]+)\|\s*(?P<state>[^|]+)\|"
 )
 _ATTACHMENT_IMAGE_RE = re.compile(r"附件\s*/\s*图片：`?(?P<attachments>\d+)\s*/\s*(?P<images>\d+)")
+_OPEN_ENDED_SUSPENSION_HINTS = ("本学期", "本年度", "长期", "即日起")
+_SUSPENSION_HINTS = ("暂停", "停运", "停止运营", "不运行")
 
 
 @dataclass(frozen=True, slots=True)
@@ -362,6 +364,12 @@ def _classify_candidate(
     elif candidate.candidate_kind != "schedule_or_overlay_candidate":
         bucket = BUCKET_BLOCKED
         reason_codes.append("unsupported_candidate_kind")
+    elif _is_open_ended_suspension_notice(candidate) and not _has_structured_schedule_evidence(
+        ocr_evidence=ocr_evidence,
+        router_evidence=router_evidence,
+    ):
+        bucket = BUCKET_OPERATIONAL_ONLY
+        reason_codes.append("open_ended_suspension_notice")
     elif (
         candidate.has_guide_adjacent_fields
         or ocr_evidence.mixed_schedule_and_guide_count
@@ -370,6 +378,13 @@ def _classify_candidate(
         bucket = BUCKET_GUIDE_ADJACENT_SPLIT
     elif ocr_evidence.low_confidence_count or router_evidence.needs_review_count:
         bucket = BUCKET_MANUAL_REVIEW
+    elif _requires_non_image_attachment_processing(
+        candidate=candidate,
+        ocr_evidence=ocr_evidence,
+        router_evidence=router_evidence,
+    ):
+        bucket = BUCKET_MANUAL_REVIEW
+        reason_codes.append("non_image_attachment_requires_pdf_processing")
     elif _has_sufficient_preview_evidence(
         candidate=candidate,
         ocr_evidence=ocr_evidence,
@@ -424,6 +439,41 @@ def _has_sufficient_preview_evidence(
         ocr_evidence.extractable_schedule_table_count > 0
         or router_evidence.body_schedule_count > 0
         or router_evidence.image_schedule_table_count >= candidate.image_count
+    )
+
+
+def _has_structured_schedule_evidence(
+    *,
+    ocr_evidence: _NoticeOcrEvidence,
+    router_evidence: _NoticeRouterEvidence,
+) -> bool:
+    return (
+        ocr_evidence.extractable_schedule_table_count > 0
+        or router_evidence.body_schedule_count > 0
+        or router_evidence.image_schedule_table_count > 0
+    )
+
+
+def _requires_non_image_attachment_processing(
+    *,
+    candidate: ScheduleBatchCandidate,
+    ocr_evidence: _NoticeOcrEvidence,
+    router_evidence: _NoticeRouterEvidence,
+) -> bool:
+    return (
+        candidate.attachment_count > 0
+        and candidate.image_count == 0
+        and not _has_structured_schedule_evidence(
+            ocr_evidence=ocr_evidence,
+            router_evidence=router_evidence,
+        )
+    )
+
+
+def _is_open_ended_suspension_notice(candidate: ScheduleBatchCandidate) -> bool:
+    title = candidate.title
+    return any(hint in title for hint in _SUSPENSION_HINTS) and any(
+        hint in title for hint in _OPEN_ENDED_SUSPENSION_HINTS
     )
 
 

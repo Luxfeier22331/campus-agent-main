@@ -108,6 +108,94 @@ class ScheduleBatchPreviewGateWorkerTest(unittest.TestCase):
         self.assertIn("guide_adjacent_fields_present", item_by_notice["1002"]["reason_codes"])
         self.assertIn("low_confidence_ocr", item_by_notice["1002"]["reason_codes"])
 
+    def test_routes_pdf_attachment_without_body_evidence_to_manual_review(self) -> None:
+        selection = """
+- `245272` | `2024-08-30 08:48` |
+  `schedule_or_overlay_candidate`
+  - 标题：关于2024年秋季学期两校区学生通勤班车运营的通知
+  - 来源部门：丰台校区管理委员会
+  - 附件 / 图片：`1 / 0`
+"""
+        ledger = """
+| Notice id | Year | Initial class | Consumption state |
+| --- | ---: | --- | --- |
+| `245272` | 2024 | schedule_or_overlay_candidate | pending independent evaluation |
+"""
+
+        report = worker.build_schedule_batch_preview_gate_report(
+            selection_markdown=selection,
+            ledger_markdown=ledger,
+            ocr_summary_payload={"items": []},
+            router_report_payload={"routes": []},
+            run_id="schedule-batch-test",
+            generated_at="2026-04-28T12:50:00+08:00",
+        )
+
+        self.assertEqual(report["buckets"]["manual_review"], ["245272"])
+        self.assertIn(
+            "non_image_attachment_requires_pdf_processing",
+            report["items"][0]["reason_codes"],
+        )
+
+    def test_guide_adjacent_split_keeps_priority_over_pdf_review(self) -> None:
+        selection = """
+- `3001` | `2026-04-01 09:00` |
+  `schedule_or_overlay_candidate`
+  - 标题：关于通勤班车预约方式的通知
+  - 来源部门：丰台校区管理委员会
+  - 附件 / 图片：`1 / 0`
+  - 备注：含预约/乘车方式字段，后续需拆 guide-adjacent 信息
+"""
+        ledger = """
+| Notice id | Year | Initial class | Consumption state |
+| --- | ---: | --- | --- |
+| `3001` | 2026 | schedule_or_overlay_candidate | pending independent evaluation |
+"""
+
+        report = worker.build_schedule_batch_preview_gate_report(
+            selection_markdown=selection,
+            ledger_markdown=ledger,
+            ocr_summary_payload={"items": []},
+            router_report_payload={"routes": []},
+            run_id="schedule-batch-test",
+            generated_at="2026-04-28T12:50:00+08:00",
+        )
+
+        self.assertEqual(report["buckets"]["guide_adjacent_split"], ["3001"])
+        self.assertNotIn(
+            "non_image_attachment_requires_pdf_processing",
+            report["items"][0]["reason_codes"],
+        )
+
+    def test_routes_open_ended_suspension_without_evidence_to_operational_only(self) -> None:
+        selection = """
+- `354271` | `2025-12-30 17:46` |
+  `schedule_or_overlay_candidate`
+  - 标题：关于本学期暂停周五18:00由丰台校区发往五棵松地铁站接驳车的通知
+  - 来源部门：丰台校区管理委员会
+  - 附件 / 图片：`0 / 0`
+"""
+        ledger = """
+| Notice id | Year | Initial class | Consumption state |
+| --- | ---: | --- | --- |
+| `354271` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
+"""
+
+        report = worker.build_schedule_batch_preview_gate_report(
+            selection_markdown=selection,
+            ledger_markdown=ledger,
+            ocr_summary_payload={"items": []},
+            router_report_payload={"routes": []},
+            run_id="schedule-batch-test",
+            generated_at="2026-04-28T12:50:00+08:00",
+        )
+
+        self.assertEqual(report["buckets"]["operational_only"], ["354271"])
+        self.assertIn(
+            "open_ended_suspension_notice",
+            report["items"][0]["reason_codes"],
+        )
+
     def test_main_writes_report_markdown_and_bucket_selection_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
