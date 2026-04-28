@@ -28,56 +28,68 @@
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 1,
         "operational_notices": 0,
         "scheduled_departures": 10,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "354578",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "current_serving_write",
       "title": "关于寒假期间两校区通勤班车班次调整的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 4,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "354533",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "current_serving_write",
       "title": "关于寒假期间两校区通勤班车运营安排的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 1,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "354505",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "operational_exception_write",
       "title": "关于近期地铁接驳车运营安排的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 1
       },
       "notice_id": "352218",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "historical_snapshot_only_write",
       "title": "关于两校区师生通勤班车运营时间的通知",
       "warning_codes": [
         "snapshot_only_superseded_baseline"
@@ -86,56 +98,68 @@
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 1,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "351030",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "operational_exception_write",
       "title": "关于暑假期间师生通勤班车、地铁接驳车运营调整的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 5,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "350030",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "current_serving_write",
       "title": "关于通勤班车每周增加临时班次的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 1,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "349494",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "operational_exception_write",
       "title": "关于近期两校区通勤班车及地铁接驳车安排的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 1
       },
       "notice_id": "348880",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "historical_snapshot_only_write",
       "title": "关于两校区师生通勤班车运营时间的通知",
       "warning_codes": [
         "snapshot_only_superseded_baseline"
@@ -144,14 +168,17 @@
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 1
       },
       "notice_id": "348483",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "historical_snapshot_only_write",
       "title": "关于两校区师生通勤班车优化调整的通知",
       "warning_codes": [
         "snapshot_only_superseded_baseline"
@@ -160,28 +187,34 @@
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 1,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "247970",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "operational_exception_write",
       "title": "关于近期通勤班车、地铁接驳车运营时间调整的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 1
       },
       "notice_id": "247734",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "historical_snapshot_only_write",
       "title": "关于增加两校区学生通勤班车班次的通知",
       "warning_codes": [
         "snapshot_only_superseded_baseline"
@@ -190,41 +223,75 @@
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 1,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 0
       },
       "notice_id": "245395",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "operational_exception_write",
       "title": "关于本周六丰台校区地铁接驳车暂停运营的通知",
       "warning_codes": []
     },
     {
       "bucket": "preview_passed",
       "materialization_counts": {
+        "current_snapshots": 0,
         "operational_notices": 0,
         "scheduled_departures": 0,
         "service_exceptions": 0,
-        "snapshots": 1
+        "snapshots": 1,
+        "superseded_baseline_snapshots": 1
       },
       "notice_id": "203935",
       "reason_codes": [],
       "rejected_source": {},
+      "release_write_bucket": "historical_snapshot_only_write",
       "title": "关于中央民族大学丰台校区周末地铁接驳车运营时间调整的通知",
       "warning_codes": [
         "snapshot_only_superseded_baseline"
       ]
     }
   ],
+  "release_write_buckets": {
+    "current_serving_write": [
+      "354578",
+      "354533",
+      "350030"
+    ],
+    "historical_snapshot_only_write": [
+      "352218",
+      "348880",
+      "348483",
+      "247734",
+      "203935"
+    ],
+    "operational_exception_write": [
+      "354505",
+      "351030",
+      "349494",
+      "247970",
+      "245395"
+    ],
+    "preview_failed_skip": []
+  },
   "remote_write_status": "not_written_pg_or_object_storage",
-  "run_id": "schedule-transport-preview-gate-20260428T130500",
+  "run_id": "transport-preview-gate-clean-auto-stage",
   "schema_version": "schedule_transport_preview_gate.v1",
   "summary": {
     "failed_reason_counts": {},
     "preview_failed_count": 0,
     "preview_passed_count": 13,
+    "release_write_bucket_counts": {
+      "current_serving_write": 3,
+      "historical_snapshot_only_write": 5,
+      "operational_exception_write": 5,
+      "preview_failed_skip": 0
+    },
     "selected_notice_count": 13,
     "warning_counts": {
       "snapshot_only_superseded_baseline": 5

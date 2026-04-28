@@ -19,13 +19,12 @@ updated: 2026-04-28
 4. 对 5 条图片表格通知写入 selected OCR child documents。
 5. 修正 batch gate，使 PDF-only 与 open-ended suspension 不再误入 auto-stage。
 6. 基于 clean 13 条 auto-stage selection 重跑 no-write transport preview。
+7. 对 clean 13 条执行本地 selected `stage`，写入 versioned object artifacts 与 PG
+   structured projection release / typed read model rows。
 
 本轮未执行：
 
-- `transport_schedule` selected stage。
 - `transport_schedule` promote current pointer。
-- structured projection release 写入 PG。
-- structured projection release 写入对象存储。
 - 39 条以外的全量 notice 重新采集或全量 source-truth 写入。
 
 本轮确实写入了 selected OCR child artifacts：
@@ -189,6 +188,15 @@ clean preview gate：
 | `preview_passed` | 13 |
 | `preview_failed` | 0 |
 
+release write plan：
+
+| Release write bucket | Count |
+| --- | ---: |
+| `current_serving_write` | 3 |
+| `historical_snapshot_only_write` | 5 |
+| `operational_exception_write` | 5 |
+| `preview_failed_skip` | 0 |
+
 仍有 `snapshot_only_superseded_baseline` warning 的 5 条：
 
 - `352218`
@@ -197,9 +205,10 @@ clean preview gate：
 - `247734`
 - `203935`
 
-这些 warning 表示它们只贡献 superseded snapshot，没有当前 horizon departure /
-exception / operational output。当前 validation 允许它们存在；selected stage 前仍应确认
-release 是否保留这类历史 snapshot。
+这些 warning 表示它们只贡献 superseded `baseline_revision` snapshot，没有当前 horizon
+departure / exception / operational output。preview gate 已将它们归入
+`historical_snapshot_only_write`，允许随同一批 selected release 写入历史快照与
+release provenance，但不能单独 promote 为当前时刻表。
 
 当前 `transport_schedule` current pointer 已核对，仍为：
 
@@ -207,13 +216,78 @@ release 是否保留这类历史 snapshot。
 transport-schedule-full-ready-20260427T122940
 ```
 
+## Selected Stage Write
+
+stage release id：
+
+`transport-schedule-clean-auto-stage-20260428T131500Z`
+
+stage 输入：
+
+- selection：
+  `./schedule-batch-preview-gate-2026-04-28/transport-preview-gate-clean-auto-stage/preview-passed-selection.json`
+- preview gate：
+  `./schedule-batch-preview-gate-2026-04-28/transport-preview-gate-clean-auto-stage/schedule-transport-preview-gate.json`
+- consumer admission manifest：
+  `./schedule-batch-preview-gate-2026-04-28/auto-stage-candidate-consumer-admission-manifest.json`
+- publish mode：`stage`
+- `--allow-multi-notice-release`: supplied
+
+stage 写入结果：
+
+| Target | Result |
+| --- | --- |
+| Local object storage | wrote versioned release artifact |
+| PG release catalog | wrote release row |
+| PG typed read model | wrote release-scoped rows |
+| Current object key | not written |
+| `structured_projection_current` | not moved |
+
+release object key：
+
+`campus_services/releases/transport_schedule/transport-schedule-clean-auto-stage-20260428T131500Z/campus-services-projection.json`
+
+stage counts：
+
+| Metric | Count |
+| --- | ---: |
+| `snapshots` | 13 |
+| `routes` | 9 |
+| `scheduled_departures` | 19 |
+| `service_exceptions` | 5 |
+| `operational_notices` | 0 |
+| `rejected_sources` | 0 |
+| `transport_release_notices` | 13 |
+
+PG typed read model verification:
+
+| Table | Rows |
+| --- | ---: |
+| `transport_schedule_snapshots` | 13 |
+| `transport_routes` | 9 |
+| `transport_scheduled_departures` | 19 |
+| `transport_service_exceptions` | 5 |
+| `transport_operational_notices` | 0 |
+| `transport_rejected_sources` | 0 |
+| `transport_release_notices` | 13 |
+
+object store verification：
+
+- bucket：`campus-rag-derived`
+- bytes：`43349`
+- checksum：`sha256:06af82d5d2990580a9edf3b74eaa98a0506ebc583f4d76d0d4a729311c3238ea`
+
+current pointer after stage：
+
+```text
+transport-schedule-full-ready-20260427T122940
+```
+
 ## Next Gate
 
-进入 selected write / release 前，只剩两个 release 决策：
+进入后续 release 前，只剩一个数据补齐决策：
 
-1. 是否允许 clean 13 条 selection 中的 5 条 `snapshot_only_superseded_baseline`
-   随 release 一起保留。
-2. 是否将 `245272` 的 PDF schedule page 纳入后续 PDF child materialization
+1. 是否将 `245272` 的 PDF schedule page 纳入后续 PDF child materialization
    专门流程；本轮未把它写入 schedule release。
 
-未获得显式授权前，不进入 multi-notice stage / promote。
+未获得显式授权前，不进入 promote。

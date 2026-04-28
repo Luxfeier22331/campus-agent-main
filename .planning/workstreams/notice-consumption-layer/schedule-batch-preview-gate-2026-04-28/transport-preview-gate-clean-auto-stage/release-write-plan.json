@@ -1,0 +1,22 @@
+{
+  "current_serving_write": [
+    "354578",
+    "354533",
+    "350030"
+  ],
+  "historical_snapshot_only_write": [
+    "352218",
+    "348880",
+    "348483",
+    "247734",
+    "203935"
+  ],
+  "operational_exception_write": [
+    "354505",
+    "351030",
+    "349494",
+    "247970",
+    "245395"
+  ],
+  "preview_failed_skip": []
+}

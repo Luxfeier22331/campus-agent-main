@@ -41,41 +41,57 @@ bulk 写入 projection 或 current。
 | `355122` | 2026 | schedule_or_overlay_candidate | staged selected release |
 | `354889` | 2026 | schedule_or_overlay_candidate | staged selected release |
 | `354777` | 2026 | schedule_or_overlay_candidate | pending independent evaluation |
-| `354578` | 2026 | schedule_or_overlay_candidate | pending independent evaluation |
-| `354533` | 2026 | schedule_or_overlay_candidate | pending independent evaluation |
-| `354505` | 2026 | schedule_or_overlay_candidate | pending independent evaluation |
+| `354578` | 2026 | schedule_or_overlay_candidate | staged selected batch release |
+| `354533` | 2026 | schedule_or_overlay_candidate | staged selected batch release |
+| `354505` | 2026 | schedule_or_overlay_candidate | staged selected batch release |
 | `354271` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
 | `354270` | 2025 | schedule_review_candidate | pending independent evaluation |
 | `353903` | 2025 | operational_notice_candidate | pending independent evaluation |
 | `353901` | 2025 | schedule_review_candidate | pending independent evaluation |
 | `352325` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `352218` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
+| `352218` | 2025 | schedule_or_overlay_candidate | staged selected batch release |
 | `351862` | 2025 | operational_notice_candidate | pending independent evaluation |
 | `351696` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `351030` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `350030` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `349494` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `348880` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `348483` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
+| `351030` | 2025 | schedule_or_overlay_candidate | staged selected batch release |
+| `350030` | 2025 | schedule_or_overlay_candidate | staged selected batch release |
+| `349494` | 2025 | schedule_or_overlay_candidate | staged selected batch release |
+| `348880` | 2025 | schedule_or_overlay_candidate | staged selected batch release |
+| `348483` | 2025 | schedule_or_overlay_candidate | staged selected batch release |
 | `348457` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
 | `348272` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
 | `248186` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `247970` | 2025 | schedule_or_overlay_candidate | pending independent evaluation |
-| `247734` | 2024 | schedule_or_overlay_candidate | pending independent evaluation |
-| `245395` | 2024 | schedule_or_overlay_candidate | pending independent evaluation |
+| `247970` | 2025 | schedule_or_overlay_candidate | staged selected batch release |
+| `247734` | 2024 | schedule_or_overlay_candidate | staged selected batch release |
+| `245395` | 2024 | schedule_or_overlay_candidate | staged selected batch release |
 | `245272` | 2024 | schedule_or_overlay_candidate | pending independent evaluation |
 | `245271` | 2024 | schedule_or_overlay_candidate | pending independent evaluation |
 | `244214` | 2024 | schedule_or_overlay_candidate | pending independent evaluation |
 | `237479` | 2023 | operational_notice_candidate | pending independent evaluation |
 | `233383` | 2023 | schedule_or_overlay_candidate | pending independent evaluation |
 | `228282` | 2023 | schedule_or_overlay_candidate | pending independent evaluation |
-| `203935` | 2022 | schedule_or_overlay_candidate | pending independent evaluation |
+| `203935` | 2022 | schedule_or_overlay_candidate | staged selected batch release |
 | `202713` | 2022 | schedule_or_overlay_candidate | pending independent evaluation |
 | `196321` | 2022 | schedule_or_overlay_candidate | pending independent evaluation |
 | `192180` | 2021 | schedule_or_overlay_candidate | pending independent evaluation |
 | `192087` | 2021 | schedule_or_overlay_candidate | pending independent evaluation |
 
 <!-- markdownlint-enable MD013 -->
+
+## Selected Batch Stage
+
+### `transport-schedule-clean-auto-stage-20260428T131500Z`
+
+- Selection：clean 13 条 preview-passed schedule notices。
+- Preview gate：
+  `.planning/workstreams/notice-consumption-layer/schedule-batch-preview-gate-2026-04-28/transport-preview-gate-clean-auto-stage/schedule-transport-preview-gate.json`
+- Stage release：`transport-schedule-clean-auto-stage-20260428T131500Z`
+- Stage counts：snapshots `13`，scheduled departures `19`，routes `9`，
+  service exceptions `5`，operational notices `0`，rejected sources `0`。
+- Release write plan：current serving `3`，historical snapshot-only `5`，
+  operational / exception `5`，preview failed skip `0`。
+- Current pointer after stage：`transport-schedule-full-ready-20260427T122940`。
+- Note：本次是 local selected `stage`，写入 versioned object artifact 与 PG
+  release/read-model rows；未执行 `promote`，未移动 `structured_projection_current`。
 
 ## Completed Independent Evaluations
 
