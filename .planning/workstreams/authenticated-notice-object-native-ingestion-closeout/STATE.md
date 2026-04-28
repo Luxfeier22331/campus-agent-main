@@ -46,13 +46,13 @@ updated: 2026-04-28
 
 ## Current Phase Tasks
 
-- [ ] Extend collector artifact store with object head/verify support.
-- [ ] Upload bundle and manifest payloads directly to the source bucket.
-- [ ] Persist bundle/manifest hash/size and source bucket in run ledger.
-- [ ] Add run lifecycle status `started | success | failed`.
-- [ ] Persist verification summary and failure reason.
-- [ ] Fail collector success handoff when required objects are missing or mismatched.
-- [ ] Keep local export files as optional operator artifacts only.
+- [x] Extend collector artifact store with object head/verify support.
+- [x] Upload bundle and manifest payloads directly to the source bucket.
+- [x] Persist bundle/manifest hash/size and source bucket in run ledger.
+- [x] Add full run lifecycle status `started | success | failed`.
+- [x] Persist verification summary and failure reason.
+- [x] Fail collector success handoff when required objects are missing or mismatched.
+- [x] Keep local export files as optional operator artifacts only.
 
 ## Known Non-Overlap
 
@@ -78,7 +78,16 @@ updated: 2026-04-28
   - `docs/architecture/domains/authenticated-notice/architecture.md`
   - `docs/reference/authenticated-notice-file-release-export-contract.md`
   - `apps/ingestion-worker/README.md`
-- Collector code implementation not started.
+- Phase 2 collector object-native handoff implemented:
+  - S3 artifact store verifies object `HEAD` after `PUT`.
+  - bundle/manifest uploads serialize directly from in-memory payloads and
+    return source bucket, hash, size, and object refs.
+  - collector run ledger records source bucket, hash/size, verification summary,
+    started/success/failed lifecycle, and failure reason.
+  - notice and file-release exports fail closed when verified source-bucket
+    handoff cannot be completed.
+  - local export files are disabled by default and only written when
+    `AUTHENTICATED_NOTICE_WRITE_LOCAL_EXPORTS=true`.
 
 ## Resume Notes
 

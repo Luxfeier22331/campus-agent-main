@@ -31,6 +31,7 @@ export interface CollectorConfig {
 	portalPageUrl: string;
 	sourceHomeUrl: string;
 	siteId: string;
+	writeLocalExports: boolean;
 	requestMaxRetries: number;
 	requestBackoffBaseMs: number;
 	authCheckNoticeType: string;
@@ -76,9 +77,7 @@ export function resolveCollectorConfig(
 			false,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
-		authCookieHeader: normalizeOptionalSecret(
-			source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER,
-		),
+		authCookieHeader: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER),
 		authSsoTgcToken: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_SSO_TGC),
 		collectionMode: parseCollectionMode(source.AUTHENTICATED_NOTICE_COLLECTION_MODE),
 		collectorRunLedgerDatabaseUrl: normalizeOptionalSecret(
@@ -103,9 +102,7 @@ export function resolveCollectorConfig(
 		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(
 			source.AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE,
 		),
-		noticeTypeAllowlist: parseOptionalStringList(
-			source.AUTHENTICATED_NOTICE_NOTICE_TYPE_ALLOWLIST,
-		),
+		noticeTypeAllowlist: parseOptionalStringList(source.AUTHENTICATED_NOTICE_NOTICE_TYPE_ALLOWLIST),
 		noticeTypesPath: path.resolve(
 			String(
 				source.AUTHENTICATED_NOTICE_NOTICE_TYPES_PATH ||
@@ -120,6 +117,7 @@ export function resolveCollectorConfig(
 		siteId:
 			String(source.AUTHENTICATED_NOTICE_SITE_ID || "muc_internal_portal").trim() ||
 			"muc_internal_portal",
+		writeLocalExports: parseBooleanFlag(source.AUTHENTICATED_NOTICE_WRITE_LOCAL_EXPORTS, false),
 		requestMaxRetries: parsePositiveInteger(source.AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES, 3),
 		requestBackoffBaseMs: parsePositiveInteger(
 			source.AUTHENTICATED_NOTICE_REQUEST_BACKOFF_BASE_MS,
@@ -134,7 +132,14 @@ export function resolveCollectorConfig(
 }
 
 function parseOptionalStringList(raw: string | undefined): string[] | null {
-	const tokens = [...new Set((raw ?? "").split(",").map((token) => token.trim()).filter(Boolean))];
+	const tokens = [
+		...new Set(
+			(raw ?? "")
+				.split(",")
+				.map((token) => token.trim())
+				.filter(Boolean),
+		),
+	];
 	return tokens.length > 0 ? tokens : null;
 }
 

@@ -285,17 +285,14 @@ describe("authenticated notice collector portal bootstrap", () => {
 
 		const config = {
 			...buildConfig(runtimeDir),
-			authCookieHeader:
-				"JSESSIONID=seeded-session; nginx=seeded-upstream; SSO_TGC=seeded-ticket",
+			authCookieHeader: "JSESSIONID=seeded-session; nginx=seeded-upstream; SSO_TGC=seeded-ticket",
 		};
 		const apiContext = await createApiContextFromStorageState(config, {
 			createRequestContext: async (input) => {
 				const cookiesByName = new Map(
 					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
 				);
-				calls.push(
-					`request.newContext:${cookiesByName.get("JSESSIONID")?.value ?? "missing"}`,
-				);
+				calls.push(`request.newContext:${cookiesByName.get("JSESSIONID")?.value ?? "missing"}`);
 				expect(cookiesByName.get("JSESSIONID")).toMatchObject({
 					domain: "portal.example.edu",
 					httpOnly: true,
@@ -424,5 +421,6 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 		runtimeDir,
 		siteId: "portal_site",
 		sourceHomeUrl: "https://portal.example.edu",
+		writeLocalExports: false,
 	};
 }

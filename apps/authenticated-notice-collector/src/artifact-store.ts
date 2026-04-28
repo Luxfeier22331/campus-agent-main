@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 export interface StoredArtifactRef {
 	bucket: string;
@@ -11,8 +11,19 @@ export interface StoredArtifactRef {
 	versionId: string | null;
 }
 
+export interface StoredArtifactHead {
+	bucket: string;
+	objectKey: string;
+	contentSha256: string | null;
+	byteSize: number | null;
+	etag: string | null;
+	versionId: string | null;
+}
+
 export interface AuthenticatedNoticeArtifactStore {
 	readonly storageProvider: "object_store";
+
+	headObject(input: { objectKey: string }): Promise<StoredArtifactHead>;
 
 	putObject(input: {
 		objectKey: string;
@@ -51,24 +62,59 @@ class S3AuthenticatedNoticeArtifactStore implements AuthenticatedNoticeArtifactS
 		contentType: string;
 		metadata?: Record<string, string>;
 	}): Promise<StoredArtifactRef> {
+		const contentSha256 = createHash("sha256").update(input.data).digest("hex");
 		const result = await this.client.send(
 			new PutObjectCommand({
 				Bucket: this.bucket,
 				Key: input.objectKey,
 				Body: input.data,
 				ContentType: input.contentType,
-				Metadata: input.metadata,
+				Metadata: {
+					...input.metadata,
+					"content-sha256": contentSha256,
+				},
 			}),
 		);
+		const head = await this.headObject({ objectKey: input.objectKey });
+		assertStoredArtifactHeadMatchesPayload({
+			byteSize: input.data.byteLength,
+			contentSha256,
+			head,
+		});
 		return {
 			bucket: this.bucket,
 			objectKey: input.objectKey,
-			contentSha256: createHash("sha256").update(input.data).digest("hex"),
+			contentSha256,
 			byteSize: input.data.byteLength,
 			etag: result.ETag ?? null,
 			versionId: result.VersionId ?? null,
 		};
 	}
+
+	async headObject(input: { objectKey: string }): Promise<StoredArtifactHead> {
+		const result = await this.client.send(
+			new HeadObjectCommand({
+				Bucket: this.bucket,
+				Key: input.objectKey,
+			}),
+		);
+		const metadata = result.Metadata ?? {};
+		return {
+			bucket: this.bucket,
+			objectKey: input.objectKey,
+			contentSha256: metadata["content-sha256"] ?? metadata.content_sha256 ?? null,
+			byteSize: result.ContentLength ?? null,
+			etag: result.ETag ?? null,
+			versionId: result.VersionId ?? null,
+		};
+	}
+}
+
+export function createAuthenticatedNoticeArtifactStore(input: {
+	bucket: string;
+	client: Pick<S3Client, "send">;
+}): AuthenticatedNoticeArtifactStore {
+	return new S3AuthenticatedNoticeArtifactStore(input);
 }
 
 export function createAuthenticatedNoticeArtifactStoreFromEnv(
@@ -90,7 +136,7 @@ export function createAuthenticatedNoticeArtifactStoreFromEnv(
 		);
 	}
 
-	return new S3AuthenticatedNoticeArtifactStore({
+	return createAuthenticatedNoticeArtifactStore({
 		bucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-rag-source",
 		client: new S3Client({
 			endpoint,
@@ -102,4 +148,24 @@ export function createAuthenticatedNoticeArtifactStoreFromEnv(
 			forcePathStyle: true,
 		}),
 	});
+}
+
+function assertStoredArtifactHeadMatchesPayload(input: {
+	byteSize: number;
+	contentSha256: string;
+	head: StoredArtifactHead;
+}): void {
+	if (input.head.byteSize !== null && input.head.byteSize !== input.byteSize) {
+		throw new Error(
+			`stored artifact size mismatch for ${input.head.objectKey}: expected ${input.byteSize}, got ${input.head.byteSize}`,
+		);
+	}
+	if (
+		input.head.contentSha256 !== null &&
+		input.head.contentSha256.toLowerCase() !== input.contentSha256
+	) {
+		throw new Error(
+			`stored artifact sha256 mismatch for ${input.head.objectKey}: expected ${input.contentSha256}, got ${input.head.contentSha256}`,
+		);
+	}
 }

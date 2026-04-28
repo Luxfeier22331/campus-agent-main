@@ -14,6 +14,7 @@ import {
 import {
 	type AuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
+	type StoredArtifactRef,
 } from "./artifact-store";
 import {
 	buildCollectorRunLeaseKey,
@@ -23,6 +24,11 @@ import {
 } from "./collector-run-lease";
 import {
 	buildCollectorFileReleaseRunLedgerRecord,
+	buildCollectorRunFailedLedgerRecord,
+	buildCollectorRunId,
+	buildCollectorRunStartedLedgerRecord,
+	type CollectorRunLedgerRecord,
+	type CollectorRunLedgerStore,
 	createPostgresCollectorRunLedgerStore,
 	type DisposableCollectorRunLedgerStore,
 } from "./collector-run-ledger";
@@ -56,6 +62,7 @@ import {
 	toTimestampLabel,
 } from "./file-release-export-helpers";
 import { createApiContextFromStorageState } from "./portal";
+import { formatSafeErrorMessage } from "./safe-error";
 import type {
 	ApiRequestContextLike,
 	BundleFileReleaseRecord,
@@ -130,15 +137,41 @@ export interface WriteFileReleaseArtifactsResult {
 
 export interface UploadFileReleaseArtifactsInput {
 	artifactStore: AuthenticatedNoticeArtifactStore;
-	bundlePath: string;
+	bundleRecords: unknown[];
 	exportedAt: string;
-	manifestPath: string;
+	exportManifest: unknown;
 	siteId: string;
 }
 
 export interface UploadFileReleaseArtifactsResult {
+	bundleByteSize: number;
+	bundleContentSha256: string;
 	bundleObjectKey: string;
+	bundleRef: StoredArtifactRef;
+	manifestByteSize: number;
+	manifestContentSha256: string;
 	manifestObjectKey: string;
+	manifestRef: StoredArtifactRef;
+	sourceBucket: string;
+}
+
+export interface RunFileReleaseExportInput {
+	artifactStore?: AuthenticatedNoticeArtifactStore;
+	collectBundle: () => Promise<CollectFileReleaseBundleResult>;
+	collectorRunLedgerStore?: CollectorRunLedgerStore;
+	exportedAt: string;
+	outputDir?: string;
+	runId?: string;
+	siteId: string;
+	sourceHomeUrl: string;
+	writeLocalArtifacts: boolean;
+}
+
+export interface RunFileReleaseExportResult {
+	ledgerRecord: CollectorRunLedgerRecord;
+	result: CollectFileReleaseBundleResult;
+	uploadedArtifactRefs: UploadFileReleaseArtifactsResult;
+	written: WriteFileReleaseArtifactsResult | null;
 }
 
 export function buildFileReleaseRecord(input: {
@@ -455,9 +488,11 @@ export async function uploadFileReleaseArtifacts(
 	].join("/");
 	const bundleObjectKey = `${prefix}/file-releases-bundle.json`;
 	const manifestObjectKey = `${prefix}/file-releases-manifest.json`;
-	await input.artifactStore.putObject({
+	const bundlePayload = serializeJsonArtifactPayload(input.bundleRecords);
+	const manifestPayload = serializeJsonArtifactPayload(input.exportManifest);
+	const bundleRef = await input.artifactStore.putObject({
 		objectKey: bundleObjectKey,
-		data: fs.readFileSync(input.bundlePath),
+		data: bundlePayload,
 		contentType: "application/json",
 		metadata: {
 			artifact_kind: "file_release_bundle",
@@ -466,9 +501,9 @@ export async function uploadFileReleaseArtifacts(
 			source_surface: "file_release",
 		},
 	});
-	await input.artifactStore.putObject({
+	const manifestRef = await input.artifactStore.putObject({
 		objectKey: manifestObjectKey,
-		data: fs.readFileSync(input.manifestPath),
+		data: manifestPayload,
 		contentType: "application/json",
 		metadata: {
 			artifact_kind: "file_release_manifest",
@@ -478,9 +513,104 @@ export async function uploadFileReleaseArtifacts(
 		},
 	});
 	return {
+		bundleByteSize: bundleRef.byteSize,
+		bundleContentSha256: bundleRef.contentSha256,
 		bundleObjectKey,
+		bundleRef,
+		manifestByteSize: manifestRef.byteSize,
+		manifestContentSha256: manifestRef.contentSha256,
 		manifestObjectKey,
+		manifestRef,
+		sourceBucket: bundleRef.bucket,
 	};
+}
+
+function serializeJsonArtifactPayload(value: unknown): Uint8Array {
+	return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf-8");
+}
+
+export async function runFileReleaseExport(
+	input: RunFileReleaseExportInput,
+): Promise<RunFileReleaseExportResult> {
+	const runId = input.runId ?? buildCollectorRunId(input.exportedAt, input.siteId, "file_release");
+	await input.collectorRunLedgerStore?.upsertRun(
+		buildCollectorRunStartedLedgerRecord({
+			collectionMode: "file_release_export",
+			runId,
+			siteId: input.siteId,
+			sourceHomeUrl: input.sourceHomeUrl,
+			sourceSurface: "file_release",
+			startedAt: input.exportedAt,
+		}),
+	);
+	let terminalLedgerWritten = false;
+	try {
+		const result = await input.collectBundle();
+		const written = input.writeLocalArtifacts
+			? writeFileReleaseArtifacts({
+					bundleRecords: result.bundleRecords,
+					exportManifest: result.exportManifest,
+					outputDir: input.outputDir ?? process.cwd(),
+				})
+			: null;
+		if (!input.artifactStore) {
+			throw new Error("authenticated notice source-bucket artifact store is required");
+		}
+		const uploadedArtifactRefs = await uploadFileReleaseArtifacts({
+			artifactStore: input.artifactStore,
+			bundleRecords: result.bundleRecords,
+			exportedAt: input.exportedAt,
+			exportManifest: result.exportManifest,
+			siteId: input.siteId,
+		});
+		const ledgerRecord = buildCollectorFileReleaseRunLedgerRecord({
+			bundleArtifactRef: uploadedArtifactRefs.bundleRef,
+			bundleObjectKey: uploadedArtifactRefs.bundleObjectKey,
+			bundlePath: written?.bundlePath ?? null,
+			bundleRecords: result.bundleRecords,
+			exportedAt: input.exportedAt,
+			manifest: result.exportManifest,
+			manifestArtifactRef: uploadedArtifactRefs.manifestRef,
+			manifestObjectKey: uploadedArtifactRefs.manifestObjectKey,
+			manifestPath: written?.manifestPath ?? null,
+			runId,
+			siteId: input.siteId,
+			sourceHomeUrl: input.sourceHomeUrl,
+		});
+		await input.collectorRunLedgerStore?.upsertRun(ledgerRecord);
+		terminalLedgerWritten = true;
+		assertVerifiedRunHandoff(ledgerRecord);
+		return {
+			ledgerRecord,
+			result,
+			uploadedArtifactRefs,
+			written,
+		};
+	} catch (error) {
+		if (!terminalLedgerWritten) {
+			await input.collectorRunLedgerStore?.upsertRun(
+				buildCollectorRunFailedLedgerRecord({
+					collectionMode: "file_release_export",
+					failureReason: formatSafeErrorMessage(error),
+					finishedAt: new Date().toISOString(),
+					runId,
+					siteId: input.siteId,
+					sourceHomeUrl: input.sourceHomeUrl,
+					sourceSurface: "file_release",
+					startedAt: input.exportedAt,
+				}),
+			);
+		}
+		throw error;
+	}
+}
+
+function assertVerifiedRunHandoff(record: CollectorRunLedgerRecord): void {
+	if (record.status !== "success" || record.verificationStatus !== "verified") {
+		throw new Error(
+			`collector handoff verification failed: ${record.failureReason ?? record.verificationStatus}`,
+		);
+	}
 }
 
 export function buildAuthenticatedNoticeFileReleaseCaptureKey(input: {
@@ -624,53 +754,36 @@ export async function main(): Promise<void> {
 				ttlSeconds: config.collectorRunLeaseTtlSeconds,
 			},
 			async () => {
-				const result = await collectFileReleaseBundle({
-					attachmentArtifactStore,
+				const runResult = await runFileReleaseExport({
+					artifactStore: attachmentArtifactStore,
+					collectBundle: () =>
+						collectFileReleaseBundle({
+							attachmentArtifactStore,
+							exportedAt,
+							maxFileReleases,
+							maxPages,
+							pageSize,
+							requestBackoffBaseMs: config.requestBackoffBaseMs,
+							requestMaxRetries: config.requestMaxRetries,
+							siteId: config.siteId,
+							sourceHomeUrl: config.sourceHomeUrl,
+							targetFileReleaseId,
+						}),
+					collectorRunLedgerStore,
 					exportedAt,
-					maxFileReleases,
-					maxPages,
-					pageSize,
-					requestBackoffBaseMs: config.requestBackoffBaseMs,
-					requestMaxRetries: config.requestMaxRetries,
+					outputDir: config.exportsDir,
 					siteId: config.siteId,
 					sourceHomeUrl: config.sourceHomeUrl,
-					targetFileReleaseId,
+					writeLocalArtifacts: config.writeLocalExports,
 				});
-				const written = writeFileReleaseArtifacts({
-					bundleRecords: result.bundleRecords,
-					exportManifest: result.exportManifest,
-					outputDir: config.exportsDir,
-				});
-				const uploadedArtifactRefs = attachmentArtifactStore
-					? await uploadFileReleaseArtifacts({
-							artifactStore: attachmentArtifactStore,
-							bundlePath: written.bundlePath,
-							exportedAt,
-							manifestPath: written.manifestPath,
-							siteId: config.siteId,
-						})
-					: undefined;
-				await collectorRunLedgerStore?.upsertRun(
-					buildCollectorFileReleaseRunLedgerRecord({
-						bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey,
-						bundlePath: written.bundlePath,
-						bundleRecords: result.bundleRecords,
-						exportedAt,
-						manifest: result.exportManifest,
-						manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey,
-						manifestPath: written.manifestPath,
-						siteId: config.siteId,
-						sourceHomeUrl: config.sourceHomeUrl,
-					}),
-				);
 				console.log(
 					JSON.stringify(
 						{
-							...result.stats,
-							bundlePath: written.bundlePath,
-							bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey ?? null,
-							manifestPath: written.manifestPath,
-							manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey ?? null,
+							...runResult.result.stats,
+							bundlePath: runResult.written?.bundlePath ?? null,
+							bundleObjectKey: runResult.uploadedArtifactRefs.bundleObjectKey,
+							manifestPath: runResult.written?.manifestPath ?? null,
+							manifestObjectKey: runResult.uploadedArtifactRefs.manifestObjectKey,
 						},
 						null,
 						2,

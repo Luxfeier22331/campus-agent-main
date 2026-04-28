@@ -33,6 +33,7 @@ describe("authenticated notice collector config", () => {
 		expect(config.collectorRunLeaseDisabled).toBe(false);
 		expect(config.collectorRunLeaseTtlSeconds).toBe(3600);
 		expect(config.historicalBackfillMaxPagesPerType).toBeNull();
+		expect(config.writeLocalExports).toBe(false);
 	});
 
 	it("accepts explicit overrides from env-like input", () => {
@@ -58,6 +59,7 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES: "5",
 			AUTHENTICATED_NOTICE_RUNTIME_DIR: "/tmp/collector-runtime",
 			AUTHENTICATED_NOTICE_SSO_TGC: "sso-token",
+			AUTHENTICATED_NOTICE_WRITE_LOCAL_EXPORTS: "true",
 		});
 
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
@@ -81,6 +83,7 @@ describe("authenticated notice collector config", () => {
 		expect(config.bypassProxyForPortal).toBe(false);
 		expect(config.portalProxyServer).toBeNull();
 		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");
+		expect(config.writeLocalExports).toBe(true);
 	});
 
 	it("resolves an explicit portal proxy server when proxy bypass is disabled", () => {

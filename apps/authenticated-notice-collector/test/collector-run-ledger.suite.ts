@@ -2,7 +2,10 @@ import { expect, it } from "vitest";
 
 import {
 	buildCollectorFileReleaseRunLedgerRecord,
+	buildCollectorRunFailedLedgerRecord,
+	buildCollectorRunId,
 	buildCollectorRunLedgerRecord,
+	buildCollectorRunStartedLedgerRecord,
 	createInMemoryCollectorRunLedgerStore,
 	resolveCollectorRunLedgerTableReference,
 } from "../src/collector-run-ledger";
@@ -16,11 +19,29 @@ import type {
 export function registerCollectorRunLedgerSuite() {
 	it("builds a source-channel run ledger record from exported bundle facts", async () => {
 		const record = buildCollectorRunLedgerRecord({
+			bundleArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 23,
+				contentSha256: "bundle-sha",
+				etag: '"bundle-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				versionId: null,
+			},
 			bundlePath: "/tmp/notices-bundle.json",
 			bundleRecords: [sampleBundleRecord()],
 			collectionMode: "backfill",
 			exportedAt: "2026-04-04T01:23:45.000Z",
 			manifest: sampleManifest(),
+			manifestArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 43,
+				contentSha256: "manifest-sha",
+				etag: '"manifest-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+				versionId: null,
+			},
 			manifestPath: "/tmp/export-manifest.json",
 			runId: "run-20260404",
 			siteId: "muc_internal_portal",
@@ -34,13 +55,29 @@ export function registerCollectorRunLedgerSuite() {
 			collectionMode: "backfill",
 			bundlePath: "/tmp/notices-bundle.json",
 			manifestPath: "/tmp/export-manifest.json",
+			bundleByteSize: 23,
+			bundleContentSha256: "bundle-sha",
+			bundleObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+			manifestByteSize: 43,
+			manifestContentSha256: "manifest-sha",
+			manifestObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
 			noticesCollected: 1,
 			attachmentRefsSeen: 3,
 			attachmentUploaded: 1,
 			attachmentTerminalUnavailable: 1,
 			attachmentTransientFailed: 1,
 			attachmentReferenceOnly: 2,
+			checksumMismatchCount: 0,
+			failureReason: null,
+			missingSourceObjectCount: 0,
+			requiredSourceObjectCount: 3,
+			sizeMismatchCount: 0,
+			sourceBucket: "campus-rag-source",
 			status: "success",
+			verificationStatus: "verified",
+			verifiedSourceObjectCount: 3,
 		});
 		expect(record.noticeTypeIds).toEqual(["5"]);
 		expect(record.selectedNoticeIds).toEqual([]);
@@ -62,14 +99,72 @@ export function registerCollectorRunLedgerSuite() {
 		});
 	});
 
+	it("builds started and failed lifecycle records without local artifact paths", () => {
+		const runId = buildCollectorRunId("2026-04-04T01:23:45.000Z", "muc_internal_portal", "notice");
+		const started = buildCollectorRunStartedLedgerRecord({
+			collectionMode: "incremental",
+			runId,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+			sourceSurface: "notice",
+			startedAt: "2026-04-04T01:23:45.000Z",
+		});
+		const failed = buildCollectorRunFailedLedgerRecord({
+			collectionMode: "incremental",
+			failureReason: "upload failed",
+			finishedAt: "2026-04-04T01:24:45.000Z",
+			runId,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+			sourceSurface: "notice",
+			startedAt: "2026-04-04T01:23:45.000Z",
+		});
+
+		expect(started).toMatchObject({
+			bundlePath: null,
+			failureReason: null,
+			finishedAt: null,
+			manifestPath: null,
+			runId: "muc_internal_portal:notice:20260404T012345000Z",
+			status: "started",
+			verificationStatus: "missing_required_objects",
+		});
+		expect(failed).toMatchObject({
+			bundlePath: null,
+			failureReason: "upload failed",
+			finishedAt: "2026-04-04T01:24:45.000Z",
+			manifestPath: null,
+			status: "failed",
+			verificationStatus: "missing_required_objects",
+		});
+	});
+
 	it("builds a file-release source-channel run ledger record from exported bundle facts", async () => {
 		const record = buildCollectorFileReleaseRunLedgerRecord({
+			bundleArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 26,
+				contentSha256: "bundle-sha",
+				etag: '"bundle-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+				versionId: null,
+			},
 			bundleObjectKey:
 				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
 			bundlePath: "/tmp/file-releases-bundle.json",
 			bundleRecords: [sampleFileReleaseBundleRecord()],
 			exportedAt: "2026-04-12T00:30:00.000Z",
 			manifest: sampleFileReleaseManifest(),
+			manifestArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 43,
+				contentSha256: "manifest-sha",
+				etag: '"manifest-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+				versionId: null,
+			},
 			manifestObjectKey:
 				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
 			manifestPath: "/tmp/file-releases-manifest.json",
@@ -89,14 +184,81 @@ export function registerCollectorRunLedgerSuite() {
 				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
 			manifestObjectKey:
 				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+			bundleByteSize: 26,
+			bundleContentSha256: "bundle-sha",
+			manifestByteSize: 43,
+			manifestContentSha256: "manifest-sha",
 			noticesCollected: 1,
 			attachmentRefsSeen: 1,
 			attachmentUploaded: 1,
 			attachmentReferenceOnly: 0,
+			checksumMismatchCount: 0,
+			failureReason: null,
+			missingSourceObjectCount: 0,
+			requiredSourceObjectCount: 3,
+			sizeMismatchCount: 0,
+			sourceBucket: "campus-rag-source",
 			status: "success",
+			verificationStatus: "verified",
+			verifiedSourceObjectCount: 3,
 		});
 		expect(record.noticeTypeIds).toEqual([]);
 		expect(record.selectedNoticeIds).toEqual(["646"]);
+	});
+
+	it("fails file-release object-store handoff when released source bytes are missing", () => {
+		const record = buildCollectorFileReleaseRunLedgerRecord({
+			bundleArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 26,
+				contentSha256: "bundle-sha",
+				etag: '"bundle-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+				versionId: null,
+			},
+			bundlePath: null,
+			bundleRecords: [
+				{
+					...sampleFileReleaseBundleRecord(),
+					released_file: {
+						...sampleFileReleaseBundleRecord().released_file,
+						bucket: null,
+						byte_size: null,
+						ingest_status: "reference_only",
+						object_key: null,
+						provenance_status: "reference_only",
+						sha256: null,
+						storage_provider: "reference_only",
+					},
+				},
+			],
+			exportedAt: "2026-04-12T00:30:00.000Z",
+			manifest: sampleFileReleaseManifest(),
+			manifestArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 43,
+				contentSha256: "manifest-sha",
+				etag: '"manifest-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+				versionId: null,
+			},
+			manifestPath: null,
+			runId: "file-release-run-20260412",
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(record).toMatchObject({
+			attachmentUploaded: 0,
+			failureReason: "missing_required_objects",
+			missingSourceObjectCount: 1,
+			requiredSourceObjectCount: 3,
+			status: "failed",
+			verificationStatus: "missing_required_objects",
+			verifiedSourceObjectCount: 2,
+		});
 	});
 }
 

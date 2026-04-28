@@ -4,6 +4,7 @@ import { fetchNoticeDetail, fetchNoticePage, fetchNoticeSelects } from "./api";
 import {
 	type AuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
+	type StoredArtifactRef,
 } from "./artifact-store";
 import {
 	type AuthenticatedNoticeAttachmentFetchStatusStore,
@@ -34,7 +35,12 @@ import {
 	withCollectorRunLease,
 } from "./collector-run-lease";
 import {
+	buildCollectorRunFailedLedgerRecord,
+	buildCollectorRunId,
 	buildCollectorRunLedgerRecord,
+	buildCollectorRunStartedLedgerRecord,
+	type CollectorRunLedgerRecord,
+	type CollectorRunLedgerStore,
 	createPostgresCollectorRunLedgerStore,
 	type DisposableCollectorRunLedgerStore,
 } from "./collector-run-ledger";
@@ -47,6 +53,7 @@ import {
 import { applyNoticeTypeAllowlist, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission";
+import { formatSafeErrorMessage } from "./safe-error";
 import type {
 	ApiRequestContextLike,
 	BootstrapExportManifest,
@@ -123,8 +130,43 @@ export interface WriteBootstrapArtifactsResult {
 }
 
 export interface BootstrapArtifactObjectRefs {
+	bundleByteSize: number;
+	bundleContentSha256: string;
 	bundleObjectKey: string;
+	bundleRef: StoredArtifactRef;
+	manifestByteSize: number;
+	manifestContentSha256: string;
 	manifestObjectKey: string;
+	manifestRef: StoredArtifactRef;
+	sourceBucket: string;
+}
+
+export interface UploadBootstrapArtifactsInput {
+	artifactStore: AuthenticatedNoticeArtifactStore;
+	bundleRecords: unknown[];
+	exportedAt: string;
+	exportManifest: unknown;
+	siteId: string;
+}
+
+export interface RunBootstrapExportInput {
+	artifactStore?: AuthenticatedNoticeArtifactStore;
+	collectBundle: () => Promise<CollectBootstrapBundleResult>;
+	collectionMode: NoticeCollectionMode;
+	collectorRunLedgerStore?: CollectorRunLedgerStore;
+	exportedAt: string;
+	outputDir?: string;
+	runId?: string;
+	siteId: string;
+	sourceHomeUrl: string;
+	writeLocalArtifacts: boolean;
+}
+
+export interface RunBootstrapExportResult {
+	ledgerRecord: CollectorRunLedgerRecord;
+	result: CollectBootstrapBundleResult;
+	uploadedArtifactRefs: BootstrapArtifactObjectRefs;
+	written: WriteBootstrapArtifactsResult | null;
 }
 
 export function buildBundleRecord(input: {
@@ -531,13 +573,9 @@ export function writeBootstrapArtifacts(
 	};
 }
 
-export async function uploadBootstrapArtifacts(input: {
-	artifactStore: AuthenticatedNoticeArtifactStore;
-	bundlePath: string;
-	exportedAt: string;
-	manifestPath: string;
-	siteId: string;
-}): Promise<BootstrapArtifactObjectRefs> {
+export async function uploadBootstrapArtifacts(
+	input: UploadBootstrapArtifactsInput,
+): Promise<BootstrapArtifactObjectRefs> {
 	const prefix = [
 		"authenticated_notice_portal",
 		"runs",
@@ -546,9 +584,11 @@ export async function uploadBootstrapArtifacts(input: {
 	].join("/");
 	const bundleObjectKey = `${prefix}/notices-bundle.json`;
 	const manifestObjectKey = `${prefix}/export-manifest.json`;
-	await input.artifactStore.putObject({
+	const bundlePayload = serializeJsonArtifactPayload(input.bundleRecords);
+	const manifestPayload = serializeJsonArtifactPayload(input.exportManifest);
+	const bundleRef = await input.artifactStore.putObject({
 		objectKey: bundleObjectKey,
-		data: fs.readFileSync(input.bundlePath),
+		data: bundlePayload,
 		contentType: "application/json",
 		metadata: {
 			artifact_kind: "notices_bundle",
@@ -556,9 +596,9 @@ export async function uploadBootstrapArtifacts(input: {
 			source_channel: "authenticated_notice_portal",
 		},
 	});
-	await input.artifactStore.putObject({
+	const manifestRef = await input.artifactStore.putObject({
 		objectKey: manifestObjectKey,
-		data: fs.readFileSync(input.manifestPath),
+		data: manifestPayload,
 		contentType: "application/json",
 		metadata: {
 			artifact_kind: "export_manifest",
@@ -567,9 +607,105 @@ export async function uploadBootstrapArtifacts(input: {
 		},
 	});
 	return {
+		bundleByteSize: bundleRef.byteSize,
+		bundleContentSha256: bundleRef.contentSha256,
 		bundleObjectKey,
+		bundleRef,
+		manifestByteSize: manifestRef.byteSize,
+		manifestContentSha256: manifestRef.contentSha256,
 		manifestObjectKey,
+		manifestRef,
+		sourceBucket: bundleRef.bucket,
 	};
+}
+
+function serializeJsonArtifactPayload(value: unknown): Uint8Array {
+	return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf-8");
+}
+
+export async function runBootstrapExport(
+	input: RunBootstrapExportInput,
+): Promise<RunBootstrapExportResult> {
+	const runId = input.runId ?? buildCollectorRunId(input.exportedAt, input.siteId, "notice");
+	await input.collectorRunLedgerStore?.upsertRun(
+		buildCollectorRunStartedLedgerRecord({
+			collectionMode: input.collectionMode,
+			runId,
+			siteId: input.siteId,
+			sourceHomeUrl: input.sourceHomeUrl,
+			sourceSurface: "notice",
+			startedAt: input.exportedAt,
+		}),
+	);
+	let terminalLedgerWritten = false;
+	try {
+		const result = await input.collectBundle();
+		const written = input.writeLocalArtifacts
+			? writeBootstrapArtifacts({
+					bundleRecords: result.bundleRecords,
+					exportManifest: result.exportManifest,
+					outputDir: input.outputDir ?? process.cwd(),
+				})
+			: null;
+		if (!input.artifactStore) {
+			throw new Error("authenticated notice source-bucket artifact store is required");
+		}
+		const uploadedArtifactRefs = await uploadBootstrapArtifacts({
+			artifactStore: input.artifactStore,
+			bundleRecords: result.bundleRecords,
+			exportedAt: input.exportedAt,
+			exportManifest: result.exportManifest,
+			siteId: input.siteId,
+		});
+		const ledgerRecord = buildCollectorRunLedgerRecord({
+			bundleArtifactRef: uploadedArtifactRefs.bundleRef,
+			bundleObjectKey: uploadedArtifactRefs.bundleObjectKey,
+			bundlePath: written?.bundlePath ?? null,
+			bundleRecords: result.bundleRecords,
+			collectionMode: result.exportManifest.run.mode,
+			exportedAt: input.exportedAt,
+			manifest: result.exportManifest,
+			manifestArtifactRef: uploadedArtifactRefs.manifestRef,
+			manifestObjectKey: uploadedArtifactRefs.manifestObjectKey,
+			manifestPath: written?.manifestPath ?? null,
+			runId,
+			siteId: input.siteId,
+			sourceHomeUrl: input.sourceHomeUrl,
+		});
+		await input.collectorRunLedgerStore?.upsertRun(ledgerRecord);
+		terminalLedgerWritten = true;
+		assertVerifiedRunHandoff(ledgerRecord);
+		return {
+			ledgerRecord,
+			result,
+			uploadedArtifactRefs,
+			written,
+		};
+	} catch (error) {
+		if (!terminalLedgerWritten) {
+			await input.collectorRunLedgerStore?.upsertRun(
+				buildCollectorRunFailedLedgerRecord({
+					collectionMode: input.collectionMode,
+					failureReason: formatSafeErrorMessage(error),
+					finishedAt: new Date().toISOString(),
+					runId,
+					siteId: input.siteId,
+					sourceHomeUrl: input.sourceHomeUrl,
+					sourceSurface: "notice",
+					startedAt: input.exportedAt,
+				}),
+			);
+		}
+		throw error;
+	}
+}
+
+function assertVerifiedRunHandoff(record: CollectorRunLedgerRecord): void {
+	if (record.status !== "success" || record.verificationStatus !== "verified") {
+		throw new Error(
+			`collector handoff verification failed: ${record.failureReason ?? record.verificationStatus}`,
+		);
+	}
 }
 
 export async function main(): Promise<void> {
@@ -601,55 +737,38 @@ export async function main(): Promise<void> {
 				const selectedNotices = parseSelectedNoticeSpecs(
 					process.env.AUTHENTICATED_NOTICE_SELECTED_NOTICES,
 				);
-				const result = await collectBootstrapBundle({
-					attachmentArtifactStore,
-					attachmentFetchStatusStore,
+				const runResult = await runBootstrapExport({
+					artifactStore: attachmentArtifactStore,
+					collectBundle: () =>
+						collectBootstrapBundle({
+							attachmentArtifactStore,
+							attachmentFetchStatusStore,
+							collectionMode: config.collectionMode,
+							exportedAt,
+							noticeTypes,
+							requestBackoffBaseMs: config.requestBackoffBaseMs,
+							requestMaxRetries: config.requestMaxRetries,
+							backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
+							selectedNotices,
+							siteId: config.siteId,
+							sourceHomeUrl: config.sourceHomeUrl,
+						}),
 					collectionMode: config.collectionMode,
+					collectorRunLedgerStore,
 					exportedAt,
-					noticeTypes,
-					requestBackoffBaseMs: config.requestBackoffBaseMs,
-					requestMaxRetries: config.requestMaxRetries,
-					backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
-					selectedNotices,
+					outputDir: config.exportsDir,
 					siteId: config.siteId,
 					sourceHomeUrl: config.sourceHomeUrl,
+					writeLocalArtifacts: config.writeLocalExports,
 				});
-				const written = writeBootstrapArtifacts({
-					bundleRecords: result.bundleRecords,
-					exportManifest: result.exportManifest,
-					outputDir: config.exportsDir,
-				});
-				const uploadedArtifactRefs = attachmentArtifactStore
-					? await uploadBootstrapArtifacts({
-							artifactStore: attachmentArtifactStore,
-							bundlePath: written.bundlePath,
-							exportedAt,
-							manifestPath: written.manifestPath,
-							siteId: config.siteId,
-						})
-					: undefined;
-				await collectorRunLedgerStore?.upsertRun(
-					buildCollectorRunLedgerRecord({
-						bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey,
-						bundlePath: written.bundlePath,
-						bundleRecords: result.bundleRecords,
-						collectionMode: result.exportManifest.run.mode,
-						exportedAt,
-						manifest: result.exportManifest,
-						manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey,
-						manifestPath: written.manifestPath,
-						siteId: config.siteId,
-						sourceHomeUrl: config.sourceHomeUrl,
-					}),
-				);
 				console.log(
 					JSON.stringify(
 						{
-							...result.stats,
-							bundlePath: written.bundlePath,
-							bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey ?? null,
-							manifestPath: written.manifestPath,
-							manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey ?? null,
+							...runResult.result.stats,
+							bundlePath: runResult.written?.bundlePath ?? null,
+							bundleObjectKey: runResult.uploadedArtifactRefs.bundleObjectKey,
+							manifestPath: runResult.written?.manifestPath ?? null,
+							manifestObjectKey: runResult.uploadedArtifactRefs.manifestObjectKey,
 						},
 						null,
 						2,

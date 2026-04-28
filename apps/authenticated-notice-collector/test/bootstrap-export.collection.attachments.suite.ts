@@ -137,6 +137,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
@@ -277,6 +278,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
@@ -420,6 +422,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
@@ -573,6 +576,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async ({ objectKey, contentType, metadata }) => {
 					storedObjects.push({
 						key: objectKey,
@@ -689,6 +693,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async () => {
 					throw new Error("unexpected upload");
 				},
@@ -793,6 +798,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async () => {
 					throw new Error("unexpected upload");
 				},
@@ -891,4 +897,15 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			ingest_status: "reference_only",
 		});
 	});
+}
+
+function fakeArtifactHead(objectKey: string) {
+	return {
+		bucket: "campus-rag-source",
+		objectKey,
+		contentSha256: null,
+		byteSize: null,
+		etag: null,
+		versionId: null,
+	};
 }

@@ -6,9 +6,12 @@ import { expect, it } from "vitest";
 
 import {
 	buildBundleRecord,
+	runBootstrapExport,
 	uploadBootstrapArtifacts,
 	writeBootstrapArtifacts,
 } from "../src/bootstrap-export";
+import type { CollectorRunLedgerRecord } from "../src/collector-run-ledger";
+import type { BootstrapExportManifest } from "../src/types";
 
 export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 	it("writes notices bundle and export manifest under the configured exports directory", () => {
@@ -107,19 +110,26 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 	});
 
 	it("uploads exported bundle and manifest as source-channel artifact refs", async () => {
-		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-bootstrap-export-"));
-		tempDirs.push(tempDir);
-		const bundlePath = path.join(tempDir, "notices-bundle-20260404T012345Z.json");
-		const manifestPath = path.join(tempDir, "export-manifest-20260404T012345Z.json");
-		fs.writeFileSync(bundlePath, '[{"notice_id":355119}]\n', "utf-8");
-		fs.writeFileSync(manifestPath, '{"exported_at":"2026-04-04T01:23:45.000Z"}\n', "utf-8");
-		const uploaded: Array<{ objectKey: string; contentType: string; metadata?: unknown }> = [];
+		const uploaded: Array<{
+			contentType: string;
+			data: string;
+			metadata?: unknown;
+			objectKey: string;
+		}> = [];
+		const bundleRecords = [{ notice_id: 355119 }];
+		const exportManifest = { exported_at: "2026-04-04T01:23:45.000Z" };
 
 		const refs = await uploadBootstrapArtifacts({
 			artifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				async putObject({ objectKey, data, contentType, metadata }) {
-					uploaded.push({ objectKey, contentType, metadata });
+					uploaded.push({
+						contentType,
+						data: Buffer.from(data).toString("utf-8"),
+						metadata,
+						objectKey,
+					});
 					return {
 						bucket: "campus-rag-source",
 						byteSize: data.byteLength,
@@ -130,18 +140,44 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 					};
 				},
 			},
-			bundlePath,
+			bundleRecords,
 			exportedAt: "2026-04-04T01:23:45.000Z",
-			manifestPath,
+			exportManifest,
 			siteId: "muc_internal_portal",
 		});
 
+		const expectedBundleBytes = `${JSON.stringify(bundleRecords, null, 2)}\n`;
+		const expectedManifestBytes = `${JSON.stringify(exportManifest, null, 2)}\n`;
 		expect(refs).toEqual({
+			bundleByteSize: Buffer.byteLength(expectedBundleBytes),
+			bundleContentSha256: "a".repeat(64),
 			bundleObjectKey:
 				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+			bundleRef: {
+				bucket: "campus-rag-source",
+				byteSize: Buffer.byteLength(expectedBundleBytes),
+				contentSha256: "a".repeat(64),
+				etag: '"etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				versionId: null,
+			},
+			manifestByteSize: Buffer.byteLength(expectedManifestBytes),
+			manifestContentSha256: "a".repeat(64),
 			manifestObjectKey:
 				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+			manifestRef: {
+				bucket: "campus-rag-source",
+				byteSize: Buffer.byteLength(expectedManifestBytes),
+				contentSha256: "a".repeat(64),
+				etag: '"etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+				versionId: null,
+			},
+			sourceBucket: "campus-rag-source",
 		});
+		expect(uploaded.map((item) => item.data)).toEqual([expectedBundleBytes, expectedManifestBytes]);
 		expect(uploaded.map((item) => item.contentType)).toEqual([
 			"application/json",
 			"application/json",
@@ -151,4 +187,107 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 			site_id: "muc_internal_portal",
 		});
 	});
+
+	it("records started then failed when verified object handoff upload fails", async () => {
+		const ledgerWrites: CollectorRunLedgerRecord[] = [];
+		const exportManifest = sampleBootstrapManifest();
+
+		await expect(
+			runBootstrapExport({
+				artifactStore: {
+					storageProvider: "object_store",
+					headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+					putObject: async () => {
+						throw new Error("upload boom");
+					},
+				},
+				collectBundle: async () => ({
+					bundleRecords: [],
+					exportManifest,
+					stats: {
+						attachmentObjectsUploaded: 0,
+						detailFetched: 0,
+						noticesCollected: 0,
+						pagesFetched: 0,
+					},
+				}),
+				collectionMode: "incremental",
+				collectorRunLedgerStore: {
+					upsertRun: async (record) => {
+						ledgerWrites.push(record);
+					},
+				},
+				exportedAt: "2026-04-04T01:23:45.000Z",
+				siteId: "muc_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu/home",
+				writeLocalArtifacts: false,
+			}),
+		).rejects.toThrow("upload boom");
+
+		expect(ledgerWrites.map((record) => record.status)).toEqual(["started", "failed"]);
+		expect(ledgerWrites[0]).toMatchObject({
+			bundlePath: null,
+			manifestPath: null,
+			status: "started",
+		});
+		expect(ledgerWrites[1]).toMatchObject({
+			bundlePath: null,
+			failureReason: "upload boom",
+			manifestPath: null,
+			status: "failed",
+		});
+	});
+}
+
+function sampleBootstrapManifest(): BootstrapExportManifest {
+	return {
+		collector: {
+			attachment_collection_mode: "detail_api_and_html_materialized",
+			attachment_storage_mode: "object_store_write",
+			export_contract_version: "authenticated_notice_collector_export_v2",
+			link_collection_mode: "html_reference_only",
+			runtime_shell: "repo_local_node",
+		},
+		export_date: "20260404",
+		export_scope: "bootstrap-20260404T012345Z",
+		exported_at: "2026-04-04T01:23:45.000Z",
+		full_scope_completed: false,
+		full_scope_requested: false,
+		filters: {
+			collection_mode: "incremental",
+			max_notices: null,
+			notice_types: ["5"],
+		},
+		notice_type_policy: [],
+		observed_notice_types: [],
+		observed_organizations: [],
+		page_budget_exhausted: false,
+		run: {
+			detail_fetched: 0,
+			errors: 0,
+			finished_at: "2026-04-04T01:23:45.000Z",
+			items_inserted: 0,
+			items_seen: 0,
+			mode: "incremental",
+			pages_fetched: 0,
+			started_at: "2026-04-04T01:23:45.000Z",
+			status: "success",
+		},
+		schema_version: "authenticated_notice_collector_export_v2",
+		site_id: "muc_internal_portal",
+		source_channel: "authenticated_notice_portal",
+		source_home_url: "https://portal.example.edu/home",
+		source_surface: "notice",
+	};
+}
+
+function fakeArtifactHead(objectKey: string) {
+	return {
+		bucket: "campus-rag-source",
+		objectKey,
+		contentSha256: null,
+		byteSize: null,
+		etag: null,
+		versionId: null,
+	};
 }

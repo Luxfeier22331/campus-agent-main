@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createAuthenticatedNoticeArtifactStoreFromEnv } from "../src/artifact-store";
+import {
+	createAuthenticatedNoticeArtifactStore,
+	createAuthenticatedNoticeArtifactStoreFromEnv,
+} from "../src/artifact-store";
 
 describe("authenticated-notice artifact store env", () => {
 	it("returns undefined when object-store env is absent", () => {
@@ -27,5 +30,67 @@ describe("authenticated-notice artifact store env", () => {
 				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
 			} as never),
 		).not.toThrow();
+	});
+
+	it("verifies a stored object with head metadata after upload", async () => {
+		const sentCommandNames: string[] = [];
+		const store = createAuthenticatedNoticeArtifactStore({
+			bucket: "campus-rag-source",
+			client: {
+				async send(command) {
+					sentCommandNames.push(command.constructor.name);
+					if (command.constructor.name === "PutObjectCommand") {
+						return { ETag: '"etag"' };
+					}
+					return {
+						ContentLength: 5,
+						ETag: '"etag"',
+						Metadata: {
+							"content-sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+						},
+					};
+				},
+			},
+		});
+
+		const ref = await store.putObject({
+			objectKey: "authenticated_notice_portal/runs/run/notices-bundle.json",
+			data: Buffer.from("hello"),
+			contentType: "application/json",
+		});
+
+		expect(sentCommandNames).toEqual(["PutObjectCommand", "HeadObjectCommand"]);
+		expect(ref).toMatchObject({
+			bucket: "campus-rag-source",
+			byteSize: 5,
+			contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+			objectKey: "authenticated_notice_portal/runs/run/notices-bundle.json",
+		});
+	});
+
+	it("fails closed when post-upload head metadata does not match payload size", async () => {
+		const store = createAuthenticatedNoticeArtifactStore({
+			bucket: "campus-rag-source",
+			client: {
+				async send(command) {
+					if (command.constructor.name === "PutObjectCommand") {
+						return { ETag: '"etag"' };
+					}
+					return {
+						ContentLength: 4,
+						ETag: '"etag"',
+						Metadata: {},
+					};
+				},
+			},
+		});
+
+		await expect(
+			store.putObject({
+				objectKey: "authenticated_notice_portal/runs/run/notices-bundle.json",
+				data: Buffer.from("hello"),
+				contentType: "application/json",
+			}),
+		).rejects.toThrow(/size mismatch/i);
 	});
 });

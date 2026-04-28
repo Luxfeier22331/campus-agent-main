@@ -479,6 +479,7 @@ describe("authenticated notice collector file release export", () => {
 		const result = await collectFileReleaseBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({
 						contentType,
@@ -704,15 +705,12 @@ describe("authenticated notice collector file release export", () => {
 	});
 
 	it("uploads file release bundle and manifest as source-channel run artifact refs", async () => {
-		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-file-release-upload-"));
-		tempDirs.push(tempDir);
-		const bundlePath = path.join(tempDir, "file-releases-bundle-20260412T003000Z.json");
-		const manifestPath = path.join(tempDir, "file-releases-manifest-20260412T003000Z.json");
-		fs.writeFileSync(bundlePath, '[{"file_release_id":646}]\n', "utf-8");
-		fs.writeFileSync(manifestPath, '{"exported_at":"2026-04-12T00:30:00.000Z"}\n', "utf-8");
+		const bundleRecords = [{ file_release_id: 646 }];
+		const exportManifest = { exported_at: "2026-04-12T00:30:00.000Z" };
 
 		const storedObjects: Array<{
 			contentType: string;
+			data: string;
 			key: string;
 			metadata: Record<string, string> | undefined;
 		}> = [];
@@ -720,8 +718,14 @@ describe("authenticated notice collector file release export", () => {
 		const uploaded = await uploadFileReleaseArtifacts({
 			artifactStore: {
 				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				putObject: async ({ objectKey, contentType, metadata, data }) => {
-					storedObjects.push({ contentType, key: objectKey, metadata });
+					storedObjects.push({
+						contentType,
+						data: Buffer.from(data).toString("utf-8"),
+						key: objectKey,
+						metadata,
+					});
 					return {
 						bucket: "campus-rag-source",
 						byteSize: data.byteLength,
@@ -732,21 +736,47 @@ describe("authenticated notice collector file release export", () => {
 					};
 				},
 			},
-			bundlePath,
+			bundleRecords,
 			exportedAt: "2026-04-12T00:30:00.000Z",
-			manifestPath,
+			exportManifest,
 			siteId: "muc_internal_portal",
 		});
 
+		const expectedBundleBytes = `${JSON.stringify(bundleRecords, null, 2)}\n`;
+		const expectedManifestBytes = `${JSON.stringify(exportManifest, null, 2)}\n`;
 		expect(uploaded).toEqual({
+			bundleByteSize: Buffer.byteLength(expectedBundleBytes),
+			bundleContentSha256: "sha256",
 			bundleObjectKey:
 				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+			bundleRef: {
+				bucket: "campus-rag-source",
+				byteSize: Buffer.byteLength(expectedBundleBytes),
+				contentSha256: "sha256",
+				etag: '"etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
+				versionId: null,
+			},
+			manifestByteSize: Buffer.byteLength(expectedManifestBytes),
+			manifestContentSha256: "sha256",
 			manifestObjectKey:
 				"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+			manifestRef: {
+				bucket: "campus-rag-source",
+				byteSize: Buffer.byteLength(expectedManifestBytes),
+				contentSha256: "sha256",
+				etag: '"etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
+				versionId: null,
+			},
+			sourceBucket: "campus-rag-source",
 		});
 		expect(storedObjects).toEqual([
 			{
 				contentType: "application/json",
+				data: expectedBundleBytes,
 				key: "authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-bundle.json",
 				metadata: {
 					artifact_kind: "file_release_bundle",
@@ -757,6 +787,7 @@ describe("authenticated notice collector file release export", () => {
 			},
 			{
 				contentType: "application/json",
+				data: expectedManifestBytes,
 				key: "authenticated_notice_portal/runs/muc_internal_portal/20260412T003000Z/file-releases-manifest.json",
 				metadata: {
 					artifact_kind: "file_release_manifest",
@@ -781,3 +812,14 @@ describe("authenticated notice collector file release export", () => {
 		);
 	});
 });
+
+function fakeArtifactHead(objectKey: string) {
+	return {
+		bucket: "campus-rag-source",
+		objectKey,
+		contentSha256: null,
+		byteSize: null,
+		etag: null,
+		versionId: null,
+	};
+}
