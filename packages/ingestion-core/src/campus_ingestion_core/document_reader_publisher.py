@@ -19,6 +19,14 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process_loading import load_default_structured_units
 
 _SCHEMA_VERSION = "document_reader_publish_manifest_v1"
+_DEFAULT_DOCUMENT_READER_SCOPES = frozenset(
+    {
+        ("curriculum", "curriculum_plan"),
+        ("regulations", "institutional_rules"),
+        ("regulations", "scoped_rules"),
+        ("regulations", "student_rules"),
+    }
+)
 
 
 class DocumentReaderPublisherObjectStore(Protocol):
@@ -50,8 +58,13 @@ def publish_document_reader_assets(
     generated_at: str,
     object_store: DocumentReaderPublisherObjectStore,
     records: tuple[DocumentRegistryRecord, ...],
+    allowed_scopes: frozenset[tuple[str, str]] = _DEFAULT_DOCUMENT_READER_SCOPES,
 ) -> DocumentReaderPublishReport:
     selected_records = tuple(sorted(records, key=lambda record: _record_sort_key(record)))
+    _assert_supported_document_reader_scopes(
+        records=selected_records,
+        allowed_scopes=allowed_scopes,
+    )
     entries: list[dict[str, object]] = []
     collections_by_key: dict[tuple[str, str], dict[str, object]] = {}
     documents: list[dict[str, object]] = []
@@ -134,6 +147,25 @@ def publish_document_reader_assets(
             1 for entry in entries if entry.get("deliveryMode") == "public_static_asset"
         ),
     )
+
+
+def _assert_supported_document_reader_scopes(
+    *,
+    records: tuple[DocumentRegistryRecord, ...],
+    allowed_scopes: frozenset[tuple[str, str]],
+) -> None:
+    unsupported_scopes = tuple(
+        sorted(
+            {
+                (record.corpus, record.collection)
+                for record in records
+                if (record.corpus, record.collection) not in allowed_scopes
+            }
+        )
+    )
+    if unsupported_scopes:
+        joined = ", ".join(f"{corpus}/{collection}" for corpus, collection in unsupported_scopes)
+        raise ValueError(f"unsupported document reader scope: {joined}")
 
 
 def _record_sort_key(record: DocumentRegistryRecord) -> tuple[str, str, str, str]:

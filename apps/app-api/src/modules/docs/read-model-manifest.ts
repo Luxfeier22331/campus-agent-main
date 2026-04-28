@@ -1,4 +1,12 @@
 export const DOCS_READ_MODEL_MANIFEST_SCHEMA_VERSION = "document_reader_publish_manifest_v1";
+export const DOCS_READ_MODEL_ALLOWED_SCOPES = [
+	"curriculum/curriculum_plan",
+	"regulations/institutional_rules",
+	"regulations/scoped_rules",
+	"regulations/student_rules",
+] as const;
+
+const docsReadModelAllowedScopeSet = new Set<string>(DOCS_READ_MODEL_ALLOWED_SCOPES);
 
 export interface DocsReadModelCollectionInput {
 	collection: string;
@@ -98,6 +106,7 @@ export function buildDocsReadModelImportPlan(
 			`unsupported docs read model manifest schemaVersion: ${manifest.schemaVersion}`,
 		);
 	}
+	assertAllowedDocsReadModelScopes(manifest);
 
 	const scopes = uniqueSortedScopes(manifest.collections);
 	return {
@@ -111,6 +120,22 @@ export function buildDocsReadModelImportPlan(
 		scopes,
 		searchUnits: [...manifest.searchUnits].sort(compareSearchUnit),
 	};
+}
+
+function assertAllowedDocsReadModelScopes(manifest: DocsReadModelManifestInput): void {
+	const scopes = new Set<string>();
+	for (const collection of manifest.collections) {
+		scopes.add(`${collection.corpus}/${collection.collection}`);
+	}
+	for (const document of manifest.documents) {
+		scopes.add(`${document.corpus}/${document.collection}`);
+	}
+	const unsupportedScopes = [...scopes]
+		.filter((scope) => !docsReadModelAllowedScopeSet.has(scope))
+		.sort();
+	if (unsupportedScopes.length > 0) {
+		throw new Error(`unsupported docs read model scope: ${unsupportedScopes.join(", ")}`);
+	}
 }
 
 export function buildPublicDocsSyncManifestFromReadModel(
