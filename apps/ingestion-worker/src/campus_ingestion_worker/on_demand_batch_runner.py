@@ -584,7 +584,7 @@ def _run_steps(
         step_results.append(result)
         if result["status"] != "succeeded":
             break
-    status = (
+    step_status = (
         "succeeded"
         if len(step_results) == len(steps)
         and all(step["status"] == "succeeded" for step in step_results)
@@ -598,6 +598,12 @@ def _run_steps(
         peak_rss_kb=max_step_peak_rss_kb,
         policy=policy,
     )
+    status = "failed" if rss_budget_status == "hard_exceeded" else step_status
+    failed_step = (
+        "resource_budget"
+        if rss_budget_status == "hard_exceeded" and step_status == "succeeded"
+        else _first_failed_step_name(step_results)
+    )
     return {
         "schema_version": ON_DEMAND_BATCH_REPORT_SCHEMA_VERSION,
         "batch_kind": batch_kind,
@@ -607,7 +613,7 @@ def _run_steps(
         "elapsed_seconds": round(monotonic_seconds() - started, 6),
         "planned_step_count": len(steps),
         "executed_step_count": len(step_results),
-        "failed_step": _first_failed_step_name(step_results),
+        "failed_step": failed_step,
         "policy": asdict(policy),
         "resource_budget": {
             "max_step_peak_rss_kb": max_step_peak_rss_kb,

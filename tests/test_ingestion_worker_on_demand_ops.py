@@ -80,6 +80,10 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
         self.assertIn("authenticated-notice-closeout", closeout_script)
         self.assertIn("wechat-public-notices", wechat_script)
         self.assertIn("wechat-public-notice-multimodal-drain", wechat_script)
+        self.assertIn("INGESTION_ON_DEMAND_WECHAT_WORKFLOW_LOCK_FILE", wechat_script)
+        self.assertIn("wechat-public-notice-workflow.lock", wechat_script)
+        self.assertIn("exec 8>", wechat_script)
+        self.assertIn("flock -n 8", wechat_script)
         self.assertIn("INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN:-1", wechat_script)
         self.assertIn(
             "INGESTION_ON_DEMAND_WECHAT_MULTIMODAL_DRAIN_BATCH_SIZE:-20",

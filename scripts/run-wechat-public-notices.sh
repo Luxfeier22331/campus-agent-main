@@ -2,6 +2,10 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="${CAMPUS_AGENT_REPO_ROOT:-$(cd -- "${script_dir}/.." && pwd)}"
+lock_dir="${INGESTION_ON_DEMAND_LOCK_DIR:-.tmp/ingestion-locks}"
+workflow_lock_mode="${INGESTION_ON_DEMAND_WECHAT_LOCK_MODE:-${INGESTION_ON_DEMAND_LOCK_MODE:-skip}}"
+workflow_lock_file="${INGESTION_ON_DEMAND_WECHAT_WORKFLOW_LOCK_FILE:-${lock_dir}/wechat-public-notice-workflow.lock}"
 selection_path="${INGESTION_ON_DEMAND_WECHAT_SELECTION_PATH:-}"
 article_manifest_key="${INGESTION_ON_DEMAND_WECHAT_ARTICLE_MANIFEST_KEY:-}"
 source_bucket="${INGESTION_ON_DEMAND_WECHAT_SOURCE_BUCKET:-}"
@@ -48,6 +52,18 @@ fi
 if [[ ${#args[@]} -eq 0 ]]; then
   echo "wechat batch requires explicit selection args via env (selection path, manifest key, or capture run)." >&2
   exit 2
+fi
+
+cd "${repo_root}"
+mkdir -p "$(dirname -- "${workflow_lock_file}")"
+exec 8>"${workflow_lock_file}"
+if ! flock -n 8; then
+  if [[ "${workflow_lock_mode}" == "fail" ]]; then
+    echo "lock is held for wechat public notice workflow: ${workflow_lock_file}" >&2
+    exit 1
+  fi
+  echo "skipped wechat public notice workflow: lock is held (${workflow_lock_file})"
+  exit 0
 fi
 
 "${script_dir}/run-ingestion-worker-batch.sh" wechat-public-notices "${args[@]}"

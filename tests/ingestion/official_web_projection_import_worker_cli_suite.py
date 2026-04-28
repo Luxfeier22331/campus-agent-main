@@ -70,5 +70,7 @@ class OfficialWebProjectionImportWorkerCliTest(unittest.TestCase):
         )
         self.assertTrue(import_projection_output.call_args.kwargs["require_promotable"])
         self.assertTrue(import_projection_output.call_args.kwargs["dry_run"])
+        build_document_registry.assert_not_called()
+        build_raw_asset_registry.assert_not_called()
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["success_count"], 1)

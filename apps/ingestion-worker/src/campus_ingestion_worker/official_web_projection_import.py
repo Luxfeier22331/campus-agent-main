@@ -21,6 +21,10 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
     persist_import_documents,
 )
+from campus_ingestion_core.in_memory_registries import (
+    InMemoryDocumentRegistry,
+    InMemoryRawAssetRegistry,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
@@ -402,14 +406,24 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     object_store_settings = _resolve_object_store_settings(source_bucket=args.source_bucket)
     object_store = S3ObjectStoreAdmin(object_store_settings)
+    document_registry = (
+        InMemoryDocumentRegistry()
+        if args.dry_run
+        else build_document_registry_from_env(prefer_operator=True)
+    )
+    raw_asset_registry = (
+        InMemoryRawAssetRegistry()
+        if args.dry_run
+        else build_raw_asset_registry_from_env(prefer_operator=True)
+    )
     report = import_projection_output(
         work_dir=Path(args.work_dir).resolve(),
         projection_output_dir=Path(args.projection_output_dir).resolve(),
         replay_input_dir=Path(args.replay_input_dir).resolve(),
         source_object_store=object_store,
         derived_object_store=object_store,
-        document_registry=build_document_registry_from_env(),
-        raw_asset_registry=build_raw_asset_registry_from_env(),
+        document_registry=document_registry,
+        raw_asset_registry=raw_asset_registry,
         object_store_settings=object_store_settings,
         scope_refresh=(args.corpus, args.collection),
         require_promotable=args.require_promotable,

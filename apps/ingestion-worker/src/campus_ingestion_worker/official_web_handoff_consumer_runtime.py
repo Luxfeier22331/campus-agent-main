@@ -73,8 +73,12 @@ def consume_official_web_handoffs(
     runtime_derived_object_store = derived_object_store or resolve_derived_object_store(
         runtime_object_store
     )
-    runtime_document_registry = document_registry or build_document_registry_from_env()
-    runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env()
+    runtime_document_registry = document_registry or build_document_registry_from_env(
+        prefer_operator=True
+    )
+    runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(
+        prefer_operator=True
+    )
     runtime_status_reporter = status_reporter or build_status_reporter_from_env()
     record_paths = resolve_record_paths(
         inbox_dir=runtime_settings.inbox_dir,
@@ -298,8 +302,10 @@ def consume_handoff_record(
             bundle_payload=bundle_payload,
             source_object_store=object_store,
             derived_object_store=derived_object_store or resolve_derived_object_store(object_store),
-            document_registry=document_registry or build_document_registry_from_env(),
-            raw_asset_registry=raw_asset_registry or build_raw_asset_registry_from_env(),
+            document_registry=document_registry
+            or build_document_registry_from_env(prefer_operator=True),
+            raw_asset_registry=raw_asset_registry
+            or build_raw_asset_registry_from_env(prefer_operator=True),
             object_store_settings=resolve_persist_object_store_settings(
                 source_bucket=settings.source_bucket,
                 require_env=(

@@ -190,17 +190,16 @@ def healthz(settings: OfficialWebHandoffReceiverSettings) -> HttpResponse:
 
 
 def readyz(settings: OfficialWebHandoffReceiverSettings) -> HttpResponse:
+    token_configured = bool(settings.bearer_token)
+    inbox_configured = bool(str(settings.inbox_dir).strip())
+    ready = token_configured and inbox_configured
     return HttpResponse(
-        status_code=200,
+        status_code=200 if ready else 503,
         json_body={
-            "status": "ready",
+            "status": "ready" if ready else "not_ready",
             "dependencies": {
-                "officialWebHandoffToken": "configured"
-                if settings.bearer_token
-                else "not_configured",
-                "officialWebInbox": "configured"
-                if str(settings.inbox_dir).strip()
-                else "not_configured",
+                "officialWebHandoffToken": "configured" if token_configured else "not_configured",
+                "officialWebInbox": "configured" if inbox_configured else "not_configured",
             },
             "inboxDir": str(settings.inbox_dir),
         },
@@ -382,16 +381,6 @@ def persist_handoff_record(
     inbox_dir.mkdir(parents=True, exist_ok=True)
     event_id = _require_non_empty_text(payload.get("eventId"), "eventId")
     record_path = inbox_dir / f"{_safe_event_id(event_id)}.json"
-    if record_path.exists():
-        existing = json.loads(record_path.read_text(encoding="utf-8"))
-        existing_payload = existing.get("payload")
-        if existing_payload != payload:
-            raise FileExistsError(
-                f"handoff event {event_id} already exists with different payload."
-            )
-        dispatch_ref = _require_non_empty_text(existing.get("dispatchRef"), "dispatchRef")
-        received_at = _require_non_empty_text(existing.get("receivedAt"), "receivedAt")
-        return dispatch_ref, received_at
 
     dispatch_ref = f"owdispatch_{uuid4().hex}"
     received_at = datetime.now(UTC).isoformat()
@@ -410,11 +399,20 @@ def persist_handoff_record(
         "replayInputDir": None,
         "payload": payload,
     }
-    record_path.write_text(
-        json.dumps(record, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    return dispatch_ref, received_at
+    try:
+        with record_path.open("x", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, indent=2))
+        return dispatch_ref, received_at
+    except FileExistsError:
+        existing = json.loads(record_path.read_text(encoding="utf-8"))
+        existing_payload = existing.get("payload")
+        if existing_payload != payload:
+            raise FileExistsError(
+                f"handoff event {event_id} already exists with different payload."
+            ) from None
+        existing_dispatch_ref = _require_non_empty_text(existing.get("dispatchRef"), "dispatchRef")
+        existing_received_at = _require_non_empty_text(existing.get("receivedAt"), "receivedAt")
+        return existing_dispatch_ref, existing_received_at
 
 
 def _safe_event_id(event_id: str) -> str:

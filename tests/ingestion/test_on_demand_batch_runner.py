@@ -283,6 +283,25 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         self.assertEqual(report["resource_budget"]["max_step_peak_rss_kb"], 120)
         self.assertEqual(report["resource_budget"]["status"], "warn_exceeded")
 
+    def test_run_steps_fails_when_hard_rss_budget_is_exceeded(self) -> None:
+        policy = runner.OnDemandBatchPolicy(
+            peak_rss_warn_kb=100,
+            peak_rss_hard_kb=200,
+        )
+        with patch(
+            "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
+            return_value={"name": "step-1", "status": "succeeded", "peak_rss_kb": 240},
+        ):
+            report = runner._run_steps(
+                batch_kind="internal_notice_multimodal_drain",
+                policy=policy,
+                steps=(runner.IngestionBatchStep(name="step-1", module="probe"),),
+            )
+
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["failed_step"], "resource_budget")
+        self.assertEqual(report["resource_budget"]["status"], "hard_exceeded")
+
     def test_cli_prints_report_and_exits_nonzero_on_failure(self) -> None:
         with (
             patch("campus_ingestion_worker.on_demand_batch_runner.load_worker_env"),

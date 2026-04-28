@@ -232,6 +232,27 @@ class OfficialWebHandoffReceiverTest(unittest.TestCase):
         )
         self.assertEqual(response.json_body["dependencies"]["officialWebInbox"], "configured")
 
+    def test_readyz_is_not_ready_when_token_is_missing(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            app = create_app(
+                settings=OfficialWebHandoffReceiverSettings(
+                    bearer_token="",
+                    inbox_dir=Path(temp_dir) / "inbox",
+                )
+            )
+
+            response = dispatch_http_request(
+                app,
+                method="GET",
+                path="/readyz",
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json_body["status"], "not_ready")
+        self.assertEqual(
+            response.json_body["dependencies"]["officialWebHandoffToken"], "not_configured"
+        )
+
     def test_server_settings_read_host_and_port_from_env(self) -> None:
         env = os.environ | {
             "INGESTION_WORKER_HTTP_HOST": "0.0.0.0",
