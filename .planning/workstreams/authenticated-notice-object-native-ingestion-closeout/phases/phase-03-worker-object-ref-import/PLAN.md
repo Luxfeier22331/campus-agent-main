@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: planned
+status: active
 created: 2026-04-28
 updated: 2026-04-28
 ---

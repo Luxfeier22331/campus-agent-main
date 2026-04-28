@@ -12,10 +12,10 @@ updated: 2026-04-28
 ## Current Position
 
 - status: `active`
-- current phase: `Phase 2`
-- current slice: collector object-native handoff
+- current phase: `Phase 3`
+- current slice: worker object-ref import
 - last activity: 2026-04-28
-- last activity description: Phase 1 contract/docs implemented; ready for collector handoff code
+- last activity description: Phase 2 collector object-native handoff implemented; ready for worker object-ref import
 
 ## Why This Workstream Exists
 
@@ -44,7 +44,7 @@ updated: 2026-04-28
 - [x] Add live repair audit-only / selected manifest / rollback protocol.
 - [x] Confirm docs/code write set for Phase 2.
 
-## Current Phase Tasks
+## Completed Phase 2 Tasks
 
 - [x] Extend collector artifact store with object head/verify support.
 - [x] Upload bundle and manifest payloads directly to the source bucket.
@@ -53,6 +53,15 @@ updated: 2026-04-28
 - [x] Persist verification summary and failure reason.
 - [x] Fail collector success handoff when required objects are missing or mismatched.
 - [x] Keep local export files as optional operator artifacts only.
+
+## Current Phase Tasks
+
+- [ ] Add worker import request support for `--run-id`.
+- [ ] Add explicit bundle/manifest object-ref import for notice export.
+- [ ] Add explicit bundle/manifest object-ref import for file_release export.
+- [ ] Add Python run-ledger reader for verified object-backed collector runs.
+- [ ] Guard local `--bundle-path` / `--manifest-path` as fixture/dev-only.
+- [ ] Add object-ref import tests and local-path fail-close tests.
 
 ## Known Non-Overlap
 
