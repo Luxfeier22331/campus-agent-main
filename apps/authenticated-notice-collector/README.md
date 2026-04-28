@@ -120,8 +120,9 @@ Attachment note:
   current default allowlist is `mmbiz.qpic.cn`, and those downloads use direct
   unauthenticated fetches instead of the portal API context or campus cookies
 - if object-store credentials are absent, collector stays fail-closed on
-  attachment materialization and exports `reference_only` attachment rows
-  instead of pretending bytes were captured
+  source-bucket handoff for `bootstrap:export` / `file-release:export`; fixture
+  collection helpers may still produce `reference_only` rows, but a successful
+  collector run must have verified bundle and manifest object refs
 - collector only owns attachment byte capture and source object upload; OCR,
   attachment routing, regulation promotion, and chunk/index work remain
   downstream ingestion responsibilities
@@ -163,9 +164,9 @@ Notice export note:
   `notice_link` or notice identity
 - when `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL` is configured
   and `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DISABLE` is not true, each
-  successful export upserts a source-channel run ledger row with collection mode,
-  selected notices, attachment outcome counts, local artifact paths, and source
-  object artifact refs
+  export writes `started` then `success` / `failed` source-channel run ledger
+  state with collection mode, selected notices, attachment outcome counts,
+  verified source-bucket artifact refs, hash/size summary, and failure reason
 - when `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` is configured and
   `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE` is not true, `bootstrap:export`
   acquires a `notice` run lease before writing artifacts; a live holder causes
@@ -173,6 +174,8 @@ Notice export note:
 - when source-bucket object-store credentials are configured, `bootstrap:export`
   uploads the exported bundle and manifest under
   `authenticated_notice_portal/runs/<site_id>/<timestamp>/`
+- local JSON exports are operator artifacts only; they are disabled by default
+  and can be retained with `AUTHENTICATED_NOTICE_WRITE_LOCAL_EXPORTS=true`
 - bootstrap manifest therefore includes:
   - `observed_notice_types`
   - `observed_organizations`
@@ -207,11 +210,14 @@ File release note:
   `file-release:export` uploads bundle / manifest under
   `authenticated_notice_portal/runs/<site_id>/<timestamp>/`
 - when `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL` is configured,
-  `file-release:export` writes a `source_surface=file_release` run ledger row
+  `file-release:export` writes `started` then terminal
+  `source_surface=file_release` run ledger state
 - when `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` is configured,
   `file-release:export` acquires a separate `file_release` run lease
 - released source files are stored under ADR-aligned keys:
   - `authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/capture/{filename}`
+- `file-release:export` fails closed when object-store mode cannot verify the
+  released source file bytes for collected internal portal files
 
 Production env notes:
 
