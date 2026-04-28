@@ -112,6 +112,68 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
             any(key.endswith("/source-truth/file-release-manifest.json") for key in uploaded_keys)
         )
 
+    def test_import_plan_auto_detects_full_scope_replace_from_manifest(self) -> None:
+        bundle = (
+            _bundle_record(
+                file_release_id=646,
+                filename="中央民族大学差旅费管理办法.pdf",
+            ),
+        )
+        manifest = _export_manifest()
+        manifest["filters"]["target_file_release_id"] = None
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "file-releases-bundle.json"
+            manifest_path = root / "file-releases-manifest.json"
+            _write_json(bundle_path, list(bundle))
+            _write_json(manifest_path, manifest)
+
+            report = import_authenticated_notice_file_release_export(
+                request=AuthenticatedNoticeFileReleaseImportRequest(
+                    bundle_path=bundle_path,
+                    manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/",
+                    mode="plan",
+                )
+            )
+
+        self.assertTrue(report["replace_scope"])
+        self.assertEqual(report["scope_write_mode"], "replace_scope")
+        self.assertEqual(report["selected_file_release_ids"], [])
+
+    def test_import_plan_reports_selected_file_release_ids_for_targeted_manifest(self) -> None:
+        bundle = (
+            _bundle_record(
+                file_release_id=646,
+                filename="中央民族大学差旅费管理办法.pdf",
+            ),
+        )
+        manifest = _export_manifest()
+        manifest["filters"]["target_file_release_id"] = 646
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "file-releases-bundle.json"
+            manifest_path = root / "file-releases-manifest.json"
+            _write_json(bundle_path, list(bundle))
+            _write_json(manifest_path, manifest)
+
+            report = import_authenticated_notice_file_release_export(
+                request=AuthenticatedNoticeFileReleaseImportRequest(
+                    bundle_path=bundle_path,
+                    manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/",
+                    mode="plan",
+                )
+            )
+
+        self.assertFalse(report["replace_scope"])
+        self.assertEqual(report["scope_write_mode"], "upsert_selected")
+        self.assertEqual(report["selected_file_release_ids"], [646])
+
     def test_import_uses_runtime_profile_cleaning_policy_for_holding_scope(self) -> None:
         bundle = (
             _bundle_record(

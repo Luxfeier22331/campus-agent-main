@@ -129,6 +129,13 @@ def import_authenticated_notice_file_release_export(
         bundle_path=request.bundle_path,
         manifest_path=request.manifest_path,
     )
+    replace_scope = request.replace_scope or _manifest_declares_full_scope_replace(
+        export.export_manifest
+    )
+    selected_file_release_ids = _selected_file_release_ids_for_import(
+        replace_scope=replace_scope,
+        bundle_records=export.bundle_records,
+    )
     prepared = tuple(
         _prepare_file_release_import(
             request=request,
@@ -147,7 +154,9 @@ def import_authenticated_notice_file_release_export(
             "skipped_document_ids": [],
             "raw_uploaded_count": 0,
             "raw_reused_count": 0,
-            "scope_write_mode": "replace_scope" if request.replace_scope else "upsert_selected",
+            "scope_write_mode": "replace_scope" if replace_scope else "upsert_selected",
+            "replace_scope": replace_scope,
+            "selected_file_release_ids": list(selected_file_release_ids),
             "write_plan": {
                 "raw_asset_registry_rows": len(prepared),
                 "document_registry_parent_rows": len(prepared),
@@ -207,11 +216,11 @@ def import_authenticated_notice_file_release_export(
         embedding_model=request.embedding_model,
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
         default_visibility_scope=request.visibility_scope,
-        scope_refresh=((request.corpus, request.collection) if request.replace_scope else None),
+        scope_refresh=((request.corpus, request.collection) if replace_scope else None),
     )
 
     entries = tuple(item.inventory_entry for item in prepared)
-    if request.replace_scope:
+    if replace_scope:
         runtime_inventory_store.replace_scope(request.corpus, request.collection, entries)
     else:
         runtime_inventory_store.upsert_many(entries)
@@ -225,7 +234,9 @@ def import_authenticated_notice_file_release_export(
         "skipped_document_ids": list(stats.skipped_document_ids),
         "raw_uploaded_count": raw_uploaded_count,
         "raw_reused_count": raw_reused_count,
-        "scope_write_mode": "replace_scope" if request.replace_scope else "upsert_selected",
+        "scope_write_mode": "replace_scope" if replace_scope else "upsert_selected",
+        "replace_scope": replace_scope,
+        "selected_file_release_ids": list(selected_file_release_ids),
         "file_release_inventory_rows": len(entries),
         "errors": list(stats.errors),
     }
@@ -767,6 +778,30 @@ def _jsonl_bytes(rows: tuple[dict[str, Any], ...]) -> bytes:
         if rows
         else ""
     ).encode("utf-8")
+
+
+def _manifest_declares_full_scope_replace(export_manifest: dict[str, Any] | None) -> bool:
+    if not isinstance(export_manifest, dict):
+        return False
+    filters = export_manifest.get("filters")
+    if not isinstance(filters, dict):
+        return False
+    return filters.get("target_file_release_id") is None
+
+
+def _selected_file_release_ids_for_import(
+    *,
+    replace_scope: bool,
+    bundle_records: tuple[dict[str, Any], ...],
+) -> tuple[int, ...]:
+    if replace_scope:
+        return ()
+    return tuple(
+        dict.fromkeys(
+            _required_int(record.get("file_release_id"), "file_release_id")
+            for record in bundle_records
+        )
+    )
 
 
 def _optional_text(value: object) -> str | None:
