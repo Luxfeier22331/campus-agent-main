@@ -1,0 +1,7 @@
+{
+  "schema_version": "service_status_rejected_source_report.v1",
+  "release_id": "service-status-phase8-current-preview-20260428",
+  "generated_at": "2026-04-28T12:20:00+08:00",
+  "rejected_source_count": 0,
+  "rejected_sources": []
+}

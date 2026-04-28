@@ -3,7 +3,7 @@
   "valid": true,
   "issues": [],
   "counts": {
-    "service_status_records": 0,
-    "rejected_sources": 1
+    "service_status_records": 1,
+    "rejected_sources": 0
   }
 }

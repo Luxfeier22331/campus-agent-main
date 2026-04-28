@@ -27,17 +27,43 @@ _YEARLESS_EFFECTIVE_DATE_RE = re.compile(
     r"(?<!\d)(\d{1,2})月(\d{1,2})日[）)]?(?:起|开始|执行|生效)"
 )
 _YEARLESS_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
+_MONTH_COLON_DAY_RE = re.compile(r"(?<!\d)(\d{1,2})月[:：]\s*(\d{1,2})日?")
+_RANGE_SEPARATOR_RE = r"(?:至|到|-+|—+|－+)"
 _FULL_DATETIME_RANGE_RE = re.compile(
     r"(20\d{2})年(\d{1,2})月(\d{1,2})日\s*([0-2]?\d)[:：]([0-5]\d)"
-    r"\s*(?:至|到|-|—|－)\s*"
+    rf"\s*{_RANGE_SEPARATOR_RE}\s*"
     r"(20\d{2})年(\d{1,2})月(\d{1,2})日\s*([0-2]?\d)[:：]([0-5]\d)"
 )
+_FULL_TO_YEARLESS_DATETIME_RANGE_RE = re.compile(
+    r"(20\d{2})年(\d{1,2})月(\d{1,2})日\s*([0-2]?\d)[:：]([0-5]\d)"
+    rf"\s*{_RANGE_SEPARATOR_RE}\s*"
+    r"(\d{1,2})月(\d{1,2})日\s*([0-2]?\d)[:：]([0-5]\d)"
+)
 _YEARLESS_DATE_RANGE_WITH_TIME_RE = re.compile(
-    r"(?<!\d)(\d{1,2})月(\d{1,2})日\s*(?:至|到|-|—|－)\s*"
-    r"(\d{1,2})月(\d{1,2})日.*?([0-2]?\d)[:：]([0-5]\d)\s*(?:-|—|－|至|到)\s*"
+    rf"(?<!\d)(\d{{1,2}})月(\d{{1,2}})日\s*{_RANGE_SEPARATOR_RE}\s*"
+    r"(\d{1,2})月(\d{1,2})日.*?([0-2]?\d)[:：]([0-5]\d)\s*"
+    rf"{_RANGE_SEPARATOR_RE}\s*"
     r"([0-2]?\d)[:：]([0-5]\d)"
 )
-_RESTORE_YEARLESS_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日[）)]?(?:起|开始)?恢复")
+_FULL_TO_YEARLESS_DATE_RANGE_RE = re.compile(
+    rf"(20\d{{2}})年(\d{{1,2}})月(\d{{1,2}})日\s*{_RANGE_SEPARATOR_RE}\s*"
+    r"(\d{1,2})月(\d{1,2})日"
+)
+_YEARLESS_SAME_MONTH_DAY_RANGE_RE = re.compile(
+    rf"(?<!\d)(\d{{1,2}})月(\d{{1,2}})日(?:[（(][^）)]*[）)])?\s*{_RANGE_SEPARATOR_RE}\s*"
+    r"(\d{1,2})日"
+)
+_YEARLESS_DATE_RANGE_RE = re.compile(
+    rf"(?<!\d)(\d{{1,2}})月(\d{{1,2}})日(?:[（(][^）)]*[）)])?\s*{_RANGE_SEPARATOR_RE}\s*"
+    r"(\d{1,2})月(\d{1,2})日"
+)
+_RESTORE_YEARLESS_DATE_RE = re.compile(
+    r"(?<!\d)(\d{1,2})月(\d{1,2})日[）)]?(?:起|开始)?[^，。；;]{0,8}?恢复"
+)
+_TIME_RANGE_RE = re.compile(
+    rf"([0-2]?\d)[:：]([0-5]\d)\s*{_RANGE_SEPARATOR_RE}\s*([0-2]?\d)[:：]([0-5]\d)"
+)
+_MARKDOWN_HEADING_RE = re.compile(r"^#{1,6}\s*")
 _SPACE_RE = re.compile(r"\s+")
 _SEGMENT_SPLIT_RE = re.compile(r"[\n。；;]")
 _BOARDING_POINT_KEYWORDS = ("乘车点", "上车点", "下车点")
@@ -173,10 +199,14 @@ def _it_platform_service_status_candidate(
 ) -> _ServiceStatusCandidate | None:
     normalized = _clean_text(text)
     if not any(
-        keyword in normalized for keyword in ("信息门户", "校园网", "一卡通", "VPN", "服务门户")
+        keyword in normalized
+        for keyword in ("信息门户", "校园网", "有线网", "一卡通", "网费", "电费", "VPN", "服务门户")
     ):
         return None
-    if not any(keyword in normalized for keyword in ("维护", "暂停访问", "暂停使用", "升级")):
+    if not any(
+        keyword in normalized
+        for keyword in ("维护", "暂停访问", "暂停使用", "升级", "停用", "关闭", "停止使用")
+    ):
         return None
     window = _resolve_datetime_window(normalized, release_dt)
     if window is None:
@@ -205,18 +235,17 @@ def _library_service_status_candidate(
 ) -> _ServiceStatusCandidate | None:
     normalized = _clean_text(text)
     if "图书馆" not in normalized or not any(
-        keyword in normalized for keyword in ("开放时间", "闭馆", "关闭", "调整")
+        keyword in normalized
+        for keyword in ("开放时间", "闭馆", "关闭", "调整", "工作安排", "放假")
     ):
         return None
     window = _resolve_datetime_window(normalized, release_dt)
     if window is None:
         return None
     effective_from, effective_until = window
-    observed_status = (
-        "temporarily_closed"
-        if any(keyword in normalized for keyword in ("闭馆", "关闭", "暂停开放"))
-        else "limited_service"
-    )
+    has_closure = any(keyword in normalized for keyword in ("闭馆", "关闭", "暂停开放"))
+    has_open = any(keyword in normalized for keyword in ("开放", "开馆", "正常使用", "正常开放"))
+    observed_status = "temporarily_closed" if has_closure and not has_open else "limited_service"
     return _ServiceStatusCandidate(
         **_library_subject(normalized, projection_entry),
         service_family="library",
@@ -238,28 +267,47 @@ def _service_counter_status_candidate(
     source_ref: str,
     release_dt: datetime,
 ) -> _ServiceStatusCandidate | None:
-    normalized = _clean_text(text)
-    if not any(keyword in normalized for keyword in ("综合服务大厅", "一站式服务中心", "校医院")):
+    relevant = _service_counter_relevant_text(text)
+    if not any(keyword in relevant for keyword in ("综合服务大厅", "一站式服务中心", "校医院")):
         return None
     if not any(
-        keyword in normalized for keyword in ("暂停办理", "暂停服务", "恢复办理", "开放时间")
+        keyword in relevant
+        for keyword in (
+            "暂停办理",
+            "暂停服务",
+            "恢复办理",
+            "开放时间",
+            "调整开放时间",
+            "服务日期",
+            "服务时间",
+            "门诊时间",
+            "开诊时间",
+            "值班安排",
+            "增开",
+        )
     ):
         return None
-    window = _resolve_datetime_window(normalized, release_dt)
+    window = _resolve_service_counter_window(relevant, release_dt)
     if window is None:
         return None
     effective_from, effective_until = window
+    observed_status = (
+        "temporarily_closed"
+        if any(keyword in relevant for keyword in ("暂停办理", "暂停服务", "停诊"))
+        and not any(keyword in relevant for keyword in ("增开", "开诊时间", "门诊时间", "服务时间"))
+        else "limited_service"
+    )
     return _ServiceStatusCandidate(
-        **_service_counter_subject(normalized, projection_entry),
+        **_service_counter_subject(relevant, projection_entry),
         service_family="service_counter",
-        observed_status="temporarily_closed",
+        observed_status=observed_status,
         effective_from=effective_from.isoformat(),
         effective_until=effective_until.isoformat(),
         affected_scope="线下办理",
-        severity="high",
+        severity="high" if observed_status == "temporarily_closed" else "medium",
         override_source_refs=(source_ref,),
         related_notice_refs=(source_ref,),
-        status_note=_status_note(text),
+        status_note=_status_note(relevant),
     )
 
 
@@ -406,6 +454,13 @@ def _it_platform_subject(
             "subject_id": "it-platform:campus-network",
             "display_name": "校园网",
             "aliases": ("校园网", "网络服务", title),
+            "campus_scope": "",
+        }
+    if "有线网" in text:
+        return {
+            "subject_id": "it-platform:campus-network",
+            "display_name": "有线网",
+            "aliases": ("有线网", "校园网", "网络服务", title),
             "campus_scope": "",
         }
     if "VPN" in text:
@@ -571,6 +626,13 @@ def _resolve_effective_date(text: str, release_dt: datetime) -> date:
             int(first_match.group(2)),
             release_dt,
         )
+    month_colon_match = _MONTH_COLON_DAY_RE.search(text)
+    if month_colon_match is not None:
+        return _yearless_date(
+            int(month_colon_match.group(1)),
+            int(month_colon_match.group(2)),
+            release_dt,
+        )
     return release_dt.date()
 
 
@@ -601,6 +663,29 @@ def _resolve_datetime_window(text: str, release_dt: datetime) -> tuple[datetime,
             tzinfo=_SHANGHAI_TZ,
         )
         return (start, end) if end > start else None
+    full_to_yearless = _FULL_TO_YEARLESS_DATETIME_RANGE_RE.search(text)
+    if full_to_yearless is not None:
+        start = datetime(
+            int(full_to_yearless.group(1)),
+            int(full_to_yearless.group(2)),
+            int(full_to_yearless.group(3)),
+            int(full_to_yearless.group(4)),
+            int(full_to_yearless.group(5)),
+            tzinfo=_SHANGHAI_TZ,
+        )
+        end_date = date(
+            start.year,
+            int(full_to_yearless.group(6)),
+            int(full_to_yearless.group(7)),
+        )
+        if end_date < start.date():
+            end_date = date(start.year + 1, end_date.month, end_date.day)
+        end = datetime.combine(
+            end_date,
+            time(int(full_to_yearless.group(8)), int(full_to_yearless.group(9))),
+            _SHANGHAI_TZ,
+        )
+        return (start, end) if end > start else None
     yearless = _YEARLESS_DATE_RANGE_WITH_TIME_RE.search(text)
     if yearless is not None:
         start_date = _yearless_date(int(yearless.group(1)), int(yearless.group(2)), release_dt)
@@ -616,6 +701,47 @@ def _resolve_datetime_window(text: str, release_dt: datetime) -> tuple[datetime,
             _SHANGHAI_TZ,
         )
         return (start, end) if end > start else None
+    full_to_yearless_date = _FULL_TO_YEARLESS_DATE_RANGE_RE.search(text)
+    if full_to_yearless_date is not None:
+        start_date = date(
+            int(full_to_yearless_date.group(1)),
+            int(full_to_yearless_date.group(2)),
+            int(full_to_yearless_date.group(3)),
+        )
+        end_date = date(
+            start_date.year,
+            int(full_to_yearless_date.group(4)),
+            int(full_to_yearless_date.group(5)),
+        )
+        if end_date < start_date:
+            end_date = date(start_date.year + 1, end_date.month, end_date.day)
+        return _start_of_day(start_date), _start_of_day(end_date + timedelta(days=1))
+    same_month_day_range = _YEARLESS_SAME_MONTH_DAY_RANGE_RE.search(text)
+    if same_month_day_range is not None:
+        start_date = _yearless_date(
+            int(same_month_day_range.group(1)),
+            int(same_month_day_range.group(2)),
+            release_dt,
+        )
+        end_date = _yearless_date(
+            int(same_month_day_range.group(1)),
+            int(same_month_day_range.group(3)),
+            release_dt,
+        )
+        return _start_of_day(start_date), _start_of_day(end_date + timedelta(days=1))
+    yearless_date_range = _YEARLESS_DATE_RANGE_RE.search(text)
+    if yearless_date_range is not None:
+        start_date = _yearless_date(
+            int(yearless_date_range.group(1)),
+            int(yearless_date_range.group(2)),
+            release_dt,
+        )
+        end_date = _yearless_date(
+            int(yearless_date_range.group(3)),
+            int(yearless_date_range.group(4)),
+            release_dt,
+        )
+        return _start_of_day(start_date), _start_of_day(end_date + timedelta(days=1))
     restore = _resolve_restore_date(text, release_dt)
     if restore is not None:
         start_date = _resolve_effective_date_before_restore(text, release_dt)
@@ -626,6 +752,84 @@ def _resolve_datetime_window(text: str, release_dt: datetime) -> tuple[datetime,
         start = _start_of_day(_resolve_effective_date(text, release_dt))
         return start, start + timedelta(days=1)
     return None
+
+
+def _resolve_service_counter_window(
+    text: str, release_dt: datetime
+) -> tuple[datetime, datetime] | None:
+    restore = _resolve_restore_date(text, release_dt)
+    if restore is not None:
+        start_date = _resolve_effective_date_before_restore(text, release_dt)
+        start_time, _ = _first_time_range(text) or (time.min, time.min)
+        return datetime.combine(start_date, start_time, _SHANGHAI_TZ), _start_of_day(restore)
+    if any(keyword in text for keyword in ("寒假", "暑假", "值班安排")):
+        date_only_window = _resolve_date_only_window(text, release_dt)
+        if date_only_window is not None:
+            return date_only_window
+    explicit_window = _resolve_datetime_window(text, release_dt)
+    if explicit_window is not None:
+        return explicit_window
+    if any(keyword in text for keyword in ("增开", "正式开诊", "开诊时间")):
+        start = _start_of_day(_resolve_effective_date(text, release_dt))
+        if start.date() != release_dt.date() or any(
+            keyword in text for keyword in ("自", "起", "开诊时间")
+        ):
+            return start, datetime(2099, 12, 31, 23, 59, 59, tzinfo=_SHANGHAI_TZ)
+    return None
+
+
+def _first_time_range(text: str) -> tuple[time, time] | None:
+    match = _TIME_RANGE_RE.search(text)
+    if match is None:
+        return None
+    start = time(int(match.group(1)), int(match.group(2)))
+    end = time(int(match.group(3)), int(match.group(4)))
+    return start, end
+
+
+def _resolve_date_only_window(text: str, release_dt: datetime) -> tuple[datetime, datetime] | None:
+    full_to_yearless_date = _FULL_TO_YEARLESS_DATE_RANGE_RE.search(text)
+    if full_to_yearless_date is not None:
+        start_date = date(
+            int(full_to_yearless_date.group(1)),
+            int(full_to_yearless_date.group(2)),
+            int(full_to_yearless_date.group(3)),
+        )
+        end_date = date(
+            start_date.year,
+            int(full_to_yearless_date.group(4)),
+            int(full_to_yearless_date.group(5)),
+        )
+        if end_date < start_date:
+            end_date = date(start_date.year + 1, end_date.month, end_date.day)
+        return _start_of_day(start_date), _start_of_day(end_date + timedelta(days=1))
+    same_month_day_range = _YEARLESS_SAME_MONTH_DAY_RANGE_RE.search(text)
+    if same_month_day_range is not None:
+        start_date = _yearless_date(
+            int(same_month_day_range.group(1)),
+            int(same_month_day_range.group(2)),
+            release_dt,
+        )
+        end_date = _yearless_date(
+            int(same_month_day_range.group(1)),
+            int(same_month_day_range.group(3)),
+            release_dt,
+        )
+        return _start_of_day(start_date), _start_of_day(end_date + timedelta(days=1))
+    yearless_date_range = _YEARLESS_DATE_RANGE_RE.search(text)
+    if yearless_date_range is None:
+        return None
+    start_date = _yearless_date(
+        int(yearless_date_range.group(1)),
+        int(yearless_date_range.group(2)),
+        release_dt,
+    )
+    end_date = _yearless_date(
+        int(yearless_date_range.group(3)),
+        int(yearless_date_range.group(4)),
+        release_dt,
+    )
+    return _start_of_day(start_date), _start_of_day(end_date + timedelta(days=1))
 
 
 def _yearless_date(month: int, day: int, release_dt: datetime) -> date:
@@ -641,6 +845,13 @@ def _resolve_effective_date_before_restore(text: str, release_dt: datetime) -> d
     first_match = _YEARLESS_DATE_RE.search(prefix)
     if first_match is not None:
         return _yearless_date(int(first_match.group(1)), int(first_match.group(2)), release_dt)
+    month_colon_match = _MONTH_COLON_DAY_RE.search(prefix)
+    if month_colon_match is not None:
+        return _yearless_date(
+            int(month_colon_match.group(1)),
+            int(month_colon_match.group(2)),
+            release_dt,
+        )
     return _resolve_effective_date(text, release_dt)
 
 
@@ -679,14 +890,22 @@ def _effective_at(candidate: _ServiceStatusCandidate, generated_dt: datetime) ->
 
 def _status_note(text: str) -> str:
     for segment in _SEGMENT_SPLIT_RE.split(text):
-        cleaned = _clean_text(segment)
+        cleaned = _clean_status_note_segment(segment)
         if not cleaned:
             continue
-        if cleaned.startswith("#"):
+        if _is_status_note_title_segment(cleaned):
             continue
         if _looks_like_status_segment(cleaned):
             return cleaned
-    return text[:240]
+    return _clean_status_note_segment(text[:240])
+
+
+def _clean_status_note_segment(value: object) -> str:
+    return _MARKDOWN_HEADING_RE.sub("", _clean_text(value)).strip()
+
+
+def _is_status_note_title_segment(text: str) -> bool:
+    return text.startswith("关于") and text.endswith(("通知", "公告", "安排"))
 
 
 def _looks_like_status_segment(text: str) -> bool:
@@ -702,14 +921,58 @@ def _looks_like_status_segment(text: str) -> bool:
                 "暂停服务",
                 "暂停开放",
                 "升级维护",
+                "关闭",
+                "闭馆",
+                "开馆",
+                "停止使用",
+                "正常开放",
+                "正常使用",
                 "开放时间",
                 "临时关闭",
                 "试运行",
                 "恢复办理",
                 "恢复开放",
+                "放假期间",
+                "服务日期",
+                "服务时间",
+                "门诊时间",
+                "开诊时间",
+                "值班安排",
+                "增开",
             )
         )
     )
+
+
+def _service_counter_relevant_text(text: str) -> str:
+    text = _clean_text(_text_without_leading_markdown_title(text))
+    service_hall_starts = [
+        text.rfind(marker)
+        for marker in ("综合服务大厅", "一站式服务中心")
+        if text.rfind(marker) >= 0
+    ]
+    if service_hall_starts:
+        start = max(service_hall_starts)
+    else:
+        hospital_start = text.find("校医院")
+        if hospital_start < 0:
+            return text
+        start = 0
+    tail = text[start:]
+    end_markers = ("特此通知", "如有特殊情况", "中央民族大学校医院", "校医院 2026", "后勤保障处")
+    ends = [tail.find(marker) for marker in end_markers if tail.find(marker) > 0]
+    if ends:
+        tail = tail[: min(ends)]
+    return tail
+
+
+def _text_without_leading_markdown_title(value: object) -> str:
+    lines = str(value or "").splitlines()
+    while lines and not lines[0].strip():
+        lines = lines[1:]
+    if lines and _MARKDOWN_HEADING_RE.match(lines[0].strip()):
+        return "\n".join(lines[1:]).strip()
+    return str(value or "")
 
 
 def _rejected_source(entry: NoticeConsumptionProjectionEntry) -> dict[str, Any]:

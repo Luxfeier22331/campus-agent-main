@@ -22,14 +22,13 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
 
 - status: `active`
 - current phase: `Phase 8`
-- current focus: Phase 8 broader live family coverage。Phase 7 已证明真实
-  authenticated notice `355650` 可以完成
-  `notice_consumption_projection -> service-status typed projection -> PG current
-  read model -> supervisor lookup -> app-api/public-chat answer` 闭环；现在开始用真实
-  export 样本扩展 IT platform、library、service-counter 和 additional facility
-  coverage。当前 `notice_consumption_projection` 只有 `355650` 一个非 transport
-  service-status candidate，因此 Phase 8 首先诊断 source/admission/materializer
-  缺口，不用 fixture 冒充 live coverage。
+- current focus: Phase 8 broader live family coverage 已实现。真实 export 样本
+  `247726`、`352345`、`354502`、`354575`、`354674`、`354845`
+  已覆盖 IT platform、library、service-counter 与 additional facility /
+  hospital service-counter status disposition；所有样本均进入
+  `campus_services/service_status_candidate` admission，并保留 preview-only
+  typed materialization evidence。workstream 继续保持 active，等待显式 archive
+  决策。
 - runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
   claim status authenticated-notice-service-status-consumption` 查看；tracked
   planning 文档不保存 claim lease
@@ -69,3 +68,4 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
 - `./phases/phase-06-product-source-presentation/PLAN.md`
 - `./phases/phase-07-live-admission-and-downstream-consumption-loop/PLAN.md`
 - `./phases/phase-08-broader-live-family-coverage/PLAN.md`
+- `./phases/phase-08-broader-live-family-coverage/SUMMARY.md`

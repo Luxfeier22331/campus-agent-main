@@ -1,9 +1,23 @@
 {
-  "candidate_count": 3,
+  "candidate_count": 6,
   "candidate_kind_counts": {
-    "service_status": 3
+    "service_status": 6
   },
   "candidates": [
+    {
+      "consumption_status": "ready_for_target_materialization",
+      "notice_family": "it_platform_service_status",
+      "notice_title": "关于临时停用校园一卡通、网费和电费充值功能的通知",
+      "primary_role": "service_status_override",
+      "service_status_candidate_kind": "service_status",
+      "source_document_id": "notice:muc_internal_portal:247726",
+      "source_notice_document_id": "notice:muc_internal_portal:247726",
+      "source_notice_id": "247726",
+      "source_notice_release_time": "2025-12-24 10:31",
+      "source_ref": "notice:muc_internal_portal:247726",
+      "target_surface": "campus_services/service_status_candidate",
+      "unit_id": "notice_unit:notice:muc_internal_portal:247726:service_status_override"
+    },
     {
       "consumption_status": "ready_for_target_materialization",
       "notice_family": "library_service_status",
@@ -34,6 +48,20 @@
     },
     {
       "consumption_status": "ready_for_target_materialization",
+      "notice_family": "service_status_override",
+      "notice_title": "2026年校医院寒假值班安排",
+      "primary_role": "service_status_override",
+      "service_status_candidate_kind": "service_status",
+      "source_document_id": "notice:muc_internal_portal:354575",
+      "source_notice_document_id": "notice:muc_internal_portal:354575",
+      "source_notice_id": "354575",
+      "source_notice_release_time": "2026-01-21 10:42",
+      "source_ref": "notice:muc_internal_portal:354575",
+      "target_surface": "campus_services/service_status_candidate",
+      "unit_id": "notice_unit:notice:muc_internal_portal:354575:service_status_override"
+    },
+    {
+      "consumption_status": "ready_for_target_materialization",
       "notice_family": "it_platform_service_status",
       "notice_title": "关于信息门户升级维护的通知",
       "primary_role": "service_status_override",
@@ -45,13 +73,28 @@
       "source_ref": "notice:muc_internal_portal:354674",
       "target_surface": "campus_services/service_status_candidate",
       "unit_id": "notice_unit:notice:muc_internal_portal:354674:service_status_override"
+    },
+    {
+      "consumption_status": "ready_for_target_materialization",
+      "notice_family": "service_status_override",
+      "notice_title": "关于丰台校区校医院增开皮肤科门诊的通知",
+      "primary_role": "service_status_override",
+      "service_status_candidate_kind": "service_status",
+      "source_document_id": "notice:muc_internal_portal:354845",
+      "source_notice_document_id": "notice:muc_internal_portal:354845",
+      "source_notice_id": "354845",
+      "source_notice_release_time": "2026-03-03 14:31",
+      "source_ref": "notice:muc_internal_portal:354845",
+      "target_surface": "campus_services/service_status_candidate",
+      "unit_id": "notice_unit:notice:muc_internal_portal:354845:service_status_override"
     }
   ],
   "consumption_statuses": [],
   "notice_family_counts": {
     "facility_service_status": 1,
-    "it_platform_service_status": 1,
-    "library_service_status": 1
+    "it_platform_service_status": 2,
+    "library_service_status": 1,
+    "service_status_override": 2
   },
   "selected_notice_ids": [
     "354674",

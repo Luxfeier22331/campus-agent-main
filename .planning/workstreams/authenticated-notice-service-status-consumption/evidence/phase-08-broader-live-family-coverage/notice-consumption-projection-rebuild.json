@@ -1,7 +1,7 @@
 {
-  "batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+  "batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
   "consumption_status_counts": {
-    "ready_for_target_materialization": 3,
+    "ready_for_target_materialization": 6,
     "retained_for_notice_query": 8
   },
   "entries": [
@@ -12,23 +12,25 @@
       "default_agent": "notice-agent",
       "primary_role": "notice_window",
       "role_metadata": {
-        "admission_policy": "notice_level_query",
+        "admission_policy": "hold_notice_runtime",
         "attachment_document_count": 0,
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
         "attachment_ref_count": 0,
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
-          "充值"
+          "一卡通.*(停用|维护|异常|恢复|充值|业务调整|办公地点|调整)",
+          "网费.*充值",
+          "电费.*充值"
         ],
         "multimodal_action_required": false,
         "multimodal_consumption_policy": "not_required",
         "multimodal_skipped_attachment_count": 0,
-        "notice_family": "finance_payment_action",
+        "notice_family": "it_platform_service_status",
         "notice_risk_label": "body_only",
         "notice_title": "关于临时停用校园一卡通、网费和电费充值功能的通知",
         "notice_type_names": [
@@ -39,7 +41,7 @@
         "pending_multimodal_attachment_count": 0,
         "reference_only_count": 0,
         "source_multimodal_processing_required_count": 0,
-        "suggested_consumption_route": "notice_level_query",
+        "suggested_consumption_route": "service_status_candidate",
         "text_extractable_count": 0
       },
       "semantic_owner": "notice_body",
@@ -54,7 +56,49 @@
       "target_surface": "notice_level_query",
       "temporal_policy": "announcement_window",
       "unit_id": "notice_unit:notice:muc_internal_portal:247726:notice_window",
-      "updated_at": "2026-04-28T03:59:23.756579+00:00"
+      "updated_at": "2026-04-28T04:10:43.939366+00:00"
+    },
+    {
+      "answerability": "body_only_answerable",
+      "completeness_status": "complete",
+      "consumption_status": "ready_for_target_materialization",
+      "default_agent": "campus-services-agent",
+      "primary_role": "service_status_override",
+      "role_metadata": {
+        "admission_policy": "hold_notice_runtime",
+        "attachment_document_ids": [],
+        "attachment_processing_policy": "not_required",
+        "attachment_processing_reason": "no_attachment_refs",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
+        "consumer_admission_command": "projection_rebuild",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
+        "machine_processing_policy": "not_required",
+        "matched_body_patterns": [],
+        "matched_title_patterns": [
+          "一卡通.*(停用|维护|异常|恢复|充值|业务调整|办公地点|调整)",
+          "网费.*充值",
+          "电费.*充值"
+        ],
+        "notice_category": "service_status_override",
+        "notice_family": "it_platform_service_status",
+        "notice_query_reason": "service_status_typed_materialization_candidate",
+        "notice_title": "关于临时停用校园一卡通、网费和电费充值功能的通知",
+        "service_status_candidate_kind": "service_status",
+        "suggested_consumption_route": "service_status_candidate"
+      },
+      "semantic_owner": "notice_body",
+      "source_attachment_ref_ids": [],
+      "source_collection": "internal_notice",
+      "source_corpus": "campus_notices",
+      "source_document_id": "notice:muc_internal_portal:247726",
+      "source_family": "internal_notice_restricted",
+      "source_notice_document_id": "notice:muc_internal_portal:247726",
+      "source_notice_id": "247726",
+      "source_notice_release_time": "2025-12-24 10:31",
+      "target_surface": "campus_services/service_status_candidate",
+      "temporal_policy": "current_override",
+      "unit_id": "notice_unit:notice:muc_internal_portal:247726:service_status_override",
+      "updated_at": "2026-04-28T04:10:43.939411+00:00"
     },
     {
       "answerability": "answerable",
@@ -68,9 +112,9 @@
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
         "attachment_ref_count": 0,
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
@@ -105,7 +149,7 @@
       "target_surface": "notice_level_query",
       "temporal_policy": "announcement_window",
       "unit_id": "notice_unit:notice:muc_internal_portal:352345:notice_window",
-      "updated_at": "2026-04-28T03:59:23.758513+00:00"
+      "updated_at": "2026-04-28T04:10:43.944043+00:00"
     },
     {
       "answerability": "body_only_answerable",
@@ -118,9 +162,9 @@
         "attachment_document_ids": [],
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
@@ -145,7 +189,7 @@
       "target_surface": "campus_services/service_status_candidate",
       "temporal_policy": "current_override",
       "unit_id": "notice_unit:notice:muc_internal_portal:352345:service_status_override",
-      "updated_at": "2026-04-28T03:59:23.758547+00:00"
+      "updated_at": "2026-04-28T04:10:43.944103+00:00"
     },
     {
       "answerability": "reference_only",
@@ -155,9 +199,9 @@
       "primary_role": "time_bound_operational_rule",
       "role_metadata": {
         "campus_site": "关于海淀校区",
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "cycle_year": "2026",
         "document_nature": "time_bound_operational_rule",
         "effective_date": "2026年1月22日",
@@ -197,7 +241,7 @@
       "target_surface": "regulations/scoped_rules",
       "temporal_policy": "time_windowed",
       "unit_id": "notice_unit:muc_internal_portal:354502:time_bound_operational_rule:9d27304934166abd",
-      "updated_at": "2026-04-28T03:59:23.770929+00:00"
+      "updated_at": "2026-04-28T04:10:43.960077+00:00"
     },
     {
       "answerability": "answerable",
@@ -211,9 +255,9 @@
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
         "attachment_ref_count": 0,
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
@@ -248,7 +292,7 @@
       "target_surface": "notice_level_query",
       "temporal_policy": "announcement_window",
       "unit_id": "notice_unit:notice:muc_internal_portal:354502:notice_window",
-      "updated_at": "2026-04-28T03:59:23.760775+00:00"
+      "updated_at": "2026-04-28T04:10:43.946784+00:00"
     },
     {
       "answerability": "body_only_answerable",
@@ -261,9 +305,9 @@
         "attachment_document_ids": [],
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
@@ -288,7 +332,7 @@
       "target_surface": "campus_services/service_status_candidate",
       "temporal_policy": "current_override",
       "unit_id": "notice_unit:notice:muc_internal_portal:354502:service_status_override",
-      "updated_at": "2026-04-28T03:59:23.760807+00:00"
+      "updated_at": "2026-04-28T04:10:43.946812+00:00"
     },
     {
       "answerability": "reference_only",
@@ -298,9 +342,9 @@
       "primary_role": "time_bound_operational_rule",
       "role_metadata": {
         "campus_site": "丰台校区",
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "cycle_year": "2026",
         "document_nature": "time_bound_operational_rule",
         "effective_date": null,
@@ -340,7 +384,7 @@
       "target_surface": "regulations/scoped_rules",
       "temporal_policy": "time_windowed",
       "unit_id": "notice_unit:muc_internal_portal:354575:time_bound_operational_rule:104cf9da3895f6b9",
-      "updated_at": "2026-04-28T03:59:23.772978+00:00"
+      "updated_at": "2026-04-28T04:10:43.962082+00:00"
     },
     {
       "answerability": "answerable",
@@ -349,23 +393,23 @@
       "default_agent": "notice-agent",
       "primary_role": "notice_window",
       "role_metadata": {
-        "admission_policy": "notice_level_query",
+        "admission_policy": "hold_notice_runtime",
         "attachment_document_count": 0,
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
         "attachment_ref_count": 0,
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
-          "校医院"
+          "校医院.*(寒假|暑假|元旦|清明|五一|国庆).*?(值班|门诊|工作安排)"
         ],
         "multimodal_action_required": false,
         "multimodal_consumption_policy": "not_required",
         "multimodal_skipped_attachment_count": 0,
-        "notice_family": "health_medical_action",
+        "notice_family": "service_status_override",
         "notice_risk_label": "body_only",
         "notice_title": "2026年校医院寒假值班安排",
         "notice_type_names": [
@@ -376,7 +420,7 @@
         "pending_multimodal_attachment_count": 0,
         "reference_only_count": 0,
         "source_multimodal_processing_required_count": 0,
-        "suggested_consumption_route": "notice_level_query",
+        "suggested_consumption_route": "service_status_candidate",
         "text_extractable_count": 0
       },
       "semantic_owner": "notice_body",
@@ -391,7 +435,47 @@
       "target_surface": "notice_level_query",
       "temporal_policy": "announcement_window",
       "unit_id": "notice_unit:notice:muc_internal_portal:354575:notice_window",
-      "updated_at": "2026-04-28T03:59:23.762976+00:00"
+      "updated_at": "2026-04-28T04:10:43.948794+00:00"
+    },
+    {
+      "answerability": "body_only_answerable",
+      "completeness_status": "complete",
+      "consumption_status": "ready_for_target_materialization",
+      "default_agent": "campus-services-agent",
+      "primary_role": "service_status_override",
+      "role_metadata": {
+        "admission_policy": "hold_notice_runtime",
+        "attachment_document_ids": [],
+        "attachment_processing_policy": "not_required",
+        "attachment_processing_reason": "no_attachment_refs",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
+        "consumer_admission_command": "projection_rebuild",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
+        "machine_processing_policy": "not_required",
+        "matched_body_patterns": [],
+        "matched_title_patterns": [
+          "校医院.*(寒假|暑假|元旦|清明|五一|国庆).*?(值班|门诊|工作安排)"
+        ],
+        "notice_category": "service_status_override",
+        "notice_family": "service_status_override",
+        "notice_query_reason": "service_status_typed_materialization_candidate",
+        "notice_title": "2026年校医院寒假值班安排",
+        "service_status_candidate_kind": "service_status",
+        "suggested_consumption_route": "service_status_candidate"
+      },
+      "semantic_owner": "notice_body",
+      "source_attachment_ref_ids": [],
+      "source_collection": "internal_notice",
+      "source_corpus": "campus_notices",
+      "source_document_id": "notice:muc_internal_portal:354575",
+      "source_family": "internal_notice_restricted",
+      "source_notice_document_id": "notice:muc_internal_portal:354575",
+      "source_notice_id": "354575",
+      "source_notice_release_time": "2026-01-21 10:42",
+      "target_surface": "campus_services/service_status_candidate",
+      "temporal_policy": "current_override",
+      "unit_id": "notice_unit:notice:muc_internal_portal:354575:service_status_override",
+      "updated_at": "2026-04-28T04:10:43.948821+00:00"
     },
     {
       "answerability": "answerable",
@@ -405,9 +489,9 @@
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
         "attachment_ref_count": 0,
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
@@ -442,7 +526,7 @@
       "target_surface": "notice_level_query",
       "temporal_policy": "announcement_window",
       "unit_id": "notice_unit:notice:muc_internal_portal:354674:notice_window",
-      "updated_at": "2026-04-28T03:59:23.764887+00:00"
+      "updated_at": "2026-04-28T04:10:43.951905+00:00"
     },
     {
       "answerability": "body_only_answerable",
@@ -455,9 +539,9 @@
         "attachment_document_ids": [],
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
@@ -482,7 +566,7 @@
       "target_surface": "campus_services/service_status_candidate",
       "temporal_policy": "current_override",
       "unit_id": "notice_unit:notice:muc_internal_portal:354674:service_status_override",
-      "updated_at": "2026-04-28T03:59:23.764913+00:00"
+      "updated_at": "2026-04-28T04:10:43.951973+00:00"
     },
     {
       "answerability": "answerable",
@@ -491,23 +575,23 @@
       "default_agent": "notice-agent",
       "primary_role": "notice_window",
       "role_metadata": {
-        "admission_policy": "notice_level_query",
+        "admission_policy": "hold_notice_runtime",
         "attachment_document_count": 0,
         "attachment_processing_policy": "not_required",
         "attachment_processing_reason": "no_attachment_refs",
         "attachment_ref_count": 0,
-        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:cec3d5935aa3329e",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
         "consumer_admission_command": "projection_rebuild",
-        "consumer_admission_created_at": "2026-04-28T03:59:23.508185+00:00",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
         "machine_processing_policy": "not_required",
         "matched_body_patterns": [],
         "matched_title_patterns": [
-          "校医院"
+          "校医院.*增开.*门诊"
         ],
         "multimodal_action_required": false,
         "multimodal_consumption_policy": "not_required",
         "multimodal_skipped_attachment_count": 0,
-        "notice_family": "health_medical_action",
+        "notice_family": "service_status_override",
         "notice_risk_label": "body_only",
         "notice_title": "关于丰台校区校医院增开皮肤科门诊的通知",
         "notice_type_names": [
@@ -518,7 +602,7 @@
         "pending_multimodal_attachment_count": 0,
         "reference_only_count": 0,
         "source_multimodal_processing_required_count": 0,
-        "suggested_consumption_route": "notice_level_query",
+        "suggested_consumption_route": "service_status_candidate",
         "text_extractable_count": 0
       },
       "semantic_owner": "notice_body",
@@ -533,7 +617,47 @@
       "target_surface": "notice_level_query",
       "temporal_policy": "announcement_window",
       "unit_id": "notice_unit:notice:muc_internal_portal:354845:notice_window",
-      "updated_at": "2026-04-28T03:59:23.766740+00:00"
+      "updated_at": "2026-04-28T04:10:43.955624+00:00"
+    },
+    {
+      "answerability": "body_only_answerable",
+      "completeness_status": "complete",
+      "consumption_status": "ready_for_target_materialization",
+      "default_agent": "campus-services-agent",
+      "primary_role": "service_status_override",
+      "role_metadata": {
+        "admission_policy": "hold_notice_runtime",
+        "attachment_document_ids": [],
+        "attachment_processing_policy": "not_required",
+        "attachment_processing_reason": "no_attachment_refs",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:70d18eb4074757a6",
+        "consumer_admission_command": "projection_rebuild",
+        "consumer_admission_created_at": "2026-04-28T04:10:43.682336+00:00",
+        "machine_processing_policy": "not_required",
+        "matched_body_patterns": [],
+        "matched_title_patterns": [
+          "校医院.*增开.*门诊"
+        ],
+        "notice_category": "service_status_override",
+        "notice_family": "service_status_override",
+        "notice_query_reason": "service_status_typed_materialization_candidate",
+        "notice_title": "关于丰台校区校医院增开皮肤科门诊的通知",
+        "service_status_candidate_kind": "service_status",
+        "suggested_consumption_route": "service_status_candidate"
+      },
+      "semantic_owner": "notice_body",
+      "source_attachment_ref_ids": [],
+      "source_collection": "internal_notice",
+      "source_corpus": "campus_notices",
+      "source_document_id": "notice:muc_internal_portal:354845",
+      "source_family": "internal_notice_restricted",
+      "source_notice_document_id": "notice:muc_internal_portal:354845",
+      "source_notice_id": "354845",
+      "source_notice_release_time": "2026-03-03 14:31",
+      "target_surface": "campus_services/service_status_candidate",
+      "temporal_policy": "current_override",
+      "unit_id": "notice_unit:notice:muc_internal_portal:354845:service_status_override",
+      "updated_at": "2026-04-28T04:10:43.955654+00:00"
     }
   ],
   "held_in_notice_runtime_count": 8,
@@ -542,10 +666,10 @@
   "pending_multimodal_processing_count": 0,
   "primary_role_counts": {
     "notice_window": 6,
-    "service_status_override": 3,
+    "service_status_override": 6,
     "time_bound_operational_rule": 2
   },
-  "projection_entry_count": 11,
-  "ready_for_target_count": 3,
+  "projection_entry_count": 14,
+  "ready_for_target_count": 6,
   "retained_for_notice_query_count": 8
 }

@@ -17,33 +17,38 @@ workstream: authenticated-notice-service-status-consumption
 - current plan:
   `.planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-08-broader-live-family-coverage/PLAN.md`
 - total phases: `8`
-- progress: `7/8 phases implemented; Phase 8 started for broader real service-status family coverage`
+- progress: `8/8 phases implemented; workstream remains active pending explicit archive decision`
 - last activity: `2026-04-28`
-- last activity description: Started Phase 8 broader live family coverage after
-  proving the Phase 7 `355650` facility loop. Initial candidate listing showed
-  the current `notice_consumption_projection` has only one non-transport
-  service-status candidate (`355650`), so Phase 8 begins by auditing real export
-  samples and diagnosing admission/materializer gaps for IT platform, library,
-  service-counter and additional facility families.
+- last activity description: Completed Phase 8 broader live family coverage.
+  Real export notices `247726`, `352345`, `354502`, `354575`, `354674` and
+  `354845` now have source/admission/projection/materialization disposition
+  evidence across IT platform, library, service-counter and additional
+  facility/hospital service-counter families.
 
 ## Current Slice
 
-Phase 8 is the active broader live-family coverage phase. Phase 7 already proved
-the first publishable real service-status notice (`355650`) can traverse
+Phase 8 is implemented. Phase 7 already proved the first publishable real
+service-status notice (`355650`) can traverse
 `notice_consumption_projection`, materialize into `campus_services/service_status`,
 promote to the PostgreSQL current read model, and be consumed through
 `service_status_lookup`, the app-api supervisor HTTP seam and the product answer
 path.
 
-The current Phase 8 focus is to select real authenticated notice export samples
-for IT platform, library, service-counter and additional facility status. The
-phase must distinguish:
+Phase 8 then selected real authenticated notice export samples for IT platform,
+library, service-counter and additional facility / hospital service-counter
+status:
 
-- source bundle lacks a usable notice;
-- consumer admission route is missing or wrong;
-- projection row exists but typed materializer rejects it;
-- typed materializer succeeds but runtime lookup or product normalization needs
-  work.
+- `247726`: campus card / network fee / electricity recharge shutdown.
+- `352345`: library holiday service arrangement.
+- `354502`: comprehensive service hall holiday service adjustment.
+- `354575`: campus hospital holiday duty arrangement.
+- `354674`: information portal maintenance outage.
+- `354845`: Fengtai campus hospital dermatology clinic opening.
+
+All six selected samples now enter `campus_services/service_status_candidate`
+admission and have typed materialization disposition evidence. Historical windows
+are kept as preview/as-of evidence; `354845` is kept as current-preview evidence
+without moving PG current truth.
 
 Phase 1 boundary artifacts exist:
 
@@ -88,13 +93,12 @@ Phase 1 live audit answered three questions:
 
 - No acceptance blocker remains for the first live service-status consumption
   loop: `355650` proves the end-to-end path.
-- Broader family coverage is now active Phase 8 work. IT platform, library and
-  service-counter examples remain deterministically covered by tests, but real
-  export/live dispositions still need evidence.
+- Broader family coverage has Phase 8 evidence for IT platform, library,
+  service-counter and additional facility / hospital service-counter families.
 - Do not use this workstream to absorb regulation, schedule, service guide,
   contact-directory or generic notice-query work. Those remain adjacent
   workstreams/surfaces.
-- The workstream should remain active through Phase 8 and should not be archived
+- The workstream should remain active after Phase 8 and should not be archived
   without an explicit user decision.
 
 ## Verification Status
@@ -136,6 +140,10 @@ pnpm --dir apps/app-api test:node -- chat-command.service.core.structured.suite.
   `evidence/phase-07-live-admission-loop/live-355650-facility-trial/`.
 - Boundary rejection evidence for `355867` remains under
   `evidence/phase-07-live-admission-loop/live-355867-preview/`.
+- Phase 8 source/admission/projection/materialization evidence captured under
+  `evidence/phase-08-broader-live-family-coverage/`.
+- Phase 8 summary:
+  `phases/phase-08-broader-live-family-coverage/SUMMARY.md`.
 
 - Claim lease is runtime-only and should be checked with:
 
@@ -146,7 +154,7 @@ uv run --all-packages python -m scripts.workstream_claim claim status \
 
 ## Resume Instructions
 
-Resume from the Phase 7 verification/closeout review point:
+Resume from the Phase 8 archive-decision point:
 
 ```bash
 uv run --all-packages python -m scripts.workstream_harness codex shell \
@@ -157,5 +165,5 @@ Then inspect:
 
 ```bash
 sed -n '1,240p' \
-  .planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-07-live-admission-loop/README.md
+  .planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-08-broader-live-family-coverage/SUMMARY.md
 ```

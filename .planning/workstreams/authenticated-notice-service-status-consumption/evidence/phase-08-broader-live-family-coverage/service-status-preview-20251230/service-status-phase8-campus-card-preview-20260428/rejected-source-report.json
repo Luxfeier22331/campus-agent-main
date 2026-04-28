@@ -1,7 +1,7 @@
 {
   "schema_version": "service_status_rejected_source_report.v1",
-  "release_id": "service-status-phase8-it-facility-preview-20260428",
-  "generated_at": "2026-02-11T21:00:00+08:00",
+  "release_id": "service-status-phase8-campus-card-preview-20260428",
+  "generated_at": "2025-12-30T12:00:00+08:00",
   "rejected_source_count": 0,
   "rejected_sources": []
 }
