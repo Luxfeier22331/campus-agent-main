@@ -8,6 +8,13 @@ function buildGatedReaderUrl(input: { docsBaseUrl: string; gatedReaderPath: stri
 	return new URL(input.gatedReaderPath, input.docsBaseUrl).toString();
 }
 
+function buildGatedCollectionNavigationUrl(input: {
+	docsBaseUrl: string;
+	gatedCollectionNavigationPath: string;
+}): string {
+	return new URL(input.gatedCollectionNavigationPath, input.docsBaseUrl).toString();
+}
+
 function headerContainsToken(headerValue: string | null, expectedToken: string): boolean {
 	const normalizedExpected = expectedToken.toLowerCase();
 	return (headerValue ?? "")
@@ -54,6 +61,24 @@ async function fetchGatedReader(input: {
 	};
 }
 
+async function fetchDocsJson(input: {
+	cookieHeader?: string;
+	url: string;
+}): Promise<{ body: unknown; response: Response }> {
+	const response = await fetch(input.url, {
+		headers: {
+			accept: "application/json",
+			...(input.cookieHeader ? { cookie: input.cookieHeader } : {}),
+		},
+		method: "GET",
+		signal: AbortSignal.timeout(30_000),
+	});
+	return {
+		body: await readJsonResponse(response),
+		response,
+	};
+}
+
 function assertExpectedGatedResponse(input: {
 	body: unknown;
 	expectedStatus: number;
@@ -69,9 +94,60 @@ function assertExpectedGatedResponse(input: {
 	assertVaryAuth(input.response, input.label);
 }
 
+function assertExpectedGatedNavigationResponse(input: {
+	body: unknown;
+	expectedStatus: number;
+	label: string;
+	response: Response;
+}): void {
+	if (input.response.status !== input.expectedStatus) {
+		throw new Error(
+			`${input.label} expected ${input.expectedStatus}, received ${input.response.status}: ${JSON.stringify(input.body)}`,
+		);
+	}
+	assertNoStore(input.response, input.label);
+	if (input.expectedStatus !== 200) {
+		return;
+	}
+
+	const navigation = input.body as {
+		nodes?: Array<{
+			canonicalUrl?: unknown;
+			title?: unknown;
+		}>;
+	};
+	if (!Array.isArray(navigation.nodes) || navigation.nodes.length === 0) {
+		throw new Error(`${input.label} must include at least one navigation node.`);
+	}
+	for (const [index, node] of navigation.nodes.entries()) {
+		if (typeof node.title !== "string" || node.title.trim().length === 0) {
+			throw new Error(`${input.label} node ${index} must include a non-empty title.`);
+		}
+		if (typeof node.canonicalUrl !== "string" || !node.canonicalUrl.startsWith("/docs/")) {
+			throw new Error(`${input.label} node ${index} must include a docs canonicalUrl.`);
+		}
+	}
+
+	const serialized = JSON.stringify(input.body);
+	for (const forbidden of [
+		"/_gated-docs/",
+		"sourceObjects",
+		"source_objects",
+		"rawSourceLocator",
+		"raw_source_locator",
+		"reader-assets/",
+		"s3://",
+	]) {
+		if (serialized.includes(forbidden)) {
+			throw new Error(`${input.label} must not leak storage or gated asset locator ${forbidden}.`);
+		}
+	}
+}
+
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
 	const args = parseStagingDocsGatedSmokeArgs(argv, env);
 	const gatedReaderUrl = buildGatedReaderUrl(args);
+	const gatedCollectionNavigationUrl = buildGatedCollectionNavigationUrl(args);
 	const smokePassword = buildSmokePassword();
 	const cookieHeader = await mintStagingSmokeSession({
 		appApiReadyzUrl: args.appApiReadyzUrl,
@@ -102,10 +178,40 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 		label: "Authorized gated reader request",
 		response: authorized.response,
 	});
+	const unauthenticatedNavigation = await fetchDocsJson({
+		url: gatedCollectionNavigationUrl,
+	});
+	assertExpectedGatedNavigationResponse({
+		body: unauthenticatedNavigation.body,
+		expectedStatus: 404,
+		label: "Unauthenticated gated collection navigation request",
+		response: unauthenticatedNavigation.response,
+	});
+	const authorizedNavigation = await fetchDocsJson({
+		cookieHeader,
+		url: gatedCollectionNavigationUrl,
+	});
+	assertExpectedGatedNavigationResponse({
+		body: authorizedNavigation.body,
+		expectedStatus: 200,
+		label: "Authorized gated collection navigation request",
+		response: authorizedNavigation.response,
+	});
 
 	console.log(
 		JSON.stringify(
 			{
+				gatedCollectionNavigation: {
+					authorizedStatus: authorizedNavigation.response.status,
+					contentType: authorizedNavigation.response.headers.get("content-type") ?? "",
+					nodeCount: Array.isArray(
+						(authorizedNavigation.body as { nodes?: unknown } | null)?.nodes,
+					)
+						? ((authorizedNavigation.body as { nodes: unknown[] }).nodes.length ?? 0)
+						: 0,
+					unauthenticatedStatus: unauthenticatedNavigation.response.status,
+					url: gatedCollectionNavigationUrl,
+				},
 				gatedReader: {
 					authorizedStatus: authorized.response.status,
 					contentType: authorized.response.headers.get("content-type") ?? "",

@@ -269,6 +269,36 @@ main.rp-doc-layout__doc-container {
 	font-size: 0.92rem;
 }
 
+.rspress-doc .gated-collection-list {
+	display: grid;
+	gap: 0.55rem;
+	margin: 1.2rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.rspress-doc .gated-collection-list li {
+	border-bottom: 1px solid var(--docs-border-soft);
+	padding: 0.72rem 0;
+}
+
+.rspress-doc .gated-collection-list a {
+	color: var(--docs-ink);
+	font-weight: 640;
+	text-decoration: none;
+}
+
+.rspress-doc .gated-collection-list a:hover {
+	color: var(--docs-accent-strong);
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+
+.rspress-doc .gated-collection-empty {
+	margin-top: 1rem;
+	color: var(--rp-c-text-2);
+}
+
 .rspress-doc .docs-home-split {
 	display: grid;
 	gap: 1rem;

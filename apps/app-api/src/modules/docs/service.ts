@@ -142,6 +142,9 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 				(document) =>
 					document.isCurrent !== false && canReadDocumentVersion(document, request.principal),
 			);
+			if (documents.length === 0) {
+				throw notFound("docs_collection_not_found", "Document collection was not found.");
+			}
 
 			return {
 				collection: {

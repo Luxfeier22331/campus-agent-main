@@ -38,6 +38,24 @@ const restrictedDoc = {
 	visibilityLevel: "restricted",
 };
 
+const restrictedRegulationDoc = {
+	canonicalUrl:
+		"/docs/regulations/scoped_rules/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
+	collection: "scoped_rules",
+	corpus: "regulations",
+	currentVersionId: "ver_scoped_rule",
+	currentVersionSlug: "2026-current",
+	deliveryMode: "gated_asset" as const,
+	docId: "institutional_regulation:muc:scoped-rule",
+	documentSlug: "中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则",
+	entitlementGroups: ["campus_members"],
+	title: "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+	updatedAt: "2026-04-28T12:53:09.490Z",
+	versionId: "ver_scoped_rule",
+	versionSlug: "2026-current",
+	visibilityLevel: "restricted",
+};
+
 const historicalPublicDoc = {
 	...publicDoc,
 	currentVersionId: "ver_2026_01",
@@ -50,7 +68,15 @@ const historicalPublicDoc = {
 
 function createStore(): DocsReadModelStore {
 	return {
-		async getCollection() {
+		async getCollection(input) {
+			if (input.corpus === "regulations" && input.collection === "scoped_rules") {
+				return {
+					collection: "scoped_rules",
+					corpus: "regulations",
+					description: "已发布到文档站的受控规章通知。",
+					displayName: "专项规章",
+				};
+			}
 			return {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -59,6 +85,9 @@ function createStore(): DocsReadModelStore {
 			};
 		},
 		async getDocumentVersion(input) {
+			if (input.documentSlug === restrictedRegulationDoc.documentSlug) {
+				return restrictedRegulationDoc;
+			}
 			if (input.documentSlug === restrictedDoc.documentSlug) {
 				return restrictedDoc;
 			}
@@ -69,6 +98,24 @@ function createStore(): DocsReadModelStore {
 			};
 		},
 		async getReaderAsset(input) {
+			if (input.documentSlug === restrictedRegulationDoc.documentSlug) {
+				return {
+					...restrictedRegulationDoc,
+					contentUrl: "/_gated-docs/regulations/scoped_rules/scoped-rule/2026-current/reader.json",
+					manifestUrl:
+						"/_gated-docs/regulations/scoped_rules/scoped-rule/2026-current/asset-manifest.json",
+					outlineUrl: "/_gated-docs/regulations/scoped_rules/scoped-rule/2026-current/outline.json",
+					sourceObjects: {
+						"asset-manifest":
+							"regulations/documents/scoped_rules/scoped-rule/source-faithful/2026/reader-assets/asset-manifest.json",
+						meta: "regulations/documents/scoped_rules/scoped-rule/source-faithful/2026/reader-assets/meta.json",
+						outline:
+							"regulations/documents/scoped_rules/scoped-rule/source-faithful/2026/reader-assets/outline.json",
+						reader:
+							"regulations/documents/scoped_rules/scoped-rule/source-faithful/2026/reader-assets/reader.json",
+					},
+				};
+			}
 			if (input.documentSlug === restrictedDoc.documentSlug) {
 				return {
 					...restrictedDoc,
@@ -107,7 +154,10 @@ function createStore(): DocsReadModelStore {
 				rawSourceLocator: "s3://campus-rag-derived/private/raw-source.json",
 			};
 		},
-		async listCollectionDocuments() {
+		async listCollectionDocuments(input) {
+			if (input.corpus === "regulations" && input.collection === "scoped_rules") {
+				return [restrictedRegulationDoc];
+			}
 			return [
 				publicDoc,
 				restrictedDoc,
@@ -124,6 +174,9 @@ function createStore(): DocsReadModelStore {
 			];
 		},
 		async listDocumentVersions(input) {
+			if (input.documentSlug === restrictedRegulationDoc.documentSlug) {
+				return [restrictedRegulationDoc];
+			}
 			if (input.documentSlug === restrictedDoc.documentSlug) {
 				return [restrictedDoc];
 			}
@@ -340,6 +393,85 @@ describe("docs service", () => {
 				version: "2026-current",
 			}),
 		).resolves.toBeUndefined();
+	});
+
+	it("lists and resolves gated scoped regulation notices for entitled campus members", async () => {
+		const service = buildDocsService({ store: createStore() });
+		const principal = createStudentPrincipal();
+
+		const navigation = await service.getNavigation({
+			collection: "scoped_rules",
+			corpus: "regulations",
+			principal,
+		});
+
+		expect(navigation.nodes).toEqual([
+			{
+				canonicalUrl: restrictedRegulationDoc.canonicalUrl,
+				documentSlug: restrictedRegulationDoc.documentSlug,
+				isCurrent: true,
+				kind: "document",
+				title: restrictedRegulationDoc.title,
+			},
+		]);
+
+		const response = await service.resolveReader({
+			anchor: null,
+			collection: "scoped_rules",
+			corpus: "regulations",
+			documentSlug: restrictedRegulationDoc.documentSlug,
+			highlightRootUnitIds: [],
+			principal,
+			version: null,
+		});
+
+		const encodedSlug = encodeURIComponent(restrictedRegulationDoc.documentSlug);
+		expect(response.readerAsset).toEqual({
+			canonicalUrl: restrictedRegulationDoc.canonicalUrl,
+			contentUrl: `/_gated-docs/regulations/scoped_rules/${encodedSlug}/2026-current/reader.json`,
+			deliveryMode: "gated_asset",
+			outlineUrl: `/_gated-docs/regulations/scoped_rules/${encodedSlug}/2026-current/outline.json`,
+		});
+		expect(JSON.stringify(response)).not.toContain("regulations/documents/");
+		expect(JSON.stringify(response)).not.toContain("reader-assets/");
+
+		await expect(
+			service.checkReaderAdmission({
+				collection: "scoped_rules",
+				corpus: "regulations",
+				documentSlug: restrictedRegulationDoc.documentSlug,
+				principal,
+				version: "2026-current",
+			}),
+		).resolves.toBeUndefined();
+
+		await expect(
+			service.checkReaderAdmission({
+				collection: "scoped_rules",
+				corpus: "regulations",
+				documentSlug: restrictedRegulationDoc.documentSlug,
+				principal: null,
+				version: "2026-current",
+			}),
+		).rejects.toMatchObject({
+			code: "docs_document_not_found",
+			status: 404,
+		} satisfies Partial<AppApiRouteError>);
+	});
+
+	it("fails closed for gated-only collection navigation without matching entitlement", async () => {
+		const service = buildDocsService({ store: createStore() });
+
+		await expect(
+			service.getNavigation({
+				collection: "scoped_rules",
+				corpus: "regulations",
+				principal: null,
+			}),
+		).rejects.toMatchObject({
+			code: "docs_collection_not_found",
+			status: 404,
+		} satisfies Partial<AppApiRouteError>);
 	});
 
 	it("fails closed for restricted reader admission without matching entitlement", async () => {

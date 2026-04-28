@@ -272,6 +272,91 @@ describe("public docs worker shell", () => {
 		]);
 	});
 
+	it("serves the reader fallback shell for gated scoped regulation docs routes", async () => {
+		const worker = await importWorker();
+		const documentSlug =
+			"中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则";
+		const encodedSlug = encodeURIComponent(documentSlug);
+		const assetRequests: string[] = [];
+		const response = await worker.fetch(
+			new Request(`https://docs.example.com/docs/regulations/scoped_rules/${encodedSlug}`),
+			{
+				APP_API: {
+					fetch: async () => new Response(null, { status: 204 }),
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async (request: Request) => {
+						assetRequests.push(new URL(request.url).pathname);
+						if (new URL(request.url).pathname === "/reader-fallback.html") {
+							return new Response("<!doctype html><html><body>reader fallback</body></html>", {
+								headers: {
+									"cache-control": "public, max-age=3600",
+									"content-type": "text/html; charset=utf-8",
+								},
+								status: 200,
+							});
+						}
+						return new Response("missing", { status: 404 });
+					},
+				},
+				PUBLIC_DOCS_HOSTNAME: "docs.example.com",
+			},
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		await expect(response.text()).resolves.toContain("reader fallback");
+		expect(assetRequests).toEqual([
+			`/docs/regulations/scoped_rules/${encodedSlug}`,
+			"/reader-fallback.html",
+		]);
+	});
+
+	it("serves the gated collection fallback shell when a collection route misses static assets", async () => {
+		const worker = await importWorker();
+		const assetRequests: string[] = [];
+		const response = await worker.fetch(
+			new Request("https://docs.example.com/docs/regulations/scoped_rules/"),
+			{
+				APP_API: {
+					fetch: async () => new Response(null, { status: 204 }),
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async (request: Request) => {
+						assetRequests.push(new URL(request.url).pathname);
+						if (new URL(request.url).pathname === "/collection-fallback.html") {
+							return new Response("<!doctype html><html><body>collection fallback</body></html>", {
+								headers: {
+									"cache-control": "public, max-age=3600",
+									"content-type": "text/html; charset=utf-8",
+								},
+								status: 200,
+							});
+						}
+						if (new URL(request.url).pathname === "/reader-fallback.html") {
+							return new Response("<!doctype html><html><body>reader fallback</body></html>", {
+								headers: {
+									"cache-control": "public, max-age=3600",
+									"content-type": "text/html; charset=utf-8",
+								},
+								status: 200,
+							});
+						}
+						return new Response("missing", { status: 404 });
+					},
+				},
+				PUBLIC_DOCS_HOSTNAME: "docs.example.com",
+			},
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		await expect(response.text()).resolves.toContain("collection fallback");
+		expect(assetRequests).toEqual(["/docs/regulations/scoped_rules/", "/collection-fallback.html"]);
+	});
+
 	it("serves gated static assets only after app-api admission check passes", async () => {
 		const worker = await importWorker();
 		let admissionUrl: string | null = null;
@@ -321,6 +406,93 @@ describe("public docs worker shell", () => {
 			"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/admission?version=2026-current",
 		);
 		expect(admissionCookie).toBe("better-auth.session_token=test");
+	});
+
+	it("serves scoped regulation gated assets behind app-api admission without leaking storage locators", async () => {
+		const worker = await importWorker();
+		const documentSlug =
+			"中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则";
+		const encodedSlug = encodeURIComponent(documentSlug);
+		const gatedPath = `/_gated-docs/regulations/scoped_rules/${encodedSlug}/2026-current/reader.json`;
+		let admittedUrl: string | null = null;
+		let admittedCookie: string | null = null;
+		let assetRequestPath: string | null = null;
+
+		const authorized = await worker.fetch(
+			new Request(`https://docs.example.com${gatedPath}`, {
+				headers: {
+					cookie: "better-auth.session_token=campus-member",
+				},
+			}),
+			{
+				APP_API: {
+					fetch: async (request: Request) => {
+						admittedUrl = request.url;
+						admittedCookie = request.headers.get("cookie");
+						return new Response(null, { status: 204 });
+					},
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async (request: Request) => {
+						assetRequestPath = new URL(request.url).pathname;
+						return new Response(
+							JSON.stringify({
+								document: {
+									title:
+										"中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+								},
+								sections: [],
+							}),
+							{
+								headers: {
+									"cache-control": "public, max-age=3600",
+									"content-type": "application/json; charset=utf-8",
+								},
+								status: 200,
+							},
+						);
+					},
+				},
+				PUBLIC_DOCS_HOSTNAME: "docs.example.com",
+			},
+		);
+
+		expect(authorized.status).toBe(200);
+		expect(authorized.headers.get("cache-control")).toBe("no-store");
+		expect(authorized.headers.get("vary")).toContain("Cookie");
+		expect(authorized.headers.get("vary")).toContain("Authorization");
+		const authorizedPayload = await authorized.text();
+		expect(authorizedPayload).toContain("硕博连读研究生招生实施细则");
+		expect(authorizedPayload).not.toContain("regulations/documents/");
+		expect(authorizedPayload).not.toContain("reader-assets/");
+		expect(authorizedPayload).not.toContain("portal");
+		expect(assetRequestPath).toBe(gatedPath);
+		expect(admittedUrl).toBe(
+			`https://app-api.internal/api/docs/collections/regulations/scoped_rules/documents/${encodedSlug}/admission?version=2026-current`,
+		);
+		expect(admittedCookie).toBe("better-auth.session_token=campus-member");
+
+		let deniedAssetCalled = false;
+		const denied = await worker.fetch(new Request(`https://docs.example.com${gatedPath}`), {
+			APP_API: {
+				fetch: async () => new Response(null, { status: 404 }),
+			},
+			APP_API_BASE_URL: "https://app-api.internal",
+			ASSETS: {
+				fetch: async () => {
+					deniedAssetCalled = true;
+					return new Response("unexpected", { status: 200 });
+				},
+			},
+			PUBLIC_DOCS_HOSTNAME: "docs.example.com",
+		});
+
+		expect(denied.status).toBe(404);
+		expect(denied.headers.get("cache-control")).toBe("no-store");
+		expect(denied.headers.get("vary")).toContain("Cookie");
+		expect(denied.headers.get("vary")).toContain("Authorization");
+		expect(deniedAssetCalled).toBe(false);
 	});
 
 	it("fails closed for gated static assets when admission is denied", async () => {

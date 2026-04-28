@@ -95,14 +95,28 @@ describe("published reader docs sync", () => {
 					versionSlug: "current",
 				},
 				{
-					collection: "curriculum_plan",
-					corpus: "curriculum",
+					collection: "scoped_rules",
+					corpus: "regulations",
 					deliveryMode: "gated_asset",
-					docId: "curriculum:restricted",
-					sourceObjects: {},
-					targetObjects: {},
-					title: "受限培养方案",
-					versionId: "ver_restricted",
+					docId: "institutional_regulation:muc:scoped-rule",
+					documentSlug: "central-minzu-scoped-rule",
+					sourceObjects: {
+						manifest: "reader-assets/scoped-rule/asset-manifest.json",
+						meta: "reader-assets/scoped-rule/meta.json",
+						outline: "reader-assets/scoped-rule/outline.json",
+						reader: "reader-assets/scoped-rule/reader.json",
+					},
+					targetObjects: {
+						"asset-manifest":
+							"_gated-docs/regulations/scoped_rules/central-minzu-scoped-rule/2026-current/asset-manifest.json",
+						meta: "_gated-docs/regulations/scoped_rules/central-minzu-scoped-rule/2026-current/meta.json",
+						outline:
+							"_gated-docs/regulations/scoped_rules/central-minzu-scoped-rule/2026-current/outline.json",
+						reader:
+							"_gated-docs/regulations/scoped_rules/central-minzu-scoped-rule/2026-current/reader.json",
+					},
+					title: "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+					versionId: "ver_scoped_rule",
 					versionSlug: "2026-current",
 				},
 			],
@@ -239,6 +253,9 @@ describe("published reader docs sync", () => {
 		expect(
 			readFileSync(join(docsRoot, "docs/curriculum/curriculum_plan/index.md"), "utf8"),
 		).toContain("当前公开发布 1 篇文档");
+		expect(readFileSync(join(docsRoot, "docs/regulations/index.md"), "utf8")).not.toContain(
+			"专项规章",
+		);
 		const page = readFileSync(join(docsRoot, "docs/curriculum/curriculum_plan/law.mdx"), "utf8");
 		expect(page).toContain('title: "法学本科人才培养方案"');
 		expect(page).toContain("## 第一节（导论）");
@@ -307,6 +324,9 @@ describe("published reader docs sync", () => {
 		expect(existsSync(join(docsRoot, "docs/curriculum/curriculum_plan/restricted.mdx"))).toBe(
 			false,
 		);
+		expect(
+			existsSync(join(docsRoot, "docs/regulations/scoped_rules/central-minzu-scoped-rule.mdx")),
+		).toBe(false);
 	});
 
 	it("rejects unsupported delivery modes instead of silently dropping entries", async () => {
@@ -442,5 +462,85 @@ describe("published reader docs sync", () => {
 		expect(page).toContain("课程 说明");
 		expect(page).not.toContain("<td>");
 		expect(page).not.toContain("</tr></table>");
+	});
+
+	it("orders and labels regulation collections that appear in published reader manifests", async () => {
+		const docsRoot = createDocsRoot();
+		const manifest = {
+			entries: [
+				{
+					collection: "scoped_rules",
+					corpus: "regulations",
+					deliveryMode: "public_static_asset",
+					documentSlug: "school-scoped-rule",
+					isCurrent: true,
+					sourceObjects: {
+						reader: "reader-assets/scoped/reader.json",
+					},
+					targetObjects: {},
+					title: "学院专项实施细则",
+					versionSlug: "current",
+				},
+				{
+					collection: "institutional_rules",
+					corpus: "regulations",
+					deliveryMode: "public_static_asset",
+					documentSlug: "institution-rule",
+					isCurrent: true,
+					sourceObjects: {
+						reader: "reader-assets/institution/reader.json",
+					},
+					targetObjects: {},
+					title: "校级管理办法",
+					versionSlug: "current",
+				},
+			],
+		};
+		const objectStore = new FakeObjectStore(
+			new Map([
+				["manifest.json", JSON.stringify(manifest)],
+				[
+					"reader-assets/scoped/reader.json",
+					JSON.stringify({
+						document: {
+							collection: "scoped_rules",
+							corpus: "regulations",
+							documentSlug: "school-scoped-rule",
+							title: "学院专项实施细则",
+						},
+						sections: [],
+					}),
+				],
+				[
+					"reader-assets/institution/reader.json",
+					JSON.stringify({
+						document: {
+							collection: "institutional_rules",
+							corpus: "regulations",
+							documentSlug: "institution-rule",
+							title: "校级管理办法",
+						},
+						sections: [],
+					}),
+				],
+			]),
+		);
+
+		await syncPublishedReaderDocs({
+			client: objectStore,
+			docsRoot,
+			manifestObjectKey: "manifest.json",
+		});
+
+		const regulationsIndex = readFileSync(join(docsRoot, "docs/regulations/index.md"), "utf8");
+		expect(regulationsIndex).toContain("[校级规章](./institutional_rules/)：1 篇文档");
+		expect(regulationsIndex).toContain("[专项规章](./scoped_rules/)：1 篇文档");
+		expect(regulationsIndex.indexOf("校级规章")).toBeLessThan(regulationsIndex.indexOf("专项规章"));
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/index.md"), "utf8"),
+		).toContain("当前公开发布 1 篇文档，归属「规章制度」。");
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/scoped_rules/index.md"), "utf8"),
+		).toContain("当前公开发布 1 篇文档，归属「规章制度」。");
 	});
 });

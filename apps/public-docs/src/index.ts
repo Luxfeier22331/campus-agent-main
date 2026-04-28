@@ -12,6 +12,7 @@ export interface Env {
 
 const DOCS_API_PREFIX = "/api/docs/";
 const GATED_DOCS_PREFIX = "/_gated-docs/";
+const COLLECTION_FALLBACK_PATH = "/collection-fallback.html";
 const READER_FALLBACK_PATH = "/reader-fallback.html";
 const FORWARDED_HEADERS = [
 	"accept",
@@ -243,7 +244,13 @@ async function serveStaticDocs(request: Request, env: Env): Promise<Response> {
 	}
 
 	const response = await env.ASSETS.fetch(request);
-	if (response.status === 404 && isDocsReaderRoute(new URL(request.url).pathname)) {
+	const pathname = new URL(request.url).pathname;
+	if (response.status === 404 && isDocsCollectionRoute(pathname)) {
+		const fallbackUrl = new URL(COLLECTION_FALLBACK_PATH, request.url);
+		const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
+		return withNoStore(fallbackResponse);
+	}
+	if (response.status === 404 && isDocsReaderRoute(pathname)) {
 		const fallbackUrl = new URL(READER_FALLBACK_PATH, request.url);
 		const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
 		return withNoStore(fallbackResponse);
@@ -365,6 +372,11 @@ function parseGatedReaderTarget(pathname: string): {
 
 function isDocsReaderRoute(pathname: string): boolean {
 	return pathname.startsWith("/docs/") && pathname.split("/").filter(Boolean).length >= 4;
+}
+
+function isDocsCollectionRoute(pathname: string): boolean {
+	const segments = pathname.split("/").filter(Boolean);
+	return segments.length === 3 && segments[0] === "docs";
 }
 
 function withNoStore(response: Response, options?: { varyAuth?: boolean }): Response {

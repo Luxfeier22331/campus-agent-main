@@ -5,6 +5,8 @@ import {
 } from "./staging-chat-smoke.args";
 
 export const DEFAULT_STAGING_DOCS_BASE_URL = "https://campus-docs-staging.ayafeed.com";
+export const DEFAULT_STAGING_GATED_COLLECTION_NAVIGATION_PATH =
+	"/api/docs/collections/regulations/scoped_rules/navigation";
 export const DEFAULT_STAGING_GATED_READER_PATH =
 	"/_gated-docs/curriculum/curriculum_plan/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%A4%A7%E5%AD%A6%E7%94%9F%E7%A4%BE%E4%BC%9A%E5%AE%9E%E8%B7%B5%E7%8E%AF%E8%8A%82%E5%AE%9E%E6%96%BD%E6%96%B9%E6%A1%88/2022-current/reader.json";
 
@@ -13,6 +15,7 @@ export interface StagingDocsGatedSmokeArgs {
 	chatBaseUrl: string;
 	docsBaseUrl: string;
 	email: string;
+	gatedCollectionNavigationPath: string;
 	gatedReaderPath: string;
 	name: string;
 	smokeAuthSecret: string;
@@ -40,6 +43,7 @@ export function parseStagingDocsGatedSmokeArgs(
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_BASE_URL;
 	let appApiReadyzUrl = DEFAULT_STAGING_APP_API_READYZ_URL;
 	let docsBaseUrl = DEFAULT_STAGING_DOCS_BASE_URL;
+	let gatedCollectionNavigationPath = DEFAULT_STAGING_GATED_COLLECTION_NAVIGATION_PATH;
 	let gatedReaderPath = DEFAULT_STAGING_GATED_READER_PATH;
 	let smokeAuthSecret =
 		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
@@ -96,6 +100,15 @@ export function parseStagingDocsGatedSmokeArgs(
 			index += 1;
 			continue;
 		}
+		if (token === "--gated-collection-navigation-path") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--gated-collection-navigation-path requires a non-empty value.");
+			}
+			gatedCollectionNavigationPath = normalizePath(value);
+			index += 1;
+			continue;
+		}
 		if (token === "--gated-reader-path") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -128,6 +141,7 @@ export function parseStagingDocsGatedSmokeArgs(
 		chatBaseUrl,
 		docsBaseUrl,
 		email,
+		gatedCollectionNavigationPath,
 		gatedReaderPath,
 		name,
 		smokeAuthSecret,

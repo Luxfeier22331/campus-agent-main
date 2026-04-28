@@ -71,7 +71,12 @@ interface RenderedReaderBlock {
 }
 
 const CORPUS_ORDER = ["regulations", "curriculum"] as const;
-const COLLECTION_ORDER = ["student_rules", "curriculum_plan"] as const;
+const COLLECTION_ORDER = [
+	"student_rules",
+	"institutional_rules",
+	"scoped_rules",
+	"curriculum_plan",
+] as const;
 
 export async function syncPublishedReaderDocs(input: {
 	client: ObjectStoreClient;
@@ -610,6 +615,12 @@ function resolveCollectionLabel(entry: PublishedReaderDocEntry): string {
 	if (entry.collection === "student_rules") {
 		return "学生手册";
 	}
+	if (entry.collection === "institutional_rules") {
+		return "校级规章";
+	}
+	if (entry.collection === "scoped_rules") {
+		return "专项规章";
+	}
 	return entry.collection;
 }
 
@@ -703,6 +714,12 @@ function collectionDescription(corpus: string, collection: string): string {
 	}
 	if (collection === "curriculum_plan") {
 		return "专业培养目标、毕业要求、课程安排与课程地图。";
+	}
+	if (collection === "institutional_rules") {
+		return "学校层面的正式规章制度。";
+	}
+	if (collection === "scoped_rules") {
+		return "面向特定单位、事项或周期的专项规则。";
 	}
 	return `${resolveCorpusLabel(corpus)}公开文档。`;
 }

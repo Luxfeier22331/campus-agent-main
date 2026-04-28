@@ -7,6 +7,7 @@ import {
 } from "../scripts/staging-chat-smoke.args";
 import {
 	DEFAULT_STAGING_DOCS_BASE_URL,
+	DEFAULT_STAGING_GATED_COLLECTION_NAVIGATION_PATH,
 	DEFAULT_STAGING_GATED_READER_PATH,
 	parseStagingDocsGatedSmokeArgs,
 } from "../scripts/staging-docs-gated-smoke.args";
@@ -21,6 +22,7 @@ describe("staging docs gated smoke args", () => {
 			appApiReadyzUrl: DEFAULT_STAGING_APP_API_READYZ_URL,
 			chatBaseUrl: DEFAULT_STAGING_CHAT_BASE_URL,
 			docsBaseUrl: DEFAULT_STAGING_DOCS_BASE_URL,
+			gatedCollectionNavigationPath: DEFAULT_STAGING_GATED_COLLECTION_NAVIGATION_PATH,
 			email: "help_bot@outlook.com",
 			gatedReaderPath: DEFAULT_STAGING_GATED_READER_PATH,
 			name: "Campus Agent Smoke",
@@ -43,6 +45,8 @@ describe("staging docs gated smoke args", () => {
 					"https://api.example.com/readyz",
 					"--docs-base-url",
 					"https://docs.example.com",
+					"--gated-collection-navigation-path",
+					"api/docs/collections/regulations/scoped_rules/navigation",
 					"--gated-reader-path",
 					"_gated-docs/corpus/collection/doc/version/reader.json",
 					"--smoke-auth-secret",
@@ -55,6 +59,8 @@ describe("staging docs gated smoke args", () => {
 			chatBaseUrl: "https://chat.example.com",
 			docsBaseUrl: "https://docs.example.com",
 			email: "smoke-user@example.edu",
+			gatedCollectionNavigationPath:
+				"/api/docs/collections/regulations/scoped_rules/navigation",
 			gatedReaderPath: "/_gated-docs/corpus/collection/doc/version/reader.json",
 			name: "Smoke User",
 			smokeAuthSecret: "explicit-smoke-secret",
