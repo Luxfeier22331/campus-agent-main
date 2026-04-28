@@ -140,6 +140,81 @@ class InternalNoticeRegulationOwnerRecoveryTest(unittest.TestCase):
         self.assertEqual(row.attempts[0].reason, "captured_attachment_not_found")
         self.assertEqual(row.attempts[1].evidence["file_release_id"], 647)
 
+    def test_recovery_prefers_official_web_source_over_existing_registry(self) -> None:
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many(
+            (
+                _inventory(
+                    notice_id="300012",
+                    title="关于发布《中央民族大学科研经费管理办法》的通知",
+                    owner_kind="official_web_document",
+                    relation_type="official_web_ref",
+                    owner_title_hint="中央民族大学科研经费管理办法",
+                ),
+            )
+        )
+        official_record = _source_record(
+            document_id="official_web:muc_public_pages:article_detail:research-fund-rule",
+            source_uri="https://www.muc.edu.cn/info/research-fund-rule.htm",
+            corpus="official_web",
+            collection="muc_public_pages",
+            canonical_key="official_web/documents/research-fund-rule/canonical.md",
+            units_key="official_web/documents/research-fund-rule/document-units.jsonl",
+            source_channel="official_web",
+        )
+        existing_record = _source_record(
+            document_id="institutional_regulation:muc:科研经费管理办法:existing",
+            source_uri="campusrag://regulations/institutional_rules/research-fund-rule",
+            corpus="regulations",
+            collection="institutional_rules",
+            canonical_key="regulations/documents/institutional_rules/research-fund-rule/canonical.md",
+            units_key="regulations/documents/institutional_rules/research-fund-rule/document-units.jsonl",
+            source_channel="manual_curated",
+        )
+
+        report = build_internal_notice_regulation_owner_recovery_report(
+            audit_report=_audit_report(
+                _audit_row(
+                    notice_id="300012",
+                    title="关于发布《中央民族大学科研经费管理办法》的通知",
+                    classification="official_web_owner_candidate",
+                    stable_reason="official_web_backed_regulation_body_missing",
+                )
+            ),
+            source_truth_inventory_store=inventory_store,
+            registry=InMemoryDocumentRegistry((official_record, existing_record)),
+            object_store=_FakeObjectStore(
+                objects={
+                    ("campus-rag-derived", official_record.canonical_markdown_object_key): (
+                        _canonical_markdown(
+                            "# 中央民族大学科研经费管理办法\n\n"
+                            "第一条 为规范科研经费管理，制定本办法。"
+                        )
+                    ),
+                    ("campus-rag-derived", existing_record.canonical_markdown_object_key): (
+                        _canonical_markdown(
+                            "# 中央民族大学科研经费管理办法\n\n"
+                            "第一条 为规范科研经费管理，制定本办法。"
+                        )
+                    ),
+                }
+            ),
+            file_release_inventory_store=InMemoryAuthenticatedNoticeFileReleaseInventoryStore(),
+        )
+
+        row = report.rows[0]
+        self.assertEqual(row.status, "ready")
+        self.assertEqual(row.selected_source_kind, "official_web_source")
+        self.assertEqual(row.selected_source_document_id, official_record.document_id)
+        self.assertEqual(
+            tuple(attempt.source_kind for attempt in row.attempts),
+            (
+                "captured_attachment",
+                "authenticated_file_release",
+                "official_web_source",
+            ),
+        )
+
     def test_recovery_fails_closed_without_owner_source(self) -> None:
         inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
         inventory_store.upsert_many(
@@ -254,6 +329,7 @@ def _source_record(
     collection: str,
     canonical_key: str,
     units_key: str,
+    source_channel: str = "authenticated_notice_portal",
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
@@ -271,7 +347,7 @@ def _source_record(
         ingestion_timestamp="2026-04-10T00:00:00+00:00",
         parser_version="authenticated_notice_source_projection_v1",
         embedding_model="Qwen3-Embedding-4B",
-        source_channel=("authenticated_notice_portal" if corpus == "campus_notices" else corpus),
+        source_channel=source_channel,
         is_current=True,
         document_units_object_key=units_key,
         canonical_markdown_object_key=canonical_key,
