@@ -657,6 +657,76 @@ func TestLookupServiceStatusFailsClosedWhenMatchedRecordIsIncomplete(t *testing.
 	}
 }
 
+func TestLookupServiceStatusRejectsUnknownSourceObservedStatus(t *testing.T) {
+	runtime := newRuntimeWithServiceStatusReadModel(
+		t,
+		serviceStatusProjectionFixtureWithUnknownSourceStatus(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupServiceStatus(context.Background(), []byte(`{
+		"subject_query":"图书馆今天开门吗",
+		"temporal_query":{"mode":"current"},
+		"campus_scope":"haidian"
+	}`))
+
+	result := response.Body.(serviceStatusResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.ObservedStatus != "unknown" {
+		t.Fatalf("observed_status = %q, want fail-close unknown", result.ObservedStatus)
+	}
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
+	}
+}
+
+func TestLookupServiceStatusMatchesPlatformRefs(t *testing.T) {
+	runtime := newRuntimeWithServiceStatusReadModel(
+		t,
+		serviceStatusProjectionFixtureWithPlatformRefs(),
+		"2026-04-28T02:30:00+08:00",
+	)
+
+	response := runtime.LookupServiceStatus(context.Background(), []byte(`{
+		"subject_query":"信息门户现在能用吗",
+		"temporal_query":{"mode":"current"}
+	}`))
+
+	result := response.Body.(serviceStatusResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedSubject != "统一身份认证平台" {
+		t.Fatalf("resolved_subject = %q", result.ResolvedSubject)
+	}
+	if result.ObservedStatus != "temporarily_closed" {
+		t.Fatalf("observed_status = %q, want temporarily_closed", result.ObservedStatus)
+	}
+}
+
+func TestLookupServiceStatusRequiresClarificationForAmbiguousCampusSubjects(t *testing.T) {
+	runtime := newRuntimeWithServiceStatusReadModel(
+		t,
+		serviceStatusProjectionFixtureWithAmbiguousCampusSubjects(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupServiceStatus(context.Background(), []byte(`{
+		"subject_query":"图书馆今天开门吗",
+		"temporal_query":{"mode":"current"}
+	}`))
+
+	result := response.Body.(serviceStatusResult)
+	if result.Outcome != "clarification_required" {
+		t.Fatalf("outcome = %q, want clarification_required", result.Outcome)
+	}
+	if result.FailCloseReason != "" {
+		t.Fatalf("fail_close_reason = %q, want empty", result.FailCloseReason)
+	}
+}
+
 func newRuntimeWithTransportReadModel(
 	t *testing.T,
 	payload string,

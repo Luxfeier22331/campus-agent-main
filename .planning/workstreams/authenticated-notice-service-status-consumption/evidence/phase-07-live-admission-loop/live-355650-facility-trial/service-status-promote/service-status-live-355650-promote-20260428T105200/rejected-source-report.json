@@ -1,0 +1,7 @@
+{
+  "schema_version": "service_status_rejected_source_report.v1",
+  "release_id": "service-status-live-355650-promote-20260428T105200",
+  "generated_at": "2026-04-28T10:52:00+08:00",
+  "rejected_source_count": 0,
+  "rejected_sources": []
+}

@@ -97,13 +97,18 @@ def _smoke_service_status_bundle() -> dict[str, object]:
             {
                 "subject_id": "smoke:structured-projection",
                 "display_name": "结构化投影 PG smoke",
+                "service_family": "service_counter",
                 "aliases": ["structured projection smoke"],
                 "campus_scope": "all",
+                "affected_scope": "smoke",
                 "observed_status": "open",
                 "effective_from": "2026-01-01T00:00:00+08:00",
                 "effective_until": "2099-12-31T23:59:59+08:00",
+                "status_note": "仅用于结构化投影写入 smoke。",
+                "severity": "normal",
                 "override_source_refs": ["smoke:structured-projection"],
                 "related_notice_refs": ["smoke:structured-projection"],
+                "extraction_status": "ready",
             }
         ],
     }

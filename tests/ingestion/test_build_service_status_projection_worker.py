@@ -87,6 +87,99 @@ class BuildServiceStatusProjectionWorkerTest(unittest.TestCase):
             "transport:intercampus-commute:boarding-point:fengtai",
         )
 
+    def test_worker_stage_mode_does_not_write_current_or_promote_pg_current(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry, object_store, entry = _service_status_runtime(
+                notice_id="353903",
+                notice_title="关于更改通勤班车丰台校区乘车点的通知",
+                release_time="2025-12-11 10:00",
+                parent_markdown=(
+                    "# 关于更改通勤班车丰台校区乘车点的通知\n\n"
+                    "下周一（12月15日）起，两校区通勤班车丰台校区的上车点、"
+                    "下车点更改为聚雅餐厅东侧停车场路口。\n"
+                ),
+            )
+            publisher = _FakeStructuredProjectionPublisher()
+
+            worker.build_service_status_projection_release_from_consumption_projection(
+                projection_entries=(entry,),
+                registry=registry,
+                work_dir=root / "work",
+                release_id="service-status-stage-353903",
+                generated_at="2026-04-27T12:00:00+08:00",
+                object_store=object_store,
+                derived_bucket="campus-rag-derived",
+                structured_projection_publisher=publisher,
+                publish_mode="stage",
+            )
+
+        self.assertEqual(publisher.calls[0]["promote_current"], False)
+        self.assertIn(
+            (
+                "campus-rag-derived",
+                (
+                    "campus_services/releases/service_status/service-status-stage-353903/"
+                    "service-status-projection.json"
+                ),
+            ),
+            object_store.objects,
+        )
+        self.assertNotIn(
+            (
+                "campus-rag-derived",
+                "campus_services/releases/service_status/current/service-status-projection.json",
+            ),
+            object_store.objects,
+        )
+
+    def test_worker_preview_records_rejected_sources_without_publishable_records(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry, object_store, entry = _service_status_runtime(
+                notice_id="355002",
+                notice_title="关于校园服务状态调整的通知",
+                release_time="2026-04-27 10:00",
+                parent_markdown=(
+                    "# 关于校园服务状态调整的通知\n\n"
+                    "相关校园服务近期将调整，具体恢复时间另行通知。\n"
+                ),
+            )
+            publisher = _FakeStructuredProjectionPublisher()
+
+            report = worker.build_service_status_projection_release_from_consumption_projection(
+                projection_entries=(entry,),
+                registry=registry,
+                work_dir=root / "work",
+                release_id="service-status-preview-rejected-355002",
+                generated_at="2026-04-28T09:30:00+08:00",
+                object_store=object_store,
+                derived_bucket="campus-rag-derived",
+                structured_projection_publisher=publisher,
+                publish_mode="preview",
+            )
+
+            rejected_report = json.loads(Path(report.rejected_source_report_path).read_text())
+            build_report = json.loads((root / "work" / "build-report.json").read_text())
+
+        self.assertEqual(rejected_report["rejected_source_count"], 1)
+        self.assertEqual(rejected_report["rejected_sources"][0]["source_notice_id"], "355002")
+        self.assertEqual(build_report["materialized_record_count"], 0)
+        self.assertEqual(build_report["rejected_source_count"], 1)
+        self.assertEqual(publisher.calls, [])
+        self.assertNotIn(
+            (
+                "campus-rag-derived",
+                (
+                    "campus_services/releases/service_status/"
+                    "service-status-preview-rejected-355002/service-status-projection.json"
+                ),
+            ),
+            object_store.objects,
+        )
+
     def test_main_requires_consumer_admission_manifest_for_projection_mode(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

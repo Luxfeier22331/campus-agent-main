@@ -16,6 +16,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 			{
 				"subject_id":"library-haidian",
 				"display_name":"海淀校区图书馆",
+				"service_family":"library",
 				"aliases":["图书馆","海淀校区图书馆"],
 				"campus_scope":"haidian",
 				"observed_status":"open",

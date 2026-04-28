@@ -216,7 +216,9 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(response.result.resolved_subject, "海淀校区图书馆")
         self.assertIn("海淀校区图书馆", response.answer_text)
         self.assertIn("正常开放", response.answer_text)
+        self.assertIn("有效时间", response.answer_text)
         self.assertIn("工作日开放，节假日另行通知", response.answer_text)
+        self.assertNotIn("运营提示", response.answer_text)
         self.assertNotIn("open", response.answer_text)
         self.assertEqual(
             query_service.last_service_status_query,
@@ -231,6 +233,31 @@ class CampusServicesAgentTest(unittest.TestCase):
                 ),
             ),
         )
+
+    def test_service_status_response_renders_open_ended_effective_window(self) -> None:
+        response = campus_services_tool_adapter._service_status_response(
+            ServiceStatusLookupResult(
+                subject_query="静园10号楼女浴室",
+                outcome="resolved_current",
+                resolved_subject="静园10号楼负一层女浴室",
+                observed_status="limited_service",
+                status_note=(
+                    "静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行"
+                ),
+                queried_time_anchor="2026-04-28T11:05:00+08:00",
+                effective_from="2026-04-16T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                override_source_refs=("notice:muc_internal_portal:355650",),
+                related_notice_refs=("notice:muc_internal_portal:355650",),
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("静园10号楼负一层女浴室", response.answer_text)
+        self.assertIn("有限开放", response.answer_text)
+        self.assertIn("有效时间：4月16日 00:00 起。", response.answer_text)
+        self.assertNotIn("2099", response.answer_text)
+        self.assertNotIn("12月31日", response.answer_text)
 
     def test_transport_schedule_payload_rejects_tool_outside_allowed_tools(self) -> None:
         response = delegate_to_campus_services_agent(

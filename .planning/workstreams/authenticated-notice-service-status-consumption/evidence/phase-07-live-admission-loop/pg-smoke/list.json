@@ -1,0 +1,62 @@
+{
+  "collection": "service_status",
+  "corpus": "campus_services",
+  "releases": [
+    {
+      "artifact_checksum": "sha256:71c89b6ce3c9bda5f4ffb160a0c4bf81efe05fd7bd10297a7188b3bb6353a1c8",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-notice-derived-20260427T121945/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 2
+      },
+      "generated_at": "2026-04-27 04:19:45+00",
+      "published_at": "2026-04-27 04:20:32.12878+00",
+      "release_id": "service-status-notice-derived-20260427T121945",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:71c89b6ce3c9bda5f4ffb160a0c4bf81efe05fd7bd10297a7188b3bb6353a1c8",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-notice-derived-20260427T115303/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 2
+      },
+      "generated_at": "2026-04-27 04:00:00+00",
+      "published_at": "2026-04-27 03:53:09.685964+00",
+      "release_id": "service-status-notice-derived-20260427T115303",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:6e85bb66395128a1cbf8864bde34027e30b5c06fc9a89ed2de18726128c31a0a",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-notice-derived-20260427T115004/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 2
+      },
+      "generated_at": "2026-04-27 04:00:00+00",
+      "published_at": "2026-04-27 03:50:11.458469+00",
+      "release_id": "service-status-notice-derived-20260427T115004",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:5df46ea724f091296b0e10d60721b731475f5fd1b84cec1124ecfac8dbd6273a",
+      "artifact_object_key": "campus_services/releases/service_status/schedule-e2e-smoke-20260427-service-status/structured-projection-smoke.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 1
+      },
+      "generated_at": "2026-04-27 04:00:00+00",
+      "published_at": "2026-04-26 23:34:56.567293+00",
+      "release_id": "schedule-e2e-smoke-20260427-service-status",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "validation_status": "smoke_valid"
+    }
+  ]
+}

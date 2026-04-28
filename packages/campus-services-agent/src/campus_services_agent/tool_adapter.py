@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from campus_contracts import (
     AgentRequest,
     AgentResponse,
@@ -176,12 +178,18 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
 def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse:
     if result.outcome == "resolved_current":
         note = result.status_note.strip()
-        note_suffix = f" 运营提示：{note}" if note else ""
+        note_suffix = f" 提示：{note}" if note else ""
+        window_suffix = _service_status_effective_window(
+            result.effective_from,
+            result.effective_until,
+        )
         status_label = _service_status_label(str(result.observed_status))
         return AgentResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=(f"{result.resolved_subject}当前状态：{status_label}。{note_suffix}"),
+            answer_text=(
+                f"{result.resolved_subject}：当前状态：{status_label}。{window_suffix}{note_suffix}"
+            ).strip(),
             confidence="high",
             result=result,
         )
@@ -230,6 +238,42 @@ def _service_status_label(status: str) -> str:
         "unknown": "状态未确认",
     }
     return labels.get(status.strip(), "状态未确认")
+
+
+def _service_status_effective_window(effective_from: str, effective_until: str) -> str:
+    start = _parse_datetime_label(effective_from)
+    if start is None:
+        return ""
+    if _is_open_ended_effective_until(effective_until):
+        return f"有效时间：{start[0]}月{start[1]}日 {start[2]} 起。"
+    end = _parse_datetime_label(effective_until)
+    if end is None:
+        return ""
+    if start[:2] == end[:2]:
+        return f"有效时间：{start[0]}月{start[1]}日 {start[2]} 至 {end[2]}。"
+    return f"有效时间：{start[0]}月{start[1]}日 {start[2]} 至 {end[0]}月{end[1]}日 {end[2]}。"
+
+
+def _is_open_ended_effective_until(value: str) -> bool:
+    normalized = value.strip()
+    if len(normalized) < 4:
+        return False
+    try:
+        year = int(normalized[:4])
+    except ValueError:
+        return False
+    return year >= 2099
+
+
+def _parse_datetime_label(value: str) -> tuple[int, int, str] | None:
+    normalized = value.strip()
+    if not normalized:
+        return None
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    return parsed.month, parsed.day, parsed.strftime("%H:%M")
 
 
 def _transport_schedule_response(result: TransportScheduleLookupResult) -> AgentResponse:

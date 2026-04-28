@@ -31,16 +31,33 @@ type serviceStatusResult struct {
 }
 
 type serviceStatusRecord struct {
-	SubjectID          string   `json:"subject_id"`
-	DisplayName        string   `json:"display_name"`
-	Aliases            []string `json:"aliases"`
-	CampusScope        string   `json:"campus_scope"`
-	ObservedStatus     string   `json:"observed_status"`
-	StatusNote         string   `json:"status_note"`
-	EffectiveFrom      string   `json:"effective_from"`
-	EffectiveUntil     string   `json:"effective_until"`
-	OverrideSourceRefs []string `json:"override_source_refs"`
-	RelatedNoticeRefs  []string `json:"related_notice_refs"`
+	SubjectID          string             `json:"subject_id"`
+	DisplayName        string             `json:"display_name"`
+	ServiceFamily      string             `json:"service_family"`
+	Aliases            []string           `json:"aliases"`
+	CampusScope        string             `json:"campus_scope"`
+	LocationRefs       []serviceStatusRef `json:"location_refs"`
+	PlatformRefs       []serviceStatusRef `json:"platform_refs"`
+	AffectedScope      string             `json:"affected_scope"`
+	ObservedStatus     string             `json:"observed_status"`
+	StatusReason       string             `json:"status_reason"`
+	StatusNote         string             `json:"status_note"`
+	Severity           string             `json:"severity"`
+	EffectiveFrom      string             `json:"effective_from"`
+	EffectiveUntil     string             `json:"effective_until"`
+	OverrideSourceRefs []string           `json:"override_source_refs"`
+	RelatedNoticeRefs  []string           `json:"related_notice_refs"`
+	ExtractionStatus   string             `json:"extraction_status"`
+	SearchText         string             `json:"search_text"`
+}
+
+type serviceStatusRef struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	DisplayName string `json:"display_name"`
+	Name        string `json:"name"`
+	PlaceID     string `json:"place_id"`
+	PlatformID  string `json:"platform_id"`
 }
 
 type serviceStatusRecordStatus struct {
@@ -85,6 +102,14 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 			matchResult.err.Error(),
 			matchResult.historicalDowngradeReason,
 		)
+	}
+	if matchResult.ambiguous {
+		body := serviceStatusResult{
+			SubjectQuery:      request.SubjectQuery,
+			Outcome:           "clarification_required",
+			QueriedTimeAnchor: timeAnchor,
+		}
+		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 	}
 	if !matchResult.ok {
 		body := serviceStatusResult{
@@ -135,6 +160,7 @@ type serviceStatusMatchResult struct {
 	record                    serviceStatusRecord
 	recordStatus              serviceStatusRecordStatus
 	ok                        bool
+	ambiguous                 bool
 	err                       error
 	historicalDowngradeReason string
 }
@@ -149,7 +175,7 @@ func matchServiceStatusRecord(
 	everMatched := false
 	matches := []serviceStatusMatch{}
 	for _, record := range records {
-		if campusScope != "" && normalizeSearchText(record.CampusScope) != campusScope {
+		if campusScope != "" && !serviceStatusCampusMatches(campusScope, record.CampusScope) {
 			continue
 		}
 		score := scoreServiceStatusRecord(query, record)
@@ -183,6 +209,9 @@ func matchServiceStatusRecord(
 		return serviceStatusMatchLess(matches[i], matches[j])
 	})
 	top := matches[0]
+	if serviceStatusHasTopAmbiguity(top, matches[1:]) {
+		return serviceStatusMatchResult{ambiguous: true}
+	}
 	if serviceStatusHasTopConflict(top, matches[1:]) {
 		return serviceStatusMatchResult{err: errors.New("source_conflict")}
 	}
@@ -198,7 +227,19 @@ func matchesServiceStatusRecord(query string, record serviceStatusRecord) bool {
 }
 
 func scoreServiceStatusRecord(query string, record serviceStatusRecord) int {
-	candidates := append([]string{record.SubjectID, record.DisplayName}, record.Aliases...)
+	candidates := []string{
+		record.SubjectID,
+		record.DisplayName,
+		record.ServiceFamily,
+		record.CampusScope,
+		record.AffectedScope,
+		record.StatusReason,
+		record.StatusNote,
+		record.SearchText,
+	}
+	candidates = append(candidates, record.Aliases...)
+	candidates = append(candidates, serviceStatusRefTexts(record.LocationRefs)...)
+	candidates = append(candidates, serviceStatusRefTexts(record.PlatformRefs)...)
 	best := 0
 	for _, candidate := range candidates {
 		normalized := normalizeSearchText(candidate)
@@ -221,6 +262,22 @@ func scoreServiceStatusRecord(query string, record serviceStatusRecord) int {
 	return best
 }
 
+func serviceStatusRefTexts(refs []serviceStatusRef) []string {
+	values := []string{}
+	for _, ref := range refs {
+		values = append(values, ref.ID, ref.Label, ref.DisplayName, ref.Name, ref.PlaceID, ref.PlatformID)
+	}
+	return values
+}
+
+func serviceStatusCampusMatches(queryCampus string, recordCampus string) bool {
+	normalizedRecordCampus := normalizeSearchText(recordCampus)
+	return normalizedRecordCampus == "" ||
+		normalizedRecordCampus == "all" ||
+		normalizedRecordCampus == "university" ||
+		normalizedRecordCampus == queryCampus
+}
+
 func serviceStatusMatchLess(left serviceStatusMatch, right serviceStatusMatch) bool {
 	if left.score != right.score {
 		return left.score > right.score
@@ -241,14 +298,40 @@ func serviceStatusHasTopConflict(top serviceStatusMatch, rest []serviceStatusMat
 		if !sameServiceStatusSubject(top.record, candidate.record) {
 			continue
 		}
-		if top.recordStatus.effectiveFrom.Equal(candidate.recordStatus.effectiveFrom) &&
-			top.recordStatus.effectiveUntil.Equal(candidate.recordStatus.effectiveUntil) &&
-			(strings.TrimSpace(top.record.ObservedStatus) != strings.TrimSpace(candidate.record.ObservedStatus) ||
-				strings.TrimSpace(top.record.StatusNote) != strings.TrimSpace(candidate.record.StatusNote)) {
+		if !serviceStatusWindowsOverlap(top.recordStatus, candidate.recordStatus) {
+			continue
+		}
+		if serviceStatusSpecificOverrideWins(top, candidate) {
+			continue
+		}
+		if strings.TrimSpace(top.record.ObservedStatus) != strings.TrimSpace(candidate.record.ObservedStatus) ||
+			strings.TrimSpace(top.record.StatusNote) != strings.TrimSpace(candidate.record.StatusNote) {
 			return true
 		}
 	}
 	return false
+}
+
+func serviceStatusHasTopAmbiguity(top serviceStatusMatch, rest []serviceStatusMatch) bool {
+	for _, candidate := range rest {
+		if candidate.score != top.score {
+			return false
+		}
+		if !sameServiceStatusSubject(top.record, candidate.record) {
+			return true
+		}
+	}
+	return false
+}
+
+func serviceStatusWindowsOverlap(left serviceStatusRecordStatus, right serviceStatusRecordStatus) bool {
+	return left.effectiveFrom.Before(right.effectiveUntil) && right.effectiveFrom.Before(left.effectiveUntil)
+}
+
+func serviceStatusSpecificOverrideWins(top serviceStatusMatch, candidate serviceStatusMatch) bool {
+	return len(top.record.OverrideSourceRefs) > 0 &&
+		top.recordStatus.effectiveFrom.After(candidate.recordStatus.effectiveFrom) &&
+		top.recordStatus.effectiveUntil.Before(candidate.recordStatus.effectiveUntil)
 }
 
 func sameServiceStatusSubject(left serviceStatusRecord, right serviceStatusRecord) bool {
@@ -277,6 +360,9 @@ func validateServiceStatusRecord(record serviceStatusRecord) (serviceStatusRecor
 	if strings.TrimSpace(record.DisplayName) == "" {
 		return serviceStatusRecordStatus{}, errors.New("display_name is required")
 	}
+	if !isAllowedServiceStatusFamily(record.ServiceFamily) {
+		return serviceStatusRecordStatus{}, errors.New("service_family is invalid")
+	}
 	if !isAllowedObservedStatus(record.ObservedStatus) {
 		return serviceStatusRecordStatus{}, errors.New("observed_status is invalid")
 	}
@@ -294,9 +380,18 @@ func validateServiceStatusRecord(record serviceStatusRecord) (serviceStatusRecor
 	return serviceStatusRecordStatus{effectiveFrom: effectiveFrom, effectiveUntil: effectiveUntil}, nil
 }
 
+func isAllowedServiceStatusFamily(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "facility", "it_platform", "library", "service_counter", "transport_adjacent":
+		return true
+	default:
+		return false
+	}
+}
+
 func isAllowedObservedStatus(value string) bool {
 	switch strings.TrimSpace(value) {
-	case "open", "closed", "temporarily_closed", "limited_service", "unknown":
+	case "open", "closed", "temporarily_closed", "limited_service":
 		return true
 	default:
 		return false

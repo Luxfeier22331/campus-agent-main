@@ -16,12 +16,19 @@ SERVICE_STATUS_COLLECTION = "service_status"
 SERVICE_STATUS_PROJECTION_FILENAME = "service-status-projection.json"
 SERVICE_STATUS_VALIDATION_FILENAME = "validation-summary.json"
 SERVICE_STATUS_RELEASE_MANIFEST_FILENAME = "release-manifest.json"
+SERVICE_STATUS_REJECTED_SOURCE_REPORT_FILENAME = "rejected-source-report.json"
 SERVICE_STATUS_ALLOWED_OBSERVED_STATUSES = {
     "open",
     "closed",
     "temporarily_closed",
     "limited_service",
-    "unknown",
+}
+SERVICE_STATUS_ALLOWED_SERVICE_FAMILIES = {
+    "facility",
+    "it_platform",
+    "library",
+    "service_counter",
+    "transport_adjacent",
 }
 
 
@@ -61,6 +68,8 @@ class ServiceStatusProjectionReleaseReport:
     current_object_key: str
     validation_summary_path: str
     release_manifest_path: str
+    rejected_source_report_path: str
+    rejected_source_report_object_key: str
 
 
 def validate_service_status_projection_bundle(
@@ -82,6 +91,11 @@ def validate_service_status_projection_bundle(
             subject_ids.add(subject_id)
         if _required_text(record.get("display_name")) is None:
             issues.append(_issue(f"{path}.display_name", "display_name is required"))
+        if (
+            _required_text(record.get("service_family"))
+            not in SERVICE_STATUS_ALLOWED_SERVICE_FAMILIES
+        ):
+            issues.append(_issue(f"{path}.service_family", "unsupported service_family"))
         observed_status = _required_text(record.get("observed_status"))
         if observed_status not in SERVICE_STATUS_ALLOWED_OBSERVED_STATUSES:
             issues.append(_issue(f"{path}.observed_status", "unsupported observed_status"))
@@ -90,11 +104,23 @@ def validate_service_status_projection_bundle(
         source_refs = _list_of_text(record.get("related_notice_refs"))
         if not source_refs:
             issues.append(_issue(f"{path}.related_notice_refs", "related_notice_refs is required"))
+    rejected_sources = _list_of_dicts(bundle.get("service_status_rejected_sources"))
+    for index, record in enumerate(rejected_sources):
+        path = f"service_status_rejected_sources[{index}]"
+        if _required_text(record.get("source_notice_id")) is None:
+            issues.append(_issue(f"{path}.source_notice_id", "source_notice_id is required"))
+        if _required_text(record.get("source_ref")) is None:
+            issues.append(_issue(f"{path}.source_ref", "source_ref is required"))
+        if _required_text(record.get("reason")) is None:
+            issues.append(_issue(f"{path}.reason", "reason is required"))
     return ServiceStatusProjectionValidationReport(
         schema_version=SERVICE_STATUS_VALIDATION_REPORT_SCHEMA_VERSION,
         valid=not issues,
         issues=issues,
-        counts={"service_status_records": len(records)},
+        counts={
+            "service_status_records": len(records),
+            "rejected_sources": len(rejected_sources),
+        },
     )
 
 
@@ -106,13 +132,13 @@ def write_service_status_projection_release(
     generated_at: str,
     object_store: ServiceStatusProjectionObjectStore | None = None,
     bucket: str | None = None,
+    write_current: bool = True,
 ) -> ServiceStatusProjectionReleaseReport:
     normalized_release_id = _path_segment(release_id, "release_id")
     output_root = Path(output_dir)
     release_dir = output_root / normalized_release_id
     current_dir = output_root / "current"
     release_dir.mkdir(parents=True, exist_ok=True)
-    current_dir.mkdir(parents=True, exist_ok=True)
 
     bundle_bytes = _json_bytes(bundle)
     validation_report = validate_service_status_projection_bundle(bundle)
@@ -129,6 +155,12 @@ def write_service_status_projection_release(
         release_id="current",
         filename=SERVICE_STATUS_PROJECTION_FILENAME,
     )
+    rejected_source_report_object_key = build_index_release_artifact_key(
+        corpus=SERVICE_STATUS_CORPUS,
+        collection=SERVICE_STATUS_COLLECTION,
+        release_id=normalized_release_id,
+        filename=SERVICE_STATUS_REJECTED_SOURCE_REPORT_FILENAME,
+    )
     release_manifest = {
         "schema_version": SERVICE_STATUS_RELEASE_MANIFEST_SCHEMA_VERSION,
         "release_id": normalized_release_id,
@@ -137,6 +169,7 @@ def write_service_status_projection_release(
         "collection": SERVICE_STATUS_COLLECTION,
         "projection_object_key": release_object_key,
         "current_projection_object_key": current_object_key,
+        "rejected_source_report_object_key": rejected_source_report_object_key,
         "validation_valid": validation_report.valid,
         "counts": dict(validation_report.counts),
     }
@@ -145,17 +178,32 @@ def write_service_status_projection_release(
     current_projection_path = current_dir / SERVICE_STATUS_PROJECTION_FILENAME
     validation_path = release_dir / SERVICE_STATUS_VALIDATION_FILENAME
     manifest_path = release_dir / SERVICE_STATUS_RELEASE_MANIFEST_FILENAME
+    rejected_source_path = release_dir / SERVICE_STATUS_REJECTED_SOURCE_REPORT_FILENAME
     projection_path.write_bytes(bundle_bytes)
-    current_projection_path.write_bytes(bundle_bytes)
+    if write_current:
+        current_dir.mkdir(parents=True, exist_ok=True)
+        current_projection_path.write_bytes(bundle_bytes)
     validation_path.write_bytes(_json_bytes(validation_payload))
     manifest_path.write_bytes(_json_bytes(release_manifest))
+    rejected_source_path.write_bytes(
+        _json_bytes(
+            {
+                "schema_version": "service_status_rejected_source_report.v1",
+                "release_id": normalized_release_id,
+                "generated_at": generated_at,
+                "rejected_source_count": len(
+                    _list_of_dicts(bundle.get("service_status_rejected_sources"))
+                ),
+                "rejected_sources": _list_of_dicts(bundle.get("service_status_rejected_sources")),
+            }
+        )
+    )
 
     if object_store is not None:
         if not bucket:
             raise ValueError("bucket is required when object_store is provided")
-        for key, data in (
+        uploads: list[tuple[str, bytes]] = [
             (release_object_key, bundle_bytes),
-            (current_object_key, bundle_bytes),
             (
                 build_index_release_artifact_key(
                     corpus=SERVICE_STATUS_CORPUS,
@@ -174,7 +222,14 @@ def write_service_status_projection_release(
                 ),
                 _json_bytes(release_manifest),
             ),
-        ):
+            (
+                rejected_source_report_object_key,
+                rejected_source_path.read_bytes(),
+            ),
+        ]
+        if write_current:
+            uploads.append((current_object_key, bundle_bytes))
+        for key, data in uploads:
             object_store.put_bytes(
                 bucket=bucket,
                 key=key,
@@ -187,11 +242,13 @@ def write_service_status_projection_release(
         release_id=normalized_release_id,
         generated_at=generated_at,
         projection_path=str(projection_path),
-        current_projection_path=str(current_projection_path),
+        current_projection_path=str(current_projection_path) if write_current else "",
         release_object_key=release_object_key,
-        current_object_key=current_object_key,
+        current_object_key=current_object_key if write_current else "",
         validation_summary_path=str(validation_path),
         release_manifest_path=str(manifest_path),
+        rejected_source_report_path=str(rejected_source_path),
+        rejected_source_report_object_key=rejected_source_report_object_key,
     )
 
 
@@ -247,6 +304,7 @@ __all__ = [
     "SERVICE_STATUS_CORPUS",
     "SERVICE_STATUS_PROJECTION_FILENAME",
     "SERVICE_STATUS_PROJECTION_SCHEMA_VERSION",
+    "SERVICE_STATUS_REJECTED_SOURCE_REPORT_FILENAME",
     "ServiceStatusProjectionBuildResult",
     "ServiceStatusProjectionReleaseReport",
     "ServiceStatusProjectionValidationReport",

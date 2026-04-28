@@ -85,7 +85,9 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 				answerText:
 					"debug projection_internal_state release_id=service_status_release_v2 authenticated_notice:355122",
 				expected: [
-					"丰台校区通勤班车乘车点：当前乘车点为丰台校区北门外班车候车点。",
+					"丰台校区通勤班车乘车点：当前状态：有限开放。",
+					"有效时间：4月28日 08:00 至 22:00。",
+					"提示：当前乘车点为丰台校区北门外班车候车点。",
 					"最新提示：受大风影响，晚间班次临时取消。",
 					"来源：校内通知",
 				],
@@ -100,6 +102,8 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 					payload_kind: "service_status_lookup",
 					tool_result: {
 						observed_status: "limited_service",
+						effective_from: "2026-04-28T08:00:00+08:00",
+						effective_until: "2026-04-28T22:00:00+08:00",
 						operational_notices: [
 							{
 								note: "受大风影响，晚间班次临时取消。",
@@ -115,7 +119,11 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 			{
 				answerText:
 					"debug projection_internal_state release_id=service_status_release_v2 authenticated_notice:355999",
-				expected: ["海淀校区图书馆：当前状态：正常开放", "来源：校内通知"],
+				expected: [
+					"海淀校区图书馆：当前状态：正常开放。",
+					"有效时间：4月28日 08:00 至 22:00。",
+					"来源：校内通知",
+				],
 				expectedTraceRef: "认证通知 #355999",
 				forbidden: ["open", "projection_internal_state", "service_status_release_v2"],
 				prompt: "海淀图书馆今天开门吗",
@@ -123,8 +131,42 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 					payload_kind: "service_status_lookup",
 					tool_result: {
 						observed_status: "open",
+						effective_from: "2026-04-28T08:00:00+08:00",
+						effective_until: "2026-04-28T22:00:00+08:00",
 						related_notice_refs: ["authenticated_notice:355999"],
 						resolved_subject: "海淀校区图书馆",
+					},
+				},
+			},
+			{
+				answerText:
+					"debug projection_internal_state release_id=service-status-live-355650-promote-20260428T105200 notice:muc_internal_portal:355650",
+				expected: [
+					"静园10号楼负一层女浴室：当前状态：有限开放。",
+					"有效时间：4月16日 00:00 起。",
+					"提示：静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行。",
+					"来源：校内通知",
+				],
+				expectedTraceRef: "校内通知 #355650",
+				forbidden: [
+					"projection_internal_state",
+					"service-status-live-355650-promote-20260428T105200",
+					"notice:muc_internal_portal:355650",
+					"muc_internal_portal",
+					"2099",
+				],
+				prompt: "静园10号楼女浴室现在开放吗",
+				result: {
+					payload_kind: "service_status_lookup",
+					tool_result: {
+						effective_from: "2026-04-16T00:00:00+08:00",
+						effective_until: "2099-12-31T23:59:59+08:00",
+						observed_status: "limited_service",
+						override_source_refs: ["notice:muc_internal_portal:355650"],
+						related_notice_refs: ["notice:muc_internal_portal:355650"],
+						resolved_subject: "静园10号楼负一层女浴室",
+						status_note:
+							"静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行",
 					},
 				},
 			},

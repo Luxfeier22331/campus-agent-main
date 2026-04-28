@@ -27,6 +27,17 @@ _YEARLESS_EFFECTIVE_DATE_RE = re.compile(
     r"(?<!\d)(\d{1,2})月(\d{1,2})日[）)]?(?:起|开始|执行|生效)"
 )
 _YEARLESS_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
+_FULL_DATETIME_RANGE_RE = re.compile(
+    r"(20\d{2})年(\d{1,2})月(\d{1,2})日\s*([0-2]?\d)[:：]([0-5]\d)"
+    r"\s*(?:至|到|-|—|－)\s*"
+    r"(20\d{2})年(\d{1,2})月(\d{1,2})日\s*([0-2]?\d)[:：]([0-5]\d)"
+)
+_YEARLESS_DATE_RANGE_WITH_TIME_RE = re.compile(
+    r"(?<!\d)(\d{1,2})月(\d{1,2})日\s*(?:至|到|-|—|－)\s*"
+    r"(\d{1,2})月(\d{1,2})日.*?([0-2]?\d)[:：]([0-5]\d)\s*(?:-|—|－|至|到)\s*"
+    r"([0-2]?\d)[:：]([0-5]\d)"
+)
+_RESTORE_YEARLESS_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日[）)]?(?:起|开始)?恢复")
 _SPACE_RE = re.compile(r"\s+")
 _SEGMENT_SPLIT_RE = re.compile(r"[\n。；;]")
 _BOARDING_POINT_KEYWORDS = ("乘车点", "上车点", "下车点")
@@ -42,11 +53,14 @@ class NoticeDerivedServiceStatusObjectStore(Protocol):
 class _ServiceStatusCandidate:
     subject_id: str
     display_name: str
+    service_family: str
     aliases: tuple[str, ...]
     campus_scope: str
     observed_status: str
     effective_from: str
     effective_until: str
+    affected_scope: str
+    severity: str
     override_source_refs: tuple[str, ...]
     related_notice_refs: tuple[str, ...]
     status_note: str
@@ -55,14 +69,18 @@ class _ServiceStatusCandidate:
         return {
             "subject_id": self.subject_id,
             "display_name": self.display_name,
+            "service_family": self.service_family,
             "aliases": list(self.aliases),
             "campus_scope": self.campus_scope,
             "observed_status": self.observed_status,
             "effective_from": self.effective_from,
             "effective_until": self.effective_until,
+            "affected_scope": self.affected_scope,
+            "severity": self.severity,
             "override_source_refs": list(self.override_source_refs),
             "related_notice_refs": list(self.related_notice_refs),
             "status_note": self.status_note,
+            "extraction_status": "ready",
         }
 
 
@@ -76,6 +94,7 @@ def build_notice_derived_service_status_projection_bundle(
 ) -> ServiceStatusProjectionBuildResult:
     generated_dt = _parse_datetime(generated_at, "generated_at")
     records_by_subject: dict[str, _ServiceStatusCandidate] = {}
+    rejected_sources: list[dict[str, Any]] = []
     for entry in projection_entries:
         candidate = extract_notice_derived_service_status_record(
             projection_entry=entry,
@@ -85,6 +104,8 @@ def build_notice_derived_service_status_projection_bundle(
             generated_at=generated_at,
         )
         if candidate is None:
+            if _is_ready_service_status_candidate(entry):
+                rejected_sources.append(_rejected_source(entry))
             continue
         if not _effective_at(candidate, generated_dt):
             continue
@@ -98,6 +119,7 @@ def build_notice_derived_service_status_projection_bundle(
     bundle = {
         "schema_version": SERVICE_STATUS_PROJECTION_SCHEMA_VERSION,
         "service_status_records": records,
+        "service_status_rejected_sources": rejected_sources,
     }
     validation_report = validate_service_status_projection_bundle(bundle)
     return ServiceStatusProjectionBuildResult(bundle=bundle, validation_report=validation_report)
@@ -124,11 +146,159 @@ def extract_notice_derived_service_status_record(
     )
     source_ref = _source_ref(projection_entry)
     release_dt = _parse_release_time(projection_entry.source_notice_release_time, generated_at)
-    return _transport_service_status_candidate(
-        text=parent_text,
-        projection_entry=projection_entry,
-        source_ref=source_ref,
-        release_dt=release_dt,
+    for resolver in (
+        _it_platform_service_status_candidate,
+        _library_service_status_candidate,
+        _service_counter_status_candidate,
+        _facility_service_status_candidate,
+        _transport_service_status_candidate,
+    ):
+        candidate = resolver(
+            text=parent_text,
+            projection_entry=projection_entry,
+            source_ref=source_ref,
+            release_dt=release_dt,
+        )
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _it_platform_service_status_candidate(
+    *,
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+    source_ref: str,
+    release_dt: datetime,
+) -> _ServiceStatusCandidate | None:
+    normalized = _clean_text(text)
+    if not any(
+        keyword in normalized for keyword in ("信息门户", "校园网", "一卡通", "VPN", "服务门户")
+    ):
+        return None
+    if not any(keyword in normalized for keyword in ("维护", "暂停访问", "暂停使用", "升级")):
+        return None
+    window = _resolve_datetime_window(normalized, release_dt)
+    if window is None:
+        return None
+    effective_from, effective_until = window
+    return _ServiceStatusCandidate(
+        **_it_platform_subject(normalized, projection_entry),
+        service_family="it_platform",
+        observed_status="temporarily_closed",
+        effective_from=effective_from.isoformat(),
+        effective_until=effective_until.isoformat(),
+        affected_scope="线上服务",
+        severity="high",
+        override_source_refs=(source_ref,),
+        related_notice_refs=(source_ref,),
+        status_note=_status_note(text),
+    )
+
+
+def _library_service_status_candidate(
+    *,
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+    source_ref: str,
+    release_dt: datetime,
+) -> _ServiceStatusCandidate | None:
+    normalized = _clean_text(text)
+    if "图书馆" not in normalized or not any(
+        keyword in normalized for keyword in ("开放时间", "闭馆", "关闭", "调整")
+    ):
+        return None
+    window = _resolve_datetime_window(normalized, release_dt)
+    if window is None:
+        return None
+    effective_from, effective_until = window
+    observed_status = (
+        "temporarily_closed"
+        if any(keyword in normalized for keyword in ("闭馆", "关闭", "暂停开放"))
+        else "limited_service"
+    )
+    return _ServiceStatusCandidate(
+        **_library_subject(normalized, projection_entry),
+        service_family="library",
+        observed_status=observed_status,
+        effective_from=effective_from.isoformat(),
+        effective_until=effective_until.isoformat(),
+        affected_scope="图书馆",
+        severity="medium",
+        override_source_refs=(source_ref,),
+        related_notice_refs=(source_ref,),
+        status_note=_status_note(text),
+    )
+
+
+def _service_counter_status_candidate(
+    *,
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+    source_ref: str,
+    release_dt: datetime,
+) -> _ServiceStatusCandidate | None:
+    normalized = _clean_text(text)
+    if not any(keyword in normalized for keyword in ("综合服务大厅", "一站式服务中心", "校医院")):
+        return None
+    if not any(
+        keyword in normalized for keyword in ("暂停办理", "暂停服务", "恢复办理", "开放时间")
+    ):
+        return None
+    window = _resolve_datetime_window(normalized, release_dt)
+    if window is None:
+        return None
+    effective_from, effective_until = window
+    return _ServiceStatusCandidate(
+        **_service_counter_subject(normalized, projection_entry),
+        service_family="service_counter",
+        observed_status="temporarily_closed",
+        effective_from=effective_from.isoformat(),
+        effective_until=effective_until.isoformat(),
+        affected_scope="线下办理",
+        severity="high",
+        override_source_refs=(source_ref,),
+        related_notice_refs=(source_ref,),
+        status_note=_status_note(text),
+    )
+
+
+def _facility_service_status_candidate(
+    *,
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+    source_ref: str,
+    release_dt: datetime,
+) -> _ServiceStatusCandidate | None:
+    normalized = _clean_text(text)
+    if not any(keyword in normalized for keyword in ("自习室", "教室", "体育馆", "场馆", "浴室")):
+        return None
+    closure_signal = any(keyword in normalized for keyword in ("临时关闭", "暂停开放", "关闭"))
+    limited_service_signal = any(
+        keyword in normalized
+        for keyword in ("试运行", "开放时间", "调整开放时间", "开放运营", "恢复开放")
+    )
+    if not closure_signal and not limited_service_signal:
+        return None
+    effective_from = _start_of_day(_resolve_effective_date(normalized, release_dt))
+    restore = _resolve_restore_date(normalized, release_dt)
+    effective_until = (
+        _start_of_day(restore)
+        if restore is not None
+        else datetime(2099, 12, 31, 23, 59, 59, tzinfo=_SHANGHAI_TZ)
+    )
+    observed_status = "temporarily_closed" if closure_signal else "limited_service"
+    return _ServiceStatusCandidate(
+        **_facility_subject(normalized, projection_entry),
+        service_family="facility",
+        observed_status=observed_status,
+        effective_from=effective_from.isoformat(),
+        effective_until=effective_until.isoformat(),
+        affected_scope="",
+        severity="medium",
+        override_source_refs=(source_ref,),
+        related_notice_refs=(source_ref,),
+        status_note=_status_note(text),
     )
 
 
@@ -146,9 +316,12 @@ def _transport_service_status_candidate(
         effective_from = _start_of_day(_resolve_effective_date(normalized, release_dt))
         return _ServiceStatusCandidate(
             **_transport_subject(normalized, projection_entry),
+            service_family="transport_adjacent",
             observed_status="limited_service",
             effective_from=effective_from.isoformat(),
             effective_until="2099-12-31T23:59:59+08:00",
+            affected_scope="丰台校区",
+            severity="medium",
             override_source_refs=(source_ref,),
             related_notice_refs=(source_ref,),
             status_note=_status_note(text),
@@ -157,9 +330,12 @@ def _transport_service_status_candidate(
         effective_from = _start_of_day(_resolve_effective_date(normalized, release_dt))
         return _ServiceStatusCandidate(
             **_transport_subject(normalized, projection_entry),
+            service_family="transport_adjacent",
             observed_status="temporarily_closed",
             effective_from=effective_from.isoformat(),
             effective_until=(effective_from + timedelta(days=1)).isoformat(),
+            affected_scope="",
+            severity="high",
             override_source_refs=(source_ref,),
             related_notice_refs=(source_ref,),
             status_note=_status_note(text),
@@ -203,6 +379,127 @@ def _transport_subject(
         "display_name": title or f"通知 {notice_id} 服务状态",
         "aliases": (title,) if title else (),
         "campus_scope": "",
+    }
+
+
+def _it_platform_subject(
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+) -> dict[str, object]:
+    title = str(projection_entry.role_metadata.get("notice_title") or "").strip()
+    if "信息门户" in text:
+        return {
+            "subject_id": "it-platform:information-portal",
+            "display_name": "信息门户",
+            "aliases": ("信息门户", "网上办事大厅", title),
+            "campus_scope": "",
+        }
+    if "一卡通" in text:
+        return {
+            "subject_id": "it-platform:campus-card",
+            "display_name": "一卡通平台",
+            "aliases": ("一卡通", "校园卡", title),
+            "campus_scope": "",
+        }
+    if "校园网" in text:
+        return {
+            "subject_id": "it-platform:campus-network",
+            "display_name": "校园网",
+            "aliases": ("校园网", "网络服务", title),
+            "campus_scope": "",
+        }
+    if "VPN" in text:
+        return {
+            "subject_id": "it-platform:vpn",
+            "display_name": "VPN 服务",
+            "aliases": ("VPN", "VPN服务", title),
+            "campus_scope": "",
+        }
+    return {
+        "subject_id": f"it-platform:notice:{projection_entry.source_notice_id}",
+        "display_name": title or "信息化服务",
+        "aliases": (title,) if title else (),
+        "campus_scope": "",
+    }
+
+
+def _library_subject(
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+) -> dict[str, object]:
+    title = str(projection_entry.role_metadata.get("notice_title") or "").strip()
+    campus_scope = "fengtai" if "丰台" in text else "haidian"
+    display = "丰台校区图书馆" if campus_scope == "fengtai" else "海淀校区图书馆"
+    return {
+        "subject_id": f"library:{campus_scope}",
+        "display_name": display,
+        "aliases": ("图书馆", display, title),
+        "campus_scope": campus_scope,
+    }
+
+
+def _service_counter_subject(
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+) -> dict[str, object]:
+    title = str(projection_entry.role_metadata.get("notice_title") or "").strip()
+    if "校医院" in text:
+        return {
+            "subject_id": "service-counter:campus-hospital",
+            "display_name": "校医院",
+            "aliases": ("校医院", "校园医院", title),
+            "campus_scope": "",
+        }
+    return {
+        "subject_id": "service-counter:comprehensive-service-hall",
+        "display_name": "综合服务大厅",
+        "aliases": ("综合服务大厅", "一站式服务中心", title),
+        "campus_scope": "",
+    }
+
+
+def _facility_subject(
+    text: str,
+    projection_entry: NoticeConsumptionProjectionEntry,
+) -> dict[str, object]:
+    title = str(projection_entry.role_metadata.get("notice_title") or "").strip()
+    campus_scope = "fengtai" if "丰台" in text else ("haidian" if "海淀" in text else "")
+    if "自习室" in text:
+        suffix = f":{campus_scope}" if campus_scope else ""
+        display = f"{'丰台校区' if campus_scope == 'fengtai' else '海淀校区' if campus_scope == 'haidian' else ''}公共自习室"
+        return {
+            "subject_id": f"facility:self-study-room{suffix}",
+            "display_name": display or "公共自习室",
+            "aliases": ("自习室", "公共自习室", title),
+            "campus_scope": campus_scope,
+        }
+    if "体育馆" in text:
+        return {
+            "subject_id": f"facility:gymnasium:{campus_scope or 'unspecified'}",
+            "display_name": "体育馆",
+            "aliases": ("体育馆", "场馆", title),
+            "campus_scope": campus_scope,
+        }
+    if "静园10号楼" in text and "浴室" in text:
+        return {
+            "subject_id": "facility:bathroom:jingyuan-10",
+            "display_name": "静园10号楼负一层女浴室",
+            "aliases": ("静园10号楼女浴室", "女浴室", "浴室", title),
+            "campus_scope": "haidian",
+        }
+    if "浴室" in text:
+        return {
+            "subject_id": f"facility:bathroom:{campus_scope or 'unspecified'}",
+            "display_name": f"{'丰台校区' if campus_scope == 'fengtai' else '海淀校区' if campus_scope == 'haidian' else ''}浴室"
+            or "浴室",
+            "aliases": ("浴室", title),
+            "campus_scope": campus_scope,
+        }
+    return {
+        "subject_id": f"facility:notice:{projection_entry.source_notice_id}",
+        "display_name": title or f"通知 {projection_entry.source_notice_id} 涉及设施",
+        "aliases": (title,) if title else (),
+        "campus_scope": campus_scope,
     }
 
 
@@ -277,11 +574,74 @@ def _resolve_effective_date(text: str, release_dt: datetime) -> date:
     return release_dt.date()
 
 
+def _resolve_restore_date(text: str, release_dt: datetime) -> date | None:
+    match = _RESTORE_YEARLESS_DATE_RE.search(text)
+    if match is None:
+        return None
+    return _yearless_date(int(match.group(1)), int(match.group(2)), release_dt)
+
+
+def _resolve_datetime_window(text: str, release_dt: datetime) -> tuple[datetime, datetime] | None:
+    full = _FULL_DATETIME_RANGE_RE.search(text)
+    if full is not None:
+        start = datetime(
+            int(full.group(1)),
+            int(full.group(2)),
+            int(full.group(3)),
+            int(full.group(4)),
+            int(full.group(5)),
+            tzinfo=_SHANGHAI_TZ,
+        )
+        end = datetime(
+            int(full.group(6)),
+            int(full.group(7)),
+            int(full.group(8)),
+            int(full.group(9)),
+            int(full.group(10)),
+            tzinfo=_SHANGHAI_TZ,
+        )
+        return (start, end) if end > start else None
+    yearless = _YEARLESS_DATE_RANGE_WITH_TIME_RE.search(text)
+    if yearless is not None:
+        start_date = _yearless_date(int(yearless.group(1)), int(yearless.group(2)), release_dt)
+        end_date = _yearless_date(int(yearless.group(3)), int(yearless.group(4)), release_dt)
+        start = datetime.combine(
+            start_date,
+            time(int(yearless.group(5)), int(yearless.group(6))),
+            _SHANGHAI_TZ,
+        )
+        end = datetime.combine(
+            end_date,
+            time(int(yearless.group(7)), int(yearless.group(8))),
+            _SHANGHAI_TZ,
+        )
+        return (start, end) if end > start else None
+    restore = _resolve_restore_date(text, release_dt)
+    if restore is not None:
+        start_date = _resolve_effective_date_before_restore(text, release_dt)
+        start = _start_of_day(start_date)
+        end = _start_of_day(restore)
+        return (start, end) if end > start else None
+    if any(keyword in text for keyword in ("暂停办理", "暂停服务", "暂停开放", "暂停访问")):
+        start = _start_of_day(_resolve_effective_date(text, release_dt))
+        return start, start + timedelta(days=1)
+    return None
+
+
 def _yearless_date(month: int, day: int, release_dt: datetime) -> date:
     candidate = date(release_dt.year, month, day)
     if candidate < release_dt.date() - timedelta(days=180):
         candidate = date(release_dt.year + 1, month, day)
     return candidate
+
+
+def _resolve_effective_date_before_restore(text: str, release_dt: datetime) -> date:
+    restore_match = _RESTORE_YEARLESS_DATE_RE.search(text)
+    prefix = text[: restore_match.start()] if restore_match is not None else text
+    first_match = _YEARLESS_DATE_RE.search(prefix)
+    if first_match is not None:
+        return _yearless_date(int(first_match.group(1)), int(first_match.group(2)), release_dt)
+    return _resolve_effective_date(text, release_dt)
 
 
 def _start_of_day(value: date) -> datetime:
@@ -313,9 +673,8 @@ def _parse_datetime(value: str, field_name: str) -> datetime:
 
 
 def _effective_at(candidate: _ServiceStatusCandidate, generated_dt: datetime) -> bool:
-    effective_from = _parse_datetime(candidate.effective_from, "effective_from")
     effective_until = _parse_datetime(candidate.effective_until, "effective_until")
-    return not generated_dt < effective_from and generated_dt < effective_until
+    return generated_dt < effective_until
 
 
 def _status_note(text: str) -> str:
@@ -325,9 +684,50 @@ def _status_note(text: str) -> str:
             continue
         if cleaned.startswith("#"):
             continue
-        if _contains_boarding_point_change(cleaned) or _contains_suspension(cleaned):
+        if _looks_like_status_segment(cleaned):
             return cleaned
     return text[:240]
+
+
+def _looks_like_status_segment(text: str) -> bool:
+    return (
+        _contains_boarding_point_change(text)
+        or _contains_suspension(text)
+        or any(
+            keyword in text
+            for keyword in (
+                "暂停访问",
+                "暂停使用",
+                "暂停办理",
+                "暂停服务",
+                "暂停开放",
+                "升级维护",
+                "开放时间",
+                "临时关闭",
+                "试运行",
+                "恢复办理",
+                "恢复开放",
+            )
+        )
+    )
+
+
+def _rejected_source(entry: NoticeConsumptionProjectionEntry) -> dict[str, Any]:
+    metadata = dict(entry.role_metadata or {})
+    return {
+        "schema_version": "service_status_rejected_sources.v1",
+        "source_notice_id": entry.source_notice_id,
+        "source_ref": _source_ref(entry),
+        "notice_family": str(metadata.get("notice_family") or "").strip(),
+        "candidate_kind": str(
+            metadata.get("service_status_candidate_kind") or "service_status"
+        ).strip(),
+        "reason": "missing_effective_window_or_status_signal",
+        "missing_fields": ["effective_window_or_status_signal"],
+        "extracted_signals": {
+            "notice_title": str(metadata.get("notice_title") or "").strip(),
+        },
+    }
 
 
 def _source_ref(entry: NoticeConsumptionProjectionEntry) -> str:

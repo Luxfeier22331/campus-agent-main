@@ -738,6 +738,10 @@ function formatCampusServiceTraceRef(ref: string): string {
 	if (ref.startsWith("authenticated_notice:")) {
 		return `认证通知 #${ref.split(":").at(-1)}`;
 	}
+	const internalNoticeMatch = ref.match(/^notice:muc_internal_portal:(\d+)$/iu);
+	if (internalNoticeMatch) {
+		return `校内通知 #${internalNoticeMatch[1]}`;
+	}
 	if (ref.startsWith("official_web:")) {
 		return `官网来源：${ref.split(":").slice(1).join("/")}`;
 	}
@@ -966,7 +970,7 @@ function ensureSentenceEnd(text: string): string {
 	if (!normalized) {
 		return "";
 	}
-	return /[。！？!?]$/u.test(normalized) ? normalized : `${normalized}。`;
+	return /[。！？!?）)]$/u.test(normalized) ? normalized : `${normalized}。`;
 }
 
 function normalizeIsoTimeLabel(value: unknown): string | null {
@@ -976,6 +980,49 @@ function normalizeIsoTimeLabel(value: unknown): string | null {
 	}
 	const match = normalized.match(/T(\d{2}:\d{2})/u);
 	return match?.[1] ?? null;
+}
+
+function normalizeIsoDateTimeParts(value: unknown): { day: string; time: string } | null {
+	const normalized = normalizeOptionalString(value);
+	if (!normalized) {
+		return null;
+	}
+	const match = normalized.match(/^\d{4}-(\d{2})-(\d{2})T(\d{2}:\d{2})/u);
+	if (!match) {
+		return null;
+	}
+	return {
+		day: `${Number(match[1])}月${Number(match[2])}日`,
+		time: match[3],
+	};
+}
+
+function isOpenEndedEffectiveUntil(value: unknown): boolean {
+	const normalized = normalizeOptionalString(value);
+	if (!normalized) {
+		return false;
+	}
+	const year = Number(normalized.slice(0, 4));
+	return Number.isFinite(year) && year >= 2099;
+}
+
+function formatServiceStatusEffectiveWindow(toolResult: Record<string, unknown>): string | null {
+	const start = normalizeIsoDateTimeParts(toolResult.effective_from ?? toolResult.effectiveFrom);
+	const rawEnd = toolResult.effective_until ?? toolResult.effectiveUntil;
+	if (!start) {
+		return null;
+	}
+	if (isOpenEndedEffectiveUntil(rawEnd)) {
+		return `${start.day} ${start.time} 起`;
+	}
+	const end = normalizeIsoDateTimeParts(rawEnd);
+	if (!end) {
+		return null;
+	}
+	if (start.day === end.day) {
+		return `${start.day} ${start.time} 至 ${end.time}`;
+	}
+	return `${start.day} ${start.time} 至 ${end.day} ${end.time}`;
 }
 
 function normalizeCampusServicesToolResult(result: unknown): Record<string, unknown> | null {
@@ -1241,6 +1288,7 @@ function renderServiceStatusLookupAnswer(toolResult: Record<string, unknown>): s
 	const resolvedSubject =
 		recordString(toolResult, "resolved_subject", "resolvedSubject") ?? "相关服务";
 	const statusNote = recordString(toolResult, "status_note", "statusNote");
+	const effectiveWindow = formatServiceStatusEffectiveWindow(toolResult);
 	const notices = Array.isArray(toolResult.operational_notices)
 		? toolResult.operational_notices
 				.map((notice) =>
@@ -1256,8 +1304,9 @@ function renderServiceStatusLookupAnswer(toolResult: Record<string, unknown>): s
 	const fallbackStatus = recordString(toolResult, "observed_status", "observedStatus");
 	const statusLabel = normalizeServiceStatusLabel(fallbackStatus);
 	const clauses = [
-		statusNote ? `${resolvedSubject}：${statusNote}` : "",
-		statusNote ? "" : statusLabel ? `${resolvedSubject}：当前状态：${statusLabel}` : "",
+		statusLabel ? `${resolvedSubject}：当前状态：${statusLabel}。` : "",
+		effectiveWindow ? `有效时间：${effectiveWindow}。` : "",
+		statusNote ? `提示：${ensureSentenceEnd(statusNote)}` : "",
 		notices.length > 0 ? `最新提示：${notices.join("；")}` : "",
 	].filter(Boolean);
 	if (clauses.length === 0) {

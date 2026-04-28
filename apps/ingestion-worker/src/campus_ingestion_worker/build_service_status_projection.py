@@ -76,6 +76,7 @@ class _StructuredProjectionPublisher(Protocol):
         artifact_checksum: str,
         bundle: Mapping[str, Any],
         validation_status: str,
+        promote_current: bool = True,
     ) -> object: ...
 
 
@@ -110,6 +111,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--generated-at")
     parser.add_argument("--derived-bucket")
     parser.add_argument("--consumer-admission-manifest-path")
+    parser.add_argument(
+        "--publish-mode",
+        default="promote",
+        choices=("preview", "stage", "promote"),
+        help=(
+            "preview writes local artifacts only; stage writes versioned artifact/read model "
+            "without current; promote updates current."
+        ),
+    )
     return parser
 
 
@@ -125,7 +135,9 @@ def build_service_status_projection_release_from_consumption_projection(
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
     selected_notice_ids: Sequence[str] = (),
     consumer_admission_gate_report: Mapping[str, Any] | None = None,
+    publish_mode: str = "promote",
 ):
+    normalized_publish_mode = _normalize_publish_mode(publish_mode)
     build_result = build_notice_derived_service_status_projection_bundle(
         projection_entries=projection_entries,
         registry=registry,
@@ -137,21 +149,24 @@ def build_service_status_projection_release_from_consumption_projection(
     _write_json(work_dir / "validation-summary.json", asdict(build_result.validation_report))
     if not build_result.validation_report.valid:
         raise ValueError("notice-derived service status projection validation failed")
-    if not build_result.bundle["service_status_records"]:
+    if not build_result.bundle["service_status_records"] and normalized_publish_mode != "preview":
         raise ValueError("notice-derived service status projection produced no records")
     report = write_service_status_projection_release(
         bundle=build_result.bundle,
         output_dir=work_dir,
         release_id=release_id,
         generated_at=generated_at,
-        object_store=object_store,
+        object_store=object_store if _writes_versioned_artifacts(normalized_publish_mode) else None,
         bucket=derived_bucket,
+        write_current=_promotes_current(normalized_publish_mode),
     )
     _publish_structured_projection_release(
         structured_projection_publisher=structured_projection_publisher,
         bundle=build_result.bundle,
         report=report,
         generated_at=generated_at,
+        promote_current=_promotes_current(normalized_publish_mode),
+        enabled=_writes_structured_projection(normalized_publish_mode),
     )
     _write_json(
         work_dir / "build-report.json",
@@ -162,6 +177,7 @@ def build_service_status_projection_release_from_consumption_projection(
             selected_notice_ids=selected_notice_ids,
             projection_entries=projection_entries,
             consumer_admission_gate_report=consumer_admission_gate_report,
+            validation_counts=build_result.validation_report.counts,
         ),
     )
     return report
@@ -244,6 +260,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         structured_projection_publisher=build_structured_projection_publisher_from_env(source),
         selected_notice_ids=notice_ids,
         consumer_admission_gate_report=asdict(consumer_admission_gate_report),
+        publish_mode=args.publish_mode,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
@@ -254,8 +271,10 @@ def _publish_structured_projection_release(
     bundle: Mapping[str, Any],
     report: _ProjectionReleaseReport,
     generated_at: str,
+    promote_current: bool = True,
+    enabled: bool = True,
 ) -> None:
-    if structured_projection_publisher is None:
+    if structured_projection_publisher is None or not enabled:
         return
     schema_version = str(bundle.get("schema_version") or "").strip()
     if schema_version != SERVICE_STATUS_PROJECTION_SCHEMA_VERSION:
@@ -270,7 +289,27 @@ def _publish_structured_projection_release(
         artifact_checksum=projection_artifact_checksum(bundle),
         bundle=bundle,
         validation_status="valid",
+        promote_current=promote_current,
     )
+
+
+def _normalize_publish_mode(value: str) -> str:
+    normalized = str(value or "promote").strip()
+    if normalized not in {"preview", "stage", "promote"}:
+        raise ValueError(f"unsupported publish mode: {value}")
+    return normalized
+
+
+def _writes_versioned_artifacts(publish_mode: str) -> bool:
+    return _normalize_publish_mode(publish_mode) in {"stage", "promote"}
+
+
+def _writes_structured_projection(publish_mode: str) -> bool:
+    return _normalize_publish_mode(publish_mode) in {"stage", "promote"}
+
+
+def _promotes_current(publish_mode: str) -> bool:
+    return _normalize_publish_mode(publish_mode) == "promote"
 
 
 def _ready_service_status_projection_entries(
@@ -289,6 +328,7 @@ def _build_report_payload(
     selected_notice_ids: Sequence[str],
     projection_entries: Sequence[NoticeConsumptionProjectionEntry],
     consumer_admission_gate_report: Mapping[str, Any] | None,
+    validation_counts: Mapping[str, int],
     **base_payload: object,
 ) -> dict[str, object]:
     normalized_selected_notice_ids = normalize_notice_ids(selected_notice_ids)
@@ -304,6 +344,8 @@ def _build_report_payload(
         "accepted_notice_ids": list(accepted_notice_ids),
         "accepted_count": len(accepted_notice_ids),
         "rejected_count": max(0, len(normalized_selected_notice_ids) - len(accepted_notice_ids)),
+        "materialized_record_count": int(validation_counts.get("service_status_records", 0)),
+        "rejected_source_count": int(validation_counts.get("rejected_sources", 0)),
         "target_surface_counts": target_surface_counts,
     }
     if consumer_admission_gate_report is not None:

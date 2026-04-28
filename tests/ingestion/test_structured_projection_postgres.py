@@ -325,13 +325,19 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
                 {
                     "subject_id": "library-haidian",
                     "display_name": "海淀校区图书馆",
+                    "service_family": "library",
                     "aliases": ["图书馆"],
                     "campus_scope": "haidian",
+                    "location_refs": [{"label": "海淀校区图书馆"}],
+                    "affected_scope": "海淀校区",
                     "observed_status": "open",
                     "effective_from": "2026-04-24T08:00:00+08:00",
                     "effective_until": "2026-04-24T22:00:00+08:00",
+                    "status_note": "工作日开放，节假日另行通知",
+                    "severity": "normal",
                     "override_source_refs": ["notice:library-hours"],
                     "related_notice_refs": ["notice:library-hours"],
+                    "extraction_status": "ready",
                 }
             ],
         }
@@ -367,6 +373,77 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
         )
         typed_payload = json.loads(cursor.execute_calls[typed_insert_index][1][0])
         self.assertEqual(typed_payload[0]["record_id"], "library-haidian")
+        self.assertEqual(typed_payload[0]["service_family"], "library")
+        self.assertEqual(typed_payload[0]["status_note"], "工作日开放，节假日另行通知")
+
+    def test_publish_service_status_stage_writes_read_model_without_current_pointer(self) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        bundle = {
+            "schema_version": "campus_services_projection_bundle.v1",
+            "service_status_records": [
+                {
+                    "subject_id": "it-platform-portal",
+                    "display_name": "信息门户",
+                    "service_family": "it_platform",
+                    "aliases": ["信息门户", "统一身份认证平台"],
+                    "campus_scope": "all",
+                    "platform_refs": [{"label": "信息门户"}],
+                    "affected_scope": "全校",
+                    "observed_status": "temporarily_closed",
+                    "effective_from": "2026-04-28T00:00:00+08:00",
+                    "effective_until": "2026-04-28T06:00:00+08:00",
+                    "status_reason": "系统维护",
+                    "status_note": "维护期间暂停访问。",
+                    "severity": "notice",
+                    "override_source_refs": ["notice:muc_internal_portal:355901"],
+                    "related_notice_refs": ["notice:muc_internal_portal:355901"],
+                    "extraction_status": "ready",
+                }
+            ],
+            "service_status_rejected_sources": [],
+        }
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            report = publisher.publish_release(
+                corpus="campus_services",
+                collection="service_status",
+                release_id="service-status-stage-355901",
+                generated_at="2026-04-28T09:00:00+08:00",
+                schema_version="campus_services_projection_bundle.v1",
+                artifact_object_key=(
+                    "campus_services/releases/service_status/service-status-stage-355901/"
+                    "service-status-projection.json"
+                ),
+                artifact_checksum="sha256:test",
+                bundle=bundle,
+                validation_status="valid",
+                promote_current=False,
+            )
+
+        self.assertFalse(report.current)
+        typed_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "service_status_read_model" in query and "jsonb_to_recordset" in query
+        )
+        release_upsert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "structured_projection_releases" in query and "on conflict" in query
+        )
+        self.assertLess(typed_insert_index, release_upsert_index)
+        current_pointer_queries = [
+            query
+            for query, _params in cursor.execute_calls
+            if "structured_projection_current" in query and "on conflict" in query
+        ]
+        self.assertEqual(current_pointer_queries, [])
 
     def test_publish_contact_directory_release_writes_pg_read_model_and_aux_tables(self) -> None:
         publisher = object.__new__(PostgresStructuredProjectionPublisher)
