@@ -157,17 +157,16 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 				],
 				prompt: "静园10号楼女浴室现在开放吗",
 				result: {
-					payload_kind: "service_status_lookup",
-					tool_result: {
-						effective_from: "2026-04-16T00:00:00+08:00",
-						effective_until: "2099-12-31T23:59:59+08:00",
-						observed_status: "limited_service",
-						override_source_refs: ["notice:muc_internal_portal:355650"],
-						related_notice_refs: ["notice:muc_internal_portal:355650"],
-						resolved_subject: "静园10号楼负一层女浴室",
-						status_note:
-							"静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行",
-					},
+					effective_from: "2026-04-16T00:00:00+08:00",
+					effective_until: "2099-12-31T23:59:59+08:00",
+					observed_status: "limited_service",
+					outcome: "resolved_current",
+					override_source_refs: ["notice:muc_internal_portal:355650"],
+					related_notice_refs: ["notice:muc_internal_portal:355650"],
+					resolved_subject: "静园10号楼负一层女浴室",
+					status_note:
+						"静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行",
+					subject_query: "静园10号楼女浴室现在开放吗",
 				},
 			},
 			{

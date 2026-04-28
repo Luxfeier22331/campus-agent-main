@@ -190,6 +190,12 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 		retrievalAttempted,
 		scopeClass: normalizeNullableString(record.scope_class),
 		semanticOutcome: normalizeNullableString(record.semantic_outcome),
+		selectedTool: normalizeNullableString(record.selected_tool),
+		toolBusinessOutcome: normalizeNullableString(record.tool_business_outcome),
+		toolFailCloseReason: normalizeNullableString(record.tool_fail_close_reason),
+		toolHistoricalDowngradeReason: normalizeNullableString(
+			record.tool_historical_downgrade_reason,
+		),
 		...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),
 		...(resolvedScopeCorpus ? { resolvedScopeCorpus } : {}),
 	};

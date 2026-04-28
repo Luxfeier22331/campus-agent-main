@@ -107,6 +107,10 @@ export interface SupervisorExecutionObservability {
 	retrievalAttempted: boolean | null;
 	scopeClass?: string | null;
 	semanticOutcome?: string | null;
+	selectedTool?: string | null;
+	toolBusinessOutcome?: string | null;
+	toolFailCloseReason?: string | null;
+	toolHistoricalDowngradeReason?: string | null;
 }
 
 export interface SupervisorExecutionResponse {

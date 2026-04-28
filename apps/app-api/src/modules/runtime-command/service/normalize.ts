@@ -1035,7 +1035,7 @@ function normalizeCampusServicesToolResult(result: unknown): Record<string, unkn
 	if (isRecord(result.toolResult)) {
 		return result.toolResult;
 	}
-	return null;
+	return result;
 }
 
 function normalizeCampusServicesToolName(result: unknown): string | null {
@@ -1049,6 +1049,36 @@ function normalizeCampusServicesToolName(result: unknown): string | null {
 	if (Array.isArray(result.allowed_tools)) {
 		const firstTool = normalizeOptionalString(result.allowed_tools[0]);
 		return firstTool;
+	}
+	if (
+		normalizeOptionalString(result.subject_query ?? result.subjectQuery) ||
+		normalizeOptionalString(result.resolved_subject ?? result.resolvedSubject) ||
+		normalizeOptionalString(result.observed_status ?? result.observedStatus)
+	) {
+		return "service_status_lookup";
+	}
+	if (
+		normalizeOptionalString(result.intent) ||
+		isRecord(result.resolved_route) ||
+		isRecord(result.resolvedRoute) ||
+		isRecord(result.selected_departure) ||
+		isRecord(result.selectedDeparture)
+	) {
+		return "transport_schedule_lookup";
+	}
+	if (
+		normalizeOptionalString(result.guide_focus ?? result.guideFocus) ||
+		isRecord(result.resolved_service) ||
+		isRecord(result.resolvedService)
+	) {
+		return "service_guide_lookup";
+	}
+	if (
+		normalizeOptionalString(result.contact_focus ?? result.contactFocus) ||
+		isRecord(result.resolved_contact) ||
+		isRecord(result.resolvedContact)
+	) {
+		return "contact_directory_lookup";
 	}
 	return null;
 }

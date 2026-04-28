@@ -162,6 +162,10 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 								retrieval_attempted: true,
 								scope_class: "in_scope",
 								semantic_outcome: "grounded_answer",
+								selected_tool: "service_status_lookup",
+								tool_business_outcome: "resolved_current",
+								tool_fail_close_reason: null,
+								tool_historical_downgrade_reason: null,
 							},
 							result: {
 								evidence: {
@@ -240,6 +244,10 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				retrievalAttempted: true,
 				scopeClass: "in_scope",
 				semanticOutcome: "grounded_answer",
+				selectedTool: "service_status_lookup",
+				toolBusinessOutcome: "resolved_current",
+				toolFailCloseReason: null,
+				toolHistoricalDowngradeReason: null,
 			},
 			result: {
 				evidence: {
