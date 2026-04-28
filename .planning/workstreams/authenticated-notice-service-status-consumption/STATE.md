@@ -12,22 +12,22 @@ workstream: authenticated-notice-service-status-consumption
 ## Current Position
 
 - status: `active`
-- current phase: `Phase 8`
-- current phase name: `Broader Live Family Coverage`
+- current phase: `Phase 9`
+- current phase name: `Current Release Composition And Safe Promotion`
 - current plan:
-  `.planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-08-broader-live-family-coverage/PLAN.md`
-- total phases: `8`
-- progress: `8/8 phases implemented; workstream remains active pending explicit archive decision`
+  `.planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-09-current-release-composition-and-safe-promotion/PLAN.md`
+- total phases: `9`
+- progress: `9/9 phases implemented; workstream remains active pending explicit archive decision`
 - last activity: `2026-04-28`
-- last activity description: Completed Phase 8 broader live family coverage.
-  Real export notices `247726`, `352345`, `354502`, `354575`, `354674` and
-  `354845` now have source/admission/projection/materialization disposition
-  evidence across IT platform, library, service-counter and additional
-  facility/hospital service-counter families.
+- last activity description: Completed Phase 9 current release composition and
+  safe promotion. PG current release is
+  `service-status-current-20260428T122000`, with current records for `355650`
+  and `354845`; the current object artifact was written for the same release,
+  and historical Phase 8 candidates remain rejected-source evidence.
 
 ## Current Slice
 
-Phase 8 is implemented. Phase 7 already proved the first publishable real
+Phase 9 is implemented. Phase 7 already proved the first publishable real
 service-status notice (`355650`) can traverse
 `notice_consumption_projection`, materialize into `campus_services/service_status`,
 promote to the PostgreSQL current read model, and be consumed through
@@ -49,6 +49,11 @@ All six selected samples now enter `campus_services/service_status_candidate`
 admission and have typed materialization disposition evidence. Historical windows
 are kept as preview/as-of evidence; `354845` is kept as current-preview evidence
 without moving PG current truth.
+
+Phase 9 composed the safe current release from current-effective service-status
+records. It preserved the already published `355650` truth, added current
+`354845`, rejected five historical Phase 8 candidates by effective window, and
+promoted the staged release to the PostgreSQL current read model.
 
 Phase 1 boundary artifacts exist:
 
@@ -93,12 +98,13 @@ Phase 1 live audit answered three questions:
 
 - No acceptance blocker remains for the first live service-status consumption
   loop: `355650` proves the end-to-end path.
-- Broader family coverage has Phase 8 evidence for IT platform, library,
-  service-counter and additional facility / hospital service-counter families.
+- No acceptance blocker remains for current-release composition:
+  `service-status-current-20260428T122000` proves safe multi-record current
+  promotion.
 - Do not use this workstream to absorb regulation, schedule, service guide,
   contact-directory or generic notice-query work. Those remain adjacent
   workstreams/surfaces.
-- The workstream should remain active after Phase 8 and should not be archived
+- The workstream should remain active after Phase 9 and should not be archived
   without an explicit user decision.
 
 ## Verification Status
@@ -130,12 +136,18 @@ uv run --all-packages python -m unittest \
 go test ./internal/runtimepolicy ./internal/structuredplanning ./internal/structuredquery ./internal/httpapi
 ```
 
-- App API browser-facing structured answer verification passed:
+- App API browser-facing structured answer verification passed with targeted
+  test files:
 
 ```bash
-pnpm --dir apps/app-api test:node -- chat-command.service.core.structured.suite.ts supervisor-adapter.response.suite.ts
+pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts \
+  test/chat-command.service.test.ts test/supervisor-adapter.test.ts
 ```
 
+- The original Phase 9 plan command using suite module filenames was attempted,
+  but Vitest did not filter by those non-test suite files and ran the broader
+  node lane; it failed on an unrelated
+  `official-web-local-projection-drain.test.ts` timeout.
 - PG current/list smoke passed; evidence is under
   `evidence/phase-07-live-admission-loop/live-355650-facility-trial/`.
 - Boundary rejection evidence for `355867` remains under
@@ -144,6 +156,11 @@ pnpm --dir apps/app-api test:node -- chat-command.service.core.structured.suite.
   `evidence/phase-08-broader-live-family-coverage/`.
 - Phase 8 summary:
   `phases/phase-08-broader-live-family-coverage/SUMMARY.md`.
+- Phase 9 candidate audit, stage/promote, PG read-model, supervisor internal
+  query and app-api/public-chat product smoke evidence captured under
+  `evidence/phase-09-current-release-composition-and-safe-promotion/`.
+- Phase 9 summary:
+  `phases/phase-09-current-release-composition-and-safe-promotion/SUMMARY.md`.
 
 - Claim lease is runtime-only and should be checked with:
 
@@ -154,7 +171,7 @@ uv run --all-packages python -m scripts.workstream_claim claim status \
 
 ## Resume Instructions
 
-Resume from the Phase 8 archive-decision point:
+Resume from the Phase 9 archive-decision point:
 
 ```bash
 uv run --all-packages python -m scripts.workstream_harness codex shell \
@@ -165,5 +182,5 @@ Then inspect:
 
 ```bash
 sed -n '1,240p' \
-  .planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-08-broader-live-family-coverage/SUMMARY.md
+  .planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-09-current-release-composition-and-safe-promotion/SUMMARY.md
 ```

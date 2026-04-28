@@ -24,6 +24,7 @@ boundary/cohort
 -> product source presentation
 -> live admission and downstream consumption loop
 -> broader live family coverage
+-> current release composition and safe promotion
 ```
 
 ## Phases
@@ -61,6 +62,12 @@ boundary/cohort
   `352345`、`354502`、`354575`、`354674`、`354845` 均有明确 disposition；
   其中 historical windows 使用 as-of preview evidence，`354845` 保留为 current
   preview，不移动 PG current truth。
+- [x] **Phase 9: Current Release Composition And Safe Promotion** — 建立
+  service-status current release composition 规则，不用 Phase 8 historical
+  selected preview 覆盖 current truth；组合当前有效 records，先 stage 后
+  promote，并验证 PG read model、`service_status_lookup` 与 app-api/public-chat
+  多条 current service-status 消费闭环。当前 PG release 为
+  `service-status-current-20260428T122000`，包含 `355650` 与 `354845`。
 
 ## Stop Point
 
@@ -79,10 +86,10 @@ coverage。当前 `355650` 已满足以下闭环条件：
 - captured evidence 覆盖 preview、stage、promote、PG current/list、runtime lookup
   和 product answer，并包含 app-api -> supervisor HTTP E2E。
 
-当前保留 active 的原因不是 Phase 8 未实现，而是等待用户显式 archive 决策。
-`355650` 已证明第一条 live loop；Phase 8 已用 export/live 样本补齐 IT platform、
-library、service-counter 与 additional facility / hospital service-counter
-disposition evidence。
+当前保留 active 的原因不是 Phase 9 未完成，而是等待用户显式 archive 决策。
+Phase 9 已证明完整 current release composition：historical selected bundle
+不会覆盖 current truth，`355650` 与 `354845` 已在同一 PG current read model
+中被 runtime/product path 消费。
 
 ## Reopen Rule
 

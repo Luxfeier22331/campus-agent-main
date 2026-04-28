@@ -21,14 +21,12 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 8`
-- current focus: Phase 8 broader live family coverage 已实现。真实 export 样本
-  `247726`、`352345`、`354502`、`354575`、`354674`、`354845`
-  已覆盖 IT platform、library、service-counter 与 additional facility /
-  hospital service-counter status disposition；所有样本均进入
-  `campus_services/service_status_candidate` admission，并保留 preview-only
-  typed materialization evidence。workstream 继续保持 active，等待显式 archive
-  决策。
+- current phase: `Phase 9`
+- current focus: Phase 9 current release composition 已完成。PG current release
+  为 `service-status-current-20260428T122000`，当前有效 records 包含
+  `355650` 静园 10 号楼女浴室与 `354845` 丰台校区校医院皮肤科门诊；Phase 8
+  historical samples `247726`、`352345`、`354502`、`354575`、`354674`
+  保留为 rejected-source evidence，不进入 current truth。
 - runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
   claim status authenticated-notice-service-status-consumption` 查看；tracked
   planning 文档不保存 claim lease
@@ -69,3 +67,5 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
 - `./phases/phase-07-live-admission-and-downstream-consumption-loop/PLAN.md`
 - `./phases/phase-08-broader-live-family-coverage/PLAN.md`
 - `./phases/phase-08-broader-live-family-coverage/SUMMARY.md`
+- `./phases/phase-09-current-release-composition-and-safe-promotion/PLAN.md`
+- `./phases/phase-09-current-release-composition-and-safe-promotion/SUMMARY.md`
