@@ -204,9 +204,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				gatedCollectionNavigation: {
 					authorizedStatus: authorizedNavigation.response.status,
 					contentType: authorizedNavigation.response.headers.get("content-type") ?? "",
-					nodeCount: Array.isArray(
-						(authorizedNavigation.body as { nodes?: unknown } | null)?.nodes,
-					)
+					nodeCount: Array.isArray((authorizedNavigation.body as { nodes?: unknown } | null)?.nodes)
 						? ((authorizedNavigation.body as { nodes: unknown[] }).nodes.length ?? 0)
 						: 0,
 					unauthenticatedStatus: unauthenticatedNavigation.response.status,

@@ -59,8 +59,7 @@ describe("staging docs gated smoke args", () => {
 			chatBaseUrl: "https://chat.example.com",
 			docsBaseUrl: "https://docs.example.com",
 			email: "smoke-user@example.edu",
-			gatedCollectionNavigationPath:
-				"/api/docs/collections/regulations/scoped_rules/navigation",
+			gatedCollectionNavigationPath: "/api/docs/collections/regulations/scoped_rules/navigation",
 			gatedReaderPath: "/_gated-docs/corpus/collection/doc/version/reader.json",
 			name: "Smoke User",
 			smokeAuthSecret: "explicit-smoke-secret",
