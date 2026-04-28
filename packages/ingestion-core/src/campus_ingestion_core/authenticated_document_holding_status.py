@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from campus_ingestion_core.authenticated_common_download_import import (
+    COMMON_DOWNLOAD_NOTICE_TYPE_ID,
     DEFAULT_AUTHENTICATED_DOCUMENTS_CORPUS,
     DEFAULT_COMMON_DOWNLOAD_COLLECTION,
 )
@@ -16,9 +18,12 @@ from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 
 DEFAULT_CONTAMINATION_CORPUS = "campus_notices"
 DEFAULT_CONTAMINATION_COLLECTION = "internal_notice"
+COMMON_DOWNLOAD_NOTICE_TYPE_NAME = "常用下载"
 
 
 class HoldingStatusObjectStore(Protocol):
+    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
+
     def head_object(self, *, bucket: str, key: str) -> dict[str, object]: ...
 
 
@@ -127,59 +132,75 @@ def _build_common_download_status_report(
             notice_ids=normalized_notice_ids,
         )
     )
-    holding_documents = tuple(
-        _filter_document_rows_by_notice_ids(
-            document_registry.list_by_scope(source_corpus, source_collection),
-            normalized_notice_ids,
-        )
-    )
-    holding_raw_assets = tuple(
-        _filter_raw_rows_by_notice_ids(
-            raw_asset_registry.list_by_scope(source_corpus, source_collection),
-            normalized_notice_ids,
-        )
-    )
-    wrong_scope_inventory_rows = tuple(
+    contamination_inventory_rows = tuple(
         source_truth_inventory_store.list_by_scope(
             contamination_corpus,
             contamination_collection,
             notice_ids=normalized_notice_ids,
         )
     )
+    target_notice_ids = normalized_notice_ids
+    wrong_scope_inventory_rows = contamination_inventory_rows
+    if not normalized_notice_ids:
+        notice_type_cache: dict[str, tuple[str, ...]] = {}
+        wrong_scope_inventory_rows = tuple(
+            row
+            for row in contamination_inventory_rows
+            if _inventory_row_matches_common_download(
+                row=row,
+                object_store=object_store,
+                source_bucket=source_bucket,
+                notice_type_cache=notice_type_cache,
+            )
+        )
+        target_notice_ids = _normalize_text_ids(
+            tuple(str(row.notice_id) for row in holding_inventory_rows)
+            + tuple(str(row.notice_id) for row in wrong_scope_inventory_rows)
+        )
+        if not target_notice_ids:
+            return _empty_authenticated_document_holding_status_report(
+                source_corpus=source_corpus,
+                source_collection=source_collection,
+            )
+    holding_documents = tuple(
+        _filter_document_rows_by_notice_ids(
+            document_registry.list_by_scope(source_corpus, source_collection),
+            target_notice_ids,
+        )
+    )
+    holding_raw_assets = tuple(
+        _filter_raw_rows_by_notice_ids(
+            raw_asset_registry.list_by_scope(source_corpus, source_collection),
+            target_notice_ids,
+        )
+    )
     wrong_scope_documents = tuple(
         _filter_document_rows_by_notice_ids(
             document_registry.list_by_scope(contamination_corpus, contamination_collection),
-            normalized_notice_ids,
+            target_notice_ids,
         )
     )
     wrong_scope_raw_assets = tuple(
         _filter_raw_rows_by_notice_ids(
             raw_asset_registry.list_by_scope(contamination_corpus, contamination_collection),
-            normalized_notice_ids,
+            target_notice_ids,
         )
     )
     projection_rows = tuple(
         projection_store.list_by_scope(
             contamination_corpus,
             contamination_collection,
-            notice_ids=normalized_notice_ids,
+            notice_ids=target_notice_ids,
         )
     )
     read_model_rows = tuple(
         read_model_store.list_by_scope(
             contamination_corpus,
             contamination_collection,
-            notice_ids=normalized_notice_ids,
+            notice_ids=target_notice_ids,
         )
     )
-    unit_ids = _normalize_text_ids(
-        normalized_notice_ids
-        or tuple(row.notice_id for row in holding_inventory_rows)
-        + tuple(row.notice_id for row in wrong_scope_inventory_rows)
-        + tuple(getattr(row, "source_notice_id", "") for row in projection_rows)
-        + tuple(getattr(row, "source_notice_id", "") for row in read_model_rows)
-        + tuple(_notice_id_from_document_id(row.document_id) for row in wrong_scope_documents)
-    )
+    unit_ids = target_notice_ids
     holding_inventory_by_notice = {str(row.notice_id): row for row in holding_inventory_rows}
     holding_documents_by_notice = _group_documents_by_notice_id(holding_documents)
     holding_raw_assets_by_notice = _group_raw_assets_by_notice_id(holding_raw_assets)
@@ -331,6 +352,29 @@ def _build_file_release_status_report(
     )
 
 
+def _empty_authenticated_document_holding_status_report(
+    *,
+    source_corpus: str,
+    source_collection: str,
+) -> AuthenticatedDocumentHoldingStatusReport:
+    return AuthenticatedDocumentHoldingStatusReport(
+        source_corpus=source_corpus,
+        source_collection=source_collection,
+        scope_unit_count=0,
+        action_required_count=0,
+        holding_inventory_count=0,
+        holding_document_count=0,
+        holding_raw_asset_count=0,
+        wrong_scope_inventory_count=0,
+        wrong_scope_document_count=0,
+        wrong_scope_raw_asset_count=0,
+        downstream_projection_count=0,
+        downstream_read_model_count=0,
+        reason_counts={},
+        rows=(),
+    )
+
+
 def _missing_object_keys(
     *,
     object_store: HoldingStatusObjectStore,
@@ -370,6 +414,64 @@ def _holding_file_release_source_keys(row: Any) -> tuple[str, ...]:
     if not isinstance(source_artifact_keys, dict):
         return ()
     return tuple(str(item).strip() for item in source_artifact_keys.values() if str(item).strip())
+
+
+def _inventory_row_matches_common_download(
+    *,
+    row: Any,
+    object_store: HoldingStatusObjectStore,
+    source_bucket: str,
+    notice_type_cache: dict[str, tuple[str, ...]],
+) -> bool:
+    notice_type_ids = _inventory_row_notice_type_ids(
+        row=row,
+        object_store=object_store,
+        source_bucket=source_bucket,
+        notice_type_cache=notice_type_cache,
+    )
+    if COMMON_DOWNLOAD_NOTICE_TYPE_ID in notice_type_ids:
+        return True
+    parent_snapshot = dict(getattr(row, "parent_snapshot", {}) or {})
+    notice_type_names = {
+        str(item).strip()
+        for item in list(parent_snapshot.get("notice_type_names") or ())
+        if str(item).strip()
+    }
+    return COMMON_DOWNLOAD_NOTICE_TYPE_NAME in notice_type_names
+
+
+def _inventory_row_notice_type_ids(
+    *,
+    row: Any,
+    object_store: HoldingStatusObjectStore,
+    source_bucket: str,
+    notice_type_cache: dict[str, tuple[str, ...]],
+) -> tuple[str, ...]:
+    parent_snapshot = dict(getattr(row, "parent_snapshot", {}) or {})
+    snapshot_notice_type_ids = _normalize_text_ids(parent_snapshot.get("notice_type_ids") or ())
+    if snapshot_notice_type_ids:
+        return snapshot_notice_type_ids
+    notice_manifest_key = str(
+        getattr(row, "notice_manifest_key", "") or parent_snapshot.get("notice_manifest_key") or ""
+    ).strip()
+    if not notice_manifest_key:
+        return ()
+    cached = notice_type_cache.get(notice_manifest_key)
+    if cached is not None:
+        return cached
+    try:
+        manifest = json.loads(
+            object_store.get_bytes(bucket=source_bucket, key=notice_manifest_key).decode("utf-8")
+        )
+    except Exception:
+        notice_type_cache[notice_manifest_key] = ()
+        return ()
+    if not isinstance(manifest, dict):
+        notice_type_cache[notice_manifest_key] = ()
+        return ()
+    notice_type_ids = _normalize_text_ids(manifest.get("notice_type_ids") or ())
+    notice_type_cache[notice_manifest_key] = notice_type_ids
+    return notice_type_ids
 
 
 def _filter_document_rows_by_notice_ids(

@@ -95,6 +95,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         collection=args.collection,
         default_entitlement_groups=(entitlement_groups or ("campus_members",)),
         visibility_scope=args.visibility_scope,
+        mode="admit_and_materialize",
     )
     output_root = Path(args.local_output_dir)
     object_store = LocalFilesystemObjectStore(output_root / "object-store")

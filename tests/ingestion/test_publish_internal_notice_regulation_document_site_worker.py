@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
+from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     InMemoryNoticeConsumptionProjectionStore,
 )
@@ -64,6 +65,20 @@ class PublishInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
             document_registry = InMemoryDocumentRegistry(
                 backing_path=root / "registry" / "documents.json"
             )
+            existing_record = _existing_scoped_rule_record()
+            document_registry.upsert(existing_record)
+            object_store.put_bytes(
+                bucket="campus-rag-derived",
+                key=existing_record.document_units_object_key or "",
+                data=_document_units_jsonl(existing_record, "既有服务管理细则").encode("utf-8"),
+                content_type="application/x-ndjson",
+            )
+            object_store.put_bytes(
+                bucket="campus-rag-derived",
+                key=existing_record.canonical_markdown_object_key or "",
+                data="# 既有服务管理细则\n\n第一条 本细则继续有效。\n".encode(),
+                content_type="text/markdown",
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "raw-assets.json"
             )
@@ -101,33 +116,64 @@ class PublishInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
             self.assertEqual(report["selected_notice_ids"], ["187233"])
             self.assertEqual(report["source_truth_import"]["write_enabled"], True)
             self.assertEqual(report["materialized_document_count"], 1)
-            self.assertEqual(report["reader_document_count"], 1)
+            self.assertEqual(report["reader_document_count"], 2)
+            self.assertEqual(
+                report["target_scope_snapshot_document_counts"],
+                {
+                    "regulations/institutional_rules": 1,
+                    "regulations/scoped_rules": 1,
+                },
+            )
+            self.assertEqual(
+                report["docs_read_model_scope_write_mode"],
+                "replace_manifest_scopes_with_full_current_target_snapshot",
+            )
+            self.assertEqual(report["docs_only_opened"], True)
             self.assertEqual(report["query_serving_opened"], False)
             self.assertEqual(report["rag_release_opened"], False)
 
             docs_manifest_path = Path(report["docs_read_model_manifest_path"])
             self.assertTrue(docs_manifest_path.exists())
             docs_manifest = json.loads(docs_manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(len(docs_manifest["documents"]), 1)
+            self.assertEqual(len(docs_manifest["documents"]), 2)
+            collections_by_scope = {
+                f"{collection['corpus']}/{collection['collection']}": collection
+                for collection in docs_manifest["collections"]
+            }
             self.assertEqual(
-                docs_manifest["documents"][0]["title"],
+                collections_by_scope["regulations/institutional_rules"]["displayName"],
+                "校级规章",
+            )
+            self.assertEqual(
+                collections_by_scope["regulations/scoped_rules"]["displayName"],
+                "专项规章",
+            )
+            documents_by_title = {
+                document["title"]: document for document in docs_manifest["documents"]
+            }
+            self.assertEqual(
+                documents_by_title["中央民族大学采购工作管理办法"]["documentSlug"],
                 "中央民族大学采购工作管理办法",
             )
             self.assertEqual(
-                docs_manifest["documents"][0]["documentSlug"],
-                "中央民族大学采购工作管理办法",
-            )
-            self.assertEqual(
-                docs_manifest["documents"][0]["canonicalUrl"],
+                documents_by_title["中央民族大学采购工作管理办法"]["canonicalUrl"],
                 "/docs/regulations/institutional_rules/中央民族大学采购工作管理办法",
             )
+            self.assertIn("既有服务管理细则", documents_by_title)
+            versions_by_doc_id = {
+                version["docId"]: version for version in docs_manifest["documentVersions"]
+            }
             self.assertEqual(
-                docs_manifest["documentVersions"][0]["versionSlug"],
+                versions_by_doc_id[documents_by_title["中央民族大学采购工作管理办法"]["docId"]][
+                    "versionSlug"
+                ],
                 "effective-2021-03-01",
             )
-            self.assertEqual(
-                docs_manifest["documentVersions"][0]["deliveryMode"],
-                "gated_asset",
+            self.assertTrue(
+                all(
+                    version["deliveryMode"] == "gated_asset"
+                    for version in docs_manifest["documentVersions"]
+                )
             )
             self.assertNotIn(
                 "2021年修订",
@@ -175,6 +221,70 @@ def _sample_regulation_notice_bundle() -> list[dict[str, object]]:
     record["notice_attachments"] = []
     record["attachments"] = []
     return bundle
+
+
+def _existing_scoped_rule_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="regulation:scoped:existing-service-rule",
+        revision_track="current-effective",
+        version_id="ver_existing_service_rule",
+        source_uri="campus-agent://regulations/scoped_rules/existing-service-rule",
+        content_hash="sha256:existing-service-rule",
+        corpus="regulations",
+        collection="scoped_rules",
+        cleaning_policy_version="internal_notice_regulation_materialization_v1",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        status="active",
+        ingestion_timestamp="2026-04-28T08:00:00+00:00",
+        parser_version="internal_notice_regulation_materialization_v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="authenticated_notice_portal",
+        is_current=True,
+        effective_date="2026-04-01",
+        published_date="2026-04-01",
+        document_units_object_key=(
+            "regulations/documents/scoped_rules/"
+            "existing-service-rule--existing/current-effective/2026/document-units.jsonl"
+        ),
+        canonical_markdown_object_key=(
+            "regulations/documents/scoped_rules/"
+            "existing-service-rule--existing/current-effective/2026/canonical.md"
+        ),
+        processed_object_keys=(
+            "regulations/documents/scoped_rules/"
+            "existing-service-rule--existing/current-effective/2026/document-units.jsonl",
+            "regulations/documents/scoped_rules/"
+            "existing-service-rule--existing/current-effective/2026/canonical.md",
+        ),
+        import_source="internal_notice_regulation_document_site_test",
+    )
+
+
+def _document_units_jsonl(record: DocumentRegistryRecord, title: str) -> str:
+    rows = [
+        {
+            "doc_id": record.document_id,
+            "version_id": record.version_id,
+            "chunk_id": f"{record.document_id}:chunk-001",
+            "root_unit_id": f"{record.document_id}:root-001",
+            "unit_type": "heading",
+            "text": title,
+            "anchor": {"section_path": [title], "page_start": 1, "page_end": 1},
+            "metadata": {"title": title, "heading_level": 1},
+        },
+        {
+            "doc_id": record.document_id,
+            "version_id": record.version_id,
+            "chunk_id": f"{record.document_id}:chunk-002",
+            "root_unit_id": f"{record.document_id}:root-002",
+            "unit_type": "paragraph",
+            "text": "第一条 本细则继续有效。",
+            "anchor": {"section_path": [title], "page_start": 1, "page_end": 1},
+        },
+    ]
+    return "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n"
 
 
 if __name__ == "__main__":

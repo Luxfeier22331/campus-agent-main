@@ -235,9 +235,25 @@ uv run --package campus-ingestion-worker python -m \
   `regulations/institutional_rules` / `regulations/scoped_rules` records 必须保留
 - document reader manifest 必须包含 target scope 当前所有 active/current records，
   不能只包含 selected notice，否则 app-api docs read model 的 scope replace 会删掉既有文档
+- publish report 必须保留 `docs_read_model_scope_write_mode` 与
+  `target_scope_snapshot_document_counts`；前者固定为
+  `replace_manifest_scopes_with_full_current_target_snapshot`，后者用于审计本次
+  docs manifest 是否覆盖目标 scope 当前全集
 - document reader manifest 的 `collections` / `documents` 必须是 docs read-model
   allowlist scope；`campus_notices/internal_notice` 是 source notice scope，不是
   document-site target scope
+
+动态更新口径：
+
+- 每次新增 selected regulation notice 只做 selected source-truth / projection /
+  target materialization upsert，不做 target scope replace
+- 每次导入 app-api docs read model 前，重新从 target registry 生成
+  `regulations/institutional_rules` / `regulations/scoped_rules` 的当前全集
+  reader manifest
+- app-api docs read-model importer 继续按 manifest scopes replace；安全前提是
+  manifest 是 scope snapshot，而不是 selected-only artifact
+- 这条链路只更新 document storage / reader assets / docs read model；不触发
+  embedding、RAG release、query-serving alias 或 public-chat 入口打开
 
 如果要把 reader manifest 正式导入 app-api docs PG：
 

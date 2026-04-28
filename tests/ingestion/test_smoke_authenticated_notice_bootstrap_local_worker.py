@@ -57,6 +57,7 @@ class SmokeAuthenticatedNoticeBootstrapLocalWorkerCliTest(unittest.TestCase):
 
             request = run_import.call_args.kwargs["request"]
             self.assertEqual(str(request.attachment_blob_root), "/tmp/blob-store")
+            self.assertEqual(request.mode, "admit_and_materialize")
             payload = json.loads(stdout.getvalue())
             self.assertEqual(
                 payload["execution"]["attachment_blob_root"],

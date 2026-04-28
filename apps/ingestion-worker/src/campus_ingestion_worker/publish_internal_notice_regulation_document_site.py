@@ -230,6 +230,7 @@ def publish_internal_notice_regulation_document_site(
         registry=runtime_document_registry,
         scopes=_TARGET_SCOPES,
     )
+    target_scope_snapshot_document_counts = _count_records_by_scope(target_records)
     reader_report = publish_document_reader_assets(
         bucket_derived=settings.bucket_derived,
         generated_at=utc_now(),
@@ -260,7 +261,11 @@ def publish_internal_notice_regulation_document_site(
             "/".join(_INSTITUTIONAL_SCOPE): institutional_report.materialized_document_count,
             "/".join(_SCOPED_RULES_SCOPE): scoped_report.materialized_document_count,
         },
+        "target_scope_snapshot_document_counts": target_scope_snapshot_document_counts,
         "docs_read_model_manifest_path": str(docs_read_model_manifest_path),
+        "docs_read_model_scope_write_mode": (
+            "replace_manifest_scopes_with_full_current_target_snapshot"
+        ),
         "docs_read_model_import_command": (
             "DOCS_READ_MODEL_MANIFEST_PATH="
             f"{docs_read_model_manifest_path.resolve()} "
@@ -273,6 +278,7 @@ def publish_internal_notice_regulation_document_site(
         "public_entry_count": reader_report.public_entry_count,
         "target_scopes": ["/".join(scope) for scope in _TARGET_SCOPES],
         "target_scope_document_count": len(target_records),
+        "docs_only_opened": reader_report.document_count > 0,
         "query_serving_opened": False,
         "rag_release_opened": False,
     }
@@ -472,6 +478,14 @@ def _select_current_target_records(
     return tuple(
         sorted(records, key=lambda record: (record.corpus, record.collection, record.document_id))
     )
+
+
+def _count_records_by_scope(records: Sequence[DocumentRegistryRecord]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in records:
+        scope = f"{record.corpus}/{record.collection}"
+        counts[scope] = counts.get(scope, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _run_docs_read_model_import(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:

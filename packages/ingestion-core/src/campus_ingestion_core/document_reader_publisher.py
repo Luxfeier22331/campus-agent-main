@@ -385,6 +385,8 @@ def _snippet(value: str) -> str:
 def _collection_display_name(corpus: str, collection: str) -> str:
     labels = {
         ("curriculum", "curriculum_plan"): "培养方案",
+        ("regulations", "institutional_rules"): "校级规章",
+        ("regulations", "scoped_rules"): "专项规章",
         ("regulations", "student_rules"): "学生手册",
     }
     return labels.get((corpus, collection), collection)
@@ -393,6 +395,8 @@ def _collection_display_name(corpus: str, collection: str) -> str:
 def _collection_description(corpus: str, collection: str) -> str:
     labels = {
         ("curriculum", "curriculum_plan"): "当前公开的培养方案与课程计划。",
+        ("regulations", "institutional_rules"): "学校层面的正式规章制度。",
+        ("regulations", "scoped_rules"): "面向特定单位、事项或周期的专项规则。",
         ("regulations", "student_rules"): "当前公开的学生手册与学生管理规章。",
     }
     return labels.get((corpus, collection), "")
