@@ -20,6 +20,7 @@ admission/cleanup
 -> docs/RAG consumption contract
 -> full-text recovery lane
 -> acceptance freeze
+-> docs-only gated reader opening closeout
 ```
 
 ## Phases
@@ -44,15 +45,21 @@ admission/cleanup
   LLM 编造正文。
 - [x] **Phase 6: Acceptance Freeze And Closeout** — 冻结 selected cohort evidence、
   negative fixtures、PG/bucket audit、dry-run/import/runbook，并定义 reopening rule。
+- [x] **Phase 7: Docs-Only Gated Reader Opening Closeout** — 选择 `354006` 做
+  dry-run -> formal import -> docs read-model import -> public-docs gated reader build，
+  只打开文档站 reader/read-model 路径，不打开 RAG、query-serving 或 public-chat citation。
 
 ## Stop Point
 
-Phase 6 的 stop point 已达到：
+Phase 7 的 stop point 已达到：
 
 - regulation notice consumption quality gate 已可重复验证；
-- selected accepted documents 可以安全进入 document site / RAG offline preparation；
+- selected accepted documents 可以安全进入 document site offline/docs reader preparation；
+- `354006` 已作为首个 accepted regulation notice 进入 docs-only gated reader 本地闭环；
 - rejected/held notice 不会写入 target regulation collections；
-- 真实入口 release/query-serving 是否打开仍由后续 product-path workstream 决定。
+- RAG、query-serving 与 public-chat citation 仍未打开；
+- staging/browser 真实入口 smoke 因 staging supervisor readiness `503` 被记录为外部
+  handoff，不反向改变 repo-owned local closeout 结论。
 
 ## Reopen Rule
 
@@ -61,5 +68,7 @@ Phase 6 的 stop point 已达到：
 - 新 regulation-like notice family 被 admission 到 target consumption；
 - ADR-0035 或 regulation/scoped-rule target boundary 被改写；
 - 文档站/RAG 准备从 offline_preparation 提升到真实用户入口；
+- docs-only gated reader staging/browser acceptance 需要恢复且 staging runtime readiness
+  已修复；
 - PG/bucket/reference audit 发现 partial notice 再次进入 `regulations/*`；
 - owner-recovery 接受新的完整 owner source，需要 formal import evidence。

@@ -12,16 +12,16 @@ workstream: notice-derived-regulation-consumption-quality-gate
 ## Current Position
 
 - status: `completed`
-- current phase: `Phase 6 completed`
-- current phase name: `Acceptance Freeze And Closeout`
+- current phase: `Phase 7 completed`
+- current phase name: `Docs-Only Gated Reader Opening Closeout`
 - current plan:
-  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-06-acceptance-freeze-and-closeout/PLAN.md`
-- total phases: `7`
-- progress: `7/7 phases complete`
+  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-07-docs-only-gated-reader-opening-closeout/PLAN.md`
+- total phases: `8`
+- progress: `8/8 phases complete`
 - last activity: `2026-04-28`
-- last activity description: Phase 6 acceptance freeze completed; selected cohort evidence,
-  negative `187233` fixture, PG/bucket cleanup references, runbook guardrails, regression
-  command set, and bounded reopen rule are frozen.
+- last activity description: Phase 7 docs-only gated reader opening closeout completed for
+  selected notice `354006`; dry-run, formal import, docs read-model import, public-docs build,
+  collection fallback, and staging smoke blocker evidence are frozen.
 
 ## Phase 0 Evidence
 
@@ -160,10 +160,58 @@ workstream: notice-derived-regulation-consumption-quality-gate
 - Real public/docs/RAG entrance validation is intentionally handed off; this workstream only
   freezes offline-preparation quality gate acceptance.
 
+## Phase 7 Evidence
+
+- Selected notice:
+  - `354006`
+  - title:
+    `中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则`
+  - target scope: `regulations/scoped_rules`
+  - delivery mode: `gated_asset`
+- Closeout evidence summary:
+  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/evidence/phase-07-docs-only-gated-reader-opening-closeout/closeout-evidence.json`
+- Selected dry-run:
+  `.tmp/regulation-docs-opening-354006/document-site-dry-run-closeout/dry-run-report.json`
+  - `materialized_document_count=1`
+  - `regulations/institutional_rules=0`
+  - `regulations/scoped_rules=1`
+  - `ready_projection_entry_count=1`
+  - `reader_document_count=1`
+  - `gated_entry_count=1`
+  - `query_serving_opened=false`
+  - `rag_release_opened=false`
+- Formal import:
+  `.tmp/regulation-docs-opening-354006/document-site-publish-closeout/publish-report.json`
+  - `docs_only_opened=true`
+  - `materialized_document_count=1`
+  - docs read-model import result:
+    `collections=1`, `documents=1`, `readerAssets=1`, `searchUnits=1`
+  - `query_serving_opened=false`
+  - `rag_release_opened=false`
+- Public-docs sync/build:
+  - sync manifest:
+    `.tmp/regulation-docs-opening-354006/public-docs-sync-closeout.json`
+  - sync manifest entries: `117`
+  - gated entries: `2`
+  - public entries: `115`
+  - generated local asset:
+    `apps/public-docs/doc_build/_gated-docs/regulations/scoped_rules/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则/2026-current/reader.json`
+  - `build:published-reader-assets` copied:
+    `copiedAssetCount=468`, `copiedDocumentCount=117`,
+    `copiedGatedDocumentCount=2`, `copiedPublicDocumentCount=115`
+- Staging smoke attempt:
+  - command:
+    `pnpm --dir apps/app-api docs:gated:smoke:staging -- --gated-reader-path /_gated-docs/regulations/scoped_rules/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则/2026-current/reader.json --gated-collection-navigation-path /api/docs/collections/regulations/scoped_rules/navigation`
+  - result: blocked before docs assertions
+  - blocker: staging app-api `/readyz` returned `503` because supervisor readiness probe
+    returned `503`
+  - handoff: resume real staging/browser acceptance after staging supervisor readiness is restored
+
 ## Current Slice
 
-Closed. The quality gate can be resumed from the frozen artifacts above. Product-path opening,
-real public-chat/docs entry E2E, or future accepted regulation imports must use a new or reopened
+Closed. The quality gate and first docs-only gated reader opening can be resumed from the frozen
+artifacts above. Product-path RAG/query-serving/public-chat opening, live staging acceptance after
+runtime readiness recovery, or future accepted regulation imports must use a new or reopened
 workstream under the reopen rule.
 
 ## Boundaries To Preserve
@@ -176,7 +224,9 @@ workstream under the reopen rule.
 
 ## Blockers
 
-- None.
+- None for repo-owned local closeout.
+- External handoff: staging app-api `/readyz` currently fails because supervisor readiness returns
+  `503`; this blocks live staging gated docs smoke until staging runtime readiness is restored.
 
 ## Verification Status
 
@@ -195,6 +245,14 @@ workstream under the reopen rule.
   - app-api docs read-model manifest test: `1 file / 2 tests passed`
   - `pnpm docs:lint`: `Summary: 0 error(s)`
   - `git diff --check`: passed
+- Phase 7 local closeout verification on 2026-04-28:
+  - app-api docs gated smoke args red/green completed
+  - app-api targeted docs tests: `4 files / 16 tests passed`
+  - app-api typecheck: passed
+  - selected `354006` dry-run: `materialized_document_count=1`
+  - selected `354006` formal import: `docs_only_opened=true`
+  - public-docs `build:published-reader-assets`: passed; `copiedDocumentCount=117`
+  - staging gated docs smoke: blocked by staging supervisor readiness `503`
 
 ## Resume Instructions
 
@@ -211,5 +269,5 @@ Then read:
 
 ```bash
 sed -n '1,260p' \
-  .planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-06-acceptance-freeze-and-closeout/PLAN.md
+  .planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-07-docs-only-gated-reader-opening-closeout/PLAN.md
 ```

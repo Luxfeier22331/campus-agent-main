@@ -20,9 +20,10 @@ eligibility、target materialization gate 与文档站/RAG 消费前质量验收
 ## Current Status
 
 - status: `completed`
-- current phase: `Phase 6 completed`
-- current focus: selected cohort、negative fixture、runbook、regression command 与 reopen
-  rule 已冻结；后续只按 bounded reopen rule 恢复
+- current phase: `Phase 7 completed`
+- current focus: selected cohort、negative fixture、runbook、regression command、bounded reopen
+  rule 与 `354006` docs-only gated reader opening evidence 已冻结；后续只按 bounded
+  reopen rule 恢复
 - runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
   claim status notice-derived-regulation-consumption-quality-gate` 查看；tracked planning
   文档不保存 claim lease
@@ -78,3 +79,5 @@ eligibility、target materialization gate 与文档站/RAG 消费前质量验收
 - `./phases/phase-05-full-text-recovery-lane/SUMMARY.md`
 - `./phases/phase-06-acceptance-freeze-and-closeout/PLAN.md`
 - `./phases/phase-06-acceptance-freeze-and-closeout/SUMMARY.md`
+- `./phases/phase-07-docs-only-gated-reader-opening-closeout/PLAN.md`
+- `./phases/phase-07-docs-only-gated-reader-opening-closeout/SUMMARY.md`
