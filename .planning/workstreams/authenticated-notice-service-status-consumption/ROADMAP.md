@@ -53,6 +53,11 @@ boundary/cohort
   app-api/public-chat answer` 闭环；`355867`
   继续保留为 transport/schedule 边界拒绝证据。workstream 暂不归档，等待最终
   verification、commit organization 与显式 archive 决策。
+- [ ] **Phase 8: Broader Live Family Coverage** — 从真实 authenticated notice
+  export 中选择 IT platform、library、service-counter、facility 等 service-status
+  家族样本，诊断它们从 source bundle 到 admission、projection、typed
+  materialization、runtime lookup 的缺口。能闭环的保留 evidence；不能闭环的记录为
+  source/admission/materializer/runtime 明确缺口，不使用 fixture 冒充 live coverage。
 
 ## Stop Point
 
@@ -71,8 +76,9 @@ coverage。当前 `355650` 已满足以下闭环条件：
 - captured evidence 覆盖 preview、stage、promote、PG current/list、runtime lookup
   和 product answer，并包含 app-api -> supervisor HTTP E2E。
 
-当前保留 active 的原因不是缺少 live loop，而是等待最终 verification、commit organization
-和是否归档的显式决策。
+当前保留 active 的原因是进入 Phase 8 broader live family coverage；`355650` 已证明
+第一条 live loop，但 IT platform、library、service-counter 等真实家族仍需用 export/live
+样本扩展验证。
 
 ## Reopen Rule
 

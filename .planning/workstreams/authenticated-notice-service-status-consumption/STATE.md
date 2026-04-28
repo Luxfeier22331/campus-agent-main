@@ -12,29 +12,38 @@ workstream: authenticated-notice-service-status-consumption
 ## Current Position
 
 - status: `active`
-- current phase: `Phase 7`
-- current phase name: `Live Admission And Downstream Consumption Loop`
+- current phase: `Phase 8`
+- current phase name: `Broader Live Family Coverage`
 - current plan:
-  `.planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-07-live-admission-and-downstream-consumption-loop/PLAN.md`
-- total phases: `7`
-- progress: `7/7 phases implemented; Phase 7 live loop evidence captured including app-api -> supervisor HTTP E2E; workstream remains active pending review/commit and explicit archive decision`
+  `.planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-08-broader-live-family-coverage/PLAN.md`
+- total phases: `8`
+- progress: `7/8 phases implemented; Phase 8 started for broader real service-status family coverage`
 - last activity: `2026-04-28`
-- last activity description: Completed live `355650` facility service-status
-  admission, materialization, preview/stage/promote, PG current pointer update,
-  supervisor `service_status_lookup` HTTP smoke, app-api/public-chat visible
-  answer/source smoke, and full app-api `ChatCommandService` ->
-  `SupervisorExecutionClient` -> supervisor HTTP -> PG current read model ->
-  app-api visible answer normalization E2E. Also preserved `355867`
-  transport/schedule boundary rejection evidence.
+- last activity description: Started Phase 8 broader live family coverage after
+  proving the Phase 7 `355650` facility loop. Initial candidate listing showed
+  the current `notice_consumption_projection` has only one non-transport
+  service-status candidate (`355650`), so Phase 8 begins by auditing real export
+  samples and diagnosing admission/materializer gaps for IT platform, library,
+  service-counter and additional facility families.
 
 ## Current Slice
 
-Phase 7 is the active live-admission and downstream-consumption loop. It is not
-an archive/finish stage. The first publishable real service-status notice
-(`355650`) has now traversed `notice_consumption_projection`, materialized into
-`campus_services/service_status`, promoted to the PostgreSQL current read model,
-and been consumed through `service_status_lookup`, the app-api supervisor HTTP
-seam and the product answer path.
+Phase 8 is the active broader live-family coverage phase. Phase 7 already proved
+the first publishable real service-status notice (`355650`) can traverse
+`notice_consumption_projection`, materialize into `campus_services/service_status`,
+promote to the PostgreSQL current read model, and be consumed through
+`service_status_lookup`, the app-api supervisor HTTP seam and the product answer
+path.
+
+The current Phase 8 focus is to select real authenticated notice export samples
+for IT platform, library, service-counter and additional facility status. The
+phase must distinguish:
+
+- source bundle lacks a usable notice;
+- consumer admission route is missing or wrong;
+- projection row exists but typed materializer rejects it;
+- typed materializer succeeds but runtime lookup or product normalization needs
+  work.
 
 Phase 1 boundary artifacts exist:
 
@@ -79,16 +88,14 @@ Phase 1 live audit answered three questions:
 
 - No acceptance blocker remains for the first live service-status consumption
   loop: `355650` proves the end-to-end path.
-- Broader family coverage is still future service-status expansion, not a
-  blocker for this workstream's first live-loop stop point. IT platform,
-  library and service-counter examples remain covered by deterministic tests
-  until real service-status notices are selected.
+- Broader family coverage is now active Phase 8 work. IT platform, library and
+  service-counter examples remain deterministically covered by tests, but real
+  export/live dispositions still need evidence.
 - Do not use this workstream to absorb regulation, schedule, service guide,
   contact-directory or generic notice-query work. Those remain adjacent
   workstreams/surfaces.
-- The workstream should remain active until final verification, commit
-  organization and an explicit archive decision happen. Do not silently move it
-  to Completed during execution.
+- The workstream should remain active through Phase 8 and should not be archived
+  without an explicit user decision.
 
 ## Verification Status
 

@@ -1,0 +1,15 @@
+{
+  "schema_version": "service_status_projection_release_manifest.v1",
+  "release_id": "service-status-phase8-it-facility-preview-20260428",
+  "generated_at": "2026-02-11T21:00:00+08:00",
+  "corpus": "campus_services",
+  "collection": "service_status",
+  "projection_object_key": "campus_services/releases/service_status/service-status-phase8-it-facility-preview-20260428/service-status-projection.json",
+  "current_projection_object_key": "campus_services/releases/service_status/current/service-status-projection.json",
+  "rejected_source_report_object_key": "campus_services/releases/service_status/service-status-phase8-it-facility-preview-20260428/rejected-source-report.json",
+  "validation_valid": true,
+  "counts": {
+    "service_status_records": 2,
+    "rejected_sources": 0
+  }
+}

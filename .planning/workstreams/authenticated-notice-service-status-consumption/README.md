@@ -21,15 +21,15 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 7`
-- current focus: Phase 7 live loop evidence 已捕获。真实 authenticated notice
-  `355650` 已从 `notice_consumption_projection` 进入 service-status typed
-  projection，完成 preview/stage/promote、PG current read model、
-  supervisor `service_status_lookup` HTTP smoke、app-api/public-chat visible
-  answer smoke，以及 app-api `ChatCommandService` -> supervisor HTTP ->
-  PG current read model -> app-api visible answer normalization E2E；`355867`
-  继续作为 transport/schedule 边界拒绝证据。workstream 暂不归档，等待最终
-  verification、commit organization 与显式 archive 决策。
+- current phase: `Phase 8`
+- current focus: Phase 8 broader live family coverage。Phase 7 已证明真实
+  authenticated notice `355650` 可以完成
+  `notice_consumption_projection -> service-status typed projection -> PG current
+  read model -> supervisor lookup -> app-api/public-chat answer` 闭环；现在开始用真实
+  export 样本扩展 IT platform、library、service-counter 和 additional facility
+  coverage。当前 `notice_consumption_projection` 只有 `355650` 一个非 transport
+  service-status candidate，因此 Phase 8 首先诊断 source/admission/materializer
+  缺口，不用 fixture 冒充 live coverage。
 - runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
   claim status authenticated-notice-service-status-consumption` 查看；tracked
   planning 文档不保存 claim lease
@@ -68,3 +68,4 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
 - `./phases/phase-05-runtime-query-and-eval/PLAN.md`
 - `./phases/phase-06-product-source-presentation/PLAN.md`
 - `./phases/phase-07-live-admission-and-downstream-consumption-loop/PLAN.md`
+- `./phases/phase-08-broader-live-family-coverage/PLAN.md`
