@@ -27,9 +27,9 @@ updated: 2026-04-28
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2`
-- current focus: collector object-native handoff
-- implementation status: Phase 1 contract/docs implemented; collector code implementation not started
+- current phase: `Phase 3`
+- current focus: worker object-ref import
+- implementation status: Phase 2 collector object-native handoff implemented and locally verified; next slice is ingestion worker `run_id` / object-ref import
 
 ## Owned Scope
 

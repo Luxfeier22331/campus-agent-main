@@ -18,7 +18,7 @@ service-status、regulation 作为 ingestion consumer compatibility matrix 纳�
 ## Phase Status
 
 - [x] **Phase 1: Contract And Boundary Freeze** — 冻结 object-native handoff contract、run ledger read/write fields、worker import request shape，以及 `file_release` object-backed target posture。
-- [ ] **Phase 2: Collector Object-Native Handoff** — collector 直接产出 verified source-bucket bundle/manifest/source bytes refs，success run 必须有可验证 object refs。
+- [x] **Phase 2: Collector Object-Native Handoff** — collector 直接产出 verified source-bucket bundle/manifest/source bytes refs，success run 必须有可验证 object refs。
 - [ ] **Phase 3: Worker Object-Ref Import** — ingestion worker 支持 `run_id` / object refs 导入，local path 降为 fixture/dev-only，不再是主链路 handoff。
 - [ ] **Phase 4: Fail-Close Object And Dry-Run Gates** — object existence/hash/size gate、dry-run no-write gate、missing object no registry/projection write。
 - [ ] **Phase 5: File-Release Target Boundary** — 将 `file_release` 从 capture-only drift 收口为显式 object-backed authenticated document source，并保持 query-serving / semantic promotion 关闭。
