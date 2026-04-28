@@ -19,10 +19,8 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
     NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-    NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
     NOTICE_TARGET_SURFACE_UNSUPPORTED,
-    NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
     InMemoryNoticeConsumptionProjectionStore,
     build_internal_notice_consumption_projection_entries,
     rebuild_internal_notice_consumption_projection,
@@ -165,12 +163,6 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             if entry.source_notice_id == "355222"
             and entry.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
         )
-        procurement_unit = next(
-            entry
-            for entry in entries
-            if entry.source_notice_id == "355222"
-            and entry.primary_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
-        )
         roster_unit = next(
             entry
             for entry in entries
@@ -183,9 +175,9 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             notice_window.consumption_status,
             NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
         )
-        self.assertEqual(
-            procurement_unit.target_surface,
-            NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
+        self.assertNotIn(
+            NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
+            {entry.primary_role for entry in entries if entry.source_notice_id == "355222"},
         )
         self.assertEqual(roster_unit.target_surface, NOTICE_TARGET_SURFACE_UNSUPPORTED)
 
@@ -266,7 +258,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
                 projection_store=projection_store,
             )
 
-    def test_build_entries_emits_procurement_notice_unit_without_routing_to_regulation(
+    def test_build_entries_keeps_procurement_notices_as_generic_notice_cards(
         self,
     ) -> None:
         registry, inventory_store, object_store = _build_runtime(
@@ -310,25 +302,21 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             for entry in entries
             if entry.primary_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
         ]
+        self.assertEqual(procurement_units, [])
+        notice_windows = {
+            entry.source_notice_id: entry
+            for entry in entries
+            if entry.source_notice_id in {"355222", "355325"}
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
+        }
+        self.assertEqual(set(notice_windows), {"355222", "355325"})
         self.assertEqual(
-            {entry.source_notice_id for entry in procurement_units},
-            {"355222", "355325"},
+            {entry.target_surface for entry in notice_windows.values()},
+            {NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY},
         )
-        self.assertTrue(
-            all(
-                entry.target_surface == NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY
-                for entry in procurement_units
-            )
-        )
-        self.assertTrue(
-            all(
-                entry.temporal_policy == NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION
-                for entry in procurement_units
-            )
-        )
-        self.assertNotIn(
-            NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
-            {entry.primary_role for entry in entries if entry.source_notice_id == "187233"},
+        self.assertEqual(
+            {entry.consumption_status for entry in notice_windows.values()},
+            {NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY},
         )
 
     def test_build_entries_marks_internal_roster_publication_as_no_adoption(self) -> None:
@@ -370,7 +358,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             "internal_restricted_publication_not_admitted",
         )
 
-    def test_build_entries_marks_internal_lecture_activity_as_no_adoption(self) -> None:
+    def test_build_entries_keeps_internal_lecture_activity_as_generic_notice_card(self) -> None:
         registry, inventory_store, object_store = _build_runtime(
             extra_notice_rows=(
                 _notice_runtime_record(
@@ -397,16 +385,9 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             object_store=object_store,
         )
 
-        lecture_unit = next(
-            entry
-            for entry in entries
-            if entry.source_notice_id == "355327"
-            and entry.primary_role == NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY
-        )
-        self.assertEqual(lecture_unit.consumption_status, NOTICE_CONSUMPTION_STATUS_NO_ADOPTION)
-        self.assertEqual(
-            lecture_unit.role_metadata["no_adoption_reason"],
-            "internal_restricted_publication_not_admitted",
+        self.assertNotIn(
+            NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY,
+            {entry.primary_role for entry in entries if entry.source_notice_id == "355327"},
         )
         notice_window = next(
             entry
@@ -414,7 +395,10 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
             if entry.source_notice_id == "355327"
             and entry.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
         )
-        self.assertEqual(notice_window.role_metadata["suggested_consumption_route"], "defer")
+        self.assertEqual(
+            notice_window.role_metadata["suggested_consumption_route"],
+            "notice_level_query",
+        )
         self.assertEqual(notice_window.role_metadata["machine_processing_policy"], "skip")
         self.assertEqual(
             notice_window.role_metadata["attachment_processing_policy"],
@@ -422,7 +406,7 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
         )
         self.assertEqual(
             notice_window.role_metadata["attachment_processing_reason"],
-            "low_value_or_deferred_family",
+            "route_skips_attachment_processing",
         )
 
     def test_partial_rebuild_replaces_existing_units_for_selected_notice_ids(self) -> None:

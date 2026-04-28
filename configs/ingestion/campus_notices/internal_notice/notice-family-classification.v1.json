@@ -21,11 +21,11 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"campus_news_publicity": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"competition_event": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"course_teaching_arrangement": {
@@ -33,7 +33,7 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"culture_publicity_activity": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"document_collection_deadline": {
@@ -41,7 +41,7 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"event_activity": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"exchange_visit_project": {
@@ -65,11 +65,11 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"general_publicity_culture": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"governance_party_life": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"health_medical_action": {
@@ -81,7 +81,7 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"internal_governance_party_admin": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"it_platform_operation_notice": {
@@ -93,11 +93,11 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"job_recruitment": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"lecture_publicity": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"library_acquisition_service": {
@@ -113,7 +113,7 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"meeting_training": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"operational_procedure": {
@@ -130,15 +130,15 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"procurement_notice": {
-				"consumption_route": "procurement_notice_history",
-				"machine_processing_policy": "process_multimodal"
+				"consumption_route": "notice_level_query",
+				"machine_processing_policy": "skip"
 			},
 			"research_project_application": {
 				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "process_multimodal"
 			},
 			"research_publicity_call": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"roster_publication": {
@@ -155,7 +155,7 @@
 				"machine_processing_policy": "process_multimodal"
 			},
 			"staff_internal_admin": {
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip"
 			},
 			"student_affairs_application": {
@@ -275,7 +275,7 @@
 			},
 			{
 				"name": "defer_publicity_signal",
-				"consumption_route": "defer",
+				"consumption_route": "notice_level_query",
 				"machine_processing_policy": "skip",
 				"any_terms": [
 					"预告",
@@ -404,6 +404,9 @@
 				"核酸检测.*(时间调整|点位|调整)",
 				"后勤.*服务.*调整",
 				"后勤.*服务.*安排",
+				"校医院.*(寒假|暑假|元旦|清明|五一|国庆).*?(值班|门诊|工作安排)",
+				"校医院.*增开.*门诊",
+				"校医院.*开诊时间",
 				"疫情防控措施",
 				"暂停.*服务",
 				"恢复.*服务",
@@ -1041,6 +1044,9 @@
 				"预算批复",
 				"新增资产预算",
 				"固定资产登记",
+				"停用.*充值功能",
+				"关闭.*充值",
+				"暂停.*充值",
 				"管理办法",
 				"管理规定",
 				"实施细则",
@@ -1068,7 +1074,17 @@
 				"传染病",
 				"HPV"
 			],
-			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
+			"title_exclude_patterns": [
+				"校医院.*(寒假|暑假|元旦|清明|五一|国庆).*?(值班|门诊|工作安排)",
+				"校医院.*增开.*门诊",
+				"校医院.*开诊时间",
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"制度",
+				"规范",
+				"手册"
+			]
 		},
 		{
 			"family": "health_welfare_service_notice",

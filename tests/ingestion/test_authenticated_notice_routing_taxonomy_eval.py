@@ -76,9 +76,9 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
                             "attachment_ref_count": 1,
                             "multimodal_processing_required_count": 1,
                             "expected_notice_family": "procurement_notice",
-                            "expected_consumption_route": "procurement_notice_history",
-                            "expected_machine_processing_policy": "process",
-                            "expected_attachment_processing_policy": "process",
+                            "expected_consumption_route": "notice_level_query",
+                            "expected_machine_processing_policy": "skip",
+                            "expected_attachment_processing_policy": "metadata_only",
                         },
                         ensure_ascii=False,
                     ),
@@ -91,7 +91,7 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
                             "attachment_ref_count": 1,
                             "ocr_required_count": 1,
                             "expected_notice_family": "lecture_publicity",
-                            "expected_consumption_route": "defer",
+                            "expected_consumption_route": "notice_level_query",
                             "expected_machine_processing_policy": "skip",
                             "expected_attachment_processing_policy": "metadata_only",
                         },
@@ -109,11 +109,10 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
         self.assertEqual(report.accuracy, 1.0)
         self.assertEqual(report.failures, ())
         self.assertEqual(report.predicted_notice_family_counts["procurement_notice"], 1)
-        self.assertEqual(report.predicted_machine_processing_policy_counts["process"], 1)
-        self.assertEqual(report.predicted_attachment_processing_policy_counts["process"], 1)
+        self.assertEqual(report.predicted_machine_processing_policy_counts["skip"], 2)
         self.assertEqual(
             report.predicted_attachment_processing_policy_counts["metadata_only"],
-            1,
+            2,
         )
 
     def test_reports_mismatch_details(self) -> None:
@@ -125,7 +124,7 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
                     "title": "讲座预告丨舞蹈学院名家讲堂",
                     "notice_type_name": "科研通知",
                     "expected_notice_family": "course_teaching_arrangement",
-                    "expected_consumption_route": "notice_level_query",
+                    "expected_consumption_route": "no_adoption",
                     "expected_machine_processing_policy": "not_required",
                     "expected_attachment_processing_policy": "process",
                 },
@@ -146,7 +145,7 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
         )
         self.assertEqual(
             report.failures[0].mismatches["suggested_consumption_route"]["expected"],
-            "notice_level_query",
+            "no_adoption",
         )
         self.assertEqual(
             report.failures[0].mismatches["machine_processing_policy"]["actual"],

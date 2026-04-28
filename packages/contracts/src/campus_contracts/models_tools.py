@@ -297,7 +297,9 @@ class ContactDirectoryLookupResult:
             _validate_tool_fail_close_reason(self.fail_close_reason)
         if self.outcome == "resolved_current":
             if self.resolved_contact is None:
-                raise ValueError("resolved_contact must not be empty for resolved contact directory")
+                raise ValueError(
+                    "resolved_contact must not be empty for resolved contact directory"
+                )
             if not (self.contact_points or self.location_refs or self.office_hours):
                 raise ValueError(
                     "resolved contact directory results must include contact_points, location_refs, or office_hours"
@@ -321,6 +323,7 @@ class NoticeCard:
     source_family: NoticeSourceFamily | str
     source_url: str
     canonical_url: str = ""
+    target_surface: NoticeTargetSurface | str = ""
     summary: str = ""
     published_at: str = ""
     effective_at: str = ""
@@ -334,6 +337,8 @@ class NoticeCard:
         _validate_notice_source_family(self.source_family)
         if not self.source_url.strip():
             raise ValueError("source_url must not be empty")
+        if self.target_surface:
+            _validate_notice_target_surface(self.target_surface)
 
 
 @dataclass(frozen=True, slots=True)
@@ -853,6 +858,7 @@ class CampusNoticeGetResult:
     canonical_url: str = ""
     normalized_body: str = ""
     reference_only: bool = False
+    target_surface: NoticeTargetSurface | str = field(default="", compare=False)
     published_at: str = ""
     effective_at: str = ""
     attachment_refs: tuple[str, ...] = field(default_factory=tuple)
@@ -866,6 +872,8 @@ class CampusNoticeGetResult:
         _validate_tool_business_outcome(self.outcome)
         if self.source_family:
             _validate_notice_source_family(self.source_family)
+        if self.target_surface:
+            _validate_notice_target_surface(self.target_surface)
         if self.historical_downgrade_reason:
             _validate_historical_downgrade_reason(self.historical_downgrade_reason)
         if self.fail_close_reason:

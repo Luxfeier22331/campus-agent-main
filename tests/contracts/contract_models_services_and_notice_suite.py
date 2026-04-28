@@ -330,6 +330,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             title="关于校园活动的通知",
             source_family="wechat_public_notice",
             source_url="https://mp.weixin.qq.com/s/example",
+            target_surface="notice_level_query",
         )
         discover = CampusNoticeDiscoverPayload(
             query_text="校园活动",
@@ -341,8 +342,34 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         )
 
         self.assertEqual(card.source_family, "wechat_public_notice")
+        self.assertEqual(card.target_surface, "notice_level_query")
         self.assertEqual(discover.source_families, ("wechat_public_notice",))
         self.assertEqual(get_payload.source_family, "wechat_public_notice")
+
+    def test_notice_card_and_get_result_carry_minimum_web_card_surface(self) -> None:
+        card = NoticeCard(
+            notice_id="355222",
+            title="中央民族大学丰台校区家具采购项目比选公告",
+            source_family="internal_notice_restricted",
+            source_url="https://portal.example.edu/notices/355222",
+            canonical_url="https://portal.example.edu/notices/355222",
+            target_surface="notice_level_query",
+            published_at="2026-04-12",
+        )
+        result = CampusNoticeGetResult(
+            notice_id="355222",
+            outcome="resolved_current",
+            title=card.title,
+            source_family=card.source_family,
+            source_url=card.source_url,
+            canonical_url=card.canonical_url,
+            normalized_body="采购公告正文。",
+            target_surface=card.target_surface,
+            published_at=card.published_at,
+        )
+
+        self.assertEqual(card.target_surface, "notice_level_query")
+        self.assertEqual(result.target_surface, "notice_level_query")
 
     def test_service_status_historical_result_allows_missing_downgrade_reason(self) -> None:
         result = ServiceStatusLookupResult(

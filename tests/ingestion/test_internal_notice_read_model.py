@@ -95,6 +95,15 @@ class InternalNoticeReadModelTest(unittest.TestCase):
         self.assertTrue(notice_row.queryable)
         self.assertEqual(notice_row.title, "中央民族大学丰台校区家具采购项目比选公告")
         self.assertEqual(
+            notice_row.source_url,
+            "https://portal.example.edu/notices/355222",
+        )
+        self.assertEqual(
+            notice_row.canonical_url,
+            "https://portal.example.edu/notices/355222",
+        )
+        self.assertEqual(notice_row.target_surface, NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY)
+        self.assertEqual(
             notice_row.canonical_markdown_object_key,
             "campus_notices/documents/internal_notice/355222/canonical.md",
         )

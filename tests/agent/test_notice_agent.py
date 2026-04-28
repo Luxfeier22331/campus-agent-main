@@ -150,6 +150,7 @@ class NoticeAgentTest(unittest.TestCase):
                         "canonical_url": "https://portal.example.edu/notices/355222",
                         "published_at": "2026-04-12",
                         "effective_at": "2026-04-12",
+                        "target_surface": "notice_level_query",
                         "is_current": True,
                     }
                 ],
@@ -168,7 +169,7 @@ class NoticeAgentTest(unittest.TestCase):
                 payload=CampusNoticeDiscoverPayload(
                     query_text="家具采购",
                     source_families=("internal_notice_restricted",),
-                    target_surfaces=("procurement_notice_history",),
+                    target_surfaces=("notice_level_query",),
                     max_results=3,
                 ),
                 access_context=_restricted_access_context(),
@@ -183,7 +184,7 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(transport.calls[0][2]["payload"]["query_text"], "家具采购")
         self.assertEqual(
             transport.calls[0][2]["payload"]["target_surfaces"],
-            ("procurement_notice_history",),
+            ("notice_level_query",),
         )
         self.assertEqual(
             transport.calls[0][2]["access_context"]["authorization"]["retrieval_filter"][
@@ -194,6 +195,7 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(transport.calls[0][3], 0.75)
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.notice_cards[0].notice_id, "355222")
+        self.assertEqual(result.notice_cards[0].target_surface, "notice_level_query")
 
     def test_http_query_service_posts_get_payload_and_decodes_body_result(self) -> None:
         transport = _RecordingNoticeHTTPTransport(
@@ -207,6 +209,7 @@ class NoticeAgentTest(unittest.TestCase):
                 "normalized_body": "# 采购公告\n\n供应商应按要求投标。\n",
                 "published_at": "2026-04-12",
                 "effective_at": "2026-04-12",
+                "target_surface": "notice_level_query",
                 "attachment_refs": ["attachment:355222:1"],
                 "provenance_refs": ["notice:muc_internal_portal:355222"],
             }
@@ -235,6 +238,7 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(transport.calls[0][2]["payload"]["notice_id"], "355222")
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.normalized_body, "# 采购公告\n\n供应商应按要求投标。\n")
+        self.assertEqual(result.target_surface, "notice_level_query")
         self.assertEqual(result.attachment_refs, ("attachment:355222:1",))
 
     def test_http_query_service_decodes_reference_only_notice_get_result(self) -> None:

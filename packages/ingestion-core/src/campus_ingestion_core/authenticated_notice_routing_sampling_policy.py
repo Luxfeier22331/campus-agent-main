@@ -35,25 +35,28 @@ def resolve_authenticated_notice_routing_decision(
         elif _is_terminal_no_adoption_title(config=config, title=title):
             suggested_consumption_route = "no_adoption"
             machine_processing_policy = "skip"
+    resolved_machine_processing_policy = _resolve_machine_processing_policy(
+        config=config,
+        base_policy=machine_processing_policy,
+        suggested_consumption_route=suggested_consumption_route,
+        title=title,
+        body=body,
+        multimodal_processing_required_count=int(
+            attachment_counts.get("multimodal_processing_required_count") or 0
+        ),
+    )
     return AuthenticatedNoticeRoutingDecision(
         suggested_consumption_route=suggested_consumption_route,
-        machine_processing_policy=_resolve_machine_processing_policy(
-            config=config,
-            base_policy=machine_processing_policy,
-            suggested_consumption_route=suggested_consumption_route,
-            title=title,
-            body=body,
-            multimodal_processing_required_count=int(
-                attachment_counts.get("multimodal_processing_required_count") or 0
-            ),
-        ),
+        machine_processing_policy=resolved_machine_processing_policy,
         attachment_processing_policy=_resolve_attachment_processing_policy(
             suggested_consumption_route=suggested_consumption_route,
+            machine_processing_policy=resolved_machine_processing_policy,
             attachment_counts=attachment_counts,
         ),
         attachment_processing_reason=_resolve_attachment_processing_reason(
             policy=policy,
             suggested_consumption_route=suggested_consumption_route,
+            machine_processing_policy=resolved_machine_processing_policy,
             attachment_counts=attachment_counts,
         ),
     )
@@ -134,9 +137,12 @@ def _resolve_machine_processing_policy(
 def _resolve_attachment_processing_policy(
     *,
     suggested_consumption_route: str,
+    machine_processing_policy: str,
     attachment_counts: Mapping[str, int],
 ) -> str:
     if suggested_consumption_route in {"defer", "no_adoption"}:
+        return "metadata_only"
+    if machine_processing_policy == "skip":
         return "metadata_only"
     attachment_ref_count = int(attachment_counts.get("attachment_ref_count") or 0)
     if attachment_ref_count <= 0:
@@ -148,12 +154,15 @@ def _resolve_attachment_processing_reason(
     *,
     policy,
     suggested_consumption_route: str,
+    machine_processing_policy: str,
     attachment_counts: Mapping[str, int],
 ) -> str:
     if suggested_consumption_route == "no_adoption":
         return policy.terminal_reason or "no_adoption_or_out_of_scope"
     if suggested_consumption_route == "defer":
         return policy.terminal_reason or "low_value_or_deferred_family"
+    if machine_processing_policy == "skip":
+        return "route_skips_attachment_processing"
     attachment_ref_count = int(attachment_counts.get("attachment_ref_count") or 0)
     if attachment_ref_count <= 0:
         return "no_attachment_refs"

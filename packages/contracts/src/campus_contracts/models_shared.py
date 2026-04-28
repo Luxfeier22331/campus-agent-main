@@ -113,7 +113,6 @@ NoticeSourceFamily = Literal[
 ]
 NoticeTargetSurface = Literal[
     "notice_level_query",
-    "procurement_notice_history",
     "campus_services/service_status_candidate",
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",
@@ -270,7 +269,6 @@ ALLOWED_NOTICE_SOURCE_FAMILIES = (
 )
 ALLOWED_NOTICE_TARGET_SURFACES = (
     "notice_level_query",
-    "procurement_notice_history",
     "campus_services/service_status_candidate",
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",

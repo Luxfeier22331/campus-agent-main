@@ -234,7 +234,6 @@ def _select_grouped_samples(
         or sample.suggested_consumption_route
         in {
             "regulation_candidate",
-            "procurement_notice_history",
             "service_status_candidate",
         }
     ]

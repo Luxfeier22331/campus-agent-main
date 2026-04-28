@@ -7,10 +7,11 @@ updated: 2026-04-28
 
 # Roadmap: Internal-Notice Procurement Publication History
 
-当前为 backlog draft，不代表 active execution order。恢复为 active workstream
-前，应先确认产品范围确实要把采购类 notice 作为 Web 可消费的历史卡片打开。
-分类与 `procurement_notice_history` target surface 已在 notice consumption layer
-存在；本路线图只收口 title/url card、检索 facet 和最低产品验收。
+当前为 backlog draft，不代表 active execution order。首期产品口径不把采购类
+notice 作为独立 downstream pilot；采购与讲座、活动、一般公告一样，先走
+generic PG notice search/title-url card。恢复为 active workstream 前，应先确认
+产品范围确实要把采购类从 generic notice search/card 提升为
+procurement-specific facet/history surface。
 
 ## Phase 1: Current-State Contract Audit
 
@@ -25,10 +26,11 @@ Web-facing response 是否都保持 title + url contract。
 - `campus_notice_discover/get` response shape
 - missing-title/url fail-close 或 data-quality report
 
-## Phase 2: Procurement History Query Facet
+## Phase 2: Deferred Procurement-Specific Query Facet
 
-**Goal:** 固化采购历史通过 `target_surfaces=["procurement_notice_history"]`
-检索，不新增 dedicated procurement tool。
+**Goal:** 仅在产品范围恢复后，固化采购历史通过
+`target_surfaces=["procurement_notice_history"]` 检索，不新增 dedicated
+procurement tool。
 
 **Scope:**
 
@@ -62,7 +64,8 @@ Web-facing response 是否都保持 title + url contract。
 
 ## Phase 5: Backlog Closeout
 
-**Goal:** 用真实样本关闭 backlog，确认不需要独立 procurement runtime。
+**Goal:** 用真实样本关闭 backlog，确认是否需要从 generic notice search/card
+提升到 procurement-specific facet；默认仍不需要独立 procurement runtime。
 
 **Scope:**
 

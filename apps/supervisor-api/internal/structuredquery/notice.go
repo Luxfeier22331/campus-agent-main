@@ -197,6 +197,9 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 	if !noticeReadModelRowsAuthorized(rows, authorizationFilter) {
 		return failClosedNoticeDiscover(request.QueryText, sourceFamilies, r.timeAnchor(), "source_truth_unavailable")
 	}
+	if !noticeReadModelRowsHaveMinimumCardFields(rows) {
+		return failClosedNoticeDiscover(request.QueryText, sourceFamilies, r.timeAnchor(), "source_truth_unavailable")
+	}
 	if len(rows) == 0 {
 		body := noticeDiscoverResult{
 			QueryText:         request.QueryText,
@@ -213,7 +216,7 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 			Title:         row.Title,
 			SourceFamily:  row.SourceFamily,
 			SourceURL:     row.SourceURL,
-			CanonicalURL:  row.CanonicalURL,
+			CanonicalURL:  noticeCanonicalURL(row),
 			PublishedAt:   row.PublishedAt,
 			EffectiveAt:   row.EffectiveAt,
 			TargetSurface: row.TargetSurface,
@@ -318,7 +321,7 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 				Title:          title,
 				SourceFamily:   resolvedSourceFamily,
 				SourceURL:      sourceURL,
-				CanonicalURL:   row.CanonicalURL,
+				CanonicalURL:   noticeCanonicalURL(row),
 				ReferenceOnly:  true,
 				PublishedAt:    row.PublishedAt,
 				EffectiveAt:    row.EffectiveAt,
@@ -344,7 +347,7 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 		Title:          title,
 		SourceFamily:   resolvedSourceFamily,
 		SourceURL:      sourceURL,
-		CanonicalURL:   row.CanonicalURL,
+		CanonicalURL:   noticeCanonicalURL(row),
 		NormalizedBody: bodyText,
 		PublishedAt:    row.PublishedAt,
 		EffectiveAt:    row.EffectiveAt,
@@ -454,6 +457,27 @@ func noticeReadModelRowsAuthorized(
 	return true
 }
 
+func noticeReadModelRowsHaveMinimumCardFields(rows []noticeReadModelRecord) bool {
+	for _, row := range rows {
+		if strings.TrimSpace(row.SourceNoticeID) == "" {
+			return false
+		}
+		if strings.TrimSpace(row.SourceFamily) == "" {
+			return false
+		}
+		if strings.TrimSpace(row.Title) == "" {
+			return false
+		}
+		if strings.TrimSpace(row.SourceURL) == "" {
+			return false
+		}
+		if strings.TrimSpace(row.TargetSurface) == "" {
+			return false
+		}
+	}
+	return true
+}
+
 func noticeReadModelRowAuthorized(
 	row noticeReadModelRecord,
 	filter noticeReadModelAuthorizationFilter,
@@ -479,6 +503,14 @@ func noticeReadModelRowAuthorized(
 		return false
 	}
 	return noticeEntitlementGroupsOverlap(row.EntitlementGroups, filter.EntitlementGroups)
+}
+
+func noticeCanonicalURL(row noticeReadModelRecord) string {
+	canonicalURL := strings.TrimSpace(row.CanonicalURL)
+	if canonicalURL != "" {
+		return canonicalURL
+	}
+	return strings.TrimSpace(row.SourceURL)
 }
 
 func noticeEntitlementGroupsOverlap(left []string, right []string) bool {

@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 ---
@@ -9,11 +9,11 @@ updated: 2026-04-28
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 1`
-- current slice: regulation selected dry-run into document storage / document reader
+- status: `completed`
+- current phase: `Phase 5`
+- current slice: closeout
 - owner: unassigned
-- active implementation: yes
+- active implementation: no
 
 ## Current Context
 
@@ -21,10 +21,37 @@ updated: 2026-04-28
 
 - 通知不是全部都要深处理。
 - 当前策略是先采集入库，再按类型一批批 admission 到 consumption layer。
-- 低优先级 notice 现阶段只要保证正确分类、分流、检索命中，并返回
-  title/url 供 Web 侧消费。
-- 采购类 notice 不需要新 tool，优先通过 `campus_notice_discover/get` +
-  `target_surfaces=["procurement_notice_history"]` 消费。
+- 首期专用 downstream consumption 只开放三类：
+  - `regulation`
+  - `schedule`
+  - `service_status`
+- procurement、讲座、活动、宣传、一般公告等其他 notice 暂缓进入专用下游；
+  当前只要求正确分类、分流、PG 搜索命中，并返回 title/url 供 Web 侧消费。
+- 采购类 notice 不需要新 tool，也不作为首期独立 pilot；与讲座、活动类通知一样，
+  归入 generic notice search/title-url card。
+- 2026-04-28 Phase 1 implementation closeout：
+  - active downstream denominator 固定为 `regulation_candidate` 与
+    `service_status_candidate` 两条 route family；schedule 由 service-status
+    candidate 内的 transport schedule kind 承接。
+  - procurement、lecture、activity、publicity、campus-news、meeting/training、
+    staff/internal-admin 等 generic-card-only family 统一路由为
+    `notice_level_query + machine_processing_policy=skip`。
+  - routing attachment policy 已改为：只要 machine policy 为 `skip`，即使存在
+    attachment ref，也只保留 metadata，不进入 OCR/VLM backlog。
+  - projection 已停止按采购标题生成额外 `procurement_notice_history` sidecar；
+    采购通知只保留 `notice_window` read-model card。
+  - lecture/activity 类通知不再生成额外 no-adoption sidecar；同样只保留
+    `notice_window` read-model card。
+- 2026-04-28 Phase 2-5 implementation closeout：
+  - `NoticeCard` 与 `CampusNoticeGetResult` shared contract 已携带
+    `target_surface`。
+  - notice-agent HTTP adapter 已从 Go structured-query response 解码
+    `target_surface`。
+  - Go `campus_notice_discover` 对缺失 `notice_id`、`source_family`、`title`、
+    `source_url` 或 `target_surface` 的 read-model row fail-close。
+  - `canonical_url` 为空时由 query runtime 回退到 `source_url`。
+  - repo-owned routing taxonomy eval fixture 已更新为 generic card first-phase
+    posture，并通过默认 fixture gate。
 
 ## Baseline Facts
 
@@ -35,8 +62,11 @@ updated: 2026-04-28
   - routing taxonomy sampler/eval
   - `procurement_notice_history` target surface
   - `campus_notice_discover/get` read-model backing path
-- `internal-notice-procurement-publication-history` backlog 已更新为
-  procurement/history title-url card productization，不再表示“还没分类”。
+- `procurement_notice_history` target surface 虽已存在，但首期 product opening
+  暂缓；当前 routing config 不再产生该 route，projection 也不再按标题生成该
+  sidecar。
+- `internal-notice-procurement-publication-history` backlog 应更新为 deferred
+  procurement-specific facet，不再作为当前首期 pilot。
 - 当前 shared PG read-model audit：
   - table: `ingestion_projection.internal_notice_read_model`
   - total rows: `1`
@@ -53,7 +83,7 @@ updated: 2026-04-28
     `处分规定`、`管理规范`、`实施意见`，以及发布/印发/修订/公布/颁布/
     废止动作。
   - 制度专题学习、解读会、宣传材料和方案/报告不作为 regulation 正文消费；
-    学习/解读会归入 `meeting_training -> defer`。
+    学习/解读会归入 `meeting_training -> notice_level_query`，并跳过机器深处理。
 - 2026-04-28 regulation document-site dry-run update：
   - `regulation_candidate` selected admission 使用 broad family
     `target_surface=regulations/*`。
@@ -66,17 +96,10 @@ updated: 2026-04-28
 
 ## Current Open Questions
 
-- 哪些 family 应默认 queryable 但只提供 title/url card？
-- `defer` 与 queryable title/url card 是否允许并存，还是 defer 一律不进入
-  read model？
-- 低置信 residual 如何在不引入 human review 状态的前提下关闭：默认
-  `no_adoption`，还是少量进入 multimodal processing？
-- procurement/history 第一批 selected notice 应覆盖哪些类型：公告、结果公示、
-  更正/延期、附件型公告？
-- Web 侧是否需要 `source_url` 优先，还是 `canonical_url` 优先并回退 source URL？
+- none for this workstream.
 
 ## Immediate Next Step
 
-继续 Phase 1/2 收口：regulation selected dry-run 已证明可以进入 document storage
-与 document reader artifact；下一步不要直接开放 query-serving，应转回 Web card /
-procurement minimum consumption 或先补 controlled publish/import 的真实 PG 路径。
+Workstream completed. 后续只有在产品范围决定打开 procurement-specific facet、
+新增 dedicated notice downstream family，或真实入口验收发现 generic notice card
+contract 漂移时重开。

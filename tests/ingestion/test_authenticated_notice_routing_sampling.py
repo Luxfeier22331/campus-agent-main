@@ -104,7 +104,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         )
         self.assertEqual(
             route_by_notice["353466"].suggested_consumption_route,
-            "procurement_notice_history",
+            "notice_level_query",
         )
         self.assertEqual(
             route_by_notice["355546"].machine_processing_policy,
@@ -176,7 +176,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
             "low_confidence_residual_without_actionable_signal",
         )
 
-    def test_low_value_defer_family_keeps_attachment_metadata_only(self) -> None:
+    def test_low_value_generic_card_family_keeps_attachment_metadata_only(self) -> None:
         inventory = _inventory_entry(
             notice_id="low-value-lecture",
             notice_title="讲座预告丨舞蹈学院名家讲堂",
@@ -200,15 +200,57 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
 
         sample = report.samples[0]
         self.assertEqual(sample.notice_family, "lecture_publicity")
-        self.assertEqual(sample.suggested_consumption_route, "defer")
+        self.assertEqual(sample.suggested_consumption_route, "notice_level_query")
         self.assertEqual(sample.machine_processing_policy, "skip")
         self.assertEqual(sample.attachment_processing_policy, "metadata_only")
         self.assertEqual(
             sample.attachment_processing_reason,
-            "low_value_or_deferred_family",
+            "route_skips_attachment_processing",
         )
         self.assertEqual(report.attachment_processing_policy_counts["metadata_only"], 1)
         self.assertEqual(report.attachment_processing_ref_counts["metadata_only"], 2)
+
+    def test_non_first_phase_downstream_families_route_to_generic_notice_card(
+        self,
+    ) -> None:
+        report = build_authenticated_notice_routing_sample_report_from_bundle_records(
+            bundle_records=(
+                _bundle_record(
+                    notice_id="procurement",
+                    title="中央民族大学海淀校区学生宿舍供电智能管理系统维保服务项目比选公告",
+                ),
+                _bundle_record(
+                    notice_id="lecture",
+                    title="民图一小时系列讲座 | 巧用中国知网 开启AI智能化学习研究",
+                    notice_type="8",
+                    notice_type_name="科研通知",
+                ),
+                _bundle_record(
+                    notice_id="activity",
+                    title="关于举办中央民族大学第二十届心理文化节的通知",
+                    notice_type="32",
+                    notice_type_name="学工通知",
+                ),
+                _bundle_record(
+                    notice_id="campus-news",
+                    title="喜讯丨我校项目在北京高校大学生创新创业训练计划中斩获佳绩！",
+                    notice_type="6",
+                    notice_type_name="教学通知",
+                ),
+            ),
+            config=self.config,
+            sample_limit_per_group=4,
+            boundary_sample_limit=4,
+        )
+
+        route_by_notice = {sample.notice_id: sample for sample in report.samples}
+        for notice_id in ("procurement", "lecture", "activity", "campus-news"):
+            with self.subTest(notice_id=notice_id):
+                self.assertEqual(
+                    route_by_notice[notice_id].suggested_consumption_route,
+                    "notice_level_query",
+                )
+                self.assertEqual(route_by_notice[notice_id].machine_processing_policy, "skip")
 
     def test_high_value_route_processes_existing_attachment_refs(self) -> None:
         inventory = _inventory_entry(
@@ -420,7 +462,7 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         )
         self.assertEqual(
             route_by_notice["staff-admin"].suggested_consumption_route,
-            "defer",
+            "notice_level_query",
         )
         self.assertEqual(route_by_notice["staff-admin"].machine_processing_policy, "skip")
         self.assertEqual(
@@ -429,19 +471,76 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         )
         self.assertEqual(
             route_by_notice["campus-news"].suggested_consumption_route,
-            "defer",
+            "notice_level_query",
         )
         self.assertEqual(route_by_notice["campus-news"].machine_processing_policy, "skip")
         self.assertEqual(
             route_by_notice["competition"].suggested_consumption_route,
-            "defer",
+            "notice_level_query",
         )
         self.assertEqual(route_by_notice["competition"].machine_processing_policy, "skip")
         self.assertEqual(
             route_by_notice["culture"].suggested_consumption_route,
-            "defer",
+            "notice_level_query",
         )
         self.assertEqual(route_by_notice["culture"].machine_processing_policy, "skip")
+
+    def test_payment_and_hospital_status_notices_route_to_service_status_candidate(
+        self,
+    ) -> None:
+        report = build_authenticated_notice_routing_sample_report_from_bundle_records(
+            bundle_records=(
+                _bundle_record(
+                    notice_id="campus-card-recharge-shutdown",
+                    title="关于临时停用校园一卡通、网费和电费充值功能的通知",
+                ),
+                _bundle_record(
+                    notice_id="hospital-new-clinic",
+                    title="关于丰台校区校医院增开皮肤科门诊的通知",
+                ),
+                _bundle_record(
+                    notice_id="hospital-holiday-duty",
+                    title="2026年校医院寒假值班安排",
+                ),
+                _bundle_record(
+                    notice_id="normal-health-action",
+                    title="关于2026年无偿献血活动安排的通知",
+                ),
+            ),
+            config=self.config,
+            sample_limit_per_group=4,
+            boundary_sample_limit=4,
+        )
+
+        route_by_notice = {sample.notice_id: sample for sample in report.samples}
+        self.assertEqual(
+            route_by_notice["campus-card-recharge-shutdown"].notice_family,
+            "it_platform_service_status",
+        )
+        self.assertEqual(
+            route_by_notice["campus-card-recharge-shutdown"].suggested_consumption_route,
+            "service_status_candidate",
+        )
+        self.assertEqual(
+            route_by_notice["hospital-new-clinic"].notice_family,
+            "service_status_override",
+        )
+        self.assertEqual(
+            route_by_notice["hospital-new-clinic"].suggested_consumption_route,
+            "service_status_candidate",
+        )
+        self.assertEqual(
+            route_by_notice["hospital-holiday-duty"].notice_family,
+            "service_status_override",
+        )
+        self.assertEqual(
+            route_by_notice["hospital-holiday-duty"].suggested_consumption_route,
+            "service_status_candidate",
+        )
+        self.assertEqual(
+            route_by_notice["normal-health-action"].suggested_consumption_route,
+            "notice_level_query",
+        )
 
     def test_inventory_content_blocks_drive_bare_title_service_status_route(self) -> None:
         inventory = _inventory_entry(

@@ -58,7 +58,6 @@ CampusNoticeDiscoverPayload
   - internal_notice_restricted
 - target_surfaces[]:
   - notice_level_query
-  - procurement_notice_history
   - campus_services/service_status_candidate
 - max_results: int
 ```
@@ -69,8 +68,9 @@ CampusNoticeDiscoverPayload
 - `temporal_query` 继续复用 repo-owned `TemporalQuery`
 - `source_families` 是上游已知约束，不是 query-time source scan 指令
 - `target_surfaces` 是可选的 notice consumption facet；为空时读取所有 queryable
-  notice read-model rows，指定时只读取对应 query surface，例如
-  `procurement_notice_history`
+  notice read-model rows，指定时只读取对应 query surface。采购、讲座、活动、宣传和
+  一般公告首期都通过 `notice_level_query` 返回 title/url card，不开放
+  procurement-specific runtime surface。
 
 ## Internal Query HTTP Packet
 
@@ -90,7 +90,7 @@ CampusNoticeDiscoverPayload
   "payload": {
     "query_text": "家具采购",
     "source_families": ["internal_notice_restricted"],
-    "target_surfaces": ["procurement_notice_history"],
+    "target_surfaces": ["notice_level_query"],
     "max_results": 5
   },
   "access_context": {
@@ -151,6 +151,13 @@ CampusNoticeDiscoverResult
   - temporarily_unverifiable
 - source_families[]: same as request
 - notice_cards[]: NoticeCard
+  - notice_id: str
+  - title: str
+  - source_family: str
+  - source_url: str
+  - canonical_url: str
+  - target_surface: str
+  - published_at: str
 - queried_time_anchor: RFC3339 datetime
 - historical_downgrade_reason:
   - current_year_miss
@@ -169,6 +176,8 @@ CampusNoticeGetResult
 - source_url: str
 - canonical_url: str
 - normalized_body: str
+- reference_only: bool
+- target_surface: str
 - published_at: str
 - effective_at: str
 - attachment_refs[]: str

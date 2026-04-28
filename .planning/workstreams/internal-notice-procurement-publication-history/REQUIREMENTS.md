@@ -10,13 +10,13 @@ updated: 2026-04-28
 ## Goal
 
 为 `campus_notices/internal_notice` 中的采购 / 比选 / 招标 / 中选结果类
-publication 建立轻量历史查询验收：在已存在的 `procurement_notice` family
-与 `procurement_notice_history` target surface 上，保证 Web 侧至少能通过
-notice discover/get 拿到稳定的 title + url card。
+publication 保留后置专项查询设计。当前首期产品口径不把采购类作为独立
+downstream pilot；采购与讲座、活动、一般公告一样，先通过通用 PG notice
+search/read model 返回稳定 title + url card。
 
-这条 backlog 不再表示“还没采购分类”。当前重点是产品化最低消费合同：
-低优先级或暂不深处理的 notice 可以只做分类、分流、检索命中和 title/url
-返回，不要求正文总结、附件解析、VLM 处理或独立 tool。
+这条 backlog 不再表示“还没采购分类”，也不表示当前要打开
+`procurement_notice_history`。只有当产品范围决定把采购类从 generic notice
+search/card 提升为 procurement-specific facet/history surface 时，才恢复本线。
 
 ## Captured Examples
 
@@ -31,7 +31,7 @@ notice discover/get 拿到稳定的 title + url card。
 
 ## In Scope
 
-- `procurement_notice_history` 的 notice card contract
+- deferred `procurement_notice_history` facet/history surface contract
 - 所有 queryable notice 的最小 Web card 字段：
   - `notice_id`
   - `title`
@@ -40,7 +40,8 @@ notice discover/get 拿到稳定的 title + url card。
   - `published_at`
   - `source_family`
   - `target_surface`
-- 采购类 notice 的分类、分流、检索和 title/url 返回验收
+- 采购类 notice 在 generic notice search/card 中的分类、分流、检索和
+  title/url 返回验收
 - 低优先级 notice 的最低消费口径：正确分类 / 分流 / 可检索 / title+url
 - attachment-backed procurement notice 的 authority split 只用于 completeness
   与未来深处理判断，不阻塞 title/url card
@@ -49,6 +50,7 @@ notice discover/get 拿到稳定的 title + url card。
 ## Non-goals
 
 - 当前 `regulations/institutional_rules` / `regulations/scoped_rules` 下游消费
+- 首期打开 `procurement_notice_history`
 - 新增 dedicated procurement runtime tool
 - 新增 procurement lifecycle object、stage machine 或供应商流程模型
 - authenticated live portal scheduling / auth bootstrap / control-plane
@@ -59,9 +61,9 @@ notice discover/get 拿到稳定的 title + url card。
 ## Success Criteria
 
 1. repo planning truth 明确 procurement backlog 已从“补分类”更新为
-   “采购历史 notice card / title-url contract 验收”。
-2. `355222` 这类公告与 `355325` 这类结果公示可以通过
-   `target_surfaces=["procurement_notice_history"]` 检索命中。
+   “deferred procurement-specific facet / generic notice search card 验收”。
+2. `355222` 这类公告与 `355325` 这类结果公示在首期通过 generic notice
+   search/card 检索命中；不要求 `target_surfaces=["procurement_notice_history"]`。
 3. 所有 queryable notice card 至少返回：
    - `notice_id`
    - `title`

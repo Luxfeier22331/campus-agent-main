@@ -103,6 +103,53 @@ class InternalNoticeConsumerAdmissionBuilderTest(unittest.TestCase):
             CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
         )
 
+    def test_builder_admits_non_first_phase_downstream_notices_as_generic_cards(
+        self,
+    ) -> None:
+        manifest = build_internal_notice_consumer_admission_manifest_from_bundle_records(
+            bundle_records=(
+                _bundle_record(
+                    notice_id="procurement",
+                    title="中央民族大学海淀校区学生宿舍供电智能管理系统维保服务项目比选公告",
+                ),
+                _bundle_record(
+                    notice_id="lecture",
+                    title="民图一小时系列讲座 | 巧用中国知网 开启AI智能化学习研究",
+                    notice_type="8",
+                    notice_type_name="科研通知",
+                ),
+                _bundle_record(
+                    notice_id="activity",
+                    title="关于举办中央民族大学第二十届心理文化节的通知",
+                    notice_type="32",
+                    notice_type_name="学工通知",
+                ),
+            ),
+            config=self.config,
+            admission_run_id="consumer-admission-generic-card",
+            selection_source="bundle_dry_run",
+            selection_path="bundle.json",
+            site_id="muc_internal_portal",
+            created_at="2026-04-27T00:00:00+00:00",
+        )
+
+        decisions = {record.notice_id: record for record in manifest.decision_records}
+        self.assertEqual(decisions["procurement"].notice_family, "procurement_notice")
+        for notice_id in ("procurement", "lecture", "activity"):
+            with self.subTest(notice_id=notice_id):
+                self.assertEqual(
+                    decisions[notice_id].suggested_consumption_route,
+                    "notice_level_query",
+                )
+                self.assertEqual(
+                    decisions[notice_id].target_surface,
+                    NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+                )
+                self.assertEqual(
+                    decisions[notice_id].consumption_status,
+                    NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

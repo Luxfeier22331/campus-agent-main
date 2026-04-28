@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 ---
@@ -22,7 +22,7 @@ updated: 2026-04-28
 
 ## Phase 1: Routing Matrix Review
 
-**Status:** active
+**Status:** completed
 
 **Goal:** 复核 family、route、target surface、status 的当前矩阵。
 
@@ -30,13 +30,16 @@ updated: 2026-04-28
 
 - `notice_family_classification.v1.json`
 - `internal_notice_consumer_admission_builder`
-- procurement/history, service-status candidate, notice-level query
-- defer / no_adoption terminal residual
+- first-phase downstream denominator: regulation, schedule, service-status
+- procurement / lecture / activity / publicity / general notice as generic PG
+  search/card only
+- service-status candidate, notice-level query
+- no active `defer` route; terminal residual remains `no_adoption`
 - machine-processing policy and multimodal spend boundary
 
 ## Phase 2: Minimum Web Card Contract
 
-**Status:** pending
+**Status:** completed
 
 **Goal:** 冻结所有 queryable notice 的最低 Web card 字段和 fail-close 规则。
 
@@ -48,23 +51,24 @@ updated: 2026-04-28
 - canonical_url fallback policy
 - Web response shape acceptance
 
-## Phase 3: Procurement History Pilot Batch
+## Phase 3: Generic Notice Search/Card Pilot
 
-**Status:** pending
+**Status:** completed
 
-**Goal:** 用采购 notice 作为第一批 selected admission 代表，验证轻量历史查询。
+**Goal:** 验证非首期 downstream notice 不进入专用 target，但可通过通用 PG notice
+search/read-model 返回 title/url card。
 
 **Scope:**
 
-- selected procurement notice list
+- representative procurement / lecture / activity / announcement notice list
 - admission manifest
 - consumption projection/read-model rebuild
-- `target_surface=procurement_notice_history`
+- `target_surface=notice_level_query` or equivalent generic notice card surface
 - title/url discover/get acceptance
 
 ## Phase 4: Low-Priority Notice Minimum Consumption
 
-**Status:** pending
+**Status:** completed
 
 **Goal:** 明确低优先级 notice 的分类、分流、检索和 title/url 卡片策略。
 
@@ -78,7 +82,7 @@ updated: 2026-04-28
 
 ## Phase 5: Eval And Closeout
 
-**Status:** pending
+**Status:** completed
 
 **Goal:** 固化 routing/card acceptance gate，并关闭本 workstream。
 
@@ -86,6 +90,6 @@ updated: 2026-04-28
 
 - routing taxonomy eval fixture update
 - read-model title/url completeness audit command
-- procurement/history card acceptance
+- generic notice search/card acceptance
 - low-priority card acceptance
 - closeout docs and reopen rule

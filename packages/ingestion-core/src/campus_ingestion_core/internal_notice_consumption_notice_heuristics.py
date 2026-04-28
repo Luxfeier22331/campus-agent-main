@@ -25,19 +25,18 @@ def _resolve_notice_level_primary_role(
 ) -> str | None:
     parent_snapshot = dict(inventory_entry.parent_snapshot or {})
     title = str(parent_snapshot.get("notice_title") or "")
-    if _looks_like_procurement_notice(title):
-        return NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
     if routing_sample is not None:
         if routing_sample.suggested_consumption_route == "procurement_notice_history":
             return NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
         if routing_sample.notice_family == "roster_publication":
             return NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
-        if routing_sample.notice_family == "lecture_publicity":
+        if (
+            routing_sample.notice_family == "lecture_publicity"
+            and routing_sample.suggested_consumption_route in {"defer", "no_adoption"}
+        ):
             return NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY
     if _looks_like_roster_publication(title):
         return NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
-    if _looks_like_lecture_activity(title):
-        return NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY
     return None
 
 

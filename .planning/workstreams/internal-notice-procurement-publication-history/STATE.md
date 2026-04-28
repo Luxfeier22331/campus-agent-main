@@ -13,8 +13,8 @@ updated: 2026-04-28
 - current slice: none
 - owner: unassigned
 - active implementation: no
-- current posture: backlog scope updated from classification foundation to
-  procurement/history title-url card productization
+- current posture: deferred procurement-specific facet; first-phase product opening uses
+  generic notice search/title-url card
 
 ## Captured Context
 
@@ -22,9 +22,10 @@ updated: 2026-04-28
 
 - `procurement_notice` family 与 `procurement_notice_history` target surface
   已在 notice consumption layer 中存在；本 backlog 不再表示“还没分类”。
-- 采购类 notice 的正确下游是 `campus_notice_discover/get` 的
-  notice/history card，不是 `regulations/*`、`campus_services/*` 或新
-  procurement tool。
+- 2026-04-28 最新产品口径：采购类与讲座、活动、一般公告没有本质区别，首期
+  不作为独立 downstream pilot，不打开 procurement-specific history surface。
+- 采购类 notice 的首期正确消费面是 generic PG notice search/title-url card，
+  不是 `regulations/*`、`campus_services/*` 或新 procurement tool。
 - 对采购类和低优先级 notice，当前最低产品要求是：
   - 正确分类
   - 正确分流到 target surface 或 defer/no-adoption
@@ -53,8 +54,8 @@ updated: 2026-04-28
   - 应归类为 `procurement_notice`，不额外要求 `stage`
 - 当前正确 posture：
   - `internal_notice` source-triage / provenance truth 保留
-  - downstream 已可投向 `procurement_notice_history` 作为 notice/history
-    read-model surface
+  - `procurement_notice_history` 只作为 deferred procurement-specific facet，
+    不是首期 product opening
   - 不误投到 `regulations/institutional_rules`
   - 不误投到 `regulations/scoped_rules`
   - 不误投到 `campus_services/*`
@@ -64,7 +65,8 @@ updated: 2026-04-28
 
 ## Blockers
 
-- 需要为采购历史 query facet 增加产品级验收样例，而不是只依赖分类单测
+- 只有当产品范围决定从 generic notice search/card 提升采购专项 facet 时，才需要
+  为采购历史 query facet 增加产品级验收样例
 - 需要确认 Web 侧 notice card 是否消费并展示 `title` + `source_url`
 - 需要审计 queryable notice read-model rows 是否都具备非空 title/source_url
 - restricted notice auth boundary 仍必须保留；title/url card 不等于公开访问
@@ -74,9 +76,8 @@ updated: 2026-04-28
 - 本 backlog 捕获来自真实 authenticated notice 样本审阅、当前 notice
   consumption layer truth 与 structured query contract 对齐；本次未执行 runtime
   或 ingestion implementation
-- 恢复为 active 后，第一步应先做 current-state contract audit：read model、
-  `campus_notice_discover/get`、notice-agent adapter 与 Web card 是否一致
-  保证 title/url
+- 恢复为 active 后，第一步应先确认产品范围是否仍要 procurement-specific
+  facet；否则继续由 generic notice search/card 验收承载 title/url
 
 ## Continuity Notes
 
@@ -84,5 +85,5 @@ updated: 2026-04-28
 - 不要求 `stage` 字段
 - attachment-backed procurement notice 不能因为没有 dedicated procurement tool，
   就被误归为 regulation body
-- 采购类默认不需要新 tool；先通过 notice target surface facet 消费
+- 采购类默认不需要新 tool；首期先通过 generic notice search/title-url card 消费
 - 低优先级 notice 现阶段只需要分类、分流、检索命中和 title/url card
