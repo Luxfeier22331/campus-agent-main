@@ -31,6 +31,11 @@ It does not rescan raw attachments at query time and does not let Go read object
 storage directly. The Docker runtime reads the PostgreSQL
 `structured_projection_current` pointer and typed transport read model.
 
+Selected-write operation is intentionally per-notice by default. `preview` may
+inspect all ready transport candidates, but `stage` / `promote` from the
+notice-derived path requires exactly one selected notice id unless the operator
+passes the explicit multi-notice release override after independent review.
+
 Projection snapshots distinguish baseline schedules from bounded temporary
 overlays with `schedule_scope`, `service_date_ranges`, and `precedence`.
 Temporary overlays only apply to their explicit service-date ranges; the Go

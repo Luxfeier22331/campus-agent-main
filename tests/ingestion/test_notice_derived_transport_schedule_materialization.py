@@ -100,6 +100,77 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
             ],
         )
 
+    def test_table_rows_inherit_parenthetical_parent_effective_date(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            parent_markdown=(
+                "# 关于两校区学生通勤班车增加班次的通知\n\n"
+                "为方便师生两校区通勤，3月20日（本周五）起，"
+                "对两校区学生通勤班车增加2个班次。具体见下表。\n\n"
+                "丰台校区管委会办公室\n\n"
+                "2026年3月18日\n"
+            ),
+            table_cells=[
+                ["星期", "线路", "序号", "发车时间", "类型", "备注"],
+                ["周一至周五", "海淀校区→丰台校区", "1", "19:30", "学生班次", "新增班次"],
+                ["", "丰台校区→海淀校区", "2", "7:30", "学生班次", "新增班次"],
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual([row.effective_from for row in rows], ["2026-03-20", "2026-03-20"])
+
+    def test_drops_adjustment_remark_copied_to_non_matching_departure_rows(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            parent_markdown=(
+                "# 关于两校区教师通勤班车班次优化调整的通知\n\n"
+                "3月9日（下周一）起，对丰台校区发往海淀校区的两趟教师班车"
+                "发车时间进行优化调整。具体见下表。\n"
+            ),
+            table_cells=[
+                ["星期", "线路", "序号", "发车时间", "类型", "备注"],
+                [
+                    "周一至周五",
+                    "丰台校区→海淀校区",
+                    "5",
+                    "13:00",
+                    "教师班次",
+                    "3月9日起，发车时间由原12:45调整为13：00",
+                ],
+                [
+                    "周一至周五",
+                    "丰台校区→海淀校区",
+                    "7",
+                    "16:00",
+                    "教师班次",
+                    "3月9日起，发车时间由原13:15调整为13：30",
+                ],
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        remarks_by_time = {row.departure_time: row.remarks for row in rows}
+        self.assertNotIn("12:45", remarks_by_time)
+        self.assertIn("调整为13:00", remarks_by_time["13:00"])
+        self.assertNotIn("调整为13:30", remarks_by_time["16:00"])
+
     def test_deduplicates_repeated_ocr_table_units(self) -> None:
         module = _load_module()
         self.assertIsNotNone(module, "notice-derived transport materializer module is required")
@@ -221,6 +292,100 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
         self.assertEqual(
             [(row.route_id, row.departure_time, row.rider_type) for row in rows],
             [("route:fengtai-to-haidian", "07:45", "教师")],
+        )
+
+    def test_table_row_date_range_overrides_parent_notice_date_range(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="355867",
+            release_time="2026-04-25 13:11",
+            parent_markdown=(
+                "# 关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知\n\n"
+                "根据学校近期相关安排，现将4月27日-5月5日期间两校区班车及地铁接驳车"
+                "运营安排通知如下：\n"
+                "一、4月27日两校区班车安排\n"
+                "二、4月28日-5月5日两校区班车及地铁接驳车安排\n"
+            ),
+            attachment_document_ids=(
+                "notice_attachment:muc_internal_portal:355867:attachment-0001",
+            ),
+            table_cells=[
+                ["日期", "线路", "序号", "发车时间", "类型", "发车地点"],
+                ["4月27日", "丰台校区→海淀校区", "1", "06:40", "教师班次", "聚雅餐厅"],
+                [
+                    "4月28日—5月5日",
+                    "丰台校区→海淀校区",
+                    "1",
+                    "08:00",
+                    "学生班次",
+                    "聚雅餐厅",
+                ],
+                [
+                    "4 月 28 日—5 月 5 日",
+                    "丰台校区→五棵松地铁站",
+                    "1",
+                    "09:00",
+                    "接驳班次",
+                    "聚雅餐厅",
+                ],
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            [(row.departure_time, row.service_date_ranges) for row in rows],
+            [
+                ("06:40", (("2026-04-27", "2026-04-27"),)),
+                ("08:00", (("2026-04-28", "2026-05-05"),)),
+                ("09:00", (("2026-04-28", "2026-05-05"),)),
+            ],
+        )
+
+        result = module.build_notice_derived_transport_schedule_projection_bundle(
+            projection_entries=(entry,),
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+            generated_at="2026-04-28T09:00:00+08:00",
+            service_horizon_days=8,
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        departures = {row["departure_time"]: row for row in result.bundle["scheduled_departures"]}
+        self.assertEqual(departures["06:40"]["service_dates"], ["2026-04-27"])
+        self.assertNotIn("2026-04-27", departures["08:00"]["service_dates"])
+        self.assertEqual(
+            departures["08:00"]["service_dates"],
+            [
+                "2026-04-28",
+                "2026-04-29",
+                "2026-04-30",
+                "2026-05-01",
+                "2026-05-04",
+                "2026-05-05",
+            ],
+        )
+        self.assertNotIn("2026-04-27", departures["09:00"]["service_dates"])
+        self.assertEqual(
+            departures["09:00"]["service_dates"],
+            [
+                "2026-04-28",
+                "2026-04-29",
+                "2026-04-30",
+                "2026-05-01",
+                "2026-05-02",
+                "2026-05-03",
+                "2026-05-04",
+                "2026-05-05",
+            ],
         )
 
     def test_extracts_body_only_temporary_extra_departure(self) -> None:

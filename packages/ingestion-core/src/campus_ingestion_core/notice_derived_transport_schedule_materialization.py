@@ -21,6 +21,7 @@ from campus_ingestion_core.notice_derived_transport_schedule_parsing import (
     _clean_cell,
     _coerce_int,
     _effective_until_for_ranges,
+    _extract_table_departure_times,
     _extract_times,
     _is_header_row,
     _parse_datetime,
@@ -68,7 +69,10 @@ from campus_ingestion_core.transport_schedule_projection_routes import (
 _SHANGHAI_TZ = timezone(timedelta(hours=8))
 _TIME_RE = re.compile(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)")
 _FULL_DATE_RE = re.compile(r"(20\d{2})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})日?")
-_YEARLESS_EFFECTIVE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日(?:起|开始|执行|生效)")
+_YEARLESS_EFFECTIVE_RE = re.compile(
+    r"(?<!\d)(?:[（(])?(\d{1,2})月(\d{1,2})日(?:[）)])?"
+    r"(?:[（(][^）)]{1,12}[）)])?(?:起|开始|执行|生效)"
+)
 _YEARLESS_SINGLE_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
 _YEARLESS_MULTI_DAY_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})[、,，](\d{1,2})日")
 _CHINESE_DATE_RANGE_RE = re.compile(
@@ -590,7 +594,7 @@ def _extract_rows_from_table_matrix(
 ) -> list[NoticeDerivedTransportScheduleRow]:
     filled_rows = _fill_down_context(matrix)
     extracted: list[NoticeDerivedTransportScheduleRow] = []
-    service_date_ranges = _resolve_service_date_ranges(
+    parent_service_date_ranges = _resolve_service_date_ranges(
         text=parent_text,
         release_time=projection_entry.source_notice_release_time,
     )
@@ -601,6 +605,11 @@ def _extract_rows_from_table_matrix(
         route = _resolve_route(row_text)
         if route is None:
             continue
+        service_date_ranges = _resolve_table_row_service_date_ranges(
+            row_text=row_text,
+            parent_service_date_ranges=parent_service_date_ranges,
+            release_time=projection_entry.source_notice_release_time,
+        )
         schedule_scope = _resolve_schedule_scope(
             parent_text=parent_text,
             row_text=row_text,
@@ -608,12 +617,16 @@ def _extract_rows_from_table_matrix(
         )
         weekday_scope = _resolve_weekday_scope(row_text, route.default_calendar)
         rider_type = _resolve_rider_type(row_text)
-        effective_from = _resolve_effective_date(
-            text=f"{parent_text}\n{row_text}",
-            release_time=projection_entry.source_notice_release_time,
+        effective_from = (
+            service_date_ranges[0][0]
+            if service_date_ranges
+            else _resolve_effective_date(
+                text=f"{parent_text}\n{row_text}",
+                release_time=projection_entry.source_notice_release_time,
+            )
         )
         remarks = _resolve_remarks(row)
-        for departure_time in _extract_times(row_text):
+        for departure_time in _extract_table_departure_times(row, row_text):
             extracted.append(
                 NoticeDerivedTransportScheduleRow(
                     source_notice_id=projection_entry.source_notice_id,
@@ -632,6 +645,30 @@ def _extract_rows_from_table_matrix(
                 )
             )
     return extracted
+
+
+def _resolve_table_row_service_date_ranges(
+    *,
+    row_text: str,
+    parent_service_date_ranges: tuple[tuple[str, str], ...],
+    release_time: str | None,
+) -> tuple[tuple[str, str], ...]:
+    row_ranges = _resolve_service_date_ranges(text=row_text, release_time=release_time)
+    if row_ranges:
+        return row_ranges
+    if _looks_like_open_ended_effective_date(row_text):
+        return parent_service_date_ranges
+    row_single_dates = _resolve_segment_service_date_ranges(
+        text=row_text,
+        release_time=release_time,
+        allow_open_ended_effective_date=True,
+    )
+    return row_single_dates or parent_service_date_ranges
+
+
+def _looks_like_open_ended_effective_date(row_text: str) -> bool:
+    compact = "".join(str(row_text or "").split())
+    return any(marker in compact for marker in ("日起", "日开始", "日执行", "日生效"))
 
 
 def _extract_rows_from_parent_text(

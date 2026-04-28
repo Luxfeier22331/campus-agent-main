@@ -15,8 +15,16 @@ from campus_ingestion_core.transport_schedule_projection_routes import (
 
 _SHANGHAI_TZ = timezone(timedelta(hours=8))
 _TIME_RE = re.compile(r"(?<!\d)([01]?\d|2[0-3])[:：]([0-5]\d)(?!\d)")
+_ADJUSTMENT_TARGET_TIME_RE = re.compile(r"调整为\s*([01]?\d|2[0-3])[:：]([0-5]\d)")
 _FULL_DATE_RE = re.compile(r"(20\d{2})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})日?")
-_YEARLESS_EFFECTIVE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日[）)]?(?:起|开始|执行|生效)")
+_FULL_EFFECTIVE_RE = re.compile(
+    r"(?<!\d)(?:[（(])?(20\d{2})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})日?"
+    r"(?:[）)])?(?:[（(][^）)]{1,12}[）)])?(?:起|开始|执行|生效)"
+)
+_YEARLESS_EFFECTIVE_RE = re.compile(
+    r"(?<!\d)(?:[（(])?(\d{1,2})月(\d{1,2})日(?:[）)])?"
+    r"(?:[（(][^）)]{1,12}[）)])?(?:起|开始|执行|生效)"
+)
 _YEARLESS_SINGLE_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})日")
 _YEARLESS_MULTI_DAY_RE = re.compile(r"(?<!\d)(\d{1,2})月(\d{1,2})[、,，](\d{1,2})日")
 _CHINESE_DATE_RANGE_RE = re.compile(
@@ -120,12 +128,13 @@ def _resolve_service_date_ranges(
     text: str,
     release_time: str | None,
 ) -> tuple[tuple[str, str], ...]:
+    normalized_text = _normalize_chinese_date_spacing(text)
     release_year = _parse_datetime(
         release_time or datetime.now(_SHANGHAI_TZ).isoformat(),
         field_name="source_notice_release_time",
     ).year
     ranges: list[tuple[str, str]] = []
-    for match in _CHINESE_DATE_RANGE_RE.finditer(text):
+    for match in _CHINESE_DATE_RANGE_RE.finditer(normalized_text):
         start_year = int(match.group(1) or release_year)
         end_year = int(match.group(4) or start_year)
         end_month = int(match.group(5) or match.group(2))
@@ -143,15 +152,16 @@ def _resolve_segment_service_date_ranges(
     release_time: str | None,
     allow_open_ended_effective_date: bool,
 ) -> tuple[tuple[str, str], ...]:
-    ranges = list(_resolve_service_date_ranges(text=text, release_time=release_time))
+    normalized_text = _normalize_chinese_date_spacing(text)
+    ranges = list(_resolve_service_date_ranges(text=normalized_text, release_time=release_time))
     release_year = _parse_datetime(
         release_time or datetime.now(_SHANGHAI_TZ).isoformat(),
         field_name="source_notice_release_time",
     ).year
-    for match in _FULL_DATE_RE.finditer(text):
+    for match in _FULL_DATE_RE.finditer(normalized_text):
         value = date(int(match.group(1)), int(match.group(2)), int(match.group(3))).isoformat()
         ranges.append((value, value))
-    for match in _YEARLESS_MULTI_DAY_RE.finditer(text):
+    for match in _YEARLESS_MULTI_DAY_RE.finditer(normalized_text):
         month = int(match.group(1))
         for day_text in (match.group(2), match.group(3)):
             value = date(release_year, month, int(day_text)).isoformat()
@@ -160,27 +170,31 @@ def _resolve_segment_service_date_ranges(
         hint in text for hint in _ONE_OFF_DATE_HINTS
     )
     if should_use_yearless_single_date:
-        for match in _YEARLESS_SINGLE_DATE_RE.finditer(text):
+        for match in _YEARLESS_SINGLE_DATE_RE.finditer(normalized_text):
             value = date(release_year, int(match.group(1)), int(match.group(2))).isoformat()
             ranges.append((value, value))
     return tuple(dict.fromkeys(ranges))
 
 
 def _resolve_effective_date(*, text: str, release_time: str | None) -> str:
-    full_date = _first_full_date(text)
-    if full_date is not None:
-        return full_date.isoformat()
+    normalized_text = _normalize_chinese_date_spacing(text)
+    full_effective_date = _first_full_effective_date(normalized_text)
+    if full_effective_date is not None:
+        return full_effective_date.isoformat()
     release_year = _parse_datetime(
         release_time or datetime.now(_SHANGHAI_TZ).isoformat(),
         field_name="source_notice_release_time",
     ).year
-    yearless_match = _YEARLESS_EFFECTIVE_RE.search(text)
+    yearless_match = _YEARLESS_EFFECTIVE_RE.search(normalized_text)
     if yearless_match is not None:
         return date(
             release_year,
             int(yearless_match.group(1)),
             int(yearless_match.group(2)),
         ).isoformat()
+    full_date = _first_full_date(normalized_text)
+    if full_date is not None:
+        return full_date.isoformat()
     return (
         _parse_datetime(
             release_time or datetime.now(_SHANGHAI_TZ).isoformat(),
@@ -191,11 +205,24 @@ def _resolve_effective_date(*, text: str, release_time: str | None) -> str:
     )
 
 
+def _first_full_effective_date(value: str) -> date | None:
+    match = _FULL_EFFECTIVE_RE.search(value)
+    if match is None:
+        return None
+    return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
 def _first_full_date(value: str) -> date | None:
     match = _FULL_DATE_RE.search(value)
     if match is None:
         return None
     return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
+def _normalize_chinese_date_spacing(value: str) -> str:
+    normalized = str(value or "")
+    normalized = re.sub(r"(?<=\d)\s+(?=[年月日])", "", normalized)
+    return re.sub(r"(?<=[年月])\s+(?=\d)", "", normalized)
 
 
 def _resolve_route(row_text: str):
@@ -256,6 +283,7 @@ def _resolve_rider_type(row_text: str) -> str:
 
 
 def _resolve_remarks(row: Sequence[str]) -> str:
+    departure_times = {_normalize_time_cell(cell) for cell in row if _normalize_time_cell(cell)}
     values = [
         cell
         for cell in row
@@ -267,8 +295,36 @@ def _resolve_remarks(row: Sequence[str]) -> str:
         and "东门" not in cell
         and "南门" not in cell
         and cell not in {"学生", "教师", "师生", "教职工"}
+        and _adjustment_remark_matches_departure_times(cell, departure_times)
     ]
     return "；".join(dict.fromkeys(values))
+
+
+def _extract_table_departure_times(row: Sequence[str], row_text: str) -> tuple[str, ...]:
+    cell_times = tuple(normalized for cell in row if (normalized := _normalize_time_cell(cell)))
+    if cell_times:
+        return tuple(dict.fromkeys(cell_times))
+    return _extract_times(row_text)
+
+
+def _normalize_time_cell(value: str) -> str:
+    match = _TIME_RE.fullmatch(str(value or "").strip())
+    if match is None:
+        return ""
+    return f"{int(match.group(1)):02d}:{match.group(2)}"
+
+
+def _adjustment_remark_matches_departure_times(
+    value: str,
+    departure_times: set[str],
+) -> bool:
+    target_times = {
+        f"{int(match.group(1)):02d}:{match.group(2)}"
+        for match in _ADJUSTMENT_TARGET_TIME_RE.finditer(value)
+    }
+    if not target_times:
+        return True
+    return bool(target_times & departure_times)
 
 
 def _extract_times(value: str) -> tuple[str, ...]:

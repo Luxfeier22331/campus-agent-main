@@ -103,6 +103,7 @@ _PUBLISH_MODES = frozenset(
         _PUBLISH_MODE_PROMOTE,
     }
 )
+_SHANGHAI_TZ = timezone(timedelta(hours=8))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -132,6 +133,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Build from all ready transport schedule candidates already present in "
             "notice_consumption_projection."
+        ),
+    )
+    parser.add_argument(
+        "--allow-multi-notice-release",
+        action="store_true",
+        help=(
+            "Allow stage/promote from more than one transport notice or from the all-ready "
+            "transport candidate selector. Preview mode is unaffected."
         ),
     )
     parser.add_argument("--work-dir", required=True)
@@ -335,6 +344,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         if args.all_ready_transport_candidates:
             projection_entries = _ready_transport_projection_entries(projection_entries)
+        _assert_transport_release_scope_allows(
+            publish_mode=publish_mode,
+            projection_entries=projection_entries,
+            selected_notice_ids=notice_ids,
+            all_ready_transport_candidates=bool(args.all_ready_transport_candidates),
+            allow_multi_notice_release=bool(args.allow_multi_notice_release),
+        )
         consumer_admission_manifest = _load_consumer_admission_manifest_for_transport(
             manifest_path=args.consumer_admission_manifest_path,
         )
@@ -450,15 +466,19 @@ def _transport_release_notice_provenance_records(
     materialized_at: str,
 ) -> list[dict[str, str]]:
     records: list[dict[str, str]] = []
+    seen_notice_ids: set[str] = set()
     for entry in projection_entries:
         notice_id = str(entry.source_notice_id or "").strip()
-        if not notice_id:
+        if not notice_id or notice_id in seen_notice_ids:
             continue
+        seen_notice_ids.add(notice_id)
         records.append(
             {
                 "source_notice_id": notice_id,
                 "source_ref": _projection_source_ref(entry),
-                "source_notice_release_time": str(entry.source_notice_release_time or ""),
+                "source_notice_release_time": _normalize_local_notice_timestamp(
+                    entry.source_notice_release_time
+                ),
                 "admitted_at": admitted_at,
                 "materialized_at": materialized_at,
             }
@@ -471,6 +491,30 @@ def _projection_source_ref(entry: NoticeConsumptionProjectionEntry) -> str:
     if len(parts) == 3 and parts[0] == "notice":
         return entry.source_notice_document_id
     return f"notice:muc_internal_portal:{entry.source_notice_id}"
+
+
+def _normalize_local_notice_timestamp(value: object) -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return ""
+    candidates = [normalized.replace("Z", "+00:00")]
+    if " " in normalized and "T" not in normalized:
+        candidates.append(normalized.replace(" ", "T"))
+    for candidate in candidates:
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=_SHANGHAI_TZ)
+            return parsed.astimezone(_SHANGHAI_TZ).isoformat()
+        except ValueError:
+            pass
+    for layout in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(normalized, layout).replace(tzinfo=_SHANGHAI_TZ)
+            return parsed.isoformat()
+        except ValueError:
+            pass
+    return normalized
 
 
 def _normalize_publish_mode(value: str) -> str:
@@ -503,6 +547,33 @@ def _ready_transport_projection_entries(
         and str(entry.role_metadata.get("service_status_candidate_kind") or "")
         == "transport_schedule"
     )
+
+
+def _assert_transport_release_scope_allows(
+    *,
+    publish_mode: str,
+    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    selected_notice_ids: Sequence[str],
+    all_ready_transport_candidates: bool,
+    allow_multi_notice_release: bool,
+) -> None:
+    if not _writes_structured_projection(publish_mode):
+        return
+    if allow_multi_notice_release:
+        return
+    if all_ready_transport_candidates:
+        raise ValueError(
+            "all-ready transport candidates cannot be staged or promoted without "
+            "--allow-multi-notice-release; use explicit --notice-id for per-notice selected write"
+        )
+    release_notice_ids = normalize_notice_ids(
+        selected_notice_ids or tuple(entry.source_notice_id for entry in projection_entries)
+    )
+    if len(release_notice_ids) != 1:
+        raise ValueError(
+            "transport schedule stage/promote from consumption projection requires exactly one "
+            "selected notice id unless --allow-multi-notice-release is set"
+        )
 
 
 def _load_source_truth_parents(
