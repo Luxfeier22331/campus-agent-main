@@ -12,16 +12,17 @@ workstream: notice-derived-regulation-consumption-quality-gate
 ## Current Position
 
 - status: `active`
-- current phase: `Phase 4`
-- current phase name: `Docs And RAG Consumption Contract`
+- current phase: `Phase 5`
+- current phase name: `Full-Text Recovery Lane`
 - current plan:
-  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-04-docs-and-rag-consumption-contract/PLAN.md`
+  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-05-full-text-recovery-lane/PLAN.md`
 - total phases: `7`
-- progress: `4/7 phases complete`
+- progress: `5/7 phases complete`
 - last activity: `2026-04-28`
-- last activity description: Phase 3 target materialization contract completed; selected zero-candidate
-  materialization now removes stale `regulations/*` target rows derived from held notices while
-  preserving unrelated target rows.
+- last activity description: Phase 4 docs/RAG consumption contract completed; docs reader,
+  app-api docs read-model import, notice read-model, and regulation chunk-prep now preserve the
+  boundary that source notices remain notice-level card/query material unless materialized into
+  target canonical `regulations/*` records.
 
 ## Phase 0 Evidence
 
@@ -89,11 +90,30 @@ workstream: notice-derived-regulation-consumption-quality-gate
   - `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_materialization tests.ingestion.test_internal_notice_scoped_rule_materialization -v`
   - result: `19 tests OK`
 
+## Phase 4 Evidence
+
+- `document_reader_publisher` rejects unsupported source notice scopes such as
+  `campus_notices/internal_notice`.
+- `app-api` docs read-model manifest import rejects unsupported source notice scopes with the same
+  allowlist.
+- Held regulation-like notices remain queryable as internal notice title/url/card rows when their
+  target surface is `notice_level_query`.
+- `institutional_rules` and `scoped_rules` chunk-prep ignore source notice registry rows and only
+  prepare target canonical `regulations/*` records.
+- Runbooks now state that document-site/docs read-model/RAG preparation consume target canonical
+  records only; held / partial notices stay notice-level query/card material.
+- Verification:
+  - `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_read_model tests.ingestion.test_internal_notice_institutional_regulation_chunk_prep tests.ingestion.test_internal_notice_scoped_rule_chunk_prep -v`
+  - result: `19 tests OK`
+  - `pnpm --filter app-api test:node -- docs.read-model-manifest.test.ts`
+  - result: `57 files / 324 tests passed`
+
 ## Current Slice
 
-Phase 4 must define the docs/RAG consumption contract: only target canonical regulation documents
-feed document-site/docs read-model/RAG preparation; partial or held notices remain notice-level
-query/card material.
+Phase 5 must define the full-text recovery lane for regulation-like notices that name a regulation
+but do not contain the complete owner body. Recovery may use captured attachments,
+authenticated file-release documents, official-web source, or existing regulation registry truth;
+unresolved cases remain notice-level title/url/card rows.
 
 ## Boundaries To Preserve
 
@@ -105,8 +125,7 @@ query/card material.
 
 ## Blockers
 
-- None for Phase 1.
-- None for Phase 3 planning.
+- None for Phase 5 planning.
 
 ## Verification Status
 
@@ -116,10 +135,11 @@ query/card material.
 - Phase 1 regression and aggregate tests passed locally on 2026-04-28.
 - Phase 2 selected cohort audit tests and real PG-backed audit passed locally on 2026-04-28.
 - Phase 3 target materialization regression tests passed locally on 2026-04-28.
+- Phase 4 docs/RAG consumption contract tests passed locally on 2026-04-28.
 
 ## Resume Instructions
 
-Start with Phase 4:
+Start with Phase 5:
 
 ```bash
 uv run --all-packages python -m scripts.workstream_harness codex shell \
@@ -130,5 +150,5 @@ Then read:
 
 ```bash
 sed -n '1,260p' \
-  .planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-04-docs-and-rag-consumption-contract/PLAN.md
+  .planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-05-full-text-recovery-lane/PLAN.md
 ```

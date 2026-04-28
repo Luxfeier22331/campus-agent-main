@@ -36,7 +36,7 @@ admission/cleanup
 - [x] **Phase 3: Target Materialization Contract** — 确保 `institutional_rules` /
   `scoped_rules` materializers 只读通过 promotion gate 的 projection truth，且
   rejected/held cases 不产生 target rows。
-- [ ] **Phase 4: Docs And RAG Consumption Contract** — 明确文档站、docs read-model、
+- [x] **Phase 4: Docs And RAG Consumption Contract** — 明确文档站、docs read-model、
   RAG/chunk-prep 只能消费 target canonical document；低优先级或 partial notice 只提供
   title/url/card。
 - [ ] **Phase 5: Full-Text Recovery Lane** — 为缺失完整制度正文的 notice 建立恢复口径：
