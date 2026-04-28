@@ -73,6 +73,7 @@ campus-ingestion-drain-internal-notice-pending-multimodal = "campus_ingestion_wo
 campus-ingestion-schedule-router-dry-run = "campus_ingestion_worker.schedule_router_dry_run:main"
 campus-ingestion-schedule-image-ocr-dry-run = "campus_ingestion_worker.schedule_image_ocr_dry_run:main"
 campus-ingestion-admit-schedule-image-ocr-results = "campus_ingestion_worker.admit_schedule_image_ocr_results:main"
+campus-ingestion-schedule-batch-preview-gate = "campus_ingestion_worker.schedule_batch_preview_gate:main"
 campus-ingestion-smoke-internal-notice-consumption-runtime = "campus_ingestion_worker.smoke_internal_notice_consumption_runtime:main"
 campus-ingestion-evaluate-internal-notice-multimodal-decisions = "campus_ingestion_worker.evaluate_internal_notice_multimodal_decisions:main"
 campus-ingestion-validate-internal-notice-chunking = "campus_ingestion_worker.validate_internal_notice_chunking:main"
