@@ -150,27 +150,59 @@ def process_internal_notice_pending_multimodal_entries(
             raw_decision = runtime_processor.process(request)
             decision = _guard_multimodal_decision(raw_decision)
         except Exception as exc:
+            attempt_number = _next_attempt_number(attempt_store, entry.unit_id)
+            decision = InternalNoticeMultimodalDecision(
+                action="needs_additional_processing",
+                summary="",
+                extracted_text="",
+                reasons=("processor_failed",),
+                confidence="low",
+            )
+            terminal = attempt_number >= max_attempts
             _record_attempt(
                 attempt_store=attempt_store,
                 entry=entry,
                 source_corpus=source_corpus,
                 source_collection=source_collection,
-                attempt_number=_next_attempt_number(attempt_store, entry.unit_id),
+                attempt_number=attempt_number,
                 admission_batch_id=admission_batch_id,
                 model=_processor_model_label(runtime_processor),
                 decision_action="failed",
-                status="failed",
-                reasons=(),
+                status="failed_terminal" if terminal else "failed",
+                reasons=decision.reasons,
                 error=str(exc),
             )
             failed_count += 1
-            updated_entries.append(entry)
+            if terminal:
+                no_adoption_count += 1
+                updated_entries.append(
+                    _mark_attempts_exhausted(
+                        entry,
+                        decision,
+                        admission_batch_id=admission_batch_id,
+                        admission_command=admission_command,
+                        admission_created_at=admission_created_at,
+                    )
+                )
+            else:
+                still_pending_count += 1
+                updated_entries.append(
+                    _mark_still_pending(
+                        entry,
+                        decision,
+                        admission_batch_id=admission_batch_id,
+                        admission_command=admission_command,
+                        admission_created_at=admission_created_at,
+                    )
+                )
             item_reports.append(
                 InternalNoticeMultimodalItemReport(
                     source_notice_id=entry.source_notice_id,
                     unit_id=entry.unit_id,
                     action="failed",
-                    status=entry.consumption_status,
+                    status=NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
+                    if terminal
+                    else NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
                     reason=str(exc),
                 )
             )

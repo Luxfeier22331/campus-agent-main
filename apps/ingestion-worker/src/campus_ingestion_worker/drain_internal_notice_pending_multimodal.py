@@ -148,12 +148,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             store=admission_store,
         )
         raise
+    batch_status = "failed" if report.failed_count > 0 else "completed"
+    payload["status"] = batch_status
     payload["batch_id"] = record_internal_notice_consumption_admission(
         source_corpus=args.corpus,
         source_collection=args.collection,
         command="multimodal_drain",
         notice_ids=report.pending_notice_ids,
-        status="completed",
+        status=batch_status,
         batch_id=batch_id,
         created_at=admission_created_at,
         result_counts={
@@ -169,6 +171,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         store=admission_store,
     )
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    if batch_status != "completed":
+        raise SystemExit(1)
 
 
 __all__ = [

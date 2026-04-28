@@ -69,7 +69,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.max_attempts <= 0:
         parser.error("--max-attempts must be greater than zero")
 
-    projection_store = build_notice_consumption_projection_store_from_env()
+    projection_store = build_notice_consumption_projection_store_from_env(prefer_operator=True)
     selected_notice_ids = _resolve_selected_notice_ids(
         explicit_notice_ids=args.notice_ids,
         selection_path=args.selection_path,
@@ -88,7 +88,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         "max_attempts": int(args.max_attempts),
         "skip_read_model_rebuild": bool(args.skip_read_model_rebuild),
     }
-    admission_store = build_internal_notice_consumption_admission_store_from_env()
+    admission_store = build_internal_notice_consumption_admission_store_from_env(
+        prefer_operator=True
+    )
     admission_created_at = utc_now()
     batch_id = record_internal_notice_consumption_admission(
         source_corpus=args.corpus,
@@ -111,7 +113,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     processor = ChatCompletionsWeChatPublicNoticeMultimodalProvider.from_env()
     fetcher = HttpxWeChatPublicNoticeInlineImageFetcher()
-    registry = build_document_registry_from_env()
+    registry = build_document_registry_from_env(prefer_operator=True)
 
     if not selected_notice_ids:
         empty_report = _empty_processing_report(
@@ -185,7 +187,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             read_model_rebuilt_count = len(
                 materialize_wechat_public_notice_read_model(
                     projection_entries=rebuild_report.projection_entries,
-                    read_model_store=build_internal_notice_read_model_store_from_env(),
+                    read_model_store=build_internal_notice_read_model_store_from_env(
+                        prefer_operator=True
+                    ),
                     source_object_store=source_object_store,
                     derived_object_store=derived_object_store,
                     source_bucket=source_settings.bucket_source,
@@ -219,12 +223,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             if entry.source_notice_id.strip()
         }
     )
+    batch_status = "failed" if process_report.terminal_failure_count > 0 else "completed"
+    payload["status"] = batch_status
     payload["batch_id"] = record_internal_notice_consumption_admission(
         source_corpus=args.corpus,
         source_collection=args.collection,
         command="wechat_multimodal_drain",
         notice_ids=selected_notice_ids,
-        status="completed",
+        status=batch_status,
         batch_id=batch_id,
         created_at=admission_created_at,
         result_counts={
@@ -241,6 +247,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         store=admission_store,
     )
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    if batch_status != "completed":
+        raise SystemExit(1)
 
 
 def _resolve_selected_notice_ids(

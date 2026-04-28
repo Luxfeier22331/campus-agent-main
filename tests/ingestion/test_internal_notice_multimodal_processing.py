@@ -322,6 +322,40 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
             "",
         )
 
+    def test_processor_exception_closes_after_max_attempts(self) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore((_pending_entry("351907"),))
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many((_inventory_entry("351907"),))
+        attempt_store = InMemoryInternalNoticeMultimodalAttemptStore()
+
+        report = process_internal_notice_pending_multimodal_entries(
+            notice_ids=("351907",),
+            projection_store=projection_store,
+            source_truth_inventory_store=inventory_store,
+            object_store=_FakeObjectStore({}),
+            source_bucket="campus-rag-source",
+            processor=_FailingProcessor(RuntimeError("provider timeout")),
+            attempt_store=attempt_store,
+            max_attempts=1,
+        )
+
+        self.assertEqual(report.failed_count, 1)
+        self.assertEqual(report.no_adoption_count, 1)
+        self.assertEqual(report.still_pending_count, 0)
+        attempts = attempt_store.list_by_unit("notice_unit:351907:pending_multimodal")
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(attempts[0].status, "failed_terminal")
+        stored = projection_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=("351907",),
+        )
+        self.assertEqual(stored[0].consumption_status, NOTICE_CONSUMPTION_STATUS_NO_ADOPTION)
+        self.assertEqual(
+            stored[0].role_metadata["no_adoption_reason"],
+            "multimodal_attempts_exhausted",
+        )
+
     def test_processed_multimodal_summary_enters_read_model_content(self) -> None:
         projection_store = InMemoryNoticeConsumptionProjectionStore((_pending_entry("351907"),))
         inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
@@ -643,6 +677,19 @@ class _FakeProcessor:
     ) -> InternalNoticeMultimodalDecision:
         self.requests.append(request)
         return self.decision
+
+
+class _FailingProcessor:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+        self.requests: list[InternalNoticeMultimodalProcessingRequest] = []
+
+    def process(
+        self,
+        request: InternalNoticeMultimodalProcessingRequest,
+    ) -> InternalNoticeMultimodalDecision:
+        self.requests.append(request)
+        raise self.exc
 
 
 class _FakeCursorContextManager:

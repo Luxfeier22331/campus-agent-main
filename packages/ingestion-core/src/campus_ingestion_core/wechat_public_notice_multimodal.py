@@ -94,6 +94,8 @@ class WeChatPublicNoticeMultimodalAttemptStore(Protocol):
     def list_by_image(
         self,
         *,
+        source_corpus: str = "",
+        source_collection: str = "",
         source_notice_id: str,
         media_ref_id: str,
     ) -> tuple[WeChatPublicNoticeMultimodalAttempt, ...]: ...
@@ -256,13 +258,18 @@ class InMemoryWeChatPublicNoticeMultimodalAttemptStore:
     def list_by_image(
         self,
         *,
+        source_corpus: str = "",
+        source_collection: str = "",
         source_notice_id: str,
         media_ref_id: str,
     ) -> tuple[WeChatPublicNoticeMultimodalAttempt, ...]:
         return tuple(
             item
             for item in self._records
-            if item.source_notice_id == source_notice_id and item.media_ref_id == media_ref_id
+            if (not source_corpus or item.source_corpus == source_corpus)
+            and (not source_collection or item.source_collection == source_collection)
+            and item.source_notice_id == source_notice_id
+            and item.media_ref_id == media_ref_id
         )
 
 
@@ -352,19 +359,28 @@ class PostgresWeChatPublicNoticeMultimodalAttemptStore:
     def list_by_image(
         self,
         *,
+        source_corpus: str = "",
+        source_collection: str = "",
         source_notice_id: str,
         media_ref_id: str,
     ) -> tuple[WeChatPublicNoticeMultimodalAttempt, ...]:
         table_sql = _qualified_table_sql(self.table_name)
+        where_sql = "source_notice_id = %s and media_ref_id = %s"
+        params: tuple[object, ...] = (source_notice_id, media_ref_id)
+        if source_corpus:
+            where_sql = f"source_corpus = %s and {where_sql}"
+            params = (source_corpus, *params)
+        if source_collection:
+            where_sql = f"source_collection = %s and {where_sql}"
+            params = (source_collection, *params)
         with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
             cursor.execute(
                 f"""
                 select record from {table_sql}
-                where source_notice_id = %s
-                  and media_ref_id = %s
+                where {where_sql}
                 order by attempt_number asc
                 """,
-                (source_notice_id, media_ref_id),
+                params,
             )
             rows = cursor.fetchall()
         attempts: list[WeChatPublicNoticeMultimodalAttempt] = []
@@ -733,6 +749,8 @@ def process_wechat_public_notice_pending_multimodal_entries(
                         status=outcome.status,
                         attempt_number=len(
                             attempt_store.list_by_image(
+                                source_corpus=entry.source_corpus,
+                                source_collection=entry.source_collection,
                                 source_notice_id=entry.source_notice_id,
                                 media_ref_id=inline_ref.media_ref_id,
                             )
@@ -752,6 +770,8 @@ def process_wechat_public_notice_pending_multimodal_entries(
 
             attempt_number = _next_attempt_number(
                 attempt_store=attempt_store,
+                source_corpus=entry.source_corpus,
+                source_collection=entry.source_collection,
                 source_notice_id=entry.source_notice_id,
                 media_ref_id=inline_ref.media_ref_id,
             )
@@ -1608,6 +1628,8 @@ def _record_attempt(
 def _next_attempt_number(
     *,
     attempt_store: WeChatPublicNoticeMultimodalAttemptStore | None,
+    source_corpus: str,
+    source_collection: str,
     source_notice_id: str,
     media_ref_id: str,
 ) -> int:
@@ -1616,6 +1638,8 @@ def _next_attempt_number(
     return (
         len(
             attempt_store.list_by_image(
+                source_corpus=source_corpus,
+                source_collection=source_collection,
                 source_notice_id=source_notice_id,
                 media_ref_id=media_ref_id,
             )

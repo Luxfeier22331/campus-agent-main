@@ -14,6 +14,7 @@ from campus_ingestion_core.notice_consumption_projection import (
 from campus_ingestion_core.wechat_public_notice_multimodal import (
     InMemoryWeChatPublicNoticeMultimodalAttemptStore,
     WeChatPublicNoticeFetchedInlineImage,
+    WeChatPublicNoticeMultimodalAttempt,
     WeChatPublicNoticeMultimodalProviderResult,
     build_wechat_public_notice_inline_image_artifact_keys,
     load_wechat_public_notice_inline_image_outcome,
@@ -222,6 +223,76 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         )
         self.assertEqual(ocr_manifest["status"], "ocr_failed")
         self.assertEqual(len(registry.list_by_scope("campus_notices", "wechat_public_notice")), 0)
+
+    def test_attempt_lookup_is_scoped_by_corpus_and_collection(self) -> None:
+        existing = WeChatPublicNoticeMultimodalAttempt(
+            source_corpus="campus_notices",
+            source_collection="other_collection",
+            source_notice_id="woa_article_scope",
+            unit_id="notice_unit:wechat:woa_article_scope",
+            media_ref_id="woa_article_scope:media:1",
+            attempt_number=1,
+            admission_batch_id="other-batch",
+            status="ocr_failed",
+            provider="",
+            model="",
+            fetch_manifest_key="",
+            ocr_manifest_key="",
+            provider_response_key="",
+            layout_elements_key="",
+            error="other scope",
+            created_at="2026-04-28T00:00:00+08:00",
+        )
+        projection_store = _InMemoryProjectionStore((_pending_entry("woa_article_scope"),))
+        image_object_key = "wechat/woa_article_scope/capture/media/inline-1/original.png"
+        object_store = _FakeObjectStore(
+            {
+                (
+                    "source",
+                    "wechat/woa_article_scope/source-truth/media-refs.jsonl",
+                ): _media_refs_jsonl(
+                    article_id="woa_article_scope",
+                    image_url="https://cdn.example.com/inline-1.png",
+                    image_object_key=image_object_key,
+                ),
+                ("source", image_object_key): b"PNGDATA",
+            }
+        )
+        attempt_store = InMemoryWeChatPublicNoticeMultimodalAttemptStore((existing,))
+        provider = _FakeProvider(RuntimeError("provider timeout"))
+
+        report = process_wechat_public_notice_pending_multimodal_entries(
+            source_corpus="campus_notices",
+            source_collection="wechat_public_notice",
+            notice_ids=("woa_article_scope",),
+            projection_store=projection_store,
+            object_store=object_store,
+            registry=InMemoryDocumentRegistry(),
+            source_bucket="source",
+            derived_bucket="derived",
+            image_fetcher=_FakeFetcher(
+                WeChatPublicNoticeFetchedInlineImage(
+                    content_type="image/png",
+                    image_bytes=b"PNGDATA",
+                    final_url="https://cdn.example.com/inline-1.png",
+                )
+            ),
+            provider=provider,
+            attempt_store=attempt_store,
+            max_attempts=2,
+            admission_batch_id="wechat-mm-scope",
+        )
+
+        self.assertEqual(report.still_pending_count, 1)
+        self.assertEqual(report.terminal_failure_count, 0)
+        current_scope_attempts = attempt_store.list_by_image(
+            source_corpus="campus_notices",
+            source_collection="wechat_public_notice",
+            source_notice_id="woa_article_scope",
+            media_ref_id="woa_article_scope:media:1",
+        )
+        self.assertEqual(len(current_scope_attempts), 1)
+        self.assertEqual(current_scope_attempts[0].attempt_number, 1)
 
 
 class _InMemoryProjectionStore:
