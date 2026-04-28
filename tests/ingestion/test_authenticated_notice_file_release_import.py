@@ -4,6 +4,8 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_file_release_import import (
     AuthenticatedNoticeFileReleaseImportRequest,
@@ -18,7 +20,10 @@ from tests.ingestion.test_authenticated_notice_file_release_owner_recovery impor
     _bundle_record,
     _export_manifest,
 )
-from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
+from tests.support.in_memory_registry import (
+    InMemoryDocumentRegistry,
+    InMemoryRawAssetRegistry,
+)
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -26,6 +31,20 @@ def _write_json(path: Path, payload: object) -> None:
 
 
 class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
+    def test_request_rejects_non_file_release_holding_scope(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "authenticated notice file-release imports must target authenticated_documents/file_release_source",
+        ):
+            AuthenticatedNoticeFileReleaseImportRequest(
+                bundle_path=Path("/tmp/file-releases-bundle.json"),
+                manifest_path=Path("/tmp/file-releases-manifest.json"),
+                site_id="muc_internal_portal",
+                source_home_url="https://portal.example.edu/",
+                corpus="campus_notices",
+                collection="internal_notice",
+            )
+
     def test_import_materializes_file_release_into_authenticated_documents_holding_scope(
         self,
     ) -> None:
@@ -91,6 +110,65 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         uploaded_keys = {upload["key"] for upload in object_store.uploads}
         self.assertTrue(
             any(key.endswith("/source-truth/file-release-manifest.json") for key in uploaded_keys)
+        )
+
+    def test_import_uses_runtime_profile_cleaning_policy_for_holding_scope(self) -> None:
+        bundle = (
+            _bundle_record(
+                file_release_id=646,
+                filename="中央民族大学差旅费管理办法.pdf",
+            ),
+        )
+        manifest = _export_manifest()
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "file-releases-bundle.json"
+            manifest_path = root / "file-releases-manifest.json"
+            _write_json(bundle_path, list(bundle))
+            _write_json(manifest_path, manifest)
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeFileReleaseInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            with patch(
+                "campus_ingestion_core.authenticated_notice_file_release_import.load_runtime_profile",
+                create=True,
+                return_value=SimpleNamespace(
+                    cleaning_policy_version="authenticated_documents_holding_v2"
+                ),
+            ):
+                import_authenticated_notice_file_release_export(
+                    request=AuthenticatedNoticeFileReleaseImportRequest(
+                        bundle_path=bundle_path,
+                        manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/",
+                        mode="admit_and_materialize",
+                    ),
+                    env=env,
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    inventory_store=inventory_store,
+                )
+
+        records = document_registry.list_by_scope("authenticated_documents", "file_release_source")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(
+            records[0].cleaning_policy_version,
+            "authenticated_documents_holding_v2",
         )
 
     def test_import_rejects_reference_only_file_release_rows_without_source_bytes(self) -> None:

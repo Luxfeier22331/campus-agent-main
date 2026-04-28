@@ -38,6 +38,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     collect_import_document_stats,
     utc_now,
 )
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_raw_asset_key,
@@ -95,6 +96,7 @@ class AuthenticatedNoticeFileReleaseImportRequest:
         )
         object.__setattr__(self, "mode", _normalize_import_mode(self.mode))
         assert_known_scope(self.corpus, self.collection)
+        _assert_file_release_import_scope(self.corpus, self.collection)
         if not self.site_id.strip():
             raise ValueError("site_id is required")
         if not self.source_home_url.strip():
@@ -169,6 +171,7 @@ def import_authenticated_notice_file_release_export(
             prefer_operator=True,
         )
     )
+    runtime_profile = load_runtime_profile(request.corpus, request.collection)
 
     raw_uploaded_count = 0
     raw_reused_count = 0
@@ -202,7 +205,7 @@ def import_authenticated_notice_file_release_export(
         object_store=object_store_settings,
         parser_version=request.parser_version,
         embedding_model=request.embedding_model,
-        cleaning_policy_version="authenticated_documents_holding_v1",
+        cleaning_policy_version=runtime_profile.cleaning_policy_version,
         default_visibility_scope=request.visibility_scope,
         scope_refresh=((request.corpus, request.collection) if request.replace_scope else None),
     )
@@ -703,6 +706,17 @@ def _normalize_import_mode(mode: str) -> str:
             f"{mode!r}; expected one of {sorted(_SUPPORTED_FILE_RELEASE_IMPORT_MODES)}"
         )
     return normalized
+
+
+def _assert_file_release_import_scope(corpus: str, collection: str) -> None:
+    if (
+        corpus != DEFAULT_AUTHENTICATED_DOCUMENTS_CORPUS
+        or collection != DEFAULT_FILE_RELEASE_SOURCE_COLLECTION
+    ):
+        raise ValueError(
+            "authenticated notice file-release imports must target "
+            "authenticated_documents/file_release_source"
+        )
 
 
 def _fetcher_version(export_manifest: dict[str, Any] | None) -> str:

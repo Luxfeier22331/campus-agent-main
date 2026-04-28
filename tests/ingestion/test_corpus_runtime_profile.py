@@ -239,30 +239,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.source_ocr_fallback_enabled)
         self.assertEqual(profile.source_ocr_image_routing_strategy, "mineru_primary")
 
-    def test_load_authenticated_documents_common_download_source_runtime_profile(self) -> None:
-        profile = load_runtime_profile("authenticated_documents", "common_download_source")
-
-        self.assertEqual(profile.corpus, "authenticated_documents")
-        self.assertEqual(profile.collection, "common_download_source")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
-        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
-        self.assertFalse(profile.retrieval_enabled)
-        self.assertFalse(profile.query_enabled_by_default)
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "common_download_source")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "common_download_source")
-
-    def test_load_authenticated_documents_file_release_source_runtime_profile(self) -> None:
-        profile = load_runtime_profile("authenticated_documents", "file_release_source")
-
-        self.assertEqual(profile.corpus, "authenticated_documents")
-        self.assertEqual(profile.collection, "file_release_source")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
-        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
-        self.assertFalse(profile.retrieval_enabled)
-        self.assertFalse(profile.query_enabled_by_default)
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "file_release_source")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "file_release_source")
-
     def test_load_official_web_runtime_profile_current_truth_remains_offline_and_not_freshness_ready(
         self,
     ) -> None:
@@ -415,6 +391,45 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.chunk_profile_version, "authenticated_notice_semantic_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "internal_notice")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "internal_notice")
+
+    def test_load_authenticated_documents_common_download_source_runtime_profile(self) -> None:
+        profile = load_runtime_profile("authenticated_documents", "common_download_source")
+
+        self.assertEqual(profile.corpus, "authenticated_documents")
+        self.assertEqual(profile.collection, "common_download_source")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.chunk_profile_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "common_download_source")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "common_download_source")
+
+    def test_load_authenticated_documents_file_release_source_runtime_profile(self) -> None:
+        profile = load_runtime_profile("authenticated_documents", "file_release_source")
+
+        self.assertEqual(profile.corpus, "authenticated_documents")
+        self.assertEqual(profile.collection, "file_release_source")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.chunk_profile_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.source_ocr_provider, "mineru_api")
+        self.assertEqual(profile.source_ocr_model, "vlm")
+        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "file_release_source")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "file_release_source")
 
     def test_load_institutional_regulations_runtime_profile(self) -> None:
         profile = load_runtime_profile("regulations", "institutional_rules")
