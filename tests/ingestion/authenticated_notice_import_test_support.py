@@ -291,6 +291,9 @@ class _FakeObjectStore:
             "etag": f"fake-etag:{bucket}:{key}",
         }
 
+    def delete_object(self, *, bucket: str, key: str) -> None:
+        self.objects.pop((bucket, key), None)
+
     def copy_object(
         self,
         *,
