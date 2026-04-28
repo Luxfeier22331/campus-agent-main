@@ -353,7 +353,7 @@ def _manifest_to_payload(manifest: InternalNoticeConsumerAdmissionManifest) -> d
 
 
 def _decision_counts(manifest: InternalNoticeConsumerAdmissionManifest) -> dict[str, int]:
-    counts = Counter(manifest.decision_counts)
+    counts: Counter[str] = Counter()
     counts.update(record.admission_decision for record in manifest.decision_records)
     counts.update(record.target_surface for record in manifest.decision_records)
     counts.update(record.consumption_status for record in manifest.decision_records)

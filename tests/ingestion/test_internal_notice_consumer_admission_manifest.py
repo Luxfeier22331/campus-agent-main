@@ -104,6 +104,11 @@ class InternalNoticeConsumerAdmissionManifestTest(unittest.TestCase):
             loaded.decision_records[0].consumption_status,
             CONSUMER_ADMISSION_STATUS_CANDIDATE_FOR_TYPED_MATERIALIZATION,
         )
+        self.assertEqual(payload["decision_counts"][CONSUMER_ADMISSION_DECISION_ADMIT], 2)
+        self.assertEqual(
+            payload["decision_counts"][NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE],
+            2,
+        )
 
     def test_validation_rejects_duplicate_decision_notice_ids(self) -> None:
         record = ConsumerAdmissionDecisionRecord(
