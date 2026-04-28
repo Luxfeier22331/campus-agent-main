@@ -18,6 +18,8 @@ authenticated notice 355650
 -> service_status typed projection
 -> PostgreSQL release catalog/current pointer/read model
 -> supervisor service_status_lookup
+-> app-api ChatCommandService
+-> supervisor HTTP execution seam
 -> app-api/public-chat answer normalization
 ```
 
@@ -113,12 +115,59 @@ Visible user payload:
 - Source trace card shows `校内通知 #355650`
 - Visible payload hides `notice:muc_internal_portal:355650`, `muc_internal_portal`, release ids and `2099`
 
+## Full App API To Supervisor E2E Evidence
+
+The product path was also verified through the real app-api supervisor client seam:
+
+```text
+app-api ChatCommandService
+-> SupervisorExecutionClient HTTP /api/v1/answer
+-> supervisor-api structured service_status_lookup
+-> PostgreSQL current read model
+-> app-api visible answer normalization
+```
+
+Result files:
+
+- `live-355650-facility-trial/app-api-to-supervisor-public-chat-e2e.json`
+- `live-355650-facility-trial/app-api-supervisor-e2e-supervisor.log`
+
+Prompt:
+
+```text
+静园10号楼女浴室现在开放吗
+```
+
+Observed supervisor summary:
+
+- `selected_tool`: `service_status_lookup`
+- `tool_business_outcome`: `resolved_current`
+- `resolved_subject`: `静园10号楼负一层女浴室`
+- `observed_status`: `limited_service`
+
+Visible answer:
+
+```text
+静园10号楼负一层女浴室：当前状态：有限开放。 有效时间：4月16日 00:00 起。 提示：静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行。（来源：校内通知）
+```
+
+Visible source card:
+
+- `校内通知 #355650`
+
+This E2E smoke exposed and fixed three product-path gaps:
+
+- natural bathroom prompt routing must classify `浴室` / `女浴室` as structured service subjects;
+- app-api normalization must accept the supervisor direct structured result shape, not only wrapped tool payloads;
+- app-api supervisor parsing must preserve structured observability fields such as `selected_tool` and `tool_business_outcome`.
+
 ## Verification
 
 Passed:
 
 ```bash
 uv run --all-packages python -m unittest \
+  tests.evals.intent_synthetic_suite \
   tests.ingestion.test_notice_derived_service_status_materialization \
   tests.ingestion.test_build_service_status_projection_worker \
   tests.ingestion.test_structured_projection_postgres \
@@ -128,7 +177,7 @@ uv run --all-packages python -m unittest \
 Passed:
 
 ```bash
-go test ./internal/structuredquery ./internal/httpapi
+go test ./internal/runtimepolicy ./internal/structuredplanning ./internal/structuredquery ./internal/httpapi
 ```
 
 Run from `apps/supervisor-api`.
@@ -136,7 +185,7 @@ Run from `apps/supervisor-api`.
 Passed:
 
 ```bash
-pnpm --dir apps/app-api test:node -- chat-command.service.core.structured.suite.ts
+pnpm --dir apps/app-api test:node -- chat-command.service.core.structured.suite.ts supervisor-adapter.response.suite.ts
 ```
 
 Passed:
@@ -154,13 +203,18 @@ uv run --all-packages ruff check \
   packages/campus-services-agent/src/campus_services_agent/tool_adapter.py \
   tests/agent/test_campus_services_agent.py \
   packages/ingestion-core/src/campus_ingestion_core/notice_derived_service_status_materialization.py \
-  tests/ingestion/test_notice_derived_service_status_materialization.py
-uv run --all-packages ruff format \
+  tests/ingestion/test_notice_derived_service_status_materialization.py \
+  tests/ingestion/test_build_service_status_projection_worker.py \
+  tests/ingestion/test_structured_projection_postgres.py \
+  tests/evals/intent_synthetic_suite.py
+uv run --all-packages ruff format --check \
   packages/campus-services-agent/src/campus_services_agent/tool_adapter.py \
   tests/agent/test_campus_services_agent.py \
   packages/ingestion-core/src/campus_ingestion_core/notice_derived_service_status_materialization.py \
   tests/ingestion/test_notice_derived_service_status_materialization.py \
-  --check
+  tests/ingestion/test_build_service_status_projection_worker.py \
+  tests/ingestion/test_structured_projection_postgres.py \
+  tests/evals/intent_synthetic_suite.py
 ```
 
 Additional targeted sanity passed:
@@ -171,11 +225,10 @@ uv run --all-packages python -m unittest \
   tests.agent.test_campus_services_agent.CampusServicesAgentTest.test_service_status_payload_routes_through_internal_query_service
 ```
 
-Observed output:
+Latest observed output:
 
-- App API node suite: `57 passed`, `323 passed`
-- Agent targeted unittest: `2 tests`, `OK`
-- Broader Python service-status suite: `46 tests`, `OK`
-- Go runtime/http: both packages `ok`
+- App API node suite: `57 passed`, `324 passed`
+- Python service-status/eval suite: `53 tests`, `OK`
+- Go runtimepolicy/structuredplanning/structuredquery/httpapi: all packages `ok`
 - docs lint: `0 error(s)`
-- Ruff: `All checks passed!`, `4 files already formatted`
+- Ruff: `All checks passed!`, `7 files already formatted`

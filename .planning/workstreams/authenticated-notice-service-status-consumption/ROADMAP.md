@@ -49,7 +49,8 @@ boundary/cohort
 - [x] **Phase 7: Live Admission And Downstream Consumption Loop** — 真实
   publishable service-status notice `355650` 已完成
   `notice_consumption_projection -> service_status projection -> PG read model ->
-  service_status_lookup -> app-api/public-chat answer` 闭环；`355867`
+  service_status_lookup -> app-api ChatCommandService -> supervisor HTTP ->
+  app-api/public-chat answer` 闭环；`355867`
   继续保留为 transport/schedule 边界拒绝证据。workstream 暂不归档，等待最终
   verification、commit organization 与显式 archive 决策。
 
@@ -65,9 +66,10 @@ coverage。当前 `355650` 已满足以下闭环条件：
   rejected-source report、release row、PG current pointer 与 typed read model。
 - `service_status_lookup` 从 PG current read model 读取该 live truth，并在缺失、
   歧义或冲突时 fail closed。
-- app-api/public-chat 能用中文展示用户可理解的状态、有效窗口和低打扰来源，不暴露技术字段。
+- app-api 能通过 `ChatCommandService` 和 supervisor HTTP seam 完整消费该
+  live truth，并让 public-chat 用中文展示用户可理解的状态、有效窗口和低打扰来源，不暴露技术字段。
 - captured evidence 覆盖 preview、stage、promote、PG current/list、runtime lookup
-  和 product answer。
+  和 product answer，并包含 app-api -> supervisor HTTP E2E。
 
 当前保留 active 的原因不是缺少 live loop，而是等待最终 verification、commit organization
 和是否归档的显式决策。
@@ -80,3 +82,8 @@ coverage。当前 `355650` 已满足以下闭环条件：
 - ADR-0044 release/read-model semantics 被改写；
 - `service_status_lookup` runtime contract 或 product-path opening gate 被改写；
 - public-chat/panel 发现 service-status 来源展示或当前状态语义漂移。
+
+后续如果继续扩展，只扩展 service-status family，例如 IT platform、library、
+service-counter 或 facility status 的真实 live notice；不要把 regulation、
+schedule、service guide、contact-directory 或 generic notice-query 并入本
+workstream。
