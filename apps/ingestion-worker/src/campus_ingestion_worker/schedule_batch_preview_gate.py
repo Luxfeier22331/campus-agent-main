@@ -306,6 +306,8 @@ def render_schedule_batch_preview_gate_markdown(report: Mapping[str, Any]) -> st
             "",
             "## Items",
             "",
+            "<!-- markdownlint-disable MD013 -->",
+            "",
             "| Notice id | Bucket | Candidate kind | State | Reasons |",
             "| --- | --- | --- | --- | --- |",
         ]
@@ -321,6 +323,7 @@ def render_schedule_batch_preview_gate_markdown(report: Mapping[str, Any]) -> st
             f"{row.get('consumption_state') or ''!s} | "
             f"{reasons} |"
         )
+    lines.extend(["", "<!-- markdownlint-enable MD013 -->"])
     return "\n".join(lines) + "\n"
 
 
