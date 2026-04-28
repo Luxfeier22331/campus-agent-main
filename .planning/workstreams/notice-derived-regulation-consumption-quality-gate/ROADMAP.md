@@ -39,7 +39,7 @@ admission/cleanup
 - [x] **Phase 4: Docs And RAG Consumption Contract** — 明确文档站、docs read-model、
   RAG/chunk-prep 只能消费 target canonical document；低优先级或 partial notice 只提供
   title/url/card。
-- [ ] **Phase 5: Full-Text Recovery Lane** — 为缺失完整制度正文的 notice 建立恢复口径：
+- [x] **Phase 5: Full-Text Recovery Lane** — 为缺失完整制度正文的 notice 建立恢复口径：
   file_release / attachment / official-web / existing regulation registry owner lookup，不用
   LLM 编造正文。
 - [ ] **Phase 6: Acceptance Freeze And Closeout** — 冻结 selected cohort evidence、

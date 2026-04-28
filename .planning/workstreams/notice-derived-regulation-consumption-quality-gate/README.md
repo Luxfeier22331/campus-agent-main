@@ -20,10 +20,9 @@ eligibility、target materialization gate 与文档站/RAG 消费前质量验收
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 5`
-- current focus: 为缺失完整 owner body 的 regulation-like notice 定义 full-text recovery
-  lane；只允许从附件、authenticated file-release、official-web 或 existing regulation
-  registry 找回完整正文，不用 LLM 编造正文
+- current phase: `Phase 6`
+- current focus: 冻结 selected cohort、negative fixture、runbook、regression command 与
+  reopen rule，完成 workstream closeout
 - runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
   claim status notice-derived-regulation-consumption-quality-gate` 查看；tracked planning
   文档不保存 claim lease
@@ -76,4 +75,5 @@ eligibility、target materialization gate 与文档站/RAG 消费前质量验收
 - `./phases/phase-04-docs-and-rag-consumption-contract/PLAN.md`
 - `./phases/phase-04-docs-and-rag-consumption-contract/SUMMARY.md`
 - `./phases/phase-05-full-text-recovery-lane/PLAN.md`
+- `./phases/phase-05-full-text-recovery-lane/SUMMARY.md`
 - `./phases/phase-06-acceptance-freeze-and-closeout/PLAN.md`

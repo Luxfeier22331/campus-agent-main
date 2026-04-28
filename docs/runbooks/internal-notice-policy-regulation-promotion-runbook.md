@@ -92,7 +92,43 @@ uv run --package campus-ingestion-worker python -m \
 - `--notice-id` 模式是定向 rebuild
 - 这一步只修 source / attachment projection，不等于 regulation target materialization
 
-## Step 3: Materialize Accepted Candidates
+## Step 3: Build Owner-Recovery Report For Held Notices
+
+当 promotion / selected cohort audit 显示某条 regulation-like notice 缺少完整 owner
+body 时，先生成 owner-recovery report：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.build_internal_notice_regulation_owner_recovery \
+  --corpus campus_notices \
+  --collection internal_notice \
+  --notice-id <notice_id> \
+  --output-dir /tmp/internal-notice-regulation-owner-recovery
+```
+
+可选过滤：
+
+- `--notice-id <id>`
+- `--selection-path <path>`
+- `--without-promotion-manifest`
+- `--without-file-release-inventory`
+
+固定 lookup 顺序：
+
+1. 已采集并 materialized 的 notice attachment child document
+2. authenticated `file_release_capture`
+3. `official_web/*` source document
+4. existing `regulations/*` registry document
+
+固定 operator 规则：
+
+- 只有找到 source-backed owner candidate，才能继续进入 owner processing /
+  promotion；不得用 LLM 补写缺失制度正文
+- 未找到 owner source 的 notice 必须 fail closed，保留 notice-level title/url/card/query
+- owner-recovery report 是 admission evidence，不是 target materialization，也不打开
+  docs/RAG release
+
+## Step 4: Materialize Accepted Candidates
 
 institutional regulations:
 
@@ -127,7 +163,7 @@ uv run --package campus-ingestion-worker python -m \
 - downstream materializer 只读 consumption projection ready truth；projection
   缺失时 fail closed，不回扫 source-truth inventory 扩张 candidate
 
-## Step 4: Document-Site Dry-Run
+## Step 5: Document-Site Dry-Run
 
 如果需要验证 selected `regulation_candidate` 是否能进入 document storage 与
 canonical document reader asset package，但仍不开放 query-serving，使用 dry-run
@@ -164,7 +200,7 @@ operator 规则：
 - 输出 document reader assets 只作为 dry-run artifact，不表示 public docs deploy、
   RAG release 或 query-serving 已开放
 
-## Step 5: Formal Selected Import After Dry-Run
+## Step 6: Formal Selected Import After Dry-Run
 
 dry-run 通过后，使用 formal selected import 入口把同一批 selected notice 写入
 source-truth PG/object store、consumption projection、regulation target scope 和
@@ -220,7 +256,7 @@ pnpm --dir apps/app-api docs:import-read-model
 这一步只开放 document storage / document reader control plane，不开放
 RAG release 或 regulation query-serving collection。
 
-## Step 6: Repo-Local Materialization Snapshot Mode
+## Step 7: Repo-Local Materialization Snapshot Mode
 
 如果只需要脱离 env backend 验证某个 target materializer，可用隔离 snapshot 运行
 对应 materializer：
@@ -253,7 +289,7 @@ uv run --package campus-ingestion-worker python -m \
 
 必须三者同时提供。
 
-## Step 7: Hand Off To Target-Side Quality Acceptance
+## Step 8: Hand Off To Target-Side Quality Acceptance
 
 manifest build 与 target materialization 完成后，下一步固定进入：
 
