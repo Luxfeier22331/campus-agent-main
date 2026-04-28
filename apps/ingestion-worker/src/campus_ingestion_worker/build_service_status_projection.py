@@ -31,12 +31,14 @@ from campus_ingestion_core.notice_consumption_projection import (
 )
 from campus_ingestion_core.notice_derived_service_status_materialization import (
     build_notice_derived_service_status_projection_bundle,
+    extract_notice_derived_service_status_record,
 )
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.service_status_projection import (
     SERVICE_STATUS_COLLECTION,
     SERVICE_STATUS_CORPUS,
     SERVICE_STATUS_PROJECTION_SCHEMA_VERSION,
+    validate_service_status_projection_bundle,
     write_service_status_projection_release,
 )
 from campus_ingestion_core.structured_projection_postgres import (
@@ -120,6 +122,14 @@ def build_parser() -> argparse.ArgumentParser:
             "without current; promote updates current."
         ),
     )
+    parser.add_argument(
+        "--current-release-composition",
+        action="store_true",
+        help=(
+            "Compose a current service-status release: only service_status candidate kind "
+            "records whose effective window contains generated-at are published."
+        ),
+    )
     return parser
 
 
@@ -136,23 +146,43 @@ def build_service_status_projection_release_from_consumption_projection(
     selected_notice_ids: Sequence[str] = (),
     consumer_admission_gate_report: Mapping[str, Any] | None = None,
     publish_mode: str = "promote",
+    current_release_composition: bool = False,
 ):
     normalized_publish_mode = _normalize_publish_mode(publish_mode)
-    build_result = build_notice_derived_service_status_projection_bundle(
-        projection_entries=projection_entries,
-        registry=registry,
-        object_store=object_store,
-        derived_bucket=derived_bucket,
-        generated_at=generated_at,
+    input_projection_entries = tuple(projection_entries)
+    projection_entries = (
+        _current_release_candidate_entries(input_projection_entries)
+        if (current_release_composition)
+        else input_projection_entries
     )
+    composition_counts: Mapping[str, int] = {}
+    if current_release_composition:
+        bundle, composition_counts = _build_current_effective_composition_bundle(
+            projection_entries=projection_entries,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket=derived_bucket,
+            generated_at=generated_at,
+        )
+        validation_report = validate_service_status_projection_bundle(bundle)
+    else:
+        build_result = build_notice_derived_service_status_projection_bundle(
+            projection_entries=projection_entries,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket=derived_bucket,
+            generated_at=generated_at,
+        )
+        bundle = build_result.bundle
+        validation_report = build_result.validation_report
     work_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(work_dir / "validation-summary.json", asdict(build_result.validation_report))
-    if not build_result.validation_report.valid:
+    _write_json(work_dir / "validation-summary.json", asdict(validation_report))
+    if not validation_report.valid:
         raise ValueError("notice-derived service status projection validation failed")
-    if not build_result.bundle["service_status_records"] and normalized_publish_mode != "preview":
+    if not bundle["service_status_records"] and normalized_publish_mode != "preview":
         raise ValueError("notice-derived service status projection produced no records")
     report = write_service_status_projection_release(
-        bundle=build_result.bundle,
+        bundle=bundle,
         output_dir=work_dir,
         release_id=release_id,
         generated_at=generated_at,
@@ -162,7 +192,7 @@ def build_service_status_projection_release_from_consumption_projection(
     )
     _publish_structured_projection_release(
         structured_projection_publisher=structured_projection_publisher,
-        bundle=build_result.bundle,
+        bundle=bundle,
         report=report,
         generated_at=generated_at,
         promote_current=_promotes_current(normalized_publish_mode),
@@ -176,8 +206,11 @@ def build_service_status_projection_release_from_consumption_projection(
             collection=SERVICE_STATUS_COLLECTION,
             selected_notice_ids=selected_notice_ids,
             projection_entries=projection_entries,
+            input_projection_entries=input_projection_entries,
             consumer_admission_gate_report=consumer_admission_gate_report,
-            validation_counts=build_result.validation_report.counts,
+            validation_counts=validation_report.counts,
+            current_release_composition=current_release_composition,
+            composition_counts=composition_counts,
         ),
     )
     return report
@@ -261,6 +294,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         selected_notice_ids=notice_ids,
         consumer_admission_gate_report=asdict(consumer_admission_gate_report),
         publish_mode=args.publish_mode,
+        current_release_composition=bool(args.current_release_composition),
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
@@ -323,12 +357,150 @@ def _ready_service_status_projection_entries(
     )
 
 
+def _current_release_candidate_entries(
+    entries: Sequence[NoticeConsumptionProjectionEntry],
+) -> tuple[NoticeConsumptionProjectionEntry, ...]:
+    return tuple(
+        entry
+        for entry in _ready_service_status_projection_entries(entries)
+        if _service_status_candidate_kind(entry) == "service_status"
+    )
+
+
+def _service_status_candidate_kind(entry: NoticeConsumptionProjectionEntry) -> str:
+    metadata = dict(entry.role_metadata or {})
+    return str(metadata.get("service_status_candidate_kind") or "service_status").strip()
+
+
+def _build_current_effective_composition_bundle(
+    *,
+    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    registry: DocumentRegistry,
+    object_store: _ServiceStatusProjectionObjectStore,
+    derived_bucket: str,
+    generated_at: str,
+) -> tuple[dict[str, Any], dict[str, int]]:
+    generated_dt = _parse_datetime(generated_at, "generated_at")
+    records_by_subject: dict[str, dict[str, Any]] = {}
+    rejected_sources: list[dict[str, Any]] = []
+    window_filtered = 0
+    missing_candidate_count = 0
+    for entry in projection_entries:
+        candidate = extract_notice_derived_service_status_record(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket=derived_bucket,
+            generated_at=generated_at,
+        )
+        if candidate is None:
+            missing_candidate_count += 1
+            rejected_sources.append(_missing_current_candidate_rejected_source(entry))
+            continue
+        record = candidate.to_record()
+        effective_from = _parse_datetime(str(record.get("effective_from") or ""), "effective_from")
+        effective_until = _parse_datetime(
+            str(record.get("effective_until") or ""),
+            "effective_until",
+        )
+        if effective_from <= generated_dt < effective_until:
+            current = records_by_subject.get(str(record.get("subject_id") or ""))
+            if current is None or str(record.get("effective_from") or "") > str(
+                current.get("effective_from") or ""
+            ):
+                records_by_subject[str(record.get("subject_id") or "")] = record
+            continue
+        window_filtered += 1
+        rejected_sources.append(_current_effective_rejected_source(record))
+    return (
+        {
+            "schema_version": SERVICE_STATUS_PROJECTION_SCHEMA_VERSION,
+            "service_status_records": [
+                records_by_subject[subject_id] for subject_id in sorted(records_by_subject)
+            ],
+            "service_status_rejected_sources": rejected_sources,
+        },
+        {
+            "window_filtered": window_filtered,
+            "missing_candidate": missing_candidate_count,
+        },
+    )
+
+
+def _missing_current_candidate_rejected_source(
+    entry: NoticeConsumptionProjectionEntry,
+) -> dict[str, Any]:
+    metadata = dict(entry.role_metadata or {})
+    return {
+        "schema_version": "service_status_rejected_sources.v1",
+        "source_notice_id": entry.source_notice_id,
+        "source_ref": _source_ref(entry),
+        "notice_family": str(metadata.get("notice_family") or "").strip(),
+        "candidate_kind": _service_status_candidate_kind(entry),
+        "reason": "missing_effective_window_or_status_signal",
+        "missing_fields": ["effective_window_or_status_signal"],
+        "extracted_signals": {
+            "notice_title": str(metadata.get("notice_title") or "").strip(),
+        },
+    }
+
+
+def _current_effective_rejected_source(record: Mapping[str, Any]) -> dict[str, Any]:
+    source_ref = _first_source_ref(record)
+    return {
+        "schema_version": "service_status_rejected_sources.v1",
+        "source_notice_id": source_ref.split(":")[-1] if source_ref else "",
+        "source_ref": source_ref,
+        "notice_family": str(record.get("service_family") or "").strip(),
+        "candidate_kind": "service_status",
+        "reason": "not_current_effective_at_generated_time",
+        "missing_fields": [],
+        "extracted_signals": {
+            "subject_id": str(record.get("subject_id") or "").strip(),
+            "effective_from": str(record.get("effective_from") or "").strip(),
+            "effective_until": str(record.get("effective_until") or "").strip(),
+        },
+    }
+
+
+def _source_ref(entry: NoticeConsumptionProjectionEntry) -> str:
+    if entry.source_notice_document_id.startswith("notice:"):
+        return entry.source_notice_document_id
+    return f"notice:muc_internal_portal:{entry.source_notice_id}"
+
+
+def _first_source_ref(record: Mapping[str, Any]) -> str:
+    for field in ("related_notice_refs", "override_source_refs"):
+        value = record.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, Sequence) and not isinstance(value, bytes | bytearray | str):
+            for item in value:
+                text = str(item).strip()
+                if text:
+                    return text
+    return ""
+
+
+def _parse_datetime(value: str, field_name: str) -> datetime:
+    normalized = str(value or "").strip()
+    if not normalized:
+        raise ValueError(f"{field_name} is required")
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone(timedelta(hours=8)))
+    return parsed.astimezone(timezone(timedelta(hours=8)))
+
+
 def _build_report_payload(
     *,
     selected_notice_ids: Sequence[str],
     projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    input_projection_entries: Sequence[NoticeConsumptionProjectionEntry],
     consumer_admission_gate_report: Mapping[str, Any] | None,
     validation_counts: Mapping[str, int],
+    current_release_composition: bool,
+    composition_counts: Mapping[str, int],
     **base_payload: object,
 ) -> dict[str, object]:
     normalized_selected_notice_ids = normalize_notice_ids(selected_notice_ids)
@@ -347,6 +519,16 @@ def _build_report_payload(
         "materialized_record_count": int(validation_counts.get("service_status_records", 0)),
         "rejected_source_count": int(validation_counts.get("rejected_sources", 0)),
         "target_surface_counts": target_surface_counts,
+        "current_release_composition": bool(current_release_composition),
+        "composition_counts": {
+            **dict(composition_counts),
+            "input_projection_entries": len(tuple(input_projection_entries)),
+            "candidate_kind_filtered": max(
+                0,
+                len(tuple(_ready_service_status_projection_entries(input_projection_entries)))
+                - len(tuple(projection_entries)),
+            ),
+        },
     }
     if consumer_admission_gate_report is not None:
         payload["consumer_admission_gate"] = dict(consumer_admission_gate_report)

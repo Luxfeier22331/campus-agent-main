@@ -4,6 +4,7 @@ import importlib
 import io
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -25,6 +26,7 @@ from campus_ingestion_core.notice_consumption_projection import (
 from tests.ingestion.test_notice_derived_service_status_materialization import (
     _service_status_runtime,
 )
+from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
 worker = importlib.import_module("campus_ingestion_worker.build_service_status_projection")
 
@@ -133,6 +135,104 @@ class BuildServiceStatusProjectionWorkerTest(unittest.TestCase):
                 "campus_services/releases/service_status/current/service-status-projection.json",
             ),
             object_store.objects,
+        )
+
+    def test_current_release_composition_filters_to_current_service_status_kind(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtimes = (
+                _service_status_runtime(
+                    notice_id="355650",
+                    notice_title="关于静园10号楼负一层女浴室试运行的通知",
+                    release_time="2026-04-15 16:21",
+                    parent_markdown=(
+                        "# 关于静园10号楼负一层女浴室试运行的通知\n\n"
+                        "静园10号楼负一层女浴室将于本周四（4月16日）试运行。"
+                        "开放时间如下：每日 6:00-23:00。\n"
+                    ),
+                ),
+                _service_status_runtime(
+                    notice_id="354845",
+                    notice_title="关于丰台校区校医院增开皮肤科门诊的通知",
+                    release_time="2026-03-03 14:31",
+                    parent_markdown=(
+                        "# 关于丰台校区校医院增开皮肤科门诊的通知\n\n"
+                        "丰台校区校医院自2026年3月6日起正式增开皮肤科门诊。"
+                        "开诊时间：每周二下午、周五下午（14:00—17:00），节假日停诊。\n"
+                    ),
+                ),
+                _service_status_runtime(
+                    notice_id="354674",
+                    notice_title="关于信息门户升级维护的通知",
+                    release_time="2026-02-06 16:13",
+                    parent_markdown=(
+                        "# 关于信息门户升级维护的通知\n\n"
+                        "我处计划于2026年2月11日20:00—2月12日07:00"
+                        "对信息门户进行升级维护，期间系统将暂停访问。\n"
+                    ),
+                ),
+                _service_status_runtime(
+                    notice_id="353903",
+                    notice_title="关于更改通勤班车丰台校区乘车点的通知",
+                    release_time="2025-12-11 10:00",
+                    parent_markdown=(
+                        "# 关于更改通勤班车丰台校区乘车点的通知\n\n"
+                        "12月15日起，两校区通勤班车丰台校区的上车点、"
+                        "下车点更改为聚雅餐厅东侧停车场路口。\n"
+                    ),
+                ),
+            )
+            registry = InMemoryDocumentRegistry(
+                tuple(record for runtime in runtimes for record in runtime[0]._records.values())
+            )
+            object_store = runtimes[0][1]
+            for _, runtime_store, _ in runtimes[1:]:
+                object_store.objects.update(runtime_store.objects)
+            entries = (
+                *(
+                    _with_service_status_kind(runtime[2], "service_status")
+                    for runtime in runtimes[:3]
+                ),
+                _with_service_status_kind(runtimes[3][2], "transport_schedule"),
+            )
+
+            worker.build_service_status_projection_release_from_consumption_projection(
+                projection_entries=entries,
+                registry=registry,
+                work_dir=root / "work",
+                release_id="service-status-current-20260428T122000",
+                generated_at="2026-04-28T12:20:00+08:00",
+                object_store=object_store,
+                derived_bucket="campus-rag-derived",
+                structured_projection_publisher=_FakeStructuredProjectionPublisher(),
+                publish_mode="stage",
+                current_release_composition=True,
+            )
+
+            bundle = json.loads(
+                (
+                    root
+                    / "work"
+                    / "service-status-current-20260428T122000"
+                    / "service-status-projection.json"
+                ).read_text()
+            )
+            build_report = json.loads((root / "work" / "build-report.json").read_text())
+
+        self.assertEqual(
+            [record["subject_id"] for record in bundle["service_status_records"]],
+            ["facility:bathroom:jingyuan-10", "service-counter:campus-hospital"],
+        )
+        self.assertEqual(build_report["current_release_composition"], True)
+        self.assertEqual(build_report["composition_counts"]["candidate_kind_filtered"], 1)
+        self.assertEqual(build_report["composition_counts"]["window_filtered"], 1)
+        self.assertEqual(
+            [
+                source["reason"]
+                for source in bundle["service_status_rejected_sources"]
+                if source["source_notice_id"] == "354674"
+            ],
+            ["not_current_effective_at_generated_time"],
         )
 
     def test_worker_preview_records_rejected_sources_without_publishable_records(self) -> None:
@@ -351,3 +451,13 @@ def _write_consumer_manifest(
         created_at="2026-04-27T00:00:00+00:00",
     )
     write_internal_notice_consumer_admission_manifest(path, manifest)
+
+
+def _with_service_status_kind(entry, kind: str):
+    return replace(
+        entry,
+        role_metadata={
+            **entry.role_metadata,
+            "service_status_candidate_kind": kind,
+        },
+    )
