@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import json
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -18,6 +17,9 @@ from campus_ingestion_core.authenticated_notice_file_release_import import (
     AuthenticatedNoticeFileReleaseImportRequest,
     import_authenticated_notice_file_release_export,
 )
+from campus_ingestion_core.authenticated_notice_file_release_inventory import (
+    InMemoryAuthenticatedNoticeFileReleaseInventoryStore,
+)
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
@@ -25,10 +27,10 @@ from campus_ingestion_core.authenticated_notice_import import (
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.authenticated_notice_file_release_inventory import (
-    InMemoryAuthenticatedNoticeFileReleaseInventoryStore,
-)
 from campus_ingestion_core.internal_notice_read_model import InternalNoticeReadModelEntry
+from campus_ingestion_core.internal_notice_read_model_memory import (
+    InMemoryInternalNoticeReadModelStore,
+)
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
@@ -43,9 +45,6 @@ from campus_ingestion_core.notice_consumption_projection import (
 )
 from campus_ingestion_core.notice_consumption_projection_memory import (
     InMemoryNoticeConsumptionProjectionStore,
-)
-from campus_ingestion_core.internal_notice_read_model_memory import (
-    InMemoryInternalNoticeReadModelStore,
 )
 from campus_ingestion_core.settings import DEFAULT_BUCKET_SOURCE
 

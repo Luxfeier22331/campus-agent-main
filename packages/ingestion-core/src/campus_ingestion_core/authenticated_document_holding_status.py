@@ -12,11 +12,7 @@ from campus_ingestion_core.authenticated_common_download_import import (
 from campus_ingestion_core.authenticated_notice_file_release_import import (
     DEFAULT_FILE_RELEASE_SOURCE_COLLECTION,
 )
-from campus_ingestion_core.authenticated_notice_source_truth_shared import (
-    build_authenticated_notice_raw_asset_id,
-)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
-from campus_ingestion_core.object_store import is_source_object_key
 
 DEFAULT_CONTAMINATION_CORPUS = "campus_notices"
 DEFAULT_CONTAMINATION_COLLECTION = "internal_notice"
