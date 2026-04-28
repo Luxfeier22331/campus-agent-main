@@ -14,6 +14,110 @@ from .official_web_projection_chunking_audit_test_support import (
 )
 
 
+def _write_single_article_projection_fixture(
+    root: Path,
+    *,
+    title: str,
+    clean_text: str,
+    row_ids: list[str],
+    source_url: str = "https://lib.example.edu/notice.htm",
+    content_role: str = "primary_content",
+) -> Path:
+    projection_output_dir = root / "projection-output"
+    document_dir = (
+        projection_output_dir
+        / "documents"
+        / "official_web"
+        / "muc_public_pages"
+        / "article--fixture"
+    )
+    canonical_path = document_dir / "canonical.md"
+    units_path = document_dir / "document-units.jsonl"
+    canonical_path.parent.mkdir(parents=True, exist_ok=True)
+    canonical_path.write_text(
+        f"# {title}\n\n> Source URL: {source_url}\n\n{clean_text}\n",
+        encoding="utf-8",
+    )
+    document_id = "official_web:muc_public:article_detail:doc-fixture"
+    _write_jsonl(
+        units_path,
+        [
+            {
+                "doc_id": document_id,
+                "version_id": "owdocver:fixture",
+                "chunk_id": f"{document_id}:unit-0001",
+                "root_unit_id": f"{document_id}:root-0001",
+                "unit_type": "section_text",
+                "clean_text": clean_text,
+                "source_pdf": "official_web:muc_public",
+                "source_url": source_url,
+                "source_md": None,
+                "source": {"id": source_url},
+                "page_start": 1,
+                "page_end": 1,
+                "anchor": {
+                    "page_start": 1,
+                    "page_end": 1,
+                    "normalized_canonical_url": source_url,
+                    "page_family": "article_detail",
+                    "section_path": [title],
+                    "row_ids": row_ids,
+                },
+                "metadata": {
+                    "title": title,
+                    "site_id": "muc_public",
+                    "host": source_url.split("/")[2],
+                    "page_family": "article_detail",
+                    "projection_family": "content_document",
+                    "document_kind": "article",
+                    "declaration_id": "muc_public_article_detail_v1",
+                    "serving_intent": "promotable",
+                    "content_role": content_role,
+                },
+                "acl": {"level": "public", "allow_groups": []},
+                "table_cells": None,
+            },
+        ],
+    )
+    _write_json(
+        projection_output_dir / "projection-report.json",
+        {
+            "schema_version": "official_web_projection_replay_report.v1",
+            "site_id": "muc_public",
+            "crawl_run_id": "owrun_fixture",
+            "output_dir": str(root / "collector-output"),
+            "projection_output_dir": str(projection_output_dir),
+            "generated_at": "2026-04-28T08:00:00+00:00",
+            "counts": {
+                "pages_seen": 1,
+                "emitted_documents": 1,
+                "manual_review_pages": 0,
+            },
+            "documents": [
+                {
+                    "document_id": document_id,
+                    "version_id": "owdocver:fixture",
+                    "title": title,
+                    "declaration_id": "muc_public_article_detail_v1",
+                    "page_family": "article_detail",
+                    "projection_family": "content_document",
+                    "document_kind": "article",
+                    "target_corpus": "official_web",
+                    "target_collection": "muc_public_pages",
+                    "normalized_canonical_url": source_url,
+                    "raw_asset_id": "owasset_fixture",
+                    "raw_version_id": "owver_fixture",
+                    "unit_count": 1,
+                    "canonical_markdown_path": str(canonical_path),
+                    "document_units_path": str(units_path),
+                }
+            ],
+            "manual_review_pages": [],
+        },
+    )
+    return projection_output_dir
+
+
 class OfficialWebProjectionChunkingAuditArticleTest(unittest.TestCase):
     def test_audit_projection_output_flags_article_section_over_aggregation(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -224,6 +328,72 @@ class OfficialWebProjectionChunkingAuditArticleTest(unittest.TestCase):
                     ],
                     "manual_review_pages": [],
                 },
+            )
+
+            report = audit_official_web_projection_chunking(projection_output_dir)
+
+        self.assertTrue(report.passed)
+        self.assertNotIn("article_section_over_aggregation", report.issue_counts)
+        self.assertNotIn("article_section_over_aggregation", report.documents[0].issue_codes)
+
+    def test_audit_projection_output_allows_chinese_narrative_ellipsis(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_output_dir = _write_single_article_projection_fixture(
+                root,
+                title="深耕团结沃土 共育石榴花开",
+                clean_text=(
+                    "当一代代学子奔赴边疆田野，在考古探方中亲手触摸中华民族多元一体"
+                    "的文明印记……从北京到边疆，从课堂到田野，一场关于“铸牢”教育"
+                    "的系统探索，正在中央民族大学稳步开展。"
+                ),
+                row_ids=["p-1"],
+                source_url="https://xxgk.example.edu/info/1362/28671.htm",
+            )
+
+            report = audit_official_web_projection_chunking(projection_output_dir)
+
+        self.assertTrue(report.passed)
+        self.assertNotIn("ellipsis_truncation", report.issue_counts)
+        self.assertNotIn("ellipsis_truncation", report.documents[0].issue_codes)
+
+    def test_audit_projection_output_allows_bracketed_notice_fact_fragments(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_output_dir = _write_single_article_projection_fixture(
+                root,
+                title="活动预告",
+                clean_text="【活动时间】\n2026年5月8日上午\n【活动地点】",
+                row_ids=["row-1", "row-2", "row-3"],
+                source_url="https://lib.example.edu/activity.htm",
+            )
+
+            report = audit_official_web_projection_chunking(projection_output_dir)
+
+        self.assertTrue(report.passed)
+        self.assertNotIn("stacked_short_label_lines", report.issue_counts)
+        self.assertNotIn("stacked_short_label_lines", report.documents[0].issue_codes)
+
+    def test_audit_projection_output_allows_numbered_notice_instruction_units(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_output_dir = _write_single_article_projection_fixture(
+                root,
+                title="关于举办学生信息素养大赛的通知",
+                clean_text="\n".join(
+                    [
+                        "1.报名：登录大赛官网https://bjcsc.example.com/完成注册报名。",
+                        "https://bjcsc.example.com/",
+                        "https://xxsuyang.example.com/",
+                        "https://ai.xxsuyang.example.com/",
+                        "2.校内选拔赛：在指定时间内登录大赛官网进行个人在线答题。",
+                        "3.市级预赛：以3人团队形式参赛，包含个人对抗和团队对抗两个环节。",
+                    ]
+                ),
+                row_ids=["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"],
+                source_url="https://lib.example.edu/contest.htm",
             )
 
             report = audit_official_web_projection_chunking(projection_output_dir)

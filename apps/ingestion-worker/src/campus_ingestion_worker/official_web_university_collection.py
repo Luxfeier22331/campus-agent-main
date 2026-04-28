@@ -20,6 +20,20 @@ UNIVERSITY_COLLECTION_COMPARE_SCHEMA_VERSION = "official_web_university_collecti
 UNIVERSITY_COLLECTION_ALERT_SCHEMA_VERSION = "official_web_university_collection_alert_summary.v1"
 UNIVERSITY_LANE_PREFIX = "university-core-"
 UNIVERSITY_ALLOWED_HOST_GROUPS = frozenset({"university_core", "university_support"})
+UNIVERSITY_REQUIRED_PAGE_FAMILIES = frozenset(
+    {
+        "article_detail",
+        "listing_page",
+        "directory_page",
+        "sitemap_navigation_page",
+        "data_table_page",
+        "gallery_page",
+        "contact_widget_page",
+        "structural_shell_page",
+        "dynamic_shell_page",
+        "generic_content_page",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,9 +149,8 @@ def _resolve_lane_and_hosts(
     *,
     site_id: str,
     lane_id: str,
-    repo_root: Path,
     config_root: Path,
-) -> tuple[dict[str, Any], dict[str, dict[str, Any]], Path, Path, Path]:
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]], Path, Path, Path, dict[str, Any]]:
     site_root = config_root / site_id
     scheduler_policy_path = site_root / "scheduler-policy.json"
     hosts_path = site_root / "hosts.json"
@@ -146,7 +159,10 @@ def _resolve_lane_and_hosts(
         scheduler_policy_path, name=f"scheduler policy for site {site_id}"
     )
     hosts_doc = _read_required_json(hosts_path, name=f"host policy for site {site_id}")
-    _read_required_json(declarations_path, name=f"projection declarations for site {site_id}")
+    declarations_doc = _read_required_json(
+        declarations_path,
+        name=f"projection declarations for site {site_id}",
+    )
 
     lanes = scheduler_policy.get("lanes")
     if not isinstance(lanes, list):
@@ -173,7 +189,23 @@ def _resolve_lane_and_hosts(
         scheduler_policy_path,
         hosts_path,
         declarations_path,
+        declarations_doc,
     )
+
+
+def _declared_page_families(declarations_doc: Mapping[str, Any]) -> set[str]:
+    declarations = declarations_doc.get("declarations")
+    if not isinstance(declarations, list):
+        raise ValueError("projection-declarations.json declarations must be an array")
+    page_families: set[str] = set()
+    for item in declarations:
+        if not isinstance(item, dict):
+            raise ValueError("projection-declarations.json declarations[] must be objects")
+        page_family = _normalize_text(item.get("page_family"))
+        if not page_family:
+            raise ValueError("projection-declarations.json declarations[] missing page_family")
+        page_families.add(page_family)
+    return page_families
 
 
 def run_official_web_university_collection_preflight(
@@ -216,6 +248,7 @@ def run_official_web_university_collection_preflight(
 
     lane: dict[str, Any] | None = None
     hosts_by_name: dict[str, dict[str, Any]] = {}
+    declarations_doc: dict[str, Any] = {}
     scheduler_policy_path = resolved_config_root / site_id / "scheduler-policy.json"
     hosts_path = resolved_config_root / site_id / "hosts.json"
     declarations_path = resolved_config_root / site_id / "projection-declarations.json"
@@ -226,10 +259,10 @@ def run_official_web_university_collection_preflight(
             scheduler_policy_path,
             hosts_path,
             declarations_path,
+            declarations_doc,
         ) = _resolve_lane_and_hosts(
             site_id=site_id,
             lane_id=lane_id,
-            repo_root=resolved_repo_root,
             config_root=resolved_config_root,
         )
         checks.append(
@@ -314,6 +347,32 @@ def run_official_web_university_collection_preflight(
                 )
             else:
                 checks.append(_passed("lane_hosts_enabled", "all lane hosts are enabled"))
+
+    if declarations_doc:
+        try:
+            declared_page_families = _declared_page_families(declarations_doc)
+        except ValueError as exc:
+            checks.append(_failed("projection_declarations_complete", str(exc)))
+        else:
+            missing_page_families = sorted(
+                UNIVERSITY_REQUIRED_PAGE_FAMILIES - declared_page_families
+            )
+            if missing_page_families:
+                checks.append(
+                    _failed(
+                        "projection_declarations_complete",
+                        "missing projection declarations for page families: "
+                        + ", ".join(missing_page_families),
+                    )
+                )
+            else:
+                checks.append(
+                    _passed(
+                        "projection_declarations_complete",
+                        "projection declarations cover all required page families",
+                        details={"declared_page_family_count": len(declared_page_families)},
+                    )
+                )
 
     status = "failed" if any(check["status"] == "failed" for check in checks) else "passed"
     return {
@@ -492,10 +551,10 @@ def run_official_web_university_collection_lane(
         _scheduler_policy_path,
         _hosts_path,
         _declarations_path,
+        _declarations_doc,
     ) = _resolve_lane_and_hosts(
         site_id=site_id,
         lane_id=lane_id,
-        repo_root=resolved_repo_root,
         config_root=resolved_config_root,
     )
     lane_hosts = [

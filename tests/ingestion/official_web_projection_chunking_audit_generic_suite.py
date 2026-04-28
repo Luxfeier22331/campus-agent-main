@@ -12,6 +12,110 @@ from .official_web_projection_chunking_audit_test_support import (
 )
 
 
+def _write_single_generic_projection_fixture(
+    root: Path,
+    *,
+    title: str,
+    clean_text: str,
+    row_ids: list[str],
+    source_url: str = "https://www.example.edu/generic.htm",
+) -> Path:
+    projection_output_dir = root / "projection-output"
+    document_dir = (
+        projection_output_dir
+        / "documents"
+        / "official_web"
+        / "muc_public_pages"
+        / "generic--fixture"
+    )
+    canonical_path = document_dir / "canonical.md"
+    units_path = document_dir / "document-units.jsonl"
+    canonical_path.parent.mkdir(parents=True, exist_ok=True)
+    canonical_path.write_text(
+        f"# {title}\n\n> Source URL: {source_url}\n\n{clean_text}\n",
+        encoding="utf-8",
+    )
+    document_id = "official_web:muc_public:generic_content_page:doc-fixture"
+    _write_jsonl(
+        units_path,
+        [
+            {
+                "doc_id": document_id,
+                "version_id": "owdocver:generic-fixture",
+                "chunk_id": f"{document_id}:unit-0001",
+                "root_unit_id": f"{document_id}:root-0001",
+                "unit_type": "section_text",
+                "clean_text": clean_text,
+                "source_pdf": "official_web:muc_public",
+                "source_url": source_url,
+                "source_md": None,
+                "source": {"id": source_url},
+                "page_start": 1,
+                "page_end": 1,
+                "anchor": {
+                    "page_start": 1,
+                    "page_end": 1,
+                    "normalized_canonical_url": source_url,
+                    "page_family": "generic_content_page",
+                    "section_path": [],
+                    "row_ids": row_ids,
+                },
+                "metadata": {
+                    "title": title,
+                    "site_id": "muc_public",
+                    "host": source_url.split("/")[2],
+                    "page_family": "generic_content_page",
+                    "projection_family": "generic_content_document",
+                    "document_kind": "generic",
+                    "declaration_id": "muc_public_generic_content_page_v1",
+                    "serving_intent": "audit_only",
+                    "promotion_block_reason": "generic_content_page_audit_only",
+                    "content_role": "primary_content",
+                },
+                "acl": {"level": "public", "allow_groups": []},
+                "table_cells": None,
+            },
+        ],
+    )
+    _write_json(
+        projection_output_dir / "projection-report.json",
+        {
+            "schema_version": "official_web_projection_replay_report.v1",
+            "site_id": "muc_public",
+            "crawl_run_id": "owrun_generic_fixture",
+            "output_dir": str(root / "collector-output"),
+            "projection_output_dir": str(projection_output_dir),
+            "generated_at": "2026-04-28T08:00:00+00:00",
+            "counts": {
+                "pages_seen": 1,
+                "emitted_documents": 1,
+                "manual_review_pages": 0,
+            },
+            "documents": [
+                {
+                    "document_id": document_id,
+                    "version_id": "owdocver:generic-fixture",
+                    "title": title,
+                    "declaration_id": "muc_public_generic_content_page_v1",
+                    "page_family": "generic_content_page",
+                    "projection_family": "generic_content_document",
+                    "document_kind": "generic",
+                    "target_corpus": "official_web",
+                    "target_collection": "muc_public_pages",
+                    "normalized_canonical_url": source_url,
+                    "raw_asset_id": "owasset_generic_fixture",
+                    "raw_version_id": "owver_generic_fixture",
+                    "unit_count": 1,
+                    "canonical_markdown_path": str(canonical_path),
+                    "document_units_path": str(units_path),
+                }
+            ],
+            "manual_review_pages": [],
+        },
+    )
+    return projection_output_dir
+
+
 class OfficialWebProjectionChunkingAuditGenericTest(unittest.TestCase):
     def test_audit_allows_directory_name_rosters_but_flags_directory_navigation_label_stacks(
         self,
@@ -183,6 +287,23 @@ class OfficialWebProjectionChunkingAuditGenericTest(unittest.TestCase):
         )
         self.assertNotIn("stacked_short_label_lines", roster_report.issue_codes)
         self.assertIn("stacked_short_label_lines", navigation_report.issue_codes)
+
+    def test_audit_projection_output_allows_generic_labeled_roster_stack(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_output_dir = _write_single_generic_projection_fixture(
+                root,
+                title="组织机构",
+                clean_text="组织机构\n理事长：姚佳琳\n秘书长：白勇",
+                row_ids=["row-1", "row-2", "row-3"],
+                source_url="https://xiaoyou.example.edu/jjh/zzjg.htm",
+            )
+
+            report = audit_official_web_projection_chunking(projection_output_dir)
+
+        self.assertTrue(report.passed)
+        self.assertNotIn("stacked_short_label_lines", report.issue_counts)
+        self.assertNotIn("stacked_short_label_lines", report.documents[0].issue_codes)
 
     def test_audit_projection_output_surfaces_cleaning_and_chunking_warnings(self) -> None:
         with TemporaryDirectory() as temp_dir:

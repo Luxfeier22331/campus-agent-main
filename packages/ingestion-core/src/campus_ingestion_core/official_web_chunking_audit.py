@@ -35,6 +35,10 @@ _TERMINAL_BOILERPLATE_PREFIXES = (
 )
 _SOURCE_ATTRIBUTION_PATTERN = re.compile(r"^[（(]?\s*来源[:：]\s*[^（）()]+[)）]?$")
 _OFFICIAL_WEB_HEADER_LINE_PREFIXES = ("标题：", "章节：", "文号：")
+_BRACKETED_FACT_LABEL_PATTERN = re.compile(r"^【[^】\n]{1,16}】$")
+_LABELED_FACT_LINE_PATTERN = re.compile(r"^[^：:\n]{1,16}[:：]\s*\S.+$")
+_NUMBERED_NOTICE_LINE_PATTERN = re.compile(r"^\d+[.．、]\s*[^：:\n]{1,32}[:：]\s*\S.+$")
+_URL_ONLY_LINE_PATTERN = re.compile(r"^https?://\S+$", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -365,7 +369,16 @@ def _build_token_summary(token_counts: list[int]) -> dict[str, int | float]:
 
 def _contains_ellipsis_truncation(text: str) -> bool:
     normalized = text.strip()
-    return "..." in normalized or "…" in normalized
+    if "..." in normalized:
+        return True
+    for match in re.finditer(r"…+", normalized):
+        ellipsis = match.group(0)
+        suffix = normalized[match.end() :].strip()
+        if len(ellipsis) == 1:
+            return True
+        if not suffix:
+            return True
+    return False
 
 
 def _looks_like_stacked_short_label_lines(
@@ -393,12 +406,45 @@ def _looks_like_stacked_short_label_lines(
         section_path=section_path,
     ):
         return False
+    if _looks_like_meaningful_fact_label_stack(
+        lines,
+        title=title,
+        section_path=section_path,
+    ):
+        return False
     if page_family == "article_detail" and _has_substantive_article_line(lines):
         return False
     if _looks_like_source_link_or_signature_stack(lines):
         return False
     short_line_count = sum(1 for line in lines if len(line) <= _SHORT_LABEL_MAX_CHARS)
     return short_line_count >= 2
+
+
+def _looks_like_meaningful_fact_label_stack(
+    lines: list[str],
+    *,
+    title: str,
+    section_path: tuple[str, ...],
+) -> bool:
+    normalized_lines = [" ".join(line.split()).strip() for line in lines if line.strip()]
+    if len(normalized_lines) < 2:
+        return False
+    labels = {_normalize_text(title)}
+    labels.update(_normalize_text(item) for item in section_path)
+    labels.discard("")
+    content_lines = [
+        line for line in normalized_lines if _normalize_text(line) not in labels
+    ] or normalized_lines
+    labeled_fact_count = sum(
+        1 for line in content_lines if _LABELED_FACT_LINE_PATTERN.match(line) is not None
+    )
+    bracket_label_count = sum(
+        1 for line in content_lines if _BRACKETED_FACT_LABEL_PATTERN.match(line) is not None
+    )
+    value_count = len(content_lines) - labeled_fact_count - bracket_label_count
+    if labeled_fact_count >= 2 and labeled_fact_count == len(content_lines):
+        return True
+    return bracket_label_count >= 1 and value_count >= 1
 
 
 def _looks_like_directory_reference_stack(
@@ -544,7 +590,19 @@ def _looks_like_article_section_over_aggregation(
     content_lines = _trim_terminal_boilerplate_lines(lines)
     if len(content_lines) < _ARTICLE_SECTION_OVER_AGGREGATION_MIN_LINES:
         return False
+    if _looks_like_numbered_notice_instruction_unit(content_lines):
+        return False
     return len(row_ids) >= len(content_lines)
+
+
+def _looks_like_numbered_notice_instruction_unit(lines: list[str]) -> bool:
+    numbered_count = sum(
+        1 for line in lines if _NUMBERED_NOTICE_LINE_PATTERN.match(line) is not None
+    )
+    url_only_count = sum(1 for line in lines if _URL_ONLY_LINE_PATTERN.match(line) is not None)
+    if numbered_count < 2:
+        return False
+    return numbered_count + url_only_count >= len(lines) - 1
 
 
 def _trim_terminal_boilerplate_lines(lines: list[str]) -> list[str]:

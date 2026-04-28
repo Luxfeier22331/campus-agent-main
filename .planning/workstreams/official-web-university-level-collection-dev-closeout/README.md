@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 ---
@@ -16,14 +16,19 @@ retention / alert 规则和 import/promote handoff dry-run。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 0`
-- current slice: 新建 workstream，等待执行校级采集 dev closeout
-- active implementation: planning only
+- status: `completed`
+- current phase: `closed`
+- current slice: runner/preflight/retention/alert/import-dry-run、fresh baseline、
+  repeated-run compare 和 import/promote handoff dry-run 均已完成
+- active implementation: closed locally
 - upstream evidence:
   `.planning/workstreams/official-web-collection-restart-closeout/STATE.md`
-- latest accepted university-core fixed projection:
-  `apps/official-web-collector/.tmp/official-web-rollout/20260427T223542Z/university-core-projection-fixed`
+- latest accepted university-core fresh run:
+  `.tmp/official-web-university-level-collection-dev-closeout/reports/run-20260428T004900Z-university-core-baseline.json`
+- latest repeated-run comparison:
+  `.tmp/official-web-university-level-collection-dev-closeout/compare-20260428T004900Z-vs-004200Z.json`
+- latest import/promote handoff dry-run:
+  `.tmp/official-web-university-level-collection-dev-closeout/import-dry-run-20260428T004900Z/import-reports/official-web-import-dry-run-2026-04-28T005544.647913_plus_0000.json`
 
 ## Native Planning Truth
 

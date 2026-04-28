@@ -65,6 +65,10 @@ Current v1 declarations stay inside the existing quality-improvement scope:
 - `article_detail` -> emitted as article-like canonical documents
 - `listing_page` -> emitted as navigation/listing canonical documents
 - `directory_page` -> emitted as directory/contact canonical documents
+- `sitemap_navigation_page` -> retained as `manual_review`
+- `data_table_page` -> retained as `manual_review`
+- `gallery_page` -> retained as `manual_review`
+- `contact_widget_page` -> retained as `manual_review`
 - `generic_content_page` -> emitted as generic canonical documents
 - `dynamic_shell_page` / `structural_shell_page` -> retained as `manual_review`,
   not auto-emitted

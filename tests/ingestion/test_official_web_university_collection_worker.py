@@ -46,6 +46,29 @@ class OfficialWebUniversityCollectionWorkerTest(unittest.TestCase):
         checks = {check["name"]: check for check in report["checks"]}
         self.assertEqual(checks["lane_is_university_lane"]["status"], "failed")
 
+    def test_preflight_rejects_missing_projection_declarations(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_root = root / "config-root"
+            _write_site_config(
+                config_root=config_root,
+                lane_id="university-core-demo",
+                include_all_page_families=False,
+            )
+
+            report = worker.run_official_web_university_collection_preflight(
+                lane_id="university-core-demo",
+                site_id="muc_public",
+                config_root=config_root,
+                run_root=root / "runs",
+                report_dir=root / "reports",
+            )
+
+        self.assertEqual(report["status"], "failed")
+        checks = {check["name"]: check for check in report["checks"]}
+        self.assertEqual(checks["projection_declarations_complete"]["status"], "failed")
+        self.assertIn("data_table_page", checks["projection_declarations_complete"]["message"])
+
     def test_run_lane_executes_pipeline_and_import_dry_run(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -270,7 +293,12 @@ def _write_projection_report(path: Path, urls: list[str]) -> None:
     )
 
 
-def _write_site_config(*, config_root: Path, lane_id: str) -> None:
+def _write_site_config(
+    *,
+    config_root: Path,
+    lane_id: str,
+    include_all_page_families: bool = True,
+) -> None:
     site_root = config_root / "muc_public"
     site_root.mkdir(parents=True, exist_ok=True)
     (site_root / "scheduler-policy.json").write_text(
@@ -305,9 +333,116 @@ def _write_site_config(*, config_root: Path, lane_id: str) -> None:
         encoding="utf-8",
     )
     (site_root / "projection-declarations.json").write_text(
-        json.dumps({"schemaVersion": "official_web_projection_declarations.v1", "collections": []}),
+        json.dumps(
+            {
+                "schema_version": "official_web_projection_declarations.v1",
+                "site_id": "muc_public",
+                "projection_policy_version": "test_projection_policy_v1",
+                "declarations": _test_declarations(
+                    include_all_page_families=include_all_page_families
+                ),
+            }
+        ),
         encoding="utf-8",
     )
+
+
+def _test_declarations(*, include_all_page_families: bool = True) -> list[dict[str, str]]:
+    declarations = [
+        {
+            "declaration_id": "test_article_detail_v1",
+            "page_family": "article_detail",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "content_document",
+            "document_kind": "article",
+            "action": "emit_document",
+        },
+        {
+            "declaration_id": "test_listing_page_v1",
+            "page_family": "listing_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "navigation_document",
+            "document_kind": "listing",
+            "action": "emit_document",
+        },
+        {
+            "declaration_id": "test_directory_page_v1",
+            "page_family": "directory_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "directory_document",
+            "document_kind": "directory",
+            "action": "emit_document",
+        },
+        {
+            "declaration_id": "test_sitemap_navigation_review_v1",
+            "page_family": "sitemap_navigation_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "sitemap_review",
+            "document_kind": "listing",
+            "action": "manual_review",
+        },
+        {
+            "declaration_id": "test_data_table_review_v1",
+            "page_family": "data_table_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "table_review",
+            "document_kind": "generic",
+            "action": "manual_review",
+        },
+        {
+            "declaration_id": "test_gallery_review_v1",
+            "page_family": "gallery_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "gallery_review",
+            "document_kind": "generic",
+            "action": "manual_review",
+        },
+        {
+            "declaration_id": "test_contact_widget_review_v1",
+            "page_family": "contact_widget_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "contact_review",
+            "document_kind": "directory",
+            "action": "manual_review",
+        },
+        {
+            "declaration_id": "test_generic_content_page_v1",
+            "page_family": "generic_content_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "generic_content_document",
+            "document_kind": "generic",
+            "action": "emit_document",
+        },
+        {
+            "declaration_id": "test_dynamic_shell_review_v1",
+            "page_family": "dynamic_shell_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "shell_review",
+            "document_kind": "shell",
+            "action": "manual_review",
+        },
+        {
+            "declaration_id": "test_structural_shell_review_v1",
+            "page_family": "structural_shell_page",
+            "target_corpus": "official_web",
+            "target_collection": "muc_public_pages",
+            "projection_family": "shell_review",
+            "document_kind": "shell",
+            "action": "manual_review",
+        },
+    ]
+    if include_all_page_families:
+        return declarations
+    return [item for item in declarations if item["page_family"] != "data_table_page"]
 
 
 if __name__ == "__main__":

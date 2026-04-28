@@ -122,6 +122,8 @@ def _resolve_document_serving_intent(
 ) -> str:
     if page_family == "listing_page" or document_kind == "listing":
         return "audit_only"
+    if page_family == "generic_content_page" or document_kind == "generic":
+        return "audit_only"
     if _looks_like_low_value_public_notice_page(
         page_family=page_family,
         document_kind=document_kind,
@@ -141,6 +143,8 @@ def _resolve_document_promotion_block_reason(
 ) -> str | None:
     if page_family == "listing_page" or document_kind == "listing":
         return "listing_page_audit_only"
+    if page_family == "generic_content_page" or document_kind == "generic":
+        return "generic_content_page_audit_only"
     if _looks_like_low_value_public_notice_page(
         page_family=page_family,
         document_kind=document_kind,
