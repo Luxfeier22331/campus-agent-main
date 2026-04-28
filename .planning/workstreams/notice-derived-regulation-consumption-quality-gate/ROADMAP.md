@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 ---
@@ -42,12 +42,12 @@ admission/cleanup
 - [x] **Phase 5: Full-Text Recovery Lane** — 为缺失完整制度正文的 notice 建立恢复口径：
   file_release / attachment / official-web / existing regulation registry owner lookup，不用
   LLM 编造正文。
-- [ ] **Phase 6: Acceptance Freeze And Closeout** — 冻结 selected cohort evidence、
+- [x] **Phase 6: Acceptance Freeze And Closeout** — 冻结 selected cohort evidence、
   negative fixtures、PG/bucket audit、dry-run/import/runbook，并定义 reopening rule。
 
 ## Stop Point
 
-Phase 6 的 stop point 是：
+Phase 6 的 stop point 已达到：
 
 - regulation notice consumption quality gate 已可重复验证；
 - selected accepted documents 可以安全进入 document site / RAG offline preparation；
@@ -61,4 +61,5 @@ Phase 6 的 stop point 是：
 - 新 regulation-like notice family 被 admission 到 target consumption；
 - ADR-0035 或 regulation/scoped-rule target boundary 被改写；
 - 文档站/RAG 准备从 offline_preparation 提升到真实用户入口；
-- PG/bucket/reference audit 发现 partial notice 再次进入 `regulations/*`。
+- PG/bucket/reference audit 发现 partial notice 再次进入 `regulations/*`；
+- owner-recovery 接受新的完整 owner source，需要 formal import evidence。

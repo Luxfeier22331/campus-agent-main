@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: pending
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 ---
@@ -25,3 +25,7 @@ Freeze the selected cohort, evidence artifacts, regression commands, and reopen 
 - Workstream can be resumed from frozen artifacts.
 - No partial regulation notice is present in target registry/docs/bucket refs.
 - Reopen rule is explicit and bounded.
+
+## Closeout Result
+
+See `SUMMARY.md`.

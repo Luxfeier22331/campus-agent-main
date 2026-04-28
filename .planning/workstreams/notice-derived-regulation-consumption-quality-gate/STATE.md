@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 workstream: notice-derived-regulation-consumption-quality-gate
@@ -11,18 +11,17 @@ workstream: notice-derived-regulation-consumption-quality-gate
 
 ## Current Position
 
-- status: `active`
-- current phase: `Phase 5`
-- current phase name: `Full-Text Recovery Lane`
+- status: `completed`
+- current phase: `Phase 6 completed`
+- current phase name: `Acceptance Freeze And Closeout`
 - current plan:
-  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-05-full-text-recovery-lane/PLAN.md`
+  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-06-acceptance-freeze-and-closeout/PLAN.md`
 - total phases: `7`
-- progress: `5/7 phases complete`
+- progress: `7/7 phases complete`
 - last activity: `2026-04-28`
-- last activity description: Phase 4 docs/RAG consumption contract completed; docs reader,
-  app-api docs read-model import, notice read-model, and regulation chunk-prep now preserve the
-  boundary that source notices remain notice-level card/query material unless materialized into
-  target canonical `regulations/*` records.
+- last activity description: Phase 6 acceptance freeze completed; selected cohort evidence,
+  negative `187233` fixture, PG/bucket cleanup references, runbook guardrails, regression
+  command set, and bounded reopen rule are frozen.
 
 ## Phase 0 Evidence
 
@@ -105,15 +104,67 @@ workstream: notice-derived-regulation-consumption-quality-gate
 - Verification:
   - `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_read_model tests.ingestion.test_internal_notice_institutional_regulation_chunk_prep tests.ingestion.test_internal_notice_scoped_rule_chunk_prep -v`
   - result: `19 tests OK`
-  - `pnpm --filter app-api test:node -- docs.read-model-manifest.test.ts`
-  - result: `57 files / 324 tests passed`
+  - `pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/docs.read-model-manifest.test.ts`
+  - result: `1 file / 2 tests passed`
+
+## Phase 5 Evidence
+
+- Added `internal_notice_regulation_owner_recovery` report builder.
+- Fixed owner lookup order:
+  captured attachment -> authenticated file-release -> official-web source -> existing
+  `regulations/*` registry.
+- Ready rows preserve selected source evidence: source kind, document id, source URI, scope,
+  match evidence, and attempted source list.
+- Unresolved rows fail closed with `owner_recovery_source_not_found`,
+  `source_backed_candidate=false`, `import_eligible=false`, and
+  `notice_card_preserved=true`.
+- Added worker entry:
+  `campus_ingestion_worker.build_internal_notice_regulation_owner_recovery`.
+- Runbook now requires owner-recovery before target materialization for held missing-owner cases.
+- Verification:
+  - `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_owner_recovery tests.ingestion.test_build_internal_notice_regulation_owner_recovery_worker -v`
+  - result: `5 tests OK`
+
+## Phase 6 Evidence
+
+- Frozen selected cohort artifact:
+  `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-02-selected-cohort-audit/evidence/selected-cohort-audit-20260428.json`
+- Frozen selected cohort result:
+  - requested notice ids: `16`
+  - selected projection rows: `1`
+  - selected import notice ids: `[]`
+  - held notice ids: `["187233"]`
+  - missing projection notice ids: `15`
+- Frozen negative fixture:
+  - `187233`
+  - title: `关于修订《中央民族大学采购工作管理办法》的通知`
+  - stable reason: `parent_notice_body_not_full_regulation_text`
+  - target recommendation: `notice_card_only`
+- Frozen cleanup evidence from Phase 0 remains the accepted PG/bucket audit reference for this
+  closeout:
+  - `regulations/institutional_rules` registry refs: `0`
+  - docs document refs: `0`
+  - docs reader asset refs: `0`
+  - docs search unit refs: `0`
+  - matching target bucket refs: `0`
+- Frozen dry-run evidence:
+  `.tmp/historical-intake/run14-policy-regulation-expanded/document-site-dry-run-187233-rejected-20260428/dry-run-report.json`
+- Frozen dry-run verdict:
+  - `materialized_document_count=0`
+  - `reader_document_count=0`
+  - `ready_projection_entry_count=0`
+  - `query_serving_opened=false`
+  - `rag_release_opened=false`
+- No formal regulation import is open for the current selected cohort, because the frozen
+  selected cohort contains no import-eligible notice ids.
+- Real public/docs/RAG entrance validation is intentionally handed off; this workstream only
+  freezes offline-preparation quality gate acceptance.
 
 ## Current Slice
 
-Phase 5 must define the full-text recovery lane for regulation-like notices that name a regulation
-but do not contain the complete owner body. Recovery may use captured attachments,
-authenticated file-release documents, official-web source, or existing regulation registry truth;
-unresolved cases remain notice-level title/url/card rows.
+Closed. The quality gate can be resumed from the frozen artifacts above. Product-path opening,
+real public-chat/docs entry E2E, or future accepted regulation imports must use a new or reopened
+workstream under the reopen rule.
 
 ## Boundaries To Preserve
 
@@ -125,7 +176,7 @@ unresolved cases remain notice-level title/url/card rows.
 
 ## Blockers
 
-- None for Phase 5 planning.
+- None.
 
 ## Verification Status
 
@@ -136,10 +187,20 @@ unresolved cases remain notice-level title/url/card rows.
 - Phase 2 selected cohort audit tests and real PG-backed audit passed locally on 2026-04-28.
 - Phase 3 target materialization regression tests passed locally on 2026-04-28.
 - Phase 4 docs/RAG consumption contract tests passed locally on 2026-04-28.
+- Phase 5 owner-recovery tests passed locally on 2026-04-28.
+- Phase 6 closeout verification passed locally on 2026-04-28:
+  - owner-recovery `ruff check`: `All checks passed!`
+  - owner-recovery `ruff format --check`: `4 files already formatted`
+  - targeted ingestion unittest set: `30 tests OK`
+  - app-api docs read-model manifest test: `1 file / 2 tests passed`
+  - `pnpm docs:lint`: `Summary: 0 error(s)`
+  - `git diff --check`: passed
 
 ## Resume Instructions
 
-Start with Phase 5:
+This workstream is completed. Reopen only under the bounded reopen rule in `ROADMAP.md`.
+
+If reopened, start with:
 
 ```bash
 uv run --all-packages python -m scripts.workstream_harness codex shell \
@@ -150,5 +211,5 @@ Then read:
 
 ```bash
 sed -n '1,260p' \
-  .planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-05-full-text-recovery-lane/PLAN.md
+  .planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-06-acceptance-freeze-and-closeout/PLAN.md
 ```

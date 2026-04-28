@@ -35,10 +35,11 @@ uv run --all-packages python -m unittest \
 Result: `19 tests OK`.
 
 ```bash
-pnpm --filter app-api test:node -- docs.read-model-manifest.test.ts
+pnpm --filter app-api exec vitest run -c vitest.node.config.mts \
+  test/docs.read-model-manifest.test.ts
 ```
 
-Result: `57 files / 324 tests passed`.
+Result: `1 file / 2 tests passed`.
 
 ## Boundaries Preserved
 

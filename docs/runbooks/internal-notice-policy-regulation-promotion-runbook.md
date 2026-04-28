@@ -297,3 +297,21 @@ manifest build 与 target materialization 完成后，下一步固定进入：
   `
 
 不要在本文内继续扩成 chunk preparation、embedding 或 release。
+
+## Quality Gate Closeout Reference
+
+当前 regulation notice promotion quality gate 的 closeout truth 固定在：
+
+- `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/README.md`
+- `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/STATE.md`
+- `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/phases/phase-06-acceptance-freeze-and-closeout/SUMMARY.md`
+
+固定 acceptance 口径：
+
+- selected cohort evidence 以 Phase 2 artifact 为准；
+- `187233` 是 amendment-summary-only negative fixture；
+- 当前 selected cohort 没有 import-eligible notice id；
+- Phase 0 PG/bucket cleanup evidence 是本轮 closeout 的 target-reference audit；
+- 后续若 owner-recovery 找到 source-backed complete owner document，必须先走同一
+  selection 的 dry-run，再走 formal selected import；
+- query-serving、RAG release、public/docs product entrypoint 不在本 runbook 内打开。
