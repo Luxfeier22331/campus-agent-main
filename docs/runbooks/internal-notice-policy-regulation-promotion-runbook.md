@@ -38,8 +38,8 @@ updated: 2026-04-28
   - `annual_cycle_rule` / `time_bound_operational_rule` ->
     `regulations/scoped_rules`
 - target posture 固定为 `offline_preparation`
-- 本 runbook 覆盖 manifest build、selected dry-run、target materialization 与
-  document reader asset dry-run
+- 本 runbook 覆盖 manifest build、selected dry-run、dry-run 后正式 selected
+  import、target materialization 与 document reader asset publish
 - 不覆盖 embedding、Qdrant、release、alias publish
 
 ## Step 1: Build Promotion Manifest
@@ -159,7 +159,60 @@ operator 规则：
 - 输出 document reader assets 只作为 dry-run artifact，不表示 public docs deploy、
   RAG release 或 query-serving 已开放
 
-## Step 5: Repo-Local Materialization Snapshot Mode
+## Step 5: Formal Selected Import After Dry-Run
+
+dry-run 通过后，使用 formal selected import 入口把同一批 selected notice 写入
+source-truth PG/object store、consumption projection、regulation target scope 和
+document-reader asset manifest：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.publish_internal_notice_regulation_document_site \
+  --bundle-path /tmp/notices-bundle.selected.json \
+  --manifest-path /tmp/export-manifest.selected.json \
+  --dry-run-report-path \
+    /tmp/internal-notice-regulation-document-site-dry-run/dry-run-report.json \
+  --output-dir /tmp/internal-notice-regulation-document-site-import \
+  --site-id muc_internal_portal \
+  --source-home-url https://portal.example.edu/home \
+  --notice-id <notice_id>
+```
+
+固定要求：
+
+- 必须先有同一 selection 的 `dry-run-report.json`
+- `dry-run-report.json` 必须证明：
+  - `query_serving_opened=false`
+  - `rag_release_opened=false`
+  - `ready_projection_entry_count > 0`
+  - `materialized_document_count > 0`
+  - `reader_document_count > 0`
+- formal import 永远是 `upsert_selected`
+- formal import 会从输入 bundle 中过滤 selected notices，写出
+  `selected-notices-bundle.json` 和 `selected-export-manifest.json`
+- selected materialization 不得 refresh 整个 target scope；已有
+  `regulations/institutional_rules` / `regulations/scoped_rules` records 必须保留
+- document reader manifest 必须包含 target scope 当前所有 active/current records，
+  不能只包含 selected notice，否则 app-api docs read model 的 scope replace 会删掉既有文档
+
+如果要把 reader manifest 正式导入 app-api docs PG：
+
+```bash
+manifest=/tmp/internal-notice-regulation-document-site-import/docs-read-model-manifest.json
+DOCS_READ_MODEL_MANIFEST_PATH="$manifest" \
+pnpm --dir apps/app-api docs:import-read-model
+```
+
+或在 worker 中显式追加：
+
+```bash
+--import-docs-read-model
+```
+
+这一步只开放 document storage / document reader control plane，不开放
+RAG release 或 regulation query-serving collection。
+
+## Step 6: Repo-Local Materialization Snapshot Mode
 
 如果只需要脱离 env backend 验证某个 target materializer，可用隔离 snapshot 运行
 对应 materializer：
@@ -192,7 +245,7 @@ uv run --package campus-ingestion-worker python -m \
 
 必须三者同时提供。
 
-## Step 6: Hand Off To Target-Side Quality Acceptance
+## Step 7: Hand Off To Target-Side Quality Acceptance
 
 manifest build 与 target materialization 完成后，下一步固定进入：
 
