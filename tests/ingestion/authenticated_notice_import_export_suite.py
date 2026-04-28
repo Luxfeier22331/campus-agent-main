@@ -638,6 +638,62 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
             (),
         )
 
+    def test_import_authenticated_notice_export_can_materialize_common_download_holding_scope(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    corpus="authenticated_documents",
+                    collection="common_download_source",
+                    mode="admit_and_materialize",
+                    source_truth_only=True,
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        self.assertNotIn("consumption_projection_entry_count", report)
+        self.assertNotIn("internal_notice_read_model_entry_count", report)
+        entries = inventory_store.list_by_scope("authenticated_documents", "common_download_source")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].notice_id, "355119")
+        records = document_registry.list_by_scope(
+            "authenticated_documents", "common_download_source"
+        )
+        self.assertEqual(
+            [record.document_id for record in records if record.document_id.startswith("notice:")],
+            ["notice:muc_internal_portal:355119"],
+        )
+
     def test_import_authenticated_notice_export_can_rebuild_read_model_for_imported_notices(
         self,
     ) -> None:
