@@ -8,6 +8,52 @@ import {
 } from "../src/modules/docs/read-model-manifest";
 
 describe("docs read model manifest", () => {
+	it("rejects unsupported internal notice source scope", () => {
+		expect(() =>
+			buildDocsReadModelImportPlan({
+				collections: [
+					{
+						collection: "internal_notice",
+						corpus: "campus_notices",
+						description: "Source notices are not document-reader targets.",
+						displayName: "内部通知",
+						updatedAt: "2026-04-27T08:00:00.000Z",
+					},
+				],
+				documentVersions: [
+					{
+						deliveryMode: "gated_asset",
+						docId: "notice:muc_internal_portal:187233",
+						entitlementGroups: ["campus_members"],
+						isCurrent: true,
+						label: "现行版",
+						updatedAt: "2026-04-27T08:00:00.000Z",
+						versionId: "sha256:187233",
+						versionSlug: "2021-current",
+						visibilityLevel: "restricted",
+					},
+				],
+				documents: [
+					{
+						canonicalUrl: "/docs/campus_notices/internal_notice/187233",
+						collection: "internal_notice",
+						corpus: "campus_notices",
+						currentVersionId: "sha256:187233",
+						currentVersionSlug: "2021-current",
+						docId: "notice:muc_internal_portal:187233",
+						documentSlug: "187233",
+						title: "关于修订《中央民族大学采购工作管理办法》的通知",
+						updatedAt: "2026-04-27T08:00:00.000Z",
+					},
+				],
+				generatedAt: "2026-04-27T08:00:00.000Z",
+				readerAssets: [],
+				schemaVersion: "document_reader_publish_manifest_v1",
+				searchUnits: [],
+			}),
+		).toThrow("unsupported docs read model scope: campus_notices/internal_notice");
+	});
+
 	it("builds a deterministic import plan and exports only public static assets", () => {
 		const plan = buildDocsReadModelImportPlan({
 			collections: [

@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-04-22
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Workstream: Notice Consumption Layer
@@ -141,12 +141,19 @@ materializer，并补齐 stable-contact candidate 的最小离线构建路径。
     新增 `build_notice_stable_contact_candidates` worker CLI 和
     `notice_derived_contact_candidate.py`，用于输出 stable-contact candidate 离线
     artifact，不直接晋升到 contact directory current release。
+  - 2026-04-28 schedule notice consumption：新增
+    `SCHEDULE-NOTICE-CONSUMPTION-LEDGER-2026-04-28.md` 作为第一批 39 条
+    schedule notice 的逐条消费 ledger。`transport_schedule` selected write
+    默认收口为单 notice stage；all-ready / multi-notice stage 或 promote 必须显式
+    `--allow-multi-notice-release`。
 
 ## Native Planning Truth
 
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
+- schedule consumption ledger:
+  `./SCHEDULE-NOTICE-CONSUMPTION-LEDGER-2026-04-28.md`
 
 ## Archived Snapshot
 

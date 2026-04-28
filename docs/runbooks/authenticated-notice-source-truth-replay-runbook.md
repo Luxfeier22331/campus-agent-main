@@ -123,12 +123,31 @@ bounded pilot 至少确认：
 - run `state = verified`
 - `selected_notice_ids` 与 scoped inventory 一致
 - staged rows 只覆盖 selected notices
-- `ocr_required` / `manual_review_required` / `reference_only` outcome 全部明确
+- `ocr_required` / `pending_multimodal_processing` / `reference_only` /
+  `unsupported` / `no_adoption` outcome 全部明确
+- 新增 consumption projection、read model 或 admission artifact 不得出现旧人工复核 /
+  延后复核标记
 - sample attachment artifacts 可回审：
   - `provider-response.jsonl`
   - `layout-elements.jsonl`
   - `canonical.md`
   - `document-units.jsonl`
+
+消费层 selected audit 还应运行 end-to-end pipeline quality suite：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.check_internal_notice_pipeline_quality \
+  --selection-path <selected-notices.json>
+```
+
+该 suite 必须在继续 target materialization / docs import 前确认：
+
+- selected source-truth inventory 存在
+- projection rows 携带 consumer admission provenance
+- queryable notice read-model rows 具备 title/source_url
+- `regulations/*` ready rows 具备 promotion quality evidence
+- current artifacts 不含旧人工复核 / 延后复核标记
 
 ## Step 5: Stop Point Before Release
 

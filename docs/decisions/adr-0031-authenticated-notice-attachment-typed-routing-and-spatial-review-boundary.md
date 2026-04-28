@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0031
 status: accepted
 created: 2026-04-08
-updated: 2026-04-20
+updated: 2026-04-28
 ---
 # ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
 
@@ -42,8 +42,8 @@ Accepted on 2026-04-08.
 - 把 notice 级标签误当成 attachment 执行路由
 - 把空间图伪装成 OCR candidate
 - 把 attachment 噪声反向传播为 parent notice 的全局 chunk 策略
-- 在 `manual_review_required`、`unsupported_binary`、`no_extractable_text` 上做静默
-  fallback
+- 在 `pending_multimodal_processing`、`unsupported_binary`、`no_extractable_text`、
+  `no_adoption` 上做静默 fallback
 
 ## 决策
 
@@ -78,24 +78,25 @@ Accepted on 2026-04-08.
   documents
 - attachment 的噪声、失败和例外，不得反向驱动 parent notice body 的全局策略
 
-### 决策 3：attachment typed routing 固定采用五类终态
+### 决策 3：attachment typed routing 固定采用机器可处置终态
 
 长期上，authenticated notice attachment 固定只允许以下 typed routing 结果：
 
 - `reference_only`
 - `text_extractable`
 - `ocr_required`
-- `manual_review_required`
+- `pending_multimodal_processing`
+- `no_adoption`
 - `unsupported_binary`
 
 补充要求：
 
 - `ocr_required` lane 内部仍允许产生 `materialized_document` 或 `no_extractable_text`
-- `manual_review_required`、`reference_only`、`no_extractable_text` 都属于显式 terminal
-  outcome
+- `pending_multimodal_processing` 表示机器可继续处理，不表示人工队列
+- `reference_only`、`no_extractable_text`、`no_adoption` 都属于显式 terminal outcome
 - 不允许把 terminal outcome 伪装成“成功进入可检索 child document”
 
-### 决策 4：空间关系主导图片固定进入 `manual_review_required`
+### 决策 4：空间关系主导图片不得进入 generic OCR
 
 长期上，以下 attachment 类型不进入当前 generic OCR lane：
 
@@ -104,16 +105,17 @@ Accepted on 2026-04-08.
 - 楼宇分区图
 - 其他主要价值在空间关系而不是线性正文的 visual asset
 
-这类 attachment 固定进入：
+这类 attachment 固定进入机器 owned lane：
 
-- `manual_review_required`
+- 高价值、可机器理解的空间/视觉缺口进入 `pending_multimodal_processing`
+- 低价值或当前不采纳的视觉资产进入显式 skip / `no_adoption`
 
 直接含义：
 
 - 它们不是 `reference_only decorative asset`
 - 它们仍然是 notice 的信息组成部分
-- 当前 canonical 形态固定为“保留 relation truth + 显式 manual outcome + `review_reason`”
-- 如后续需要自动处理这类内容，应新增独立 `spatial/manual` lane，而不是回退到 generic OCR
+- 当前 canonical 形态固定为“保留 relation truth + 显式机器处理 policy + reason code”
+- 如后续需要更强空间理解，应新增独立 spatial/multimodal lane，而不是回退到 generic OCR
 
 ### 决策 5：OCR lane 只覆盖文本与表格主导的图片
 
@@ -165,7 +167,7 @@ Accepted on 2026-04-08.
 
 长期上，authenticated notice attachment routing 固定禁止：
 
-- 把 `manual_review_required` 偷偷继续送入 OCR
+- 把 non-text visual recovery / no-adoption outcome 偷偷继续送入 OCR
 - 把 `unsupported_binary` 伪装成 `reference_only`
 - 把 `no_extractable_text` 伪装成成功 materialized child document
 - 因个别 attachment 脏表格、导览图或 OCR 噪声，全局缩小 parent notice body 的 chunk 策略

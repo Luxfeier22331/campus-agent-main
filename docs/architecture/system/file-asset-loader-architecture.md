@@ -227,7 +227,8 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 当前 repo 级 terminal outcome family 继续允许包括：
 
 - `reference_only`
-- `manual_review_required`
+- `pending_machine_processing`
+- `no_adoption`
 - `no_extractable_text`
 - `unsupported_binary`
 

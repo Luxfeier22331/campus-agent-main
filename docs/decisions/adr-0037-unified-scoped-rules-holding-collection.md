@@ -19,7 +19,8 @@ policy 风险讲清楚了，但它也暴露出一个当前更实际的问题：
 - repo 现在的目标是尽快把这批已完成 source-side adjudication 的规章制度类文本导入下游 semantic-owner
   collection
 - 当前还没有足够的数据覆盖、产品入口和文档完备度，去立即定义 `current / historical / as_of / compare`
-- 如果继续把未来 query semantics 当作 import gate，这批文本会继续停在 `manual_review_required`
+- 如果继续把未来 query semantics 当作 import gate，这批文本会继续停在不明确的
+  pending/held 状态
 
 同时，本轮仍保持不变的前提有两条：
 
@@ -49,7 +50,8 @@ repo 新增统一 target collection：
 它不承接：
 
 - wrapper notice
-- `reference_only` / `manual_review_required` attachment outcome 占位物
+- `reference_only` / `pending_multimodal_processing` / `no_adoption` attachment
+  outcome 占位物
 - 稳定 institution-wide regulation 正文
 
 ### 决策 2：`regulations/scoped_rules` 是 holding collection，不是 query-serving surface

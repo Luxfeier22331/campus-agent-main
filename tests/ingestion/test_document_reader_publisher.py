@@ -136,6 +136,31 @@ class DocumentReaderPublisherTest(unittest.TestCase):
                 records=(missing_units_record,),
             )
 
+    def test_publish_document_reader_assets_rejects_internal_notice_records(self) -> None:
+        record = _make_internal_notice_record()
+        object_store = FakeObjectStore(
+            {
+                ("campus-rag-derived", record.canonical_markdown_object_key or ""): (
+                    "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
+                    "主要修订内容如下。\n"
+                ).encode(),
+                ("campus-rag-derived", record.document_units_object_key or ""): (
+                    _document_units_jsonl(record, "关于修订《中央民族大学采购工作管理办法》的通知")
+                ).encode(),
+            }
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "unsupported document reader scope: campus_notices/internal_notice",
+        ):
+            publish_document_reader_assets(
+                bucket_derived="campus-rag-derived",
+                generated_at="2026-04-27T08:00:00+00:00",
+                object_store=object_store,
+                records=(record,),
+            )
+
     def test_publish_document_reader_assets_skips_invalid_course_map_surface(self) -> None:
         record = _make_record(
             document_id="curriculum:invalid-course-map-surface",
@@ -207,6 +232,35 @@ def _make_record(
             "current-effective/2026/canonical.md"
         ),
         import_source="raw_online_ocr",
+    )
+
+
+def _make_internal_notice_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="notice:muc_internal_portal:187233",
+        revision_track="source-faithful",
+        version_id="sha256:187233:source-faithful",
+        source_uri="https://portal.example.edu/notices/187233",
+        content_hash="sha256:notice-187233",
+        corpus="campus_notices",
+        collection="internal_notice",
+        entitlement_groups=("campus_members",),
+        visibility_level="restricted",
+        visibility_scope="campus",
+        status="active",
+        ingestion_timestamp="2026-04-27T08:00:00+00:00",
+        parser_version="authenticated_notice_source_projection_v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="authenticated_notice_portal",
+        is_current=True,
+        published_date="2021-02-28",
+        document_units_object_key=(
+            "campus_notices/documents/internal_notice/187233/document-units.jsonl"
+        ),
+        canonical_markdown_object_key=(
+            "campus_notices/documents/internal_notice/187233/canonical.md"
+        ),
+        import_source="authenticated_notice_source_projection",
     )
 
 

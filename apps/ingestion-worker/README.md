@@ -929,6 +929,39 @@ Behavior:
 - Writes an export manifest with `filters.selected_notice_ids`.
 - Fails if any requested notice id is absent from the source bundle.
 
+### `campus-ingestion-admit-schedule-image-ocr-results`
+
+Admits reviewed schedule-image OCR dry-run results into source/derived
+artifacts for selected notices.
+
+Required CLI args:
+
+- `--ocr-output-dir`
+- `--notice-id` (repeatable; selected notices only)
+- `--consumer-admission-manifest-path`
+- `--run-id`
+- `--generated-at`
+
+Optional CLI args:
+
+- `--mode`:
+  - `plan`: evaluates admission and prints the document ids that would be
+    materialized; no object-store, registry, or attempt-store writes.
+  - `admit-and-materialize`: writes source OCR artifacts, derived child
+    document artifacts, document-registry records, and OCR attempt records.
+- `--source-bucket`
+- `--derived-bucket`
+
+Behavior:
+
+- Requires the consumer admission manifest gate for typed materialization.
+- Only processes explicitly selected notice ids from the OCR dry-run output.
+- Materializes admitted schedule-table OCR outputs as
+  `notice_attachment:...:schedule-ocr` child documents.
+- Does not build or promote a `transport_schedule` release; run
+  `campus-ingestion-build-transport-schedule-projection` separately in
+  `preview` or `stage` mode after admission.
+
 ### `campus-ingestion-build-transport-schedule-projection`
 
 Builds and publishes the `campus_services/transport_schedule` projection.
@@ -958,6 +991,9 @@ Optional CLI args:
   - `stage`: writes versioned artifacts and PG release/read-model rows, but does
     not write current artifacts or update `structured_projection_current`.
   - `promote`: writes versioned/current artifacts and updates PG current pointer.
+- `--allow-multi-notice-release`: allows `stage` / `promote` from more than one
+  notice id or from `--all-ready-transport-candidates`. Without it, write modes
+  require exactly one selected notice id.
 
 Behavior:
 
@@ -965,6 +1001,9 @@ Behavior:
   `campus_services/service_status_candidate` consumption projection entries.
 - Notice-derived mode requires a consumer admission manifest and checks the
   `typed-materialization` gate before reading selected entries.
+- `preview` can use `--all-ready-transport-candidates` for local evidence, but
+  `stage` / `promote` must be scoped to a single notice unless
+  `--allow-multi-notice-release` is explicitly supplied.
 - It reads OCR child `document-units.jsonl` from the derived bucket, cleans table
   context, and publishes `campus_services_projection_bundle.v1`.
 - It materializes supported timetable rows, service exceptions, operational
@@ -972,7 +1011,8 @@ Behavior:
   same projection bundle.
 - It records release-notice provenance, including source notice release time,
   admission time and materialization time when the notice-derived path supplies
-  a consumer admission manifest.
+  a consumer admission manifest. Source notice release time is normalized to a
+  timezone-qualified Shanghai local ISO timestamp before PG typed materialization.
 - `preview` is the required mode for single-notice validation; `stage` is for
   selected-write evidence; only complete approved releases should use `promote`.
 - It does not open `transport_schedule_lookup` serving by itself.

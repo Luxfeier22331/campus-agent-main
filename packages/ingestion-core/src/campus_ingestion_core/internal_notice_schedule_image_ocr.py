@@ -7,6 +7,7 @@ import re
 from base64 import b64encode
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -794,6 +795,7 @@ def write_schedule_image_ocr_source_artifacts(
             ocr_manifest_key=keys.ocr_manifest_key,
             admission_batch_id=admission_batch_id,
             run_id=run_id,
+            created_at=datetime.now(UTC).isoformat(),
         )
     )
     return ScheduleImageOcrSourceArtifactWriteReport(status="stored", keys=keys)
@@ -848,7 +850,7 @@ def build_schedule_image_ocr_child_document_registry_record(
         version_id=f"{artifact_report.content_hash}:source-faithful",
         source_uri=(
             "authenticated_notice_portal://muc_internal_portal/notices/"
-            f"{evidence.notice_id}/attachments/{evidence.attachment_ref_id}"
+            f"{evidence.notice_id}/attachments/{document.attachment_ref_id}"
         ),
         content_hash=artifact_report.content_hash,
         corpus="campus_notices",
@@ -965,15 +967,16 @@ def _build_child_document(
     schedule_tables: tuple[tuple[tuple[str, ...], ...], ...],
     generated_at: str,
 ) -> ScheduleImageOcrChildDocument:
+    attachment_ref_id = normalize_schedule_image_ocr_attachment_ref_id(evidence.attachment_ref_id)
     document_id = (
         "notice_attachment:muc_internal_portal:"
-        f"{evidence.notice_id}:{evidence.attachment_ref_id}:schedule-ocr"
+        f"{evidence.notice_id}:{attachment_ref_id}:schedule-ocr"
     )
     markdown_parts = [
         f"# {evidence.notice_title}",
         "",
         f"- notice_id: `{evidence.notice_id}`",
-        f"- attachment_ref_id: `{evidence.attachment_ref_id}`",
+        f"- attachment_ref_id: `{attachment_ref_id}`",
         f"- generated_at: `{generated_at}`",
         f"- ocr_provider: `{result.provider}`",
         f"- ocr_model: `{result.model}`",
@@ -990,7 +993,7 @@ def _build_child_document(
                 "unit_id": f"{document_id}:table-{index}",
                 "unit_type": "table_unit",
                 "source_notice_id": evidence.notice_id,
-                "source_attachment_ref_id": evidence.attachment_ref_id,
+                "source_attachment_ref_id": attachment_ref_id,
                 "table_cells": _tables_payload((table,))[0],
                 "metadata": {
                     "source": "authenticated_notice_schedule_image_ocr",
@@ -1004,7 +1007,7 @@ def _build_child_document(
         canonical_markdown="\n".join(markdown_parts).rstrip() + "\n",
         document_units=tuple(document_units),
         source_notice_id=evidence.notice_id,
-        attachment_ref_id=evidence.attachment_ref_id,
+        attachment_ref_id=attachment_ref_id,
     )
 
 
@@ -1131,11 +1134,19 @@ def _int(value: object, *, default: int) -> int:
 def _attachment_ref_id(raw: Mapping[str, Any]) -> str:
     value = _text(raw.get("attachment_ref_id"))
     if value:
-        return value
+        return normalize_schedule_image_ocr_attachment_ref_id(value)
     attachment_id = _text(raw.get("attachment_id"))
     if attachment_id:
-        return f"attachment-{attachment_id}"
+        return normalize_schedule_image_ocr_attachment_ref_id(f"attachment-{attachment_id}")
     return f"image-{_int(raw.get('image_index'), default=0)}"
+
+
+def normalize_schedule_image_ocr_attachment_ref_id(value: object) -> str:
+    text = _text(value)
+    match = re.fullmatch(r"attachment-(\d+)", text)
+    if match is None:
+        return text
+    return f"attachment-{int(match.group(1)):04d}"
 
 
 def _verify_sha256(*, evidence: ScheduleImageOcrEvidence, image_bytes: bytes) -> None:
@@ -1800,6 +1811,7 @@ __all__ = [
     "build_schedule_image_ocr_evidence_inventory_from_rows",
     "classify_schedule_image_ocr_result",
     "load_schedule_image_ocr_evidence_inventory",
+    "normalize_schedule_image_ocr_attachment_ref_id",
     "run_schedule_image_ocr_dry_run",
     "summarize_schedule_image_ocr_notice_review",
     "write_schedule_image_ocr_child_document_artifacts",

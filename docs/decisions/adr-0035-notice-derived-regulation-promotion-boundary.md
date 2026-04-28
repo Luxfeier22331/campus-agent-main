@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0035
 status: accepted
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-04-28
 ---
 # ADR-0035 Notice-Derived Regulation Promotion Boundary
 
@@ -45,8 +45,8 @@ source-channel 现在已经冻结了以下事实：
 - 承接 authenticated notice source-truth replay
 - 保留 wrapper notice 正文
 - 保留 attachment relation truth 与 child-document replay
-- 保留 `reference_only`、`manual_review_required`、`no_extractable_text` 等 outcome
-  truth
+- 保留 `reference_only`、`pending_multimodal_processing`、`no_extractable_text`、
+  `unsupported`、`no_adoption` 等机器可解释 outcome truth
 - 承接 restricted rollout 下的 replay / cleanup / chunk preparation / quality
   evidence
 
@@ -64,7 +64,8 @@ source-channel 现在已经冻结了以下事实：
 
 - wrapper notice 文档
 - “关于发布/印发/修订某制度的通知”这类包装文本
-- `manual_review_required`、`reference_only`、`no_extractable_text` outcome 占位物
+- `pending_multimodal_processing`、`reference_only`、`no_extractable_text`、
+  `unsupported`、`no_adoption` outcome 占位物
 - 只表达 source relation 的 attachment refs
 
 ### 决策 3：notice-derived regulation 必须跨过显式 promotion boundary

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-09
+updated: 2026-04-28
 ---
 # Internal Notice Offline Preparation Quality Acceptance
 
@@ -181,24 +181,29 @@ uv run --package campus-ingestion-worker python -m \
 - OCR child document 丢失 `layout-elements.jsonl`，导致表格/段落边界无法回审
 - policy / handbook `pdf` 被错误留在 `attachment_text_extractable` 并绕过 OCR 验收
 
-### `manual_review_required`
+### Non-Text Visual / Machine Recovery Lane
 
-这类 attachment 不进入当前 document / chunk truth，因此不做 chunk 级“质量通过”判断；它的验收目标只有一个：
+这类 attachment 不进入 generic OCR document / chunk truth，因此不做 chunk 级“质量通过”判断；它的验收目标是：
 
 - 分流必须正确且显式
+- 能机器处理的高价值视觉缺口进入 `pending_multimodal_processing`
+- 低价值、短生命周期视觉海报按 policy 跳过深处理并保留 notice-level title/url/card
+- 硬性不采纳进入 `no_adoption` / `unsupported`
 
 必须满足：
 
 - 空间导览图 / 位置图 / 楼宇分布图没有被误投到 `attachment_ocr_required`
-- staged truth 保留 `classification=manual_review_required`
-- staged truth 保留 `materialization_policy=manual_review`
-- staged truth 保留明确 `review_reason`
+- staged truth 保留明确 machine-processing policy 与 reason code
+- 高价值视觉缺口保留 source attachment/image relation，并由后续 multimodal drain 或专门
+  spatial lane 处理
+- current notice consumption projection 不再生成旧人工复核或延后复核状态
 
 必须失败的情况：
 
 - 明显位置图 / 导览图被错误送进 OCR lane
-- `manual_review_required` attachment 被伪装成 `reference_only`
-- `manual_review_required` attachment 被伪造 child document
+- 高价值视觉缺口被伪装成 `reference_only`
+- 未经机器处理的视觉关系被伪造 child document
+- 新 projection/read-model/admission artifact 出现旧人工复核或延后复核状态
 
 ## Cleaning Acceptance
 
@@ -248,7 +253,7 @@ chunk 级验收固定关注四类问题：
 
 这里固定有一个边界：
 
-- `manual_review_required` 是 attachment outcome，不是 chunk validator document lane
+- non-text visual recovery / no-adoption outcome 不是 chunk validator document lane
 - 因此空间导览图 / 位置图不会直接导出成 chunk sample
 - 这类内容在当前阶段只能通过 `notice-risk-spatial` / `notice-risk-mixed-high-risk` 样本，以及
   sample markdown 里的 notice risk metadata 暴露出来

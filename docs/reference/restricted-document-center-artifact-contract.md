@@ -333,7 +333,8 @@ ck>/<year>/`
 
 - `materialized`
 - `reference_only`
-- `manual_review_required`
+- `pending_machine_processing`
+- `no_adoption`
 - `no_extractable_text`
 
 ### `semantic_document` provenance

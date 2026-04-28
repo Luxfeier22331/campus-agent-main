@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0036
 status: accepted
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-28
 ---
 # ADR-0036 Notice-Derived Non-Regulation Rule Boundary
 
@@ -52,9 +52,11 @@ promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regu
 
 在新的 semantic-owner collection 明确之前，当前 canonical truth 固定为：
 
-- wrapper notice、manual-review outcome、relation truth 继续留在
+- wrapper notice、机器处理 pending/terminal outcome、relation truth 继续留在
   `campus_notices/internal_notice`
-- `manual_review_required` 不再表示“语义不明”，而表示“当前 owner surface 尚未开放”
+- 旧人工复核 / 延后复核标记不再作为 current consumption state 生成；
+  owner surface 尚未开放时，必须进入明确 target surface、pending multimodal recovery、
+  `no_adoption` 或 fail-closed retained notice card
 - 这类文档当前不进入 `regulations/*`
 
 ### 决策 3：没有明确产品 slice、query policy 与 owner 之前，不新增 repo-tracked collection scaffold
@@ -106,7 +108,8 @@ promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regu
 直接结果如下：
 
 - `regulations/institutional_rules` 的边界进一步明确为“稳定正式规章正文”
-- `internal_notice` 的 `manual_review_required` 现在具备清晰含义，不再是 catch-all
+- `internal_notice` 不再用旧人工复核 / 延后复核标记表示未决分类；
+  未开放 owner 的文本必须通过明确机器可解释状态 fail closed
 - 未来如果要消费招生实施细则或运营规则，必须先定义 dedicated semantic-owner surface 和 query
   policy，而不是反向污染 `regulations/*`
 

@@ -205,6 +205,24 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
   高价值通知进入 `pending_multimodal_processing`，不形成延后人工处理状态
 - 它不代表 consumer admission，不写 projection/read model，也不打开 query-serving
 
+internal notice pipeline quality suite 是 consumer/operator 侧的只读验收入口：
+
+- 它按 selected notice 或显式 full-scope audit 读取 source-truth inventory、
+  `notice_consumption_projection` 与 `internal_notice_read_model`
+- 它输出 source-truth -> projection -> read-model / target materialization 的资产边
+- 它检查 queryable notice card 是否具备 title/source_url
+- 它检查 projection row 是否携带 consumer admission provenance
+- 它检查 `regulations/*` ready row 是否具备 promotion quality evidence
+- 它把旧人工复核 / 延后复核标记视为 current consumption forbidden legacy state
+
+repo-owned worker 入口：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.check_internal_notice_pipeline_quality \
+  --notice-id <notice_id>
+```
+
 新写入的 consumption projection 不再使用 `notice_runtime` 同时表示 holding、
 read-model 与 runtime execution。notice-level 查询候选使用
 `target_surface=notice_level_query` 与

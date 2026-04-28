@@ -122,7 +122,7 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
 
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].notice_id, "355122")
-        self.assertEqual(entries[0].attachment_ref_id, "attachment-1")
+        self.assertEqual(entries[0].attachment_ref_id, "attachment-0001")
 
     def test_chat_provider_normalizes_real_table_object_payload(self) -> None:
         response = {
@@ -560,7 +560,7 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         self.assertEqual(decision.document.document_units[0]["unit_type"], "table_unit")
         self.assertEqual(
             decision.document.document_id,
-            "notice_attachment:muc_internal_portal:355122:attachment-1:schedule-ocr",
+            "notice_attachment:muc_internal_portal:355122:attachment-0001:schedule-ocr",
         )
 
     def test_admission_accepts_recurring_weekday_schedule_table_without_date(
@@ -704,7 +704,7 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         self.assertEqual(
             report.document_units_object_key,
             (
-                "campus_notices/documents/internal_notice/355122/attachment-1/"
+                "campus_notices/documents/internal_notice/355122/attachment-0001/"
                 "source-faithful/2026/document-units.jsonl"
             ),
         )

@@ -57,7 +57,8 @@ Accepted on 2026-04-09.
 这里的“默认”是指：
 
 - policy / regulation / handbook / procedure 等文档型 PDF，默认作为 `ocr_required` 处理
-- 是否继续保留 `manual_review_required`，仍由 attachment 内容类型决定；空间关系主导图片不受本 ADR 改写
+- 是否进入 pending multimodal recovery / no-adoption，仍由 attachment 内容类型决定；
+  空间关系主导图片不受本 ADR 改写
 
 ### 决策 2：`docx` 继续默认进入 `text_extractable`
 

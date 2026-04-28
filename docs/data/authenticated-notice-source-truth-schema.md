@@ -159,6 +159,22 @@ notice source asset 的 identity 固定为“稳定 notice 资源”，而不是
 - 仅本地缓存路径不同
 - 仅瞬时错误重试或日志字段不同
 
+## Incremental Sync Contract
+
+authenticated notice 采集必须把“增量游标”和“内容版本”分开治理：
+
+- list/detail fetch 的游标只决定下一轮 collector 从哪里继续观察
+- `raw_asset_id` / `raw_version_id` 决定 source-truth 是否产生新版本
+- attachment / inline image / file-release relation 的成功、404、reference-only、
+  unsupported、pending multimodal 等结果必须作为 typed outcome 记录，而不是靠重复报错表达
+- portal 下载端点返回稳定 404 时，应保留 source relation 与 terminal fetch status，用于后续
+  audit / owner recovery；不得无限重复下载同一失败资源
+- full-scope replay 只允许作为显式 operator operation；日常运行应按 cursor / selected
+  notice ids / changed raw version 进入 source-truth rebuild
+
+这条 contract 不改变 source-truth schema 的对象存储布局；它补充的是持续 ingest 的幂等、
+去重和失败终态语义。
+
 ## Notice Manifest Canonical 字段
 
 `notice-manifest.json` 至少固定以下字段组。

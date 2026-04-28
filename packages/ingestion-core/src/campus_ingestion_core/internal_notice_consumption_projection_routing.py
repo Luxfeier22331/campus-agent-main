@@ -163,7 +163,7 @@ def index_notice_attachment_records(
 
 def parse_notice_attachment_document_id(document_id: str) -> tuple[str, str, str] | None:
     parts = str(document_id or "").split(":")
-    if len(parts) != 4 or parts[0] != "notice_attachment":
+    if len(parts) not in {4, 5} or parts[0] != "notice_attachment":
         return None
     site_id, notice_id, attachment_ref_id = parts[1], parts[2], parts[3]
     if not site_id or not notice_id or not attachment_ref_id:

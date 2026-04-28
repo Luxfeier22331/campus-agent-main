@@ -60,7 +60,8 @@ _TIME_BOUND_OPERATIONAL_KEYWORDS = (
 )
 _NOTICE_ID_PATTERN = re.compile(r"^notice:(?P<site_id>[^:]+):(?P<notice_id>[^:]+)$")
 _ATTACHMENT_ID_PATTERN = re.compile(
-    r"^notice_attachment:(?P<site_id>[^:]+):(?P<notice_id>[^:]+):(?P<attachment_ref_id>[^:]+)$"
+    r"^notice_attachment:(?P<site_id>[^:]+):(?P<notice_id>[^:]+):"
+    r"(?P<attachment_ref_id>[^:]+)(?::(?P<attachment_subtype>[^:]+))?$"
 )
 _FRONT_MATTER_DELIMITER = "---"
 _HEADING_RE = re.compile(r"^\s*#+\s*")
