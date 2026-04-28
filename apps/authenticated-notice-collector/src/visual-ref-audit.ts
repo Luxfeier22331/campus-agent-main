@@ -10,7 +10,7 @@ import {
 	loadCollectorEnv,
 	resolveCollectorConfig,
 } from "./config";
-import { loadNoticeTypes } from "./notice-types";
+import { applyNoticeTypeAllowlist, loadNoticeTypes } from "./notice-types";
 import { formatSafeErrorMessage } from "./safe-error";
 import {
 	collectVisualReferenceAudit,
@@ -38,7 +38,10 @@ export async function main(): Promise<void> {
 		collectionMode: config.collectionMode,
 		generatedAt,
 		maxNotices,
-		noticeTypes: loadNoticeTypes(config.noticeTypesPath),
+		noticeTypes: applyNoticeTypeAllowlist(
+			loadNoticeTypes(config.noticeTypesPath),
+			config.noticeTypeAllowlist,
+		),
 		requestBackoffBaseMs: config.requestBackoffBaseMs,
 		requestMaxRetries: config.requestMaxRetries,
 		selectedNotices,

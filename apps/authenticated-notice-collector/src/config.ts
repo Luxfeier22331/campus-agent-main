@@ -15,6 +15,7 @@ export interface CollectorConfig {
 	attachmentFetchStatusDatabaseUrl: string | null;
 	attachmentFetchStatusDisabled: boolean;
 	authStorageStatePath: string;
+	authCookieHeader: string | null;
 	authSsoTgcToken: string | null;
 	collectionMode: NoticeCollectionMode;
 	collectorRunLedgerDatabaseUrl: string | null;
@@ -24,6 +25,7 @@ export interface CollectorConfig {
 	collectorRunLeaseTtlSeconds: number;
 	exportsDir: string;
 	historicalBackfillMaxPagesPerType: number | null;
+	noticeTypeAllowlist: string[] | null;
 	noticeTypesPath: string;
 	portalBaseUrl: string;
 	portalPageUrl: string;
@@ -74,6 +76,9 @@ export function resolveCollectorConfig(
 			false,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
+		authCookieHeader: normalizeOptionalSecret(
+			source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER,
+		),
 		authSsoTgcToken: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_SSO_TGC),
 		collectionMode: parseCollectionMode(source.AUTHENTICATED_NOTICE_COLLECTION_MODE),
 		collectorRunLedgerDatabaseUrl: normalizeOptionalSecret(
@@ -97,6 +102,9 @@ export function resolveCollectorConfig(
 		exportsDir: path.join(runtimeDir, "exports"),
 		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(
 			source.AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE,
+		),
+		noticeTypeAllowlist: parseOptionalStringList(
+			source.AUTHENTICATED_NOTICE_NOTICE_TYPE_ALLOWLIST,
 		),
 		noticeTypesPath: path.resolve(
 			String(
@@ -123,6 +131,11 @@ export function resolveCollectorConfig(
 		bypassProxyForPortal,
 		portalProxyServer: resolvePortalProxyServer(source, bypassProxyForPortal),
 	};
+}
+
+function parseOptionalStringList(raw: string | undefined): string[] | null {
+	const tokens = [...new Set((raw ?? "").split(",").map((token) => token.trim()).filter(Boolean))];
+	return tokens.length > 0 ? tokens : null;
 }
 
 function normalizeOptionalSecret(raw: string | undefined): string | null {

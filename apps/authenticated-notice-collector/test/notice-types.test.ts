@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getEnabledNoticeTypes, loadNoticeTypes } from "../src/notice-types";
+import {
+	applyNoticeTypeAllowlist,
+	getEnabledNoticeTypes,
+	loadNoticeTypes,
+} from "../src/notice-types";
 
 const REPO_NOTICE_TYPES_PATH = path.join(process.cwd(), "config", "notice-types.json");
 const OBSERVED_PORTAL_NOTICE_TYPES = [
@@ -116,5 +120,13 @@ describe("authenticated notice collector notice types", () => {
 		expect(getEnabledNoticeTypes(noticeTypes).map((item) => item.type)).toEqual(
 			DEFAULT_INCREMENTAL_NOTICE_TYPES,
 		);
+	});
+
+	it("filters enabled notice types through a runtime allowlist without mutating policy names", () => {
+		const noticeTypes = loadNoticeTypes(REPO_NOTICE_TYPES_PATH);
+		const filtered = applyNoticeTypeAllowlist(noticeTypes, ["9982"]);
+
+		expect(getEnabledNoticeTypes(filtered).map((item) => item.type)).toEqual(["9982"]);
+		expect(filtered.find((item) => item.type === "9982")?.name).toBe("常用下载");
 	});
 });

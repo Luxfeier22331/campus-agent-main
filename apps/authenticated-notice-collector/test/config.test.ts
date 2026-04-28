@@ -37,6 +37,8 @@ describe("authenticated notice collector config", () => {
 
 	it("accepts explicit overrides from env-like input", () => {
 		const config = resolveCollectorConfig({
+			AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER:
+				"JSESSIONID=session-1; nginx=sticky-1; SSO_TGC=sso-token-1",
 			AUTHENTICATED_NOTICE_AUTH_CHECK_NOTICE_TYPE: "6",
 			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
 			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/99#/",
@@ -52,6 +54,7 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE: "true",
 			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_TTL_SECONDS: "120",
 			AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE: "500",
+			AUTHENTICATED_NOTICE_NOTICE_TYPE_ALLOWLIST: "9982, 6,9982",
 			AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES: "5",
 			AUTHENTICATED_NOTICE_RUNTIME_DIR: "/tmp/collector-runtime",
 			AUTHENTICATED_NOTICE_SSO_TGC: "sso-token",
@@ -60,8 +63,12 @@ describe("authenticated notice collector config", () => {
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/99#/");
 		expect(config.requestMaxRetries).toBe(5);
+		expect(config.authCookieHeader).toBe(
+			"JSESSIONID=session-1; nginx=sticky-1; SSO_TGC=sso-token-1",
+		);
 		expect(config.authCheckNoticeType).toBe("6");
 		expect(config.authSsoTgcToken).toBe("sso-token");
+		expect(config.noticeTypeAllowlist).toEqual(["9982", "6"]);
 		expect(config.attachmentFetchStatusDatabaseUrl).toBe("postgresql://runtime.example/postgres");
 		expect(config.attachmentFetchStatusDisabled).toBe(true);
 		expect(config.collectionMode).toBe("backfill");

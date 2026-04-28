@@ -36,6 +36,8 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 				export_date: "20260404",
 				export_scope: "bootstrap-20260404T012345Z",
 				exported_at: "2026-04-04T01:23:45.000Z",
+				full_scope_completed: false,
+				full_scope_requested: false,
 				filters: {
 					collection_mode: "incremental",
 					max_notices: null,
@@ -90,6 +92,8 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 				site_id: "muc_internal_portal",
 				source_channel: "authenticated_notice_portal",
 				source_home_url: "https://portal.example.edu/home",
+				source_surface: "notice",
+				page_budget_exhausted: false,
 			},
 			outputDir: tempDir,
 		});

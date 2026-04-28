@@ -275,4 +275,80 @@ export function registerBootstrapExportCollectionValidationSuite(): void {
 			],
 		});
 	});
+
+	it("fails closed when a full-scope backfill exhausts the page budget before the source surface ends", async () => {
+		await expect(
+			collectBootstrapBundle({
+				collectionMode: "backfill",
+				createApiContext: async () => ({
+					dispose: async () => undefined,
+					get: async () => ({
+						body: async () => Buffer.from(""),
+						json: async () => ({}),
+						ok: () => true,
+						status: () => 200,
+						statusText: () => "OK",
+					}),
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				}),
+				exportedAt: "2026-04-04T01:23:45.000Z",
+				fetchNoticeDetail: async ({ noticeId }) => ({
+					datas: {
+						notice_info: {
+							notice_content: `<p>${noticeId}</p>`,
+							notice_id: noticeId,
+							notice_release_time: "2026-04-02 18:49",
+							notice_title: `历史通知 ${noticeId}`,
+						},
+					},
+					state: true,
+				}),
+				fetchNoticeSelects: async () => ({
+					datas: {
+						org: [],
+						type: [
+							{
+								notice_type_id: 9982,
+								notice_type_name: "常用下载",
+							},
+						],
+					},
+					state: true,
+				}),
+				fetchNoticePage: async ({ currentPage }) => ({
+					datas: {
+						page: {
+							totalCounts: 3,
+						},
+						tables: [
+							{
+								notice_id: 355650 + currentPage,
+								notice_title: `历史通知 ${currentPage}`,
+								notice_type: "9982",
+								notice_type_name: "常用下载",
+							},
+						],
+					},
+					state: true,
+				}),
+				noticeTypes: [
+					{
+						type: "9982",
+						name: "常用下载",
+						enabled: true,
+						incrementalPages: 1,
+						incrementalPageSize: 20,
+						backfillPages: 1,
+						backfillPageSize: 20,
+					},
+				],
+				requestBackoffBaseMs: 1,
+				requestMaxRetries: 1,
+				siteId: "muc_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu/home",
+			}),
+		).rejects.toThrow("page_budget_exhausted");
+	});
 }

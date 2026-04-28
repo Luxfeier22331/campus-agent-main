@@ -423,8 +423,12 @@ export interface BootstrapExportManifest {
 	export_date: string;
 	export_scope: string;
 	source_channel: "authenticated_notice_portal";
+	source_surface: "notice";
 	site_id: string;
 	source_home_url: string;
+	full_scope_requested: boolean;
+	full_scope_completed: boolean;
+	page_budget_exhausted: boolean;
 	collector: CollectorExportMetadata;
 	filters: {
 		notice_types: string[];

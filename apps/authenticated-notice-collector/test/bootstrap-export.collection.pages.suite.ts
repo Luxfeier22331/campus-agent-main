@@ -344,4 +344,83 @@ export function registerBootstrapExportCollectionPagesSuite(): void {
 		});
 		expect(result.exportManifest.run.items_seen).toBe(1);
 	});
+
+	it("marks a bounded backfill that covers every fetched page as full-scope completed", async () => {
+		const result = await collectBootstrapBundle({
+			collectionMode: "backfill",
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => ({
+					body: async () => Buffer.from(""),
+					json: async () => ({}),
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						notice_content: `<p>${noticeId} 正文</p>`,
+						notice_id: noticeId,
+						notice_release_time: "2026-04-02 18:49",
+						notice_title: `历史通知 ${noticeId}`,
+					},
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 9982,
+							notice_type_name: "常用下载",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async () => ({
+				datas: {
+					page: {
+						totalCounts: 1,
+					},
+					tables: [
+						{
+							notice_id: 355650,
+							notice_title: "常用下载通知",
+							notice_type: "9982",
+							notice_type_name: "常用下载",
+						},
+					],
+				},
+				state: true,
+			}),
+			noticeTypes: [
+				{
+					type: "9982",
+					name: "常用下载",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 20,
+					backfillPages: 2,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(result.exportManifest.source_surface).toBe("notice");
+		expect(result.exportManifest.full_scope_requested).toBe(true);
+		expect(result.exportManifest.full_scope_completed).toBe(true);
+		expect(result.exportManifest.page_budget_exhausted).toBe(false);
+	});
 }

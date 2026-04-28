@@ -11,6 +11,20 @@ export function getEnabledNoticeTypes(noticeTypes: NoticeTypeConfig[]): NoticeTy
 	return noticeTypes.filter((item) => item.enabled);
 }
 
+export function applyNoticeTypeAllowlist(
+	noticeTypes: NoticeTypeConfig[],
+	allowlist: string[] | null,
+): NoticeTypeConfig[] {
+	if (!(allowlist && allowlist.length > 0)) {
+		return noticeTypes.map((item) => ({ ...item }));
+	}
+	const allowed = new Set(allowlist.map((item) => item.trim()).filter(Boolean));
+	return noticeTypes.map((item) => ({
+		...item,
+		enabled: item.enabled && allowed.has(item.type),
+	}));
+}
+
 export function buildNoticeTypePolicySnapshot(
 	noticeTypes: NoticeTypeConfig[],
 ): NoticeTypePolicySnapshot[] {

@@ -53,12 +53,15 @@ export function buildExportManifest(input: {
 	collectionMode: NoticeCollectionMode;
 	detailFetched: number;
 	exportedAt: string;
+	fullScopeCompleted: boolean;
+	fullScopeRequested: boolean;
 	itemsInserted: number;
 	itemsSeen: number;
 	maxNotices: number | null;
 	noticeTypes: NoticeTypeConfig[];
 	observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>;
 	observedOrganizations: Array<{ organization_id: string; organization_name: string }>;
+	pageBudgetExhausted: boolean;
 	pagesFetched: number;
 	runAdmission: NoticeRunAdmissionReport;
 	selectedNoticeIds?: string[];
@@ -75,8 +78,12 @@ export function buildExportManifest(input: {
 		export_date: timestamp.slice(0, 8),
 		export_scope: `bootstrap-${timestamp}`,
 		source_channel: AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+		source_surface: "notice",
 		site_id: input.siteId,
 		source_home_url: input.sourceHomeUrl,
+		full_scope_requested: input.fullScopeRequested,
+		full_scope_completed: input.fullScopeCompleted,
+		page_budget_exhausted: input.pageBudgetExhausted,
 		collector: {
 			runtime_shell: "repo_local_node",
 			export_contract_version: EXPORT_SCHEMA_VERSION,

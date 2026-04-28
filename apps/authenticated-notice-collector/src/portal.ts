@@ -63,7 +63,7 @@ export async function createApiContextFromStorageState(
 	dependencies: CreateApiContextFromStorageStateDependencies = {},
 ): Promise<ApiRequestContextLike & DisposableApiContextLike> {
 	ensureRuntimeDirs(config);
-	seedStoredAuthFromSsoTgc(config);
+	seedStoredAuthFromConfig(config);
 	let launchedContext: Awaited<ReturnType<typeof launchContextWithStoredAuth>> | null = null;
 	try {
 		launchedContext = await launchContextWithStoredAuth(config, dependencies.launchBrowser);
@@ -140,9 +140,9 @@ function readStoredAuthStorageState(storageStatePath: string): PortalStorageStat
 	return parsed;
 }
 
-function seedStoredAuthFromSsoTgc(config: CollectorConfig): void {
-	const token = extractSsoTgcToken(config.authSsoTgcToken);
-	if (!token) {
+function seedStoredAuthFromConfig(config: CollectorConfig): void {
+	const seededCookies = resolveSeedCookies(config);
+	if (seededCookies.length === 0) {
 		return;
 	}
 
@@ -153,23 +153,81 @@ function seedStoredAuthFromSsoTgc(config: CollectorConfig): void {
 
 	storageState = {
 		cookies: [
-			...storageState.cookies.filter((cookie) => cookie.name !== SSO_TGC_COOKIE_NAME),
-			{
-				domain: ".muc.edu.cn",
-				expires: -1,
-				httpOnly: true,
-				name: SSO_TGC_COOKIE_NAME,
-				path: "/",
-				sameSite: "Lax",
-				secure: true,
-				value: token,
-			},
+			...storageState.cookies.filter(
+				(cookie) => !seededCookies.some((seededCookie) => seededCookie.name === cookie.name),
+			),
+			...seededCookies,
 		],
 		origins: storageState.origins,
 	};
 
 	fs.mkdirSync(path.dirname(config.authStorageStatePath), { recursive: true });
 	fs.writeFileSync(config.authStorageStatePath, JSON.stringify(storageState, null, 2), "utf-8");
+}
+
+function resolveSeedCookies(
+	config: CollectorConfig,
+): Array<PortalStorageState["cookies"][number]> {
+	if (config.authCookieHeader) {
+		return parsePortalCookieHeader(config);
+	}
+	const token = extractSsoTgcToken(config.authSsoTgcToken);
+	if (!token) {
+		return [];
+	}
+	return [
+		{
+			domain: ".muc.edu.cn",
+			expires: -1,
+			httpOnly: true,
+			name: SSO_TGC_COOKIE_NAME,
+			path: "/",
+			sameSite: "Lax",
+			secure: true,
+			value: token,
+		},
+	];
+}
+
+function parsePortalCookieHeader(
+	config: CollectorConfig,
+): Array<PortalStorageState["cookies"][number]> {
+	const cookieHeader = String(config.authCookieHeader ?? "").trim();
+	if (!cookieHeader) {
+		return [];
+	}
+	const portalHost = new URL(config.portalBaseUrl).hostname;
+	const cookiesByName = new Map<string, PortalStorageState["cookies"][number]>();
+	for (const fragment of cookieHeader.split(";")) {
+		const token = fragment.trim();
+		if (!token) {
+			continue;
+		}
+		const separator = token.indexOf("=");
+		if (separator <= 0) {
+			throw new Error(
+				"invalid AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER: expected a Cookie header fragment",
+			);
+		}
+		const name = token.slice(0, separator).trim();
+		const value = token.slice(separator + 1).trim();
+		if (!name || !value) {
+			throw new Error(
+				"invalid AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER: expected cookie name=value pairs",
+			);
+		}
+		cookiesByName.set(name, {
+			domain: name === SSO_TGC_COOKIE_NAME ? ".muc.edu.cn" : portalHost,
+			expires: -1,
+			httpOnly: true,
+			name,
+			path: "/",
+			sameSite: "Lax",
+			secure: true,
+			value,
+		});
+	}
+	return [...cookiesByName.values()];
 }
 
 function extractSsoTgcToken(raw: string | null): string | null {

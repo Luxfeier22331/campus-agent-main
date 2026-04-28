@@ -44,7 +44,7 @@ import {
 	loadCollectorEnv,
 	resolveCollectorConfig,
 } from "./config";
-import { getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
+import { applyNoticeTypeAllowlist, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission";
 import type {
@@ -225,6 +225,10 @@ export async function collectBootstrapBundle(
 	});
 	assertNoticeRunAdmissionAccepted(runAdmission);
 	const collectionMode = runAdmission.collection_mode;
+	const fullScopeRequested =
+		selectedNotices.length === 0 &&
+		collectionMode === "backfill" &&
+		(input.maxNotices ?? null) === null;
 	const enabledNoticeTypes = getEnabledNoticeTypes(input.noticeTypes);
 	const createApiContext =
 		input.createApiContext ??
@@ -259,6 +263,7 @@ export async function collectBootstrapBundle(
 	let detailFetched = 0;
 	let itemsSeen = 0;
 	let pagesFetched = 0;
+	let pageBudgetExhausted = false;
 	let observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }> = [];
 	let observedOrganizations: Array<{ organization_id: string; organization_name: string }> = [];
 	let materialized = {
@@ -359,6 +364,13 @@ export async function collectBootstrapBundle(
 					}
 
 					const totalCounts = pageResponse.datas?.page?.totalCounts;
+					if (
+						typeof totalCounts === "number" &&
+						totalCounts > currentPage &&
+						currentPage >= pageBudget
+					) {
+						pageBudgetExhausted = true;
+					}
 					if (typeof totalCounts === "number" && currentPage >= totalCounts) {
 						break;
 					}
@@ -390,6 +402,9 @@ export async function collectBootstrapBundle(
 	} finally {
 		await apiContext.dispose();
 	}
+	if (fullScopeRequested && pageBudgetExhausted) {
+		throw new Error("page_budget_exhausted");
+	}
 
 	return {
 		bundleRecords: materialized.bundleRecords,
@@ -399,12 +414,15 @@ export async function collectBootstrapBundle(
 			collectionMode,
 			detailFetched,
 			exportedAt: input.exportedAt,
+			fullScopeCompleted: fullScopeRequested && !pageBudgetExhausted,
+			fullScopeRequested,
 			itemsInserted: materialized.bundleRecords.length,
 			itemsSeen,
 			maxNotices: input.maxNotices ?? null,
 			noticeTypes: input.noticeTypes,
 			observedNoticeTypes,
 			observedOrganizations,
+			pageBudgetExhausted,
 			pagesFetched,
 			runAdmission,
 			selectedNoticeIds: selectedNotices.map((item) => String(item.noticeId)),
@@ -558,7 +576,10 @@ export async function main(): Promise<void> {
 	loadCollectorEnv();
 	const config = resolveCollectorConfig(process.env);
 	ensureRuntimeDirs(config);
-	const noticeTypes = loadNoticeTypes(config.noticeTypesPath);
+	const noticeTypes = applyNoticeTypeAllowlist(
+		loadNoticeTypes(config.noticeTypesPath),
+		config.noticeTypeAllowlist,
+	);
 	const exportedAt = new Date().toISOString();
 	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
 	const attachmentFetchStatusStore = buildAttachmentFetchStatusStoreForMain(config);
