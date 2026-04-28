@@ -568,6 +568,76 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
                     consumption_projection_store=projection_store,
                 )
 
+    def test_import_authenticated_notice_export_source_truth_only_skips_projection_and_read_model_materialization(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            projection_store = InMemoryNoticeConsumptionProjectionStore()
+            read_model_store = InMemoryInternalNoticeReadModelStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            with (
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import.rebuild_internal_notice_consumption_projection"
+                ) as rebuild_projection,
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import.rebuild_internal_notice_read_model"
+                ) as rebuild_read_model,
+            ):
+                report = import_authenticated_notice_export(
+                    request=AuthenticatedNoticeImportRequest(
+                        bundle_path=bundle_path,
+                        export_manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/home",
+                        mode="admit_and_materialize",
+                        source_truth_only=True,
+                    ),
+                    env=env,
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    source_truth_inventory_store=inventory_store,
+                    consumption_projection_store=projection_store,
+                    read_model_store=read_model_store,
+                )
+
+        self.assertEqual(report["errors"], [])
+        self.assertNotIn("consumption_projection_entry_count", report)
+        self.assertNotIn("internal_notice_read_model_entry_count", report)
+        rebuild_projection.assert_not_called()
+        rebuild_read_model.assert_not_called()
+        self.assertEqual(
+            len(projection_store.list_by_scope("campus_notices", "internal_notice")),
+            0,
+        )
+        self.assertEqual(
+            read_model_store.search(
+                source_families=("internal_notice_restricted",),
+                query_text="证书项目",
+                max_results=5,
+            ),
+            (),
+        )
+
     def test_import_authenticated_notice_export_can_rebuild_read_model_for_imported_notices(
         self,
     ) -> None:

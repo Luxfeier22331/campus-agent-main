@@ -41,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Allow this import to refresh the entire source corpus/collection scope.",
     )
+    parser.add_argument(
+        "--source-truth-only",
+        action="store_true",
+        help="Stop after source-truth/document holding materialization and skip downstream notice consumption.",
+    )
     return parser
 
 
@@ -69,6 +74,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         visibility_scope=args.visibility_scope,
         mode=args.mode,
         replace_scope=args.replace_scope,
+        source_truth_only=args.source_truth_only,
     )
     result = import_authenticated_notice_export(request=request)
     payload = asdict(result) if is_dataclass(result) else _normalize_payload(result)

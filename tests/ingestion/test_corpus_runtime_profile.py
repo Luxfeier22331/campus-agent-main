@@ -239,6 +239,30 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.source_ocr_fallback_enabled)
         self.assertEqual(profile.source_ocr_image_routing_strategy, "mineru_primary")
 
+    def test_load_authenticated_documents_common_download_source_runtime_profile(self) -> None:
+        profile = load_runtime_profile("authenticated_documents", "common_download_source")
+
+        self.assertEqual(profile.corpus, "authenticated_documents")
+        self.assertEqual(profile.collection, "common_download_source")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "common_download_source")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "common_download_source")
+
+    def test_load_authenticated_documents_file_release_source_runtime_profile(self) -> None:
+        profile = load_runtime_profile("authenticated_documents", "file_release_source")
+
+        self.assertEqual(profile.corpus, "authenticated_documents")
+        self.assertEqual(profile.collection, "file_release_source")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "file_release_source")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "file_release_source")
+
     def test_load_official_web_runtime_profile_current_truth_remains_offline_and_not_freshness_ready(
         self,
     ) -> None:

@@ -123,6 +123,36 @@ class ImportAuthenticatedNoticeExportWorkerCliTest(unittest.TestCase):
         request = run_import.call_args.kwargs["request"]
         self.assertTrue(request.replace_scope)
 
+    def test_main_passes_source_truth_only_stop_point(self) -> None:
+        with (
+            patch("campus_ingestion_worker.import_authenticated_notice_export.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.import_authenticated_notice_export.import_authenticated_notice_export"
+            ) as run_import,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            run_import.return_value = {
+                "notice_count": 1,
+                "created_document_ids": ["notice:muc_internal_portal:355119"],
+                "errors": [],
+            }
+            worker.main(
+                [
+                    "--bundle-path",
+                    "/tmp/notices-bundle.json",
+                    "--manifest-path",
+                    "/tmp/export-manifest.json",
+                    "--site-id",
+                    "muc_internal_portal",
+                    "--source-home-url",
+                    "https://portal.example.edu/home",
+                    "--source-truth-only",
+                ]
+            )
+
+        request = run_import.call_args.kwargs["request"]
+        self.assertTrue(request.source_truth_only)
+
 
 if __name__ == "__main__":
     unittest.main()

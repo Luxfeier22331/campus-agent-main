@@ -143,6 +143,7 @@ class AuthenticatedNoticeImportRequest:
     import_source: str = DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE
     mode: str = AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN
     replace_scope: bool = False
+    source_truth_only: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "bundle_path", Path(self.bundle_path))
@@ -277,10 +278,19 @@ def import_authenticated_notice_export(
         or _env_has_inventory_store_config(source),
         attachment_fetch_status_enabled=attachment_fetch_status_store is not None
         or _env_has_attachment_fetch_status_config(source),
-        consumption_projection_enabled=consumption_projection_store is not None
-        or _env_has_consumption_projection_config(source),
-        read_model_enabled=read_model_store is not None or _env_has_read_model_config(source),
-        consumer_admission_manifest_supplied=request.consumer_admission_manifest_path is not None,
+        consumption_projection_enabled=_should_materialize_internal_notice_consumption(
+            request=request
+        )
+        and (
+            consumption_projection_store is not None
+            or _env_has_consumption_projection_config(source)
+        ),
+        read_model_enabled=_should_materialize_internal_notice_consumption(request=request)
+        and (read_model_store is not None or _env_has_read_model_config(source)),
+        consumer_admission_manifest_supplied=(
+            request.consumer_admission_manifest_path is not None
+            and _should_materialize_internal_notice_consumption(request=request)
+        ),
     )
     if request.mode == AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN:
         return dry_run_report
@@ -399,87 +409,92 @@ def import_authenticated_notice_export(
             )
         else:
             inventory_store.upsert_many(tuple(inventory_entries))
-    projection_store = consumption_projection_store
-    if projection_store is None:
-        projection_store = _build_consumption_projection_store_from_env_if_configured(source)
-    consumer_admission_manifest = _load_consumer_admission_manifest_if_needed(
-        request=request,
-        projection_store=projection_store,
-        read_model_store=read_model_store,
-        source=source,
-    )
     prepared_consumer_notice_ids = tuple(
         notice_import.notice_id for notice_import in prepared.notice_imports
     )
-    consumer_projection_notice_ids = prepared_consumer_notice_ids
+    projection_store = None
+    runtime_read_model_store = None
+    consumer_admission_manifest = None
     consumer_projection_gate_report: dict[str, Any] | None = None
-    if projection_store is not None:
-        consumer_projection_gate_report = _assert_consumer_admission_gate_allows_projection(
-            manifest=consumer_admission_manifest,
-            request=request,
-            selected_notice_ids=prepared_consumer_notice_ids,
-            replace_scope=replace_scope,
-        )
-    projection_entries = ()
-    if inventory_store is not None and projection_store is not None:
-        projection_entries = rebuild_internal_notice_consumption_projection(
-            request=InternalNoticeRegulationPromotionRequest(
-                corpus=request.corpus,
-                collection=request.collection,
-                notice_ids=consumer_projection_notice_ids,
-            ),
-            env=source,
-            registry=registry,
-            source_truth_inventory_store=inventory_store,
-            object_store=writer,
-            projection_store=projection_store,
-        )
-    runtime_read_model_store = read_model_store
-    if projection_store is not None and runtime_read_model_store is None:
-        runtime_read_model_store = _build_read_model_store_from_env_if_configured(source)
-    read_model_admitted_notice_ids = (
-        admitted_notice_ids_for_target_surface(
-            consumer_admission_manifest,
-            target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-        )
-        if consumer_admission_manifest is not None
-        else prepared_consumer_notice_ids
-    )
-    read_model_admitted_notice_id_set = set(read_model_admitted_notice_ids)
-    read_model_notice_ids = tuple(
-        notice_id
-        for notice_id in prepared_consumer_notice_ids
-        if notice_id in read_model_admitted_notice_id_set
-    )
     consumer_read_model_gate_report: dict[str, Any] | None = None
-    if runtime_read_model_store is not None and read_model_notice_ids:
-        consumer_read_model_gate_report = _assert_consumer_admission_gate_allows_read_model(
-            manifest=consumer_admission_manifest,
-            request=request,
-            selected_notice_ids=read_model_notice_ids,
-            replace_scope=replace_scope,
-        )
+    projection_entries = ()
     read_model_entries = ()
-    if (
-        inventory_store is not None
-        and projection_store is not None
-        and runtime_read_model_store is not None
-        and read_model_notice_ids
-    ):
-        read_model_entries = rebuild_internal_notice_read_model(
-            source_corpus=request.corpus,
-            source_collection=request.collection,
-            notice_ids=read_model_notice_ids,
-            env=source,
+    if _should_materialize_internal_notice_consumption(request=request):
+        projection_store = consumption_projection_store
+        if projection_store is None:
+            projection_store = _build_consumption_projection_store_from_env_if_configured(source)
+        consumer_admission_manifest = _load_consumer_admission_manifest_if_needed(
+            request=request,
             projection_store=projection_store,
-            read_model_store=runtime_read_model_store,
-            registry=registry,
-            object_store=writer,
-            bucket_derived=object_store_settings.bucket_derived,
+            read_model_store=read_model_store,
+            source=source,
         )
+        consumer_projection_notice_ids = prepared_consumer_notice_ids
+        if projection_store is not None:
+            consumer_projection_gate_report = _assert_consumer_admission_gate_allows_projection(
+                manifest=consumer_admission_manifest,
+                request=request,
+                selected_notice_ids=prepared_consumer_notice_ids,
+                replace_scope=replace_scope,
+            )
+        if inventory_store is not None and projection_store is not None:
+            projection_entries = rebuild_internal_notice_consumption_projection(
+                request=InternalNoticeRegulationPromotionRequest(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    notice_ids=consumer_projection_notice_ids,
+                ),
+                env=source,
+                registry=registry,
+                source_truth_inventory_store=inventory_store,
+                object_store=writer,
+                projection_store=projection_store,
+            )
+        runtime_read_model_store = read_model_store
+        if projection_store is not None and runtime_read_model_store is None:
+            runtime_read_model_store = _build_read_model_store_from_env_if_configured(source)
+        read_model_admitted_notice_ids = (
+            admitted_notice_ids_for_target_surface(
+                consumer_admission_manifest,
+                target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+                consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+            )
+            if consumer_admission_manifest is not None
+            else prepared_consumer_notice_ids
+        )
+        read_model_admitted_notice_id_set = set(read_model_admitted_notice_ids)
+        read_model_notice_ids = tuple(
+            notice_id
+            for notice_id in prepared_consumer_notice_ids
+            if notice_id in read_model_admitted_notice_id_set
+        )
+        if runtime_read_model_store is not None and read_model_notice_ids:
+            consumer_read_model_gate_report = _assert_consumer_admission_gate_allows_read_model(
+                manifest=consumer_admission_manifest,
+                request=request,
+                selected_notice_ids=read_model_notice_ids,
+                replace_scope=replace_scope,
+            )
+        if (
+            inventory_store is not None
+            and projection_store is not None
+            and runtime_read_model_store is not None
+            and read_model_notice_ids
+        ):
+            read_model_entries = rebuild_internal_notice_read_model(
+                source_corpus=request.corpus,
+                source_collection=request.collection,
+                notice_ids=read_model_notice_ids,
+                env=source,
+                projection_store=projection_store,
+                read_model_store=runtime_read_model_store,
+                registry=registry,
+                object_store=writer,
+                bucket_derived=object_store_settings.bucket_derived,
+            )
     result = {
         "mode": request.mode,
+        "source_truth_only": request.source_truth_only,
         "write_enabled": True,
         "notice_count": prepared.notice_count,
         "created_document_ids": list(stats.created_document_ids),
@@ -537,6 +552,17 @@ def _load_consumer_admission_manifest_if_needed(
         )
     return load_internal_notice_consumer_admission_manifest(
         request.consumer_admission_manifest_path
+    )
+
+
+def _should_materialize_internal_notice_consumption(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+) -> bool:
+    return (
+        not request.source_truth_only
+        and request.corpus == DEFAULT_AUTHENTICATED_NOTICE_CORPUS
+        and request.collection == DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     )
 
 
@@ -689,6 +715,7 @@ def _build_authenticated_notice_import_admission_report(
     }
     return {
         "mode": request.mode,
+        "source_truth_only": request.source_truth_only,
         "write_enabled": False,
         "notice_count": prepared.notice_count,
         "created_document_ids": [],
