@@ -95,6 +95,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "19",
             "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": "bridge-secret",
             "SUPERVISOR_AGENT_WORKER_THREADS": "7",
+            "SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES": "2048",
             "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "123",
         }
 
@@ -117,6 +118,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.prompt_runtime_keepalive_expiry_seconds, 19)
         self.assertEqual(settings.bridge_shared_secret, "bridge-secret")
         self.assertEqual(settings.bridge_worker_threads, 7)
+        self.assertEqual(settings.bridge_request_body_limit_bytes, 2048)
         self.assertEqual(settings.cancel_flag_ttl_seconds, 123)
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
 

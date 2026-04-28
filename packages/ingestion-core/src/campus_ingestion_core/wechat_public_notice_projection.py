@@ -400,6 +400,9 @@ def build_wechat_public_notice_read_model_entries(
                 consumption_status=entry.consumption_status,
                 queryable=_is_wechat_read_model_queryable(entry),
                 title=title,
+                visibility_level="public",
+                entitlement_groups=(),
+                policy_projection_version="public-notice-projection-v1",
                 published_at=_text(metadata.get("publish_time"))
                 or str(entry.source_notice_release_time or "").strip(),
                 source_url=source_url,

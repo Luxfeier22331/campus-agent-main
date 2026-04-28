@@ -5,8 +5,9 @@ orchestration worker。
 
 当前 public/internal HTTP execution ingress 已 hardcut 到 Go `apps/supervisor-api`。
 本 package 不再暴露 public `/api/v1/answer`，也不再负责 bearer / trusted-worker
-caller auth、request body limit、transport admission、queue、metrics 或 published
-`transport_runtime`。
+caller auth、public request body limit、transport admission、queue、metrics 或
+published `transport_runtime`。Python ASGI 入口只保留 private bridge 的 defensive
+body cap，避免异常 bridge caller 在 auth / JSON parsing 前造成无界内存占用。
 
 ## Responsibilities
 
@@ -58,6 +59,8 @@ Python worker 不负责：
 
 - `x-supervisor-bridge-auth: <secret>`
 - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<secret>`
+- `SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES=1048576`，默认 1 MiB；该限制只
+  作用于 private bridge body，不替代 Go `supervisor-api` 的 public ingress limit。
 
 `/internal/bridge/readyz` 只报告 Python worker 自身状态：
 

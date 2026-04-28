@@ -30,12 +30,20 @@ func (s *Server) beginDirectStructuredExecution(
 	})
 	if registerErr != nil {
 		requestCancel()
-		setOutcome(response, "execution_lifecycle_unavailable")
+		code := "execution_lifecycle_unavailable"
+		status := http.StatusInternalServerError
+		message := "Supervisor execution lifecycle could not be registered."
+		if errors.Is(registerErr, lifecycle.ErrDuplicateExecution) {
+			code = "execution_already_in_flight"
+			status = http.StatusConflict
+			message = "Supervisor execution request_id is already active."
+		}
+		setOutcome(response, code)
 		writeError(
 			response,
-			http.StatusInternalServerError,
-			"execution_lifecycle_unavailable",
-			"Supervisor execution lifecycle could not be registered.",
+			status,
+			code,
+			message,
 			true,
 		)
 		return nil, nil, false

@@ -33,6 +33,9 @@ class InternalNoticeReadModelEntry:
     consumption_status: str
     queryable: bool
     title: str
+    visibility_level: str = ""
+    entitlement_groups: tuple[str, ...] = ()
+    policy_projection_version: str = ""
     published_at: str = ""
     source_url: str = ""
     canonical_url: str = ""
@@ -49,6 +52,7 @@ class InternalNoticeReadModelEntry:
     def from_dict(cls, payload: dict[str, object]) -> InternalNoticeReadModelEntry:
         raw = dict(payload)
         raw["queryable"] = bool(raw.get("queryable"))
+        raw["entitlement_groups"] = _coerce_text_tuple(raw.get("entitlement_groups"))
         raw["attachment_refs"] = _coerce_text_tuple(raw.get("attachment_refs"))
         raw["provenance_refs"] = _coerce_text_tuple(raw.get("provenance_refs"))
         return cls(**raw)

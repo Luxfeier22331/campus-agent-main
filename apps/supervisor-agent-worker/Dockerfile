@@ -49,6 +49,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/apps/supervisor-agent-worker/src:/app/packages/campus-services-agent/src:/app/packages/contracts/src:/app/packages/ingestion-core/src:/app/packages/navigation-agent/src:/app/packages/notice-agent/src:/app/packages/rag-agent/src:/app/packages/retrieval-core/src:/app/packages/shared/src"
 ENV SUPERVISOR_AGENT_WORKER_HOST=0.0.0.0
 ENV SUPERVISOR_AGENT_WORKER_PORT=18081
+ENV SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES=1048576
 
 COPY --from=build /app /app
 

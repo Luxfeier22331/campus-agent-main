@@ -15,6 +15,8 @@ from campus_shared.prompt_runtime import (
     DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
 )
 
+DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES = 1_048_576
+
 
 def _read_bool(name: str, *, default: bool) -> bool:
     value = os.getenv(name)
@@ -41,6 +43,13 @@ def _read_int(name: str, *, default: int) -> int:
     if not normalized:
         return default
     return int(normalized)
+
+
+def _read_positive_int(name: str, *, default: int) -> int:
+    value = _read_int(name, default=default)
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return value
 
 
 def _read_float(name: str, *, default: float) -> float:
@@ -83,6 +92,7 @@ class ApiSettings:
     prompt_runtime_keepalive_expiry_seconds: float = DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS
     prompt_strict_structured_outputs: bool = True
     bridge_worker_threads: int = 8
+    bridge_request_body_limit_bytes: int = DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES
     structured_query_base_url: str = ""
     structured_query_shared_secret: str = ""
     structured_query_timeout_seconds: float = 1.0
@@ -157,6 +167,10 @@ class ApiSettings:
             bridge_worker_threads=_read_int(
                 "SUPERVISOR_AGENT_WORKER_THREADS",
                 default=8,
+            ),
+            bridge_request_body_limit_bytes=_read_positive_int(
+                "SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES",
+                default=DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES,
             ),
             structured_query_base_url=os.getenv(
                 "SUPERVISOR_STRUCTURED_QUERY_BASE_URL",

@@ -20,16 +20,11 @@ var errNoticeBodyUnavailable = errors.New("notice body unavailable")
 type NoticeReadModelStore interface {
 	SearchNotices(
 		ctx context.Context,
-		sourceFamilies []string,
-		queryText string,
-		targetSurfaces []string,
-		maxResults int,
+		criteria noticeSearchCriteria,
 	) ([]noticeReadModelRecord, error)
 	GetNoticeByID(
 		ctx context.Context,
-		noticeID string,
-		sourceFamily string,
-		targetSurfaces []string,
+		criteria noticeGetCriteria,
 	) (noticeReadModelRecord, bool, error)
 }
 
@@ -71,10 +66,33 @@ type noticeGetRequest struct {
 	TargetSurfaces []string `json:"target_surfaces"`
 }
 
+type noticeSearchCriteria struct {
+	SourceFamilies []string
+	QueryText      string
+	TargetSurfaces []string
+	MaxResults     int
+	Authorization  noticeReadModelAuthorizationFilter
+}
+
+type noticeGetCriteria struct {
+	NoticeID       string
+	SourceFamily   string
+	TargetSurfaces []string
+	Authorization  noticeReadModelAuthorizationFilter
+}
+
+type noticeReadModelAuthorizationFilter struct {
+	VisibilityLevel   string
+	EntitlementGroups []string
+}
+
 type noticeReadModelRecord struct {
 	SourceFamily               string   `json:"source_family"`
 	SourceNoticeID             string   `json:"source_notice_id"`
 	Title                      string   `json:"title"`
+	VisibilityLevel            string   `json:"visibility_level"`
+	EntitlementGroups          []string `json:"entitlement_groups"`
+	PolicyProjectionVersion    string   `json:"policy_projection_version"`
 	SourceURL                  string   `json:"source_url"`
 	CanonicalURL               string   `json:"canonical_url"`
 	PublishedAt                string   `json:"published_at"`
@@ -162,14 +180,21 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 	if err := ctx.Err(); err != nil {
 		return failClosedNoticeDiscover(request.QueryText, sourceFamilies, r.timeAnchor(), "source_truth_unavailable")
 	}
+	authorizationFilter := noticeAuthorizationFilterForAccessContext(envelope.AccessContext)
 	rows, err := r.noticeReadModelStore.SearchNotices(
 		ctx,
-		sourceFamilies,
-		request.QueryText,
-		request.TargetSurfaces,
-		request.MaxResults,
+		noticeSearchCriteria{
+			SourceFamilies: sourceFamilies,
+			QueryText:      request.QueryText,
+			TargetSurfaces: request.TargetSurfaces,
+			MaxResults:     request.MaxResults,
+			Authorization:  authorizationFilter,
+		},
 	)
 	if err != nil {
+		return failClosedNoticeDiscover(request.QueryText, sourceFamilies, r.timeAnchor(), "source_truth_unavailable")
+	}
+	if !noticeReadModelRowsAuthorized(rows, authorizationFilter) {
 		return failClosedNoticeDiscover(request.QueryText, sourceFamilies, r.timeAnchor(), "source_truth_unavailable")
 	}
 	if len(rows) == 0 {
@@ -241,7 +266,16 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	if err := ctx.Err(); err != nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
-	row, ok, err := r.noticeReadModelStore.GetNoticeByID(ctx, request.NoticeID, sourceFamily, request.TargetSurfaces)
+	authorizationFilter := noticeAuthorizationFilterForAccessContext(envelope.AccessContext)
+	row, ok, err := r.noticeReadModelStore.GetNoticeByID(
+		ctx,
+		noticeGetCriteria{
+			NoticeID:       request.NoticeID,
+			SourceFamily:   sourceFamily,
+			TargetSurfaces: request.TargetSurfaces,
+			Authorization:  authorizationFilter,
+		},
+	)
 	if err != nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
@@ -259,6 +293,9 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	}
 	if !isKnownNoticeSourceFamily(resolvedSourceFamily) {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_family_unavailable")
+	}
+	if !noticeReadModelRowAuthorized(row, authorizationFilter) {
+		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
 	resolvedNoticeID := strings.TrimSpace(row.SourceNoticeID)
 	if resolvedNoticeID == "" {
@@ -375,6 +412,92 @@ func hasInternalNoticeAccess(accessContext noticeAccessContext) bool {
 
 func hasNoticePrincipal(accessContext noticeAccessContext) bool {
 	return strings.TrimSpace(accessContext.Authorization.PrincipalID) != ""
+}
+
+func noticeAuthorizationFilterForAccessContext(
+	accessContext noticeAccessContext,
+) noticeReadModelAuthorizationFilter {
+	authorization := accessContext.Authorization
+	groups := normalizeNoticeEntitlementGroups(authorization.RetrievalFilter.EntitlementGroups)
+	if len(groups) == 0 {
+		groups = normalizeNoticeEntitlementGroups(authorization.EntitlementGroups)
+	}
+	return noticeReadModelAuthorizationFilter{
+		VisibilityLevel:   strings.TrimSpace(authorization.RetrievalFilter.VisibilityLevel),
+		EntitlementGroups: groups,
+	}
+}
+
+func normalizeNoticeEntitlementGroups(values []string) []string {
+	normalized := []string{}
+	seen := map[string]bool{}
+	for _, value := range values {
+		item := strings.TrimSpace(value)
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		normalized = append(normalized, item)
+	}
+	return normalized
+}
+
+func noticeReadModelRowsAuthorized(
+	rows []noticeReadModelRecord,
+	filter noticeReadModelAuthorizationFilter,
+) bool {
+	for _, row := range rows {
+		if !noticeReadModelRowAuthorized(row, filter) {
+			return false
+		}
+	}
+	return true
+}
+
+func noticeReadModelRowAuthorized(
+	row noticeReadModelRecord,
+	filter noticeReadModelAuthorizationFilter,
+) bool {
+	sourceFamily := strings.TrimSpace(row.SourceFamily)
+	if sourceFamily == "" {
+		sourceFamily = internalNoticeRestrictedSourceFamily
+	}
+	if isPublicNoticeSourceFamily(sourceFamily) {
+		visibilityLevel := strings.TrimSpace(row.VisibilityLevel)
+		return visibilityLevel == "" || visibilityLevel == "public"
+	}
+	if sourceFamily != internalNoticeRestrictedSourceFamily {
+		return false
+	}
+	if strings.TrimSpace(filter.VisibilityLevel) != "restricted" {
+		return false
+	}
+	if strings.TrimSpace(row.VisibilityLevel) != "restricted" {
+		return false
+	}
+	if strings.TrimSpace(row.PolicyProjectionVersion) == "" {
+		return false
+	}
+	return noticeEntitlementGroupsOverlap(row.EntitlementGroups, filter.EntitlementGroups)
+}
+
+func noticeEntitlementGroupsOverlap(left []string, right []string) bool {
+	rightSet := map[string]bool{}
+	for _, value := range right {
+		item := strings.TrimSpace(value)
+		if item != "" {
+			rightSet[item] = true
+		}
+	}
+	if len(rightSet) == 0 {
+		return false
+	}
+	for _, value := range left {
+		if rightSet[strings.TrimSpace(value)] {
+			return true
+		}
+	}
+	return false
 }
 
 func admittedNoticeSourceFamilies(accessContext noticeAccessContext) []string {

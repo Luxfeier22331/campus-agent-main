@@ -11,6 +11,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
 )
 
 func TestAnswerRejectsInvalidJSON(t *testing.T) {
@@ -238,6 +239,48 @@ func TestAnswerAllowsOpenedStructuredRuntimeWithoutPythonBridge(t *testing.T) {
 	if body["status"] != "no_answer" {
 		t.Fatalf("status = %v, want no_answer", body["status"])
 	}
+}
+
+func TestAnswerDirectStructuredDuplicateRequestIDReturnsConflict(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+		OpenCapabilities:      []string{"campus_services"},
+	}, nil)
+	useStructuredQueryRuntimeFixture(
+		t,
+		server,
+		`{
+			"schema_version":"campus_services_projection.v1",
+			"service_status_records":[{"service_id":"shuttle_bus","status":"open","source_ref":"notice:bus"}],
+			"transport_schedule_snapshots":[{"snapshot_id":"snapshot:bus","is_current":true}],
+			"service_guide_records":[{"service_id":"shuttle_bus","service_name":"校车","required_materials":[],"contact_refs":[]}]
+		}`,
+		"2026-04-24T20:30:00+08:00",
+	)
+	_, _, err := server.lifecycle.Register(context.Background(), lifecycle.Metadata{
+		RequestID:           "req-structured-duplicate",
+		Lane:                "campus_services",
+		RequestedCapability: "campus_services",
+	})
+	if err != nil {
+		t.Fatalf("register duplicate fixture: %v", err)
+	}
+	defer server.lifecycle.Complete("req-structured-duplicate", lifecycle.StateFailed)
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"校车什么时候发车","request_id":"req-structured-duplicate"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusConflict, "execution_already_in_flight")
 }
 
 func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {

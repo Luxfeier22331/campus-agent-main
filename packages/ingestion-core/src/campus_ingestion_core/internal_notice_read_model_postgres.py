@@ -206,6 +206,9 @@ class PostgresInternalNoticeReadModelStore:
                     consumption_status text not null,
                     queryable boolean not null,
                     title text not null,
+                    visibility_level text not null,
+                    entitlement_groups text[] not null,
+                    policy_projection_version text not null,
                     published_at text not null,
                     canonical_document_id text not null,
                     canonical_markdown_object_key text not null,
@@ -223,6 +226,24 @@ class PostgresInternalNoticeReadModelStore:
                 f"""
                 alter table {table_sql}
                 add column if not exists body_excerpt text not null default ''
+                """
+            )
+            cursor.execute(
+                f"""
+                alter table {table_sql}
+                add column if not exists visibility_level text not null default ''
+                """
+            )
+            cursor.execute(
+                f"""
+                alter table {table_sql}
+                add column if not exists entitlement_groups text[] not null default '{{}}'
+                """
+            )
+            cursor.execute(
+                f"""
+                alter table {table_sql}
+                add column if not exists policy_projection_version text not null default ''
                 """
             )
             cursor.execute(
@@ -254,6 +275,12 @@ class PostgresInternalNoticeReadModelStore:
                 on {table_sql} using gin (search_vector)
                 """
             )
+            cursor.execute(
+                f"""
+                create index if not exists idx_{suffix}_entitlement_groups
+                on {table_sql} using gin (entitlement_groups)
+                """
+            )
 
     def _bulk_upsert_query(self) -> str:
         table_sql = _qualified_table_sql(self.table_name)
@@ -270,6 +297,9 @@ class PostgresInternalNoticeReadModelStore:
                     item.consumption_status,
                     item.queryable,
                     item.title,
+                    item.visibility_level,
+                    item.entitlement_groups,
+                    item.policy_projection_version,
                     item.published_at,
                     item.canonical_document_id,
                     item.canonical_markdown_object_key,
@@ -290,6 +320,9 @@ class PostgresInternalNoticeReadModelStore:
                     consumption_status text,
                     queryable boolean,
                     title text,
+                    visibility_level text,
+                    entitlement_groups text[],
+                    policy_projection_version text,
                     published_at text,
                     canonical_document_id text,
                     canonical_markdown_object_key text,
@@ -311,6 +344,9 @@ class PostgresInternalNoticeReadModelStore:
                 consumption_status,
                 queryable,
                 title,
+                visibility_level,
+                entitlement_groups,
+                policy_projection_version,
                 published_at,
                 canonical_document_id,
                 canonical_markdown_object_key,
@@ -332,6 +368,9 @@ class PostgresInternalNoticeReadModelStore:
                 consumption_status,
                 queryable,
                 title,
+                visibility_level,
+                entitlement_groups,
+                policy_projection_version,
                 published_at,
                 canonical_document_id,
                 canonical_markdown_object_key,
@@ -350,6 +389,9 @@ class PostgresInternalNoticeReadModelStore:
                 consumption_status = excluded.consumption_status,
                 queryable = excluded.queryable,
                 title = excluded.title,
+                visibility_level = excluded.visibility_level,
+                entitlement_groups = excluded.entitlement_groups,
+                policy_projection_version = excluded.policy_projection_version,
                 published_at = excluded.published_at,
                 canonical_document_id = excluded.canonical_document_id,
                 canonical_markdown_object_key = excluded.canonical_markdown_object_key,
@@ -376,6 +418,9 @@ class PostgresInternalNoticeReadModelStore:
                 "consumption_status": record.consumption_status,
                 "queryable": record.queryable,
                 "title": record.title,
+                "visibility_level": record.visibility_level,
+                "entitlement_groups": list(record.entitlement_groups),
+                "policy_projection_version": record.policy_projection_version,
                 "published_at": record.published_at,
                 "canonical_document_id": record.canonical_document_id,
                 "canonical_markdown_object_key": record.canonical_markdown_object_key,

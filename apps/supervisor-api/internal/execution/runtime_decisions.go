@@ -283,8 +283,9 @@ func runtimeSessionSlots(slots []sessionSlot) []runtimepolicy.SessionSlot {
 	result := make([]runtimepolicy.SessionSlot, 0, len(slots))
 	for _, slot := range slots {
 		result = append(result, runtimepolicy.SessionSlot{
-			Name:  slot.Name,
-			Value: slot.Value,
+			Name:      slot.Name,
+			Value:     slot.Value,
+			Confirmed: slot.Confirmed,
 		})
 	}
 	return result

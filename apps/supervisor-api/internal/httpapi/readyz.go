@@ -201,6 +201,9 @@ func (s *Server) openStructuredRuntimeHealthy(status structuredquery.Status) boo
 			!status.ServiceGuideReadModelConfigured ||
 			!status.ServiceGuideReadModelHealthy ||
 			!status.ServiceGuideProjectionReady ||
+			!status.ContactDirectoryReadModelConfigured ||
+			!status.ContactDirectoryReadModelHealthy ||
+			!status.ContactDirectoryProjectionReady ||
 			!status.TransportScheduleReadModelConfigured ||
 			!status.TransportScheduleReadModelHealthy ||
 			!status.TransportScheduleImplemented) {

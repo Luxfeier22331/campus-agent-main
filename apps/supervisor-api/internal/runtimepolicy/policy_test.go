@@ -389,7 +389,7 @@ func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 		UserGoal:            "那大二下呢",
 		Context: Context{
 			SessionSlots: []SessionSlot{
-				{Name: "curriculum_program", Value: "计算机科学与技术"},
+				{Name: "curriculum_program", Value: "计算机科学与技术", Confirmed: true},
 			},
 		},
 	})
@@ -423,14 +423,48 @@ func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 	}
 }
 
+func TestEvaluateRuntimePolicyIgnoresUnconfirmedSessionSlots(t *testing.T) {
+	curriculumDecision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "那大二下呢",
+		Context: Context{
+			SessionSlots: []SessionSlot{
+				{Name: "curriculum_program", Value: "计算机科学与技术", Confirmed: false},
+			},
+		},
+	})
+	if curriculumDecision.ContextPreflight.State == "resolved" {
+		t.Fatalf("curriculum context state = resolved, want unresolved")
+	}
+	if curriculumDecision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", curriculumDecision.RoutingFrame.SuggestedNextAction)
+	}
+
+	previousGoalDecision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+		Context: Context{
+			SessionSlots: []SessionSlot{
+				{Name: "recent_goal", Value: "处分申诉", Confirmed: false},
+			},
+		},
+	})
+	if previousGoalDecision.ContextPreflight.State == "resolved" {
+		t.Fatalf("previous goal context state = resolved, want unresolved")
+	}
+	if previousGoalDecision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", previousGoalDecision.RoutingFrame.SuggestedNextAction)
+	}
+}
+
 func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.T) {
 	decision := Evaluate(Request{
 		EffectiveCapability: "knowledge",
 		UserGoal:            "这个流程怎么办",
 		Context: Context{
 			SessionSlots: []SessionSlot{
-				{Name: "policy_topic", Value: "奖学金"},
-				{Name: "policy_topic", Value: "转专业"},
+				{Name: "policy_topic", Value: "奖学金", Confirmed: true},
+				{Name: "policy_topic", Value: "转专业", Confirmed: true},
 			},
 		},
 	})

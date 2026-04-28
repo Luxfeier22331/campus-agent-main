@@ -18,8 +18,9 @@ type Scope struct {
 }
 
 type SessionSlot struct {
-	Name  string
-	Value string
+	Name      string
+	Value     string
+	Confirmed bool
 }
 
 type SelectedNoticeRef struct {

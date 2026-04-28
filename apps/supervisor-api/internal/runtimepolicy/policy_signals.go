@@ -121,6 +121,9 @@ func previousGoalContextCandidates(context Context, policy IntentPolicyArtifact)
 	candidates := []string{}
 	seen := map[string]struct{}{}
 	for _, slot := range context.SessionSlots {
+		if !slot.Confirmed {
+			continue
+		}
 		value := strings.TrimSpace(slot.Value)
 		if value == "" {
 			continue
@@ -163,6 +166,9 @@ func looksLikeContextualSemesterFollowUp(normalizedGoal string, policy IntentPol
 
 func sessionSlotValue(slots []SessionSlot, name string) string {
 	for _, slot := range slots {
+		if !slot.Confirmed {
+			continue
+		}
 		if slot.Name == name {
 			return slot.Value
 		}

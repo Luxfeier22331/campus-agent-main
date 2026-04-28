@@ -104,6 +104,12 @@ class InternalNoticeReadModelTest(unittest.TestCase):
             notice_row.body_excerpt,
             "# 中央民族大学丰台校区家具采购项目比选公告\n\n供应商应按要求投标。",
         )
+        self.assertEqual(notice_row.visibility_level, "restricted")
+        self.assertEqual(notice_row.entitlement_groups, ("campus_members",))
+        self.assertEqual(
+            notice_row.policy_projection_version,
+            "phase1-authorization-projection-v1",
+        )
 
     def test_build_entries_keeps_full_body_out_of_read_model_storage(self) -> None:
         registry, object_store, projection_entries = _runtime()

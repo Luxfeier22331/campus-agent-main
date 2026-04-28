@@ -23,6 +23,7 @@ class SupervisorAgentWorkerApp:
     routes: tuple[HttpRoute, ...]
     prompt_http_pool: PromptHTTPPoolRuntime
     cancel_flags: CancelFlagStore
+    settings: ApiSettings
 
     def handle(
         self,
@@ -103,4 +104,5 @@ def _create_runtime_app(
         routes=routes,
         prompt_http_pool=prompt_http_pool,
         cancel_flags=cancel_flags,
+        settings=runtime_settings,
     )

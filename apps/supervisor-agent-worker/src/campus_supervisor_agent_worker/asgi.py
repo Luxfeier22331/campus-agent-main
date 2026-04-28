@@ -8,7 +8,12 @@ from http import HTTPStatus
 from urllib.parse import urlsplit
 
 from campus_supervisor_agent_worker.app import SupervisorAgentWorkerApp
+from campus_supervisor_agent_worker.bridge_auth import require_bridge_auth
 from campus_supervisor_agent_worker.http_types import HttpResponse
+
+
+class RequestBodyTooLargeError(Exception):
+    pass
 
 
 class SupervisorBridgeAsgiApp:
@@ -46,7 +51,26 @@ class SupervisorBridgeAsgiApp:
         if query_string:
             full_path = f"{path}?{bytes(query_string).decode('latin-1')}"
         headers = _decode_asgi_headers(scope.get("headers") or ())
-        raw_body = await self._read_body(receive)
+        auth_error = _bridge_auth_precheck(self.app, path, headers)
+        if auth_error is not None:
+            await self._send_response(send, auth_error)
+            return
+        try:
+            raw_body = await self._read_body(receive)
+        except RequestBodyTooLargeError:
+            await self._send_response(
+                send,
+                HttpResponse(
+                    status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                    json_body={
+                        "error": {
+                            "code": "request_body_too_large",
+                            "message": "Request body exceeds supervisor bridge limit.",
+                        }
+                    },
+                ),
+            )
+            return
         response = await self._dispatch_in_executor(
             method=method,
             path=full_path,
@@ -86,13 +110,18 @@ class SupervisorBridgeAsgiApp:
 
     async def _read_body(self, receive) -> bytes | None:
         chunks: list[bytes] = []
+        total_bytes = 0
         while True:
             message = await receive()
             if message.get("type") == "http.disconnect":
                 break
             body = message.get("body", b"")
             if body:
-                chunks.append(bytes(body))
+                chunk = bytes(body)
+                total_bytes += len(chunk)
+                if total_bytes > self.app.settings.bridge_request_body_limit_bytes:
+                    raise RequestBodyTooLargeError
+                chunks.append(chunk)
             if not message.get("more_body", False):
                 break
         return b"".join(chunks) if chunks else None
@@ -141,6 +170,16 @@ def dispatch_http_request(
         )
 
     return app.handle(method, urlsplit(path).path, headers=headers, json_body=json_body)
+
+
+def _bridge_auth_precheck(
+    app: SupervisorAgentWorkerApp,
+    path: str,
+    headers: Mapping[str, str],
+) -> HttpResponse | None:
+    if not path.startswith("/internal/bridge/"):
+        return None
+    return require_bridge_auth(headers, app.settings)
 
 
 def _parse_json_body(

@@ -70,25 +70,24 @@ func noticePostgresPoolConfig(options NoticePostgresOptions) (*pgxpool.Config, e
 
 func (s *PostgresNoticeReadModelStore) SearchNotices(
 	ctx context.Context,
-	sourceFamilies []string,
-	queryText string,
-	targetSurfaces []string,
-	maxResults int,
+	criteria noticeSearchCriteria,
 ) ([]noticeReadModelRecord, error) {
 	if s == nil || s.pool == nil {
 		return nil, errors.New("notice read model store is not configured")
 	}
+	maxResults := criteria.MaxResults
 	if maxResults <= 0 {
-		maxResults = 5
+		maxResults = defaultNoticeDiscoverMaxResults
 	}
-	normalizedQuery := strings.TrimSpace(queryText)
-	params := []any{sourceFamilies}
+	normalizedQuery := strings.TrimSpace(criteria.QueryText)
+	params := []any{criteria.SourceFamilies}
 	filters := []string{"queryable = true", "source_family = any($1)"}
-	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(targetSurfaces)
+	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(criteria.TargetSurfaces)
 	if len(normalizedTargetSurfaces) > 0 {
 		params = append(params, normalizedTargetSurfaces)
 		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
 	}
+	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
 	if normalizedQuery != "" {
 		params = append(
 			params,
@@ -118,24 +117,23 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 
 func (s *PostgresNoticeReadModelStore) GetNoticeByID(
 	ctx context.Context,
-	noticeID string,
-	sourceFamily string,
-	targetSurfaces []string,
+	criteria noticeGetCriteria,
 ) (noticeReadModelRecord, bool, error) {
 	if s == nil || s.pool == nil {
 		return noticeReadModelRecord{}, false, errors.New("notice read model store is not configured")
 	}
 	filters := []string{"queryable = true", "source_notice_id = $1"}
-	params := []any{strings.TrimSpace(noticeID)}
-	if strings.TrimSpace(sourceFamily) != "" {
+	params := []any{strings.TrimSpace(criteria.NoticeID)}
+	if strings.TrimSpace(criteria.SourceFamily) != "" {
 		filters = append(filters, fmt.Sprintf("source_family = $%d", len(params)+1))
-		params = append(params, strings.TrimSpace(sourceFamily))
+		params = append(params, strings.TrimSpace(criteria.SourceFamily))
 	}
-	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(targetSurfaces)
+	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(criteria.TargetSurfaces)
 	if len(normalizedTargetSurfaces) > 0 {
 		params = append(params, normalizedTargetSurfaces)
 		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
 	}
+	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
 	query := fmt.Sprintf(
 		"select record from %s where %s order by published_at desc nulls last, unit_id asc limit 1",
 		s.tableSQL,
@@ -149,6 +147,21 @@ func (s *PostgresNoticeReadModelStore) GetNoticeByID(
 		return noticeReadModelRecord{}, false, nil
 	}
 	return rows[0], true, nil
+}
+
+func noticeAuthorizationSQLFilter(
+	params *[]any,
+	filter noticeReadModelAuthorizationFilter,
+) string {
+	*params = append(*params, internalNoticeRestrictedSourceFamily)
+	sourceFamilyParam := len(*params)
+	*params = append(*params, filter.EntitlementGroups)
+	groupsParam := len(*params)
+	return fmt.Sprintf(
+		"(source_family <> $%d or (visibility_level = 'restricted' and policy_projection_version <> '' and entitlement_groups && $%d::text[]))",
+		sourceFamilyParam,
+		groupsParam,
+	)
 }
 
 func (s *PostgresNoticeReadModelStore) fetchRecords(
