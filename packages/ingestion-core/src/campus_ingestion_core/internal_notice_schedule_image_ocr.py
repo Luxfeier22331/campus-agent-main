@@ -972,6 +972,7 @@ def _build_child_document(
         "notice_attachment:muc_internal_portal:"
         f"{evidence.notice_id}:{attachment_ref_id}:schedule-ocr"
     )
+    table_context_lines = _schedule_table_context_lines(result)
     markdown_parts = [
         f"# {evidence.notice_title}",
         "",
@@ -982,6 +983,9 @@ def _build_child_document(
         f"- ocr_model: `{result.model}`",
         "",
     ]
+    if table_context_lines:
+        markdown_parts.extend(table_context_lines)
+        markdown_parts.append("")
     document_units: list[dict[str, Any]] = []
     for index, table in enumerate(schedule_tables, start=1):
         markdown_parts.append(f"## Schedule table {index}")
@@ -994,11 +998,16 @@ def _build_child_document(
                 "unit_type": "table_unit",
                 "source_notice_id": evidence.notice_id,
                 "source_attachment_ref_id": attachment_ref_id,
+                "clean_text": _table_unit_clean_text(
+                    context_lines=table_context_lines,
+                    table=table,
+                ),
                 "table_cells": _tables_payload((table,))[0],
                 "metadata": {
                     "source": "authenticated_notice_schedule_image_ocr",
                     "confidence": result.confidence,
                     "image_index": evidence.image_index,
+                    "context_lines": list(table_context_lines),
                 },
             }
         )
@@ -1009,6 +1018,39 @@ def _build_child_document(
         source_notice_id=evidence.notice_id,
         attachment_ref_id=attachment_ref_id,
     )
+
+
+def _schedule_table_context_lines(result: ScheduleImageOcrProviderResult) -> tuple[str, ...]:
+    lines: list[str] = []
+    for raw_line in str(result.extracted_text or "").splitlines():
+        line = _clean_context_line(raw_line)
+        if not line:
+            continue
+        if any(hint in line for hint in _GUIDE_HINTS):
+            continue
+        if "表" not in line:
+            continue
+        if not any(hint in line for hint in ("班次", "时刻", "发车", "通勤", "接驳")):
+            continue
+        lines.append(line)
+    return tuple(dict.fromkeys(lines))
+
+
+def _table_unit_clean_text(
+    *,
+    context_lines: Sequence[str],
+    table: Sequence[Sequence[str]],
+) -> str:
+    table_lines = tuple(
+        " | ".join(str(cell or "").strip() for cell in row if str(cell or "").strip())
+        for row in table
+        if row
+    )
+    return "\n".join([*context_lines, *table_lines]).strip()
+
+
+def _clean_context_line(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())
 
 
 def _review_notice_image(

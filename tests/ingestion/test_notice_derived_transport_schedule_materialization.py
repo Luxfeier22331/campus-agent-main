@@ -128,6 +128,68 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
 
         self.assertEqual([row.effective_from for row in rows], ["2026-03-20", "2026-03-20"])
 
+    def test_table_rows_inherit_attachment_ocr_effective_date_context(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+
+        cases = (
+            (
+                "353901",
+                "2025-12-11 15:40",
+                "表1 师生通勤班车班次表（新班次 12月13日起执行）",
+                "2025-12-13",
+            ),
+            (
+                "354270",
+                "2025-12-30 10:01",
+                "表1 师生通勤班车班次表（新班次2026年1月4日起执行）",
+                "2026-01-04",
+            ),
+        )
+        for notice_id, release_time, attachment_context, expected_effective_from in cases:
+            with self.subTest(notice_id=notice_id):
+                registry, object_store, entry = _build_runtime(
+                    notice_id=notice_id,
+                    parent_markdown=(
+                        "# 关于两校区通勤班车新增班次的通知\n\n"
+                        "为方便师生两校区通勤，新增班次详见附件。\n"
+                    ),
+                    release_time=release_time,
+                    attachment_document_ids=(
+                        f"notice_attachment:muc_internal_portal:{notice_id}:attachment-0001",
+                    ),
+                    table_cells=[
+                        ["星期", "线路", "序号", "发车时间", "类型", "备注"],
+                        [
+                            "周一至周五",
+                            "丰台校区→海淀校区",
+                            "5",
+                            "12:45",
+                            "教师班次",
+                            "新增班次",
+                        ],
+                    ],
+                )
+                attachment_record = registry.current_version(
+                    f"notice_attachment:muc_internal_portal:{notice_id}:attachment-0001",
+                    preferred_revision_tracks=("source-faithful",),
+                )
+                assert attachment_record is not None
+                assert attachment_record.canonical_markdown_object_key is not None
+                object_store.objects[
+                    ("campus-rag-derived", attachment_record.canonical_markdown_object_key)
+                ] = attachment_context.encode("utf-8")
+
+                rows = module.extract_notice_derived_transport_schedule_rows(
+                    projection_entry=entry,
+                    registry=registry,
+                    object_store=object_store,
+                    derived_bucket="campus-rag-derived",
+                )
+
+                self.assertEqual([row.effective_from for row in rows], [expected_effective_from])
+
     def test_drops_adjustment_remark_copied_to_non_matching_departure_rows(self) -> None:
         module = _load_module()
         self.assertIsNotNone(module, "notice-derived transport materializer module is required")
@@ -206,6 +268,55 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
         self.assertEqual(
             [(row.route_id, row.departure_time) for row in rows],
             [("route:haidian-to-fengtai", "19:30")],
+        )
+
+    def test_table_cells_are_not_reparsed_from_clean_text_context(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="353901",
+            parent_markdown=(
+                "# 关于两校区通勤班车新增班次的通知\n\n为方便师生两校区通勤，新增班次详见附件。\n"
+            ),
+            release_time="2025-12-11 15:40",
+            attachment_document_ids=(
+                "notice_attachment:muc_internal_portal:353901:attachment-0001",
+            ),
+            document_units=[
+                {
+                    "unit_id": "table-1",
+                    "unit_type": "table_unit",
+                    "clean_text": (
+                        "表1 师生通勤班车班次表（新班次 12月13日起执行）\n"
+                        "星期 | 线路 | 序号 | 发车时间 | 类型 | 备注\n"
+                        "周一至周五 | 丰台校区→海淀校区 | 5 | 13:15 | 教师班次 | 新增班次"
+                    ),
+                    "table_cells": [
+                        ["星期", "线路", "序号", "发车时间", "类型", "备注"],
+                        [
+                            "周一至周五",
+                            "丰台校区→海淀校区",
+                            "5",
+                            "13:15",
+                            "教师班次",
+                            "",
+                        ],
+                    ],
+                }
+            ],
+        )
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(
+            [(row.route_id, row.departure_time, row.effective_from) for row in rows],
+            [("route:fengtai-to-haidian", "13:15", "2025-12-13")],
         )
 
     def test_extracts_transport_rows_from_markdown_table_units(self) -> None:

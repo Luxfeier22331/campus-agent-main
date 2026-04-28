@@ -170,10 +170,20 @@ def extract_notice_derived_transport_schedule_rows(
         )
     )
     for attachment_record in attachment_records:
+        attachment_text = _read_record_text(
+            record=attachment_record,
+            object_store=object_store,
+            derived_bucket=derived_bucket,
+        )
         document_units = _read_document_units(
             record=attachment_record,
             object_store=object_store,
             derived_bucket=derived_bucket,
+        )
+        attachment_context_text = _join_context_text(
+            parent_text,
+            attachment_text,
+            _document_units_text_context(document_units),
         )
         for matrix in iter_notice_derived_transport_table_matrices(
             document_units,
@@ -188,7 +198,7 @@ def extract_notice_derived_transport_schedule_rows(
                     projection_entry=projection_entry,
                     source_ref=source_ref,
                     source_attachment_document_id=attachment_record.document_id,
-                    parent_text=parent_text,
+                    parent_text=attachment_context_text,
                 )
             )
     return tuple(rows)
@@ -588,6 +598,20 @@ def _read_document_units(
         if isinstance(unit, dict):
             units.append(dict(unit))
     return tuple(units)
+
+
+def _document_units_text_context(units: Sequence[Mapping[str, Any]]) -> str:
+    parts: list[str] = []
+    for unit in units:
+        for key in ("title", "clean_text", "text", "raw_text"):
+            value = unit.get(key)
+            if isinstance(value, str) and value.strip():
+                parts.append(_clean_cell(value))
+    return _join_context_text(*parts)
+
+
+def _join_context_text(*parts: str) -> str:
+    return "\n".join(dict.fromkeys(part for part in parts if part.strip()))
 
 
 def _extract_rows_from_table_matrix(

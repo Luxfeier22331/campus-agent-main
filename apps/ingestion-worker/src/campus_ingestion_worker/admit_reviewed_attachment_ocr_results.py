@@ -244,23 +244,118 @@ def _load_review_items(
 
 
 def _provider_response_bytes(raw_item: Mapping[str, Any]) -> bytes:
+    before_blocks, after_blocks = _review_context_blocks(raw_item)
     jsonl = raw_item.get("provider_response_jsonl")
-    if isinstance(jsonl, str) and jsonl.strip():
+    if isinstance(jsonl, str) and jsonl.strip() and not before_blocks and not after_blocks:
         return (jsonl.rstrip() + "\n").encode("utf-8")
+    if isinstance(jsonl, str) and jsonl.strip():
+        payloads = []
+        for line in jsonl.splitlines():
+            if not line.strip():
+                continue
+            payload = json.loads(line)
+            if isinstance(payload, Mapping):
+                payloads.append(dict(payload))
+        return _provider_response_payloads_bytes(
+            payloads=payloads,
+            before_blocks=before_blocks,
+            after_blocks=after_blocks,
+        )
     lines = raw_item.get("provider_response_lines")
     if isinstance(lines, list):
-        return (
-            "\n".join(
-                json.dumps(dict(item), ensure_ascii=False)
-                for item in lines
-                if isinstance(item, Mapping)
-            )
-            + "\n"
-        ).encode("utf-8")
+        return _provider_response_payloads_bytes(
+            payloads=[dict(item) for item in lines if isinstance(item, Mapping)],
+            before_blocks=before_blocks,
+            after_blocks=after_blocks,
+        )
     response = raw_item.get("provider_response")
     if isinstance(response, Mapping):
-        return (json.dumps(dict(response), ensure_ascii=False) + "\n").encode("utf-8")
+        return _provider_response_payloads_bytes(
+            payloads=(dict(response),),
+            before_blocks=before_blocks,
+            after_blocks=after_blocks,
+        )
     raise ValueError("review item requires provider_response_lines or provider_response_jsonl")
+
+
+def _provider_response_payloads_bytes(
+    *,
+    payloads: Sequence[Mapping[str, Any]],
+    before_blocks: Sequence[Mapping[str, Any]],
+    after_blocks: Sequence[Mapping[str, Any]],
+) -> bytes:
+    rendered_payloads: list[Mapping[str, Any]] = []
+    for index, payload in enumerate(payloads):
+        rendered_payloads.append(
+            _inject_review_context_blocks(
+                payload,
+                before_blocks=before_blocks if index == 0 else (),
+                after_blocks=after_blocks if index == len(payloads) - 1 else (),
+            )
+        )
+    return (
+        "\n".join(json.dumps(dict(item), ensure_ascii=False) for item in rendered_payloads) + "\n"
+    ).encode("utf-8")
+
+
+def _inject_review_context_blocks(
+    payload: Mapping[str, Any],
+    *,
+    before_blocks: Sequence[Mapping[str, Any]],
+    after_blocks: Sequence[Mapping[str, Any]],
+) -> Mapping[str, Any]:
+    if not before_blocks and not after_blocks:
+        return dict(payload)
+    updated = dict(payload)
+    blocks = updated.get("blocks")
+    if isinstance(blocks, list):
+        updated["blocks"] = [*before_blocks, *blocks, *after_blocks]
+        return updated
+    result = updated.get("result")
+    if isinstance(result, Mapping) and isinstance(result.get("blocks"), list):
+        updated_result = dict(result)
+        updated_result["blocks"] = [*before_blocks, *list(result["blocks"]), *after_blocks]
+        updated["result"] = updated_result
+        return updated
+    layout_results = updated.get("layoutParsingResults")
+    if isinstance(layout_results, list):
+        updated["layoutParsingResults"] = [*before_blocks, *layout_results, *after_blocks]
+        return updated
+    return updated
+
+
+def _review_context_blocks(
+    raw_item: Mapping[str, Any],
+) -> tuple[tuple[Mapping[str, Any], ...], tuple[Mapping[str, Any], ...]]:
+    before: list[Mapping[str, Any]] = []
+    after: list[Mapping[str, Any]] = []
+    if context_before := _text(raw_item.get("context_before")):
+        before.append(_context_block(context_before, block_type="paragraph"))
+    for key in ("ocr_text", "table_caption", "caption_text", "context_text"):
+        if text := _text(raw_item.get(key)):
+            before.append(_context_block(text, block_type="heading"))
+    if context_after := _text(raw_item.get("context_after")):
+        after.append(_context_block(context_after, block_type="paragraph"))
+    return tuple(_dedupe_blocks(before)), tuple(_dedupe_blocks(after))
+
+
+def _context_block(text: str, *, block_type: str) -> Mapping[str, Any]:
+    return {
+        "blockType": block_type,
+        "markdown": {"text": text},
+    }
+
+
+def _dedupe_blocks(blocks: Sequence[Mapping[str, Any]]) -> tuple[Mapping[str, Any], ...]:
+    seen: set[str] = set()
+    deduped: list[Mapping[str, Any]] = []
+    for block in blocks:
+        text = _text(dict(block.get("markdown") or {}).get("text"))
+        if not text or text in seen:
+            continue
+        deduped.append(block)
+        seen.add(text)
+    return tuple(deduped)
 
 
 def _normalize_mode(mode: str) -> ReviewedAttachmentOcrAdmitMode:

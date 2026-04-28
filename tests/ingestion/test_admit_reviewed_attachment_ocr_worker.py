@@ -47,17 +47,55 @@ class AdmitReviewedAttachmentOcrWorkerTest(unittest.TestCase):
         self.assertEqual(len(object_store.put_calls), 4)
         self.assertEqual(len(registry.list_versions(document_id)), 1)
 
+    def test_preserves_reviewed_ocr_text_context_in_materialized_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            review_path = root / "review.json"
+            _write_review_fixture(
+                review_path,
+                notice_id="353901",
+                release_time="2025-12-11 15:40",
+                ocr_text="表1 师生通勤班车班次表（新班次 12月13日起执行）",
+            )
+            object_store = _FakeObjectStore()
+            registry = InMemoryDocumentRegistry()
 
-def _write_review_fixture(path: Path) -> None:
+            with patch(
+                "campus_ingestion_worker.admit_reviewed_attachment_ocr_results."
+                "_assert_consumer_gate_allows"
+            ):
+                admit_reviewed_attachment_ocr_results(
+                    review_input_path=review_path,
+                    notice_ids=("353901",),
+                    consumer_admission_manifest_path=root / "admission.json",
+                    run_id="reviewed-image-test",
+                    generated_at="2026-04-28T22:30:00+08:00",
+                    derived_bucket="campus-rag-derived",
+                    mode="admit_and_materialize",
+                    object_store=object_store,
+                    registry=registry,
+                )
+
+        written_payloads = b"\n".join(call[2] for call in object_store.put_calls).decode("utf-8")
+        self.assertIn("新班次 12月13日起执行", written_payloads)
+
+
+def _write_review_fixture(
+    path: Path,
+    *,
+    notice_id: str = "245272",
+    release_time: str = "2024-08-30 08:48",
+    ocr_text: str = "",
+) -> None:
     path.write_text(
         json.dumps(
             {
                 "schema_version": "authenticated_notice_reviewed_attachment_ocr.v1",
                 "items": [
                     {
-                        "notice_id": "245272",
+                        "notice_id": notice_id,
                         "notice_title": "关于2024年秋季学期两校区学生通勤班车运营的通知",
-                        "release_time": "2024-08-30 08:48",
+                        "release_time": release_time,
                         "organization": "丰台校区管理委员会",
                         "attachment_ref_id": "attachment-1",
                         "filename": "附件：关于优化两校区学生通勤班车方案的通知（试行）.pdf",
@@ -70,6 +108,7 @@ def _write_review_fixture(path: Path) -> None:
                         "model": "manual-layout-v1",
                         "confidence": "high",
                         "review_notes": ["confirmed from rendered PDF pages"],
+                        "ocr_text": ocr_text,
                         "provider_response_lines": [
                             {
                                 "blocks": [

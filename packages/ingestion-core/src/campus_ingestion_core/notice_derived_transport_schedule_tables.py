@@ -60,6 +60,9 @@ def _table_matrices_from_unit(
             if html_matrix:
                 candidates.append(html_matrix)
 
+    if candidates:
+        return tuple(candidates)
+
     for text_value in (unit.get("clean_text"), unit.get("text"), unit.get("raw_text")):
         if not isinstance(text_value, str) or not text_value.strip():
             continue

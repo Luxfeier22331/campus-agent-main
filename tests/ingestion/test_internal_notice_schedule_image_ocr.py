@@ -609,6 +609,43 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         self.assertEqual(decision.reason, "schedule_table_admitted")
         self.assertIsNotNone(decision.document)
 
+    def test_admitted_schedule_child_preserves_table_caption_effective_date_context(
+        self,
+    ) -> None:
+        evidence = _evidence(
+            notice_id="353901",
+            notice_title="关于两校区通勤班车新增班次的通知",
+            image_use="schedule_table_image",
+        )
+        result = ScheduleImageOcrProviderResult(
+            provider="fixture-ocr",
+            model="fixture-table-v1",
+            confidence="high",
+            extracted_text="表1 师生通勤班车班次表（新班次 12月13日起执行）",
+            tables=(
+                (
+                    ("星期", "线路", "序号", "发车时间", "类型", "备注"),
+                    ("周一至周五", "丰台校区→海淀校区", "5", "13:15", "教师班次", "新增班次"),
+                ),
+            ),
+            layout_elements=(),
+            raw_response={},
+        )
+
+        decision = admit_schedule_image_ocr_child_document(
+            evidence=evidence,
+            result=result,
+            generated_at="2026-04-28T10:00:00+08:00",
+        )
+
+        self.assertEqual(decision.status, "admitted")
+        assert decision.document is not None
+        self.assertIn("新班次 12月13日起执行", decision.document.canonical_markdown)
+        self.assertIn(
+            "新班次 12月13日起执行",
+            json.dumps(decision.document.document_units, ensure_ascii=False),
+        )
+
     def test_admission_rejects_reservation_open_time_without_schedule_table(
         self,
     ) -> None:
