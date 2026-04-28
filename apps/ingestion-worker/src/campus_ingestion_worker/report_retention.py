@@ -42,6 +42,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Optional path for failed report index JSON. Defaults to <report-dir>/failed-index.json.",
     )
+    parser.add_argument(
+        "--dry-run",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Compute deletion candidates without removing report files.",
+    )
     return parser
 
 
@@ -53,6 +59,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         max_age_days=args.max_age_days,
         max_count=args.max_count,
         keep_failed=bool(args.keep_failed),
+        dry_run=bool(args.dry_run),
         failed_index_path=Path(args.failed_index_path)
         if str(args.failed_index_path).strip()
         else None,
@@ -68,6 +75,7 @@ def prune_report_directory(
     max_age_days: int,
     max_count: int,
     keep_failed: bool,
+    dry_run: bool = False,
     failed_index_path: Path | None = None,
 ) -> dict[str, Any]:
     started_at = utc_now_iso()
@@ -105,6 +113,9 @@ def prune_report_directory(
 
     deleted_paths: list[str] = []
     for path in sorted(to_delete):
+        if dry_run:
+            deleted_paths.append(str(path))
+            continue
         try:
             path.unlink()
         except FileNotFoundError:
@@ -118,6 +129,7 @@ def prune_report_directory(
                 max_age_days=max_age_days,
                 max_count=max_count,
                 keep_failed=keep_failed,
+                dry_run=dry_run,
                 total_candidates=len(candidates),
                 deleted_paths=deleted_paths,
                 failed_reports=failed_reports,
@@ -148,6 +160,7 @@ def prune_report_directory(
         max_age_days=max_age_days,
         max_count=max_count,
         keep_failed=keep_failed,
+        dry_run=dry_run,
         total_candidates=len(candidates),
         deleted_paths=deleted_paths,
         failed_reports=failed_reports,
@@ -207,6 +220,7 @@ def _build_report(
     max_age_days: int,
     max_count: int,
     keep_failed: bool,
+    dry_run: bool,
     total_candidates: int,
     deleted_paths: list[str],
     failed_reports: list[dict[str, Any]],
@@ -223,6 +237,7 @@ def _build_report(
             "max_age_days": int(max_age_days),
             "max_count": int(max_count),
             "keep_failed": bool(keep_failed),
+            "dry_run": bool(dry_run),
         },
         "total_candidates": int(total_candidates),
         "deleted_count": len(deleted_paths),

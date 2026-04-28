@@ -60,6 +60,7 @@ class OfficialWebProjectionImportWorkerCliTest(unittest.TestCase):
                     "--collection",
                     "muc_public_pages",
                     "--require-promotable",
+                    "--dry-run",
                 ]
             )
 
@@ -68,5 +69,6 @@ class OfficialWebProjectionImportWorkerCliTest(unittest.TestCase):
             ("official_web", "muc_public_pages"),
         )
         self.assertTrue(import_projection_output.call_args.kwargs["require_promotable"])
+        self.assertTrue(import_projection_output.call_args.kwargs["dry_run"])
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["success_count"], 1)

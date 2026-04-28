@@ -14,6 +14,7 @@ from campus_ingestion_core import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.campusrag_ingestion_reporting import write_import_report
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     ImportReport,
@@ -50,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", required=True)
     parser.add_argument("--source-bucket", default=DEFAULT_BUCKET_SOURCE)
     parser.add_argument("--require-promotable", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     return parser
 
 
@@ -65,6 +67,7 @@ def import_projection_output(
     object_store_settings: ObjectStoreSettings,
     scope_refresh: tuple[str, str] | None = None,
     require_promotable: bool = False,
+    dry_run: bool = False,
 ) -> ImportReport:
     projection_report = _read_json(projection_output_dir / "projection-report.json")
     bundle_payload = _read_json(replay_input_dir / "source-truth-bundle.json")
@@ -171,6 +174,27 @@ def import_projection_output(
                 bundle_page=page,
                 document=documents[-1],
             )
+        )
+
+    if dry_run:
+        document_ids = tuple(document.source_label for document in documents)
+        skipped_document_ids = tuple(skipped_non_promotable_document_ids)
+        return write_import_report(
+            import_mode="official_web_source_truth_replay_dry_run",
+            report_dir=work_dir / "import-reports",
+            report_prefix="official-web-import-dry-run",
+            success_count=len(document_ids),
+            skipped_count=len(skipped_document_ids),
+            failed_count=0,
+            raw_uploaded_count=0,
+            raw_reused_count=0,
+            document_ids=document_ids,
+            created_document_ids=document_ids,
+            updated_document_ids=(),
+            skipped_document_ids=skipped_document_ids,
+            unresolved_source_pdfs=(),
+            errors=(),
+            timestamp=_utcnow(),
         )
 
     report = persist_import_documents(
@@ -389,6 +413,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         object_store_settings=object_store_settings,
         scope_refresh=(args.corpus, args.collection),
         require_promotable=args.require_promotable,
+        dry_run=args.dry_run,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 

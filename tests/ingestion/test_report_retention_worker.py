@@ -85,6 +85,29 @@ class ReportRetentionWorkerTest(unittest.TestCase):
             remaining = sorted(item.name for item in report_dir.glob("report-*.json"))
             self.assertEqual(remaining, ["report-1.json", "report-2.json"])
 
+    def test_prune_report_directory_dry_run_reports_candidates_without_deleting(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            report_dir = Path(temp_dir)
+            old_succeeded = report_dir / "old-succeeded.json"
+            old_succeeded.write_text(
+                json.dumps({"status": "succeeded", "batch_kind": "official_web_handoffs"}),
+                encoding="utf-8",
+            )
+            old_epoch = (datetime.now(UTC) - timedelta(days=30)).timestamp()
+            os.utime(old_succeeded, (old_epoch, old_epoch))
+
+            report = retention.prune_report_directory(
+                report_dir=report_dir,
+                max_age_days=14,
+                max_count=10,
+                keep_failed=False,
+                dry_run=True,
+            )
+
+            self.assertTrue(old_succeeded.exists())
+            self.assertEqual(report["deleted_count"], 1)
+            self.assertEqual(report["policy"]["dry_run"], True)
+
 
 if __name__ == "__main__":
     unittest.main()
