@@ -51,6 +51,13 @@ ready transport candidates。
   gate、local preview，再进入 stage 或 promote；不得从全部 notice bundle 直接写 current
 - mounted current file 只属于 bootstrap / smoke compatibility，不是长期 production
   consumption truth
+- no-write transport preview gate 必须输出 release write plan，至少区分
+  `current_serving_write`、`historical_snapshot_only_write`、
+  `operational_exception_write` 与 `preview_failed_skip`
+- `snapshot_only_superseded_baseline` 只允许用于非 current、无服务日期范围的
+  `baseline_revision` snapshot；它表示该 notice 只贡献历史快照，不贡献当前 serving
+  row。current snapshot 如果没有 `scheduled_departures`、`service_exceptions` 或
+  `operational_notices`，必须阻断 preview / release
 
 ## Input Source Truth
 
@@ -268,6 +275,21 @@ operational notice 的候选：
 
 single-notice 或 selected batch 验证必须先使用 `preview`；需要保留写入证据但不能影响线上查询时使用
 `stage`；只有完整、已批准的当前时刻表 release 可以使用 `promote`。
+
+`stage` 或 `promote` 前必须先运行 no-write transport preview gate。gate 的
+`preview-passed-selection.json` 是后续 selected release 的唯一允许输入；
+`release-write-plan.json` 只作为同一批 release 内的写入解释与审计分桶，不能把
+`historical_snapshot_only_write` 单独拿去 promote 为当前时刻表。
+
+`historical_snapshot_only_write` 的写入语义：
+
+- 写入 `transport_schedule_snapshots` 与 `transport_release_notices`
+- 保留原始 notice / OCR / attachment provenance
+- `is_current=false`
+- `service_date_ranges=[]`
+- 不写入当前 `scheduled_departures`
+- 不写入 `transport_service_exceptions`
+- 不写入 `transport_operational_notices`
 
 versioned artifact：
 

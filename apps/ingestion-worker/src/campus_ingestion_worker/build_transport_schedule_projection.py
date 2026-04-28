@@ -163,6 +163,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--consumer-admission-manifest-path")
+    parser.add_argument(
+        "--transport-preview-gate-report-path",
+        help=(
+            "Required for notice-derived stage/promote. Must be the no-write "
+            "schedule transport preview gate report that passed the selected notices."
+        ),
+    )
     return parser
 
 
@@ -252,6 +259,8 @@ def build_transport_schedule_projection_release_from_consumption_projection(
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
     publish_mode: str = _PUBLISH_MODE_PROMOTE,
     admitted_at: str = "",
+    selected_notice_ids: Sequence[str] = (),
+    transport_preview_gate_report: Mapping[str, Any] | None = None,
 ):
     normalized_publish_mode = _normalize_publish_mode(publish_mode)
     build_result = build_notice_derived_transport_schedule_projection_bundle(
@@ -271,6 +280,12 @@ def build_transport_schedule_projection_release_from_consumption_projection(
             build_result.rejected_source_records,
         )
         raise ValueError("notice-derived transport schedule projection produced no snapshots")
+    _assert_transport_bundle_matches_preview_gate_report(
+        publish_mode=normalized_publish_mode,
+        bundle=build_result.bundle,
+        preview_gate_report=transport_preview_gate_report,
+        selected_notice_ids=selected_notice_ids,
+    )
 
     work_dir.mkdir(parents=True, exist_ok=True)
     build_result.bundle["transport_release_notices"] = _transport_release_notice_provenance_records(
@@ -358,6 +373,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             manifest=consumer_admission_manifest,
             notice_ids=notice_ids or tuple(entry.source_notice_id for entry in projection_entries),
         )
+        transport_preview_gate_report = _assert_transport_preview_gate_allows(
+            publish_mode=publish_mode,
+            report_path=args.transport_preview_gate_report_path,
+            selected_notice_ids=notice_ids
+            or tuple(entry.source_notice_id for entry in projection_entries),
+        )
         report = build_transport_schedule_projection_release_from_consumption_projection(
             projection_entries=projection_entries,
             registry=build_document_registry_from_env(source),
@@ -370,6 +391,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             structured_projection_publisher=structured_projection_publisher,
             publish_mode=publish_mode,
             admitted_at=consumer_admission_manifest.created_at,
+            selected_notice_ids=notice_ids
+            or tuple(entry.source_notice_id for entry in projection_entries),
+            transport_preview_gate_report=transport_preview_gate_report,
         )
     else:
         if not args.source_truth_inventory:
@@ -457,6 +481,135 @@ def _assert_transport_consumer_admission_gate_allows(
             "consumer admission manifest gate blocked transport_schedule materialization: "
             + ", ".join(report.reason_codes)
         )
+
+
+def _assert_transport_preview_gate_allows(
+    *,
+    publish_mode: str,
+    report_path: str | None,
+    selected_notice_ids: Sequence[str],
+) -> Mapping[str, Any] | None:
+    if not _writes_structured_projection(publish_mode):
+        return None
+    normalized_path = str(report_path or "").strip()
+    if not normalized_path:
+        raise ValueError(
+            "transport preview gate report is required before transport_schedule stage/promote"
+        )
+    report = _read_json(Path(normalized_path).resolve())
+    if report.get("schema_version") != "schedule_transport_preview_gate.v1":
+        raise ValueError("transport preview gate report has unsupported schema_version")
+    if not bool(report.get("validation_valid")):
+        raise ValueError("transport preview gate validation is not valid")
+
+    selected = set(normalize_notice_ids(selected_notice_ids))
+    buckets = dict(report.get("buckets") or {})
+    passed = set(normalize_notice_ids(buckets.get("preview_passed") or ()))
+    missing = sorted(selected - passed)
+    if missing:
+        raise ValueError(
+            "transport preview gate did not pass selected notice ids: " + ", ".join(missing)
+        )
+
+    release_write_buckets = dict(report.get("release_write_buckets") or {})
+    skipped = set(normalize_notice_ids(release_write_buckets.get("preview_failed_skip") or ()))
+    blocked = sorted(selected & skipped)
+    if blocked:
+        raise ValueError(
+            "transport preview gate marked selected notice ids as preview_failed_skip: "
+            + ", ".join(blocked)
+        )
+    return report
+
+
+def _assert_transport_bundle_matches_preview_gate_report(
+    *,
+    publish_mode: str,
+    bundle: Mapping[str, Any],
+    preview_gate_report: Mapping[str, Any] | None,
+    selected_notice_ids: Sequence[str],
+) -> None:
+    if not _writes_structured_projection(publish_mode) or preview_gate_report is None:
+        return
+    selected = set(normalize_notice_ids(selected_notice_ids))
+    release_write_buckets = dict(preview_gate_report.get("release_write_buckets") or {})
+    current_serving = set(
+        normalize_notice_ids(release_write_buckets.get("current_serving_write") or ())
+    )
+    historical_snapshot_only = set(
+        normalize_notice_ids(release_write_buckets.get("historical_snapshot_only_write") or ())
+    )
+    scoped_historical = (
+        historical_snapshot_only & selected if selected else historical_snapshot_only
+    )
+    current_snapshot_notice_ids = _current_snapshot_notice_ids(bundle)
+    serving_notice_ids = _serving_notice_ids(bundle)
+    historical_current_notice_ids = sorted(current_snapshot_notice_ids & scoped_historical)
+    if historical_current_notice_ids:
+        raise ValueError(
+            "transport preview gate marked notice ids as historical_snapshot_only_write, "
+            "but bundle would publish them as current snapshots: "
+            + ", ".join(historical_current_notice_ids)
+        )
+    invalid_current_notice_ids = sorted(current_snapshot_notice_ids - current_serving)
+    if invalid_current_notice_ids:
+        raise ValueError(
+            "transport preview gate does not allow bundle current snapshot notice ids: "
+            + ", ".join(invalid_current_notice_ids)
+        )
+    historical_serving_notice_ids = sorted(serving_notice_ids & scoped_historical)
+    if historical_serving_notice_ids:
+        raise ValueError(
+            "transport preview gate marked notice ids as historical_snapshot_only_write, "
+            "but bundle contains serving rows for them: " + ", ".join(historical_serving_notice_ids)
+        )
+
+
+def _current_snapshot_notice_ids(bundle: Mapping[str, Any]) -> set[str]:
+    return {
+        notice_id
+        for snapshot in _list_of_mappings(bundle.get("transport_schedule_snapshots"))
+        if bool(snapshot.get("is_current"))
+        if (notice_id := _notice_id_from_source_ref(snapshot.get("source_ref")))
+    }
+
+
+def _serving_notice_ids(bundle: Mapping[str, Any]) -> set[str]:
+    notice_ids: set[str] = set()
+    for departure in _list_of_mappings(bundle.get("scheduled_departures")):
+        notice_ids.update(_notice_ids_from_refs(departure.get("related_notice_refs")))
+    for exception in _list_of_mappings(bundle.get("transport_service_exceptions")):
+        notice_ids.update(_notice_ids_from_refs(exception.get("related_notice_refs")))
+    for operational_notice in _list_of_mappings(bundle.get("transport_operational_notices")):
+        notice_id = _notice_id_from_source_ref(operational_notice.get("source_ref"))
+        if notice_id:
+            notice_ids.add(notice_id)
+    return notice_ids
+
+
+def _notice_ids_from_refs(value: object) -> set[str]:
+    if isinstance(value, str):
+        values: Sequence[object] = (value,)
+    elif isinstance(value, Sequence):
+        values = value
+    else:
+        values = ()
+    return {
+        notice_id for raw_value in values if (notice_id := _notice_id_from_source_ref(raw_value))
+    }
+
+
+def _notice_id_from_source_ref(value: object) -> str:
+    parts = str(value or "").strip().split(":")
+    if len(parts) >= 3 and parts[0] == "notice":
+        return parts[-1].strip()
+    return ""
+
+
+def _list_of_mappings(value: object) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return ()
+    return tuple(dict(item) for item in value if isinstance(item, Mapping))
 
 
 def _transport_release_notice_provenance_records(

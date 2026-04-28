@@ -480,6 +480,111 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
 
         self.assertEqual(publisher.calls, [])
 
+    def test_main_blocks_stage_without_transport_preview_gate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "consumer-admission-manifest.json"
+            _write_consumer_manifest(manifest_path)
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+            registry, projection_entry = _notice_projection_runtime(object_store)
+            projection_store = _FakeProjectionStore((projection_entry,))
+
+            with (
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.ObjectStoreSettings.from_env",
+                    return_value=SimpleNamespace(
+                        bucket_source="campus-rag-source",
+                        bucket_derived="campus-rag-derived",
+                    ),
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.S3ObjectStoreAdmin",
+                    return_value=object_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_document_registry_from_env",
+                    return_value=registry,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_notice_consumption_projection_store_from_env",
+                    return_value=projection_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_structured_projection_publisher_from_env",
+                    return_value=publisher,
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+                self.assertRaisesRegex(ValueError, "transport preview gate"),
+            ):
+                worker.main(
+                    [
+                        "--from-consumption-projection",
+                        "--notice-id",
+                        "355122",
+                        "--consumer-admission-manifest-path",
+                        str(manifest_path),
+                        "--publish-mode",
+                        "stage",
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "transport-schedule-cli-355122-stage",
+                        "--generated-at",
+                        "2026-03-20T09:00:00+08:00",
+                        "--service-horizon-days",
+                        "3",
+                    ]
+                )
+
+        self.assertEqual(publisher.calls, [])
+
+    def test_release_gate_blocks_historical_notice_becoming_current_snapshot(self) -> None:
+        preview_gate = {
+            "schema_version": "schedule_transport_preview_gate.v1",
+            "validation_valid": True,
+            "buckets": {
+                "preview_passed": ["245272"],
+                "preview_failed": [],
+            },
+            "release_write_buckets": {
+                "current_serving_write": ["354578"],
+                "historical_snapshot_only_write": ["245272"],
+                "operational_exception_write": [],
+                "preview_failed_skip": [],
+            },
+        }
+        bundle = {
+            "transport_schedule_snapshots": [
+                {
+                    "snapshot_id": "snapshot:transport-schedule:2024-08-30:245272",
+                    "source_ref": "notice:muc_internal_portal:245272",
+                    "is_current": True,
+                    "schedule_scope": "baseline_revision",
+                    "service_date_ranges": [],
+                }
+            ],
+            "scheduled_departures": [
+                {
+                    "snapshot_id": "snapshot:transport-schedule:2024-08-30:245272",
+                    "related_notice_refs": ["notice:muc_internal_portal:245272"],
+                }
+            ],
+            "transport_service_exceptions": [],
+            "transport_operational_notices": [],
+        }
+
+        with self.assertRaisesRegex(ValueError, "historical_snapshot_only_write"):
+            worker._assert_transport_bundle_matches_preview_gate_report(
+                publish_mode="stage",
+                bundle=bundle,
+                preview_gate_report=preview_gate,
+                selected_notice_ids=("245272",),
+            )
+
     def test_main_publishes_release_to_structured_projection_postgres_when_configured(
         self,
     ) -> None:
@@ -568,7 +673,9 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             manifest_path = root / "consumer-admission-manifest.json"
+            preview_gate_path = root / "transport-preview-gate.json"
             _write_consumer_manifest(manifest_path)
+            _write_transport_preview_gate(preview_gate_path, selected_notice_ids=("355122",))
             object_store = _FakeObjectStore()
             publisher = _FakeStructuredProjectionPublisher()
             registry, projection_entry = _notice_projection_runtime(object_store)
@@ -694,7 +801,9 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             manifest_path = root / "consumer-admission-manifest.json"
+            preview_gate_path = root / "transport-preview-gate.json"
             _write_consumer_manifest(manifest_path)
+            _write_transport_preview_gate(preview_gate_path, selected_notice_ids=("355122",))
             object_store = _FakeObjectStore()
             publisher = _FakeStructuredProjectionPublisher()
             registry, projection_entry = _notice_projection_runtime(object_store)
@@ -736,6 +845,8 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                         "--allow-multi-notice-release",
                         "--consumer-admission-manifest-path",
                         str(manifest_path),
+                        "--transport-preview-gate-report-path",
+                        str(preview_gate_path),
                         "--publish-mode",
                         "stage",
                         "--work-dir",
@@ -803,6 +914,40 @@ def _write_consumer_manifest(path: Path) -> None:
         created_at="2026-04-28T08:30:00Z",
     )
     write_internal_notice_consumer_admission_manifest(path, manifest)
+
+
+def _write_transport_preview_gate(
+    path: Path,
+    *,
+    selected_notice_ids: tuple[str, ...],
+) -> None:
+    _write_json(
+        path,
+        {
+            "schema_version": "schedule_transport_preview_gate.v1",
+            "validation_valid": True,
+            "buckets": {
+                "preview_passed": list(selected_notice_ids),
+                "preview_failed": [],
+            },
+            "release_write_buckets": {
+                "current_serving_write": list(selected_notice_ids),
+                "historical_snapshot_only_write": [],
+                "operational_exception_write": [],
+                "preview_failed_skip": [],
+            },
+            "items": [
+                {
+                    "notice_id": notice_id,
+                    "bucket": "preview_passed",
+                    "release_write_bucket": "current_serving_write",
+                    "reason_codes": [],
+                    "warning_codes": [],
+                }
+                for notice_id in selected_notice_ids
+            ],
+        },
+    )
 
 
 def _notice_projection_runtime(

@@ -14,10 +14,23 @@ BUCKET_PREVIEW_PASSED = "preview_passed"
 BUCKET_PREVIEW_FAILED = "preview_failed"
 BUCKETS = (BUCKET_PREVIEW_PASSED, BUCKET_PREVIEW_FAILED)
 
+RELEASE_WRITE_CURRENT_SERVING = "current_serving_write"
+RELEASE_WRITE_HISTORICAL_SNAPSHOT_ONLY = "historical_snapshot_only_write"
+RELEASE_WRITE_OPERATIONAL_EXCEPTION = "operational_exception_write"
+RELEASE_WRITE_PREVIEW_FAILED_SKIP = "preview_failed_skip"
+RELEASE_WRITE_BUCKETS = (
+    RELEASE_WRITE_CURRENT_SERVING,
+    RELEASE_WRITE_HISTORICAL_SNAPSHOT_ONLY,
+    RELEASE_WRITE_OPERATIONAL_EXCEPTION,
+    RELEASE_WRITE_PREVIEW_FAILED_SKIP,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class _MaterializationCounts:
     snapshot_count: int = 0
+    current_snapshot_count: int = 0
+    superseded_baseline_snapshot_count: int = 0
     scheduled_departure_count: int = 0
     service_exception_count: int = 0
     operational_notice_count: int = 0
@@ -30,6 +43,24 @@ class _MaterializationCounts:
             + self.service_exception_count
             + self.operational_notice_count
         ) > 0
+
+    @property
+    def has_serving_output(self) -> bool:
+        return (
+            self.scheduled_departure_count
+            + self.service_exception_count
+            + self.operational_notice_count
+        ) > 0
+
+    @property
+    def is_snapshot_only(self) -> bool:
+        return bool(self.snapshot_count) and not self.has_serving_output
+
+    @property
+    def is_superseded_baseline_snapshot_only(self) -> bool:
+        return (
+            self.is_snapshot_only and self.snapshot_count == self.superseded_baseline_snapshot_count
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -96,6 +127,7 @@ def build_schedule_transport_preview_gate_report(
 
     items: list[dict[str, Any]] = []
     buckets = {bucket: [] for bucket in BUCKETS}
+    release_write_buckets = {bucket: [] for bucket in RELEASE_WRITE_BUCKETS}
     for notice_id in selected_notice_ids:
         counts = counts_by_notice.get(notice_id, _MaterializationCounts())
         reason_codes: list[str] = []
@@ -111,25 +143,37 @@ def build_schedule_transport_preview_gate_report(
             bucket = BUCKET_PREVIEW_FAILED
             reason_codes.append("no_materialized_transport_output")
         else:
-            bucket = BUCKET_PREVIEW_PASSED
-            if (
-                counts.snapshot_count
-                and not counts.scheduled_departure_count
-                and not counts.service_exception_count
-                and not counts.operational_notice_count
-            ):
+            if counts.is_superseded_baseline_snapshot_only:
+                bucket = BUCKET_PREVIEW_PASSED
                 warning_codes.append("snapshot_only_superseded_baseline")
+            elif counts.is_snapshot_only and counts.current_snapshot_count:
+                bucket = BUCKET_PREVIEW_FAILED
+                reason_codes.append("current_snapshot_without_serving_rows")
+            elif counts.is_snapshot_only:
+                bucket = BUCKET_PREVIEW_FAILED
+                reason_codes.append("snapshot_without_serving_rows")
+            else:
+                bucket = BUCKET_PREVIEW_PASSED
+        release_write_bucket = _release_write_bucket_for_item(
+            bucket=bucket,
+            counts=counts,
+            warning_codes=warning_codes,
+        )
         buckets[bucket].append(notice_id)
+        release_write_buckets[release_write_bucket].append(notice_id)
         items.append(
             {
                 "notice_id": notice_id,
                 "title": title_by_notice.get(notice_id, ""),
                 "bucket": bucket,
+                "release_write_bucket": release_write_bucket,
                 "reason_codes": tuple(reason_codes),
                 "warning_codes": tuple(warning_codes),
                 "rejected_source": rejected or {},
                 "materialization_counts": {
                     "snapshots": counts.snapshot_count,
+                    "current_snapshots": counts.current_snapshot_count,
+                    "superseded_baseline_snapshots": counts.superseded_baseline_snapshot_count,
                     "scheduled_departures": counts.scheduled_departure_count,
                     "service_exceptions": counts.service_exception_count,
                     "operational_notices": counts.operational_notice_count,
@@ -157,8 +201,12 @@ def build_schedule_transport_preview_gate_report(
             "preview_failed_count": len(buckets[BUCKET_PREVIEW_FAILED]),
             "failed_reason_counts": failed_reasons,
             "warning_counts": warning_counts,
+            "release_write_bucket_counts": {
+                bucket: len(release_write_buckets[bucket]) for bucket in RELEASE_WRITE_BUCKETS
+            },
         },
         "buckets": buckets,
+        "release_write_buckets": release_write_buckets,
         "items": items,
     }
 
@@ -183,6 +231,10 @@ def write_schedule_transport_preview_gate_outputs(
                 dict(report.get("buckets") or {}).get("preview_failed") or []
             )
         },
+    )
+    _write_json(
+        output_dir / "release-write-plan.json",
+        dict(report.get("release_write_buckets") or {}),
     )
     (output_dir / "README.md").write_text(
         render_schedule_transport_preview_gate_markdown(report),
@@ -212,8 +264,8 @@ def render_schedule_transport_preview_gate_markdown(report: Mapping[str, Any]) -
         "",
         "<!-- markdownlint-disable MD013 -->",
         "",
-        "|Notice id|Bucket|Counts|Reasons|Warnings|",
-        "|---|---|---|---|---|",
+        "|Notice id|Bucket|Release write bucket|Counts|Reasons|Warnings|",
+        "|---|---|---|---|---|---|",
     ]
     for raw_item in list(report.get("items") or ()):
         item = dict(raw_item)
@@ -230,6 +282,7 @@ def render_schedule_transport_preview_gate_markdown(report: Mapping[str, Any]) -
             "|"
             f"`{item.get('notice_id') or ''!s}`|"
             f"`{item.get('bucket') or ''!s}`|"
+            f"`{item.get('release_write_bucket') or ''!s}`|"
             f"{count_text}|"
             f"{reasons}|"
             f"{warnings}|"
@@ -268,6 +321,8 @@ def _materialization_counts_by_notice(
             notice_id,
             {
                 "snapshot_count": 0,
+                "current_snapshot_count": 0,
+                "superseded_baseline_snapshot_count": 0,
                 "scheduled_departure_count": 0,
                 "service_exception_count": 0,
                 "operational_notice_count": 0,
@@ -276,7 +331,17 @@ def _materialization_counts_by_notice(
 
     for snapshot in _list_of_mappings(projection_bundle.get("transport_schedule_snapshots")):
         for notice_id in _notice_ids_from_refs((snapshot.get("source_ref"),)):
-            ensure(notice_id)["snapshot_count"] += 1
+            counts = ensure(notice_id)
+            counts["snapshot_count"] += 1
+            is_current = bool(snapshot.get("is_current"))
+            if is_current:
+                counts["current_snapshot_count"] += 1
+            if (
+                not is_current
+                and str(snapshot.get("schedule_scope") or "").strip() == "baseline_revision"
+                and not _list_of_mappings(snapshot.get("service_date_ranges"))
+            ):
+                counts["superseded_baseline_snapshot_count"] += 1
     for departure in _list_of_mappings(projection_bundle.get("scheduled_departures")):
         for notice_id in _notice_ids_from_refs(departure.get("related_notice_refs") or ()):
             ensure(notice_id)["scheduled_departure_count"] += 1
@@ -289,6 +354,23 @@ def _materialization_counts_by_notice(
     return {
         notice_id: _MaterializationCounts(**counts) for notice_id, counts in sorted(mutable.items())
     }
+
+
+def _release_write_bucket_for_item(
+    *,
+    bucket: str,
+    counts: _MaterializationCounts,
+    warning_codes: Sequence[str],
+) -> str:
+    if bucket != BUCKET_PREVIEW_PASSED:
+        return RELEASE_WRITE_PREVIEW_FAILED_SKIP
+    if "snapshot_only_superseded_baseline" in warning_codes:
+        return RELEASE_WRITE_HISTORICAL_SNAPSHOT_ONLY
+    if counts.scheduled_departure_count:
+        return RELEASE_WRITE_CURRENT_SERVING
+    if counts.service_exception_count or counts.operational_notice_count:
+        return RELEASE_WRITE_OPERATIONAL_EXCEPTION
+    return RELEASE_WRITE_PREVIEW_FAILED_SKIP
 
 
 def _notice_ids_from_refs(refs: object) -> tuple[str, ...]:

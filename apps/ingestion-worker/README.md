@@ -994,6 +994,9 @@ Optional CLI args:
 - `--allow-multi-notice-release`: allows `stage` / `promote` from more than one
   notice id or from `--all-ready-transport-candidates`. Without it, write modes
   require exactly one selected notice id.
+- `--transport-preview-gate-report-path`: required for notice-derived `stage` /
+  `promote`; points at the no-write transport preview gate report that passed
+  the selected notices.
 
 Behavior:
 
@@ -1015,6 +1018,19 @@ Behavior:
   timezone-qualified Shanghai local ISO timestamp before PG typed materialization.
 - `preview` is the required mode for single-notice validation; `stage` is for
   selected-write evidence; only complete approved releases should use `promote`.
+- Selected batch `stage` / `promote` must be based on a prior no-write transport
+  preview gate. The gate writes `release-write-plan.json` to explain which
+  passed notices will be written as current serving rows, historical
+  snapshot-only rows, or operational/exception rows.
+- Notice-derived `stage` / `promote` refuses to run unless every selected notice
+  id is present in the preview gate's `preview_passed` bucket and absent from
+  `preview_failed_skip`.
+- `snapshot_only_superseded_baseline` is an accepted warning only when the
+  projection produced a non-current, unbounded `baseline_revision` snapshot and
+  no serving rows. Those notices are staged as historical snapshot provenance;
+  they must not be promoted alone or used to answer the current timetable.
+- A current snapshot with no departures, service exceptions, or operational
+  notices is a preview failure, not an accepted warning.
 - It does not open `transport_schedule_lookup` serving by itself.
 
 ### `campus-ingestion-manage-structured-projection-release`

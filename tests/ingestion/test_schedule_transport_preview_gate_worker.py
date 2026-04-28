@@ -66,14 +66,80 @@ class ScheduleTransportPreviewGateWorkerTest(unittest.TestCase):
 
         self.assertEqual(report["summary"]["preview_passed_count"], 2)
         self.assertEqual(report["summary"]["preview_failed_count"], 1)
+        self.assertEqual(
+            report["summary"]["release_write_bucket_counts"],
+            {
+                "current_serving_write": 1,
+                "historical_snapshot_only_write": 1,
+                "operational_exception_write": 0,
+                "preview_failed_skip": 1,
+            },
+        )
         self.assertEqual(report["buckets"]["preview_passed"], ["1001", "1003"])
         self.assertEqual(report["buckets"]["preview_failed"], ["1002"])
+        self.assertEqual(report["release_write_buckets"]["current_serving_write"], ["1001"])
+        self.assertEqual(
+            report["release_write_buckets"]["historical_snapshot_only_write"],
+            ["1003"],
+        )
         item_by_notice = {item["notice_id"]: item for item in report["items"]}
         self.assertIn(
             "snapshot_only_superseded_baseline",
             item_by_notice["1003"]["warning_codes"],
         )
+        self.assertEqual(
+            item_by_notice["1003"]["release_write_bucket"],
+            "historical_snapshot_only_write",
+        )
         self.assertIn("materialization_rejected", item_by_notice["1002"]["reason_codes"])
+        self.assertEqual(
+            item_by_notice["1002"]["release_write_bucket"],
+            "preview_failed_skip",
+        )
+
+    def test_current_snapshot_without_serving_rows_fails_preview(self) -> None:
+        candidate_gate = {
+            "buckets": {
+                "auto_stage_candidate": ["1001"],
+            },
+            "items": [
+                {"notice_id": "1001", "title": "当前班车时刻表"},
+            ],
+        }
+        projection = {
+            "transport_schedule_snapshots": [
+                {
+                    "source_ref": "notice:muc_internal_portal:1001",
+                    "snapshot_id": "snapshot:1001",
+                    "schedule_scope": "baseline_revision",
+                    "is_current": True,
+                    "service_date_ranges": [],
+                },
+            ],
+            "scheduled_departures": [],
+            "transport_service_exceptions": [],
+            "transport_operational_notices": [],
+            "transport_rejected_sources": [],
+        }
+
+        report = worker.build_schedule_transport_preview_gate_report(
+            candidate_gate_report=candidate_gate,
+            projection_bundle=projection,
+            validation_summary={"valid": True},
+            rejected_sources=[],
+            run_id="preview-gate-test",
+            generated_at="2026-04-28T11:30:00+08:00",
+        )
+
+        self.assertEqual(report["buckets"]["preview_passed"], [])
+        self.assertEqual(report["buckets"]["preview_failed"], ["1001"])
+        item = report["items"][0]
+        self.assertEqual(
+            item["reason_codes"],
+            ("current_snapshot_without_serving_rows",),
+        )
+        self.assertEqual(item["warning_codes"], ())
+        self.assertEqual(item["release_write_bucket"], "preview_failed_skip")
 
     def test_invalid_projection_validation_blocks_passed_selection(self) -> None:
         candidate_gate = {
@@ -176,10 +242,12 @@ class ScheduleTransportPreviewGateWorkerTest(unittest.TestCase):
 
             report = json.loads((output_dir / "schedule-transport-preview-gate.json").read_text())
             passed = json.loads((output_dir / "preview-passed-selection.json").read_text())
+            release_write_plan = json.loads((output_dir / "release-write-plan.json").read_text())
             markdown = (output_dir / "README.md").read_text(encoding="utf-8")
 
         self.assertEqual(report["buckets"]["preview_passed"], ["2001"])
         self.assertEqual(passed, {"selected_notice_ids": ["2001"]})
+        self.assertEqual(release_write_plan["current_serving_write"], ["2001"])
         self.assertIn("|`2001`|`preview_passed`|", markdown)
 
 
