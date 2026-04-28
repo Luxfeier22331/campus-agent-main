@@ -342,6 +342,11 @@ def _resolve_document_title(
     canonical_markdown_bytes: bytes,
     units: tuple[StructuredUnit, ...],
 ) -> str:
+    if record.corpus == "regulations" and record.collection == "institutional_rules":
+        for unit in units:
+            title = str(unit.metadata.get("title") or "").strip()
+            if title:
+                return title
     markdown = canonical_markdown_bytes.decode("utf-8")
     for line in markdown.splitlines():
         normalized = line.strip()
@@ -369,9 +374,34 @@ def _resolve_document_slug(*, record: DocumentRegistryRecord, title: str) -> str
 
 
 def _resolve_version_slug(record: DocumentRegistryRecord) -> str:
+    if record.corpus == "regulations" and record.collection == "institutional_rules":
+        effective_slug = _resolve_effective_date_version_slug(record.effective_date)
+        if effective_slug:
+            return effective_slug
     year = _resolve_published_year(record)
     suffix = "current" if record.is_current else _slugify_label(record.revision_track)
     return f"{year}-{suffix}"
+
+
+def _resolve_effective_date_version_slug(value: str | None) -> str | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    match = re.search(
+        r"(?P<year>(?:19|20)\d{2})\s*(?:年|[-/.])\s*"
+        r"(?P<month>\d{1,2})\s*(?:月|[-/.])\s*"
+        r"(?P<day>\d{1,2})",
+        normalized,
+    )
+    if match is None:
+        year_match = re.search(r"(?:19|20)\d{2}", normalized)
+        if year_match is None:
+            return None
+        return f"effective-{year_match.group(0)}"
+    return (
+        f"effective-{match.group('year')}-"
+        f"{int(match.group('month')):02d}-{int(match.group('day')):02d}"
+    )
 
 
 def _resolve_published_year(record: DocumentRegistryRecord) -> str:

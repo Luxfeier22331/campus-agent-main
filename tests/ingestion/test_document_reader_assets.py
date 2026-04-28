@@ -376,6 +376,60 @@ class DocumentReaderAssetsTest(unittest.TestCase):
             "_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
         )
 
+    def test_regulation_reader_entry_keeps_document_slug_separate_from_revision_version(
+        self,
+    ) -> None:
+        record = DocumentRegistryRecord(
+            document_id="institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf",
+            revision_track="source-faithful",
+            version_id="sha256:c55cc6f8:effective-2021年3月1日:revision-修订",
+            source_uri="campusrag://promotion/internal_notice/187233",
+            content_hash="sha256:test-regulation",
+            corpus="regulations",
+            collection="institutional_rules",
+            cleaning_policy_version="institutional_rules_cleaning_v1",
+            entitlement_groups=("campus_members",),
+            visibility_scope="campus",
+            visibility_level="restricted",
+            status="active",
+            ingestion_timestamp="2026-04-27T23:54:52+00:00",
+            parser_version="internal_notice_regulation_materialization_v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="manual_curated",
+            is_current=True,
+            effective_date="2021年3月1日",
+            published_date="2021-02-28",
+            document_units_object_key=(
+                "regulations/documents/institutional_rules/"
+                "中央民族大学采购工作管理办法--219ecb63/source-faithful/2021/"
+                "document-units.jsonl"
+            ),
+            canonical_markdown_object_key=(
+                "regulations/documents/institutional_rules/"
+                "中央民族大学采购工作管理办法--219ecb63/source-faithful/2021/"
+                "canonical.md"
+            ),
+            import_source="internal_notice_regulation_materialization",
+        )
+
+        entry = build_document_reader_publish_entry(
+            record=record,
+            title="中央民族大学采购工作管理办法",
+        )
+
+        self.assertEqual(entry["documentSlug"], "中央民族大学采购工作管理办法")
+        self.assertEqual(entry["versionSlug"], "effective-2021-03-01")
+        self.assertEqual(
+            entry["canonicalUrl"],
+            "/docs/regulations/institutional_rules/中央民族大学采购工作管理办法",
+        )
+        self.assertEqual(
+            entry["targetObjects"]["reader"],
+            "_gated-docs/regulations/institutional_rules/"
+            "中央民族大学采购工作管理办法/effective-2021-03-01/reader.json",
+        )
+        self.assertNotIn("2021年修订", "\n".join(entry["targetObjects"].values()))
+
     def test_build_public_docs_sync_manifest_keeps_public_and_gated_entries(self) -> None:
         public_entry = build_document_reader_publish_entry(
             record=_make_public_curriculum_record(),

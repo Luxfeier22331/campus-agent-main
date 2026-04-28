@@ -382,7 +382,7 @@ class InternalNoticeRegulationMaterializationTargetTest(unittest.TestCase):
         )
         self.assertEqual(
             first_guidance_metadata["title"],
-            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+            "中央民族大学关于学生使用人工智能的指导意见",
         )
         self.assertTrue(guidance_record.is_current)
 
@@ -415,11 +415,13 @@ class InternalNoticeRegulationMaterializationTargetTest(unittest.TestCase):
         )
         self.assertEqual(
             regulation_metadata["title"],
-            "中央民族大学实验室安全管理规定 / 2026年修订",
+            "中央民族大学实验室安全管理规定",
         )
         self.assertEqual(regulation_metadata["effective_date"], "2026年2月1日")
         self.assertEqual(regulation_metadata["revision_signal"], "修订")
         self.assertTrue(regulation_record.is_current)
+        self.assertNotIn("2026年修订", regulation_record.canonical_markdown_object_key or "")
+        self.assertNotIn("2026年修订", regulation_record.document_units_object_key or "")
 
         guidance_markdown = object_store.get_bytes(
             bucket="campus-rag-derived",

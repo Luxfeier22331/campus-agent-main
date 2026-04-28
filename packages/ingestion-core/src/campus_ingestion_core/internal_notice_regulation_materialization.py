@@ -275,9 +275,10 @@ def build_institutional_regulation_scope_refresh_documents(
                 source_filename=raw_asset_record.source_filename,
             ),
         )
+        materialized_title = _resolve_materialized_regulation_title(aggregation.primary_candidate)
         loaded_metadata = load_metadata_from_bytes(projected_document.document_units_bytes)
         loaded_metadata.update(projected_document.metadata)
-        loaded_metadata["title"] = projected_document.title
+        loaded_metadata["title"] = materialized_title
         apply_authorization_projection_metadata(
             loaded_metadata,
             entitlement_groups=aggregation.source_record.entitlement_groups,
@@ -306,7 +307,7 @@ def build_institutional_regulation_scope_refresh_documents(
                 raw_version_id=raw_asset_record.raw_version_id,
                 provider_response_object_key=None,
                 additional_processed_object_keys=(),
-                title=projected_document.title,
+                title=materialized_title,
                 year=_infer_year_label(aggregation.primary_candidate),
             )
         )
@@ -326,6 +327,14 @@ def build_institutional_regulation_document_id(
         issuing_org=issuing_org,
         semantic_scope=semantic_scope,
     )
+
+
+def _resolve_materialized_regulation_title(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str:
+    return (
+        candidate_document.regulation_work_title or candidate_document.regulation_title_normalized
+    ).strip()
 
 
 def build_institutional_regulation_version_id(

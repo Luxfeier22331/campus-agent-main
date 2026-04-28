@@ -113,10 +113,30 @@ class PublishInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
                 docs_manifest["documents"][0]["title"],
                 "中央民族大学采购工作管理办法",
             )
-            self.assertIn("2021年修订", docs_manifest["documents"][0]["canonicalUrl"])
+            self.assertEqual(
+                docs_manifest["documents"][0]["documentSlug"],
+                "中央民族大学采购工作管理办法",
+            )
+            self.assertEqual(
+                docs_manifest["documents"][0]["canonicalUrl"],
+                "/docs/regulations/institutional_rules/中央民族大学采购工作管理办法",
+            )
+            self.assertEqual(
+                docs_manifest["documentVersions"][0]["versionSlug"],
+                "effective-2021-03-01",
+            )
             self.assertEqual(
                 docs_manifest["documentVersions"][0]["deliveryMode"],
                 "gated_asset",
+            )
+            self.assertNotIn(
+                "2021年修订",
+                "\n".join(
+                    str(value)
+                    for asset in docs_manifest["readerAssets"]
+                    for value in list(asset["sourceObjects"].values())
+                    + list(asset["targetObjects"].values())
+                ),
             )
             self.assertEqual(
                 {

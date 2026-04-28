@@ -68,14 +68,12 @@ def build_internal_notice_regulation_projected_document(
     context: InternalNoticeRegulationProjectionContext | None = None,
 ) -> InternalNoticeRegulationProjectedDocument:
     runtime_context = context or InternalNoticeRegulationProjectionContext()
-    title = (
-        candidate_document.regulation_display_title
-        or candidate_document.regulation_title_normalized
-    )
+    title = _resolve_regulation_document_display_title(candidate_document)
+    unit_title = _resolve_regulation_document_work_title(candidate_document)
     canonical_markdown = render_internal_notice_regulation_canonical_markdown(candidate_document)
     semantic_content_hash = hashlib.sha256(canonical_markdown.encode("utf-8")).hexdigest()
     document_id = build_institutional_regulation_document_id(
-        regulation_title_normalized=title,
+        regulation_title_normalized=candidate_document.regulation_title_normalized,
         regulation_work_title=candidate_document.regulation_work_title,
         issuing_org=candidate_document.issuing_org or "中央民族大学",
     )
@@ -92,7 +90,7 @@ def build_internal_notice_regulation_projected_document(
     document_units_bytes = serialize_internal_notice_regulation_projection_rows(
         document_id=document_id,
         version_id=version_id,
-        title=title,
+        title=unit_title,
         body=candidate_document.promotion_body,
         metadata=metadata,
         source_url=f"{_SOURCE_URL_PREFIX}/{candidate_document.candidate_id}",
@@ -165,10 +163,7 @@ def build_internal_notice_regulation_projection_metadata(
     semantic_content_hash: str,
     context: InternalNoticeRegulationProjectionContext,
 ) -> dict[str, object]:
-    title = (
-        candidate_document.regulation_display_title
-        or candidate_document.regulation_title_normalized
-    )
+    title = _resolve_regulation_document_display_title(candidate_document)
     source_notice_ids = tuple(
         sorted(set(context.source_notice_ids or (candidate_document.notice_id,)))
     )
@@ -320,6 +315,23 @@ def _resolve_source_notice_document_id(
     if candidate_document.source_kind == "parent_notice":
         return candidate_document.source_document_id
     return None
+
+
+def _resolve_regulation_document_display_title(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str:
+    return (
+        candidate_document.regulation_display_title
+        or candidate_document.regulation_title_normalized
+    ).strip()
+
+
+def _resolve_regulation_document_work_title(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str:
+    return (
+        candidate_document.regulation_work_title or candidate_document.regulation_title_normalized
+    ).strip()
 
 
 def _resolve_source_attachment_document_id(
