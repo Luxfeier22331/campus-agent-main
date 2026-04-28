@@ -96,6 +96,39 @@ def _record(
     )
 
 
+def _target_scoped_rule_record(
+    *,
+    document_id: str,
+    document_units_key: str,
+    canonical_key: str,
+    source_uri: str = "campusrag://promotion/internal_notice_scoped_rules/stale-target",
+) -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id=document_id,
+        revision_track="source-faithful",
+        version_id=f"sha256:{document_id.split(':')[-1]}:target",
+        source_uri=source_uri,
+        content_hash=f"sha256:{document_id}:content",
+        corpus="regulations",
+        collection="scoped_rules",
+        cleaning_policy_version="scoped_rules_cleaning_v1",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        status="active",
+        ingestion_timestamp="2026-04-09T00:00:00+00:00",
+        parser_version="internal_notice_scoped_rule_materialization_v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="manual_curated",
+        is_current=True,
+        document_units_object_key=document_units_key,
+        canonical_markdown_object_key=canonical_key,
+        processed_object_keys=(document_units_key, canonical_key),
+        import_source="internal_notice_scoped_rule_materialization",
+        published_date="2026-04-09",
+    )
+
+
 def _inventory_entry(
     *,
     notice_id: str,
@@ -191,5 +224,6 @@ __all__ = [
     "_inventory_entry",
     "_ready_scoped_projection_entry",
     "_record",
+    "_target_scoped_rule_record",
     "scoped_materialization",
 ]

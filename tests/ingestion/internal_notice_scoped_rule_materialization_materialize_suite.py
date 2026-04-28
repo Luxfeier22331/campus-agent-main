@@ -8,6 +8,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
 )
 from campus_ingestion_core.notice_consumption_projection import (
     InMemoryNoticeConsumptionProjectionStore,
+    NoticeConsumptionProjectionEntry,
 )
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
@@ -22,6 +23,7 @@ from .internal_notice_scoped_rule_materialization_test_support import (
     _inventory_entry,
     _ready_scoped_projection_entry,
     _record,
+    _target_scoped_rule_record,
     scoped_materialization,
 )
 
@@ -524,3 +526,169 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             refreshed_metadata["duplicate_source_document_ids"],
             ["notice:muc_internal_portal:191177"],
         )
+
+    def test_selected_materialize_scoped_rules_removes_stale_target_record_when_projection_is_held(
+        self,
+    ) -> None:
+        materialize = getattr(
+            scoped_materialization,
+            "materialize_scoped_rules_from_internal_notice_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        source_record = _record(
+            notice_id="351907",
+            title_slug="recommendation-rule",
+            content_hash="sha256:annual-351907",
+            body_key="campus_notices/documents/internal_notice/351907/canonical.md",
+            units_key="campus_notices/documents/internal_notice/351907/document-units.jsonl",
+            is_current=True,
+        )
+        stale_target = _target_scoped_rule_record(
+            document_id="institutional_regulation:muc:recommendation-rule:stale351907",
+            document_units_key=(
+                "regulations/documents/scoped_rules/recommendation-rule/"
+                "source-faithful/2026/document-units.jsonl"
+            ),
+            canonical_key=(
+                "regulations/documents/scoped_rules/recommendation-rule/"
+                "source-faithful/2026/canonical.md"
+            ),
+        )
+        unrelated_target = _target_scoped_rule_record(
+            document_id="institutional_regulation:muc:summer-lab-rule:stable191176",
+            document_units_key=(
+                "regulations/documents/scoped_rules/summer-lab-rule/"
+                "source-faithful/2021/document-units.jsonl"
+            ),
+            canonical_key=(
+                "regulations/documents/scoped_rules/summer-lab-rule/"
+                "source-faithful/2021/canonical.md"
+            ),
+        )
+        registry = InMemoryDocumentRegistry((source_record, stale_target, unrelated_target))
+        object_store = _FakeObjectStore(
+            objects={
+                (
+                    "campus-rag-derived",
+                    source_record.canonical_markdown_object_key,
+                ): _canonical_markdown(
+                    "# 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则\n\n"
+                    "本通知仅说明推荐工作安排，正文不作为 scoped rule 直接入库。\n"
+                ),
+                ("campus-rag-derived", source_record.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": source_record.document_id,
+                            "version_id": source_record.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                            "source_url": source_record.source_uri,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {
+                                "title": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则"
+                            },
+                        }
+                    ]
+                ),
+                ("campus-rag-derived", stale_target.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": stale_target.document_id,
+                            "version_id": stale_target.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                            "source_url": stale_target.source_uri,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {
+                                "title": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+                                "document_nature": "annual_cycle_rule",
+                                "source_notice_ids": ["351907"],
+                                "source_document_ids": [source_record.document_id],
+                                "source_parent_document_ids": [source_record.document_id],
+                            },
+                        }
+                    ]
+                ),
+                ("campus-rag-derived", unrelated_target.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": unrelated_target.document_id,
+                            "version_id": unrelated_target.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "生命与环境科学学院暑假实验室安全管理规定",
+                            "source_url": unrelated_target.source_uri,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {
+                                "title": "生命与环境科学学院暑假实验室安全管理规定",
+                                "document_nature": "time_bound_operational_rule",
+                                "source_notice_ids": ["191176"],
+                                "source_document_ids": ["notice:muc_internal_portal:191176"],
+                                "source_parent_document_ids": ["notice:muc_internal_portal:191176"],
+                            },
+                        }
+                    ]
+                ),
+            }
+        )
+        held_projection_entry = NoticeConsumptionProjectionEntry(
+            source_family="internal_notice_restricted",
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            source_notice_id="351907",
+            unit_id="notice_unit:muc_internal_portal:351907:annual_cycle_rule:held",
+            primary_role=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+            semantic_owner="notice_body",
+            default_agent="rag",
+            target_surface="scoped_rules",
+            temporal_policy="explicit_year_only",
+            completeness_status="reference_only",
+            answerability="reference_only",
+            consumption_status="retained_for_notice_query",
+            source_notice_document_id=source_record.document_id,
+            source_document_id=source_record.document_id,
+            role_metadata={"reasons": ("projection_gate_forced_hold",)},
+        )
+
+        report = materialize(
+            request=scoped_materialization.InternalNoticeRegulationPromotionRequest(
+                notice_ids=("351907",)
+            ),
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "EMBEDDING_PROVIDER": "mock",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+                "SPARSE_PROVIDER": "mock",
+            },
+            object_store=object_store,
+            registry=registry,
+            raw_asset_registry=InMemoryRawAssetRegistry(()),
+            source_truth_inventory_store=InMemoryAuthenticatedNoticeSourceTruthInventoryStore(),
+            consumption_projection_store=InMemoryNoticeConsumptionProjectionStore(
+                (held_projection_entry,)
+            ),
+        )
+
+        self.assertEqual(report.scoped_rule_candidate_count, 0)
+        self.assertEqual(report.materialized_document_count, 0)
+        target_document_ids = {
+            record.document_id for record in registry.list_by_scope("regulations", "scoped_rules")
+        }
+        self.assertNotIn(stale_target.document_id, target_document_ids)
+        self.assertIn(unrelated_target.document_id, target_document_ids)

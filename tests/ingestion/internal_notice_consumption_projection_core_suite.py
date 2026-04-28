@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING,
@@ -36,6 +37,7 @@ from campus_ingestion_core.notice_consumption_projection import (
 
 from tests.ingestion.internal_notice_consumption_projection_test_support import (
     _build_runtime,
+    _canonical_markdown,
     _env,
     _inventory_entry,
     _notice_runtime_record,
@@ -467,6 +469,66 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
                 )
             },
             {NOTICE_PRIMARY_ROLE_NOTICE_WINDOW},
+        )
+
+    def test_partial_rebuild_removes_stale_ready_regulation_row_when_notice_is_amendment_summary(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime()
+        institutional_record = next(
+            record
+            for record in registry.list_by_scope("campus_notices", "internal_notice")
+            if record.document_id == "notice:muc_internal_portal:187233"
+        )
+        object_store.objects[
+            ("campus-rag-derived", institutional_record.canonical_markdown_object_key)
+        ] = _canonical_markdown(
+            "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
+            "学校各单位、各部门：\n\n"
+            "为进一步规范采购与招标管理工作，现将《中央民族大学采购工作管理办法》主要修订内容通知如下：\n\n"
+            "一、主要修订内容\n\n"
+            "第一条中的校内集中采购限额标准调整为20万元（含）以上。\n\n"
+            "第二条新增采购意向公开要求，项目采购活动开始前35日应提交采购意向公开文件。\n\n"
+            "特此通知。\n\n"
+            "资产管理处（招标采购中心）\n\n"
+            "2021年2月28日\n"
+        )
+        stale_ready = replace(
+            _projection_entry("187233"),
+            unit_id="notice_unit:muc_internal_portal:187233:attachment_rule_body:stale",
+            primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+            target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+            source_document_id="notice:muc_internal_portal:187233",
+        )
+        projection_store = InMemoryNoticeConsumptionProjectionStore((stale_ready,))
+
+        stored_entries = rebuild_internal_notice_consumption_projection(
+            request=InternalNoticeRegulationPromotionRequest(notice_ids=("187233",)),
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+            projection_store=projection_store,
+        )
+
+        self.assertFalse(
+            any(
+                entry.target_surface == NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES
+                and entry.consumption_status == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
+                for entry in stored_entries
+                if entry.source_notice_id == "187233"
+            )
+        )
+        self.assertFalse(
+            any(
+                entry.unit_id == stale_ready.unit_id
+                for entry in projection_store.list_by_scope(
+                    "campus_notices",
+                    "internal_notice",
+                    notice_ids=("187233",),
+                )
+            )
         )
 
 

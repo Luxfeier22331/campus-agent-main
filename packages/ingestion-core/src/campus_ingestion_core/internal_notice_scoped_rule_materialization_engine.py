@@ -69,6 +69,9 @@ from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared im
     _split_markdown_blocks,
     _strip_heading,
 )
+from campus_ingestion_core.internal_notice_target_materialization_refresh import (
+    replace_selected_target_scope_preserving_unselected,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import build_raw_asset_key
 from campus_ingestion_core.registry import (
@@ -132,7 +135,16 @@ def materialize_scoped_rules_from_internal_notice_scope(
     )
 
     if not candidates:
-        if not selected_request:
+        if selected_request:
+            replace_selected_target_scope_preserving_unselected(
+                registry=runtime_registry,
+                object_store=runtime_object_store,
+                bucket_derived=bucket_derived,
+                target_scope=_TARGET_SCOPE,
+                selected_notice_ids=runtime_request.notice_ids,
+                selected_document_ids=runtime_request.document_ids,
+            )
+        else:
             runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
         return InternalNoticeScopedRuleMaterializationReport(
             scoped_rule_candidate_count=0,

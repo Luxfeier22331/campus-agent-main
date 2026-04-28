@@ -6,7 +6,9 @@ from .internal_notice_regulation_promotion_test_support import *
 
 
 class InternalNoticeRegulationPromotionManifestFollowupTest(unittest.TestCase):
-    def test_build_manifest_uses_wrapper_stripping_for_parent_notice_candidates(self) -> None:
+    def test_build_manifest_holds_parent_notice_when_wrapper_stripping_leaves_amendment_summary(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:200006",
             source_uri="https://portal.example.edu/notices/200006",
@@ -62,13 +64,80 @@ class InternalNoticeRegulationPromotionManifestFollowupTest(unittest.TestCase):
             object_store=object_store,
         )
 
+        self.assertEqual(report.candidate_count, 0)
+        self.assertEqual(report.hold_count, 1)
+        self.assertEqual(report.machine_processing_required_count, 0)
         document_report = report.documents[0]
-        self.assertEqual(document_report.action, "promote_candidate")
-        self.assertEqual(document_report.promotion_class, "formal_regulation")
-        self.assertEqual(document_report.document_nature, "institutional_regulation")
+        self.assertEqual(document_report.action, "hold_in_internal_notice")
+        self.assertEqual(document_report.promotion_class, "wrapper_notice_only")
+        self.assertEqual(document_report.document_nature, "wrapper_notice")
         self.assertIn("wrapper_semantics_removed", document_report.quality_gates_passed)
         self.assertIn("standalone_body_quality_passed", document_report.quality_gates_passed)
+        self.assertIn("parent_notice_body_not_full_regulation_text", document_report.reasons)
         self.assertNotIn("wrapper_semantics_still_present", document_report.reasons)
+
+    def test_build_manifest_holds_parent_notice_when_amendment_summary_mentions_article_numbers(
+        self,
+    ) -> None:
+        parent = _record(
+            document_id="notice:muc_internal_portal:200016",
+            source_uri="https://portal.example.edu/notices/200016",
+            canonical_key="campus_notices/documents/internal_notice/200016/canonical.md",
+            units_key="campus_notices/documents/internal_notice/200016/document-units.jsonl",
+            content_hash="sha256:parent-200016",
+        )
+        registry = InMemoryDocumentRegistry((parent,))
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="200016",
+                    notice_title="关于修订《中央民族大学采购工作管理办法》的通知",
+                    published_date="2021-02-28",
+                ),
+            )
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
+                    "学校各单位、各部门：\n\n"
+                    "为进一步规范采购与招标管理工作，现将《中央民族大学采购工作管理办法》主要修订内容通知如下：\n\n"
+                    "一、主要修订内容\n\n"
+                    "第一条中的校内集中采购限额标准调整为20万元（含）以上。\n\n"
+                    "第二条新增采购意向公开要求，项目采购活动开始前35日应提交采购意向公开文件。\n\n"
+                    "特此通知。\n\n"
+                    "资产管理处（招标采购中心）\n\n"
+                    "2021年2月28日\n"
+                ),
+                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                    [
+                        {
+                            "chunk_id": "title",
+                            "unit_type": "policy_page",
+                            "text": "关于修订《中央民族大学采购工作管理办法》的通知",
+                            "metadata": {"title": "关于修订《中央民族大学采购工作管理办法》的通知"},
+                        }
+                    ]
+                ),
+            }
+        )
+
+        report = build_internal_notice_regulation_promotion_manifest(
+            request=InternalNoticeRegulationPromotionRequest(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+        )
+
+        self.assertEqual(report.candidate_count, 0)
+        self.assertEqual(report.hold_count, 1)
+        self.assertEqual(report.machine_processing_required_count, 0)
+        document_report = report.documents[0]
+        self.assertEqual(document_report.action, "hold_in_internal_notice")
+        self.assertEqual(document_report.promotion_class, "wrapper_notice_only")
+        self.assertEqual(document_report.document_nature, "wrapper_notice")
+        self.assertIn("parent_notice_body_not_full_regulation_text", document_report.reasons)
 
     def test_build_manifest_prefers_notice_release_time_from_inventory_snapshot(self) -> None:
         parent = _record(

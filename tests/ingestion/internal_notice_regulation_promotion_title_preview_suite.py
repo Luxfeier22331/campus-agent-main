@@ -99,7 +99,7 @@ class InternalNoticeRegulationPromotionTitlePreviewTest(unittest.TestCase):
         self.assertTrue(preview.wrapper_semantics_removed)
         self.assertTrue(preview.standalone_body_quality_passed)
         self.assertTrue(preview.regulation_structure_retained)
-        self.assertTrue(preview.promotable_standalone_body)
+        self.assertFalse(preview.promotable_standalone_body)
         self.assertTrue(preview.cleaned_body.startswith("一、主要修订内容"))
         self.assertNotIn("学校各单位、各部门", preview.cleaned_body)
         self.assertNotIn("现将有关事项通知如下", preview.cleaned_body)

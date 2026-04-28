@@ -105,6 +105,7 @@
 		"Document age is not a standalone exclusion or downgrade signal for campus regulations.",
 		"暂行 or 试行 is not by itself a draft, expired, or machine-processing signal.",
 		"Exclude from institutional_rules only when the body remains wrapper-only, draft/consultation, operational-scheme-like, or otherwise lacks promotable canonical regulation text.",
-		"Per-document target_collection is authoritative for downstream consumers; annual-cycle and time-bound operational documents now route to regulations/scoped_rules instead of institutional_rules."
+		"Per-document target_collection is authoritative for downstream consumers; annual-cycle and time-bound operational documents now route to regulations/scoped_rules instead of institutional_rules.",
+		"Parent notice bodies that strip down only to amendment summaries, major revision notes, or operational reminders are retained in internal_notice; they must not become regulations/institutional_rules even when the title names a regulation."
 	]
 }

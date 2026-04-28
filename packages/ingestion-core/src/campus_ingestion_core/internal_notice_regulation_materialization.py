@@ -50,6 +50,9 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
     InternalNoticeRegulationPromotionRequest,
 )
+from campus_ingestion_core.internal_notice_target_materialization_refresh import (
+    replace_selected_target_scope_preserving_unselected,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import build_raw_asset_key
 from campus_ingestion_core.registry import (
@@ -125,7 +128,16 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         bucket_derived=object_store_settings.bucket_derived,
     )
     if not aggregations:
-        if not selected_request:
+        if selected_request:
+            replace_selected_target_scope_preserving_unselected(
+                registry=runtime_registry,
+                object_store=runtime_object_store,
+                bucket_derived=object_store_settings.bucket_derived,
+                target_scope=_TARGET_SCOPE,
+                selected_notice_ids=runtime_request.notice_ids,
+                selected_document_ids=runtime_request.document_ids,
+            )
+        else:
             runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
         return InstitutionalRegulationMaterializationReport(
             promotion_candidate_count=0,

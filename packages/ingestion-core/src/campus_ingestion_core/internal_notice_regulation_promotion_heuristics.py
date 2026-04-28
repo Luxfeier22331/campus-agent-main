@@ -234,6 +234,7 @@ def extract_internal_notice_parent_regulation_body_preview(
             wrapper_semantics_removed
             and standalone_body_quality_passed
             and regulation_structure_retained
+            and not _looks_like_partial_amendment_summary_body(cleaned_body)
         ),
     )
 
@@ -351,6 +352,39 @@ def _has_regulation_body_structure(body: str) -> bool:
     )
 
 
+def _looks_like_partial_amendment_summary_body(body: str) -> bool:
+    normalized = body.strip()
+    if not normalized:
+        return False
+    if not any(
+        keyword in normalized
+        for keyword in (
+            "主要修订内容",
+            "主要调整内容",
+            "修订内容",
+            "调整内容",
+            "本次修订",
+            "本次调整",
+        )
+    ):
+        return False
+    return not _looks_like_complete_regulation_body(normalized)
+
+
+def _looks_like_complete_regulation_body(body: str) -> bool:
+    return (
+        shared.re.search(
+            r"第[一二三四五六七八九十百千万0-9]+条"
+            r"[^\n。；;]{0,120}"
+            r"(?:为|为了)"
+            r"[^\n。；;]{0,120}"
+            r"制定本(?:办法|规定|细则|条例|章程|准则|指导意见|制度)",
+            body,
+        )
+        is not None
+    )
+
+
 def _provenance_complete(
     *,
     notice_id: str,
@@ -392,6 +426,8 @@ def _detect_document_nature(
     body_is_standalone_parent_regulation = _has_regulation_body_structure(
         body
     ) and _has_substantive_text(body)
+    if _looks_like_partial_amendment_summary_body(body):
+        body_is_standalone_parent_regulation = False
     if has_promotable_attachment:
         return "wrapper_notice"
     if (
@@ -554,8 +590,13 @@ def _classify_document(
             inventory_entry is not None and inventory_entry.attachment_document_count > 0
         )
         body_has_regulation_structure = _has_regulation_body_structure(body)
+        body_looks_like_partial_amendment_summary = _looks_like_partial_amendment_summary_body(body)
+        if body_looks_like_partial_amendment_summary:
+            reasons.append("parent_notice_body_not_full_regulation_text")
         body_is_promotable_parent_regulation = (
-            body_has_regulation_structure and _has_substantive_text(body)
+            body_has_regulation_structure
+            and _has_substantive_text(body)
+            and not body_looks_like_partial_amendment_summary
         )
         if body_is_promotable_parent_regulation and _looks_like_formal_regulation(
             title_signal_text

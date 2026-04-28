@@ -33,15 +33,11 @@ class InternalNoticeRegulationPromotionExportTest(unittest.TestCase):
                 ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
                     "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
                     "学校各单位、各部门：\n\n"
-                    "为进一步规范采购与招标管理工作，我校于2021年2月28日印发了《中央民族大学采购工作管理办法》，现将有关事项通知如下：\n\n"
-                    "一、主要修订内容\n\n"
-                    "（一）校内集中采购限额标准及范围调整\n\n"
-                    "工程、货物、服务校内集中采购限额标准统一调整到20万元（含）以上。\n\n"
-                    "二、采购注意事项\n\n"
-                    "（一）采购意向公示要求\n\n"
-                    "1. 项目采购活动开始前35日必须提交采购意向公开文件。\n\n"
+                    "现将修订后的《中央民族大学采购工作管理办法》予以发布，请遵照执行。\n\n"
+                    "第一条 为规范学校采购工作，提高资金使用效益，制定本办法。\n\n"
+                    "第二条 学校采购活动应遵循公开、公平、公正和诚实信用原则。\n\n"
+                    "第三条 校内集中采购限额标准为20万元（含）以上。\n\n"
                     "特此通知。\n\n"
-                    "附件：采购意向公开参考文本\n\n"
                     "资产管理处（招标采购中心）\n\n"
                     "2021年2月28日\n"
                 ),
@@ -80,7 +76,7 @@ class InternalNoticeRegulationPromotionExportTest(unittest.TestCase):
         self.assertTrue(documents[0].artifact_markdown_path.endswith("/canonical.md"))
         self.assertNotIn("学校各单位、各部门", documents[0].promotion_body)
         self.assertNotIn("特此通知", documents[0].promotion_body)
-        self.assertIn("一、主要修订内容", documents[0].promotion_body)
+        self.assertIn("第一条 为规范学校采购工作", documents[0].promotion_body)
 
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
@@ -99,6 +95,6 @@ class InternalNoticeRegulationPromotionExportTest(unittest.TestCase):
             self.assertIn("semantic_owner_document_id: notice:muc_internal_portal:200008", markdown)
             self.assertIn("regulation_work_title: 中央民族大学采购工作管理办法", markdown)
             self.assertIn("regulation_display_title: 中央民族大学采购工作管理办法", markdown)
-            self.assertIn("一、主要修订内容", markdown)
+            self.assertIn("第一条 为规范学校采购工作", markdown)
             self.assertNotIn("学校各单位、各部门", markdown)
             self.assertNotIn("特此通知", markdown)

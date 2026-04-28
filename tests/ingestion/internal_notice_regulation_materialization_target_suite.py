@@ -541,3 +541,161 @@ class InternalNoticeRegulationMaterializationTargetTest(unittest.TestCase):
         self.assertTrue(
             any("实验室安全管理规定" in document_id for document_id in target_document_ids)
         )
+
+    def test_selected_materialize_removes_stale_target_record_when_projection_is_held(
+        self,
+    ) -> None:
+        materialize = getattr(
+            regulation_materialization,
+            "materialize_institutional_regulations_from_internal_notice_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        parent = _record(
+            document_id="notice:muc_internal_portal:187233",
+            source_uri="https://portal.example.edu/notices/187233",
+            canonical_key="campus_notices/documents/internal_notice/187233/canonical.md",
+            units_key="campus_notices/documents/internal_notice/187233/document-units.jsonl",
+            content_hash="sha256:parent-187233",
+            is_current=True,
+        )
+        stale_target = _target_regulation_record(
+            document_id="institutional_regulation:muc:procurement-work-rule:stale187233",
+            document_units_key=(
+                "regulations/documents/institutional_rules/procurement-work-rule/"
+                "source-faithful/2021/document-units.jsonl"
+            ),
+            canonical_key=(
+                "regulations/documents/institutional_rules/procurement-work-rule/"
+                "source-faithful/2021/canonical.md"
+            ),
+        )
+        unrelated_target = _target_regulation_record(
+            document_id="institutional_regulation:muc:student-work-rule:stable",
+            document_units_key=(
+                "regulations/documents/institutional_rules/student-work-rule/"
+                "source-faithful/2026/document-units.jsonl"
+            ),
+            canonical_key=(
+                "regulations/documents/institutional_rules/student-work-rule/"
+                "source-faithful/2026/canonical.md"
+            ),
+        )
+        registry = InMemoryDocumentRegistry((parent, stale_target, unrelated_target))
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
+                    "经研究，现对《中央民族大学采购工作管理办法》作如下修订。\n"
+                ),
+                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": parent.document_id,
+                            "version_id": parent.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "关于修订《中央民族大学采购工作管理办法》的通知",
+                            "source_url": parent.source_uri,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {"title": "关于修订《中央民族大学采购工作管理办法》的通知"},
+                        }
+                    ]
+                ),
+                ("campus-rag-derived", stale_target.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": stale_target.document_id,
+                            "version_id": stale_target.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "中央民族大学采购工作管理办法",
+                            "source_url": stale_target.source_uri,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {
+                                "title": "中央民族大学采购工作管理办法",
+                                "source_notice_ids": ["187233"],
+                                "source_document_ids": [parent.document_id],
+                                "source_notice_document_ids": [parent.document_id],
+                            },
+                        }
+                    ]
+                ),
+                ("campus-rag-derived", unrelated_target.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": unrelated_target.document_id,
+                            "version_id": unrelated_target.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "中央民族大学学生工作管理办法",
+                            "source_url": unrelated_target.source_uri,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {
+                                "title": "中央民族大学学生工作管理办法",
+                                "source_notice_ids": ["100003"],
+                                "source_document_ids": ["notice:muc_internal_portal:100003"],
+                                "source_notice_document_ids": ["notice:muc_internal_portal:100003"],
+                            },
+                        }
+                    ]
+                ),
+            }
+        )
+        held_projection_entry = NoticeConsumptionProjectionEntry(
+            source_family="internal_notice_restricted",
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            source_notice_id="187233",
+            unit_id="notice_unit:muc_internal_portal:187233:attachment_rule_body:held",
+            primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+            semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+            default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
+            target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+            temporal_policy=NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
+            completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
+            answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+            source_notice_document_id=parent.document_id,
+            source_document_id=parent.document_id,
+            role_metadata={"reasons": ("parent_notice_body_not_full_regulation_text",)},
+        )
+
+        report = materialize(
+            request=regulation_materialization.InternalNoticeRegulationPromotionRequest(
+                notice_ids=("187233",)
+            ),
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "EMBEDDING_PROVIDER": "mock",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+                "SPARSE_PROVIDER": "mock",
+            },
+            object_store=object_store,
+            registry=registry,
+            raw_asset_registry=InMemoryRawAssetRegistry(()),
+            source_truth_inventory_store=InMemoryAuthenticatedNoticeSourceTruthInventoryStore(),
+            consumption_projection_store=_ReadOnlyProjectionStore((held_projection_entry,)),
+        )
+
+        self.assertEqual(report.promotion_candidate_count, 0)
+        self.assertEqual(report.materialized_document_count, 0)
+        target_document_ids = {
+            record.document_id
+            for record in registry.list_by_scope("regulations", "institutional_rules")
+        }
+        self.assertNotIn(stale_target.document_id, target_document_ids)
+        self.assertIn(unrelated_target.document_id, target_document_ids)

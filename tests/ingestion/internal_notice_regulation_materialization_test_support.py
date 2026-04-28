@@ -198,6 +198,39 @@ def _regulation_record(document_id: str) -> DocumentRegistryRecord:
     )
 
 
+def _target_regulation_record(
+    *,
+    document_id: str,
+    document_units_key: str,
+    canonical_key: str,
+    source_uri: str = "campusrag://promotion/internal_notice/stale-target",
+) -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id=document_id,
+        revision_track="source-faithful",
+        version_id=f"sha256:{document_id.split(':')[-1]}:target",
+        source_uri=source_uri,
+        content_hash=f"sha256:{document_id}:content",
+        corpus="regulations",
+        collection="institutional_rules",
+        cleaning_policy_version="institutional_rules_cleaning_v1",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        status="active",
+        ingestion_timestamp="2026-04-09T00:00:00+00:00",
+        parser_version="internal_notice_regulation_materialization_v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="manual_curated",
+        is_current=True,
+        document_units_object_key=document_units_key,
+        canonical_markdown_object_key=canonical_key,
+        processed_object_keys=(document_units_key, canonical_key),
+        import_source="internal_notice_regulation_materialization",
+        published_date="2026-04-09",
+    )
+
+
 def _document_rows(upload: dict[str, object]) -> list[dict[str, object]]:
     payload = upload["data"]
     assert isinstance(payload, bytes)
@@ -271,6 +304,7 @@ __all__ = [
     "_ready_institutional_projection_entry",
     "_record",
     "_regulation_record",
+    "_target_regulation_record",
     "regulation_materialization",
     "unittest",
 ]
