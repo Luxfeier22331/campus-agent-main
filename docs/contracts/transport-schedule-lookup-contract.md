@@ -63,11 +63,14 @@ updated: 2026-04-28
 第一版 data-plane 决策：
 
 - source truth 只来自 `authenticated_notice_portal`
-- route canonical seed 固定为地铁接驳车、海淀到丰台、丰台到海淀三条 route
+- route canonical seed 覆盖跨校区通勤车、地铁接驳车与已物化的临时专车 route
 - builder 离线展开 90 天服务日
 - 临时停运/调整写入 `transport_service_exceptions`
-- 对象存储保存 versioned/current artifact
-- Go `apps/supervisor-api` 只读 mounted current file，不直接读取对象存储
+- 对象存储保存 immutable versioned artifact；current artifact 只保留为
+  compatibility surface
+- Go `apps/supervisor-api` 不直接读取对象存储或 mounted projection file；长期通过
+  projection-backed internal query service 读取 PostgreSQL current pointer 与 typed
+  read model
 
 projection schema 细节见
 `docs/data/campus-services-transport-schedule-source-truth-schema.md`。

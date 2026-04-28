@@ -47,6 +47,8 @@ ready transport candidates。
 - 对象存储保存 immutable versioned projection artifact；长期 online consumption 通过
   PostgreSQL release catalog、current pointer 与 typed transport schedule read model
   完成
+- selected-write/release workflow 必须先做 bounded selected export、consumer admission
+  gate、local preview，再进入 stage 或 promote；不得从全部 notice bundle 直接写 current
 - mounted current file 只属于 bootstrap / smoke compatibility，不是长期 production
   consumption truth
 
@@ -170,6 +172,7 @@ source 写入 rejected-source report，不得猜测写入 current projection。
 - `transport_service_exceptions`
 - `transport_operational_notices`
 - `transport_rejected_sources`
+- `transport_release_notices`
 
 `transport_schedule_snapshots` 保存版本与来源：
 
@@ -235,13 +238,42 @@ operational notice 的候选：
 - `reason`
 - `candidate_kind`
 
+`transport_release_notices` 保存当前 release 消费过的 notice provenance：
+
+- `source_notice_id`
+- `source_ref`
+- `source_notice_release_time`
+- `admitted_at`
+- `materialized_at`
+
 ## Publication
+
+发布模式固定为三档：
+
+- `preview`
+  - 只写本地 release artifacts
+  - 不写对象存储
+  - 不写 PostgreSQL release catalog / typed read model
+  - 不移动 current pointer
+- `stage`
+  - 写 immutable versioned artifacts
+  - 写 PostgreSQL release catalog 与 typed read model
+  - 不写 current artifact
+  - 不移动 `structured_projection_current`
+- `promote`
+  - 写 immutable versioned artifacts
+  - 写 compatibility current artifact
+  - 写 PostgreSQL release catalog 与 typed read model
+  - 事务性移动 `structured_projection_current`
+
+single-notice 或 selected batch 验证必须先使用 `preview`；需要保留写入证据但不能影响线上查询时使用
+`stage`；只有完整、已批准的当前时刻表 release 可以使用 `promote`。
 
 versioned artifact：
 
 `campus_services/releases/transport_schedule/{release_id}/campus-services-projection.json`
 
-compatibility current artifact：
+compatibility current artifact 只允许 `promote` 写入：
 
 `campus_services/releases/transport_schedule/current/campus-services-projection.json`
 
@@ -263,6 +295,13 @@ mounted readonly current projection file fallback 已下线。
 - typed read model：按 `release_id` 保存 routes、snapshots、scheduled departures、
   service exceptions、operational notices、rejected sources 与 release-notice
   provenance
+
+`transport_release_notices` typed read model 必须保留：
+
+- `source_notice_id`
+- `source_notice_release_time`
+- `admitted_at`
+- `materialized_at`
 
 Go `apps/supervisor-api` 长期不直接读对象存储、不持有对象存储凭据，也不在 query-time
 解析 projection JSON。它通过 projection-backed internal query service 读取 PG current

@@ -81,6 +81,116 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
         self.assertEqual(typed_payload[0]["release_id"], "transport-schedule-20260427T090000")
         self.assertEqual(typed_payload[0]["record"]["snapshot_id"], "snapshot:bus:2026-04-20")
 
+    def test_publish_release_can_stage_without_current_pointer(self) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        bundle = {
+            "schema_version": "campus_services_projection_bundle.v1",
+            "transport_schedule_snapshots": [
+                {
+                    "snapshot_id": "snapshot:bus:2026-04-20",
+                    "published_at": "2026-04-20T18:00:00+08:00",
+                    "effective_from": "2026-04-21T00:00:00+08:00",
+                    "source_ref": "notice:muc_internal_portal:355122",
+                    "is_current": True,
+                }
+            ],
+            "transport_routes": [{"route_id": "route:haidian-to-fengtai"}],
+            "scheduled_departures": [],
+            "transport_service_exceptions": [],
+        }
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            report = publisher.publish_release(
+                corpus="campus_services",
+                collection="transport_schedule",
+                release_id="transport-schedule-stage-355881",
+                generated_at="2026-04-28T09:00:00+08:00",
+                schema_version="campus_services_projection_bundle.v1",
+                artifact_object_key=(
+                    "campus_services/releases/transport_schedule/transport-schedule-stage-355881/"
+                    "campus-services-projection.json"
+                ),
+                artifact_checksum="sha256:test",
+                bundle=bundle,
+                validation_status="valid",
+                promote_current=False,
+            )
+
+        self.assertFalse(report.current)
+        executed_sql = "\n".join(query for query, _params in cursor.execute_calls)
+        self.assertIn("structured_projection_releases", executed_sql)
+        current_pointer_queries = [
+            query
+            for query, _params in cursor.execute_calls
+            if "structured_projection_current" in query and "on conflict" in query
+        ]
+        self.assertEqual(current_pointer_queries, [])
+
+    def test_transport_release_notice_rows_keep_processing_timestamps(self) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        bundle = {
+            "schema_version": "campus_services_projection_bundle.v1",
+            "transport_schedule_snapshots": [],
+            "transport_routes": [],
+            "scheduled_departures": [],
+            "transport_service_exceptions": [],
+            "transport_release_notices": [
+                {
+                    "source_notice_id": "355881",
+                    "source_ref": "notice:muc_internal_portal:355881",
+                    "source_notice_release_time": "2026-04-25T16:26:00+08:00",
+                    "admitted_at": "2026-04-28T08:30:00+08:00",
+                    "materialized_at": "2026-04-28T09:00:00+08:00",
+                }
+            ],
+        }
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            publisher.publish_release(
+                corpus="campus_services",
+                collection="transport_schedule",
+                release_id="transport-schedule-stage-355881",
+                generated_at="2026-04-28T09:00:00+08:00",
+                schema_version="campus_services_projection_bundle.v1",
+                artifact_object_key=(
+                    "campus_services/releases/transport_schedule/transport-schedule-stage-355881/"
+                    "campus-services-projection.json"
+                ),
+                artifact_checksum="sha256:test",
+                bundle=bundle,
+                validation_status="valid",
+                promote_current=False,
+            )
+
+        release_notice_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "transport_release_notices" in query and "jsonb_to_recordset" in query
+        )
+        release_notice_payload = json.loads(cursor.execute_calls[release_notice_index][1][0])
+        self.assertEqual(release_notice_payload[0]["source_notice_id"], "355881")
+        self.assertEqual(
+            release_notice_payload[0]["source_notice_release_time"],
+            "2026-04-25T16:26:00+08:00",
+        )
+        self.assertEqual(release_notice_payload[0]["admitted_at"], "2026-04-28T08:30:00+08:00")
+        self.assertEqual(
+            release_notice_payload[0]["materialized_at"],
+            "2026-04-28T09:00:00+08:00",
+        )
+
     def test_publish_transport_schedule_release_writes_rejected_and_operational_rows(
         self,
     ) -> None:

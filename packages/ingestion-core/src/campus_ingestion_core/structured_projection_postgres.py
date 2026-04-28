@@ -198,6 +198,9 @@ _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
     ),
     "transport_release_notices": (
         _TypedColumn("source_notice_id", "text", "text not null default ''"),
+        _TypedColumn("source_notice_release_time", "timestamptz", "timestamptz"),
+        _TypedColumn("admitted_at", "timestamptz", "timestamptz"),
+        _TypedColumn("materialized_at", "timestamptz", "timestamptz"),
     ),
 }
 
@@ -227,6 +230,7 @@ class PostgresStructuredProjectionPublisher:
         artifact_checksum: str,
         bundle: Mapping[str, Any],
         validation_status: str,
+        promote_current: bool = True,
     ) -> StructuredProjectionPublishReport:
         normalized_corpus = _required_text(corpus, "corpus")
         normalized_collection = _required_text(collection, "collection")
@@ -275,20 +279,21 @@ class PostgresStructuredProjectionPublisher:
                     normalized_validation,
                 ),
             )
-            cursor.execute(
-                self._current_pointer_upsert_query(),
-                (
-                    normalized_corpus,
-                    normalized_collection,
-                    normalized_release_id,
-                ),
-            )
+            if promote_current:
+                cursor.execute(
+                    self._current_pointer_upsert_query(),
+                    (
+                        normalized_corpus,
+                        normalized_collection,
+                        normalized_release_id,
+                    ),
+                )
         return StructuredProjectionPublishReport(
             corpus=normalized_corpus,
             collection=normalized_collection,
             release_id=normalized_release_id,
             schema_version=normalized_schema_version,
-            current=True,
+            current=bool(promote_current),
             counts=counts,
         )
 
@@ -667,16 +672,7 @@ def _typed_recordsets(
             ),
             (
                 "transport_release_notices",
-                [
-                    {
-                        "release_id": release_id,
-                        "record_id": notice_id,
-                        "source_ref": notice_id,
-                        "source_notice_id": notice_id,
-                        "record": {"source_notice_id": notice_id},
-                    }
-                    for notice_id in _source_notice_ids(bundle)
-                ],
+                _transport_release_notice_records(release_id=release_id, bundle=bundle),
             ),
         )
     if collection == "service_guide":
@@ -765,6 +761,35 @@ def _records(
         record_id = _record_id(row, id_fields=id_fields, fallback_index=index)
         records.append(_record_payload(release_id, record_id, row, source_ref_field, table_name))
     return records
+
+
+def _transport_release_notice_records(
+    *,
+    release_id: str,
+    bundle: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    explicit_rows = _list(bundle.get("transport_release_notices"))
+    if explicit_rows:
+        return _records(
+            release_id,
+            explicit_rows,
+            id_fields=("source_notice_id",),
+            source_ref_field="source_ref",
+            table_name="transport_release_notices",
+        )
+    return [
+        _record_payload(
+            release_id,
+            notice_ref,
+            {
+                "source_notice_id": notice_ref.split(":")[-1],
+                "source_ref": notice_ref,
+            },
+            "source_ref",
+            "transport_release_notices",
+        )
+        for notice_ref in _source_notice_ids(bundle)
+    ]
 
 
 def _record_payload(
@@ -880,6 +905,7 @@ def _source_notice_ids(bundle: Mapping[str, Any]) -> list[str]:
         bundle.get("transport_service_exceptions"),
         bundle.get("transport_operational_notices"),
         bundle.get("transport_rejected_sources"),
+        bundle.get("transport_release_notices"),
         bundle.get("service_guide_records"),
     ):
         for row in _list(row_group):

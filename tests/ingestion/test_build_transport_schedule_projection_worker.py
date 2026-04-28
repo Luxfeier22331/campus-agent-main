@@ -10,6 +10,15 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    CONSUMER_ADMISSION_BODY_QUALITY_PRESENT,
+    CONSUMER_ADMISSION_DECISION_ADMIT,
+    CONSUMER_ADMISSION_SCOPE_WRITE_MODE_UPSERT_SELECTED,
+    ConsumerAdmissionDecisionRecord,
+    InternalNoticeConsumerAdmissionManifest,
+    compute_consumer_admission_selection_sha256,
+    write_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
@@ -57,7 +66,7 @@ class _FakeStructuredProjectionPublisher:
 
     def publish_release(self, **kwargs: object) -> object:
         self.calls.append(dict(kwargs))
-        return {"current": True}
+        return {"current": kwargs.get("promote_current", True)}
 
 
 class _FakeProjectionStore:
@@ -169,6 +178,8 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
     ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            manifest_path = root / "consumer-admission-manifest.json"
+            _write_consumer_manifest(manifest_path)
             object_store = _FakeObjectStore()
             publisher = _FakeStructuredProjectionPublisher()
             registry, projection_entry = _notice_projection_runtime(object_store)
@@ -214,6 +225,206 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
             ),
             object_store.objects,
         )
+
+    def test_preview_publish_mode_writes_local_artifacts_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+            registry, projection_entry = _notice_projection_runtime(object_store)
+
+            report = worker.build_transport_schedule_projection_release_from_consumption_projection(
+                projection_entries=(projection_entry,),
+                registry=registry,
+                work_dir=root / "work",
+                release_id="transport-schedule-355122-preview",
+                generated_at="2026-03-20T09:00:00+08:00",
+                service_horizon_days=3,
+                object_store=object_store,
+                derived_bucket="campus-rag-derived",
+                structured_projection_publisher=publisher,
+                publish_mode="preview",
+            )
+
+        self.assertEqual(report.release_id, "transport-schedule-355122-preview")
+        self.assertEqual(publisher.calls, [])
+        self.assertNotIn(
+            (
+                "campus-rag-derived",
+                "campus_services/releases/transport_schedule/transport-schedule-355122-preview/"
+                "campus-services-projection.json",
+            ),
+            object_store.objects,
+        )
+        self.assertNotIn(
+            (
+                "campus-rag-derived",
+                "campus_services/releases/transport_schedule/current/campus-services-projection.json",
+            ),
+            object_store.objects,
+        )
+
+    def test_stage_publish_mode_writes_versioned_release_without_current(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+            registry, projection_entry = _notice_projection_runtime(object_store)
+
+            report = worker.build_transport_schedule_projection_release_from_consumption_projection(
+                projection_entries=(projection_entry,),
+                registry=registry,
+                work_dir=root / "work",
+                release_id="transport-schedule-355122-stage",
+                generated_at="2026-03-20T09:00:00+08:00",
+                service_horizon_days=3,
+                object_store=object_store,
+                derived_bucket="campus-rag-derived",
+                structured_projection_publisher=publisher,
+                publish_mode="stage",
+            )
+
+        self.assertEqual(report.release_id, "transport-schedule-355122-stage")
+        self.assertEqual(len(publisher.calls), 1)
+        self.assertFalse(publisher.calls[0]["promote_current"])
+        self.assertIn(
+            (
+                "campus-rag-derived",
+                "campus_services/releases/transport_schedule/transport-schedule-355122-stage/"
+                "campus-services-projection.json",
+            ),
+            object_store.objects,
+        )
+        self.assertNotIn(
+            (
+                "campus-rag-derived",
+                "campus_services/releases/transport_schedule/current/campus-services-projection.json",
+            ),
+            object_store.objects,
+        )
+
+    def test_main_requires_consumer_admission_manifest_for_typed_materialization(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "consumer-admission-manifest.json"
+            _write_consumer_manifest(manifest_path)
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+            registry, projection_entry = _notice_projection_runtime(object_store)
+            projection_store = _FakeProjectionStore((projection_entry,))
+
+            with (
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.ObjectStoreSettings.from_env",
+                    return_value=SimpleNamespace(
+                        bucket_source="campus-rag-source",
+                        bucket_derived="campus-rag-derived",
+                    ),
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.S3ObjectStoreAdmin",
+                    return_value=object_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_document_registry_from_env",
+                    return_value=registry,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_notice_consumption_projection_store_from_env",
+                    return_value=projection_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_structured_projection_publisher_from_env",
+                    return_value=publisher,
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+                self.assertRaisesRegex(ValueError, "consumer admission manifest"),
+            ):
+                worker.main(
+                    [
+                        "--from-consumption-projection",
+                        "--notice-id",
+                        "355122",
+                        "--publish-mode",
+                        "preview",
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "transport-schedule-cli-355122-preview",
+                        "--generated-at",
+                        "2026-03-20T09:00:00+08:00",
+                        "--service-horizon-days",
+                        "3",
+                    ]
+                )
+
+    def test_main_accepts_consumer_admission_manifest_for_typed_materialization(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "consumer-admission-manifest.json"
+            _write_consumer_manifest(manifest_path)
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+            registry, projection_entry = _notice_projection_runtime(object_store)
+            projection_store = _FakeProjectionStore((projection_entry,))
+
+            with (
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.ObjectStoreSettings.from_env",
+                    return_value=SimpleNamespace(
+                        bucket_source="campus-rag-source",
+                        bucket_derived="campus-rag-derived",
+                    ),
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.S3ObjectStoreAdmin",
+                    return_value=object_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_document_registry_from_env",
+                    return_value=registry,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_notice_consumption_projection_store_from_env",
+                    return_value=projection_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_structured_projection_publisher_from_env",
+                    return_value=publisher,
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                worker.main(
+                    [
+                        "--from-consumption-projection",
+                        "--notice-id",
+                        "355122",
+                        "--consumer-admission-manifest-path",
+                        str(manifest_path),
+                        "--publish-mode",
+                        "preview",
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "transport-schedule-cli-355122-preview",
+                        "--generated-at",
+                        "2026-03-20T09:00:00+08:00",
+                        "--service-horizon-days",
+                        "3",
+                    ]
+                )
+
+        self.assertEqual(publisher.calls, [])
 
     def test_main_publishes_release_to_structured_projection_postgres_when_configured(
         self,
@@ -302,6 +513,8 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
     def test_main_can_build_from_all_ready_transport_candidates(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            manifest_path = root / "consumer-admission-manifest.json"
+            _write_consumer_manifest(manifest_path)
             object_store = _FakeObjectStore()
             publisher = _FakeStructuredProjectionPublisher()
             registry, projection_entry = _notice_projection_runtime(object_store)
@@ -340,6 +553,8 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                     [
                         "--from-consumption-projection",
                         "--all-ready-transport-candidates",
+                        "--consumer-admission-manifest-path",
+                        str(manifest_path),
                         "--work-dir",
                         str(root / "work"),
                         "--release-id",
@@ -366,6 +581,44 @@ def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
         "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
         encoding="utf-8",
     )
+
+
+def _write_consumer_manifest(path: Path) -> None:
+    manifest = InternalNoticeConsumerAdmissionManifest(
+        admission_run_id="transport-schedule-355122-test",
+        source_channel="authenticated_notice_portal",
+        corpus="campus_notices",
+        collection="internal_notice",
+        selection_source="explicit_notice_ids",
+        selection_path="",
+        selection_sha256=compute_consumer_admission_selection_sha256(("355122",)),
+        scope_write_mode=CONSUMER_ADMISSION_SCOPE_WRITE_MODE_UPSERT_SELECTED,
+        selected_notice_ids=("355122",),
+        decision_records=(
+            ConsumerAdmissionDecisionRecord(
+                notice_id="355122",
+                source_notice_id="355122",
+                site_id="muc_internal_portal",
+                raw_asset_id="raw:notice:355122",
+                raw_version_id="sha256:test",
+                notice_family="transport_service_status",
+                suggested_consumption_route="campus_services",
+                target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+                consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+                admission_decision=CONSUMER_ADMISSION_DECISION_ADMIT,
+                admission_reason_codes=("transport_schedule_candidate",),
+                body_quality=CONSUMER_ADMISSION_BODY_QUALITY_PRESENT,
+                attachment_ref_count=1,
+                reference_only_attachment_ref_count=0,
+                owner_expectation_count=0,
+                pending_multimodal_attachment_count=0,
+                attachment_document_count=1,
+                unsupported_binary_count=0,
+            ),
+        ),
+        created_at="2026-04-28T08:30:00Z",
+    )
+    write_internal_notice_consumer_admission_manifest(path, manifest)
 
 
 def _notice_projection_runtime(

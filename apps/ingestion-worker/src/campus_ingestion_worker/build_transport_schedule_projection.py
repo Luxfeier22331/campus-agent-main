@@ -10,6 +10,15 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from campus_ingestion_core import ObjectStoreSettings
+from campus_ingestion_core.internal_notice_consumer_admission_gate import (
+    CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
+    ConsumerAdmissionGateRequest,
+    check_internal_notice_consumer_admission_gate,
+)
+from campus_ingestion_core.internal_notice_consumer_admission_manifest import (
+    InternalNoticeConsumerAdmissionManifest,
+    load_internal_notice_consumer_admission_manifest,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
@@ -75,12 +84,25 @@ class _StructuredProjectionPublisher(Protocol):
         artifact_checksum: str,
         bundle: Mapping[str, Any],
         validation_status: str,
+        promote_current: bool = True,
     ) -> object: ...
 
 
 class _ProjectionReleaseReport(Protocol):
     release_id: str
     release_object_key: str
+
+
+_PUBLISH_MODE_PREVIEW = "preview"
+_PUBLISH_MODE_STAGE = "stage"
+_PUBLISH_MODE_PROMOTE = "promote"
+_PUBLISH_MODES = frozenset(
+    {
+        _PUBLISH_MODE_PREVIEW,
+        _PUBLISH_MODE_STAGE,
+        _PUBLISH_MODE_PROMOTE,
+    }
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -122,6 +144,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--source-bucket")
     parser.add_argument("--derived-bucket")
+    parser.add_argument(
+        "--publish-mode",
+        default=_PUBLISH_MODE_PROMOTE,
+        choices=sorted(_PUBLISH_MODES),
+        help=(
+            "preview writes local artifacts only; stage writes versioned artifact/read model "
+            "without current; promote updates current. Defaults to promote for compatibility."
+        ),
+    )
+    parser.add_argument("--consumer-admission-manifest-path")
     return parser
 
 
@@ -138,7 +170,9 @@ def build_transport_schedule_projection_release_from_inventory(
     source_object_store: _SourceObjectStore | None = None,
     source_bucket: str | None = None,
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
+    publish_mode: str = _PUBLISH_MODE_PROMOTE,
 ):
+    normalized_publish_mode = _normalize_publish_mode(publish_mode)
     parents = _load_source_truth_parents(
         inventory_path=source_truth_inventory_path,
         source_truth_root=source_truth_root,
@@ -168,25 +202,29 @@ def build_transport_schedule_projection_release_from_inventory(
         output_dir=work_dir,
         release_id=release_id,
         generated_at=generated_at,
-        object_store=object_store,
+        object_store=object_store if _writes_versioned_artifacts(normalized_publish_mode) else None,
         bucket=derived_bucket,
+        write_current=_promotes_current(normalized_publish_mode),
     )
-    object_store.put_bytes(
-        bucket=derived_bucket,
-        key=build_index_release_artifact_key(
-            corpus=TRANSPORT_SCHEDULE_CORPUS,
-            collection=TRANSPORT_SCHEDULE_COLLECTION,
-            release_id=release_id,
-            filename=TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
-        ),
-        data=rejected_source_path.read_bytes(),
-        content_type="application/json",
-    )
+    if _writes_versioned_artifacts(normalized_publish_mode):
+        object_store.put_bytes(
+            bucket=derived_bucket,
+            key=build_index_release_artifact_key(
+                corpus=TRANSPORT_SCHEDULE_CORPUS,
+                collection=TRANSPORT_SCHEDULE_COLLECTION,
+                release_id=release_id,
+                filename=TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
+            ),
+            data=rejected_source_path.read_bytes(),
+            content_type="application/json",
+        )
     _publish_structured_projection_release(
         structured_projection_publisher=structured_projection_publisher,
         bundle=build_result.bundle,
         report=report,
         generated_at=generated_at,
+        promote_current=_promotes_current(normalized_publish_mode),
+        enabled=_writes_structured_projection(normalized_publish_mode),
     )
     _write_json(work_dir / "build-report.json", asdict(report))
     return report
@@ -203,7 +241,10 @@ def build_transport_schedule_projection_release_from_consumption_projection(
     object_store: _TransportProjectionObjectStore,
     derived_bucket: str,
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
+    publish_mode: str = _PUBLISH_MODE_PROMOTE,
+    admitted_at: str = "",
 ):
+    normalized_publish_mode = _normalize_publish_mode(publish_mode)
     build_result = build_notice_derived_transport_schedule_projection_bundle(
         projection_entries=projection_entries,
         registry=registry,
@@ -223,6 +264,11 @@ def build_transport_schedule_projection_release_from_consumption_projection(
         raise ValueError("notice-derived transport schedule projection produced no snapshots")
 
     work_dir.mkdir(parents=True, exist_ok=True)
+    build_result.bundle["transport_release_notices"] = _transport_release_notice_provenance_records(
+        projection_entries=projection_entries,
+        admitted_at=admitted_at,
+        materialized_at=generated_at,
+    )
     rejected_source_path = work_dir / TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME
     _write_json(rejected_source_path, build_result.rejected_source_records)
     report = write_transport_schedule_projection_release(
@@ -230,25 +276,29 @@ def build_transport_schedule_projection_release_from_consumption_projection(
         output_dir=work_dir,
         release_id=release_id,
         generated_at=generated_at,
-        object_store=object_store,
+        object_store=object_store if _writes_versioned_artifacts(normalized_publish_mode) else None,
         bucket=derived_bucket,
+        write_current=_promotes_current(normalized_publish_mode),
     )
-    object_store.put_bytes(
-        bucket=derived_bucket,
-        key=build_index_release_artifact_key(
-            corpus=TRANSPORT_SCHEDULE_CORPUS,
-            collection=TRANSPORT_SCHEDULE_COLLECTION,
-            release_id=release_id,
-            filename=TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
-        ),
-        data=rejected_source_path.read_bytes(),
-        content_type="application/json",
-    )
+    if _writes_versioned_artifacts(normalized_publish_mode):
+        object_store.put_bytes(
+            bucket=derived_bucket,
+            key=build_index_release_artifact_key(
+                corpus=TRANSPORT_SCHEDULE_CORPUS,
+                collection=TRANSPORT_SCHEDULE_COLLECTION,
+                release_id=release_id,
+                filename=TRANSPORT_SCHEDULE_REJECTED_SOURCE_REPORT_FILENAME,
+            ),
+            data=rejected_source_path.read_bytes(),
+            content_type="application/json",
+        )
     _publish_structured_projection_release(
         structured_projection_publisher=structured_projection_publisher,
         bundle=build_result.bundle,
         report=report,
         generated_at=generated_at,
+        promote_current=_promotes_current(normalized_publish_mode),
+        enabled=_writes_structured_projection(normalized_publish_mode),
     )
     _write_json(work_dir / "build-report.json", asdict(report))
     return report
@@ -262,6 +312,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     generated_at = args.generated_at or _default_generated_at()
     source = dict(os.environ)
     structured_projection_publisher = build_structured_projection_publisher_from_env(source)
+    publish_mode = _normalize_publish_mode(args.publish_mode)
     if args.from_consumption_projection:
         selection = build_internal_notice_selection_provenance(
             explicit_notice_ids=args.notice_id or (),
@@ -284,6 +335,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         if args.all_ready_transport_candidates:
             projection_entries = _ready_transport_projection_entries(projection_entries)
+        consumer_admission_manifest = _load_consumer_admission_manifest_for_transport(
+            manifest_path=args.consumer_admission_manifest_path,
+        )
+        _assert_transport_consumer_admission_gate_allows(
+            manifest=consumer_admission_manifest,
+            notice_ids=notice_ids or tuple(entry.source_notice_id for entry in projection_entries),
+        )
         report = build_transport_schedule_projection_release_from_consumption_projection(
             projection_entries=projection_entries,
             registry=build_document_registry_from_env(source),
@@ -294,6 +352,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             object_store=object_store,
             derived_bucket=args.derived_bucket or settings.bucket_derived,
             structured_projection_publisher=structured_projection_publisher,
+            publish_mode=publish_mode,
+            admitted_at=consumer_admission_manifest.created_at,
         )
     else:
         if not args.source_truth_inventory:
@@ -314,6 +374,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             source_object_store=source_object_store,
             source_bucket=args.source_bucket or settings.bucket_source,
             structured_projection_publisher=structured_projection_publisher,
+            publish_mode=publish_mode,
         )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
@@ -324,8 +385,10 @@ def _publish_structured_projection_release(
     bundle: Mapping[str, Any],
     report: _ProjectionReleaseReport,
     generated_at: str,
+    promote_current: bool,
+    enabled: bool,
 ) -> None:
-    if structured_projection_publisher is None:
+    if structured_projection_publisher is None or not enabled:
         return
     schema_version = _required_text(bundle.get("schema_version"))
     if schema_version is None:
@@ -340,7 +403,93 @@ def _publish_structured_projection_release(
         artifact_checksum=projection_artifact_checksum(bundle),
         bundle=bundle,
         validation_status="valid",
+        promote_current=promote_current,
     )
+
+
+def _load_consumer_admission_manifest_for_transport(
+    *,
+    manifest_path: str | None,
+) -> InternalNoticeConsumerAdmissionManifest:
+    if not str(manifest_path or "").strip():
+        raise ValueError(
+            "consumer admission manifest is required before transport_schedule typed materialization"
+        )
+    return load_internal_notice_consumer_admission_manifest(Path(str(manifest_path)).resolve())
+
+
+def _assert_transport_consumer_admission_gate_allows(
+    *,
+    manifest: InternalNoticeConsumerAdmissionManifest,
+    notice_ids: Sequence[str],
+) -> None:
+    report = check_internal_notice_consumer_admission_gate(
+        manifest=manifest,
+        request=ConsumerAdmissionGateRequest(
+            operation=CONSUMER_ADMISSION_GATE_OPERATION_TYPED_MATERIALIZATION,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            selected_notice_ids=tuple(notice_ids),
+            scope_write_mode="upsert_selected",
+            target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+            max_empty_body_count=0,
+            max_unsupported_binary_count=0,
+        ),
+    )
+    if not report.allowed:
+        raise ValueError(
+            "consumer admission manifest gate blocked transport_schedule materialization: "
+            + ", ".join(report.reason_codes)
+        )
+
+
+def _transport_release_notice_provenance_records(
+    *,
+    projection_entries: Sequence[NoticeConsumptionProjectionEntry],
+    admitted_at: str,
+    materialized_at: str,
+) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    for entry in projection_entries:
+        notice_id = str(entry.source_notice_id or "").strip()
+        if not notice_id:
+            continue
+        records.append(
+            {
+                "source_notice_id": notice_id,
+                "source_ref": _projection_source_ref(entry),
+                "source_notice_release_time": str(entry.source_notice_release_time or ""),
+                "admitted_at": admitted_at,
+                "materialized_at": materialized_at,
+            }
+        )
+    return records
+
+
+def _projection_source_ref(entry: NoticeConsumptionProjectionEntry) -> str:
+    parts = str(entry.source_notice_document_id or "").split(":")
+    if len(parts) == 3 and parts[0] == "notice":
+        return entry.source_notice_document_id
+    return f"notice:muc_internal_portal:{entry.source_notice_id}"
+
+
+def _normalize_publish_mode(value: str) -> str:
+    normalized = str(value or _PUBLISH_MODE_PROMOTE).strip().lower()
+    if normalized not in _PUBLISH_MODES:
+        raise ValueError(f"unsupported transport schedule publish mode: {value!r}")
+    return normalized
+
+
+def _writes_versioned_artifacts(publish_mode: str) -> bool:
+    return publish_mode in {_PUBLISH_MODE_STAGE, _PUBLISH_MODE_PROMOTE}
+
+
+def _writes_structured_projection(publish_mode: str) -> bool:
+    return publish_mode in {_PUBLISH_MODE_STAGE, _PUBLISH_MODE_PROMOTE}
+
+
+def _promotes_current(publish_mode: str) -> bool:
+    return publish_mode == _PUBLISH_MODE_PROMOTE
 
 
 def _ready_transport_projection_entries(

@@ -941,6 +941,7 @@ Preferred notice-derived mode:
 - `--all-ready-transport-candidates`
 - `--work-dir`
 - `--release-id`
+- `--consumer-admission-manifest-path`
 
 Legacy source-truth smoke mode:
 
@@ -949,20 +950,31 @@ Legacy source-truth smoke mode:
 - `--work-dir`
 - `--release-id`
 
+Optional CLI args:
+
+- `--publish-mode`:
+  - `preview`: writes local artifacts only; no object-store writes and no PG
+    release/read-model writes.
+  - `stage`: writes versioned artifacts and PG release/read-model rows, but does
+    not write current artifacts or update `structured_projection_current`.
+  - `promote`: writes versioned/current artifacts and updates PG current pointer.
+
 Behavior:
 
 - Notice-derived mode reads ready
   `campus_services/service_status_candidate` consumption projection entries.
+- Notice-derived mode requires a consumer admission manifest and checks the
+  `typed-materialization` gate before reading selected entries.
 - It reads OCR child `document-units.jsonl` from the derived bucket, cleans table
   context, and publishes `campus_services_projection_bundle.v1`.
 - It materializes supported timetable rows, service exceptions, operational
   notices such as boarding-point changes, and rejected-source records into the
   same projection bundle.
-- It writes local release artifacts and publishes versioned/current projection
-  artifacts to the derived bucket.
-- When `CAMPUS_SHARED_POSTGRES_URL` is configured, publishes the same validated
-  release to PostgreSQL release catalog, current pointer, and
-  `transport_schedule` typed read-model tables.
+- It records release-notice provenance, including source notice release time,
+  admission time and materialization time when the notice-derived path supplies
+  a consumer admission manifest.
+- `preview` is the required mode for single-notice validation; `stage` is for
+  selected-write evidence; only complete approved releases should use `promote`.
 - It does not open `transport_schedule_lookup` serving by itself.
 
 ### `campus-ingestion-manage-structured-projection-release`

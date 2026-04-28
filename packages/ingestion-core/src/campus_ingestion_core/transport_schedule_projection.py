@@ -335,13 +335,15 @@ def write_transport_schedule_projection_release(
     generated_at: str,
     object_store: TransportScheduleProjectionObjectStore | None = None,
     bucket: str | None = None,
+    write_current: bool = True,
 ) -> TransportScheduleProjectionReleaseReport:
     normalized_release_id = _path_segment(release_id, "release_id")
     output_root = Path(output_dir)
     release_dir = output_root / normalized_release_id
     current_dir = output_root / "current"
     release_dir.mkdir(parents=True, exist_ok=True)
-    current_dir.mkdir(parents=True, exist_ok=True)
+    if write_current:
+        current_dir.mkdir(parents=True, exist_ok=True)
 
     bundle_bytes = _json_bytes(bundle)
     validation_report = validate_transport_schedule_projection_bundle(bundle)
@@ -365,7 +367,7 @@ def write_transport_schedule_projection_release(
         "corpus": TRANSPORT_SCHEDULE_CORPUS,
         "collection": TRANSPORT_SCHEDULE_COLLECTION,
         "projection_object_key": release_object_key,
-        "current_projection_object_key": current_object_key,
+        "current_projection_object_key": current_object_key if write_current else "",
         "validation_valid": validation_report.valid,
         "counts": dict(validation_report.counts),
     }
@@ -375,16 +377,16 @@ def write_transport_schedule_projection_release(
     validation_path = release_dir / TRANSPORT_SCHEDULE_VALIDATION_FILENAME
     manifest_path = release_dir / TRANSPORT_SCHEDULE_RELEASE_MANIFEST_FILENAME
     projection_path.write_bytes(bundle_bytes)
-    current_projection_path.write_bytes(bundle_bytes)
+    if write_current:
+        current_projection_path.write_bytes(bundle_bytes)
     validation_path.write_bytes(_json_bytes(validation_payload))
     manifest_path.write_bytes(_json_bytes(release_manifest))
 
     if object_store is not None:
         if not bucket:
             raise ValueError("bucket is required when object_store is provided")
-        for key, data in (
+        objects_to_write = (
             (release_object_key, bundle_bytes),
-            (current_object_key, bundle_bytes),
             (
                 build_index_release_artifact_key(
                     corpus=TRANSPORT_SCHEDULE_CORPUS,
@@ -403,7 +405,13 @@ def write_transport_schedule_projection_release(
                 ),
                 _json_bytes(release_manifest),
             ),
-        ):
+        )
+        if write_current:
+            objects_to_write = (
+                *objects_to_write,
+                (current_object_key, bundle_bytes),
+            )
+        for key, data in objects_to_write:
             object_store.put_bytes(
                 bucket=bucket,
                 key=key,
@@ -416,9 +424,9 @@ def write_transport_schedule_projection_release(
         release_id=normalized_release_id,
         generated_at=generated_at,
         projection_path=str(projection_path),
-        current_projection_path=str(current_projection_path),
+        current_projection_path=str(current_projection_path if write_current else ""),
         release_object_key=release_object_key,
-        current_object_key=current_object_key,
+        current_object_key=current_object_key if write_current else "",
         validation_summary_path=str(validation_path),
         release_manifest_path=str(manifest_path),
     )
