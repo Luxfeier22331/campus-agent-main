@@ -929,6 +929,44 @@ Behavior:
 - Writes an export manifest with `filters.selected_notice_ids`.
 - Fails if any requested notice id is absent from the source bundle.
 
+### Authenticated Notice Object-Native Import
+
+The authenticated notice collector -> worker handoff is object-native.
+
+Mainline worker inputs:
+
+- `--run-id`
+- or explicit object refs:
+  - `--source-bucket`
+  - `--bundle-object-key`
+  - `--bundle-content-sha256`
+  - `--bundle-byte-size`
+  - `--manifest-object-key`
+  - `--manifest-content-sha256`
+  - `--manifest-byte-size`
+
+`--run-id` resolves through the Python-readable collector run ledger contract:
+
+- source surface
+- source bucket
+- bundle / manifest object refs
+- hash / byte-size verification fields
+- run status and verification summary
+
+Local `--bundle-path` / `--manifest-path` import is fixture/dev-only. Production
+and Docker-compatible examples must use `--run-id` or explicit object refs.
+After the object-native importer is implemented, bare local path invocation must
+fail closed unless an explicit fixture/dev guard is supplied.
+
+`file_release` import uses the same handoff posture. Only
+`released_file.storage_provider=object_store` rows with verified
+`bucket/object_key/sha256/byte_size` can enter
+`authenticated_documents/file_release_source`; `reference_only` rows remain
+capture evidence and do not enter document holding.
+
+Dry-run / plan mode must not write object store, registry, projection, read
+model, current pointer, or admission lifecycle state.
+
 ### `campus-ingestion-admit-schedule-image-ocr-results`
 
 Admits reviewed schedule-image OCR dry-run results into source/derived

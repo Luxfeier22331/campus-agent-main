@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 # Authenticated Notice Source Architecture
 
@@ -27,8 +27,9 @@ architecture。
 
 第一阶段接受的接入拓扑固定为：
 
-`external scheduler -> authenticated notice collector -> object storage + typed
-bootstrap artifacts -> ingestion-worker -> document/chunk/index`
+`external scheduler -> authenticated notice collector -> source bucket + run
+ledger -> ingestion-worker -> source-truth / document holding -> explicit
+downstream admission`
 
 其中 `authenticated notice collector` 当前允许承接两条 authenticated portal surface：
 
@@ -39,9 +40,10 @@ bootstrap artifacts -> ingestion-worker -> document/chunk/index`
 
 关键边界：
 
-- collector 负责登录态复用、list/detail 抓取、正文/链接/附件增强、对象上传与 typed artifact 输出
-- `apps/ingestion-worker` 负责 bootstrap import、source-truth
-  重建、document/chunk/index 写入
+- collector 负责登录态复用、list/detail 抓取、正文/链接/附件增强、对象上传、run ledger
+  写入与 typed handoff artifact 输出
+- `apps/ingestion-worker` 负责通过 `run_id` 或 explicit object refs 读取 source bucket
+  artifact，重建 source-truth / document holding，并在显式 admission 后写入下游 projection
 - `packages/ingestion-core` 负责 source-truth contract、projection、registry 与
   release 语义
 - 第一阶段不要求先落 `app-api` control plane
@@ -51,8 +53,9 @@ bootstrap artifacts -> ingestion-worker -> document/chunk/index`
 - `authenticated_notice_portal` 是一级 `source_channel`，不是 `official_web` 的特殊站点
 - 这条 source channel 面向“登录态、机构内部通知”这类受限知识源
 - downstream serving / retrieval 继续只消费 document / chunk / registry truth
-- 当前 bootstrap seam 可以消费 typed export/import artifacts，但这些 artifacts 不是长期
-  canonical truth
+- source-channel handoff truth 是 source bucket object refs 与 run ledger；collector
+  local export path 只允许作为 dev/debug artifact，不能作为 Docker collector 与 worker
+  之间的系统真相
 
 ## Live Notice-Type Policy
 
@@ -100,27 +103,29 @@ notice live run 必须先经过 collector-owned admission，再创建 portal API
 
 - `notice`
 
-`file_release` 当前仍是 collector-owned typed export slice。它必须和 `notice`
-分开采集、分开导出，不能把文件发布记录伪装成 notice，也不能把 notice 正文里“见信息门户-文件发布”的提示误当作 notice 自身正文。
+`file_release` 当前固定为 object-backed authenticated document source 的输入
+surface。它必须和 `notice` 分开采集、分开导出，不能把文件发布记录伪装成 notice，也不能把
+notice 正文里“见信息门户-文件发布”的提示误当作 notice 自身正文。
 
-同时，当前 repo 已接受一条 capture-only local PG ledger scope：
+`file_release` 的 source-channel holding scope 为：
 
-- `campus_notices/file_release_capture`
+- `authenticated_documents/file_release_source`
 
-它只承接 `authenticated_notice_portal/file_release` 的 inventory / raw-asset truth，用于
-owner-recovery readiness 与 operator 排障。
+它承接 `authenticated_notice_portal/file_release` 的 object-backed released original、
+inventory / raw-asset truth 与 document holding rows，用于后续 authenticated document
+center 或 owner-specific downstream admission。
 
 固定限制：
 
-- 当前只 materialize 到本地 PG
-- 只写 `ingestion_projection.authenticated_notice_file_release_inventory` 与同 scope
-  的 raw-asset registry rows
-- 不生成 `document_registry_records`
-- 不进入 chunk / index / release
+- 只允许 `released_file.storage_provider=object_store` 且 `bucket/object_key/sha256/byte_size`
+  可验证的 row 进入 `file_release_source`
+- `reference_only` file_release 只能停在 capture evidence / operator gap，不进入 document
+  holding
+- 不进入 `campus_notices/internal_notice`
 - 不把这条 scope 提升成 canonical `notice` source-truth 或 query-serving surface
 
-当前这条 local PG ledger 已完成一次性 closeout materialization；repo 不再把 `file_release` PG
-补齐保留为独立持续需求。
+旧的 `campus_notices/file_release_capture` 只能作为 historical capture / repair
+对象出现；它不是新的 cross-runtime handoff target，也不是长期 query-serving surface。
 
 当前 collector-owned export shape、bundle/manifest 字段，以及 `reference_only` /
 `object_store_write` 的含义，固定记录在：
@@ -144,6 +149,61 @@ owner-recovery readiness 与 operator 排障。
 - list/detail API、正文 HTML、链接观测与附件关系都应围绕同一条 notice 归并
 - `notice_browser_url` / `portal_print_url` 只作为可浏览详情入口 metadata；它们不替代
   `source_notice_link`、`campusnotice://...` fallback、raw asset id 或 document id
+
+## Object-Native Collector To Worker Handoff
+
+collector 与 ingestion worker 的跨 runtime handoff 固定通过 S3-compatible source bucket
+和关系型 run ledger 完成。
+
+稳定 handoff fields：
+
+- `run_id`
+- `source_channel=authenticated_notice_portal`
+- `source_surface`：`notice` 或 `file_release`
+- `site_id`
+- `source_bucket`
+- `bundle_object_key`
+- `bundle_content_sha256`
+- `bundle_byte_size`
+- `manifest_object_key`
+- `manifest_content_sha256`
+- `manifest_byte_size`
+- `verification_status`
+- `verified_at`
+- `required_source_object_count`
+- `verified_source_object_count`
+- `missing_source_object_count`
+- `checksum_mismatch_count`
+- `size_mismatch_count`
+- `status`：`started`、`success`、`failed`
+- `failure_reason`
+- `started_at`
+- `finished_at`
+
+required object roles：
+
+- `handoff_bundle`
+  - `notice` 与 `file_release` 都必须存在、可 `HEAD`、hash/size 匹配
+- `handoff_manifest`
+  - `notice` 与 `file_release` 都必须存在、可 `HEAD`、hash/size 匹配
+- `notice_attachment_source_bytes`
+  - 仅对 bundle 中声明 `storage_provider=object_store` 且进入 source-truth 的附件 bytes
+    强制验证
+  - `reference_only` 与 terminal portal miss 只能作为 capture fact，不能伪造成 required
+    object
+- `file_release_released_source_bytes`
+  - `file_release` 进入 `authenticated_documents/file_release_source` 前必须存在、可
+    `HEAD`、hash/size 匹配
+  - `reference_only` file_release 只能停在 capture evidence，不得导入 document holding
+
+worker `--run-id` import 必须通过 Python-owned ledger resolver 读取上述字段。resolver
+不读取 TypeScript 私有类型，不从 run ledger 的 local path fallback，也不假设 collector 与
+worker 共享 volume。
+
+explicit object-ref import 允许作为等价主链路输入，但必须提供 `source_bucket`、
+bundle / manifest object refs 以及 hash/size verification input。local bundle /
+manifest path 只允许作为显式 fixture/dev 模式进入；裸 `--bundle-path` /
+`--manifest-path` 不能作为 Docker mainline 或生产 handoff 成功执行。
 
 ## Contract Split
 
@@ -306,11 +366,12 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 ## Bootstrap Import Ownership
 
-在 collector 正式迁入 monorepo 并直接输出 repo-native artifacts 之前，允许存在一条 bootstrap import
-seam：
+collector 已进入 monorepo 后，bootstrap import seam 的主链路不再是本地 export path，而是
+object-native handoff：
 
-- 读取 typed export bundle
-- 读取对象存储语义下的附件对象
+- 按 `run_id` 从 run ledger 读取 bundle / manifest / required source object refs
+- 或显式接收 bundle / manifest object refs 与 source bucket
+- 从 source bucket 读取 typed export bundle、manifest 与对象存储语义下的附件对象
 - 重建 canonical raw/provider/source-truth
 
 这条 seam 的 owner 固定为：
@@ -318,12 +379,15 @@ seam：
 - `packages/ingestion-core`
 - `apps/ingestion-worker`
 
-它不应反向把外部 collector 的 SQLite / JSON schema 提升成 repo 级长期 contract。
+它不应反向把 collector local filesystem、SQLite 或 JSON path 提升成 repo 级长期
+contract。
 
 同样固定补充：
 
 - bootstrap import 可以调用 shared file asset loader，但不能把 worker 壳里的局部 parser /
   converter 反向提升成 source channel truth
+- local path import 只允许作为显式 fixture/dev mode，用于单元测试或离线 donor 恢复；Docker
+  collector -> worker handoff 不得依赖共享本机目录
 - source-truth replay、attachment materialization 与 legacy Office normalization
   必须继续复用 repo-owned shared contract，而不是在 collector/import seam 各自复制一套规则
 - bootstrap import 默认只能按 bundle 内 notice ids 做 upsert；`incremental`、
@@ -354,7 +418,7 @@ seam：
 
 因此这条 source channel 的前向扩展方向仍是：
 
-`collector -> object storage + typed artifacts -> ingestion/control plane ->
+`collector -> source bucket + run ledger -> ingestion/control plane ->
 shared Postgres metadata truth`
 
 而不是：

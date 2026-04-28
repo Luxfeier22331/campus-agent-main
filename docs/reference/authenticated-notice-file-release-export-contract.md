@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-12
-updated: 2026-04-21
+updated: 2026-04-28
 ---
 # Authenticated Notice File-Release Export Contract
 
@@ -17,11 +17,14 @@ updated: 2026-04-21
 - collector 会额外快照哪些 portal selector / taxonomy truth
 - `reference_only` 与 `object_store_write` 各自代表什么
 - released file 的对象存储 key 如何编排
+- collector -> worker handoff 中 `file_release` 必须提供哪些 object refs 和 verification
+  fields
 
 它不负责：
 
 - 把 `file_release` 提升成 canonical `notice` source-truth
 - replay、promotion、OCR、chunk、index、release
+- query-serving 或 downstream semantic promotion opening
 - 认证刷新细节或 live 操作步骤
 
 对应文档：
@@ -37,27 +40,33 @@ updated: 2026-04-21
 
 ## 核心定位
 
-`file_release` 当前仍是：
+`file_release` 当前是：
 
 - `authenticated_notice_portal` 下的 sibling authenticated surface
 - collector-owned capture / export slice
-- next auth window 的 source capture target
+- object-backed `authenticated_documents/file_release_source` 的 source input
 
-它当前不是：
+它不是：
 
 - canonical `notice` source-truth
 - `internal_notice` replay 输入
 - regulation promotion 输入
+- query-serving surface
 
 固定规则：
 
 - `file_release` 必须和 `notice` 分开采集、分开导出
 - 任何 `file_release` bundle / manifest 都不能反向改写 `notice` source-truth contract
-- 当前 run 的 stop point 固定是 capture-side artifacts 与可选源文件上传
+- `object_store_write` file_release 可以进入 `authenticated_documents/file_release_source`
+  document holding
+- `reference_only` file_release 只能停在 capture evidence / operator gap，不进入 document
+  holding
+- `file_release_source` 不自动进入 `regulations/*`、service-status、chatbot、panel 或
+  query-serving
 
 ## 导出文件
 
-当前 `file-release:export` 固定在 collector `runtime/exports/` 下写出两类文件：
+collector 可以在本地 operator work dir 下保留两类 export 文件副本：
 
 - `file-releases-bundle-<timestamp>.json`
 - `file-releases-manifest-<timestamp>.json`
@@ -70,6 +79,10 @@ updated: 2026-04-21
 
 - full export：`file-release-<timestamp>`
 - targeted export：`file-release-target-<file_release_id>-<timestamp>`
+
+跨 Docker runtime handoff 不能依赖上述本地路径。主链路 handoff 必须由
+source bucket object refs 与 run ledger 表达，worker 通过 `run_id` 或 explicit
+object refs 读取 bundle / manifest。
 
 ## Portal Selector Snapshot
 
@@ -297,6 +310,9 @@ released file 的 capture 结果只允许两种解释：
 
 这不是失败态，而是“只捕获引用、不捕获字节”的显式 contract。
 
+在 `file_release_source` import 中，`reference_only` 是 fail-closed input：worker
+可以报告它，但不能把它导入 document holding，也不能伪造 raw/source object locator。
+
 ### `object_store_write`
 
 表示：
@@ -312,6 +328,42 @@ released file 的 capture 结果只允许两种解释：
 - `released_file.provenance_status=collected_internal`
 - `released_file.ingest_status=uploaded`
 - `released_file.bucket/object_key/sha256/byte_size/uploaded_at` 非空
+
+`object_store_write` 进入 handoff 前还必须满足：
+
+- source bucket 中的 released source object 可 `HEAD`
+- object byte size 与 `released_file.byte_size` 一致
+- object sha256 与 `released_file.sha256` 一致
+- verification result 写入 run ledger
+
+## File-Release Handoff Fields
+
+`file_release` collector success handoff 必须提供：
+
+- `run_id`
+- `source_channel=authenticated_notice_portal`
+- `source_surface=file_release`
+- `site_id`
+- `source_bucket`
+- `bundle_object_key`
+- `bundle_content_sha256`
+- `bundle_byte_size`
+- `manifest_object_key`
+- `manifest_content_sha256`
+- `manifest_byte_size`
+- `required_source_object_count`
+- `verified_source_object_count`
+- `missing_source_object_count`
+- `checksum_mismatch_count`
+- `size_mismatch_count`
+- `verification_status`
+- `verified_at`
+- `status`
+- `failure_reason`
+
+worker `--run-id` import 只能消费这份 read contract。`bundle_path` /
+`manifest_path` local fields 可以保留在 dev/debug report 中，但不能作为 Docker collector
+与 Docker worker 之间的 handoff truth。
 
 ## Object Key Contract
 
@@ -339,7 +391,9 @@ ilename}`
 - 不把 `file_release` 记录伪装成 `notice`
 - 不把 `reference_only` 误写成“已完成源文件捕获”
 - 不把 bundle / manifest 直接当成 canonical source-truth
+- 不让 `reference_only` row 进入 `authenticated_documents/file_release_source`
 - 不在这条导出线上继续 replay、OCR、promotion、chunk、index
+- 不把 `local_path` 当成跨 runtime handoff field
 - 不把 `target_file_release_id` 扩成标题模糊匹配、notice 关联搜索或多条件 query surface
 - targeted export 未命中目标 `file_release_id` 时，不静默落空成功结果
 
