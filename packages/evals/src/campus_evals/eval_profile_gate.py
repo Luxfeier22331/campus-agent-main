@@ -554,6 +554,7 @@ def _run_profile_from_args(profile_id: str, args: argparse.Namespace) -> EvalPro
     cases_path = Path(args.cases_path) if args.cases_path else None
     observations_path = Path(args.observations_path) if args.observations_path else None
     artifact_paths = tuple(Path(item) for item in args.artifact_path)
+    manifest_path = artifact_paths[0] if artifact_paths else None
     if profile_id == "public_chat_product_path":
         return run_public_chat_product_path_profile_gate(
             output_dir=output_dir,
@@ -561,31 +562,34 @@ def _run_profile_from_args(profile_id: str, args: argparse.Namespace) -> EvalPro
             observations_path=observations_path,
             collect_runtime=bool(args.collect_runtime),
         )
-    if args.collect_runtime:
-        raise ValueError(f"{profile_id} does not support --collect-runtime")
     if profile_id == "tool_family_denominator":
         return run_tool_family_denominator_profile_gate(
             output_dir=output_dir,
             cases_path=cases_path,
             observations_path=observations_path,
+            collect_runtime=bool(args.collect_runtime),
         )
     if profile_id == "document_quality":
         return run_document_quality_profile_gate(
             output_dir=output_dir,
             cases_path=cases_path,
             observations_path=observations_path,
+            collect_runtime=bool(args.collect_runtime),
+            manifest_path=manifest_path,
         )
     if profile_id == "authz_privacy":
         return run_authz_privacy_profile_gate(
             output_dir=output_dir,
             cases_path=cases_path,
             observations_path=observations_path,
+            collect_runtime=bool(args.collect_runtime),
         )
     if profile_id == "agentic_retrieval_plan":
         return run_agentic_retrieval_plan_profile_gate(
             output_dir=output_dir,
             cases_path=cases_path,
             observations_path=observations_path,
+            collect_runtime=bool(args.collect_runtime),
         )
     if profile_id == "eval_operations_governance":
         return run_eval_operations_governance_profile_gate(
@@ -623,23 +627,26 @@ def _write_profile_report(
     failed_count: int,
     results: tuple[dict[str, object], ...],
     version_summary: dict[str, object],
+    runtime_metrics: EvalRuntimeMetrics | None = None,
 ) -> EvalProfileGateReport:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / DEFAULT_REPORT_NAME
+    summary: dict[str, object] = {
+        "total": total,
+        "passed": passed_count,
+        "failed": failed_count,
+        "overall_passed": report_passed,
+    }
+    if runtime_metrics is None:
+        summary["metrics_missing"] = True
+    else:
+        summary.update(asdict(runtime_metrics))
     payload: dict[str, object] = {
         "schema_version": DEFAULT_SCHEMA_VERSION,
         "profile_id": profile_id,
         "case_family": case_family,
         "passed": report_passed,
-        "summary": {
-            "total": total,
-            "passed": passed_count,
-            "failed": failed_count,
-            "overall_passed": report_passed,
-            "runtime_seconds": 0,
-            "retry_count": 0,
-            "provider_calls": 0,
-        },
+        "summary": summary,
         "version_summary": version_summary,
         "sanitized_results": list(results),
     }
@@ -764,6 +771,7 @@ def _load_eval_operations_observations(path: Path | None) -> dict[str, EvalOpera
             retry_count=_non_negative_int(item.get("retry_count"), "retry_count"),
             artifact_age_days=_non_negative_int(item.get("artifact_age_days"), "artifact_age_days"),
             provider_calls=_non_negative_int(item.get("provider_calls") or 0, "provider_calls"),
+            metrics_missing=bool(item.get("metrics_missing") or False),
             failed_cases=_string_tuple(item.get("failed_cases") or []),
             skipped_cases=_string_tuple(item.get("skipped_cases") or []),
             quarantined_cases=_string_tuple(item.get("quarantined_cases") or []),
