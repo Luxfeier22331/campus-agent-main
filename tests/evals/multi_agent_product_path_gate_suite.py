@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import campus_evals.multi_agent_product_path_gate as gate
-from campus_evals.multi_agent_product_path_gate import (
+import campus_evals.multi_agent_runtime_contract_gate as gate
+from campus_evals.multi_agent_runtime_contract_gate import (
     DEFAULT_GATE_ID,
     DEFAULT_SCHEMA_VERSION,
     CommandResult,
@@ -18,7 +18,7 @@ from campus_evals.workflow_trace_gate import load_workflow_trace_cases
 
 
 class MultiAgentProductPathGateTest(unittest.TestCase):
-    def test_gate_writes_machine_readable_artifact_with_product_path_summaries(self) -> None:
+    def test_gate_writes_machine_readable_artifact_with_runtime_contract_summaries(self) -> None:
         calls: list[tuple[tuple[str, ...], Path | None]] = []
 
         def fake_command_runner(
@@ -41,7 +41,7 @@ class MultiAgentProductPathGateTest(unittest.TestCase):
                 git_head_resolver=lambda: "abc123",
             )
             artifact = json.loads(
-                (output_dir / "multi-agent-product-path-gate.json").read_text(encoding="utf-8")
+                (output_dir / "multi-agent-runtime-contract-gate.json").read_text(encoding="utf-8")
             )
 
         self.assertTrue(report.passed)
@@ -50,6 +50,7 @@ class MultiAgentProductPathGateTest(unittest.TestCase):
         self.assertEqual(
             [check["check_id"] for check in artifact["checks"]],
             [
+                "supervisor_execution_contract_generation_check",
                 "workflow_trace_eval_tests",
                 "tool_family_denominator_tests",
                 "public_chat_product_path_eval_tests",
@@ -59,8 +60,8 @@ class MultiAgentProductPathGateTest(unittest.TestCase):
                 "panel_multi_agent_observability_tests",
             ],
         )
-        self.assertEqual(artifact["summary"]["total_checks"], 7)
-        self.assertEqual(artifact["summary"]["passed_checks"], 7)
+        self.assertEqual(artifact["summary"]["total_checks"], 8)
+        self.assertEqual(artifact["summary"]["passed_checks"], 8)
         self.assertEqual(artifact["summary"]["failed_checks"], 0)
         self.assertEqual(
             artifact["workflow_trace_summary"],
@@ -93,6 +94,21 @@ class MultiAgentProductPathGateTest(unittest.TestCase):
                     "--all-packages",
                     "python",
                     "-m",
+                    "scripts.generate_supervisor_execution_contracts",
+                    "--check",
+                ),
+                gate.REPO_ROOT,
+            ),
+            calls,
+        )
+        self.assertIn(
+            (
+                (
+                    "uv",
+                    "run",
+                    "--all-packages",
+                    "python",
+                    "-m",
                     "unittest",
                     "tests.evals.test_workflow_trace_gate",
                 ),
@@ -111,6 +127,25 @@ class MultiAgentProductPathGateTest(unittest.TestCase):
                     "./internal/structuredquery",
                 ),
                 gate.SUPERVISOR_API_DIR,
+            ),
+            calls,
+        )
+        self.assertIn(
+            (
+                (
+                    "pnpm",
+                    "--dir",
+                    "apps/protected-panel-web",
+                    "exec",
+                    "vitest",
+                    "run",
+                    "-c",
+                    "vitest.node.config.mts",
+                    "test/data-provider.test.ts",
+                    "test/panel-shell-copy-regression.test.ts",
+                    "test/request-formatters.test.ts",
+                ),
+                gate.REPO_ROOT,
             ),
             calls,
         )
@@ -133,11 +168,11 @@ class MultiAgentProductPathGateTest(unittest.TestCase):
                 git_head_resolver=lambda: "def456",
             )
             artifact = json.loads(
-                (output_dir / "multi-agent-product-path-gate.json").read_text(encoding="utf-8")
+                (output_dir / "multi-agent-runtime-contract-gate.json").read_text(encoding="utf-8")
             )
 
         self.assertFalse(report.passed)
-        self.assertEqual(artifact["summary"]["passed_checks"], 6)
+        self.assertEqual(artifact["summary"]["passed_checks"], 7)
         self.assertEqual(artifact["summary"]["failed_checks"], 1)
         checks = {check["check_id"]: check for check in artifact["checks"]}
         self.assertFalse(checks["app_api_multi_agent_observability_tests"]["passed"])

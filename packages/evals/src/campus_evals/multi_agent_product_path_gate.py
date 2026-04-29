@@ -18,9 +18,9 @@ from campus_evals.workflow_trace_gate import (
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
-DEFAULT_REPORT_NAME = "multi-agent-product-path-gate.json"
-DEFAULT_SCHEMA_VERSION = "multi_agent_product_path_gate.v1"
-DEFAULT_GATE_ID = "multi_agent_product_path"
+DEFAULT_REPORT_NAME = "multi-agent-runtime-contract-gate.json"
+DEFAULT_SCHEMA_VERSION = "multi_agent_runtime_contract_gate.v1"
+DEFAULT_GATE_ID = "multi_agent_runtime_contract"
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +71,12 @@ def run_multi_agent_product_path_gate(
     public_chat_product_path_summary = _build_public_chat_product_path_summary()
 
     checks = (
+        _run_command_check(
+            check_id="supervisor_execution_contract_generation_check",
+            command=_supervisor_execution_contract_generation_command(),
+            command_runner=command,
+            cwd=REPO_ROOT,
+        ),
         _run_command_check(
             check_id="workflow_trace_eval_tests",
             command=_workflow_trace_eval_command(),
@@ -156,6 +162,18 @@ def _build_public_chat_product_path_summary() -> dict[str, object]:
         "case_family": case_set.case_family,
         "case_count": len(case_set.cases),
     }
+
+
+def _supervisor_execution_contract_generation_command() -> tuple[str, ...]:
+    return (
+        "uv",
+        "run",
+        "--all-packages",
+        "python",
+        "-m",
+        "scripts.generate_supervisor_execution_contracts",
+        "--check",
+    )
 
 
 def _workflow_trace_eval_command() -> tuple[str, ...]:
@@ -246,6 +264,7 @@ def _panel_multi_agent_observability_command() -> tuple[str, ...]:
         "vitest.node.config.mts",
         "test/data-provider.test.ts",
         "test/panel-shell-copy-regression.test.ts",
+        "test/request-formatters.test.ts",
     )
 
 
@@ -301,6 +320,7 @@ def _report_payload(
         },
         "scope": {
             "deterministic_gate_scope": [
+                "schema-first supervisor execution contract generation check",
                 "workflow trace fixture and evaluator coverage",
                 "tool-family denominator fixture and evaluator coverage",
                 "public-chat product-path fixture and evaluator coverage",
@@ -319,7 +339,7 @@ def render_summary_text(report: MultiAgentProductPathGateReport) -> str:
     passed_checks = sum(1 for check in report.checks if check.passed)
     failed_checks = len(report.checks) - passed_checks
     return (
-        "multi-agent product-path gate: "
+        "multi-agent runtime-contract gate: "
         f"{'PASS' if report.passed else 'FAIL'} "
         f"passed={passed_checks} failed={failed_checks} "
         f"artifact={report.output_path}"
@@ -327,11 +347,11 @@ def render_summary_text(report: MultiAgentProductPathGateReport) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run multi-agent product-path eval gate.")
+    parser = argparse.ArgumentParser(description="Run multi-agent runtime-contract eval gate.")
     subparsers = parser.add_subparsers(dest="command", required=True)
     accept_parser = subparsers.add_parser(
         "accept",
-        help="Run deterministic multi-agent product-path checks.",
+        help="Run deterministic multi-agent runtime-contract checks.",
     )
     accept_parser.add_argument(
         "--output-dir",
@@ -354,7 +374,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command != "accept":
         raise ValueError(f"unsupported command: {args.command}")
     if args.reruns != 1:
-        raise ValueError("multi-agent product-path gate is deterministic and requires reruns=1")
+        raise ValueError("multi-agent runtime-contract gate is deterministic and requires reruns=1")
     report = run_multi_agent_product_path_gate(output_dir=Path(args.output_dir))
     if args.verbose:
         print(render_summary_text(report))

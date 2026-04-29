@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 
 import httpx
-
 from campus_evals.eval_operations_governance import (
     evaluate_eval_operations_governance,
     load_eval_operations_profile_policy,
@@ -188,7 +187,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                         "failure_dispositions": ["failed"],
                         "quarantine": {
                             "allowed": False,
-                            "max_days": 0,
+                            "max_days": 1,
                             "readmission_rule": "not allowed",
                         },
                         "required_version_fields": [

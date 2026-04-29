@@ -13,6 +13,19 @@ on:
           - official-web-stable-reference
           - official-web-fresh-news
           - service-guide-lookup
+          - contact-directory-lookup
+          - campus-services-product-path
+          - multi-agent-runtime-contract
+          - public-chat-product-path
+          - public-chat-entry-e2e
+          - tool-family-denominator
+          - tool-routing-product-path
+          - document-quality
+          - authz-privacy
+          - agentic-retrieval-plan
+          - answer-quality-contract
+          - eval-operations-governance
+          - quality-calibration
       reruns:
         description: Optional rerun count override
         required: false
@@ -23,6 +36,26 @@ on:
         required: false
         default: ""
         type: string
+      cases_path:
+        description: Optional case fixture override
+        required: false
+        default: ""
+        type: string
+      observations_path:
+        description: Optional observation fixture path for profile-report gates
+        required: false
+        default: ""
+        type: string
+      artifact_path:
+        description: Optional artifact path for governance/calibration profiles
+        required: false
+        default: ""
+        type: string
+      collect_runtime:
+        description: Collect runtime observations when the profile supports it
+        required: true
+        default: false
+        type: boolean
       publish_dry_run:
         description: Also build operator publish dry-run artifact
         required: true
@@ -95,6 +128,10 @@ jobs:
         run: |
           env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate doctor --json | tee eval-gate-doctor.json
 
+      - name: Eval audit
+        run: |
+          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate audit --json | tee eval-gate-audit.json
+
       - name: Eval accept
         id: accept
         shell: bash
@@ -111,7 +148,25 @@ jobs:
           if [ -n "${{ inputs.qdrant_collection_name }}" ]; then
             args+=(--qdrant-collection-name "${{ inputs.qdrant_collection_name }}")
           fi
-          if [ "${{ inputs.publish_dry_run }}" = "true" ] && [ "${{ inputs.profile }}" != "service-guide-lookup" ]; then
+          if [ -n "${{ inputs.cases_path }}" ]; then
+            args+=(--cases-path "${{ inputs.cases_path }}")
+          fi
+          if [ -n "${{ inputs.observations_path }}" ]; then
+            args+=(--observations-path "${{ inputs.observations_path }}")
+          fi
+          if [ -n "${{ inputs.artifact_path }}" ]; then
+            args+=(--artifact-path "${{ inputs.artifact_path }}")
+          fi
+          if [ "${{ inputs.collect_runtime }}" = "true" ]; then
+            args+=(--collect-runtime)
+          fi
+          case_results_publishable=false
+          case "${{ inputs.profile }}" in
+            handbook|curriculum|official-web-stable-reference|official-web-fresh-news)
+              case_results_publishable=true
+              ;;
+          esac
+          if [ "${{ inputs.publish_dry_run }}" = "true" ] && [ "$case_results_publishable" = "true" ]; then
             args+=(--publish-dry-run)
             args+=(--publish-grade-source "${EVAL_GATE_PUBLISH_GRADE_SOURCE}")
             args+=(--publish-grader-version "${EVAL_GATE_PUBLISH_GRADER_VERSION}")
@@ -132,5 +187,6 @@ jobs:
           name: eval-release-gate-${{ inputs.profile }}
           path: |
             eval-gate-doctor.json
+            eval-gate-audit.json
             eval-gate-accept.json
             ${{ steps.accept.outputs.artifact_dir }}

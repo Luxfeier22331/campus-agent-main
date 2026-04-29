@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+from campus_evals.profile_registry import (
+    dispatchable_profile_ids,
+    get_profile_definition,
+    iter_profile_definitions,
+    resolve_profile_id,
+)
+
+from scripts.eval_gate import audit_eval_gate_configuration
+
+
+class ProfileRegistryAndAuditSuite(unittest.TestCase):
+    def test_registry_resolves_deprecated_alias_to_canonical_runtime_contract(self) -> None:
+        definition = get_profile_definition("multi-agent-product-path")
+
+        self.assertEqual(definition.profile_id, "multi-agent-runtime-contract")
+        self.assertEqual(
+            resolve_profile_id("multi-agent-product-path"), "multi-agent-runtime-contract"
+        )
+        self.assertIn("multi-agent-product-path", definition.deprecated_aliases)
+        self.assertEqual(definition.artifact_kind, "composite_gate")
+
+    def test_registry_declares_dispatchable_profiles_without_deprecated_aliases(self) -> None:
+        profile_ids = dispatchable_profile_ids()
+
+        self.assertIn("multi-agent-runtime-contract", profile_ids)
+        self.assertIn("tool-routing-product-path", profile_ids)
+        self.assertIn("public-chat-entry-e2e", profile_ids)
+        self.assertIn("answer-quality-contract", profile_ids)
+        self.assertNotIn("multi-agent-product-path", profile_ids)
+        self.assertEqual(len(profile_ids), len(set(profile_ids)))
+
+    def test_profile_registry_contains_no_duplicate_runner_profiles(self) -> None:
+        definitions = tuple(iter_profile_definitions())
+
+        self.assertEqual(
+            len({definition.profile_id for definition in definitions}),
+            len(definitions),
+        )
+
+    def test_eval_gate_audit_checks_registry_workflow_policy_and_fixtures(self) -> None:
+        report = audit_eval_gate_configuration(repo_root=Path.cwd())
+
+        self.assertTrue(report["passed"], report)
+        check_ids = {check["check_id"] for check in report["checks"]}
+        self.assertTrue(
+            {
+                "profile_registry_runners",
+                "workflow_dispatch_choices",
+                "operations_policy_coverage",
+                "denominator_registry_coverage",
+                "tool_family_fixture_coverage",
+                "profile_fixture_smoke",
+            }.issubset(check_ids)
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

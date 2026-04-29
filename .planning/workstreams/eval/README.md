@@ -21,7 +21,11 @@ updated: 2026-04-29
   multimodal/OCR document quality、restricted/authz/privacy、agentic retrieval plan/freshness
   与 eval operations governance deterministic eval seams；本轮已将这些 observation-backed
   profiles 接入 `scripts.eval_gate`，补齐统一 profile artifact、artifact-derived operations
-  observation、值级 redaction 与 scaffold denominator 扩展。
+  observation、值级 redaction 与 scaffold denominator 扩展；随后补齐 runtime collection
+  统一 client、profile runtime metrics、`publish-profile` backflow、workflow trace tool-call
+  grading 扩展、report-only `quality-calibration` profile，并将 `multi-agent-runtime-contract`
+  作为正式 deterministic runtime contract profile；本轮继续补齐 profile registry / audit、
+  tool routing、public chat entry E2E 与 answer-quality contract profiles。
   `Phase 5B` 的正式 golden dataset expansion 继续等待 domain 数据补全。
   当前没有独立编号的 Phase 14；`Total Phases = 14` 是因为 Phase 5 被拆为 5A/5B。
 

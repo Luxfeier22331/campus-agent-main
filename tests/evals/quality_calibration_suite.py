@@ -60,6 +60,38 @@ class QualityCalibrationSuite(unittest.TestCase):
         )
         self.assertEqual(payload["version_summary"]["git_head"], "abc123")
 
+    def test_quality_calibration_can_ingest_profile_report_results_as_observations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            profile_report_path = root / "profile-report.json"
+            profile_report_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "eval_profile_gate.v1",
+                        "profile_id": "public_chat_product_path",
+                        "sanitized_results": [
+                            {
+                                "case_id": "public-chat-service-guide-happy-path",
+                                "passed": False,
+                                "reason": "source_url_present expected true, got false",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            report = run_quality_calibration_profile(
+                output_dir=root / "out",
+                artifact_paths=(profile_report_path,),
+                git_head_resolver=lambda: "abc123",
+            )
+            payload = json.loads(report.output_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["summary"]["total"], 1)
+        self.assertEqual(payload["observations"][0]["rubric"], "public_chat_usefulness")
+        self.assertEqual(payload["observations"][0]["verdict"], "needs_review")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,8 +17,7 @@ from campus_evals.agentic_retrieval_plan_eval import (
     evaluate_agentic_retrieval_plan_cases,
     load_agentic_retrieval_plan_cases,
 )
-from campus_evals.app_api_chat_runtime_client import AppApiEvalClientSettings
-from campus_evals.app_api_chat_runtime_client import AppApiEvalClient
+from campus_evals.app_api_chat_runtime_client import AppApiEvalClient, AppApiEvalClientSettings
 from campus_evals.authz_privacy_eval import (
     AuthzPrivacyObservation,
     evaluate_authz_privacy_cases,
@@ -31,6 +30,7 @@ from campus_evals.document_quality_eval import (
 )
 from campus_evals.eval_operations_governance import (
     EvalOperationsObservation,
+    EvalOperationsPolicy,
     evaluate_eval_operations_governance,
     load_eval_operations_profile_policy,
 )
@@ -159,7 +159,9 @@ def run_document_quality_profile_gate(
     runtime_metrics = None
     if collect_runtime:
         if manifest_path is None:
-            raise ValueError("document_quality --collect-runtime requires a normalized manifest path")
+            raise ValueError(
+                "document_quality --collect-runtime requires a normalized manifest path"
+            )
         observations, runtime_metrics = _collect_with_runtime_metrics(
             profile_id="document_quality",
             case_count=len(case_set.cases),
@@ -284,6 +286,8 @@ def run_eval_operations_governance_profile_gate(
         if artifact_paths
         else _load_eval_operations_observations(observations_path)
     )
+    if artifact_paths:
+        policy = _filter_eval_operations_policy(policy, tuple(observations))
     report = evaluate_eval_operations_governance(policy, observations)
     return _write_profile_report(
         output_dir=output_dir,
@@ -309,21 +313,17 @@ def collect_public_chat_product_path_runtime_observations(
 ) -> dict[str, PublicChatProductPathObservation]:
     resolved_settings = settings or AppApiEvalClientSettings.from_env()
     api_client = AppApiEvalClient(settings=resolved_settings, client=client)
-    try:
-        observations: dict[str, PublicChatProductPathObservation] = {}
-        for case in case_set.cases:
-            execution = api_client.execute_chat_request(
-                case_id=case.case_id,
-                prompt=case.user_goal,
-            )
-            observations[case.case_id] = _public_chat_observation_from_execution(
-                case_id=case.case_id,
-                execution=execution,
-            )
-        return observations
-    finally:
-        if client is None:
-            pass
+    observations: dict[str, PublicChatProductPathObservation] = {}
+    for case in case_set.cases:
+        execution = api_client.execute_chat_request(
+            case_id=case.case_id,
+            prompt=case.user_goal,
+        )
+        observations[case.case_id] = _public_chat_observation_from_execution(
+            case_id=case.case_id,
+            execution=execution,
+        )
+    return observations
 
 
 def collect_tool_family_denominator_runtime_observations(
@@ -332,7 +332,9 @@ def collect_tool_family_denominator_runtime_observations(
     settings: AppApiEvalClientSettings | None = None,
     client: httpx.Client | None = None,
 ) -> dict[str, ToolObservation]:
-    api_client = AppApiEvalClient(settings=settings or AppApiEvalClientSettings.from_env(), client=client)
+    api_client = AppApiEvalClient(
+        settings=settings or AppApiEvalClientSettings.from_env(), client=client
+    )
     observations: dict[str, ToolObservation] = {}
     for case in fixture.cases:
         execution = api_client.execute_chat_request(
@@ -348,9 +350,8 @@ def collect_tool_family_denominator_runtime_observations(
             or case.tool_name
         )
         result_status = (
-            (observability.tool_business_outcome if observability is not None else "")
-            or response.status
-        )
+            observability.tool_business_outcome if observability is not None else ""
+        ) or response.status
         observations[case.case_id] = ToolObservation(
             case_id=case.case_id,
             selected_tool=selected_tool,
@@ -366,7 +367,9 @@ def collect_authz_privacy_runtime_observations(
     settings: AppApiEvalClientSettings | None = None,
     client: httpx.Client | None = None,
 ) -> dict[str, AuthzPrivacyObservation]:
-    api_client = AppApiEvalClient(settings=settings or AppApiEvalClientSettings.from_env(), client=client)
+    api_client = AppApiEvalClient(
+        settings=settings or AppApiEvalClientSettings.from_env(), client=client
+    )
     observations: dict[str, AuthzPrivacyObservation] = {}
     for case in case_set.cases:
         execution = api_client.execute_chat_request(
@@ -376,7 +379,11 @@ def collect_authz_privacy_runtime_observations(
         )
         response = execution.response
         observability = response.observability
-        authorization_summary = dict(response.workflow_trace_summary.guardrail_outcomes) if response.workflow_trace_summary else {}
+        authorization_summary = (
+            dict(response.workflow_trace_summary.guardrail_outcomes)
+            if response.workflow_trace_summary
+            else {}
+        )
         if observability is not None:
             if observability.acl_decision:
                 authorization_summary["acl_decision"] = observability.acl_decision
@@ -403,7 +410,9 @@ def collect_agentic_retrieval_plan_runtime_observations(
     settings: AppApiEvalClientSettings | None = None,
     client: httpx.Client | None = None,
 ) -> dict[str, AgenticRetrievalPlanObservation]:
-    api_client = AppApiEvalClient(settings=settings or AppApiEvalClientSettings.from_env(), client=client)
+    api_client = AppApiEvalClient(
+        settings=settings or AppApiEvalClientSettings.from_env(), client=client
+    )
     observations: dict[str, AgenticRetrievalPlanObservation] = {}
     for case in case_set.cases:
         execution = api_client.execute_chat_request(
@@ -421,9 +430,7 @@ def collect_agentic_retrieval_plan_runtime_observations(
             freshness_branch=str(routing_frame.get("freshness_branch") or ""),
             live_branch_outcome=str(routing_frame.get("live_branch_outcome") or "not_required"),
             fail_close_reason=(summary.fail_close_reason if summary is not None else ""),
-            supporting_evidence_ids=_string_tuple_or_empty(
-                planning.get("supporting_evidence_ids")
-            )
+            supporting_evidence_ids=_string_tuple_or_empty(planning.get("supporting_evidence_ids"))
             or tuple(sorted(_workflow_source_ids(summary))),
             final_answer_status=execution.response.status,
         )
@@ -445,9 +452,7 @@ def collect_document_quality_runtime_observations(
         observations[case_id] = DocumentQualityObservation(
             case_id=case_id,
             extracted_text=_required_string(
-                item.get("normalized_text")
-                or item.get("text")
-                or item.get("extracted_text"),
+                item.get("normalized_text") or item.get("text") or item.get("extracted_text"),
                 "document.normalized_text",
             ),
             table_headers=_string_tuple(item.get("table_headers") or []),
@@ -522,7 +527,11 @@ def _attach_public_chat_request_correlations(
     enriched: list[dict[str, object]] = []
     for result in results:
         item = asdict(result)
-        correlation = observations.get(result.case_id).request_correlation if observations.get(result.case_id) else {}
+        correlation = (
+            observations.get(result.case_id).request_correlation
+            if observations.get(result.case_id)
+            else {}
+        )
         if correlation:
             item["request_correlation"] = _request_correlation_mapping(correlation)
         enriched.append(item)
@@ -628,9 +637,18 @@ def derive_eval_operations_observations_from_artifacts(
     observations: dict[str, EvalOperationsObservation] = {}
     for path in artifact_paths:
         payload = _load_json(path)
-        profile_id = _required_string(payload.get("profile_id"), "profile_id")
+        profile_id = _artifact_profile_id(payload)
         summary = _mapping(payload.get("summary") or {}, "summary")
         results = _list_of_mappings(payload.get("sanitized_results") or [], "sanitized_results")
+        if not results and isinstance(payload.get("checks"), list):
+            results = tuple(
+                {
+                    "case_id": _required_string(check.get("check_id"), "check.check_id"),
+                    "passed": bool(check.get("passed")),
+                    "failure_class": "failed_check",
+                }
+                for check in _list_of_mappings(payload.get("checks"), "checks")
+            )
         failed_cases = tuple(
             _required_string(result.get("case_id"), "result.case_id")
             for result in results
@@ -647,7 +665,10 @@ def derive_eval_operations_observations_from_artifacts(
         observations[profile_id] = EvalOperationsObservation(
             profile_id=profile_id,
             gate_mode=gate_mode,
-            cases_run=_non_negative_int(summary.get("total"), "summary.total"),
+            cases_run=_non_negative_int(
+                summary.get("total") or summary.get("total_checks"),
+                "summary.total",
+            ),
             runtime_seconds=_non_negative_int(
                 summary.get("runtime_seconds") or 0,
                 "summary.runtime_seconds",
@@ -664,9 +685,56 @@ def derive_eval_operations_observations_from_artifacts(
             metrics_missing=_runtime_metrics_missing(summary),
             failed_cases=failed_cases,
             case_dispositions=case_dispositions,
-            version_summary=_mapping(payload.get("version_summary") or {}, "version_summary"),
+            version_summary=_artifact_version_summary(payload, profile_id),
         )
     return observations
+
+
+def _filter_eval_operations_policy(
+    policy: EvalOperationsPolicy,
+    profile_ids: tuple[str, ...],
+) -> EvalOperationsPolicy:
+    profile_id_set = set(profile_ids)
+    return EvalOperationsPolicy(
+        schema_version=policy.schema_version,
+        policy_id=policy.policy_id,
+        profiles={
+            profile_id: profile
+            for profile_id, profile in policy.profiles.items()
+            if profile_id in profile_id_set
+        },
+    )
+
+
+def _artifact_profile_id(payload: dict[str, object]) -> str:
+    raw_profile_id = str(payload.get("profile_id") or "").strip()
+    if raw_profile_id:
+        return raw_profile_id
+    gate_id = str(payload.get("gate_id") or "").strip()
+    if gate_id:
+        return gate_id
+    benchmark_type = str(payload.get("benchmark_type") or "").strip()
+    if benchmark_type:
+        return benchmark_type
+    return _required_string(payload.get("profile_id"), "profile_id")
+
+
+def _artifact_version_summary(
+    payload: dict[str, object],
+    profile_id: str,
+) -> dict[str, object]:
+    version_summary = _mapping(payload.get("version_summary") or {}, "version_summary")
+    if version_summary.get("case_set_version") and version_summary.get("policy_artifact"):
+        return version_summary
+    return {
+        **version_summary,
+        "case_set_version": version_summary.get("case_set_version") or profile_id,
+        "policy_artifact": version_summary.get("policy_artifact") or DEFAULT_POLICY_ARTIFACT,
+        "runtime_version": version_summary.get("runtime_version")
+        or version_summary.get("runner")
+        or payload.get("schema_version")
+        or "unknown",
+    }
 
 
 def public_chat_product_path_main(argv: Sequence[str] | None = None) -> int:
@@ -1111,6 +1179,8 @@ def _string_tuple_or_empty(value: object) -> tuple[str, ...]:
 def _runtime_metrics_missing(summary: dict[str, object]) -> bool:
     if bool(summary.get("metrics_missing")):
         return True
+    if "total_checks" in summary:
+        return False
     required_fields = (
         "started_at",
         "finished_at",
@@ -1123,9 +1193,7 @@ def _runtime_metrics_missing(summary: dict[str, object]) -> bool:
     legacy_required_fields = ("runtime_seconds", "retry_count", "provider_calls")
     if all(field_name in summary for field_name in required_fields):
         return any(not str(summary.get(field_name) or "").strip() for field_name in required_fields)
-    if all(field_name in summary for field_name in legacy_required_fields):
-        return False
-    return True
+    return not all(field_name in summary for field_name in legacy_required_fields)
 
 
 def _resolve_git_head() -> str | None:
@@ -1145,9 +1213,14 @@ __all__ = [
     "DEFAULT_REPORT_NAME",
     "DEFAULT_SCHEMA_VERSION",
     "EvalProfileGateReport",
+    "EvalRuntimeMetrics",
     "agentic_retrieval_plan_main",
     "authz_privacy_main",
+    "collect_agentic_retrieval_plan_runtime_observations",
+    "collect_authz_privacy_runtime_observations",
+    "collect_document_quality_runtime_observations",
     "collect_public_chat_product_path_runtime_observations",
+    "collect_tool_family_denominator_runtime_observations",
     "derive_eval_operations_observations_from_artifacts",
     "document_quality_main",
     "eval_operations_governance_main",
