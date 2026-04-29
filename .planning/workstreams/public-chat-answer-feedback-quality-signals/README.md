@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -13,12 +13,13 @@ updated: 2026-04-29
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 2` ready
-- active implementation: Phase 1 app-api durable feedback truth completed; Phase 2 not started
-- current posture: public-chat-web 中旧 donor `/api/vote` 行为保持关闭；只有在
-  `app-api` 拥有反馈写入、持久化、权限校验、指标与导出链路后，才恢复用户可见的
-  helpful / unhelpful action
+- status: `completed`
+- current phase: `Phase 5` completed
+- active implementation: Phase 5 acceptance / docs / rollout closeout completed
+- current posture: public-chat-web 中旧 donor `/api/vote` 行为保持关闭；用户可见
+  helpful / unhelpful action 已恢复；所有写入都通过 `app-api` owned feedback route，operator
+  quality summary / timeseries 通过 `app-api` owned read model 消费 feedback aggregates；
+  negative feedback 已能进入 pending eval review candidate path。
 
 ## Native Planning Truth
 
@@ -33,9 +34,13 @@ updated: 2026-04-29
 - Phase 1: `./phases/phase-01-app-api-feedback-truth/PLAN.md`
 - Phase 1 summary: `./phases/phase-01-app-api-feedback-truth/SUMMARY.md`
 - Phase 2: `./phases/phase-02-browser-surface-and-public-chat-ui/PLAN.md`
+- Phase 2 summary: `./phases/phase-02-browser-surface-and-public-chat-ui/SUMMARY.md`
 - Phase 3: `./phases/phase-03-quality-read-model-and-metrics/PLAN.md`
+- Phase 3 summary: `./phases/phase-03-quality-read-model-and-metrics/SUMMARY.md`
 - Phase 4: `./phases/phase-04-drift-export-and-eval-loop/PLAN.md`
+- Phase 4 summary: `./phases/phase-04-drift-export-and-eval-loop/SUMMARY.md`
 - Phase 5: `./phases/phase-05-acceptance-docs-and-rollout/PLAN.md`
+- Phase 5 summary: `./phases/phase-05-acceptance-docs-and-rollout/SUMMARY.md`
 
 ## Boundary Notes
 

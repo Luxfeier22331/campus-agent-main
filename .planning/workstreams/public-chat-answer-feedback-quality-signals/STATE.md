@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -11,11 +11,12 @@ updated: 2026-04-29
 
 ## Current Status
 
-- status: `active`
-- current slice: Phase 1 completed; Phase 2 ready
+- status: `completed`
+- current slice: Phase 5 completed; workstream closeout ready for commit
 - owner: current Codex session
-- active implementation: app-api feedback truth completed; browser UI not started
-- next phase: `Phase 2: Browser Surface And Public Chat UI`
+- active implementation: app-api feedback truth, public-chat-web feedback UI, operator quality
+  aggregates, negative feedback eval candidate export, and acceptance / rollout docs completed
+- next phase: none
 
 ## Captured Context
 
@@ -53,8 +54,14 @@ updated: 2026-04-29
 - Phase 0 blockers resolved.
 - Phase 1 completed with `0006_message_feedback.sql`, chat conversation service/store ownership,
   and app-api route exposure.
-- Phase 2 still needs implementation decision on whether vendor compatibility keeps an internal
-  adapter or renames donor `Vote` usage to repo-owned `AnswerFeedback`.
+- Phase 2 completed with repo-owned `AnswerFeedback` compatibility type. Active message UI no longer
+  passes donor `Vote` props or calls donor `/api/vote`.
+- Phase 3 completed with direct app-api query-service aggregation from `chat.message_feedback` joined
+  to `runtime.request_observability_fact`; `operator.metric_rollup.metrics_json` was not expanded.
+- Phase 4 completed with `negative_feedback` candidates on
+  `GET /api/operator/quality/eval-candidates` and eval-owned pending review manifest generation.
+- Phase 5 completed with local DB bootstrap, smoke seed, browser feedback smoke, operator quality
+  aggregate / eval candidate smoke, docs update, and rollout / rollback posture.
 
 ## Verification
 
@@ -67,10 +74,59 @@ updated: 2026-04-29
   - `pnpm exec biome check` on touched app-api TS/test files
 - Phase 1 note: full `app-api` test still has an unrelated
   `official-web-local-projection-drain` timeout; touched feedback surfaces passed targeted tests.
-- Phase 2 verification should cover:
-  - `pnpm --dir apps/public-chat-web test:worker`
+- Phase 2 verification completed:
+  - RED then GREEN targeted Worker/Vitest run:
+    `pnpm --dir apps/public-chat-web exec vitest run -c vitest.config.mts
+    test/chat-api.test.ts test/platform-chat-mappers.test.ts
+    test/public-chat-interaction-closure.test.ts test/chatbot-vendor-runtime-parity.test.ts
+    test/worker.test.ts`
   - `pnpm --dir apps/public-chat-web typecheck`
-  - public-chat-web message action regression for no donor `/api/vote`
+  - `pnpm --dir apps/public-chat-web test:worker`
+  - `pnpm --dir apps/public-chat-web build`
+  - `pnpm exec biome check` on touched public-chat-web TS/TSX/test files
+  - `pnpm docs:lint`
+- Phase 2 note: root `pnpm web:lint` still fails on unrelated existing/parallel worktree files
+  outside this workstream, including app-api integration formatting, wechat collector/core
+  formatting/lint, and official-web JSON formatting. Touched public-chat-web files pass targeted
+  Biome.
+- Phase 3 verification completed:
+  - RED then GREEN:
+    `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/operator-query.store.test.ts`
+  - `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/operator-query.route.test.ts`
+  - `pnpm --dir apps/protected-panel-web exec vitest run -c vitest.node.config.mts test/data-provider.test.ts test/quality-domain.test.ts test/quality-page-formatters.test.ts test/overview-domain.test.ts`
+  - `pnpm --dir apps/app-api typecheck`
+  - `pnpm --dir apps/protected-panel-web typecheck`
+  - `pnpm docs:lint`
+  - `pnpm exec biome check` on touched Phase 3 TS/TSX/test files
+- Phase 3 note: root `pnpm web:lint` was not used as the completion gate because this worktree
+  already contains unrelated modified files from other workstreams; Phase 3 used targeted Biome on
+  touched files.
+- Phase 4 verification completed:
+  - app-api store / service / route:
+    `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/operator-query.store.test.ts test/operator-query.service.test.ts test/operator-query.route.test.ts`
+  - `pnpm --dir apps/protected-panel-web exec vitest run -c vitest.node.config.mts test/data-provider.test.ts`
+  - `uv run --all-packages python -m unittest tests.evals.eval_admission_suite`
+  - `pnpm --dir apps/app-api typecheck`
+  - `pnpm --dir apps/protected-panel-web typecheck`
+  - `pnpm docs:lint`
+  - targeted `pnpm exec biome check`
+  - `uv run --all-packages ruff check ...`
+  - `uv run --all-packages ruff format ... --check`
+- Phase 5 verification completed:
+  - `pnpm --dir apps/app-api db:bootstrap`
+  - `pnpm --dir apps/app-api requests:seed-smoke`
+  - local browser smoke through `pnpm --dir apps/public-chat-web dev:live-smoke`
+  - browser smoke via `google-chrome` DevTools Protocol
+  - operator quality summary / eval candidate smoke through app-api internal admission
+  - `pnpm --dir apps/app-api test`
+  - `pnpm --dir apps/public-chat-web typecheck`
+  - `pnpm --dir apps/public-chat-web test:worker`
+  - targeted app-api feedback/operator tests
+  - targeted protected-panel operator tests
+  - `pnpm --dir apps/protected-panel-web typecheck`
+  - `pnpm docs:lint`
+  - targeted `pnpm exec biome check`
+  - `git diff --check`
 
 ## Continuity Notes
 

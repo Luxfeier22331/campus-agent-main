@@ -1,13 +1,13 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
 
 # Roadmap: Public Chat Answer Feedback And Quality Signals
 
-当前 Phase 1 已完成 app-api durable feedback truth，下一步进入 Phase 2 public-chat-web UI。
+当前 Phase 5 已完成 acceptance / docs / rollout closeout；这条 workstream 已收口。
 
 ## Phase 0: Scope And Contract Freeze
 
@@ -43,7 +43,7 @@ operator metric 口径。
 
 ## Phase 2: Browser Surface And Public Chat UI
 
-**Status:** ready.
+**Status:** completed on 2026-04-29.
 
 **Goal:** public-chat-web 恢复用户可见 answer feedback action，并只调用 app-api surface。
 
@@ -58,6 +58,8 @@ operator metric 口径。
 
 ## Phase 3: Quality Read Model And Metrics
 
+**Status:** completed on 2026-04-29.
+
 **Goal:** 把 feedback 投影到 operator quality 读模型与聚合指标。
 
 **Scope:**
@@ -71,6 +73,8 @@ operator metric 口径。
 
 ## Phase 4: Drift Export And Eval Loop
 
+**Status:** completed on 2026-04-29.
+
 **Goal:** 将 negative feedback 变成可复核、可采样、可回归的 case set 输入。
 
 **Scope:**
@@ -82,6 +86,8 @@ operator metric 口径。
 - false positive / false negative / wrong intent 标注字段。
 
 ## Phase 5: Acceptance, Docs And Rollout
+
+**Status:** completed on 2026-04-29.
 
 **Goal:** 完成端到端验收、文档更新与 rollout posture。
 

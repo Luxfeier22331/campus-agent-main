@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: planned
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -37,3 +37,11 @@ attempt 口径统一成 notice 侧的多模态消费 ledger / attempt / normaliz
 - normalized output 至少区分 raw provider response、plain text、layout/table artifact 与 searchable merge input。
 - 高价值 schedule/status/regulation 媒体不得无理由 skip。
 - OCR 文本进入 searchable preview 时带 provenance。
+
+## Completion
+
+- Generated 455 multimodal candidates from 285 Phase 4 `needs_multimodal` units.
+- Classified candidates into `pending=337`, `failed=96`, `skipped=22`.
+- Produced read-only OCR batch manifest with `provider_calls_enabled=false`, `db_writes_enabled=false`, and `object_store_writes_enabled=false`.
+- Mapped existing schedule image OCR, internal notice multimodal, and WeChat multimodal attempt tables into the unified lifecycle contract.
+- Confirmed `high_value_skip_violation_count=0`.

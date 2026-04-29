@@ -1,11 +1,13 @@
 ---
 doc_type: phase_plan
-status: backlog
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
 
 # Phase 2 Plan: Browser Surface And Public Chat UI
+
+Status: completed on 2026-04-29. Summary is recorded in `SUMMARY.md`.
 
 ## Goal
 
