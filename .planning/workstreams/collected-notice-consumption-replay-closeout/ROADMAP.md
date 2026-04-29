@@ -16,7 +16,7 @@ updated: 2026-04-29
 ## Phase Status
 
 - [x] **Phase 1: Current-State Audit And Reset Manifest** — 只读盘点当前 captured/source/imported/consumed 状态，生成 reset manifest 与 backup 计划。
-- [ ] **Phase 2: Chain Contract And Admission Design** — 冻结 `search_only / downstream_admitted / defer / needs_multimodal / invalid_capture` 分类、manifest schema、dry-run no-write contract 与 downstream target admission 规则。
+- [x] **Phase 2: Chain Contract And Admission Design** — 冻结 `search_only / downstream_admitted / defer / needs_multimodal / invalid_capture` 分类、manifest schema、dry-run no-write contract 与 downstream target admission 规则。
 - [ ] **Phase 3: Reset Derived State To Collected-Only** — 按 manifest 清除旧 projection/read-model/OCR attempt/typed release/stage/current，保留 source bucket 和 collector run ledger。
 - [ ] **Phase 4: Dry-Run Reimport And Universal Search Preview** — 用已采集 run/object refs 做 no-write reimport preview，生成全量 searchable projection/read-model 预览。
 - [ ] **Phase 5: Multimodal OCR Consumption Readiness** — 统一 notice 侧多模态消费 ledger / attempt / normalized-output contract，把图片、PDF、附件类通知纳入 OCR/多模态 pending/done/failed 状态，并让结果进入 searchable text preview。
@@ -53,6 +53,7 @@ updated: 2026-04-29
 - `CONSUMER-ADMISSION-SCHEMA.md`
 - `SEARCHABLE-NOTICE-LAYER-SCHEMA.md`
 - `DOWNSTREAM-BATCHING-POLICY.md`
+- `DRY-RUN-REPORT-CONTRACT.md`
 - phase-specific fixture：至少覆盖 `search_only`、`needs_multimodal`、`transport_schedule`、`service_status`、`regulation`、`defer`、`invalid_capture`。
 
 **Checks:**

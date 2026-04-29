@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: planned
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -79,3 +79,13 @@ current release 处理规则：
 - OCR/多模态结果必须可追溯，不直接编造成 target truth。
 - Phase 3 reset manifest 必须清 source-truth / holding / registry import rows，同时保留 captured objects 与 collector run ledger。
 - `service_guide` reset 必须按 source lineage 保留稳定 PDF/handbook/campus-card rows，不能整表清除。
+
+## Completion Artifacts
+
+- `CHAIN-CONTRACT.md`
+- `CONSUMER-ADMISSION-SCHEMA.md`
+- `SEARCHABLE-NOTICE-LAYER-SCHEMA.md`
+- `DOWNSTREAM-BATCHING-POLICY.md`
+- `DRY-RUN-REPORT-CONTRACT.md`
+- `fixtures/consumer-admission-fixture.v1.json`
+- `SUMMARY.md`

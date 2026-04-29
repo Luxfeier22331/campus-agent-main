@@ -12,10 +12,10 @@ updated: 2026-04-29
 ## Current Position
 
 - status: `active`
-- current phase: `Phase 2`
-- current slice: chain contract and admission design
+- current phase: `Phase 3`
+- current slice: reset implementation, dry-run report, backup, execute, and post-reset audit
 - last activity: 2026-04-29
-- last activity description: Phase 1 read-only audit completed. Evidence now records captured run inventory, source-truth inventory, derived/downstream state, dry-run reset manifest, and backup plan. Phase 2 must resolve the source-truth reset boundary and mixed service-guide current release boundary before reset execution.
+- last activity description: Phase 2 completed chain contract, consumer admission schema, searchable notice schema, downstream batching policy, dry-run report contract, and admission fixture. Phase 3 can now implement reset dry-run / backup / execute against the captured-but-not-imported boundary.
 
 ## Why This Workstream Exists
 
@@ -41,15 +41,19 @@ updated: 2026-04-29
 - [x] Produced Phase 1 reset backup plan.
 - [x] Decided Phase 3 reset should clear source-truth / holding / registry import rows to return to captured-but-not-imported.
 - [x] Decided mixed `service_guide` cleanup should be source-lineage based and preserve stable PDF/handbook/campus-card rows.
+- [x] Froze captured -> source-truth -> searchable -> admission -> downstream chain contract.
+- [x] Froze consumer admission schema and fixture covering all consumption classes.
+- [x] Froze searchable notice layer schema.
+- [x] Froze downstream batching policy for `regulation`, `transport_schedule`, and `service_status`.
+- [x] Froze dry-run no-write report contract.
 
 ## Current Phase Tasks
 
-- [ ] Freeze chain contract for captured -> source-truth -> searchable -> downstream replay.
-- [x] Decide whether Phase 3 reset clears source-truth / holding rows or only derived consumption rows.
-- [x] Decide how to handle mixed `service_guide` current release before reset.
-- [ ] Freeze consumer admission schema.
-- [ ] Freeze searchable notice layer schema.
-- [ ] Freeze downstream batching policy for regulation / transport_schedule / service_status.
+- [ ] Implement or identify reset dry-run command and output report.
+- [ ] Produce reset backup artifact before write mode.
+- [ ] Execute reset to captured-but-not-imported boundary.
+- [ ] Apply source-lineage `service_guide` cleanup and stable-row preservation.
+- [ ] Produce post-reset audit proving captured objects and run ledger remain intact.
 
 ## Known Non-Overlap
 
@@ -79,7 +83,8 @@ Start with:
 - `README.md`
 - `REQUIREMENTS.md`
 - `ROADMAP.md`
-- `phases/phase-02-chain-contract-and-admission-design/PLAN.md`
+- `phases/phase-02-chain-contract-and-admission-design/SUMMARY.md`
+- `phases/phase-03-reset-derived-state-to-collected-only/PLAN.md`
 - `evidence/phase-01-current-state-audit-and-reset-manifest/reset-manifest.dry-run.json`
 
-Do not run reset or purge commands before Phase 2 resolves the manual confirmation groups in the Phase 1 reset manifest.
+Phase 2 has resolved the reset boundary and admission contract. Phase 3 may implement reset dry-run and backup first; do not run execute mode until the dry-run report and backup artifact are present.
