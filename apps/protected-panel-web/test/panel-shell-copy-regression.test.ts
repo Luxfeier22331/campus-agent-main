@@ -58,6 +58,12 @@ describe("protected panel shell chinese copy", () => {
 		expect(panelDatagridHeaderSource).not.toContain("updateSort");
 	});
 
+	it("uses explicit encoded show routes instead of react-admin raw id show links", () => {
+		expect(requestListSource).not.toContain("ShowButton");
+		expect(requestListSource).not.toContain('rowClick="show"');
+		expect(requestListSource).toContain("buildRequestShowPath");
+	});
+
 	it("renders requests as a triage table instead of a projection aside layout", () => {
 		expect(requestListSource).toContain("DatagridConfigurable");
 		expect(requestListSource).toContain("RequestListActions");
