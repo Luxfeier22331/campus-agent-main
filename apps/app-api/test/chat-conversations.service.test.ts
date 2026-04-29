@@ -47,17 +47,24 @@ function createPrincipal(input: Partial<ResolvedAppPrincipal> = {}): ResolvedApp
 	};
 }
 
-function createStore(): ChatConversationStore {
+type TestChatConversationStore = ChatConversationStore & {
+	deleteMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
+	upsertMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
+};
+
+function createStore(): TestChatConversationStore {
 	return {
 		createConversationDraft: vi.fn(),
 		deleteConversationByOwner: vi.fn(),
 		deleteConversationsByOwner: vi.fn(),
+		deleteMessageFeedbackByOwner: vi.fn(),
 		deleteTrailingMessagesFromMessageByOwner: vi.fn(),
 		getConversationByOwner: vi.fn(),
 		getConversationDetailByOwner: vi.fn(),
 		listConversationSummariesPageByOwner: vi.fn(),
 		listConversationSummariesByOwner: vi.fn(),
-	} as ChatConversationStore;
+		upsertMessageFeedbackByOwner: vi.fn(),
+	} as TestChatConversationStore;
 }
 
 describe("chat conversation service", () => {
@@ -225,9 +232,7 @@ describe("chat conversation service", () => {
 	});
 
 	it("upserts answer feedback only through owned assistant messages", async () => {
-		const store = createStore() as ChatConversationStore & {
-			upsertMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
-		};
+		const store = createStore();
 		store.upsertMessageFeedbackByOwner = vi.fn().mockResolvedValue({
 			createdAt: "2026-04-29T08:00:00.000Z",
 			feedbackId: "fb_01HQ",
@@ -287,9 +292,7 @@ describe("chat conversation service", () => {
 	});
 
 	it("rejects invalid answer feedback reasons before touching storage", async () => {
-		const store = createStore() as ChatConversationStore & {
-			upsertMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
-		};
+		const store = createStore();
 		store.upsertMessageFeedbackByOwner = vi.fn();
 		const service = buildChatConversationService({ store }) as ChatConversationService & {
 			setMessageFeedback(input: {
@@ -317,9 +320,7 @@ describe("chat conversation service", () => {
 	});
 
 	it("deletes answer feedback through owned assistant messages", async () => {
-		const store = createStore() as ChatConversationStore & {
-			deleteMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
-		};
+		const store = createStore();
 		store.deleteMessageFeedbackByOwner = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 		const service = buildChatConversationService({ store }) as ChatConversationService & {
 			deleteMessageFeedback(input: {

@@ -83,6 +83,11 @@ describe("chat structured parts", () => {
 				from: vi.fn(() => ({
 					where: sessionSlotWhere,
 				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: vi.fn().mockResolvedValue([]),
+				})),
 			});
 
 		createRuntimeDatabase.mockResolvedValue({
@@ -187,6 +192,11 @@ describe("chat structured parts", () => {
 				from: vi.fn(() => ({
 					where: sessionSlotWhere,
 				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: vi.fn().mockResolvedValue([]),
+				})),
 			});
 
 		createRuntimeDatabase.mockResolvedValue({
@@ -286,6 +296,11 @@ describe("chat structured parts", () => {
 				from: vi.fn(() => ({
 					where: sessionSlotWhere,
 				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: vi.fn().mockResolvedValue([]),
+				})),
 			});
 
 		createRuntimeDatabase.mockResolvedValue({
@@ -380,6 +395,11 @@ describe("chat structured parts", () => {
 			.mockReturnValueOnce({
 				from: vi.fn(() => ({
 					where: sessionSlotWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: vi.fn().mockResolvedValue([]),
 				})),
 			});
 

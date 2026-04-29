@@ -397,6 +397,10 @@ export function createPgChatConversationStore(
 				return null;
 			}
 
+			const requestId = messageRow.requestId;
+			if (!requestId) {
+				return null;
+			}
 			const now = new Date(input.updatedAt);
 			const rows = await db
 				.insert(messageFeedback)
@@ -407,7 +411,7 @@ export function createPgChatConversationStore(
 					messageId: input.messageId,
 					ownerUserId: input.ownerUserId,
 					reasonCodesJson: input.reasonCodes,
-					requestId: messageRow.requestId,
+					requestId,
 					updatedAt: now,
 					vote: input.vote,
 				})

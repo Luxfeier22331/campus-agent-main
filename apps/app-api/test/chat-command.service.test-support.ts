@@ -112,6 +112,7 @@ export function createConversationStore(input?: {
 		createConversationDraft: vi.fn(),
 		deleteConversationByOwner: vi.fn(),
 		deleteConversationsByOwner: vi.fn(),
+		deleteMessageFeedbackByOwner: vi.fn(),
 		deleteTrailingMessagesFromMessageByOwner: vi.fn(),
 		getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
 			if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
@@ -123,6 +124,7 @@ export function createConversationStore(input?: {
 		getConversationDetailByOwner: vi.fn(),
 		listConversationSummariesPageByOwner: vi.fn(),
 		listConversationSummariesByOwner: vi.fn(),
+		upsertMessageFeedbackByOwner: vi.fn(),
 	};
 
 	return {

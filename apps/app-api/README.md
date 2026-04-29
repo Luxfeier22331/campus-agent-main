@@ -20,6 +20,7 @@ It owns:
 - product-layer principal mapping
 - chat request ingress
 - conversation and message persistence
+- answer quality feedback persistence
 - `official_web` collector admission, crawl-run ledger, artifact refs, and
   ingestion handoff dispatch
 - `runtime.request_execution` and `runtime.projection_outbox`
@@ -45,6 +46,8 @@ Current runtime scope:
 - `POST /api/official-web/runs/:runId/heartbeats`
 - `POST /api/official-web/runs/:runId/finalize`
 - `POST /api/chat/requests`
+- `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
+- `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `GET /api/operator/requests`
 - `GET /api/operator/requests/:requestId`
 - `GET /api/operator/official-web/sites`
