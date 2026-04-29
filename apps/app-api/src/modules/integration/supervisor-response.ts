@@ -135,9 +135,7 @@ function assertSupervisorExecutionResponseWire(
 		"workflow_trace_summary" in record &&
 		!(record.workflow_trace_summary === null || getRecord(record.workflow_trace_summary))
 	) {
-		throw new SupervisorResponseContractError(
-			"workflow_trace_summary must be an object or null",
-		);
+		throw new SupervisorResponseContractError("workflow_trace_summary must be an object or null");
 	}
 }
 
