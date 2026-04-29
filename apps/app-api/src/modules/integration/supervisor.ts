@@ -175,7 +175,19 @@ export function createSupervisorExecutionClient(
 				});
 			}
 
-			return parseSupervisorExecutionResponsePayload(parsed, payload.traceId);
+			try {
+				return parseSupervisorExecutionResponsePayload(parsed, payload.traceId);
+			} catch (error) {
+				throw new SupervisorTransportError({
+					code: "supervisor_invalid_response",
+					message:
+						error instanceof Error
+							? error.message
+							: "Supervisor returned a response that violates the execution contract.",
+					retryable: true,
+					status: 502,
+				});
+			}
 		},
 		async executeStream(payload: SupervisorExecutionInput): Promise<Response> {
 			const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
