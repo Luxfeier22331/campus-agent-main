@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.collected_notice_classification import (
+    classification_evidence_strength,
+    classification_target_candidates,
+)
 from campus_ingestion_core.internal_notice_regulation_projection import (
     build_institutional_regulation_document_id,
 )
@@ -776,7 +780,15 @@ def _looks_like_regulation_candidate(
     unit: Mapping[str, Any],
     multimodal_candidate_inventory: Mapping[str, Any],
 ) -> bool:
-    if REGULATION_TARGET in _target_hints(unit):
+    if _has_strong_classified_regulation_route(unit):
+        return True
+    if _has_formal_owner_title(unit) and _has_source_owned_regulation_surface(unit):
+        return True
+    if _looks_like_wrapper_notice(unit) and _wrapper_notice_names_formal_regulation(unit):
+        return True
+    if _has_regulation_body_structure(str(unit.get("body_text") or "")) and _has_formal_owner_title(
+        unit
+    ):
         return True
     unit_id = str(unit.get("unit_id") or "")
     for row in multimodal_candidate_inventory.get("candidates") or ():
@@ -785,9 +797,34 @@ def _looks_like_regulation_candidate(
         if str(row.get("unit_id") or "") != unit_id:
             continue
         raw_hints = row.get("target_hints") or ()
-        if any(str(item).strip() == REGULATION_TARGET for item in raw_hints):
+        if (
+            any(str(item).strip() == REGULATION_TARGET for item in raw_hints)
+            and _has_formal_owner_title(unit)
+            and _has_source_owned_regulation_surface(unit)
+        ):
             return True
-    return _contains_regulation_keyword(_policy_text(unit))
+    return False
+
+
+def _has_strong_classified_regulation_route(unit: Mapping[str, Any]) -> bool:
+    if REGULATION_TARGET not in classification_target_candidates(unit):
+        return False
+    strength = classification_evidence_strength(unit)
+    return strength in {"strong", "route_signal"}
+
+
+def _has_source_owned_regulation_surface(unit: Mapping[str, Any]) -> bool:
+    source_surface = str(unit.get("source_surface") or "").strip()
+    if source_surface == "file_release":
+        return True
+    title = str(unit.get("title") or "").strip()
+    return "通知" not in title or bool(_extract_quoted_title(title))
+
+
+def _wrapper_notice_names_formal_regulation(unit: Mapping[str, Any]) -> bool:
+    title = str(unit.get("title") or "").strip()
+    quoted_title = _extract_quoted_title(title)
+    return bool(quoted_title and _contains_regulation_keyword(quoted_title))
 
 
 def _target_hints(unit: Mapping[str, Any]) -> list[str]:

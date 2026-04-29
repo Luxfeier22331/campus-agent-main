@@ -28,6 +28,10 @@ from campus_ingestion_core.authenticated_notice_import_sources import (
     explicit_authenticated_notice_import_object_refs,
     load_authenticated_notice_import_payload_from_object_refs,
 )
+from campus_ingestion_core.authenticated_notice_notice_family import (
+    load_authenticated_notice_notice_family_config,
+    read_authenticated_notice_notice_family_config_path,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 )
@@ -38,6 +42,9 @@ from campus_ingestion_core.campusrag_ingestion_artifacts import (
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
 from campus_ingestion_core.campusrag_ingestion_sources import document_semantic_hash
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
+from campus_ingestion_core.collected_notice_classification import (
+    classify_collected_notice_unit,
+)
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.settings import (
     DEFAULT_BUCKET_DERIVED,
@@ -147,6 +154,7 @@ class _PreparedPreviewItem:
     source_object_refs: tuple[dict[str, Any], ...]
     multimodal_status: str
     reason_codes: tuple[str, ...]
+    classification: dict[str, Any]
 
 
 def select_collected_notice_reimport_run_refs(
@@ -243,6 +251,9 @@ def build_collected_notice_reimport_preview(
     prepared_items: list[_PreparedPreviewItem] = []
     invalid_captures = [dict(item) for item in rejected_run_refs]
     selected_run_refs = tuple(sorted(run_refs, key=lambda item: (item.source_surface, item.run_id)))
+    classification_config = load_authenticated_notice_notice_family_config(
+        read_authenticated_notice_notice_family_config_path(source)
+    )
     for run_ref in selected_run_refs:
         try:
             if run_ref.source_surface == "notice":
@@ -255,6 +266,7 @@ def build_collected_notice_reimport_preview(
                         default_source_home_url=default_source_home_url,
                         bucket_source=bucket_source,
                         bucket_derived=bucket_derived,
+                        classification_config=classification_config,
                     )
                 )
             elif run_ref.source_surface == FILE_RELEASE_SOURCE_SURFACE:
@@ -267,6 +279,7 @@ def build_collected_notice_reimport_preview(
                         default_source_home_url=default_source_home_url,
                         bucket_source=bucket_source,
                         bucket_derived=bucket_derived,
+                        classification_config=classification_config,
                     )
                 )
         except Exception as exc:
@@ -365,6 +378,7 @@ def _prepare_notice_run_preview_items(
     default_source_home_url: str,
     bucket_source: str,
     bucket_derived: str,
+    classification_config: Any,
 ) -> tuple[_PreparedPreviewItem, ...]:
     loaded = _load_import_payload(run_ref=run_ref, env=env, object_store=object_store)
     site_id = _resolved_site_id(run_ref, loaded.export_manifest, default_site_id)
@@ -429,6 +443,7 @@ def _prepare_notice_run_preview_items(
             cleaning_policy_version=runtime_profile.cleaning_policy_version,
             bucket_source=bucket_source,
             bucket_derived=bucket_derived,
+            classification_config=classification_config,
         )
         items.append(item)
     return tuple(items)
@@ -443,6 +458,7 @@ def _prepare_file_release_run_preview_items(
     default_source_home_url: str,
     bucket_source: str,
     bucket_derived: str,
+    classification_config: Any,
 ) -> tuple[_PreparedPreviewItem, ...]:
     loaded = _load_import_payload(run_ref=run_ref, env=env, object_store=object_store)
     _assert_file_release_manifest_schema(loaded.export_manifest)
@@ -524,6 +540,7 @@ def _prepare_file_release_run_preview_items(
             cleaning_policy_version=runtime_profile.cleaning_policy_version,
             bucket_source=bucket_source,
             bucket_derived=bucket_derived,
+            classification_config=classification_config,
         )
         items.append(item)
     return tuple(items)
@@ -553,6 +570,7 @@ def _prepared_preview_item(
     cleaning_policy_version: str,
     bucket_source: str,
     bucket_derived: str,
+    classification_config: Any,
 ) -> _PreparedPreviewItem:
     document_id = str(document.metadata["document_id"])
     version_id = str(document.metadata["version_id"])
@@ -581,6 +599,14 @@ def _prepared_preview_item(
         source_artifact_keys=source_artifact_keys,
         attachment_refs=attachment_refs,
         bucket_source=bucket_source,
+    )
+    classification = classify_collected_notice_unit(
+        source_identifier=str(source_identifier),
+        source_surface=source_surface,
+        title=title,
+        body_text=body_text,
+        attachment_refs=attachment_refs,
+        config=classification_config,
     )
     return _PreparedPreviewItem(
         source_surface=source_surface,
@@ -618,6 +644,7 @@ def _prepared_preview_item(
         source_object_refs=source_object_refs,
         multimodal_status=multimodal_status,
         reason_codes=reason_codes,
+        classification=classification,
     )
 
 
@@ -711,6 +738,7 @@ def _searchable_unit(
         "admission_batch_id": admission_batch_id,
         "normalized_markdown_object_key": item.canonical_markdown_object_key,
         "target_hints": _target_hints(item),
+        "classification": dict(item.classification),
         "defer_reason_codes": [],
         "invalid_reason_codes": [],
         "reason_codes": list(item.reason_codes),
@@ -1182,6 +1210,16 @@ def _search_text(item: _PreparedPreviewItem) -> str:
 
 
 def _target_hints(item: _PreparedPreviewItem) -> dict[str, Any]:
+    classification_targets = list(item.classification.get("target_candidates") or ())
+    return {
+        "candidate_targets": classification_targets,
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route" if classification_targets else "none",
+        "weak_keyword_targets": _weak_keyword_targets(item),
+    }
+
+
+def _weak_keyword_targets(item: _PreparedPreviewItem) -> list[str]:
     text = f"{item.title}\n{item.body_text}".lower()
     hints = []
     if any(token in text for token in ("班车", "校车", "通勤车", "发车", "时刻表")):
@@ -1190,7 +1228,7 @@ def _target_hints(item: _PreparedPreviewItem) -> dict[str, Any]:
         hints.append("regulation")
     if any(token in text for token in ("暂停", "恢复", "开放", "关闭", "停用", "启用")):
         hints.append("service_status")
-    return {"candidate_targets": hints, "policy": "keyword-hint-preview-v1"}
+    return list(dict.fromkeys(hints))
 
 
 def _admission_entry(unit: Mapping[str, Any]) -> dict[str, Any]:

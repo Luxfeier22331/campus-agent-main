@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from datetime import date
 from pathlib import Path
 from typing import Any
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.collected_notice_transport_baseline_policy import (
+    multimodal_policy,
+    requires_schedule_image_ocr,
+    target_hints,
+    transport_baseline_policy,
+)
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_ANSWERABLE,
     NOTICE_COMPLETENESS_COMPLETE,
@@ -25,8 +29,6 @@ from campus_ingestion_core.notice_derived_transport_schedule_materialization imp
     _extract_rows_from_body_schedule,
 )
 from campus_ingestion_core.notice_derived_transport_schedule_parsing import (
-    _resolve_segment_service_date_ranges,
-    _resolve_service_date_ranges,
     _source_ref,
 )
 
@@ -57,6 +59,7 @@ def build_transport_schedule_single_notice_pilot_preview_from_paths(
     multimodal_candidate_inventory_path: Path,
     source_notice_id: str,
     transport_baseline_effective_date: str = "",
+    transport_baseline_source_notice_ids: tuple[str, ...] = (),
     generated_by: str = "campus_ingestion_worker.preview_collected_notice_downstream_pilot",
 ) -> CollectedNoticeDownstreamPilotPreview:
     return build_transport_schedule_single_notice_pilot_preview(
@@ -64,6 +67,7 @@ def build_transport_schedule_single_notice_pilot_preview_from_paths(
         multimodal_candidate_inventory=_load_json_object(multimodal_candidate_inventory_path),
         source_notice_id=source_notice_id,
         transport_baseline_effective_date=transport_baseline_effective_date,
+        transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
         generated_by=generated_by,
     )
 
@@ -74,6 +78,7 @@ def build_transport_schedule_single_notice_pilot_preview(
     multimodal_candidate_inventory: Mapping[str, Any],
     source_notice_id: str,
     transport_baseline_effective_date: str = "",
+    transport_baseline_source_notice_ids: tuple[str, ...] = (),
     generated_at: str | None = None,
     generated_by: str = "campus_ingestion_worker.preview_collected_notice_downstream_pilot",
 ) -> CollectedNoticeDownstreamPilotPreview:
@@ -89,6 +94,7 @@ def build_transport_schedule_single_notice_pilot_preview(
         selection_policy_name="phase6-single-notice-transport-schedule-pilot",
         admission_reason_code="single_notice_pilot_admitted",
         transport_baseline_effective_date=transport_baseline_effective_date,
+        transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
     )
 
 
@@ -97,12 +103,14 @@ def build_transport_schedule_batch_preview_from_paths(
     searchable_notice_preview_path: Path,
     multimodal_candidate_inventory_path: Path,
     transport_baseline_effective_date: str = "",
+    transport_baseline_source_notice_ids: tuple[str, ...] = (),
     generated_by: str = "campus_ingestion_worker.preview_collected_notice_downstream_pilot",
 ) -> CollectedNoticeDownstreamPilotPreview:
     return build_transport_schedule_batch_preview(
         searchable_notice_preview=_load_json_object(searchable_notice_preview_path),
         multimodal_candidate_inventory=_load_json_object(multimodal_candidate_inventory_path),
         transport_baseline_effective_date=transport_baseline_effective_date,
+        transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
         generated_by=generated_by,
     )
 
@@ -112,6 +120,7 @@ def build_transport_schedule_batch_preview(
     searchable_notice_preview: Mapping[str, Any],
     multimodal_candidate_inventory: Mapping[str, Any],
     transport_baseline_effective_date: str = "",
+    transport_baseline_source_notice_ids: tuple[str, ...] = (),
     generated_at: str | None = None,
     generated_by: str = "campus_ingestion_worker.preview_collected_notice_downstream_pilot",
 ) -> CollectedNoticeDownstreamPilotPreview:
@@ -127,6 +136,7 @@ def build_transport_schedule_batch_preview(
         selection_policy_name="phase6-transport-schedule-target-batch",
         admission_reason_code="transport_schedule_batch_admitted",
         transport_baseline_effective_date=transport_baseline_effective_date,
+        transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
     )
 
 
@@ -141,6 +151,7 @@ def _build_transport_schedule_preview(
     selection_policy_name: str,
     admission_reason_code: str,
     transport_baseline_effective_date: str,
+    transport_baseline_source_notice_ids: tuple[str, ...],
 ) -> CollectedNoticeDownstreamPilotPreview:
     decisions = [
         _transport_schedule_decision(
@@ -148,6 +159,7 @@ def _build_transport_schedule_preview(
             multimodal_candidate_inventory=multimodal_candidate_inventory,
             generated_at=generated_at,
             transport_baseline_effective_date=transport_baseline_effective_date,
+            transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
         )
         for unit in units
     ]
@@ -160,6 +172,7 @@ def _build_transport_schedule_preview(
         selection_policy_name=selection_policy_name,
         admission_reason_code=admission_reason_code,
         transport_baseline_effective_date=transport_baseline_effective_date,
+        transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
     )
     replay_dry_run = _replay_dry_run(
         decisions=decisions,
@@ -240,7 +253,7 @@ def _select_transport_schedule_units(
     return [
         dict(row)
         for row in searchable_notice_preview.get("units") or ()
-        if isinstance(row, Mapping) and TRANSPORT_SCHEDULE_TARGET in _target_hints(row)
+        if isinstance(row, Mapping) and TRANSPORT_SCHEDULE_TARGET in target_hints(row)
     ]
 
 
@@ -250,21 +263,25 @@ def _transport_schedule_decision(
     multimodal_candidate_inventory: Mapping[str, Any],
     generated_at: str,
     transport_baseline_effective_date: str,
+    transport_baseline_source_notice_ids: tuple[str, ...],
 ) -> _TransportScheduleDecision:
     rejection_reason_codes = _rejection_reason_codes(
         unit=unit,
         multimodal_candidate_inventory=multimodal_candidate_inventory,
+        transport_baseline_effective_date=transport_baseline_effective_date,
+        transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
     )
     admitted = not rejection_reason_codes
     rows = _transport_schedule_rows(unit) if admitted else []
     if admitted and not rows:
         rejection_reason_codes = ["no_extractable_transport_schedule_row"]
         admitted = False
-    baseline_policy = _transport_baseline_policy(
+    baseline_policy = transport_baseline_policy(
         unit=unit,
         generated_at=generated_at,
         transport_baseline_effective_date=transport_baseline_effective_date,
-        requires_schedule_image_ocr=_requires_schedule_image_ocr(
+        transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
+        requires_schedule_image_ocr=requires_schedule_image_ocr(
             unit=unit,
             multimodal_candidate_inventory=multimodal_candidate_inventory,
         ),
@@ -282,9 +299,15 @@ def _rejection_reason_codes(
     *,
     unit: Mapping[str, Any],
     multimodal_candidate_inventory: Mapping[str, Any],
+    transport_baseline_effective_date: str,
+    transport_baseline_source_notice_ids: tuple[str, ...],
 ) -> list[str]:
+    if transport_baseline_effective_date and str(unit.get("source_notice_id") or "") in set(
+        transport_baseline_source_notice_ids
+    ):
+        return ["official_baseline_source_covered"]
     reasons: list[str] = []
-    targets = _target_hints(unit)
+    targets = target_hints(unit)
     if TRANSPORT_SCHEDULE_TARGET not in targets:
         reasons.append("target_hint_not_transport_schedule")
     if str(unit.get("multimodal_status") or "") not in {"not_required", "completed"}:
@@ -357,6 +380,7 @@ def _admission_manifest(
     selection_policy_name: str,
     admission_reason_code: str,
     transport_baseline_effective_date: str,
+    transport_baseline_source_notice_ids: tuple[str, ...],
 ) -> dict[str, Any]:
     entries = [
         _admission_entry(
@@ -382,6 +406,7 @@ def _admission_manifest(
         "transport_baseline": {
             "status": "available" if transport_baseline_effective_date else "missing",
             "effective_date": transport_baseline_effective_date,
+            "source_notice_ids": list(transport_baseline_source_notice_ids),
         },
         "selection_policy": {
             "name": selection_policy_name,
@@ -397,6 +422,9 @@ def _admission_manifest(
                 1 for entry in entries if entry["consumption_class"] == "needs_multimodal"
             ),
             "defer": sum(1 for entry in entries if entry["consumption_class"] == "defer"),
+            "search_only": sum(
+                1 for entry in entries if entry["consumption_class"] == "search_only"
+            ),
             "ocr_execute_now": sum(
                 1 for entry in entries if entry["ocr_priority"] == "execute_now"
             ),
@@ -442,11 +470,13 @@ def _admission_entry(
         "source_url": unit.get("source_url"),
         "run_id": dict(unit.get("run_provenance") or {}).get("run_id", ""),
         "source_object_refs": list(unit.get("source_object_refs") or ()),
-        "consumption_class": ("downstream_admitted" if decision.admitted else _blocked_class(unit)),
+        "consumption_class": (
+            "downstream_admitted" if decision.admitted else _blocked_class(decision)
+        ),
         "target": TRANSPORT_SCHEDULE_TARGET if decision.admitted else None,
         "target_surface": TRANSPORT_SCHEDULE_TARGET_SURFACE if decision.admitted else None,
         "target_hints": unit.get("target_hints") or {},
-        "multimodal_policy": _multimodal_policy(unit),
+        "multimodal_policy": multimodal_policy(unit),
         **baseline_policy,
         "reason_codes": decision.reason_codes or [admission_reason_code],
         "preconditions": [
@@ -646,225 +676,16 @@ def _rejected_deferred_source_report(
     }
 
 
-def _target_hints(unit: Mapping[str, Any]) -> list[str]:
-    hints = unit.get("target_hints")
-    if not isinstance(hints, Mapping):
-        return []
-    values = hints.get("candidate_targets")
-    if not isinstance(values, list | tuple):
-        return []
-    return [str(value).strip() for value in values if str(value).strip()]
-
-
-def _multimodal_policy(unit: Mapping[str, Any]) -> str:
-    status = str(unit.get("multimodal_status") or "")
-    if status == "not_required":
-        return "not_required"
-    if status == "completed":
-        return "completed"
-    if status == "pending":
-        return "pending"
-    if status == "failed":
-        return "failed"
-    return "not_required"
-
-
-def _blocked_class(unit: Mapping[str, Any]) -> str:
-    if _multimodal_policy(unit) in {"pending", "failed"}:
+def _blocked_class(decision: _TransportScheduleDecision) -> str:
+    if decision.baseline_policy["overlay_kind"] in {
+        "covered_by_official_baseline",
+        "historical_search_only",
+    }:
+        return "search_only"
+    unit = decision.unit
+    if multimodal_policy(unit) in {"pending", "failed"}:
         return "needs_multimodal"
     return "defer"
-
-
-def _transport_baseline_policy(
-    *,
-    unit: Mapping[str, Any],
-    generated_at: str,
-    transport_baseline_effective_date: str,
-    requires_schedule_image_ocr: bool,
-) -> dict[str, Any]:
-    baseline_date = _parse_iso_date(transport_baseline_effective_date)
-    anchor_date = _parse_iso_date(generated_at) or date.today()
-    service_date_ranges = _service_date_ranges(unit)
-    release_date = _parse_iso_date(str(unit.get("published_at") or ""))
-    policy_text = _policy_text(unit)
-    baseline_status = "available" if baseline_date is not None else "missing"
-    baseline_reason_codes: list[str] = []
-    explicit_service_date_ranges = _explicit_service_date_ranges(unit)
-
-    if baseline_date is None:
-        temporal_relation = _window_temporal_relation(
-            service_date_ranges=service_date_ranges,
-            anchor_date=anchor_date,
-        )
-        overlay_kind = (
-            "awaiting_baseline"
-            if requires_schedule_image_ocr
-            else _overlay_kind(
-                service_date_ranges=service_date_ranges,
-                policy_text=policy_text,
-                fallback="manual_review",
-            )
-        )
-        ocr_priority = "defer_until_baseline" if requires_schedule_image_ocr else "search_only"
-        baseline_reason_codes.append("transport_baseline_missing")
-        if requires_schedule_image_ocr:
-            baseline_reason_codes.append("schedule_image_requires_ocr")
-    elif release_date is not None and release_date < baseline_date:
-        temporal_relation = "pre_baseline"
-        overlay_kind = "historical_search_only"
-        ocr_priority = "search_only"
-        baseline_reason_codes.append("pre_baseline_historical_search_only")
-    elif explicit_service_date_ranges:
-        temporal_relation = _window_temporal_relation(
-            service_date_ranges=explicit_service_date_ranges,
-            anchor_date=anchor_date,
-        )
-        overlay_kind = _overlay_kind(
-            service_date_ranges=explicit_service_date_ranges,
-            policy_text=policy_text,
-            fallback="temporary_overlay",
-        )
-        ocr_priority = (
-            "execute_now"
-            if requires_schedule_image_ocr and temporal_relation == "active_or_future_window"
-            else "search_only"
-        )
-        baseline_reason_codes.append("temporary_window_detected")
-        if requires_schedule_image_ocr:
-            baseline_reason_codes.append("schedule_image_requires_ocr")
-    elif _looks_like_baseline_delta(policy_text):
-        temporal_relation = "post_baseline"
-        overlay_kind = "baseline_delta_candidate"
-        ocr_priority = "execute_now" if requires_schedule_image_ocr else "search_only"
-        baseline_reason_codes.append("post_baseline_delta_candidate")
-        if requires_schedule_image_ocr:
-            baseline_reason_codes.append("schedule_image_requires_ocr")
-    else:
-        temporal_relation = "post_baseline" if release_date else "unknown"
-        overlay_kind = "manual_review"
-        ocr_priority = "manual_review" if requires_schedule_image_ocr else "search_only"
-        baseline_reason_codes.append("manual_review_required")
-        if requires_schedule_image_ocr:
-            baseline_reason_codes.append("schedule_image_requires_ocr")
-
-    return {
-        "baseline_status": baseline_status,
-        "baseline_effective_date": transport_baseline_effective_date if baseline_date else "",
-        "temporal_relation": temporal_relation,
-        "overlay_kind": overlay_kind,
-        "ocr_priority": ocr_priority,
-        "current_eligible": False,
-        "baseline_gate_reason_codes": list(dict.fromkeys(baseline_reason_codes)),
-    }
-
-
-def _requires_schedule_image_ocr(
-    *,
-    unit: Mapping[str, Any],
-    multimodal_candidate_inventory: Mapping[str, Any],
-) -> bool:
-    if _multimodal_policy(unit) in {
-        "pending",
-        "failed",
-    } and TRANSPORT_SCHEDULE_TARGET in _target_hints(unit):
-        return True
-    unit_id = str(unit.get("unit_id") or "")
-    for row in multimodal_candidate_inventory.get("candidates") or ():
-        if not isinstance(row, Mapping):
-            continue
-        if str(row.get("unit_id") or "") != unit_id:
-            continue
-        status = str(row.get("status") or "")
-        if status not in {"pending", "failed"}:
-            continue
-        processing_family = str(row.get("processing_family") or "")
-        media_kind = str(row.get("media_kind") or "")
-        if processing_family == "schedule_image_ocr" or media_kind == "image":
-            return True
-        if not processing_family and TRANSPORT_SCHEDULE_TARGET in _target_hints(unit):
-            return True
-    return False
-
-
-def _explicit_service_date_ranges(unit: Mapping[str, Any]) -> tuple[tuple[str, str], ...]:
-    return _resolve_service_date_ranges(
-        text=_policy_text(unit),
-        release_time=str(unit.get("published_at") or ""),
-    )
-
-
-def _service_date_ranges(unit: Mapping[str, Any]) -> tuple[tuple[str, str], ...]:
-    text = _policy_text(unit)
-    release_time = str(unit.get("published_at") or "")
-    ranged = _resolve_service_date_ranges(text=text, release_time=release_time)
-    if ranged:
-        return ranged
-    return _resolve_segment_service_date_ranges(
-        text=text,
-        release_time=release_time,
-        allow_open_ended_effective_date=False,
-    )
-
-
-def _window_temporal_relation(
-    *,
-    service_date_ranges: tuple[tuple[str, str], ...],
-    anchor_date: date,
-) -> str:
-    if not service_date_ranges:
-        return "unknown"
-    latest_end = max(date.fromisoformat(end_date) for _start_date, end_date in service_date_ranges)
-    return "expired_temporary_window" if latest_end < anchor_date else "active_or_future_window"
-
-
-def _overlay_kind(
-    *,
-    service_date_ranges: tuple[tuple[str, str], ...],
-    policy_text: str,
-    fallback: str,
-) -> str:
-    if service_date_ranges:
-        if any(keyword in policy_text for keyword in ("停运", "暂停", "停止", "不运行")):
-            return "temporary_exception"
-        return "temporary_overlay"
-    if _looks_like_baseline_delta(policy_text):
-        return "baseline_delta_candidate"
-    return fallback
-
-
-def _looks_like_baseline_delta(policy_text: str) -> bool:
-    compact = "".join(policy_text.split())
-    return any(
-        marker in compact
-        for marker in (
-            "起",
-            "开始",
-            "调整",
-            "增加",
-            "增开",
-            "加开",
-            "恢复",
-            "优化",
-            "变更",
-        )
-    )
-
-
-def _policy_text(unit: Mapping[str, Any]) -> str:
-    return "\n".join(
-        str(unit.get(key) or "") for key in ("title", "body_text", "body_excerpt", "search_text")
-    )
-
-
-def _parse_iso_date(value: str) -> date | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    match = re.search(r"20\d{2}-\d{1,2}-\d{1,2}", text)
-    if not match:
-        return None
-    year_text, month_text, day_text = match.group(0).split("-")
-    return date(int(year_text), int(month_text), int(day_text))
 
 
 def _organization_name(unit: Mapping[str, Any]) -> str:

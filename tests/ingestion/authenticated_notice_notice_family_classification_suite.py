@@ -217,6 +217,57 @@ CLASSIFICATION_CASES = (
     ("中央民族大学图书馆2026年寒假期间开放安排", "library_service_status", "hold_notice_runtime"),
     ("关于 JSTOR 数据库恢复开通的通知", "library_resource_notice", "notice_level_query"),
     ("关于两校区学生通勤班车增加班次的通知", "transport_commute_status", "hold_notice_runtime"),
+    (
+        "中央民族大学海淀校区运动场地改造建设项目施工资格预审公告",
+        "procurement_notice",
+        "archive_notice",
+    ),
+    (
+        "2026年度中央民族大学海淀校区水泵和空调等机电设备维修维护服务比选公告",
+        "procurement_notice",
+        "archive_notice",
+    ),
+    (
+        "中央民族大学2026年度公共修缮及应急抢修项目造价咨询项目比选公告",
+        "procurement_notice",
+        "archive_notice",
+    ),
+    (
+        "2026年度中央民族大学海淀校区水泵和空调等机电设备维修维护服务成交结果公告",
+        "procurement_notice",
+        "archive_notice",
+    ),
+    (
+        "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "中央民族大学研究生学位论文评阅办法（试行）",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "中央民族大学本科教学事故认定与处理办法",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "中央民族大学本科学生专业奖学金评定办法（修订）",
+        "policy_regulation",
+        "priority_now",
+    ),
+    (
+        "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+        "policy_regulation",
+        "priority_now",
+    ),
+    ("中央民族大学教学行为规范", "policy_regulation", "priority_now"),
     ("关于OA系统暂停访问的通知", "it_platform_service_status", "hold_notice_runtime"),
     ("关于理工楼网络中断的通知", "it_platform_service_status", "hold_notice_runtime"),
     ("关于“AI民大”2.0版本升级上线的通知", "it_platform_service_status", "hold_notice_runtime"),
