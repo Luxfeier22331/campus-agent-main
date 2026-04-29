@@ -63,6 +63,26 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             "runtime-decision-summary-v1",
         )
 
+    def test_contract_versioning_policy_is_declared_in_canonical_schema(self) -> None:
+        openapi = _load_openapi()
+        policy = openapi["x-campus-contract"]["versioning_policy"]
+
+        self.assertEqual(
+            set(policy),
+            {
+                "bridge_version",
+                "response_contract",
+                "runtime_decisions_schema_version",
+                "runtime_decision_summary_schema_version",
+                "workflow_trace_summary_version",
+            },
+        )
+        self.assertIn("incompatible", policy["bridge_version"])
+        self.assertIn("AgentResponse", policy["response_contract"])
+        self.assertIn("runtime_decisions", policy["runtime_decisions_schema_version"])
+        self.assertIn("summary", policy["runtime_decision_summary_schema_version"])
+        self.assertIn("operator", policy["workflow_trace_summary_version"])
+
     def test_runtime_enums_match_python_contract_truth(self) -> None:
         supervisor_statuses = tuple(_schema("SupervisorStatus")["enum"])
 

@@ -517,6 +517,11 @@ def _public_chat_observation_from_execution(
             "trace_backlink_present": bool(execution.request_correlation.trace_id),
         },
         request_correlation=asdict(execution.request_correlation),
+        workflow_trace_summary=(
+            asdict(response.workflow_trace_summary)
+            if response.workflow_trace_summary is not None
+            else {}
+        ),
     )
 
 
@@ -920,6 +925,10 @@ def _load_public_chat_observations(
             response_contract=_mapping(item.get("response_contract") or {}, "response_contract"),
             operator_backflow=_mapping(item.get("operator_backflow") or {}, "operator_backflow"),
             request_correlation=_request_correlation_mapping(item.get("request_correlation")),
+            workflow_trace_summary=_mapping(
+                item.get("workflow_trace_summary") or {},
+                "workflow_trace_summary",
+            ),
         )
         for item in _load_observation_items(path)
     }

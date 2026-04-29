@@ -132,6 +132,10 @@ jobs:
         run: |
           env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate audit --json | tee eval-gate-audit.json
 
+      - name: Supervisor execution contract generation check
+        run: |
+          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.generate_supervisor_execution_contracts --check
+
       - name: Eval accept
         id: accept
         shell: bash

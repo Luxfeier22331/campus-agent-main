@@ -392,6 +392,9 @@ def audit_eval_gate_configuration(*, repo_root: Path) -> dict[str, object]:
         _audit_workflow_dispatch_choices(
             repo_root / ".github" / "workflows" / "eval-release-gate.yml"
         ),
+        _audit_workflow_contract_generation_check(
+            repo_root / ".github" / "workflows" / "eval-release-gate.yml"
+        ),
         _audit_operations_policy_coverage(),
         _audit_denominator_registry_coverage(),
         _audit_tool_family_fixture_coverage(),
@@ -508,6 +511,22 @@ def _audit_workflow_dispatch_choices(workflow_path: Path) -> dict[str, object]:
         "passed": expected == actual,
         "missing": sorted(expected - actual),
         "extra": sorted(actual - expected),
+    }
+
+
+def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, object]:
+    text = workflow_path.read_text(encoding="utf-8")
+    required_tokens = (
+        "scripts.generate_supervisor_execution_contracts",
+        "--check",
+        "multi-agent-runtime-contract",
+        "actions/upload-artifact",
+    )
+    missing = [token for token in required_tokens if token not in text]
+    return {
+        "check_id": "workflow_contract_generation_check",
+        "passed": not missing,
+        "missing": missing,
     }
 
 
