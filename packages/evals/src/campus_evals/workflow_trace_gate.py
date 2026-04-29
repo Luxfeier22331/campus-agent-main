@@ -25,6 +25,11 @@ class WorkflowTraceExpectation:
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     handoff: dict[str, object] = field(default_factory=dict)
     tool_argument_summary: dict[str, object] = field(default_factory=dict)
+    tool_call_summaries: tuple[dict[str, object], ...] = field(default_factory=tuple)
+    expected_tool_order: tuple[str, ...] = field(default_factory=tuple)
+    expected_tool_result_statuses: dict[str, object] = field(default_factory=dict)
+    expected_source_ids: tuple[str, ...] = field(default_factory=tuple)
+    fail_close_provenance: dict[str, object] = field(default_factory=dict)
     guardrail_outcomes: dict[str, object] = field(default_factory=dict)
     fail_close_expected: bool = False
     fail_close_reason: str = ""
@@ -33,6 +38,9 @@ class WorkflowTraceExpectation:
         for field_name, payload in (
             ("handoff", self.handoff),
             ("tool_argument_summary", self.tool_argument_summary),
+            ("tool_call_summaries", self.tool_call_summaries),
+            ("expected_tool_result_statuses", self.expected_tool_result_statuses),
+            ("fail_close_provenance", self.fail_close_provenance),
             ("guardrail_outcomes", self.guardrail_outcomes),
         ):
             reject_forbidden_workflow_trace_keys(payload, field_name)
@@ -105,6 +113,14 @@ def evaluate_workflow_trace_case(
         ),
         fail_close_correctness=_fail_close_result(summary, expectation),
         trace_projection_completeness=_trace_projection_completeness(summary),
+        tool_order_correctness=_tool_order_result(summary, expectation),
+        tool_result_status_correctness=_tool_result_status_result(summary, expectation),
+        fail_close_provenance=_mapping_contains(
+            "fail_close_provenance",
+            _fail_close_provenance(summary),
+            expectation.fail_close_provenance,
+        ),
+        evidence_source_selection=_evidence_source_selection_result(summary, expectation),
     )
 
 
@@ -177,6 +193,19 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
             selected_tools=tuple(str(tool) for tool in expectation.get("selected_tools") or ()),
             handoff=dict(expectation.get("handoff") or {}),
             tool_argument_summary=dict(expectation.get("tool_argument_summary") or {}),
+            tool_call_summaries=tuple(
+                dict(item) for item in expectation.get("tool_call_summaries") or ()
+            ),
+            expected_tool_order=tuple(
+                str(tool) for tool in expectation.get("expected_tool_order") or ()
+            ),
+            expected_tool_result_statuses=dict(
+                expectation.get("expected_tool_result_statuses") or {}
+            ),
+            expected_source_ids=tuple(
+                str(source_id) for source_id in expectation.get("expected_source_ids") or ()
+            ),
+            fail_close_provenance=dict(expectation.get("fail_close_provenance") or {}),
             guardrail_outcomes=dict(expectation.get("guardrail_outcomes") or {}),
             fail_close_expected=bool(expectation.get("fail_close_expected") or False),
             fail_close_reason=str(expectation.get("fail_close_reason") or ""),
@@ -233,6 +262,94 @@ def _fail_close_result(
             f"fail_close_reason={summary.fail_close_reason!r}, expected {expectation.fail_close_reason!r}",
         )
     return DimensionResult(True)
+
+
+def _tool_order_result(
+    summary: WorkflowTraceSummary,
+    expectation: WorkflowTraceExpectation,
+) -> DimensionResult:
+    expected = expectation.expected_tool_order or expectation.selected_tools
+    if not expected:
+        return DimensionResult(True, "not_applicable")
+    observed = _observed_tool_order(summary)
+    passed = observed == expected
+    return DimensionResult(
+        passed=passed,
+        reason="" if passed else f"tool_order={observed!r}, expected {expected!r}",
+    )
+
+
+def _observed_tool_order(summary: WorkflowTraceSummary) -> tuple[str, ...]:
+    tool_call_order = tuple(
+        str(item.get("tool_name") or item.get("tool") or "")
+        for item in summary.tool_call_summaries
+        if str(item.get("tool_name") or item.get("tool") or "").strip()
+    )
+    return tool_call_order or summary.selected_tools
+
+
+def _tool_result_status_result(
+    summary: WorkflowTraceSummary,
+    expectation: WorkflowTraceExpectation,
+) -> DimensionResult:
+    if not expectation.expected_tool_result_statuses:
+        return DimensionResult(True, "not_applicable")
+    observed = {
+        str(item.get("tool_name") or item.get("tool") or ""): item.get("result_status")
+        or item.get("status")
+        for item in summary.tool_call_summaries
+        if str(item.get("tool_name") or item.get("tool") or "").strip()
+    }
+    mismatches = {
+        tool_name: {"observed": observed.get(tool_name), "expected": expected_status}
+        for tool_name, expected_status in expectation.expected_tool_result_statuses.items()
+        if observed.get(tool_name) != expected_status
+    }
+    return DimensionResult(
+        passed=not mismatches,
+        reason="" if not mismatches else f"result_status mismatch: {mismatches}",
+    )
+
+
+def _fail_close_provenance(summary: WorkflowTraceSummary) -> dict[str, object]:
+    provenance = {}
+    if summary.fail_close_reason:
+        provenance["reason"] = summary.fail_close_reason
+    for item in summary.tool_call_summaries:
+        tool_name = str(item.get("tool_name") or item.get("tool") or "")
+        fail_close_reason = item.get("fail_close_reason") or item.get("failCloseReason")
+        if tool_name and fail_close_reason:
+            provenance[tool_name] = fail_close_reason
+    return provenance
+
+
+def _evidence_source_selection_result(
+    summary: WorkflowTraceSummary,
+    expectation: WorkflowTraceExpectation,
+) -> DimensionResult:
+    if not expectation.expected_source_ids:
+        return DimensionResult(True, "not_applicable")
+    observed_source_ids = _observed_source_ids(summary)
+    missing = [
+        source_id for source_id in expectation.expected_source_ids if source_id not in observed_source_ids
+    ]
+    return DimensionResult(
+        passed=not missing,
+        reason="" if not missing else f"source_ids missing: {missing}",
+    )
+
+
+def _observed_source_ids(summary: WorkflowTraceSummary) -> set[str]:
+    source_ids: set[str] = set()
+    for item in summary.tool_call_summaries:
+        for key in ("source_ids", "sourceIds", "evidence_ids", "evidenceIds"):
+            raw_values = item.get(key)
+            if isinstance(raw_values, list | tuple):
+                source_ids.update(str(value) for value in raw_values if str(value).strip())
+        source_id = item.get("source_id") or item.get("sourceId")
+        if source_id:
+            source_ids.add(str(source_id))
+    return source_ids
 
 
 def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionResult:

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import subprocess
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -16,6 +18,7 @@ from campus_evals.agentic_retrieval_plan_eval import (
     load_agentic_retrieval_plan_cases,
 )
 from campus_evals.app_api_chat_runtime_client import AppApiEvalClientSettings
+from campus_evals.app_api_chat_runtime_client import AppApiEvalClient
 from campus_evals.authz_privacy_eval import (
     AuthzPrivacyObservation,
     evaluate_authz_privacy_cases,
@@ -56,6 +59,18 @@ class EvalProfileGateReport:
     passed: bool
 
 
+@dataclass(frozen=True, slots=True)
+class EvalRuntimeMetrics:
+    started_at: str
+    finished_at: str
+    runtime_seconds: int
+    retry_count: int
+    provider_calls: int
+    collector_version: str
+    runtime_profile: str
+    metrics_missing: bool = False
+
+
 def run_public_chat_product_path_profile_gate(
     *,
     output_dir: Path,
@@ -65,11 +80,15 @@ def run_public_chat_product_path_profile_gate(
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
     case_set = load_public_chat_product_path_cases(cases_path)
-    observations = (
-        collect_public_chat_product_path_runtime_observations(case_set)
-        if collect_runtime
-        else _load_public_chat_observations(observations_path)
-    )
+    runtime_metrics = None
+    if collect_runtime:
+        observations, runtime_metrics = _collect_with_runtime_metrics(
+            profile_id="public_chat_product_path",
+            case_count=len(case_set.cases),
+            collector=lambda: collect_public_chat_product_path_runtime_observations(case_set),
+        )
+    else:
+        observations = _load_public_chat_observations(observations_path)
     report = build_public_chat_product_path_report(case_set.cases, observations)
     return _write_profile_report(
         output_dir=output_dir,
@@ -79,11 +98,12 @@ def run_public_chat_product_path_profile_gate(
         total=report.total,
         passed_count=report.passed_count,
         failed_count=report.failed_count,
-        results=tuple(asdict(result) for result in report.results),
+        results=_attach_public_chat_request_correlations(report.results, observations),
         version_summary=_version_summary(
             case_set_version=case_set.case_family,
             git_head_resolver=git_head_resolver,
         ),
+        runtime_metrics=runtime_metrics,
     )
 
 
@@ -92,12 +112,22 @@ def run_tool_family_denominator_profile_gate(
     output_dir: Path,
     cases_path: Path | None = None,
     observations_path: Path | None = None,
+    collect_runtime: bool = False,
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
     fixture = load_tool_family_denominator(cases_path)
+    runtime_metrics = None
+    if collect_runtime:
+        observations, runtime_metrics = _collect_with_runtime_metrics(
+            profile_id="tool_family_denominator",
+            case_count=len(fixture.cases),
+            collector=lambda: collect_tool_family_denominator_runtime_observations(fixture),
+        )
+    else:
+        observations = _load_tool_observations(observations_path)
     report = evaluate_tool_family_denominator(
         fixture,
-        _load_tool_observations(observations_path),
+        observations,
     )
     return _write_profile_report(
         output_dir=output_dir,
@@ -112,6 +142,7 @@ def run_tool_family_denominator_profile_gate(
             case_set_version="tool_family_denominators.v1",
             git_head_resolver=git_head_resolver,
         ),
+        runtime_metrics=runtime_metrics,
     )
 
 
@@ -120,12 +151,27 @@ def run_document_quality_profile_gate(
     output_dir: Path,
     cases_path: Path | None = None,
     observations_path: Path | None = None,
+    collect_runtime: bool = False,
+    manifest_path: Path | None = None,
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
     case_set = load_document_quality_cases(cases_path)
+    runtime_metrics = None
+    if collect_runtime:
+        if manifest_path is None:
+            raise ValueError("document_quality --collect-runtime requires a normalized manifest path")
+        observations, runtime_metrics = _collect_with_runtime_metrics(
+            profile_id="document_quality",
+            case_count=len(case_set.cases),
+            collector=lambda: collect_document_quality_runtime_observations(
+                manifest_path=manifest_path
+            ),
+        )
+    else:
+        observations = _load_document_quality_observations(observations_path)
     report = evaluate_document_quality_cases(
         case_set.cases,
-        _load_document_quality_observations(observations_path),
+        observations,
     )
     return _write_profile_report(
         output_dir=output_dir,
@@ -140,6 +186,7 @@ def run_document_quality_profile_gate(
             case_set_version="document_quality.v1",
             git_head_resolver=git_head_resolver,
         ),
+        runtime_metrics=runtime_metrics,
     )
 
 
@@ -148,12 +195,22 @@ def run_authz_privacy_profile_gate(
     output_dir: Path,
     cases_path: Path | None = None,
     observations_path: Path | None = None,
+    collect_runtime: bool = False,
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
     case_set = load_authz_privacy_cases(cases_path)
+    runtime_metrics = None
+    if collect_runtime:
+        observations, runtime_metrics = _collect_with_runtime_metrics(
+            profile_id="authz_privacy",
+            case_count=len(case_set.cases),
+            collector=lambda: collect_authz_privacy_runtime_observations(case_set),
+        )
+    else:
+        observations = _load_authz_privacy_observations(observations_path)
     report = evaluate_authz_privacy_cases(
         case_set.cases,
-        _load_authz_privacy_observations(observations_path),
+        observations,
     )
     return _write_profile_report(
         output_dir=output_dir,
@@ -168,6 +225,7 @@ def run_authz_privacy_profile_gate(
             case_set_version="authz_privacy.v1",
             git_head_resolver=git_head_resolver,
         ),
+        runtime_metrics=runtime_metrics,
     )
 
 
@@ -176,12 +234,22 @@ def run_agentic_retrieval_plan_profile_gate(
     output_dir: Path,
     cases_path: Path | None = None,
     observations_path: Path | None = None,
+    collect_runtime: bool = False,
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
     case_set = load_agentic_retrieval_plan_cases(cases_path)
+    runtime_metrics = None
+    if collect_runtime:
+        observations, runtime_metrics = _collect_with_runtime_metrics(
+            profile_id="agentic_retrieval_plan",
+            case_count=len(case_set.cases),
+            collector=lambda: collect_agentic_retrieval_plan_runtime_observations(case_set),
+        )
+    else:
+        observations = _load_agentic_retrieval_plan_observations(observations_path)
     report = evaluate_agentic_retrieval_plan_cases(
         case_set.cases,
-        _load_agentic_retrieval_plan_observations(observations_path),
+        observations,
     )
     return _write_profile_report(
         output_dir=output_dir,
@@ -196,6 +264,7 @@ def run_agentic_retrieval_plan_profile_gate(
             case_set_version=case_set.case_family,
             git_head_resolver=git_head_resolver,
         ),
+        runtime_metrics=runtime_metrics,
     )
 
 

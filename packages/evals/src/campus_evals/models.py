@@ -278,6 +278,10 @@ class DimensionResult:
     reason: str = ""
 
 
+def _not_applicable_dimension() -> DimensionResult:
+    return DimensionResult(True, "not_applicable")
+
+
 @dataclass(frozen=True, slots=True)
 class OrchestrationCaseResults:
     direct_vs_delegate_branch_correctness: DimensionResult
@@ -286,6 +290,12 @@ class OrchestrationCaseResults:
     guardrail_correctness: DimensionResult
     fail_close_correctness: DimensionResult
     trace_projection_completeness: DimensionResult
+    tool_order_correctness: DimensionResult = field(default_factory=_not_applicable_dimension)
+    tool_result_status_correctness: DimensionResult = field(
+        default_factory=_not_applicable_dimension
+    )
+    fail_close_provenance: DimensionResult = field(default_factory=_not_applicable_dimension)
+    evidence_source_selection: DimensionResult = field(default_factory=_not_applicable_dimension)
 
 
 @dataclass(frozen=True, slots=True)

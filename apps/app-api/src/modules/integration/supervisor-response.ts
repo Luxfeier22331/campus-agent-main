@@ -261,6 +261,24 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 				(item): item is string => typeof item === "string" && item.trim().length > 0,
 			)
 		: [];
+	const traceStepsValue = recordValue(record, "trace_steps", "traceSteps");
+	const traceSteps = Array.isArray(traceStepsValue)
+		? traceStepsValue.flatMap((item) => {
+				const step = getRecord(item);
+				return step ? [step] : [];
+			})
+		: [];
+	const toolCallSummariesValue = recordValue(
+		record,
+		"tool_call_summaries",
+		"toolCallSummaries",
+	);
+	const toolCallSummaries = Array.isArray(toolCallSummariesValue)
+		? toolCallSummariesValue.flatMap((item) => {
+				const summary = getRecord(item);
+				return summary ? [summary] : [];
+			})
+		: [];
 	const parsed: SupervisorExecutionWorkflowTraceSummary = {
 		contextResolution: normalizeWorkflowRecord(
 			recordValue(record, "context_resolution", "contextResolution"),
@@ -288,6 +306,8 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 		toolArgumentSummary: normalizeWorkflowRecord(
 			recordValue(record, "tool_argument_summary", "toolArgumentSummary"),
 		),
+		traceSteps,
+		toolCallSummaries,
 	};
 
 	if (

@@ -164,6 +164,49 @@ class AppApiEvalClient:
             self._conversation_ids[conversation_key] = conversation_id
         return execution
 
+    def execute_chat_request(
+        self,
+        *,
+        case_id: str,
+        prompt: str,
+        requested_capability: str | None = None,
+        requested_scope: dict[str, str] | None = None,
+        body: dict[str, object] | None = None,
+        conversation_key: str | None = None,
+    ) -> AppApiEvalExecution:
+        normalized_case_id = case_id.strip()
+        if not normalized_case_id:
+            raise ValueError("case_id is required")
+        normalized_prompt = prompt.strip()
+        if not normalized_prompt:
+            raise ValueError("prompt is required")
+
+        request_body = dict(body or {})
+        request_body.setdefault("prompt", normalized_prompt)
+        if requested_capability:
+            request_body.setdefault("requestedCapability", requested_capability)
+        if requested_scope is not None:
+            request_body.setdefault("requestedScope", dict(requested_scope))
+
+        resolved_scope = {
+            "corpus": str((requested_scope or {}).get("corpus") or ""),
+            "collection": str((requested_scope or {}).get("collection") or ""),
+        }
+        resolved_conversation_key = conversation_key or normalized_case_id
+        conversation_id = self._conversation_ids.get(resolved_conversation_key)
+        if conversation_id is not None and "conversationId" not in request_body:
+            request_body["conversationId"] = conversation_id
+
+        response = self._post_chat_request(request_body, headers=self._build_base_eval_headers())
+        execution = self._decode_execution(
+            response=response,
+            case_id=normalized_case_id,
+            scope=resolved_scope,
+        )
+        if execution.conversation_id is not None:
+            self._conversation_ids[resolved_conversation_key] = execution.conversation_id
+        return execution
+
     def _build_version_query_body(self, case: GoldenCase) -> dict[str, object] | None:
         version_query = case.version_query
         if version_query.mode == "current":
@@ -209,15 +252,7 @@ class AppApiEvalClient:
         )
 
     def _build_eval_headers_for_case(self, case: GoldenCase) -> dict[str, str]:
-        headers = {
-            "x-app-internal-auth": self.settings.internal_shared_secret,
-            "x-eval-user-email": self.settings.eval_user_email,
-            "x-eval-principal-type": self.settings.eval_principal_type,
-        }
-        if self.settings.eval_user_id is not None:
-            headers["x-eval-user-id"] = self.settings.eval_user_id
-        if self.settings.eval_user_name is not None:
-            headers["x-eval-user-name"] = self.settings.eval_user_name
+        headers = self._build_base_eval_headers()
 
         actor = case.actor
         if actor.principal_type:
@@ -232,6 +267,18 @@ class AppApiEvalClient:
             headers["x-eval-actor-roles"] = ",".join(actor.roles)
         if actor.departments:
             headers["x-eval-departments"] = ",".join(actor.departments)
+        return headers
+
+    def _build_base_eval_headers(self) -> dict[str, str]:
+        headers = {
+            "x-app-internal-auth": self.settings.internal_shared_secret,
+            "x-eval-user-email": self.settings.eval_user_email,
+            "x-eval-principal-type": self.settings.eval_principal_type,
+        }
+        if self.settings.eval_user_id is not None:
+            headers["x-eval-user-id"] = self.settings.eval_user_id
+        if self.settings.eval_user_name is not None:
+            headers["x-eval-user-name"] = self.settings.eval_user_name
         return headers
 
     def _decode_execution(

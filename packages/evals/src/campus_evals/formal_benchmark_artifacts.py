@@ -278,6 +278,22 @@ def _deserialize_orchestration_case_results(
         trace_projection_completeness=_deserialize_dimension_result(
             payload.get("trace_projection_completeness")
         ),
+        tool_order_correctness=_deserialize_dimension_result(
+            payload.get("tool_order_correctness")
+            or {"passed": True, "reason": "not_applicable"}
+        ),
+        tool_result_status_correctness=_deserialize_dimension_result(
+            payload.get("tool_result_status_correctness")
+            or {"passed": True, "reason": "not_applicable"}
+        ),
+        fail_close_provenance=_deserialize_dimension_result(
+            payload.get("fail_close_provenance")
+            or {"passed": True, "reason": "not_applicable"}
+        ),
+        evidence_source_selection=_deserialize_dimension_result(
+            payload.get("evidence_source_selection")
+            or {"passed": True, "reason": "not_applicable"}
+        ),
     )
 
 

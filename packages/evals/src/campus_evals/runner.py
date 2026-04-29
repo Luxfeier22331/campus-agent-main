@@ -250,6 +250,13 @@ def _orchestration_dimension_items(
             "trace_projection_completeness",
             orchestration_results.trace_projection_completeness,
         ),
+        ("tool_order_correctness", orchestration_results.tool_order_correctness),
+        (
+            "tool_result_status_correctness",
+            orchestration_results.tool_result_status_correctness,
+        ),
+        ("fail_close_provenance", orchestration_results.fail_close_provenance),
+        ("evidence_source_selection", orchestration_results.evidence_source_selection),
     )
 
 
