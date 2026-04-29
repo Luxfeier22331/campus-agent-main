@@ -1,0 +1,30 @@
+{
+	"selected_target": null,
+	"status": "error",
+	"answer_text": "",
+	"follow_up_question": "",
+	"confidence": "low",
+	"result": null,
+	"error": {
+		"code": "execution_timeout",
+		"message": "Supervisor execution timed out.",
+		"retryable": true
+	},
+	"workflow_trace_summary": {
+		"routing_frame": {},
+		"context_resolution": {},
+		"planning_outcome": "timeout",
+		"direct_vs_delegate_branch": "terminal",
+		"handoff": {},
+		"selected_target": null,
+		"selected_tools": [],
+		"tool_argument_summary": {},
+		"guardrail_outcomes": {},
+		"fail_close_reason": "execution_timeout",
+		"runtime_versions": {
+			"workflow_trace_summary_version": "workflow-trace-summary-v1"
+		},
+		"policy_artifact_versions": {}
+	},
+	"trace_id": "trace-contract-timeout"
+}
