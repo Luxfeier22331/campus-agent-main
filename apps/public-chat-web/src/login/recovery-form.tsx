@@ -27,7 +27,7 @@ export function PasswordRecoveryRequestForm(props: {
 		const existingToken = tokenField instanceof HTMLInputElement ? tokenField.value.trim() : "";
 
 		if (existingToken) {
-			return;
+			turnstileControllerRef.current?.resetToken();
 		}
 
 		event.preventDefault();

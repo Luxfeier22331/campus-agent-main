@@ -18,6 +18,7 @@ describe("public chat Turnstile runtime posture", () => {
 	it("defers Turnstile script boot until the first user interaction on auth pages", () => {
 		expect(turnstileSource).toContain("AuthTurnstileController");
 		expect(turnstileSource).toContain("ensureToken");
+		expect(turnstileSource).toContain("challengeRequestId");
 		expect(turnstileSource).toContain("pendingEnsureResolversRef");
 		expect(turnstileSource).toContain("if (!(isPrimed && siteKey && widgetRef.current))");
 	});

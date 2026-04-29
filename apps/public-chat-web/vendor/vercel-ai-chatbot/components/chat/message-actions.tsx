@@ -1,7 +1,6 @@
 import equal from "fast-deep-equal";
 import { memo } from "react";
 import { toast } from "sonner";
-import { useSWRConfig } from "swr";
 import { useCopyToClipboard } from "usehooks-ts";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
@@ -9,12 +8,12 @@ import {
   MessageAction as Action,
   MessageActions as Actions,
 } from "../ai-elements/message";
-import { CopyIcon, PencilEditIcon, ThumbDownIcon, ThumbUpIcon } from "./icons";
+import { CopyIcon, PencilEditIcon } from "./icons";
 
 export function PureMessageActions({
-  chatId,
+  chatId: _chatId,
   message,
-  vote,
+  vote: _vote,
   isLoading,
   onEdit,
 }: {
@@ -24,7 +23,6 @@ export function PureMessageActions({
   isLoading: boolean;
   onEdit?: () => void;
 }) {
-  const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
 
   if (isLoading) {
@@ -81,112 +79,6 @@ export function PureMessageActions({
         tooltip="复制"
       >
         <CopyIcon />
-      </Action>
-
-      <Action
-        className="text-muted-foreground/50 hover:text-foreground"
-        data-testid="message-upvote"
-        disabled={vote?.isUpvoted}
-        onClick={() => {
-          const upvote = fetch(
-            `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/vote`,
-            {
-              method: "PATCH",
-              body: JSON.stringify({
-                chatId,
-                messageId: message.id,
-                type: "up",
-              }),
-            }
-          );
-
-          toast.promise(upvote, {
-            loading: "正在记录有帮助反馈…",
-            success: () => {
-              mutate<Vote[]>(
-                `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/vote?chatId=${chatId}`,
-                (currentVotes) => {
-                  if (!currentVotes) {
-                    return [];
-                  }
-
-                  const votesWithoutCurrent = currentVotes.filter(
-                    (currentVote) => currentVote.messageId !== message.id
-                  );
-
-                  return [
-                    ...votesWithoutCurrent,
-                    {
-                      chatId,
-                      messageId: message.id,
-                      isUpvoted: true,
-                    },
-                  ];
-                },
-                { revalidate: false }
-              );
-
-              return "已记录有帮助反馈。";
-            },
-            error: "记录反馈失败，请稍后重试。",
-          });
-        }}
-        tooltip="有帮助"
-      >
-        <ThumbUpIcon />
-      </Action>
-
-      <Action
-        className="text-muted-foreground/50 hover:text-foreground"
-        data-testid="message-downvote"
-        disabled={vote && !vote.isUpvoted}
-        onClick={() => {
-          const downvote = fetch(
-            `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/vote`,
-            {
-              method: "PATCH",
-              body: JSON.stringify({
-                chatId,
-                messageId: message.id,
-                type: "down",
-              }),
-            }
-          );
-
-          toast.promise(downvote, {
-            loading: "正在记录无帮助反馈…",
-            success: () => {
-              mutate<Vote[]>(
-                `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/vote?chatId=${chatId}`,
-                (currentVotes) => {
-                  if (!currentVotes) {
-                    return [];
-                  }
-
-                  const votesWithoutCurrent = currentVotes.filter(
-                    (currentVote) => currentVote.messageId !== message.id
-                  );
-
-                  return [
-                    ...votesWithoutCurrent,
-                    {
-                      chatId,
-                      messageId: message.id,
-                      isUpvoted: false,
-                    },
-                  ];
-                },
-                { revalidate: false }
-              );
-
-              return "已记录无帮助反馈。";
-            },
-            error: "记录反馈失败，请稍后重试。",
-          });
-        }}
-        tooltip="无帮助"
-      >
-        <ThumbDownIcon />
       </Action>
     </Actions>
   );

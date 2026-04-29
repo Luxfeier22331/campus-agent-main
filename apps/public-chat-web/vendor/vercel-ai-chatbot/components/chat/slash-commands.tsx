@@ -2,10 +2,7 @@
 
 import {
   BombIcon,
-  ListIcon,
-  PenLineIcon,
   PenSquareIcon,
-  Trash2Icon,
   XIcon,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
@@ -25,24 +22,6 @@ export const slashCommands: SlashCommand[] = [
     description: "开始新对话",
     icon: <PenSquareIcon className="size-3.5" />,
     action: "new",
-  },
-  {
-    name: "clear",
-    description: "清空当前对话",
-    icon: <Trash2Icon className="size-3.5" />,
-    action: "clear",
-  },
-  {
-    name: "rename",
-    description: "重命名当前对话",
-    icon: <PenLineIcon className="size-3.5" />,
-    action: "rename",
-  },
-  {
-    name: "model",
-    description: "切换回答模型",
-    icon: <ListIcon className="size-3.5" />,
-    action: "model",
   },
   {
     name: "delete",

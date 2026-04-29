@@ -7,6 +7,7 @@ import type { User } from "next-auth";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWRInfinite from "swr/infinite";
+import { deleteConversation } from "@/app/(chat)/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,6 +119,7 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
   const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const hasReachedEnd = paginatedChatHistories
     ? paginatedChatHistories.some((page) => page.hasMore === false)
@@ -127,31 +129,43 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
     ? paginatedChatHistories.every((page) => page.chats.length === 0)
     : false;
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     const chatToDelete = deleteId;
-    const isCurrentChat = pathname === `/chat/${chatToDelete}`;
-
-    setShowDeleteDialog(false);
-
-    if (isCurrentChat) {
-      router.replace("/");
+    if (!chatToDelete || isDeleting) {
+      return;
     }
 
-    mutate((chatHistories) => {
-      if (chatHistories) {
-        return chatHistories.map((chatHistory) => ({
-          ...chatHistory,
-          chats: chatHistory.chats.filter((chat) => chat.id !== chatToDelete),
-        }));
+    const isCurrentChat = pathname === `/chat/${chatToDelete}`;
+
+    setIsDeleting(true);
+
+    try {
+      await deleteConversation(chatToDelete);
+      setShowDeleteDialog(false);
+      setDeleteId(null);
+
+      if (isCurrentChat) {
+        router.replace("/");
       }
-    });
 
-    fetch(
-      `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat?id=${chatToDelete}`,
-      { method: "DELETE" }
-    );
+      mutate(
+        (chatHistories) => {
+          if (chatHistories) {
+            return chatHistories.map((chatHistory) => ({
+              ...chatHistory,
+              chats: chatHistory.chats.filter((chat) => chat.id !== chatToDelete),
+            }));
+          }
+        },
+        { revalidate: false }
+      );
 
-    toast.success("已删除对话");
+      toast.success("已删除对话");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除对话失败，请稍后重试。");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (!user) {
@@ -361,8 +375,8 @@ export function SidebarHistory({ user }: { user: User | undefined }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>
-              删除
+            <AlertDialogAction disabled={isDeleting} onClick={handleDelete}>
+              {isDeleting ? "删除中..." : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

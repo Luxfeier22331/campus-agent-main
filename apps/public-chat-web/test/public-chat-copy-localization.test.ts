@@ -64,19 +64,17 @@ describe("public chat copy localization", () => {
 		expect(submitButtonSource).toContain("提交");
 		expect(submitButtonSource).not.toContain("Submit form");
 
-		expect(multimodalInputSource).toContain("请在侧边栏的对话菜单中重命名");
 		expect(multimodalInputSource).toContain("删除这条对话？");
 		expect(multimodalInputSource).toContain("清空全部对话？");
-		expect(multimodalInputSource).toContain("上传失败，请稍后重试");
+		expect(multimodalInputSource).toContain("请等待当前回答完成后再继续");
 		expect(multimodalInputSource).toContain("正在编辑消息");
 		expect(multimodalInputSource).toContain("请输入你想了解的校园信息");
-		expect(multimodalInputSource).toContain("搜索模型...");
-		expect(multimodalInputSource).toContain('"可用模型"');
 		expect(multimodalInputSource).not.toContain("Ask about curriculum plans");
 		expect(multimodalInputSource).not.toContain("Search models...");
 
 		expect(slashCommandsSource).toContain("开始新对话");
-		expect(slashCommandsSource).toContain("清空当前对话");
+		expect(slashCommandsSource).toContain("删除当前对话");
+		expect(slashCommandsSource).toContain("清空全部对话");
 		expect(slashCommandsSource).toContain("快捷指令");
 
 		expect(shellSource).toContain("模型服务暂不可用");

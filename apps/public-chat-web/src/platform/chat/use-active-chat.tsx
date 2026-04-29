@@ -91,7 +91,8 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 	} | null>(null);
 	const { mutate } = useSWRConfig();
 	const { setSessionUnauthenticated } = useChatbotShellRuntime();
-	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [messages, setMessagesState] = useState<ChatMessage[]>([]);
+	const messagesRef = useRef<ChatMessage[]>([]);
 	const [status, setStatus] = useState<ChatStatus>("ready");
 	const [input, setInput] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
@@ -99,6 +100,18 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 	const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
 	const [conversationTitle, setConversationTitle] = useState<string | null>(null);
 	const [currentModelId, setCurrentModelId] = useState("campus-default");
+	const setMessages = useCallback<UseChatHelpers<ChatMessage>["setMessages"]>((nextMessages) => {
+		const resolved =
+			typeof nextMessages === "function"
+				? (nextMessages as (current: ChatMessage[]) => ChatMessage[])(messagesRef.current)
+				: (nextMessages as ChatMessage[]);
+		messagesRef.current = resolved;
+		setMessagesState(resolved);
+	}, []);
+
+	useEffect(() => {
+		messagesRef.current = messages;
+	}, [messages]);
 
 	useEffect(() => {
 		if (previousConversationIdRef.current !== conversationId && !conversationId) {
@@ -160,7 +173,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 		return () => {
 			cancelled = true;
 		};
-	}, [conversationId, router, setSessionUnauthenticated]);
+	}, [conversationId, router, setMessages, setSessionUnauthenticated]);
 
 	const sendPrompt = useCallback(
 		async (prompt: string) => {
@@ -180,7 +193,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 				parts: [{ text: trimmedPrompt, type: "text" }],
 				role: "user",
 			};
-			const previousMessages = messages;
+			const previousMessages = messagesRef.current;
 			const controller = new AbortController();
 
 			setStatus("submitted");
@@ -226,6 +239,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 				mutate(getSerializedChatHistoryKey());
 			} catch (error) {
 				if (error instanceof Error && error.name === "AbortError") {
+					setMessages(previousMessages);
 					setStatus("ready");
 					return;
 				}
@@ -250,7 +264,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 				}
 			}
 		},
-		[conversationId, messages, mutate, router, setSessionUnauthenticated],
+		[conversationId, mutate, router, setMessages, setSessionUnauthenticated],
 	);
 
 	const value = useMemo<ActiveChatContextValue>(
@@ -274,9 +288,10 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 			},
 			async regenerate(options) {
 				const targetMessageId = options?.messageId;
+				const currentMessages = messagesRef.current;
 				const lastUserMessage = targetMessageId
-					? messages.find((message) => message.id === targetMessageId)
-					: [...messages].reverse().find((message) => message.role === "user");
+					? currentMessages.find((message) => message.id === targetMessageId)
+					: [...currentMessages].reverse().find((message) => message.role === "user");
 				const lastUserText = lastUserMessage?.parts.find(
 					(part): part is Extract<ChatMessage["parts"][number], { type: "text" }> =>
 						part.type === "text",
@@ -326,6 +341,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 			status,
 			threadError,
 			router,
+			setMessages,
 		],
 	);
 

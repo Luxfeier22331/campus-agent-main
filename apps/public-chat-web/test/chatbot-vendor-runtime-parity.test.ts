@@ -149,12 +149,12 @@ describe("chatbot vendor runtime parity", () => {
 		expect(vendorChatHeaderSource).not.toContain("VercelIcon");
 	});
 
-	it("keeps the donor multimodal composer chrome instead of the reduced local composer", () => {
-		expect(vendorMultimodalInputSource).toContain("ModelSelector");
+	it("keeps the donor multimodal composer chrome while closing unsupported controls", () => {
 		expect(vendorMultimodalInputSource).toContain("PromptInputTools");
-		expect(vendorMultimodalInputSource).toContain("PaperclipIcon");
+		expect(vendorMultimodalInputSource).toContain("PromptInputSubmit");
 		expect(vendorMultimodalInputSource).toContain("SlashCommandMenu");
-		expect(vendorMultimodalInputSource).toContain("PreviewAttachment");
+		expect(vendorMultimodalInputSource).not.toContain("ModelSelector");
+		expect(vendorMultimodalInputSource).not.toContain("PaperclipIcon");
 	});
 
 	it("keeps the donor shell composition with artifact and edit wiring", () => {
@@ -222,7 +222,9 @@ describe("chatbot vendor runtime parity", () => {
 	});
 
 	it("moves vendor lib runtime truth behind exact compat seams while restoring donor lib sources", () => {
-		expect(workerSource).toContain("./platform/vendor-compat/lib/ai/models");
+		expect(workerSource).not.toContain("./platform/vendor-compat/lib/ai/models");
+		expect(workerSource).not.toContain("getAllGatewayModels");
+		expect(workerSource).not.toContain("getCapabilities");
 		expect(workerSource).not.toContain("../vendor/vercel-ai-chatbot/lib/ai/models");
 		expect(vendorModelsSource).toContain("next: { revalidate: 86_400 }");
 		expect(compatModelsSource).toContain('cache: "force-cache"');
@@ -246,8 +248,8 @@ describe("chatbot vendor runtime parity", () => {
 	it("keeps hidden form controls nameable and addressable for browser accessibility checks", () => {
 		expect(authTurnstileSource).toContain('id="captchaToken"');
 		expect(authTurnstileSource).toContain('name="captchaToken"');
-		expect(vendorMultimodalInputSource).toContain('id="chat-attachment-input"');
-		expect(vendorMultimodalInputSource).toContain('name="attachments"');
+		expect(vendorMultimodalInputSource).not.toContain('id="chat-attachment-input"');
+		expect(vendorMultimodalInputSource).not.toContain('name="attachments"');
 		expect(vendorPromptInputSource).toContain('id="prompt-attachment-input"');
 		expect(vendorPromptInputSource).toContain('name="attachments"');
 	});

@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
+import { deleteAllConversations } from "@/app/(chat)/actions";
 import {
   getChatHistoryPaginationKey,
   SidebarHistory,
@@ -49,19 +50,28 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   const { setOpenMobile, toggleSidebar } = useSidebar();
   const { mutate } = useSWRConfig();
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
-  const handleDeleteAll = () => {
-    setShowDeleteAllDialog(false);
-    router.replace("/");
-    mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
-      revalidate: false,
-    });
+  const handleDeleteAll = async () => {
+    if (isDeletingAll) {
+      return;
+    }
 
-    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history`, {
-      method: "DELETE",
-    });
+    setIsDeletingAll(true);
 
-    toast.success("已清空全部对话");
+    try {
+      await deleteAllConversations();
+      setShowDeleteAllDialog(false);
+      router.replace("/");
+      mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
+        revalidate: false,
+      });
+      toast.success("已清空全部对话");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "清空历史失败，请稍后重试。");
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   return (
@@ -153,8 +163,8 @@ export function AppSidebar({ user }: { user: User | undefined }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteAll}>
-              全部删除
+            <AlertDialogAction disabled={isDeletingAll} onClick={handleDeleteAll}>
+              {isDeletingAll ? "删除中..." : "全部删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

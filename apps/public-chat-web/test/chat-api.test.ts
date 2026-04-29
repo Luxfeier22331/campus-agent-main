@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	type ChatRequestStreamEvent,
 	createDraftConversation,
+	deleteAllConversations,
+	deleteConversation,
 	deleteTrailingMessages,
 	getConversationDetail,
 	getSessionPrincipal,
@@ -279,6 +281,69 @@ describe("public chat app-api client", () => {
 
 		expect(fetchSpy).toHaveBeenCalledWith(
 			"/api/chat/conversations/conv_01HQ/messages/msg_01HQ/trailing",
+			expect.objectContaining({
+				method: "DELETE",
+			}),
+		);
+	});
+
+	it("deletes conversations through checked app-api calls", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ deleted: true }), {
+					headers: {
+						"content-type": "application/json; charset=utf-8",
+					},
+					status: 200,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ deletedCount: 3 }), {
+					headers: {
+						"content-type": "application/json; charset=utf-8",
+					},
+					status: 200,
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						error: {
+							code: "conversation_not_found",
+							message: "Conversation not found.",
+						},
+					}),
+					{
+						headers: {
+							"content-type": "application/json; charset=utf-8",
+						},
+						status: 404,
+					},
+				),
+			);
+
+		await expect(deleteConversation("conv_01HQ")).resolves.toBeUndefined();
+		await expect(deleteAllConversations()).resolves.toEqual({ deletedCount: 3 });
+		await expect(deleteConversation("conv_missing")).rejects.toThrow("Conversation not found.");
+
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			1,
+			"/api/chat?id=conv_01HQ",
+			expect.objectContaining({
+				method: "DELETE",
+			}),
+		);
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			2,
+			"/api/history",
+			expect.objectContaining({
+				method: "DELETE",
+			}),
+		);
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			3,
+			"/api/chat?id=conv_missing",
 			expect.objectContaining({
 				method: "DELETE",
 			}),

@@ -214,6 +214,20 @@ export async function deleteTrailingMessages(
 	});
 }
 
+export async function deleteConversation(conversationId: string): Promise<void> {
+	await requestJson<{ deleted: true }>({
+		method: "DELETE",
+		path: `/api/chat?id=${encodeURIComponent(conversationId)}`,
+	});
+}
+
+export async function deleteAllConversations(): Promise<{ deletedCount: number }> {
+	return requestJson<{ deletedCount: number }>({
+		method: "DELETE",
+		path: "/api/history",
+	});
+}
+
 export async function submitChatRequest(input: {
 	conversationId?: string;
 	prompt: string;

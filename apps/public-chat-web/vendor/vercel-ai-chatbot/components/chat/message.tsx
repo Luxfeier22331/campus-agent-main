@@ -215,6 +215,26 @@ function SourceMeta({ item }: { item: SourceItemData }) {
   );
 }
 
+function sanitizeSourceActionHref(href: string | null): string | null {
+  const trimmed = href?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? trimmed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function SourceActionLink({
   action,
   title,
@@ -223,7 +243,8 @@ function SourceActionLink({
   title: string;
 }) {
   const label = sourceActionText(action);
-  if (!action.href) {
+  const safeHref = sanitizeSourceActionHref(action.href);
+  if (!safeHref) {
     return (
       <span className="rounded-md border border-border/60 px-2.5 py-1 text-[12px] text-muted-foreground">
         {label}
@@ -235,7 +256,7 @@ function SourceActionLink({
     <a
       aria-label={`${label}：${title}`}
       className="rounded-md border border-border/70 px-2.5 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:border-foreground/20 hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      href={action.href}
+      href={safeHref}
     >
       {label}
     </a>

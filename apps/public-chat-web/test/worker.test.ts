@@ -1178,31 +1178,23 @@ describe("public chat web worker shell", () => {
 		});
 	});
 
-	it("serves the donor model catalog from the worker without proxying /api/models to app-api", async () => {
-		const appApiFetch = vi.fn(async () => new Response("should not proxy", { status: 418 }));
-		const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
-			async () =>
-				new Response(
-					JSON.stringify({
-						data: {
-							architecture: {
-								input_modalities: ["text"],
-							},
-							endpoints: [
-								{
-									supported_parameters: ["tools", "reasoning"],
-								},
-							],
-						},
-					}),
-					{
-						headers: {
-							"content-type": "application/json; charset=utf-8",
-						},
-						status: 200,
-					},
-				),
-		);
+	it("proxies the closed model catalog route through app-api instead of serving it locally", async () => {
+		let forwardedUrl: string | null = null;
+		const appApiFetch = vi.fn(async (request: Request) => {
+			forwardedUrl = request.url;
+			return new Response(JSON.stringify({ proxied: true }), {
+				headers: {
+					"cache-control": "private",
+					"content-type": "application/json; charset=utf-8",
+				},
+				status: 200,
+			});
+		});
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(
+				new Response("model catalog should not call external fetch", { status: 418 }),
+			);
 
 		try {
 			const response = await worker.fetch(new Request("https://chat.example.com/api/models"), {
@@ -1217,16 +1209,11 @@ describe("public chat web worker shell", () => {
 			});
 
 			expect(response.status).toBe(200);
-			expect(response.headers.get("cache-control")).toBe("public, max-age=86400, s-maxage=86400");
-			await expect(response.json()).resolves.toMatchObject({
-				"moonshotai/kimi-k2-0905": {
-					reasoning: true,
-					tools: true,
-					vision: false,
-				},
-			});
-			expect(appApiFetch).not.toHaveBeenCalled();
-			expect(fetchSpy).toHaveBeenCalled();
+			expect(response.headers.get("cache-control")).toBe("no-store");
+			await expect(response.json()).resolves.toEqual({ proxied: true });
+			expect(forwardedUrl).toBe("https://app-api.internal/api/models");
+			expect(appApiFetch).toHaveBeenCalledTimes(1);
+			expect(fetchSpy).not.toHaveBeenCalled();
 		} finally {
 			fetchSpy.mockRestore();
 		}

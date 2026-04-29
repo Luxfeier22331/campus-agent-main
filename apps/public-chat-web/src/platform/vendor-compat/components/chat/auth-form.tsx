@@ -47,7 +47,7 @@ export function AuthForm({
 		const existingToken = tokenField instanceof HTMLInputElement ? tokenField.value.trim() : "";
 
 		if (existingToken) {
-			return;
+			turnstileControllerRef.current?.resetToken();
 		}
 
 		event.preventDefault();

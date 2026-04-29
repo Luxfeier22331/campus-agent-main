@@ -15,11 +15,13 @@ type AuthTurnstileAction = "sign-in" | "sign-up" | "request-password-reset";
 
 export interface AuthTurnstileController {
 	ensureToken: () => Promise<boolean>;
+	resetToken: () => void;
 }
 
 interface TurnstileWidget {
 	execute?: (widgetId: string) => void;
 	remove?: (widgetId: string) => void;
+	reset?: (widgetId: string) => void;
 	render: (container: HTMLElement | string, options: Record<string, unknown>) => string;
 }
 
@@ -90,6 +92,7 @@ export function AuthTurnstileField(props: {
 }) {
 	const { action, onController } = props;
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [challengeRequestId, setChallengeRequestId] = useState(0);
 	const [isPrimed, setIsPrimed] = useState(false);
 	const [token, setToken] = useState("");
 	const [runtimeConfig, setRuntimeConfig] = useState<TurnstileRuntimeConfig>(() =>
@@ -97,6 +100,7 @@ export function AuthTurnstileField(props: {
 	);
 	const containerId = useId();
 	const widgetIdRef = useRef<string | null>(null);
+	const widgetConfigKeyRef = useRef<string | null>(null);
 	const widgetRef = useRef<HTMLDivElement | null>(null);
 	const tokenInputRef = useRef<HTMLInputElement | null>(null);
 	const tokenRef = useRef("");
@@ -130,10 +134,20 @@ export function AuthTurnstileField(props: {
 
 		setErrorMessage(null);
 		setIsPrimed(true);
+		setChallengeRequestId((current) => current + 1);
 
 		return new Promise<boolean>((resolve) => {
 			pendingEnsureResolversRef.current.push(resolve);
 		});
+	});
+
+	const resetToken = useEffectEvent(() => {
+		commitToken("");
+		setErrorMessage(null);
+		resolvePendingEnsures(false);
+		if (widgetIdRef.current && window.turnstile?.reset) {
+			window.turnstile.reset(widgetIdRef.current);
+		}
 	});
 
 	useEffect(() => {
@@ -146,6 +160,8 @@ export function AuthTurnstileField(props: {
 		}
 
 		let cancelled = false;
+		const isChallengeRequested = challengeRequestId > 0;
+		const widgetConfigKey = [action, siteKey, turnstileAppearance, turnstileExecution].join(":");
 
 		void loadTurnstileScript()
 			.then(() => {
@@ -154,29 +170,49 @@ export function AuthTurnstileField(props: {
 				}
 
 				setErrorMessage(null);
-				widgetIdRef.current = window.turnstile.render(widgetRef.current, {
-					action,
-					appearance: turnstileAppearance,
-					callback(value: unknown) {
-						commitToken(typeof value === "string" ? value : "");
-						setErrorMessage(null);
-						resolvePendingEnsures(true);
-					},
-					execution: turnstileExecution,
-					"error-callback"() {
-						commitToken("");
-						setErrorMessage("安全验证未通过，请重试。");
-						resolvePendingEnsures(false);
-					},
-					"expired-callback"() {
-						commitToken("");
-						setErrorMessage("安全验证已失效，请重新完成。");
-						resolvePendingEnsures(false);
-					},
-					sitekey: siteKey,
-					theme: "light",
-				});
-				if (turnstileExecution === "execute" && widgetIdRef.current && window.turnstile.execute) {
+
+				if (widgetIdRef.current && widgetConfigKeyRef.current !== widgetConfigKey) {
+					if (window.turnstile.remove) {
+						window.turnstile.remove(widgetIdRef.current);
+					} else {
+						widgetRef.current.innerHTML = "";
+					}
+					widgetIdRef.current = null;
+					widgetConfigKeyRef.current = null;
+				}
+
+				if (!widgetIdRef.current) {
+					widgetIdRef.current = window.turnstile.render(widgetRef.current, {
+						action,
+						appearance: turnstileAppearance,
+						callback(value: unknown) {
+							commitToken(typeof value === "string" ? value : "");
+							setErrorMessage(null);
+							resolvePendingEnsures(true);
+						},
+						execution: turnstileExecution,
+						"error-callback"() {
+							commitToken("");
+							setErrorMessage("安全验证未通过，请重试。");
+							resolvePendingEnsures(false);
+						},
+						"expired-callback"() {
+							commitToken("");
+							setErrorMessage("安全验证已失效，请重新完成。");
+							resolvePendingEnsures(false);
+						},
+						sitekey: siteKey,
+						theme: "light",
+					});
+					widgetConfigKeyRef.current = widgetConfigKey;
+				}
+
+				if (
+					isChallengeRequested &&
+					turnstileExecution === "execute" &&
+					widgetIdRef.current &&
+					window.turnstile.execute
+				) {
 					window.turnstile.execute(widgetIdRef.current);
 				}
 			})
@@ -189,6 +225,11 @@ export function AuthTurnstileField(props: {
 
 		return () => {
 			cancelled = true;
+		};
+	}, [action, challengeRequestId, isPrimed, siteKey, turnstileAppearance, turnstileExecution]);
+
+	useEffect(
+		() => () => {
 			commitToken("");
 			resolvePendingEnsures(false);
 			if (widgetIdRef.current && window.turnstile?.remove) {
@@ -197,8 +238,10 @@ export function AuthTurnstileField(props: {
 				widgetRef.current.innerHTML = "";
 			}
 			widgetIdRef.current = null;
-		};
-	}, [action, isPrimed, siteKey, turnstileAppearance, turnstileExecution]);
+			widgetConfigKeyRef.current = null;
+		},
+		[],
+	);
 
 	useEffect(() => {
 		if (!onController) {
@@ -207,6 +250,7 @@ export function AuthTurnstileField(props: {
 
 		onController({
 			ensureToken,
+			resetToken,
 		});
 
 		return () => {

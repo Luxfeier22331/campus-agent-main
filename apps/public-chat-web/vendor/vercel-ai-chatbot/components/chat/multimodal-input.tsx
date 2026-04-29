@@ -2,17 +2,9 @@
 
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
-import equal from "fast-deep-equal";
-import {
-  ArrowUpIcon,
-  BrainIcon,
-  EyeIcon,
-  LockIcon,
-  WrenchIcon,
-} from "lucide-react";
+import { ArrowUpIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
-  type ChangeEvent,
   type Dispatch,
   memo,
   type SetStateAction,
@@ -22,26 +14,12 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import useSWR from "swr";
+import { useSWRConfig } from "swr";
+import { unstable_serialize } from "swr/infinite";
 import { useLocalStorage, useWindowSize } from "usehooks-ts";
-import {
-  ModelSelector,
-  ModelSelectorContent,
-  ModelSelectorGroup,
-  ModelSelectorInput,
-  ModelSelectorItem,
-  ModelSelectorList,
-  ModelSelectorLogo,
-  ModelSelectorName,
-  ModelSelectorTrigger,
-} from "@/components/ai-elements/model-selector";
-import {
-  type ChatModel,
-  chatModels,
-  DEFAULT_CHAT_MODEL,
-  type ModelCapabilities,
-} from "@/lib/ai/models";
-import type { Attachment, ChatMessage } from "@/lib/types";
+import { deleteAllConversations, deleteConversation } from "@/app/(chat)/actions";
+import { getChatHistoryPaginationKey } from "@/components/chat/sidebar-history";
+import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   PromptInput,
@@ -51,8 +29,7 @@ import {
   PromptInputTools,
 } from "../ai-elements/prompt-input";
 import { Button } from "../ui/button";
-import { PaperclipIcon, StopIcon } from "./icons";
-import { PreviewAttachment } from "./preview-attachment";
+import { StopIcon } from "./icons";
 import {
   type SlashCommand,
   SlashCommandMenu,
@@ -61,125 +38,18 @@ import {
 import { SuggestedActions } from "./suggested-actions";
 import type { VisibilityType } from "./visibility-selector";
 
-type UploadedFileResponse = {
-  contentType: string;
-  pathname: string;
-  url: string;
-};
-
-type UploadErrorResponse = {
-  error: string;
-};
-
-type ParsedModelsResponse = {
-  capabilities?: Record<string, ModelCapabilities>;
-  models?: ChatModel[];
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function isUploadedFileResponse(value: unknown): value is UploadedFileResponse {
-  return (
-    isRecord(value) &&
-    typeof value.url === "string" &&
-    typeof value.pathname === "string" &&
-    typeof value.contentType === "string"
-  );
-}
-
-function isUploadErrorResponse(value: unknown): value is UploadErrorResponse {
-  return isRecord(value) && typeof value.error === "string";
-}
-
-function isModelCapabilities(value: unknown): value is ModelCapabilities {
-  return (
-    isRecord(value) &&
-    typeof value.tools === "boolean" &&
-    typeof value.vision === "boolean" &&
-    typeof value.reasoning === "boolean"
-  );
-}
-
-function isCapabilitiesMap(value: unknown): value is Record<string, ModelCapabilities> {
-  return (
-    isRecord(value) &&
-    Object.values(value).every((entry) => isModelCapabilities(entry))
-  );
-}
-
-function isChatModel(value: unknown): value is ChatModel {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.name === "string" &&
-    typeof value.provider === "string" &&
-    typeof value.description === "string" &&
-    (value.gatewayOrder === undefined ||
-      (Array.isArray(value.gatewayOrder) &&
-        value.gatewayOrder.every((item) => typeof item === "string"))) &&
-    (value.reasoningEffort === undefined ||
-      ["none", "minimal", "low", "medium", "high"].includes(
-        String(value.reasoningEffort),
-      ))
-  );
-}
-
-function parseModelsResponse(value: unknown): ParsedModelsResponse {
-  if (isCapabilitiesMap(value)) {
-    return { capabilities: value };
-  }
-
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  return {
-    capabilities: isCapabilitiesMap(value.capabilities)
-      ? value.capabilities
-      : undefined,
-    models:
-      Array.isArray(value.models) && value.models.every((model) => isChatModel(model))
-        ? value.models
-        : undefined,
-  };
-}
-
-async function fetchJson(url: string): Promise<unknown> {
-  const response = await fetch(url, {
-    credentials: "same-origin",
-  });
-
-  if (!response.ok) {
-    throw new Error("加载数据失败。");
-  }
-
-  return response.json();
-}
-
-function setCookie(name: string, value: string) {
-  const maxAge = 60 * 60 * 24 * 365;
-  // biome-ignore lint/suspicious/noDocumentCookie: needed for client-side cookie setting
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}`;
-}
-
 function PureMultimodalInput({
   chatId,
   input,
   setInput,
   status,
   stop,
-  attachments,
-  setAttachments,
   messages,
   setMessages,
   sendMessage,
   prepareConversationRoute,
   className,
   selectedVisibilityType,
-  selectedModelId,
-  onModelChange,
   editingMessage,
   onCancelEdit,
   isLoading,
@@ -189,23 +59,18 @@ function PureMultimodalInput({
   setInput: Dispatch<SetStateAction<string>>;
   status: UseChatHelpers<ChatMessage>["status"];
   stop: UseChatHelpers<ChatMessage>["stop"];
-  attachments: Attachment[];
-  setAttachments: Dispatch<SetStateAction<Attachment[]>>;
   messages: UIMessage[];
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
-  sendMessage:
-    | UseChatHelpers<ChatMessage>["sendMessage"]
-    | (() => Promise<void>);
+  sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
   prepareConversationRoute?: (conversationId: string) => void;
   className?: string;
   selectedVisibilityType: VisibilityType;
-  selectedModelId: string;
-  onModelChange?: (modelId: string) => void;
   editingMessage?: ChatMessage | null;
   onCancelEdit?: () => void;
   isLoading?: boolean;
 }) {
   const router = useRouter();
+  const { mutate } = useSWRConfig();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
   const hasAutoFocused = useRef(false);
@@ -258,27 +123,19 @@ function PureMultimodalInput({
       case "new":
         void router.push("/chat");
         break;
-      case "clear":
-        setMessages(() => []);
-        break;
-      case "rename":
-        toast("请在侧边栏的对话菜单中重命名");
-        break;
-      case "model": {
-        const modelBtn = document.querySelector<HTMLButtonElement>("[data-testid='model-selector']");
-        modelBtn?.click();
-        break;
-      }
       case "delete":
         toast("删除这条对话？", {
           action: {
             label: "删除",
-            onClick: () => {
-              void fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat?id=${chatId}`, {
-                method: "DELETE",
-              });
-              void router.push("/chat");
-              toast.success("已删除对话");
+            onClick: async () => {
+              try {
+                await deleteConversation(chatId);
+                mutate(unstable_serialize(getChatHistoryPaginationKey));
+                await router.push("/chat");
+                toast.success("已删除对话");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "删除对话失败，请稍后重试。");
+              }
             },
           },
         });
@@ -287,12 +144,17 @@ function PureMultimodalInput({
         toast("清空全部对话？", {
           action: {
             label: "全部删除",
-            onClick: () => {
-              void fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history`, {
-                method: "DELETE",
-              });
-              void router.push("/chat");
-              toast.success("已清空全部对话");
+            onClick: async () => {
+              try {
+                await deleteAllConversations();
+                mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
+                  revalidate: false,
+                });
+                await router.push("/chat");
+                toast.success("已清空全部对话");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "清空历史失败，请稍后重试。");
+              }
             },
           },
         });
@@ -302,8 +164,6 @@ function PureMultimodalInput({
     }
   };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadQueue, setUploadQueue] = useState<string[]>([]);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
@@ -315,12 +175,6 @@ function PureMultimodalInput({
     void sendMessage({
       role: "user",
       parts: [
-        ...attachments.map((attachment) => ({
-          type: "file" as const,
-          url: attachment.url,
-          name: attachment.name,
-          mediaType: attachment.contentType,
-        })),
         {
           type: "text",
           text: input,
@@ -328,7 +182,6 @@ function PureMultimodalInput({
       ],
     });
 
-    setAttachments([]);
     setLocalStorageInput("");
     setInput("");
 
@@ -336,125 +189,15 @@ function PureMultimodalInput({
       textareaRef.current?.focus();
     }
   }, [
-    attachments,
     chatId,
     input,
     prepareConversationRoute,
     router,
     sendMessage,
-    setAttachments,
     setInput,
     setLocalStorageInput,
     width,
   ]);
-
-  const uploadFile = useCallback(async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/files/upload`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = (await response.json().catch(() => undefined)) as unknown;
-
-      if (response.ok) {
-        if (!isUploadedFileResponse(data)) {
-          toast.error("上传返回异常");
-          return;
-        }
-
-        return {
-          url: data.url,
-          name: data.pathname,
-          contentType: data.contentType,
-        };
-      }
-      toast.error(
-        isUploadErrorResponse(data) ? data.error : "上传失败，请稍后重试",
-      );
-    } catch (_error) {
-      toast.error("上传失败，请稍后重试");
-    }
-  }, []);
-
-  const handleFileChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(event.target.files || []);
-
-      setUploadQueue(files.map((file) => file.name));
-
-      try {
-        const uploadPromises = files.map((file) => uploadFile(file));
-        const uploadedAttachments = await Promise.all(uploadPromises);
-        const successfullyUploadedAttachments = uploadedAttachments.filter(
-          (attachment) => attachment !== undefined,
-        );
-
-        setAttachments((currentAttachments) => [
-          ...currentAttachments,
-          ...successfullyUploadedAttachments,
-        ]);
-      } catch (_error) {
-        toast.error("上传附件失败，请稍后重试");
-      } finally {
-        setUploadQueue([]);
-      }
-    },
-    [setAttachments, uploadFile],
-  );
-
-  const handlePaste = useCallback(
-    async (event: ClipboardEvent) => {
-      const items = event.clipboardData?.items;
-      if (!items) {
-        return;
-      }
-
-      const imageItems = Array.from(items).filter((item) => item.type.startsWith("image/"));
-
-      if (imageItems.length === 0) {
-        return;
-      }
-
-      event.preventDefault();
-
-      setUploadQueue((prev) => [...prev, "已粘贴图片"]);
-
-      try {
-        const uploadPromises = imageItems
-          .map((item) => item.getAsFile())
-          .filter((file): file is File => file !== null)
-          .map((file) => uploadFile(file));
-
-        const uploadedAttachments = await Promise.all(uploadPromises);
-        const successfullyUploadedAttachments = uploadedAttachments.filter(
-          (attachment) =>
-            attachment !== undefined &&
-            attachment.url !== undefined &&
-            attachment.contentType !== undefined,
-        );
-
-        setAttachments((curr) => [...curr, ...(successfullyUploadedAttachments as Attachment[])]);
-      } catch (_error) {
-        toast.error("粘贴图片上传失败，请稍后重试");
-      } finally {
-        setUploadQueue([]);
-      }
-    },
-    [setAttachments, uploadFile],
-  );
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.addEventListener("paste", handlePaste);
-    return () => textarea.removeEventListener("paste", handlePaste);
-  }, [handlePaste]);
 
   return (
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
@@ -476,9 +219,7 @@ function PureMultimodalInput({
 
       {!editingMessage &&
         !isLoading &&
-        messages.length === 0 &&
-        attachments.length === 0 &&
-        uploadQueue.length === 0 && (
+        messages.length === 0 && (
           <SuggestedActions
             chatId={chatId}
             prepareConversationRoute={prepareConversationRoute}
@@ -486,18 +227,6 @@ function PureMultimodalInput({
             sendMessage={sendMessage}
           />
         )}
-
-      <input
-        aria-hidden="true"
-        className="pointer-events-none fixed -top-4 -left-4 size-0.5 opacity-0"
-        id="chat-attachment-input"
-        multiple
-        name="attachments"
-        onChange={handleFileChange}
-        ref={fileInputRef}
-        tabIndex={-1}
-        type="file"
-      />
 
       <div className="relative">
         {slashOpen && (
@@ -521,7 +250,7 @@ function PureMultimodalInput({
             }
             return;
           }
-          if (!input.trim() && attachments.length === 0) {
+          if (!input.trim()) {
             return;
           }
           if (status === "ready" || status === "error") {
@@ -531,39 +260,6 @@ function PureMultimodalInput({
           }
         }}
       >
-        {(attachments.length > 0 || uploadQueue.length > 0) && (
-          <div
-            className="flex w-full self-start flex-row gap-2 overflow-x-auto px-3 pt-3 no-scrollbar"
-            data-testid="attachments-preview"
-          >
-            {attachments.map((attachment) => (
-              <PreviewAttachment
-                attachment={attachment}
-                key={attachment.url}
-                onRemove={() => {
-                  setAttachments((currentAttachments) =>
-                    currentAttachments.filter((a) => a.url !== attachment.url),
-                  );
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
-                  }
-                }}
-              />
-            ))}
-
-            {uploadQueue.map((filename) => (
-              <PreviewAttachment
-                attachment={{
-                  url: "",
-                  name: filename,
-                  contentType: "",
-                }}
-                isUploading={true}
-                key={filename}
-              />
-            ))}
-          </div>
-        )}
         <PromptInputTextarea
           className="min-h-24 text-[13px] leading-relaxed px-4 pt-3.5 pb-1.5 placeholder:text-muted-foreground/35"
           data-testid="multimodal-input"
@@ -610,16 +306,9 @@ function PureMultimodalInput({
           value={input}
         />
         <PromptInputFooter className="px-3 pb-3">
-          <PromptInputTools>
-            <AttachmentsButton
-              fileInputRef={fileInputRef}
-              selectedModelId={selectedModelId}
-              status={status}
-            />
-            <ModelSelectorCompact onModelChange={onModelChange} selectedModelId={selectedModelId} />
-          </PromptInputTools>
+          <PromptInputTools />
 
-          {status === "submitted" ? (
+          {status === "submitted" || status === "streaming" ? (
             <StopButton setMessages={setMessages} stop={stop} />
           ) : (
             <PromptInputSubmit
@@ -630,7 +319,7 @@ function PureMultimodalInput({
                   : "bg-muted text-muted-foreground/25 cursor-not-allowed",
               )}
               data-testid="send-button"
-              disabled={!input.trim() || uploadQueue.length > 0}
+              disabled={!input.trim()}
               status={status}
               variant="secondary"
             >
@@ -650,13 +339,7 @@ export const MultimodalInput = memo(PureMultimodalInput, (prevProps, nextProps) 
   if (prevProps.status !== nextProps.status) {
     return false;
   }
-  if (!equal(prevProps.attachments, nextProps.attachments)) {
-    return false;
-  }
   if (prevProps.selectedVisibilityType !== nextProps.selectedVisibilityType) {
-    return false;
-  }
-  if (prevProps.selectedModelId !== nextProps.selectedModelId) {
     return false;
   }
   if (prevProps.editingMessage !== nextProps.editingMessage) {
@@ -671,190 +354,6 @@ export const MultimodalInput = memo(PureMultimodalInput, (prevProps, nextProps) 
 
   return true;
 });
-
-function PureAttachmentsButton({
-  fileInputRef,
-  status,
-  selectedModelId,
-}: {
-  fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers<ChatMessage>["status"];
-  selectedModelId: string;
-}) {
-  const { data: modelsResponse } = useSWR<unknown>(
-    `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/models`,
-    fetchJson,
-    { revalidateOnFocus: false, dedupingInterval: 3_600_000 },
-  );
-  const { capabilities: caps } = parseModelsResponse(modelsResponse);
-  const hasVision = caps?.[selectedModelId]?.vision ?? false;
-
-  return (
-    <Button
-      aria-label="上传附件"
-      className={cn(
-        "h-7 w-7 rounded-lg border border-border/40 p-1 transition-colors",
-        hasVision
-          ? "text-foreground hover:border-border hover:text-foreground"
-          : "text-muted-foreground/30 cursor-not-allowed",
-      )}
-      data-testid="attachments-button"
-      disabled={status !== "ready" || !hasVision}
-      onClick={(event) => {
-        event.preventDefault();
-        fileInputRef.current?.click();
-      }}
-      variant="ghost"
-    >
-      <PaperclipIcon size={14} style={{ width: 14, height: 14 }} />
-    </Button>
-  );
-}
-
-const AttachmentsButton = memo(PureAttachmentsButton);
-
-function PureModelSelectorCompact({
-  selectedModelId,
-  onModelChange,
-}: {
-  selectedModelId: string;
-  onModelChange?: (modelId: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const { data: modelsData } = useSWR<unknown>(
-    `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/models`,
-    fetchJson,
-    { revalidateOnFocus: false, dedupingInterval: 3_600_000 },
-  );
-
-  const parsedModelsData = parseModelsResponse(modelsData);
-  const capabilities = parsedModelsData.capabilities;
-  const dynamicModels = parsedModelsData.models;
-  const activeModels =
-    dynamicModels && dynamicModels.length > 0 ? dynamicModels : chatModels;
-
-  const selectedModel =
-    activeModels.find((m: ChatModel) => m.id === selectedModelId) ??
-    activeModels.find((m: ChatModel) => m.id === DEFAULT_CHAT_MODEL) ??
-    chatModels[0]!;
-  const [provider] = selectedModel.id.split("/");
-
-  return (
-    <ModelSelector onOpenChange={setOpen} open={open}>
-      <ModelSelectorTrigger asChild>
-        <Button
-          className="h-7 max-w-[200px] justify-between gap-1.5 rounded-lg px-2 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-          data-testid="model-selector"
-          variant="ghost"
-        >
-          {provider && <ModelSelectorLogo provider={provider} />}
-          <ModelSelectorName>{selectedModel.name}</ModelSelectorName>
-        </Button>
-      </ModelSelectorTrigger>
-      <ModelSelectorContent>
-        <ModelSelectorInput placeholder="搜索模型..." />
-        <ModelSelectorList>
-          {(() => {
-            const curatedIds = new Set(chatModels.map((m) => m.id));
-            const allModels = dynamicModels
-              ? [...chatModels, ...dynamicModels.filter((m) => !curatedIds.has(m.id))]
-              : chatModels;
-
-            const grouped: Record<string, { model: ChatModel; curated: boolean }[]> = {};
-            for (const model of allModels) {
-              const key = curatedIds.has(model.id) ? "_available" : model.provider;
-              if (!grouped[key]) {
-                grouped[key] = [];
-              }
-              grouped[key].push({ model, curated: curatedIds.has(model.id) });
-            }
-
-            const sortedKeys = Object.keys(grouped).sort((a, b) => {
-              if (a === "_available") {
-                return -1;
-              }
-              if (b === "_available") {
-                return 1;
-              }
-              return a.localeCompare(b);
-            });
-
-            const providerNames: Record<string, string> = {
-              alibaba: "Alibaba",
-              anthropic: "Anthropic",
-              "arcee-ai": "Arcee AI",
-              bytedance: "ByteDance",
-              cohere: "Cohere",
-              deepseek: "DeepSeek",
-              google: "Google",
-              inception: "Inception",
-              kwaipilot: "Kwaipilot",
-              meituan: "Meituan",
-              meta: "Meta",
-              minimax: "MiniMax",
-              mistral: "Mistral",
-              moonshotai: "Moonshot",
-              morph: "Morph",
-              nvidia: "Nvidia",
-              openai: "OpenAI",
-              perplexity: "Perplexity",
-              "prime-intellect": "Prime Intellect",
-              xiaomi: "Xiaomi",
-              xai: "xAI",
-              zai: "Zai",
-            };
-
-            return sortedKeys.map((key) => (
-              <ModelSelectorGroup
-                heading={key === "_available" ? "可用模型" : (providerNames[key] ?? key)}
-                key={key}
-              >
-                {grouped[key].map(({ model, curated }) => {
-                  const logoProvider = model.id.split("/")[0];
-                  return (
-                    <ModelSelectorItem
-                      className={cn(
-                        "flex w-full",
-                        model.id === selectedModel.id && "border-b border-dashed border-foreground/50",
-                        !curated && "opacity-40 cursor-default",
-                      )}
-                      key={model.id}
-                      onSelect={() => {
-                        if (!curated) {
-                          return;
-                        }
-                        onModelChange?.(model.id);
-                        setCookie("chat-model", model.id);
-                        setOpen(false);
-                        setTimeout(() => {
-                          document
-                            .querySelector<HTMLTextAreaElement>("[data-testid='multimodal-input']")
-                            ?.focus();
-                        }, 50);
-                      }}
-                      value={model.id}
-                    >
-                      <ModelSelectorLogo provider={logoProvider} />
-                      <ModelSelectorName>{model.name}</ModelSelectorName>
-                      <div className="ml-auto flex items-center gap-2 text-foreground/70">
-                        {capabilities?.[model.id]?.tools && <WrenchIcon className="size-3.5" />}
-                        {capabilities?.[model.id]?.vision && <EyeIcon className="size-3.5" />}
-                        {capabilities?.[model.id]?.reasoning && <BrainIcon className="size-3.5" />}
-                        {!curated && <LockIcon className="size-3 text-muted-foreground/50" />}
-                      </div>
-                    </ModelSelectorItem>
-                  );
-                })}
-              </ModelSelectorGroup>
-            ));
-          })()}
-        </ModelSelectorList>
-      </ModelSelectorContent>
-    </ModelSelector>
-  );
-}
-
-const ModelSelectorCompact = memo(PureModelSelectorCompact);
 
 function PureStopButton({
   stop,

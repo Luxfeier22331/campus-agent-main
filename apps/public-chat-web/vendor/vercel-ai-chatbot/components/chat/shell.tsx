@@ -44,7 +44,6 @@ export function ChatShell() {
     votes,
     currentModelId,
     prepareConversationRoute,
-    setCurrentModelId,
     showCreditCardAlert,
     setShowCreditCardAlert,
   } = useActiveChat();
@@ -105,7 +104,6 @@ export function ChatShell() {
             <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
               {!isReadonly && (
                 <MultimodalInput
-                  attachments={attachments}
                   chatId={chatId}
                   editingMessage={editingMessage}
                   input={input}
@@ -115,8 +113,6 @@ export function ChatShell() {
                     setEditingMessage(null);
                     setInput("");
                   }}
-                  onModelChange={setCurrentModelId}
-                  selectedModelId={currentModelId}
                   selectedVisibilityType={visibilityType}
                   prepareConversationRoute={prepareConversationRoute}
                   sendMessage={
@@ -129,13 +125,12 @@ export function ChatShell() {
                             message: msg,
                             text: input,
                             setMessages,
-                            regenerate,
+                            sendMessage,
                           });
                           setInput("");
                         }
                       : sendMessage
                   }
-                  setAttachments={setAttachments}
                   setInput={setInput}
                   setMessages={setMessages}
                   status={status}
