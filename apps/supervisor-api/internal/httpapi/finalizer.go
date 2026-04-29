@@ -141,7 +141,10 @@ func buildWorkflowTraceSummary(
 	if branch == "" {
 		branch = branchFromRuntimeDecision(decisions)
 	}
+	workflowMode := workflowMode(branch, context.Handoff, decisions)
+	traceTarget := workflowTraceSelectedTarget(workflowMode, target)
 	handoff := workflowHandoffSummary(context.Handoff, target, selectedTool)
+	handoffChain := workflowHandoffChain(workflowMode, context.Handoff, target, selectedTool)
 	selectedTools := workflowSelectedTools(context.Handoff, selectedTool)
 	failCloseReason := defaultString(
 		defaultString(decisions.FailCloseReason, stringValue(result["fail_close_reason"])),
@@ -174,14 +177,16 @@ func buildWorkflowTraceSummary(
 		},
 		"planning_outcome":          defaultString(decisions.PlanningOutcome, "not_preplanned"),
 		"direct_vs_delegate_branch": branch,
+		"workflow_mode":             workflowMode,
 		"handoff":                   handoff,
-		"selected_target":           target,
+		"handoff_chain":             handoffChain,
+		"selected_target":           traceTarget,
 		"selected_tools":            selectedTools,
 		"tool_argument_summary":     toolArgumentSummary,
-		"trace_steps":               workflowTraceSteps(branch, target, selectedTool, status, decisions, failCloseReason),
+		"trace_steps":               workflowTraceSteps(branch, traceTarget, selectedTool, status, decisions, failCloseReason),
 		"tool_call_summaries": workflowToolCallSummaries(
 			selectedTool,
-			target,
+			traceTarget,
 			status,
 			result,
 			toolArgumentSummary,
@@ -197,6 +202,33 @@ func buildWorkflowTraceSummary(
 		"runtime_versions":         safeWorkflowMap(runtimeVersions),
 		"policy_artifact_versions": safeWorkflowMap(policyVersions),
 	}
+}
+
+func workflowMode(
+	branch string,
+	handoff *execution.RuntimeHandoff,
+	decisions execution.RuntimeDecisionSummary,
+) string {
+	if branch == "terminal" {
+		return "terminal"
+	}
+	if branch == "delegate" || decisions.RoutingNextAction == "delegate" || handoff != nil {
+		return "single_handoff"
+	}
+	if branch == "direct" {
+		return "direct_runtime"
+	}
+	if decisions.RoutingNextAction != "" && decisions.RoutingNextAction != "delegate" {
+		return "terminal"
+	}
+	return "direct_runtime"
+}
+
+func workflowTraceSelectedTarget(workflowMode string, target string) string {
+	if workflowMode == "terminal" {
+		return "none"
+	}
+	return target
 }
 
 func validFinalizerHandoffInvariant(target string, context supervisorFinalizerContext) bool {
@@ -276,6 +308,26 @@ func workflowHandoffSummary(
 	}
 }
 
+func workflowHandoffChain(
+	workflowMode string,
+	handoff *execution.RuntimeHandoff,
+	target string,
+	selectedTool string,
+) []map[string]any {
+	if workflowMode != "single_handoff" || handoff == nil {
+		return []map[string]any{}
+	}
+	item := map[string]any{
+		"target":        defaultString(handoff.Target, target),
+		"payload_kind":  handoff.PayloadKind,
+		"allowed_tools": append([]string(nil), handoff.AllowedTools...),
+	}
+	if selectedTool != "" {
+		item["selected_tool"] = selectedTool
+	}
+	return []map[string]any{item}
+}
+
 func workflowSelectedTools(handoff *execution.RuntimeHandoff, selectedTool string) []string {
 	if selectedTool != "" {
 		return []string{selectedTool}
@@ -302,7 +354,7 @@ func workflowTraceSteps(
 			),
 		},
 	}
-	if branch != "" {
+	if branch == "delegate" {
 		steps = append(steps, map[string]any{
 			"step_id":        "handoff",
 			"span_kind":      "handoff",
@@ -338,7 +390,7 @@ func workflowTraceSteps(
 }
 
 func workflowToolCallParentStep(branch string) string {
-	if branch != "" {
+	if branch == "delegate" {
 		return "handoff"
 	}
 	return "runtime_policy"
@@ -348,7 +400,7 @@ func workflowFinalizationParentStep(branch string, selectedTool string) string {
 	if selectedTool != "" {
 		return "tool_call"
 	}
-	if branch != "" {
+	if branch == "delegate" {
 		return "handoff"
 	}
 	return "runtime_policy"

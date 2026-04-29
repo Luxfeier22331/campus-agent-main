@@ -139,7 +139,9 @@ class WorkflowTraceSummary:
     context_resolution: dict[str, Any] = field(default_factory=dict)
     planning_outcome: str = ""
     direct_vs_delegate_branch: str = ""
+    workflow_mode: str = ""
     handoff: dict[str, Any] = field(default_factory=dict)
+    handoff_chain: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     selected_target: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, Any] = field(default_factory=dict)

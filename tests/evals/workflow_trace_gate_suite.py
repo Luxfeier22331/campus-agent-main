@@ -34,8 +34,10 @@ def _trace_summary(**overrides):
         "routing_frame": {"intent": "campus_service_lookup"},
         "context_resolution": {"resolved_scope": "campus_services"},
         "planning_outcome": "direct_structured_tool",
+        "workflow_mode": "direct_runtime",
         "direct_vs_delegate_branch": "direct",
         "handoff": {"target": "campus-services-agent", "mode": "structured_runtime"},
+        "handoff_chain": (),
         "selected_target": "campus-services-agent",
         "selected_tools": ("transport_schedule_lookup",),
         "tool_argument_summary": {
@@ -90,9 +92,11 @@ def _trace_summary(**overrides):
 def _workflow_case(**expectation_overrides) -> WorkflowTraceCase:
     expectation_defaults = {
         "direct_vs_delegate_branch": "direct",
+        "workflow_mode": "direct_runtime",
         "selected_target": "campus-services-agent",
         "selected_tools": ("transport_schedule_lookup",),
         "handoff": {"target": "campus-services-agent"},
+        "handoff_chain": (),
         "tool_argument_summary": {
             "service_key": "transport_commute",
             "campus": "fengtai",
@@ -217,6 +221,73 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
         self.assertTrue(results.tool_order_correctness.passed)
         self.assertTrue(results.tool_result_status_correctness.passed)
         self.assertTrue(results.evidence_source_selection.passed)
+
+    def test_validates_current_workflow_mode_and_handoff_chain_shape(self) -> None:
+        delegate_case = _workflow_case(
+            direct_vs_delegate_branch="delegate",
+            workflow_mode="single_handoff",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+            expected_source_ids=("student_rules:leave-policy",),
+        )
+        delegate_summary = _trace_summary(
+            workflow_mode="single_handoff",
+            direct_vs_delegate_branch="delegate",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+        )
+
+        delegate_results = evaluate_workflow_trace_case(delegate_case, delegate_summary)
+        self.assertTrue(delegate_results.handoff_correctness.passed)
+        self.assertTrue(delegate_results.trace_projection_completeness.passed)
+
+        terminal_results = evaluate_workflow_trace_case(
+            _workflow_case(
+                direct_vs_delegate_branch="fail_close",
+                workflow_mode="terminal",
+                selected_target="none",
+                selected_tools=(),
+                handoff={},
+                handoff_chain=(),
+                tool_argument_summary={},
+                tool_call_summaries=(),
+                fail_close_expected=True,
+                fail_close_reason="transactional_action_not_supported",
+            ),
+            _trace_summary(
+                workflow_mode="terminal",
+                direct_vs_delegate_branch="fail_close",
+                selected_target="none",
+                selected_tools=(),
+                handoff={},
+                handoff_chain=(),
+                tool_argument_summary={},
+                tool_call_summaries=(),
+                fail_close_reason="transactional_action_not_supported",
+            ),
+        )
+        self.assertTrue(terminal_results.handoff_correctness.passed)
+        self.assertTrue(terminal_results.trace_projection_completeness.passed)
 
     def test_fails_wrong_branch_target_tools_arguments_guardrails_and_fail_close(self) -> None:
         results = evaluate_workflow_trace_case(

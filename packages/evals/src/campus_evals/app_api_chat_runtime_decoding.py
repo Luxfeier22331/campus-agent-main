@@ -134,6 +134,7 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
     if record is None:
         return None
     selected_tools = _optional_list(_record_value(record, "selected_tools", "selectedTools"))
+    handoff_chain = _optional_list(_record_value(record, "handoff_chain", "handoffChain"))
     return WorkflowTraceSummary(
         routing_frame=_optional_record(_record_value(record, "routing_frame", "routingFrame"))
         or {},
@@ -149,7 +150,10 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
             _record_value(record, "direct_vs_delegate_branch", "directVsDelegateBranch")
         )
         or "",
+        workflow_mode=_optional_string(_record_value(record, "workflow_mode", "workflowMode"))
+        or "",
         handoff=_optional_record(record.get("handoff")) or {},
+        handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
         selected_target=_optional_string(_record_value(record, "selected_target", "selectedTarget"))
         or "",
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),

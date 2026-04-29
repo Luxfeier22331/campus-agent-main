@@ -132,8 +132,8 @@ describe("request workflow trace formatters", () => {
 				selectedTools: ["service_status_lookup"],
 				toolArgumentSummary: {
 					safe_details: {
-						agent_plan: {
-							planner: "deterministic_payload_router",
+						agent_execution_projection: {
+							projection_owner: "campus-services-agent",
 							selected_tool: "service_status_lookup",
 							tool_selection_reason: "typed_payload_allowed_tool",
 						},
@@ -173,8 +173,8 @@ describe("request workflow trace formatters", () => {
 			{ label: "工具序列", value: "service_status_lookup" },
 			{ label: "工具调用", value: "service_status_lookup:completed/resolved_current" },
 			{
-				label: "工具计划",
-				value: "service_status_lookup:deterministic_payload_router/typed_payload_allowed_tool",
+				label: "执行投影",
+				value: "service_status_lookup:campus-services-agent/typed_payload_allowed_tool",
 			},
 			{
 				label: "结果护栏",
@@ -223,8 +223,8 @@ describe("request workflow trace formatters", () => {
 			selectedTools: ["retrieval.query"],
 			toolArgumentSummary: {
 				safe_details: {
-					agent_plan: {
-						planner: "deterministic_payload_router",
+					agent_execution_projection: {
+						projection_owner: "rag-agent",
 						selected_tool: "retrieval.query",
 						tool_selection_reason: "typed_payload_allowed_tool",
 					},

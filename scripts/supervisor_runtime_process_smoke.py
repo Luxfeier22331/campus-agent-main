@@ -30,6 +30,8 @@ class ProcessSmokePlan:
     api_base_url: str
     worker_base_url: str
     answer_payload: dict[str, object]
+    expected_status: int
+    expected_body_tokens: tuple[str, ...]
     processes: tuple[ProcessCommandSpec, ...]
 
 
@@ -72,32 +74,16 @@ def build_process_smoke_plan(
         "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED": "false",
         "SUPERVISOR_API_OPEN_CAPABILITIES": os.getenv("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
     }
+    answer_payload, expected_status, expected_body_tokens = _profile_answer_expectation(profile)
     return ProcessSmokePlan(
         repo_root=repo_root,
         output_dir=output_dir,
         profile=profile,
         api_base_url=api_base_url,
         worker_base_url=worker_base_url,
-        answer_payload={
-            "user_goal": "campus shuttle schedule",
-            "request_id": "process-smoke-structured-runtime-closed",
-            "requested_capability": "campus_services",
-            "context": {
-                "actor": {
-                    "user_id": "smoke-student",
-                    "principal_id": "smoke-student",
-                    "principal_type": "student",
-                    "roles": ["student"],
-                },
-                "authorization": {
-                    "retrieval_filter": {
-                        "entitlement_groups": [],
-                        "visibility_level": "public",
-                        "policy_projection_version": "phase1-authorization-projection-v1",
-                    }
-                },
-            },
-        },
+        answer_payload=answer_payload,
+        expected_status=expected_status,
+        expected_body_tokens=expected_body_tokens,
         processes=(
             ProcessCommandSpec(
                 label="supervisor-agent-worker",
@@ -122,6 +108,62 @@ def build_process_smoke_plan(
             ),
         ),
     )
+
+
+def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, tuple[str, ...]]:
+    context = {
+        "actor": {
+            "user_id": "smoke-student",
+            "principal_id": "smoke-student",
+            "principal_type": "student",
+            "roles": ["student"],
+        },
+        "authorization": {
+            "retrieval_filter": {
+                "entitlement_groups": [],
+                "visibility_level": "public",
+                "policy_projection_version": "phase1-authorization-projection-v1",
+            }
+        },
+    }
+    if profile == "closed_gate":
+        return (
+            {
+                "user_goal": "campus shuttle schedule",
+                "request_id": "process-smoke-structured-runtime-closed",
+                "requested_capability": "campus_services",
+                "context": context,
+            },
+            503,
+            ("structured_runtime_closed",),
+        )
+    if profile == "terminal_fail_close":
+        return (
+            {
+                "user_goal": "帮我提交采购公告",
+                "request_id": "process-smoke-terminal-fail-close",
+                "requested_capability": "knowledge",
+                "context": context,
+            },
+            200,
+            ("transactional_action_not_supported",),
+        )
+    if profile == "rag_delegate":
+        return (
+            {
+                "user_goal": "学生证补办要求是什么",
+                "request_id": "process-smoke-rag-delegate",
+                "requested_capability": "knowledge",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                },
+                "context": context,
+            },
+            200,
+            ("workflow_trace_summary", "agent_observability"),
+        )
+    raise ValueError(f"unsupported process smoke profile: {profile}")
 
 
 def run_process_smoke(
@@ -167,12 +209,13 @@ def run_process_smoke(
             plan.answer_payload,
             headers={"x-worker-origin-auth": plan.processes[1].env["API_WORKER_SHARED_SECRET"]},
         )
+        answer_text = json.dumps(answer_body, ensure_ascii=False)
         passed = (
             worker_healthz == 200
             and api_healthz == 200
             and metrics_status == 200
-            and answer_status == 503
-            and "structured_runtime_closed" in json.dumps(answer_body, ensure_ascii=False)
+            and answer_status == plan.expected_status
+            and all(token in answer_text for token in plan.expected_body_tokens)
         )
         summary = {
             "schema_version": "supervisor_runtime_process_smoke.v1",
@@ -188,6 +231,8 @@ def run_process_smoke(
                 "readyz_status": readyz[0],
                 "metrics_status": metrics_status,
                 "answer_status": answer_status,
+                "expected_answer_status": plan.expected_status,
+                "expected_body_tokens": plan.expected_body_tokens,
             },
             "answer": answer_body,
         }

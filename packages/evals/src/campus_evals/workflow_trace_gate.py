@@ -22,8 +22,10 @@ WORKFLOW_TRACE_GATE_CASES_PATH = (
 class WorkflowTraceExpectation:
     direct_vs_delegate_branch: str
     selected_target: str
+    workflow_mode: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     handoff: dict[str, object] = field(default_factory=dict)
+    handoff_chain: tuple[dict[str, object], ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, object] = field(default_factory=dict)
     tool_call_summaries: tuple[dict[str, object], ...] = field(default_factory=tuple)
     expected_tool_order: tuple[str, ...] = field(default_factory=tuple)
@@ -37,6 +39,7 @@ class WorkflowTraceExpectation:
     def __post_init__(self) -> None:
         for field_name, payload in (
             ("handoff", self.handoff),
+            ("handoff_chain", self.handoff_chain),
             ("tool_argument_summary", self.tool_argument_summary),
             ("tool_call_summaries", self.tool_call_summaries),
             ("expected_tool_result_statuses", self.expected_tool_result_statuses),
@@ -95,8 +98,12 @@ def evaluate_workflow_trace_case(
             expectation.direct_vs_delegate_branch,
         ),
         handoff_correctness=_combine_dimension_results(
+            _equals("workflow_mode", summary.workflow_mode, expectation.workflow_mode)
+            if expectation.workflow_mode
+            else DimensionResult(True, "not_applicable"),
             _equals("selected_target", summary.selected_target, expectation.selected_target),
             _mapping_contains("handoff", summary.handoff, expectation.handoff),
+            _handoff_chain_contains(summary.handoff_chain, expectation.handoff_chain),
         ),
         tool_argument_precision=_combine_dimension_results(
             _equals("selected_tools", summary.selected_tools, expectation.selected_tools),
@@ -223,9 +230,11 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
         description=str(item.get("description") or ""),
         expectation=WorkflowTraceExpectation(
             direct_vs_delegate_branch=str(expectation.get("direct_vs_delegate_branch") or ""),
+            workflow_mode=str(expectation.get("workflow_mode") or ""),
             selected_target=str(expectation.get("selected_target") or ""),
             selected_tools=tuple(str(tool) for tool in expectation.get("selected_tools") or ()),
             handoff=dict(expectation.get("handoff") or {}),
+            handoff_chain=tuple(dict(item) for item in expectation.get("handoff_chain") or ()),
             tool_argument_summary=dict(expectation.get("tool_argument_summary") or {}),
             tool_call_summaries=tuple(
                 dict(item) for item in expectation.get("tool_call_summaries") or ()
@@ -269,6 +278,28 @@ def _mapping_contains(
     return DimensionResult(
         passed=passed,
         reason="" if passed else f"{field_name} mismatch: {missing_or_mismatch}",
+    )
+
+
+def _handoff_chain_contains(
+    observed: tuple[dict[str, object], ...],
+    expected: tuple[dict[str, object], ...],
+) -> DimensionResult:
+    if not expected:
+        return DimensionResult(True, "not_applicable")
+    if len(observed) < len(expected):
+        return DimensionResult(
+            False,
+            f"handoff_chain length={len(observed)}, expected at least {len(expected)}",
+        )
+    failures = []
+    for index, expected_item in enumerate(expected):
+        result = _mapping_contains(f"handoff_chain[{index}]", observed[index], expected_item)
+        if not result.passed:
+            failures.append(result.reason)
+    return DimensionResult(
+        passed=not failures,
+        reason="; ".join(failure for failure in failures if failure),
     )
 
 
@@ -392,12 +423,19 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
     missing = []
     if not summary.direct_vs_delegate_branch:
         missing.append("direct_vs_delegate_branch")
+    if not summary.workflow_mode:
+        missing.append("workflow_mode")
     if not summary.selected_target:
         missing.append("selected_target")
+    if summary.workflow_mode == "terminal" and summary.selected_target != "none":
+        missing.append("selected_target.none_sentinel")
+    if summary.workflow_mode == "single_handoff" and not summary.handoff_chain:
+        missing.append("handoff_chain")
     if (
         not summary.selected_tools
         and not summary.fail_close_reason
         and summary.direct_vs_delegate_branch != "clarification"
+        and summary.workflow_mode != "terminal"
     ):
         missing.append("selected_tools")
     if summary.selected_tools and not summary.tool_call_summaries:

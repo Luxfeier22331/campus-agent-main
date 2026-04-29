@@ -234,6 +234,7 @@ def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary
     if not isinstance(payload, dict):
         return None
     selected_tools = payload.get("selected_tools")
+    handoff_chain = payload.get("handoff_chain")
     trace_steps = payload.get("trace_steps")
     tool_call_summaries = payload.get("tool_call_summaries")
     return WorkflowTraceSummary(
@@ -241,7 +242,11 @@ def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary
         context_resolution=dict(payload.get("context_resolution") or {}),
         planning_outcome=str(payload.get("planning_outcome") or ""),
         direct_vs_delegate_branch=str(payload.get("direct_vs_delegate_branch") or ""),
+        workflow_mode=str(payload.get("workflow_mode") or ""),
         handoff=dict(payload.get("handoff") or {}),
+        handoff_chain=tuple(dict(item) for item in handoff_chain)
+        if isinstance(handoff_chain, list)
+        else (),
         selected_target=str(payload.get("selected_target") or ""),
         selected_tools=tuple(str(item) for item in selected_tools)
         if isinstance(selected_tools, list)

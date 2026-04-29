@@ -8,7 +8,7 @@ x-campus-contract:
   response_contract: agent_response
   runtime_decisions_schema_version: supervisor-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
-  workflow_trace_summary_version: workflow-trace-summary-v1
+  workflow_trace_summary_version: workflow-trace-summary-v2
   versioning_policy:
     bridge_version: incompatible bridge envelope changes must bump bridge_version
     response_contract: AgentResponse wire contract changes must bump response_contract
@@ -377,7 +377,9 @@ components:
         - context_resolution
         - planning_outcome
         - direct_vs_delegate_branch
+        - workflow_mode
         - handoff
+        - handoff_chain
         - selected_target
         - selected_tools
         - tool_argument_summary
@@ -394,8 +396,14 @@ components:
           type: string
         direct_vs_delegate_branch:
           type: string
+        workflow_mode:
+          type: string
         handoff:
           $ref: "#/components/schemas/SafeObject"
+        handoff_chain:
+          type: array
+          items:
+            $ref: "#/components/schemas/SafeObject"
         selected_target:
           oneOf:
             - $ref: "#/components/schemas/AgentTarget"

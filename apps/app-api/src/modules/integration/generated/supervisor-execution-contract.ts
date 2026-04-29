@@ -5,7 +5,7 @@ export const SUPERVISOR_EXECUTION_CONTRACT = {
 	responseContract: "agent_response",
 	runtimeDecisionsSchemaVersion: "supervisor-runtime-decisions-v1",
 	runtimeDecisionSummarySchemaVersion: "runtime-decision-summary-v1",
-	workflowTraceSummaryVersion: "workflow-trace-summary-v1",
+	workflowTraceSummaryVersion: "workflow-trace-summary-v2",
 } as const;
 
 export const AGENT_TARGETS = [
@@ -109,7 +109,9 @@ export interface SupervisorExecutionWorkflowTraceSummaryWire {
 	context_resolution: SafeRecord;
 	planning_outcome: string;
 	direct_vs_delegate_branch: string;
+	workflow_mode: string;
 	handoff: SafeRecord;
+	handoff_chain: SafeRecord[];
 	selected_target: AgentTarget | string | null;
 	selected_tools: string[];
 	tool_argument_summary: SafeRecord;

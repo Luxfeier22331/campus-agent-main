@@ -61,6 +61,32 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "http://127.0.0.1:18081",
         )
 
+    def test_profiles_select_distinct_answer_payloads_and_expectations(self) -> None:
+        closed = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="closed_gate",
+        )
+        terminal = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="terminal_fail_close",
+        )
+        rag = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="rag_delegate",
+        )
+
+        self.assertEqual(closed.expected_status, 503)
+        self.assertIn("structured_runtime_closed", closed.expected_body_tokens)
+        self.assertEqual(terminal.expected_status, 200)
+        self.assertIn("transactional_action_not_supported", terminal.expected_body_tokens)
+        self.assertEqual(rag.expected_status, 200)
+        self.assertIn("workflow_trace_summary", rag.expected_body_tokens)
+        self.assertIn("agent_observability", rag.expected_body_tokens)
+        self.assertEqual(rag.answer_payload["requested_capability"], "knowledge")
+
 
 if __name__ == "__main__":
     unittest.main()

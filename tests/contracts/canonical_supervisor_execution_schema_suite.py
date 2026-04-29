@@ -62,6 +62,18 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             openapi["x-campus-contract"]["runtime_decision_summary_schema_version"],
             "runtime-decision-summary-v1",
         )
+        self.assertEqual(
+            openapi["x-campus-contract"]["workflow_trace_summary_version"],
+            "workflow-trace-summary-v2",
+        )
+
+    def test_workflow_trace_summary_declares_workflow_mode_and_handoff_chain(self) -> None:
+        schema = _schema("WorkflowTraceSummary")
+
+        self.assertIn("workflow_mode", schema["required"])
+        self.assertIn("handoff_chain", schema["required"])
+        self.assertEqual(schema["properties"]["workflow_mode"]["type"], "string")
+        self.assertEqual(schema["properties"]["handoff_chain"]["type"], "array")
 
     def test_contract_versioning_policy_is_declared_in_canonical_schema(self) -> None:
         openapi = _load_openapi()

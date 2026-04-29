@@ -321,6 +321,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 					payload_kind: "retrieval.query",
 					target: "rag-agent",
 				},
+				handoffChain: [],
 				planningOutcome: "preplanned",
 				policyArtifactVersions: {
 					"intent-policy": "v1",
@@ -368,6 +369,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 						step_id: "finalization",
 					},
 				],
+				workflowMode: null,
 			},
 			result: {
 				evidence: {

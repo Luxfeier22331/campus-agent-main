@@ -503,21 +503,26 @@ function workflowSafeDetailRecords(trace: RequestWorkflowTraceSummary) {
 	return records;
 }
 
-function formatWorkflowAgentPlans(trace: RequestWorkflowTraceSummary) {
+function formatWorkflowExecutionProjections(trace: RequestWorkflowTraceSummary) {
 	const values: string[] = [];
 	const seen = new Set<string>();
 	for (const safeDetails of workflowSafeDetailRecords(trace)) {
-		const agentPlan = workflowRecordValue(safeDetails, "agent_plan", "agentPlan");
-		if (!agentPlan) {
+		const projection = workflowRecordValue(
+			safeDetails,
+			"agent_execution_projection",
+			"agentExecutionProjection",
+		);
+		if (!projection) {
 			continue;
 		}
 		const selectedTool =
-			workflowStringValue(agentPlan, "selected_tool", "selectedTool") ?? PANEL_COPY.unknown;
-		const planner = workflowStringValue(agentPlan, "planner") ?? PANEL_COPY.unknown;
+			workflowStringValue(projection, "selected_tool", "selectedTool") ?? PANEL_COPY.unknown;
+		const owner =
+			workflowStringValue(projection, "projection_owner", "projectionOwner") ?? PANEL_COPY.unknown;
 		const reason =
-			workflowStringValue(agentPlan, "tool_selection_reason", "toolSelectionReason") ??
+			workflowStringValue(projection, "tool_selection_reason", "toolSelectionReason") ??
 			PANEL_COPY.unknown;
-		const value = `${selectedTool}:${planner}/${reason}`;
+		const value = `${selectedTool}:${owner}/${reason}`;
 		if (!seen.has(value)) {
 			values.push(value);
 			seen.add(value);
@@ -617,8 +622,8 @@ export function buildRequestWorkflowTraceEntries(
 			value: formatWorkflowToolCalls(trace.toolCallSummaries),
 		},
 		{
-			label: "工具计划",
-			value: formatWorkflowAgentPlans(trace),
+			label: "执行投影",
+			value: formatWorkflowExecutionProjections(trace),
 		},
 		{
 			label: "结果护栏",

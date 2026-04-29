@@ -14,7 +14,7 @@ const (
 	ResponseContract                    = "agent_response"
 	RuntimeDecisionsSchemaVersion       = "supervisor-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
-	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v1"
+	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v2"
 )
 
 type AgentTarget string

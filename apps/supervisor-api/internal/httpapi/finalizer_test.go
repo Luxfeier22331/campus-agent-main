@@ -119,6 +119,16 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 			traceSummary["direct_vs_delegate_branch"],
 		)
 	}
+	if traceSummary["workflow_mode"] != "single_handoff" {
+		t.Fatalf("workflow_mode = %v, want single_handoff", traceSummary["workflow_mode"])
+	}
+	handoffChain, ok := traceSummary["handoff_chain"].([]map[string]any)
+	if !ok || len(handoffChain) != 1 || handoffChain[0]["target"] != "campus-services-agent" {
+		t.Fatalf(
+			"handoff_chain = %#v, want single campus-services-agent handoff",
+			traceSummary["handoff_chain"],
+		)
+	}
 	if traceSummary["planning_outcome"] != "preplanned" {
 		t.Fatalf("planning_outcome = %v, want preplanned", traceSummary["planning_outcome"])
 	}
@@ -216,9 +226,9 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				"source_ref_count": float64(1),
 				"access_decision":  "allowed",
 				"safe_details": map[string]any{
-					"agent_plan": map[string]any{
-						"schema_version":        "agent-local-plan-v1",
-						"planner":               "deterministic_payload_router",
+					"agent_execution_projection": map[string]any{
+						"schema_version":        "agent-execution-projection-v1",
+						"projection_owner":      "campus-services-agent",
 						"selected_tool":         "service_status_lookup",
 						"payload_kind":          "service_status_lookup",
 						"tool_selection_reason": "typed_payload_allowed_tool",
@@ -309,9 +319,15 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	if !ok {
 		t.Fatalf("tool safe_details = %#v, want object", toolCall["safe_details"])
 	}
-	agentPlan, ok := safeDetails["agent_plan"].(map[string]any)
-	if !ok || agentPlan["schema_version"] != "agent-local-plan-v1" {
-		t.Fatalf("agent_plan = %#v, want versioned agent plan", safeDetails["agent_plan"])
+	executionProjection, ok := safeDetails["agent_execution_projection"].(map[string]any)
+	if !ok || executionProjection["schema_version"] != "agent-execution-projection-v1" {
+		t.Fatalf(
+			"agent_execution_projection = %#v, want versioned execution projection",
+			safeDetails["agent_execution_projection"],
+		)
+	}
+	if _, exists := safeDetails["agent_plan"]; exists {
+		t.Fatalf("agent_plan = %#v, want absent for deterministic projection", safeDetails["agent_plan"])
 	}
 	resultGuardrail, ok := safeDetails["result_guardrail"].(map[string]any)
 	if !ok || resultGuardrail["outcome"] != "source_backed" {
@@ -321,7 +337,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	if !ok || runtimeVersions["supervisor_api_runtime"] != "go-runtime-control-plane-v1" {
 		t.Fatalf("runtime_versions = %#v, want supervisor_api_runtime", traceSummary["runtime_versions"])
 	}
-	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v1" {
+	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v2" {
 		t.Fatalf("runtime_versions = %#v, want workflow trace summary version", runtimeVersions)
 	}
 	policyVersions, ok := traceSummary["policy_artifact_versions"].(map[string]any)
@@ -374,6 +390,12 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 		},
 	)
 	clarificationTrace := clarification["workflow_trace_summary"].(map[string]any)
+	if clarificationTrace["workflow_mode"] != "terminal" {
+		t.Fatalf("clarification workflow_mode = %v, want terminal", clarificationTrace["workflow_mode"])
+	}
+	if clarificationTrace["selected_target"] != "none" {
+		t.Fatalf("clarification selected_target = %v, want none", clarificationTrace["selected_target"])
+	}
 	if clarificationTrace["direct_vs_delegate_branch"] != "clarification" {
 		t.Fatalf("clarification branch = %v, want clarification", clarificationTrace["direct_vs_delegate_branch"])
 	}
@@ -397,6 +419,12 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 		},
 	)
 	failCloseTrace := failClose["workflow_trace_summary"].(map[string]any)
+	if failCloseTrace["workflow_mode"] != "terminal" {
+		t.Fatalf("fail-close workflow_mode = %v, want terminal", failCloseTrace["workflow_mode"])
+	}
+	if failCloseTrace["selected_target"] != "none" {
+		t.Fatalf("fail-close selected_target = %v, want none", failCloseTrace["selected_target"])
+	}
 	if failCloseTrace["direct_vs_delegate_branch"] != "fail_close" {
 		t.Fatalf("fail-close branch = %v, want fail_close", failCloseTrace["direct_vs_delegate_branch"])
 	}

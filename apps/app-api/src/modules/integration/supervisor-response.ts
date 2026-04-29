@@ -364,6 +364,13 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 				(item): item is string => typeof item === "string" && item.trim().length > 0,
 			)
 		: [];
+	const handoffChainValue = recordValue(record, "handoff_chain", "handoffChain");
+	const handoffChain = Array.isArray(handoffChainValue)
+		? handoffChainValue.flatMap((item) => {
+				const handoff = getRecord(item);
+				return handoff ? [handoff] : [];
+			})
+		: [];
 	const traceStepsValue = recordValue(record, "trace_steps", "traceSteps");
 	const traceSteps = Array.isArray(traceStepsValue)
 		? traceStepsValue.flatMap((item) => {
@@ -392,6 +399,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 			recordValue(record, "guardrail_outcomes", "guardrailOutcomes"),
 		),
 		handoff: normalizeWorkflowRecord(record.handoff),
+		handoffChain,
 		planningOutcome: normalizeRecordString(record, "planning_outcome", "planningOutcome"),
 		policyArtifactVersions: normalizeWorkflowRecord(
 			recordValue(record, "policy_artifact_versions", "policyArtifactVersions"),
@@ -407,6 +415,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 		),
 		traceSteps,
 		toolCallSummaries,
+		workflowMode: normalizeRecordString(record, "workflow_mode", "workflowMode"),
 	};
 
 	if (

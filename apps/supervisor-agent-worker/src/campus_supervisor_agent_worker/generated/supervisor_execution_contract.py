@@ -10,7 +10,7 @@ BRIDGE_VERSION = "supervisor_bridge_v6"
 RESPONSE_CONTRACT = "agent_response"
 RUNTIME_DECISIONS_SCHEMA_VERSION = "supervisor-runtime-decisions-v1"
 RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "runtime-decision-summary-v1"
-WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v1"
+WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v2"
 
 AgentTarget = Literal[
     "rag-agent",
