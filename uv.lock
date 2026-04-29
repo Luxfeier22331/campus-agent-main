@@ -27,7 +27,6 @@ members = [
     "campus-notice-agent",
     "campus-official-web-collector",
     "campus-official-web-core",
-    "campus-protected-panel-web",
     "campus-public-chat-web",
     "campus-rag-agent",
     "campus-retrieval-core",
@@ -410,17 +409,6 @@ source = { virtual = "apps/official-web-collector" }
 name = "campus-official-web-core"
 version = "0.1.0"
 source = { virtual = "packages/official-web-core" }
-
-[[package]]
-name = "campus-protected-panel-web"
-version = "0.1.0"
-source = { editable = "apps/protected-panel-web" }
-dependencies = [
-    { name = "campus-shared" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "campus-shared", editable = "packages/shared" }]
 
 [[package]]
 name = "campus-public-chat-web"
