@@ -7,7 +7,7 @@ updated: 2026-04-29
 
 # Roadmap: Public Chat Answer Feedback And Quality Signals
 
-当前 Phase 0 已完成 contract freeze，下一步进入 Phase 1 app-api durable feedback truth。
+当前 Phase 1 已完成 app-api durable feedback truth，下一步进入 Phase 2 public-chat-web UI。
 
 ## Phase 0: Scope And Contract Freeze
 
@@ -27,7 +27,7 @@ operator metric 口径。
 
 ## Phase 1: App API Feedback Truth
 
-**Status:** ready.
+**Status:** completed on 2026-04-29.
 
 **Goal:** 在 `apps/app-api` 内建立 durable feedback truth 与 command service。
 
@@ -42,6 +42,8 @@ operator metric 口径。
 - conversation detail 返回当前 owner 的 assistant message feedback state。
 
 ## Phase 2: Browser Surface And Public Chat UI
+
+**Status:** ready.
 
 **Goal:** public-chat-web 恢复用户可见 answer feedback action，并只调用 app-api surface。
 

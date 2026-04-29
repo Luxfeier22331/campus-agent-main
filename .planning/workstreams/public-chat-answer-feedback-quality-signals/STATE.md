@@ -12,10 +12,10 @@ updated: 2026-04-29
 ## Current Status
 
 - status: `active`
-- current slice: Phase 0 completed; Phase 1 ready
+- current slice: Phase 1 completed; Phase 2 ready
 - owner: current Codex session
-- active implementation: no code implementation yet
-- next phase: `Phase 1: App API Feedback Truth`
+- active implementation: app-api feedback truth completed; browser UI not started
+- next phase: `Phase 2: Browser Surface And Public Chat UI`
 
 ## Captured Context
 
@@ -51,20 +51,26 @@ updated: 2026-04-29
 ## Blockers
 
 - Phase 0 blockers resolved.
-- Phase 1 still needs implementation decisions for exact migration number, service file ownership,
-  and store method names.
+- Phase 1 completed with `0006_message_feedback.sql`, chat conversation service/store ownership,
+  and app-api route exposure.
 - Phase 2 still needs implementation decision on whether vendor compatibility keeps an internal
   adapter or renames donor `Vote` usage to repo-owned `AnswerFeedback`.
 
 ## Verification
 
 - Phase 0 verification: docs diff review plus `pnpm docs:lint`.
-- Phase 1 第一批验证应覆盖：
-  - `pnpm --dir apps/app-api test`
+- Phase 1 verification completed:
+  - `pnpm --dir apps/app-api typecheck`
+  - targeted `apps/app-api` Vitest coverage for chat conversation service/routes,
+    structured parts, shared-product bootstrap contract, and auth/db auth suite
+  - `pnpm docs:lint`
+  - `pnpm exec biome check` on touched app-api TS/test files
+- Phase 1 note: full `app-api` test still has an unrelated
+  `official-web-local-projection-drain` timeout; touched feedback surfaces passed targeted tests.
+- Phase 2 verification should cover:
   - `pnpm --dir apps/public-chat-web test:worker`
   - `pnpm --dir apps/public-chat-web typecheck`
-  - operator quality query targeted tests
-  - browser smoke for feedback submit + operator visibility
+  - public-chat-web message action regression for no donor `/api/vote`
 
 ## Continuity Notes
 

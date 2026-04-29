@@ -1,6 +1,6 @@
 ---
 doc_type: phase_plan
-status: backlog
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -8,6 +8,8 @@ updated: 2026-04-29
 <!-- markdownlint-disable MD013 -->
 
 # Phase 1 Plan: App API Feedback Truth
+
+Status: completed on 2026-04-29. Summary is recorded in `SUMMARY.md`.
 
 ## Goal
 
