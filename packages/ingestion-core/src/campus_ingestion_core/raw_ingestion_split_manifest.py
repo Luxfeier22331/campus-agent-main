@@ -663,7 +663,9 @@ def _merge_split_manifest_row(
 ) -> None:
     target_text = str(target_row.get("clean_text") or "").strip()
     incoming_text = str(incoming_row.get("clean_text") or "").strip()
-    target_row["clean_text"] = f"{target_text}{_text_joiner(target_text, incoming_text)}{incoming_text}"
+    target_row["clean_text"] = (
+        f"{target_text}{_text_joiner(target_text, incoming_text)}{incoming_text}"
+    )
     target_row["page_end"] = max(
         int(target_row.get("page_end") or 0),
         int(incoming_row.get("page_end") or 0),

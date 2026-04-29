@@ -155,7 +155,9 @@ class SplitManifestTest(unittest.TestCase):
                         msg=f"{filename} public curriculum document should not carry visibility_scope",
                     )
 
-    def test_repo_curriculum_plan_candidate_manifest_keeps_social_practice_split_boundary(self) -> None:
+    def test_repo_curriculum_plan_candidate_manifest_keeps_social_practice_split_boundary(
+        self,
+    ) -> None:
         candidate = load_split_manifest(
             Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.candidate.v1.json"),
             expected_corpus="curriculum",
@@ -270,6 +272,7 @@ class SplitManifestTest(unittest.TestCase):
         self.assertIn("经济学拔尖人才创新班人才培养方案", second_rows[0]["clean_text"])
         self.assertNotIn("国际经济与贸易本科人才培养方案", second_rows[0]["clean_text"])
         self.assertTrue(all(289 <= row["page_start"] <= 297 for row in second_rows))
+
 
 if __name__ == "__main__":
     unittest.main()

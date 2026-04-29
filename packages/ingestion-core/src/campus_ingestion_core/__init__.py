@@ -118,15 +118,15 @@ from campus_ingestion_core.handbook_provider_normalize import (
     normalize_handbook_provider_result,
     serialize_handbook_layout_elements,
 )
-from campus_ingestion_core.handbook_source_truth_validation import (
-    HandbookSourceTruthValidationReport,
-    scan_handbook_source_truth_rows,
-    validate_handbook_source_truth_rows,
-)
 from campus_ingestion_core.handbook_source_migration import (
     StudentHandbookMigrationReport,
     StudentHandbookSourceAssetRequest,
     migrate_student_handbook_source_faithful,
+)
+from campus_ingestion_core.handbook_source_truth_validation import (
+    HandbookSourceTruthValidationReport,
+    scan_handbook_source_truth_rows,
+    validate_handbook_source_truth_rows,
 )
 from campus_ingestion_core.index_release import (
     IndexReleaseArtifacts,
@@ -365,6 +365,7 @@ __all__ = [
     "FileReleaseOwnerRecoveryReadinessReport",
     "FileReleaseResolvedFile",
     "HandbookCleanupResult",
+    "HandbookSourceTruthValidationReport",
     "ImportReport",
     "InMemoryCloseoutStore",
     "IndexReleaseArtifacts",
@@ -459,7 +460,6 @@ __all__ = [
     "build_operations_artifact_key",
     "build_processed_asset_artifact_key",
     "build_public_docs_sync_manifest",
-    "publish_document_reader_assets",
     "build_qdrant_backup_artifact_key",
     "build_raw_asset_key",
     "build_raw_asset_registry_from_env",
@@ -511,6 +511,7 @@ __all__ = [
     "prefetch_hf_tokenizer",
     "prepare_registry_scope_chunks",
     "process_raw_ingestion_job",
+    "publish_document_reader_assets",
     "publish_release_alias",
     "read_internal_notice_promotion_routing_path",
     "rebuild_authenticated_notice_source_projections",
@@ -527,17 +528,16 @@ __all__ = [
     "resolve_version_query",
     "restore_snapshot_backup",
     "rollback_release_alias",
+    "scan_handbook_source_truth_rows",
     "scan_internal_notice_chunking",
     "scan_student_handbook_chunking",
     "serialize_handbook_document_units",
     "serialize_handbook_layout_elements",
     "set_scope_release_alias",
-    "scan_handbook_source_truth_rows",
+    "validate_handbook_source_truth_rows",
     "validate_internal_notice_chunking",
     "validate_official_web_projection_output",
-    "validate_handbook_source_truth_rows",
     "validate_scope_release",
     "validate_student_handbook_chunking",
     "write_index_release_artifacts",
-    "HandbookSourceTruthValidationReport",
 ]

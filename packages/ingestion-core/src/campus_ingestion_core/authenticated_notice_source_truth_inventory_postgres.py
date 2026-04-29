@@ -78,7 +78,10 @@ class PostgresAuthenticatedNoticeSourceTruthInventoryStore:
         collection: str,
         records: Sequence[AuthenticatedNoticeSourceTruthInventoryEntry],
     ) -> None:
-        with _patched_postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+        with (
+            _patched_postgres_connection(self.database_url, autocommit=False) as conn,
+            conn.cursor() as cursor,
+        ):
             cursor.execute(
                 f"delete from {self.table_name} where corpus = %s and collection = %s",
                 (corpus, collection),

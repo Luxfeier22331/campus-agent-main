@@ -59,7 +59,8 @@ class PaddleOcrAsyncClientTest(unittest.TestCase):
                 patch(
                     "campus_ingestion_core.raw_ingestion_online_ocr.time.monotonic",
                     side_effect=(0.0, 0.0, 0.5, 1.5, 1.5),
-                ),self.assertRaises(OnlineOcrProviderContractError) as raised
+                ),
+                self.assertRaises(OnlineOcrProviderContractError) as raised,
             ):
                 client.parse_file(file_path)
 

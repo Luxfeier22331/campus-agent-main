@@ -66,7 +66,6 @@ def _assert_no_forbidden_source_truth_fields(
 
 
 class SourceTruthQualityGateCurriculumTest(unittest.TestCase):
-
     def test_curriculum_quality_gate_covers_heading_repeat_footer_and_table_semantics(self) -> None:
         rows = _curriculum_rows_from_payload(
             {
@@ -400,9 +399,9 @@ class SourceTruthQualityGateCurriculumTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "curriculum source truth validation failed"):
             normalize_curriculum_provider_result(
-                provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode(
-                    "utf-8"
-                ),
+                provider_jsonl_bytes=(
+                    json.dumps(provider_payload, ensure_ascii=False) + "\n"
+                ).encode("utf-8"),
                 source_pdf="curriculum-plan.pdf",
                 ocr_provider="mineru_api",
                 ocr_model="vlm",

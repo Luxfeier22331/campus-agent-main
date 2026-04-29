@@ -73,10 +73,13 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
         )
 
     def test_resolve_prefetched_hf_tokenizer_path_requires_local_cache(self) -> None:
-        with mock.patch(
-            "campus_ingestion_core.tokenizer_cache._snapshot_download",
-            side_effect=RuntimeError("cache miss"),
-        ) as snapshot_download, self.assertRaisesRegex(RuntimeError, "prefetch"):
+        with (
+            mock.patch(
+                "campus_ingestion_core.tokenizer_cache._snapshot_download",
+                side_effect=RuntimeError("cache miss"),
+            ) as snapshot_download,
+            self.assertRaisesRegex(RuntimeError, "prefetch"),
+        ):
             tokenizer_cache.resolve_prefetched_hf_tokenizer_path("Qwen/Qwen3-Embedding-4B")
 
         snapshot_download.assert_called_once_with(
@@ -105,10 +108,13 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
                 from_pretrained=mock.Mock(return_value=fake_tokenizer)
             )
         )
-        with mock.patch(
-            "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
-            return_value="/tmp/qwen-tokenizer",
-        ) as resolve_path, mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
+        with (
+            mock.patch(
+                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
+                return_value="/tmp/qwen-tokenizer",
+            ) as resolve_path,
+            mock.patch.dict(sys.modules, {"transformers": fake_transformers}),
+        ):
             result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
 
         self.assertIs(result, fake_tokenizer)

@@ -118,7 +118,10 @@ class PostgresRawAssetRegistry:
             "ingestion_timestamp = excluded.ingestion_timestamp, "
             "record = excluded.record"
         )
-        with _patched_postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+        with (
+            _patched_postgres_connection(self.database_url, autocommit=False) as conn,
+            conn.cursor() as cursor,
+        ):
             cursor.execute(delete_query, delete_params)
             if records:
                 cursor.executemany(

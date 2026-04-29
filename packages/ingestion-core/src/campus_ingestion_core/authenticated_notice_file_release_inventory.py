@@ -203,7 +203,10 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
         collection: str,
         records: Sequence[AuthenticatedNoticeFileReleaseInventoryEntry],
     ) -> None:
-        with _postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+        with (
+            _postgres_connection(self.database_url, autocommit=False) as conn,
+            conn.cursor() as cursor,
+        ):
             cursor.execute(
                 f"delete from {self.table_name} where corpus = %s and collection = %s",
                 (corpus, collection),

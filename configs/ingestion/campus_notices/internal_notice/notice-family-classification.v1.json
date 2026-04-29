@@ -567,15 +567,7 @@
 				"通勤班车.*(调整|增加|运行|运营|班次|时间)",
 				"专车"
 			],
-			"title_exclude_patterns": [
-				"管理办法",
-				"管理规定",
-				"实施细则",
-				"制度",
-				"手册",
-				"指南",
-				"规则"
-			]
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "手册", "指南", "规则"]
 		},
 		{
 			"family": "facility_transport_classroom_status",

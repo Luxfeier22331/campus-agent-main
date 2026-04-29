@@ -87,9 +87,7 @@ def build_curriculum_course_map_inventory(
             continue
         parent_heading_hint = str(row.get("parent_heading_hint") or "").strip()
         if not _is_curriculum_course_map_candidate(parent_heading_hint):
-            parent_heading_hint = active_course_map_headings_by_document.get(
-                owner_document_id, ""
-            )
+            parent_heading_hint = active_course_map_headings_by_document.get(owner_document_id, "")
         recent_caption_page, recent_caption_hint = recent_course_map_caption_by_document.get(
             owner_document_id, (0, "")
         )
@@ -440,10 +438,10 @@ def _load_jsonl_bytes(payload: bytes) -> tuple[dict[str, object], ...]:
 
 
 __all__ = [
+    "_derive_layout_page_widths",
+    "_drain_pending_images_before_heading",
     "_is_curriculum_course_map_candidate",
     "_is_curriculum_course_map_caption_hint",
-    "_drain_pending_images_before_heading",
-    "_derive_layout_page_widths",
     "_load_jsonl_bytes",
     "_load_split_manifest_document_ranges",
     "_resolve_document_for_page",

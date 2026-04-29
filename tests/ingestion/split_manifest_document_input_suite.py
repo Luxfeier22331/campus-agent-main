@@ -28,7 +28,6 @@ def _curriculum_raw_asset_record(*, raw_version_id: str) -> RawAssetRecord:
 
 
 class SplitManifestDocumentInputTest(unittest.TestCase):
-
     def test_build_split_manifest_document_input_preserves_table_projection_fields(self) -> None:
         manifest = load_split_manifest(
             Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),

@@ -298,7 +298,11 @@ def _classify_block(
             return "page_number", "page_number", 0.82, "provider_label:number:page_number_heuristic"
         return "paragraph", "body", 0.55, "provider_label:number:body_fallback"
     if raw_type in {"table"}:
-        if not table_cells and (html is None or "<table" not in html.lower()) and not text_normalized:
+        if (
+            not table_cells
+            and (html is None or "<table" not in html.lower())
+            and not text_normalized
+        ):
             return "image", "image", 0.55, "provider_label:table:empty_table_fallback"
         return "table", "table", 0.98, "provider_label:table"
     if raw_type == "header_image":
@@ -371,9 +375,9 @@ def _extract_html(item: dict[str, object]) -> str | None:
 
 def _repair_known_handbook_table_html(html: str) -> str:
     return html.replace(
-        "<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>",
-        "<tr><td colspan=\"2\">教育学</td><td>145学分</td><td></td><td></td></tr>"
-        "<tr><td colspan=\"2\">体育类</td><td>145学分</td><td></td><td></td></tr>",
+        '<tr><td colspan="2">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>',
+        '<tr><td colspan="2">教育学</td><td>145学分</td><td></td><td></td></tr>'
+        '<tr><td colspan="2">体育类</td><td>145学分</td><td></td><td></td></tr>',
     )
 
 

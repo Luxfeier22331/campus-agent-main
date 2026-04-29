@@ -262,9 +262,7 @@ def _load_default_family_route_override(
         raise ValueError(f"default family route override {name} requires consumption_route")
     machine_processing_policy = str(raw.get("machine_processing_policy") or "").strip()
     if not machine_processing_policy:
-        raise ValueError(
-            f"default family route override {name} requires machine_processing_policy"
-        )
+        raise ValueError(f"default family route override {name} requires machine_processing_policy")
     return AuthenticatedNoticeDefaultFamilyRouteOverride(
         name=name,
         consumption_route=consumption_route,

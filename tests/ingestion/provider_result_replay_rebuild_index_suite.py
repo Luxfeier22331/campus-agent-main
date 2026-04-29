@@ -109,20 +109,20 @@ class ProviderResultReplayIndexTest(unittest.TestCase):
                     "replayed document regulations/student_rules handbook:empty-chunks@v1:empty-chunks produced no chunks",
                 ),
             ):
-                    _index_replayed_documents(
-                        source={
-                            "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                            "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                            "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
-                            "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
-                            "EMBEDDING_PROVIDER": "mock",
-                        },
-                        registry=registry,
-                        documents=documents,
-                        object_store=_FakeObjectStore(provider_result_bytes=b""),
-                        qdrant_client=QdrantClient(location=":memory:"),
-                    )
+                _index_replayed_documents(
+                    source={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                    },
+                    registry=registry,
+                    documents=documents,
+                    object_store=_FakeObjectStore(provider_result_bytes=b""),
+                    qdrant_client=QdrantClient(location=":memory:"),
+                )
 
     def test_index_replayed_documents_batches_upserts_and_only_ensures_collection_once(
         self,

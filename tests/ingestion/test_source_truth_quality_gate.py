@@ -457,5 +457,6 @@ class SourceTruthQualityGateTest(unittest.TestCase):
         self.assertEqual(report.unknown_row_type_count, 1)
         self.assertFalse(report.passed)
 
+
 if __name__ == "__main__":
     unittest.main()

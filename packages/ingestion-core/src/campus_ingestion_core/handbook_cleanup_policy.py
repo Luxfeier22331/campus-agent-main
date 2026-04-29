@@ -459,8 +459,8 @@ def _looks_like_inline_enumerated_heading(text: str) -> bool:
 
 __all__ = [
     "_extract_appendix_heading_title",
-    "_is_duplicate_attachment_cover_text",
     "_is_duplicate_attachment_cover_fragment",
+    "_is_duplicate_attachment_cover_text",
     "_looks_like_ancillary_note_line",
     "_looks_like_appendix_heading",
     "_looks_like_appendix_leaf_section_heading",

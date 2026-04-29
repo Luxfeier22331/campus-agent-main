@@ -291,7 +291,10 @@ def audit_registry_collection_rename_backfill(
 
 
 def _apply_legacy_row_backfill(target: _RegistryBackfillTarget) -> int:
-    with open_postgres_connection(target.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+    with (
+        open_postgres_connection(target.database_url, autocommit=False) as conn,
+        conn.cursor() as cursor,
+    ):
         cursor.execute(
             f"""
             update {target.table_name}

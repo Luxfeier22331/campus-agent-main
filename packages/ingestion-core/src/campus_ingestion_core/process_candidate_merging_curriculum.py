@@ -213,7 +213,7 @@ def curriculum_table_section_paths_are_compatible(
         return False
     if current_path[: len(incoming_path)] == incoming_path:
         return True
-    return incoming_path[:len(current_path)] == current_path
+    return incoming_path[: len(current_path)] == current_path
 
 
 def curriculum_section_context_candidates_are_compatible(
@@ -451,7 +451,10 @@ def curriculum_candidate_has_short_parent_intro_body(candidate: _ChunkCandidate)
     if contribution_lines[0] != section_path[-1]:
         return False
     first_body_line = contribution_lines[1]
-    return not (_CURRICULUM_TOP_LEVEL_HEADING_RE.match(first_body_line) or _NESTED_NUMBERED_LINE_RE.match(first_body_line))
+    return not (
+        _CURRICULUM_TOP_LEVEL_HEADING_RE.match(first_body_line)
+        or _NESTED_NUMBERED_LINE_RE.match(first_body_line)
+    )
 
 
 def curriculum_candidate_has_structural_continuation_beyond_anchor(

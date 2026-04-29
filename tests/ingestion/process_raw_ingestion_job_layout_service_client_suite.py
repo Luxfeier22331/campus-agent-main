@@ -64,9 +64,12 @@ class PaddleOcrLayoutParsingServiceClientTest(unittest.TestCase):
             file_path = Path(temp_dir) / "sample.png"
             file_path.write_bytes(b"png-bytes")
 
-            with patch.dict("sys.modules", {"requests": requests_module}), self.assertRaisesRegex(
-                RuntimeError,
-                "online OCR layout-parsing response for sample.png is missing layoutParsingResults",
+            with (
+                patch.dict("sys.modules", {"requests": requests_module}),
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "online OCR layout-parsing response for sample.png is missing layoutParsingResults",
+                ),
             ):
                 client.parse_file(file_path)
 

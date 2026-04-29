@@ -224,7 +224,10 @@ class PostgresDocumentRegistry:
         else:
             delete_query = f"delete from {self.table_name} where corpus = %s and collection = %s"
             delete_params = (corpus, collection)
-        with _patched_postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+        with (
+            _patched_postgres_connection(self.database_url, autocommit=False) as conn,
+            conn.cursor() as cursor,
+        ):
             cursor.execute(delete_query, delete_params)
             if records:
                 cursor.execute(

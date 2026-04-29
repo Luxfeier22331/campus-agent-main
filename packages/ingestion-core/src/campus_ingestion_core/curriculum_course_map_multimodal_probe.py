@@ -32,11 +32,9 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_reporting impo
     build_curriculum_course_map_repeatability_report,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
-    _build_responses_multimodal_input,
     _build_course_map_detector_content,
     _build_course_map_region_content,
     _normalize_prompt_runtime_transport,
-    _to_responses_multimodal_content,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
     _detect_curriculum_course_map_regions_async as _runtime_detect_curriculum_course_map_regions_async,
@@ -67,7 +65,6 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime_support import (
     _build_probe_config,
-    _is_retryable_probe_exception,
     _validate_resume_probe_config,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (

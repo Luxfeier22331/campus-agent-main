@@ -17,6 +17,12 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
     NoticeConsumptionProjectionEntry,
 )
+from campus_ingestion_core.notice_derived_transport_schedule_body_materialization import (
+    body_schedule_row_remarks,
+    body_schedule_row_text,
+    dedupe_transport_schedule_rows,
+    resolve_body_schedule_service_date_ranges,
+)
 from campus_ingestion_core.notice_derived_transport_schedule_parsing import (
     _clean_cell,
     _coerce_int,
@@ -169,6 +175,7 @@ def extract_notice_derived_transport_schedule_rows(
             source_ref=source_ref,
         )
     )
+    rows = dedupe_transport_schedule_rows(rows)
     for attachment_record in attachment_records:
         attachment_text = _read_record_text(
             record=attachment_record,
@@ -775,13 +782,14 @@ def _extract_rows_from_body_schedule(
     )
     if extraction.status != "extracted":
         return []
-    service_date_ranges = _resolve_service_date_ranges(
-        text=f"{parent_text}\n{extraction.service_window}",
+    service_date_ranges = resolve_body_schedule_service_date_ranges(
+        extraction_service_window=extraction.service_window,
+        parent_text=parent_text,
         release_time=projection_entry.source_notice_release_time,
     )
     rows: list[NoticeDerivedTransportScheduleRow] = []
     for body_row in extraction.rows:
-        row_text = _body_schedule_row_text(body_row)
+        row_text = body_schedule_row_text(body_row)
         route = _resolve_route(str(body_row.get("route_text") or row_text))
         if route is None:
             continue
@@ -803,12 +811,14 @@ def _extract_rows_from_body_schedule(
                 source_notice_id=projection_entry.source_notice_id,
                 source_ref=source_ref,
                 source_attachment_document_id=projection_entry.source_notice_document_id,
-                weekday_scope=_resolve_weekday_scope(row_text, route.default_calendar),
+                weekday_scope=_resolve_weekday_scope(
+                    f"{parent_text}\n{row_text}", route.default_calendar
+                ),
                 route_direction=_route_direction(route.route_id),
                 route_id=route.route_id,
                 departure_time=str(body_row["departure_time"]),
                 rider_type=_resolve_rider_type(f"{parent_text}\n{row_text}"),
-                remarks=_body_schedule_row_remarks(body_row),
+                remarks=body_schedule_row_remarks(body_row),
                 effective_from=effective_from,
                 schedule_scope=schedule_scope,
                 service_date_ranges=service_date_ranges,
@@ -816,37 +826,6 @@ def _extract_rows_from_body_schedule(
             )
         )
     return rows
-
-
-def _body_schedule_row_text(row: Mapping[str, str]) -> str:
-    return _clean_cell(
-        " ".join(
-            item
-            for item in (
-                row.get("route_text", ""),
-                row.get("direction_label", ""),
-                row.get("sequence_label", ""),
-                row.get("departure_time", ""),
-                row.get("boarding_location", ""),
-            )
-            if item
-        )
-    )
-
-
-def _body_schedule_row_remarks(row: Mapping[str, str]) -> str:
-    return "；".join(
-        dict.fromkeys(
-            item
-            for item in (
-                row.get("sequence_label", ""),
-                f"乘车地点：{row.get('boarding_location', '')}"
-                if row.get("boarding_location")
-                else "",
-            )
-            if item
-        )
-    )
 
 
 def _extract_exceptions_from_parent_text(

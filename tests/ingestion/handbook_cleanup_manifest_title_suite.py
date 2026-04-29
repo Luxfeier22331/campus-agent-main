@@ -241,9 +241,13 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
             [row["unit_type"] for row in result.document_units],
             ["article_body", "article_body"],
         )
-        self.assertNotIn("中央民族大学\n家庭经济困难学生临时困难补助管理办法", result.canonical_markdown)
+        self.assertNotIn(
+            "中央民族大学\n家庭经济困难学生临时困难补助管理办法", result.canonical_markdown
+        )
         self.assertNotIn("中央民族大学", result.document_units[0]["clean_text"])
-        self.assertNotIn("家庭经济困难学生临时困难补助管理办法", result.document_units[0]["clean_text"])
+        self.assertNotIn(
+            "家庭经济困难学生临时困难补助管理办法", result.document_units[0]["clean_text"]
+        )
 
     def test_cleanup_projects_list_like_sections_into_multiple_policy_pages(self) -> None:
         result = cleanup_handbook_document(

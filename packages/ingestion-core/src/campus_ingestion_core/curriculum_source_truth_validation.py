@@ -125,9 +125,9 @@ def validate_curriculum_source_truth_rows(rows: list[dict[str, object]]) -> None
         "parent_heading_hint_missing_count": report.parent_heading_hint_missing_count,
         "reading_order_gap_count": report.reading_order_gap_count,
     }
-    failure_summary = ", ".join(
-        f"{key}={value}" for key, value in failures.items() if value
-    ) or "unknown_failure"
+    failure_summary = (
+        ", ".join(f"{key}={value}" for key, value in failures.items() if value) or "unknown_failure"
+    )
     raise ValueError(f"curriculum source truth validation failed: {failure_summary}")
 
 

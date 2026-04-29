@@ -35,6 +35,17 @@ _SERVICE_WINDOW_RE = re.compile(
     r"(?:\d{1,2}月)?\d{1,2}日(?:[（(][^）)]{1,12}[）)])?"
     r"(?:之间|期间)?"
 )
+_SERVICE_SINGLE_DATE_RE = re.compile(
+    r"(?:本周|周末|临时|当天|当日)[^。；;\n]{0,20}?"
+    r"(?P<date>\d{1,2}月\d{1,2}日)"
+)
+_ONE_OFF_ROUTE_RE = re.compile(
+    r"(?P<route>(?:海淀|丰台)校区[”\"]?\s*(?:发往|开往|至|到)\s*[“\"]?"
+    r"(?:海淀|丰台)校区).*?"
+    r"(?:临时)?(?:增加|增开|加开)\s*(?:一趟|1趟|一班|1班)?\s*"
+    r"(?P<hour>[01]?\d|2[0-3])[:：](?P<minute>[0-5]\d)",
+    re.S,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +88,7 @@ def extract_schedule_from_notice_body(
                     "boarding_location": locations.get(direction_label, ""),
                 }
             )
+    rows.extend(_extract_one_off_route_rows(text, body.notice_id))
     if not rows:
         return ScheduleNoticeBodyExtraction(
             notice_id=body.notice_id,
@@ -92,6 +104,22 @@ def extract_schedule_from_notice_body(
         service_window=_extract_service_window(text),
         rows=tuple(rows),
     )
+
+
+def _extract_one_off_route_rows(text: str, notice_id: str) -> tuple[dict[str, str], ...]:
+    rows: list[dict[str, str]] = []
+    for match in _ONE_OFF_ROUTE_RE.finditer(text):
+        rows.append(
+            {
+                "notice_id": notice_id,
+                "direction_label": "临时增加",
+                "route_text": _clean_route_text(match.group("route")),
+                "sequence_label": "临时增加班次",
+                "departure_time": f"{int(match.group('hour')):02d}:{match.group('minute')}",
+                "boarding_location": "",
+            }
+        )
+    return tuple(rows)
 
 
 def _extract_direction_routes(text: str) -> dict[str, str]:
@@ -118,7 +146,10 @@ def _extract_direction_locations(text: str) -> dict[str, str]:
 
 def _extract_service_window(text: str) -> str:
     match = _SERVICE_WINDOW_RE.search(text)
-    return match.group(0) if match else ""
+    if match:
+        return match.group(0)
+    single_date_match = _SERVICE_SINGLE_DATE_RE.search(text)
+    return single_date_match.group("date") if single_date_match else ""
 
 
 def _normalize_text(text: str) -> str:

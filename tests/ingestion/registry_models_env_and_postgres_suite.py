@@ -60,11 +60,14 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             )
 
     def test_build_document_registry_from_env_rejects_supabase_direct_connection(self) -> None:
-        with patch.object(
-            PostgresDocumentRegistry,
-            "_ensure_schema",
-            return_value=None,
-        ), self.assertRaisesRegex(ValueError, "session pooler"):
+        with (
+            patch.object(
+                PostgresDocumentRegistry,
+                "_ensure_schema",
+                return_value=None,
+            ),
+            self.assertRaisesRegex(ValueError, "session pooler"),
+        ):
             build_document_registry_from_env(
                 {
                     "DOCUMENT_REGISTRY_DATABASE_URL": (
@@ -144,11 +147,14 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             )
 
     def test_build_raw_asset_registry_from_env_rejects_supabase_transaction_pooler(self) -> None:
-        with patch.object(
-            PostgresRawAssetRegistry,
-            "_ensure_schema",
-            return_value=None,
-        ), self.assertRaisesRegex(ValueError, "session pooler"):
+        with (
+            patch.object(
+                PostgresRawAssetRegistry,
+                "_ensure_schema",
+                return_value=None,
+            ),
+            self.assertRaisesRegex(ValueError, "session pooler"),
+        ):
             build_raw_asset_registry_from_env(
                 {
                     "RAW_ASSET_REGISTRY_DATABASE_URL": (
@@ -172,11 +178,14 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
 
     def test_build_closeout_store_from_env_rejects_supabase_direct_connection(self) -> None:
-        with patch.object(
-            PostgresAuthenticatedNoticeCloseoutStore,
-            "_ensure_schema",
-            return_value=None,
-        ), self.assertRaisesRegex(ValueError, "session pooler"):
+        with (
+            patch.object(
+                PostgresAuthenticatedNoticeCloseoutStore,
+                "_ensure_schema",
+                return_value=None,
+            ),
+            self.assertRaisesRegex(ValueError, "session pooler"),
+        ):
             build_authenticated_notice_closeout_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": (

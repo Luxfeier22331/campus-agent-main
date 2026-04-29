@@ -531,7 +531,9 @@ def _curriculum_is_allowed_tiny_chunk(
     remainder = lines[len(leading) :]
     if not remainder or len(remainder) > 2:
         return False
-    heading_remainder = [line for line in remainder if _looks_like_curriculum_structure_heading(line)]
+    heading_remainder = [
+        line for line in remainder if _looks_like_curriculum_structure_heading(line)
+    ]
     if heading_remainder:
         non_heading_remainder = [
             line for line in remainder if not _looks_like_curriculum_structure_heading(line)

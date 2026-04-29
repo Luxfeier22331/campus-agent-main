@@ -12,8 +12,8 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
     DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     AuthenticatedNoticeAttachmentFetchStatusRecord,
-    build_attachment_source_url_hash,
     build_attachment_fetch_status_records_from_bundle_records,
+    build_attachment_source_url_hash,
     build_authenticated_notice_attachment_fetch_status_store_from_env,
 )
 from campus_ingestion_core.authenticated_notice_import import (

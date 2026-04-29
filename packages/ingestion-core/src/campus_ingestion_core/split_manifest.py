@@ -154,9 +154,8 @@ def _collect_unsupported_authorization_projection_keys(
 
 
 def _looks_like_authorization_projection_key(key: str) -> bool:
-    return (
-        key.startswith(("entitlement_", "visibility_", "policy_projection_"))
-        or key.endswith(("_groups", "_scope", "_level"))
+    return key.startswith(("entitlement_", "visibility_", "policy_projection_")) or key.endswith(
+        ("_groups", "_scope", "_level")
     )
 
 

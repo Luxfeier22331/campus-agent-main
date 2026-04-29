@@ -287,7 +287,7 @@ def institutional_regulation_block_section_paths_are_compatible(
         return False
     if incoming_path[: len(current_path)] == current_path:
         return True
-    return current_path[:len(incoming_path)] == incoming_path
+    return current_path[: len(incoming_path)] == incoming_path
 
 
 def is_short_textual_merge_eligible(candidate: _ChunkCandidate) -> bool:

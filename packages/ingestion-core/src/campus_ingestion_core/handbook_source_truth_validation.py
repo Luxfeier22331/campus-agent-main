@@ -46,9 +46,7 @@ def scan_handbook_source_truth_rows(
     )
     heading_role_conflict_count = sum(1 for row in rows if _has_heading_role_conflict(row))
     page_number_leak_count = sum(1 for row in rows if _looks_like_page_number_leak(row))
-    repeat_candidate_miss_count, repeat_metadata_conflict_count = _scan_repeat_candidate_state(
-        rows
-    )
+    repeat_candidate_miss_count, repeat_metadata_conflict_count = _scan_repeat_candidate_state(rows)
     table_semantics_conflict_count = sum(1 for row in rows if _has_table_semantics_conflict(row))
     table_fragment_miss_count = _count_table_fragment_misses(rows)
     cross_page_continuation_miss_count = _count_cross_page_continuation_misses(rows)
@@ -102,9 +100,9 @@ def validate_handbook_source_truth_rows(rows: list[dict[str, object]]) -> None:
         "cross_page_continuation_miss_count": report.cross_page_continuation_miss_count,
         "unknown_row_type_count": report.unknown_row_type_count,
     }
-    failure_summary = ", ".join(
-        f"{key}={value}" for key, value in failures.items() if value
-    ) or "unknown_failure"
+    failure_summary = (
+        ", ".join(f"{key}={value}" for key, value in failures.items() if value) or "unknown_failure"
+    )
     raise ValueError(f"handbook source truth validation failed: {failure_summary}")
 
 
@@ -165,7 +163,8 @@ def _scan_repeat_candidate_state(rows: list[dict[str, object]]) -> tuple[int, in
 def _is_repeat_sensitive_group(*, text: str, rows: list[dict[str, object]]) -> bool:
     if text in RUNNING_HEADER_LINES:
         return all(
-            _is_margin_running_header_candidate(row) or _is_short_top_or_bottom_repeat_candidate(row)
+            _is_margin_running_header_candidate(row)
+            or _is_short_top_or_bottom_repeat_candidate(row)
             for row in rows
         )
     return all(_is_short_top_or_bottom_repeat_candidate(row) for row in rows)

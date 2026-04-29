@@ -239,9 +239,10 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
             created.append(pool)
             return pool
 
-        with patch(
-            "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
-        ), runtime.pooled_postgres_connection(SESSION_POOLER_URL):
+        with (
+            patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool),
+            runtime.pooled_postgres_connection(SESSION_POOLER_URL),
+        ):
             pass
 
         self.assertEqual(len(created), 1)
@@ -287,9 +288,10 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
             created.append(pool)
             return pool
 
-        with patch(
-            "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
-        ), runtime.pooled_postgres_connection("postgresql://registry.example/postgres"):
+        with (
+            patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool),
+            runtime.pooled_postgres_connection("postgresql://registry.example/postgres"),
+        ):
             pass
 
         self.assertEqual(len(created), 1)
@@ -344,12 +346,13 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
             created.append(pool)
             return pool
 
-        with patch(
-            "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
-        ), runtime.pooled_postgres_connection(
-            "postgresql://registry.example/postgres",
-            autocommit=False,
-        ) as conn:
+        with (
+            patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool),
+            runtime.pooled_postgres_connection(
+                "postgresql://registry.example/postgres",
+                autocommit=False,
+            ) as conn,
+        ):
             self.assertIs(conn, created[0].connection_object)
 
         self.assertEqual(created[0].connection_object.commit_count, 1)
@@ -397,11 +400,13 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
             created.append(pool)
             return pool
 
-        with patch(
-            "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
-        ), self.assertRaisesRegex(RuntimeError, "boom"), runtime.pooled_postgres_connection(
-            "postgresql://registry.example/postgres",
-            autocommit=False,
+        with (
+            patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool),
+            self.assertRaisesRegex(RuntimeError, "boom"),
+            runtime.pooled_postgres_connection(
+                "postgresql://registry.example/postgres",
+                autocommit=False,
+            ),
         ):
             raise RuntimeError("boom")
 
