@@ -191,17 +191,68 @@ def _access_context_from_request(request: AgentRequest) -> NoticeAccessContext:
 
 def _agent_observability(tool_name: str, result) -> AgentObservability:
     outcome = str(getattr(result, "outcome", "") or "")
+    failure_class = _failure_class_for_outcome(outcome)
+    source_ref_count = _source_ref_count(result)
     return AgentObservability(
         selected_tool=tool_name,
         tool_attempted=True,
         tool_outcome=outcome,
-        failure_class=_failure_class_for_outcome(outcome),
+        failure_class=failure_class,
         fail_close_reason=str(getattr(result, "fail_close_reason", "") or ""),
         result_outcome=outcome,
-        source_ref_count=_source_ref_count(result),
+        source_ref_count=source_ref_count,
         access_decision="allowed",
-        safe_details={"result_type": result.__class__.__name__},
+        safe_details=_agent_safe_details(
+            tool_name=tool_name,
+            result_type=result.__class__.__name__,
+            outcome=outcome,
+            source_ref_count=source_ref_count,
+            access_decision="allowed",
+            failure_class=failure_class,
+        ),
     )
+
+
+def _agent_safe_details(
+    *,
+    tool_name: str,
+    result_type: str,
+    outcome: str,
+    source_ref_count: int,
+    access_decision: str,
+    failure_class: str,
+) -> dict[str, object]:
+    result_guardrail: dict[str, object] = {
+        "schema_version": "agent-result-guardrail-v1",
+        "outcome": _result_guardrail_outcome(outcome, source_ref_count),
+        "source_ref_count": source_ref_count,
+        "access_decision": access_decision,
+    }
+    if failure_class:
+        result_guardrail["failure_class"] = failure_class
+    return {
+        "result_type": result_type,
+        "agent_plan": {
+            "schema_version": "agent-local-plan-v1",
+            "planner": "deterministic_payload_router",
+            "selected_tool": tool_name,
+            "payload_kind": tool_name,
+            "tool_selection_reason": "typed_payload_allowed_tool",
+        },
+        "result_guardrail": result_guardrail,
+    }
+
+
+def _result_guardrail_outcome(outcome: str, source_ref_count: int) -> str:
+    if outcome in {"resolved_current", "resolved_historical_reference"}:
+        return "source_backed" if source_ref_count > 0 else "source_gap"
+    if outcome == "clarification_required":
+        return "clarification"
+    if outcome == "temporarily_unverifiable":
+        return "fail_close"
+    if outcome == "not_found":
+        return "not_found"
+    return "unclassified"
 
 
 def _failure_class_for_outcome(outcome: str) -> str:
