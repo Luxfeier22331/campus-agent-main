@@ -147,7 +147,9 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
             [stage["stage_candidates"][0]["stage_candidate_id"]],
         )
 
-    def test_transport_schedule_pilot_blocks_multimodal_pending_notice(self) -> None:
+    def test_transport_schedule_pilot_admits_text_complete_pending_supplemental_image(
+        self,
+    ) -> None:
         preview = build_transport_schedule_single_notice_pilot_preview(
             searchable_notice_preview={"units": [_pilot_unit(multimodal_status="pending")]},
             multimodal_candidate_inventory={"candidates": []},
@@ -155,28 +157,23 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
             generated_at="2026-04-29T00:00:00+08:00",
         )
 
-        self.assertEqual(preview.admission_manifest["counts"]["downstream_admitted"], 0)
+        self.assertEqual(preview.admission_manifest["counts"]["downstream_admitted"], 1)
         self.assertEqual(
-            preview.admission_manifest["entries"][0]["consumption_class"], "needs_multimodal"
+            preview.admission_manifest["entries"][0]["consumption_class"], "downstream_admitted"
         )
-        self.assertEqual(preview.replay_dry_run["extracted_schedule_row_count"], 0)
-        self.assertEqual(preview.stage_report["stage_candidate_count"], 0)
-        self.assertEqual(preview.consistency_report["verdict"], "blocked")
-        self.assertEqual(
-            preview.rejected_deferred_source_report["entries"][0]["reason_codes"],
-            ["multimodal_not_ready"],
-        )
-        blocked_entry = preview.admission_manifest["entries"][0]
-        self.assertEqual(blocked_entry["baseline_status"], "missing")
-        self.assertEqual(blocked_entry["overlay_kind"], "awaiting_baseline")
-        self.assertEqual(blocked_entry["ocr_priority"], "defer_until_baseline")
+        self.assertEqual(preview.replay_dry_run["extracted_schedule_row_count"], 1)
+        self.assertEqual(preview.stage_report["stage_candidate_count"], 1)
+        self.assertEqual(preview.consistency_report["verdict"], "passed")
+        admitted_entry = preview.admission_manifest["entries"][0]
+        self.assertEqual(admitted_entry["fact_readiness_state"], "ready_from_text")
+        self.assertIn("body_facts_complete", admitted_entry["reason_codes"])
+        self.assertNotIn("multimodal_not_ready", admitted_entry["reason_codes"])
+        self.assertEqual(admitted_entry["baseline_status"], "missing")
+        self.assertEqual(admitted_entry["overlay_kind"], "temporary_overlay")
+        self.assertEqual(admitted_entry["ocr_priority"], "search_only")
         self.assertIn(
             "transport_baseline_missing",
-            blocked_entry["baseline_gate_reason_codes"],
-        )
-        self.assertIn(
-            "schedule_image_requires_ocr",
-            blocked_entry["baseline_gate_reason_codes"],
+            admitted_entry["baseline_gate_reason_codes"],
         )
 
     def test_transport_schedule_batch_admits_ready_and_reports_blocked_candidates(self) -> None:
@@ -184,6 +181,10 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
             source_notice_id="355867",
             title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
             multimodal_status="pending",
+            body_text=(
+                "现将4月27日-5月5日期间两校区班车及地铁接驳车运营安排通知如下："
+                "一、4月27日两校区班车安排。二、4月28日-5月5日两校区班车及地铁接驳车安排。"
+            ),
         )
         preview = build_transport_schedule_batch_preview(
             searchable_notice_preview={
@@ -227,12 +228,13 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
         self.assertEqual(preview.rejected_deferred_source_report["entry_count"], 1)
         self.assertEqual(
             preview.rejected_deferred_source_report["entries"][0]["reason_codes"],
-            ["multimodal_not_ready"],
+            ["required_media_pending"],
         )
         blocked_entry = manifest["entries"][1]
         self.assertEqual(blocked_entry["baseline_status"], "missing")
         self.assertEqual(blocked_entry["overlay_kind"], "awaiting_baseline")
         self.assertEqual(blocked_entry["ocr_priority"], "defer_until_baseline")
+        self.assertEqual(blocked_entry["fact_readiness_state"], "blocked_by_required_media")
 
     def test_transport_schedule_policy_marks_post_baseline_delta_candidate(self) -> None:
         unit = _pilot_unit(

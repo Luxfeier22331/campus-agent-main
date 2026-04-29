@@ -238,7 +238,8 @@ class CollectedNoticeRegulationAdmissionTests(unittest.TestCase):
         self.assertEqual(entry["consumption_class"], "needs_multimodal")
         self.assertEqual(entry["regulation_admission_class"], "needs_multimodal")
         self.assertIsNone(entry["target"])
-        self.assertIn("multimodal_not_ready", entry["reason_codes"])
+        self.assertIn("required_media_pending", entry["reason_codes"])
+        self.assertEqual(entry["fact_readiness_state"], "blocked_by_required_media")
         self.assertEqual(preview.rejected_deferred_source_report["entry_count"], 1)
         self.assertTrue(
             preview.rejected_deferred_source_report["entries"][0][

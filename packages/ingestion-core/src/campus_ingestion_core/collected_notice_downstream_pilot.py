@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.collected_notice_fact_readiness import (
+    TARGET_ADMISSION_NEEDS_MULTIMODAL,
+    build_transport_schedule_fact_readiness,
+)
 from campus_ingestion_core.collected_notice_transport_baseline_policy import (
     multimodal_policy,
     requires_schedule_image_ocr,
@@ -219,6 +223,7 @@ class _TransportScheduleDecision:
     reason_codes: list[str]
     rows: list[dict[str, Any]]
     baseline_policy: dict[str, Any]
+    fact_readiness: dict[str, Any]
 
 
 def preview_to_output_files(
@@ -265,16 +270,21 @@ def _transport_schedule_decision(
     transport_baseline_effective_date: str,
     transport_baseline_source_notice_ids: tuple[str, ...],
 ) -> _TransportScheduleDecision:
-    rejection_reason_codes = _rejection_reason_codes(
+    rows = _transport_schedule_rows(unit)
+    fact_readiness = build_transport_schedule_fact_readiness(
         unit=unit,
         multimodal_candidate_inventory=multimodal_candidate_inventory,
+        text_schedule_row_count=len(rows),
+    )
+    rejection_reason_codes = _rejection_reason_codes(
+        unit=unit,
         transport_baseline_effective_date=transport_baseline_effective_date,
         transport_baseline_source_notice_ids=transport_baseline_source_notice_ids,
+        fact_readiness=fact_readiness,
     )
     admitted = not rejection_reason_codes
-    rows = _transport_schedule_rows(unit) if admitted else []
     if admitted and not rows:
-        rejection_reason_codes = ["no_extractable_transport_schedule_row"]
+        rejection_reason_codes = list(fact_readiness["reason_codes"])
         admitted = False
     baseline_policy = transport_baseline_policy(
         unit=unit,
@@ -284,6 +294,7 @@ def _transport_schedule_decision(
         requires_schedule_image_ocr=requires_schedule_image_ocr(
             unit=unit,
             multimodal_candidate_inventory=multimodal_candidate_inventory,
+            text_schedule_row_count=len(rows),
         ),
     )
     return _TransportScheduleDecision(
@@ -292,15 +303,16 @@ def _transport_schedule_decision(
         reason_codes=rejection_reason_codes,
         rows=rows if admitted else [],
         baseline_policy=baseline_policy,
+        fact_readiness=fact_readiness,
     )
 
 
 def _rejection_reason_codes(
     *,
     unit: Mapping[str, Any],
-    multimodal_candidate_inventory: Mapping[str, Any],
     transport_baseline_effective_date: str,
     transport_baseline_source_notice_ids: tuple[str, ...],
+    fact_readiness: Mapping[str, Any],
 ) -> list[str]:
     if transport_baseline_effective_date and str(unit.get("source_notice_id") or "") in set(
         transport_baseline_source_notice_ids
@@ -310,21 +322,17 @@ def _rejection_reason_codes(
     targets = target_hints(unit)
     if TRANSPORT_SCHEDULE_TARGET not in targets:
         reasons.append("target_hint_not_transport_schedule")
-    if str(unit.get("multimodal_status") or "") not in {"not_required", "completed"}:
-        reasons.append("multimodal_not_ready")
-    blocking_candidates = [
-        row
-        for row in multimodal_candidate_inventory.get("candidates") or ()
-        if isinstance(row, Mapping)
-        and str(row.get("unit_id") or "") == str(unit.get("unit_id") or "")
-        and str(row.get("status") or "") in {"pending", "failed"}
-    ]
-    if blocking_candidates and "multimodal_not_ready" not in reasons:
-        reasons.append("multimodal_not_ready")
     if not unit.get("source_object_refs"):
         reasons.append("missing_source_object_refs")
     if not str(unit.get("body_text") or "").strip():
         reasons.append("missing_body_text")
+    if (
+        not reasons
+        and fact_readiness.get("target_admission_state") == TARGET_ADMISSION_NEEDS_MULTIMODAL
+    ):
+        reasons.extend(str(item) for item in fact_readiness.get("reason_codes") or ())
+    if not reasons and fact_readiness.get("fact_readiness_state") == "missing":
+        reasons.append("no_extractable_transport_schedule_row")
     return reasons
 
 
@@ -477,8 +485,22 @@ def _admission_entry(
         "target_surface": TRANSPORT_SCHEDULE_TARGET_SURFACE if decision.admitted else None,
         "target_hints": unit.get("target_hints") or {},
         "multimodal_policy": multimodal_policy(unit),
+        "fact_readiness_state": decision.fact_readiness["fact_readiness_state"],
+        "target_admission_state": decision.fact_readiness["target_admission_state"],
+        "fact_readiness": decision.fact_readiness,
         **baseline_policy,
-        "reason_codes": decision.reason_codes or [admission_reason_code],
+        "reason_codes": (
+            list(
+                dict.fromkeys(
+                    [
+                        admission_reason_code,
+                        *(decision.fact_readiness.get("reason_codes") or ()),
+                    ]
+                )
+            )
+            if decision.admitted
+            else decision.reason_codes
+        ),
         "preconditions": [
             "searchable_unit_present",
             "source_object_refs_present",
@@ -661,7 +683,7 @@ def _rejected_deferred_source_report(
                 ],
                 "searchable_exists": bool(unit.get("unit_id")),
                 "multimodal_processing_could_change_decision": (
-                    "multimodal_not_ready" in decision.reason_codes
+                    "required_media_pending" in decision.reason_codes
                 ),
             }
         )
@@ -682,8 +704,7 @@ def _blocked_class(decision: _TransportScheduleDecision) -> str:
         "historical_search_only",
     }:
         return "search_only"
-    unit = decision.unit
-    if multimodal_policy(unit) in {"pending", "failed"}:
+    if decision.fact_readiness.get("target_admission_state") == TARGET_ADMISSION_NEEDS_MULTIMODAL:
         return "needs_multimodal"
     return "defer"
 

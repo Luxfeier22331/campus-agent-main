@@ -86,7 +86,10 @@ class CollectedNoticeServiceStatusDownstreamReplayTests(unittest.TestCase):
         entry = preview.admission_manifest["entries"][0]
         self.assertEqual(entry["consumption_class"], "downstream_admitted")
         self.assertEqual(entry["target"], "service_status")
-        self.assertEqual(entry["reason_codes"], ["service_status_current_window_admitted"])
+        self.assertEqual(
+            entry["reason_codes"],
+            ["service_status_current_window_admitted", "body_facts_complete"],
+        )
 
         self.assertEqual(preview.replay_dry_run["service_status_record_count"], 1)
         record = preview.replay_dry_run["service_status_records"][0]
@@ -100,7 +103,7 @@ class CollectedNoticeServiceStatusDownstreamReplayTests(unittest.TestCase):
             ["355283"],
         )
 
-    def test_batch_blocks_pending_multimodal_service_status_candidates(self) -> None:
+    def test_batch_admits_text_complete_pending_supplemental_service_status_media(self) -> None:
         preview = build_service_status_batch_preview(
             searchable_notice_preview={
                 "units": [
@@ -125,18 +128,23 @@ class CollectedNoticeServiceStatusDownstreamReplayTests(unittest.TestCase):
             generated_at="2026-04-29T00:00:00+08:00",
         )
 
-        self.assertEqual(preview.admission_manifest["counts"]["downstream_admitted"], 0)
-        self.assertEqual(preview.admission_manifest["counts"]["needs_multimodal"], 1)
+        self.assertEqual(preview.admission_manifest["counts"]["downstream_admitted"], 1)
+        self.assertEqual(preview.admission_manifest["counts"]["needs_multimodal"], 0)
         self.assertEqual(
-            preview.admission_manifest["entries"][0]["consumption_class"], "needs_multimodal"
+            preview.admission_manifest["entries"][0]["consumption_class"], "downstream_admitted"
         )
-        self.assertEqual(preview.replay_dry_run["service_status_record_count"], 0)
-        self.assertEqual(preview.stage_report["stage_candidate_count"], 0)
-        self.assertEqual(preview.consistency_report["verdict"], "blocked")
         self.assertEqual(
-            preview.rejected_deferred_source_report["entries"][0]["reason_codes"],
-            ["multimodal_not_ready"],
+            preview.admission_manifest["entries"][0]["fact_readiness_state"],
+            "ready_from_text",
         )
+        self.assertIn(
+            "body_facts_complete",
+            preview.admission_manifest["entries"][0]["reason_codes"],
+        )
+        self.assertEqual(preview.replay_dry_run["service_status_record_count"], 1)
+        self.assertEqual(preview.stage_report["stage_candidate_count"], 1)
+        self.assertEqual(preview.consistency_report["verdict"], "passed")
+        self.assertEqual(preview.rejected_deferred_source_report["entry_count"], 0)
 
     def test_batch_keeps_expired_service_status_search_only(self) -> None:
         preview = build_service_status_batch_preview(
