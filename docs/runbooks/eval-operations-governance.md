@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-29
-updated: 2026-04-29
+updated: 2026-04-30
 ---
 
 # Eval Operations Governance
@@ -60,10 +60,15 @@ uv run --all-packages python -m scripts.eval_gate accept \
 The gate covers:
 
 - supervisor execution schema/generated artifact drift check
+- cross-language supervisor execution fixture matrix for Python bridge, Go runtime
+  and TypeScript app-api adapter
 - workflow trace evaluator and fixture denominator
 - tool-family denominator evaluator and fixture denominator
-- public-chat product-path evaluator and fixture denominator
-- targeted supervisor-api, app-api and protected-panel-web test lanes
+- public-chat product-path evaluator, including sanitized
+  `workflow_trace_summary` replay against selected target, branch and fail-close
+  reason
+- targeted supervisor-api, app-api and protected-panel-web test lanes, including
+  panel raw bridge/provider/prompt key non-exposure checks
 
 The gate does not start local live processes, does not run Docker smoke, does
 not mutate serving admission, does not introduce an Agents SDK runtime, and does
@@ -78,6 +83,8 @@ Failure handling:
 - supervisor execution contract generation failure: update
   `docs/contracts/schemas/supervisor-execution.openapi.yaml` first, then regenerate
   artifacts with `pnpm contracts:generate`
+- strict fixture matrix failure: update the canonical schema, generated artifacts
+  and fixture truth together; do not special-case one language runtime
 - fixture or evaluator failure: fix the eval-owned case truth, evaluator
   semantics or sanitized artifact contract first
 - supervisor/app-api/panel targeted lane failure: fix the owning runtime surface

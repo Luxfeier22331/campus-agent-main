@@ -197,6 +197,15 @@ Evaluation helpers for campus-agent v2.
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
   dry-run artifact。`multi-agent-product-path` 暂保留为 deprecated alias；真实产品路径 E2E 使用
   `public-chat-product-path --collect-runtime` 和后续 public chat acceptance lane。
+- `multi-agent-runtime-contract` 额外固定 cross-language supervisor execution fixture
+  matrix：`tests/fixtures/supervisor_execution_contract/` 的 valid / invalid 样本必须同时被
+  Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
+  验证 `snake_case` strict wire、bridge version、enum、extra-field rejection、
+  cancel / timeout / bridge unavailable terminal semantics。
+- public-chat product-path eval 会 replay `workflow_trace_summary`，检查 selected target、
+  direct/delegate/clarification/fail-close branch 与 fail-close reason 是否和产品路径 observation
+  一致；panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
+  provider / prompt key 做非暴露断言。
 - `multi-agent-runtime-contract` denominator 当前覆盖 10 条 workflow trace case、28 条
   tool-family case 与 10 条 public-chat product-path case。知识类 student_rules /
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent

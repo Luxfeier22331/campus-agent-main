@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-27
+updated: 2026-04-30
 ---
 # Execution And Agents Architecture
 
@@ -113,6 +113,13 @@ Docker-side Go runtime control plane 长期负责：
   由 `docs/contracts/schemas/supervisor-execution.openapi.yaml` 作为 OpenAPI 3.1.1
   canonical schema，并生成 TS / Go / Python runtime artifact；`packages/contracts`
   只承载 stable `AgentRequest` / `AgentResponse` handoff schema
+- execution wrapper 当前采用 strict wire policy：internal seam 固定 `snake_case`、
+  不接受 camelCase 或未知 top-level wrapper 字段；共享 valid / invalid fixture matrix
+  必须同时被 Python bridge、Go runtime 与 TypeScript app-api adapter 消费
+- Go finalizer 是 terminal response invariant owner：delegate branch 必须有 matching
+  handoff target，`selected_target` 必须与 handoff 一致，`runtime_versions`
+  必须携带 bridge / response / runtime decision / workflow trace provenance；
+  cancel / timeout / bridge unavailable 必须保留 typed fail-close reason
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，

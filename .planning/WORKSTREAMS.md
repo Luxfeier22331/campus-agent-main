@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-29
+updated: 2026-04-30
 ---
 
 # Workstreams
@@ -44,6 +44,7 @@ updated: 2026-04-29
 | `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `yes` | `.planning/workstreams/wechat-official-account-public-source-channel/README.md` | `Phase 12` | repo-side 采集/消费链路已恢复为 `FeedWe discovery -> real mp.weixin page capture -> canonical source-truth -> notice consumption`，并补齐 runtime smoke、历史 audit/purge 与 post-batch shell；当前只剩 live repair 与 acceptance evidence closeout |
 | `official web collection restart closeout` | `official-web-collection-restart-closeout` | `yes` | `.planning/workstreams/official-web-collection-restart-closeout/README.md` | `Phase 2` | Fresh university-core 与 `law.muc.edu.cn` single-host evidence 已补；crawl / validator / QC 通过，fixed projection validator / chunk audit 通过；后续收口 scheduler/preflight/repeated-run/retention/alert 与 import/promote handoff |
 | `authenticated notice object-native ingestion closeout` | `authenticated-notice-object-native-ingestion-closeout` | `yes` | `.planning/workstreams/authenticated-notice-object-native-ingestion-closeout/README.md` | `Phase 7` | Full historical `file_release_capture` recollection/import 已完成，backup/repair evidence 已补齐，refreshed object-locator audit 为 `3332/3332 verified` 且 `missing_object_count=0` |
+| `notice ingest fact state machine` | `notice-ingest-fact-state-machine` | `yes` | `.planning/workstreams/notice-ingest-fact-state-machine/README.md` | `Phase 1 planned` | 新建 source/media/fact/target 四层状态机 workstream，目标是修复 notice-level pending media hard gate；Phase 1 先建立 failure taxonomy 与 sample corpus，覆盖 `355881` text-complete schedule、`355867` OCR-primary schedule、service-status、regulation、WeChat 与 search-only image 样本 |
 
 ## Completed
 
