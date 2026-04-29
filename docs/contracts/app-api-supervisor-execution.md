@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-29
+updated: 2026-04-30
 ---
 # App API Supervisor Execution Contract
 
@@ -63,6 +63,49 @@ canonical schema，再重新生成 artifact。
 handoff 的 `AgentRequest` / `AgentResponse`。它不承载 `runtime_decisions`、
 `supervisor_bridge_v6` 或具体 transport wrapper，避免把 execution runtime truth 泄漏进共享
 agent contract 包。
+
+## Strict Wire Policy
+
+internal execution seam 只接受 canonical `snake_case` JSON。
+
+固定规则：
+
+- `supervisor-execution.openapi.yaml` 是 `app-api -> supervisor-api ->
+  supervisor-agent-worker` wrapper 的唯一 schema truth；TS / Go / Python 生成物只能从它派生
+- `app-api` adapter 必须 strict parse supervisor response；`200` body 如果出现 camelCase
+  top-level field、未知 top-level field、非法 enum 或缺少必需字段，按
+  `supervisor_invalid_response` transport/protocol failure 处理
+- Go `supervisor-api` 与 Python bridge 对 bridge v6 envelope 也必须 strict decode；缺少
+  `runtime_decisions`、`handoff.agent_request`、非法 `bridge_version`、非法 enum 或未知
+  canonical wrapper 字段都 fail-closed
+- browser / panel / public product API 可以继续使用产品层 camelCase projection，但不能把
+  camelCase 反向带入 internal supervisor wire
+- panel 只能消费 `app-api` 物化后的 sanitized request / workflow trace projection；即使 projection
+  里误带 raw bridge/provider/prompt key，panel formatter 也必须 drop 这些字段
+
+这条规则由 `tests/fixtures/supervisor_execution_contract/` 的 valid / invalid
+fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
+
+## Versioning Policy
+
+`x-campus-contract` 中的以下字段是可机器读取的版本治理口径：
+
+- `bridge_version`：bridge envelope 出现不兼容 shape 变化时必须 bump
+- `response_contract`：`AgentResponse` / terminal response wire 语义出现不兼容变化时
+  必须 bump
+- `runtime_decisions_schema_version`：`runtime_decisions` shape 或 required provenance
+  变化时必须 bump
+- `runtime_decision_summary_schema_version`：operator / eval 消费的 runtime decision
+  summary shape 变化时必须 bump
+- `workflow_trace_summary_version`：sanitized workflow trace summary 的 operator-visible
+  shape 变化时必须 bump
+
+修改这些字段或对应 shape 时，必须同步：
+
+- 更新 `docs/contracts/schemas/supervisor-execution.openapi.yaml`
+- 运行 `pnpm contracts:generate` 或至少通过 `pnpm contracts:check`
+- 更新共享 fixture matrix 中的 canonical valid / invalid 样本
+- 更新 `multi-agent-runtime-contract` gate 或对应 targeted tests
 
 ## 设计原则
 
@@ -551,6 +594,23 @@ payload 或 provider raw response。
 - `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection
   的最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
+
+## Terminal State Semantics
+
+terminal response 的跨语言语义固定如下：
+
+- `completed`：必须有 canonical `selected_target` 与 response-level confidence
+- `needs_clarification` / `no_answer`：仍是 typed execution outcome，不等价于
+  transport failure
+- `error`：必须携带 safe `{ code, message, retryable }`，并在
+  `workflow_trace_summary.fail_close_reason` 中保留 deterministic failure class
+- `cancelled`：允许 `selected_target=null`，表示 execution lifecycle 已终止，不要求 agent
+  handoff 已发生
+- timeout / bridge unavailable / bridge circuit open 不能伪装成 completed answer；它们必须通过
+  typed `error` / HTTP status / workflow trace summary 保留 fail-close provenance
+
+Go finalizer 必须保证 delegate branch 与 `handoff.agent_request.target`、`selected_target`、
+runtime version provenance 一致；否则 fail-closed，而不是返回半结构化成功 body。
 
 ## Current Compatibility Note
 
