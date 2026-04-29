@@ -1,22 +1,25 @@
 ---
 workstream: authenticated-notice-regulation-consumption
 created: 2026-04-19
-updated: 2026-04-24
+updated: 2026-04-30
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Completed
-**Current Phase:** 8
-**Current Phase Name:** Acceptance Evidence Freeze And Closeout
-**Current Plan:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-08-acceptance-evidence-freeze-and-closeout/PLAN.md`
-**Total Phases:** 8
-**Total Plans in Phase:** N/A
-**Progress:** 8/8 phases complete
-**Last Activity:** 2026-04-24
-**Last Activity Description:** 完成 Phase 8 evidence freeze；当前 `11` 条 authenticated-notice regulation target 已冻结 local-only acceptance triplet，workstream 正式停在 `offline_preparation`。
+**Status:** Active
+**Current Phase:** 9
+**Current Phase Name:** First-Batch Regulation Promotion Write Gate
+**Current Plan:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-09-first-batch-regulation-promotion-write-gate/PLAN.md`
+**Total Phases:** 9
+**Total Plans in Phase:** 1
+**Progress:** 8/9 phases complete; Phase 9 planned
+**Last Activity:** 2026-04-30
+**Last Activity Description:** Reopened the workstream for a selected first-batch
+promotion write gate over the `8` regulation candidates proven ready by
+collected-notice Phase 6R/7 evidence. Query serving and RAG release remain out
+of scope.
 
 ## Current Slice
 
@@ -29,13 +32,18 @@ updated: 2026-04-24
   - institutional-only lineage fail-close truth 保持显式
 - `Phase 7` 已完成 full local-only acceptance rerun，并消费 fail-close 验收问题
 - `Phase 8` 已冻结 acceptance artifacts / docs continuity，并把这条线停在 `offline_preparation`
+- `Phase 9` 已规划：
+  - selected cohort 固定为 `594` plus `483/485/487/493/509/564/620`
+  - first-batch write gate 只能推进 selected target materialization
+  - 既有 `11` 条 target rows 必须被保留
+  - `32` 个 `needs_multimodal` 与 `2` 个 `manual_review` 不进入本 phase
 - `school_unit_name` 已收口为 title-first / fail-close metadata；无法从 source-facing title 高置信识别时返回 `None`
 - `暂行/试行` 继续保留 `force_status=provisional_in_force`
 
 ## Blockers
 
-- 不存在新的 repo-level blocker；workstream 已完成
-- embedding、Qdrant、release、alias publish 仍不在授权范围内
+- 暂无 planning blocker；执行前需要先生成 selected admission artifact 与 preflight report
+- embedding、Qdrant、release、alias publish、query serving 与 public-chat citation 仍不在授权范围内
 - residual test debt：`tests.ingestion.internal_notice_scoped_rule_materialization_materialize_suite` 仍保留旧 duplicate-provenance 期望，和当前 duplicate `191177` 留在 source truth 的口径不一致
 
 ## Verification
@@ -47,6 +55,10 @@ updated: 2026-04-24
 - frozen evidence：`.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
 - `institutional_rules` acceptance：`passed=true`，`prepared_document_count=2`
 - `scoped_rules` acceptance：`passed=true`，`prepared_document_count=9`
+- Phase 9 planning inputs:
+  - collected-notice Phase 6R.3 consistency verdict: `passed`
+  - selected downstream-admitted regulation count: `8`
+  - non-selected blocked counts: `32 needs_multimodal`, `2 manual_review`
 
 ## Reopen Guidance
 
@@ -56,5 +68,6 @@ updated: 2026-04-24
 
 ## Session Continuity
 
-**Stopped At:** workstream completed at `offline_preparation`
-**Resume File:** `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/README.md`
+**Stopped At:** Phase 9 planned; implementation should start with selected
+admission artifact and preflight guard.
+**Resume File:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-09-first-batch-regulation-promotion-write-gate/PLAN.md`
