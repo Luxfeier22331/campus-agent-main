@@ -342,7 +342,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         execution = client.execute_chat_request(
             case_id="runtime-case-1",
             prompt="校园卡丢了怎么办",
-            requested_capability="campus_service",
+            requested_capability="campus_services",
             requested_scope={"corpus": "campus_services", "collection": "service_status"},
         )
 
@@ -353,7 +353,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
             seen["body"],
             {
                 "prompt": "校园卡丢了怎么办",
-                "requestedCapability": "campus_service",
+                "requestedCapability": "campus_services",
                 "requestedScope": {
                     "corpus": "campus_services",
                     "collection": "service_status",

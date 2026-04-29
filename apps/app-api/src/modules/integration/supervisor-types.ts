@@ -126,6 +126,8 @@ export interface SupervisorExecutionWorkflowTraceSummary {
 	selectedTarget: string | null;
 	selectedTools: string[];
 	toolArgumentSummary: Record<string, unknown>;
+	traceSteps: Record<string, unknown>[];
+	toolCallSummaries: Record<string, unknown>[];
 }
 
 export interface SupervisorExecutionResponse {

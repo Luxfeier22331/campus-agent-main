@@ -149,6 +149,7 @@ class EvalGateTest(unittest.TestCase):
             "authz-privacy",
             "agentic-retrieval-plan",
             "eval-operations-governance",
+            "quality-calibration",
         )
 
         with patch("scripts.eval_gate._resolve_profile_runner", return_value=lambda _: 0):
@@ -158,6 +159,26 @@ class EvalGateTest(unittest.TestCase):
             ]
 
         self.assertEqual([summary["exit_code"] for summary in summaries], [0] * len(profiles))
+
+    def test_multi_agent_runtime_contract_profile_and_deprecated_alias_share_runner(self) -> None:
+        seen_profiles: list[str] = []
+
+        def fake_runner(argv: list[str]) -> int:
+            del argv
+            return 0
+
+        with patch("scripts.eval_gate._resolve_profile_runner", return_value=fake_runner):
+            for profile in ("multi-agent-runtime-contract", "multi-agent-product-path"):
+                summary = run_eval_acceptance(
+                    profile=profile,
+                    output_dir=Path(f"/tmp/{profile}"),
+                )
+                seen_profiles.append(str(summary["profile"]))
+
+        self.assertEqual(
+            seen_profiles,
+            ["multi-agent-runtime-contract", "multi-agent-product-path"],
+        )
 
     def test_main_publish_defaults_to_dry_run_json_output(self) -> None:
         buffer = io.StringIO()
@@ -201,6 +222,56 @@ class EvalGateTest(unittest.TestCase):
             grade_source="eval_release_gate",
             grader_version="grader@2026-04-23",
             metric_domain_overrides=None,
+            dry_run=True,
+        )
+
+    def test_main_publish_profile_uses_profile_report_artifact(self) -> None:
+        buffer = io.StringIO()
+        with (
+            patch(
+                "scripts.eval_gate.publish_profile_report_artifact",
+                return_value={
+                    "profile_report_path": "/tmp/profile-report.json",
+                    "grade_source": "eval_profile_gate",
+                    "grader_version": "profile@2026-04-29",
+                    "dry_run": True,
+                    "grade_count": 1,
+                    "backlink_count": 1,
+                    "accepted_grades": 0,
+                    "accepted_backlinks": 0,
+                    "skipped": [
+                        {
+                            "case_id": "case-2",
+                            "metric_key": "profile.public_chat_product_path",
+                            "reason": "missing_request_correlation",
+                        }
+                    ],
+                },
+            ) as publish,
+            redirect_stdout(buffer),
+        ):
+            exit_code = main(
+                [
+                    "publish-profile",
+                    "--profile-report",
+                    "/tmp/profile-report.json",
+                    "--grade-source",
+                    "eval_profile_gate",
+                    "--grader-version",
+                    "profile@2026-04-29",
+                    "--dry-run",
+                    "--json",
+                ]
+            )
+
+        payload = json.loads(buffer.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["grade_count"], 1)
+        self.assertEqual(payload["skipped"][0]["reason"], "missing_request_correlation")
+        publish.assert_called_once_with(
+            profile_report_path=Path("/tmp/profile-report.json"),
+            grade_source="eval_profile_gate",
+            grader_version="profile@2026-04-29",
             dry_run=True,
         )
 

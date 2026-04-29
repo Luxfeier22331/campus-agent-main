@@ -234,6 +234,8 @@ def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary
     if not isinstance(payload, dict):
         return None
     selected_tools = payload.get("selected_tools")
+    trace_steps = payload.get("trace_steps")
+    tool_call_summaries = payload.get("tool_call_summaries")
     return WorkflowTraceSummary(
         routing_frame=dict(payload.get("routing_frame") or {}),
         context_resolution=dict(payload.get("context_resolution") or {}),
@@ -245,6 +247,12 @@ def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary
         if isinstance(selected_tools, list)
         else (),
         tool_argument_summary=dict(payload.get("tool_argument_summary") or {}),
+        trace_steps=tuple(dict(item) for item in trace_steps)
+        if isinstance(trace_steps, list)
+        else (),
+        tool_call_summaries=tuple(dict(item) for item in tool_call_summaries)
+        if isinstance(tool_call_summaries, list)
+        else (),
         guardrail_outcomes=dict(payload.get("guardrail_outcomes") or {}),
         fail_close_reason=str(payload.get("fail_close_reason") or ""),
         runtime_versions=dict(payload.get("runtime_versions") or {}),

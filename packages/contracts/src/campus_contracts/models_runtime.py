@@ -143,6 +143,8 @@ class WorkflowTraceSummary:
     selected_target: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, Any] = field(default_factory=dict)
+    trace_steps: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    tool_call_summaries: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     guardrail_outcomes: dict[str, Any] = field(default_factory=dict)
     fail_close_reason: str = ""
     runtime_versions: dict[str, Any] = field(default_factory=dict)
@@ -154,6 +156,8 @@ class WorkflowTraceSummary:
             ("context_resolution", self.context_resolution),
             ("handoff", self.handoff),
             ("tool_argument_summary", self.tool_argument_summary),
+            ("trace_steps", self.trace_steps),
+            ("tool_call_summaries", self.tool_call_summaries),
             ("guardrail_outcomes", self.guardrail_outcomes),
             ("runtime_versions", self.runtime_versions),
             ("policy_artifact_versions", self.policy_artifact_versions),

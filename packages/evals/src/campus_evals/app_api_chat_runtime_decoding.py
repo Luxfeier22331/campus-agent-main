@@ -8,6 +8,7 @@ from campus_contracts import (
     RagResultPayload,
     SupervisorObservability,
     SupervisorResponse,
+    WorkflowTraceSummary,
 )
 
 from .app_api_chat_runtime_support import (
@@ -120,7 +121,71 @@ def _build_supervisor_response_from_internal_eval(payload: dict[str, object]) ->
         result=_parse_supervisor_result(payload.get("result")),
         error=error,
         observability=_parse_supervisor_observability(payload.get("observability")),
+        workflow_trace_summary=_parse_workflow_trace_summary(
+            payload.get("workflow_trace_summary")
+            if "workflow_trace_summary" in payload
+            else payload.get("workflowTraceSummary")
+        ),
     )
+
+
+def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
+    record = _optional_record(value)
+    if record is None:
+        return None
+    selected_tools = _optional_list(_record_value(record, "selected_tools", "selectedTools"))
+    return WorkflowTraceSummary(
+        routing_frame=_optional_record(_record_value(record, "routing_frame", "routingFrame"))
+        or {},
+        context_resolution=_optional_record(
+            _record_value(record, "context_resolution", "contextResolution")
+        )
+        or {},
+        planning_outcome=_optional_string(
+            _record_value(record, "planning_outcome", "planningOutcome")
+        )
+        or "",
+        direct_vs_delegate_branch=_optional_string(
+            _record_value(record, "direct_vs_delegate_branch", "directVsDelegateBranch")
+        )
+        or "",
+        handoff=_optional_record(record.get("handoff")) or {},
+        selected_target=_optional_string(_record_value(record, "selected_target", "selectedTarget"))
+        or "",
+        selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
+        tool_argument_summary=_optional_record(
+            _record_value(record, "tool_argument_summary", "toolArgumentSummary")
+        )
+        or {},
+        trace_steps=_tuple_of_records(_record_value(record, "trace_steps", "traceSteps")),
+        tool_call_summaries=_tuple_of_records(
+            _record_value(record, "tool_call_summaries", "toolCallSummaries")
+        ),
+        guardrail_outcomes=_optional_record(
+            _record_value(record, "guardrail_outcomes", "guardrailOutcomes")
+        )
+        or {},
+        fail_close_reason=_optional_string(
+            _record_value(record, "fail_close_reason", "failCloseReason")
+        )
+        or "",
+        runtime_versions=_optional_record(
+            _record_value(record, "runtime_versions", "runtimeVersions")
+        )
+        or {},
+        policy_artifact_versions=_optional_record(
+            _record_value(record, "policy_artifact_versions", "policyArtifactVersions")
+        )
+        or {},
+    )
+
+
+def _record_value(record: dict[str, object], snake_key: str, camel_key: str) -> object:
+    return record.get(snake_key) if snake_key in record else record.get(camel_key)
+
+
+def _tuple_of_records(value: object) -> tuple[dict[str, object], ...]:
+    return tuple(dict(item) for item in _optional_list(value) if isinstance(item, dict))
 
 
 def _parse_supervisor_result(value: object) -> RagResultPayload | None:
