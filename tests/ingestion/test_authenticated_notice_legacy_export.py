@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.authenticated_notice_legacy_export import (
     AUTHENTICATED_NOTICE_LEGACY_EXPORT_CONTRACT_VERSION,
@@ -76,7 +76,9 @@ def _sample_manifest() -> dict[str, object]:
 
 
 class AuthenticatedNoticeLegacyExportNormalizationTest(unittest.TestCase):
-    def test_normalize_legacy_export_filters_selected_notice_ids_and_builds_typed_manifest(self) -> None:
+    def test_normalize_legacy_export_filters_selected_notice_ids_and_builds_typed_manifest(
+        self,
+    ) -> None:
         notice_type_policy = build_notice_type_policy_snapshot_from_legacy_config(
             [
                 {

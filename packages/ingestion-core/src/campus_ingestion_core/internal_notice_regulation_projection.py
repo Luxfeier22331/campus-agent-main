@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path
 import re
-from typing import Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
+
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
 )
 
-
-_TARGET_SCOPE = ("regulations", "institutional_regulations")
+_TARGET_SCOPE = ("regulations", "institutional_rules")
 _SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice"
 _HEADING_RE = re.compile(r"^\s*#+\s*")
 _MARKDOWN_HEADING_RE = re.compile(r"^\s*(?P<marks>#+)\s*(?P<text>.+?)\s*$")
@@ -68,14 +68,12 @@ def build_internal_notice_regulation_projected_document(
     context: InternalNoticeRegulationProjectionContext | None = None,
 ) -> InternalNoticeRegulationProjectedDocument:
     runtime_context = context or InternalNoticeRegulationProjectionContext()
-    title = (
-        candidate_document.regulation_display_title
-        or candidate_document.regulation_title_normalized
-    )
+    title = _resolve_regulation_document_display_title(candidate_document)
+    unit_title = _resolve_regulation_document_work_title(candidate_document)
     canonical_markdown = render_internal_notice_regulation_canonical_markdown(candidate_document)
     semantic_content_hash = hashlib.sha256(canonical_markdown.encode("utf-8")).hexdigest()
     document_id = build_institutional_regulation_document_id(
-        regulation_title_normalized=title,
+        regulation_title_normalized=candidate_document.regulation_title_normalized,
         regulation_work_title=candidate_document.regulation_work_title,
         issuing_org=candidate_document.issuing_org or "中央民族大学",
     )
@@ -92,11 +90,12 @@ def build_internal_notice_regulation_projected_document(
     document_units_bytes = serialize_internal_notice_regulation_projection_rows(
         document_id=document_id,
         version_id=version_id,
-        title=title,
+        title=unit_title,
         body=candidate_document.promotion_body,
         metadata=metadata,
         source_url=f"{_SOURCE_URL_PREFIX}/{candidate_document.candidate_id}",
-        source_filename=runtime_context.source_filename or Path(candidate_document.artifact_markdown_path).name,
+        source_filename=runtime_context.source_filename
+        or Path(candidate_document.artifact_markdown_path).name,
         entitlement_groups=candidate_document.entitlement_groups,
         visibility_scope=candidate_document.visibility_scope,
         visibility_level=candidate_document.visibility_level,
@@ -123,7 +122,7 @@ def build_institutional_regulation_document_id(
     regulation_title_normalized: str,
     regulation_work_title: str | None = None,
     issuing_org: str,
-    semantic_scope: str = "regulations/institutional_regulations",
+    semantic_scope: str = "regulations/institutional_rules",
 ) -> str:
     work_title = (regulation_work_title or regulation_title_normalized).strip()
     title_slug = _slugify_identifier(work_title)
@@ -164,11 +163,10 @@ def build_internal_notice_regulation_projection_metadata(
     semantic_content_hash: str,
     context: InternalNoticeRegulationProjectionContext,
 ) -> dict[str, object]:
-    title = (
-        candidate_document.regulation_display_title
-        or candidate_document.regulation_title_normalized
+    title = _resolve_regulation_document_display_title(candidate_document)
+    source_notice_ids = tuple(
+        sorted(set(context.source_notice_ids or (candidate_document.notice_id,)))
     )
-    source_notice_ids = tuple(sorted(set(context.source_notice_ids or (candidate_document.notice_id,))))
     source_document_ids = tuple(
         sorted(set(context.source_document_ids or (candidate_document.source_document_id,)))
     )
@@ -317,6 +315,23 @@ def _resolve_source_notice_document_id(
     if candidate_document.source_kind == "parent_notice":
         return candidate_document.source_document_id
     return None
+
+
+def _resolve_regulation_document_display_title(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str:
+    return (
+        candidate_document.regulation_display_title
+        or candidate_document.regulation_title_normalized
+    ).strip()
+
+
+def _resolve_regulation_document_work_title(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str:
+    return (
+        candidate_document.regulation_work_title or candidate_document.regulation_title_normalized
+    ).strip()
 
 
 def _resolve_source_attachment_document_id(
@@ -531,7 +546,9 @@ def _resolve_regulation_block_structure(
                 next_top_level_path=path,
                 next_nested_path=(),
             )
-        path = (*current_top_level_path, heading_text) if current_top_level_path else (heading_text,)
+        path = (
+            (*current_top_level_path, heading_text) if current_top_level_path else (heading_text,)
+        )
         return _RegulationBlockStructure(
             row_type="heading",
             section_path=path,
@@ -549,7 +566,7 @@ def _resolve_regulation_block_structure(
         match = pattern.match(normalized)
         if match is None:
             continue
-        label = match.group("label").strip()
+        match.group("label").strip()
         if level == "top":
             path = (normalized,)
             return _RegulationBlockStructure(
@@ -559,10 +576,7 @@ def _resolve_regulation_block_structure(
                 next_top_level_path=path,
                 next_nested_path=(),
             )
-        if current_top_level_path:
-            path = (*current_top_level_path, normalized)
-        else:
-            path = (normalized,)
+        path = (*current_top_level_path, normalized) if current_top_level_path else (normalized,)
         return _RegulationBlockStructure(
             row_type="heading",
             section_path=path,

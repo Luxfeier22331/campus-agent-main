@@ -3,9 +3,8 @@ doc_type: decision
 decision_id: ADR-0022
 status: accepted
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-26
 ---
-
 # ADR-0022 Campus Identity And Restricted Document Authorization
 
 ## 背景
@@ -44,7 +43,8 @@ updated: 2026-04-02
 - resource ownership truth
 - approval truth
 
-`apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist` 与 `packages/retrieval-core` 只消费 typed projection，不自行重建最终权限结论。
+`apps/supervisor-api`、`apps/supervisor-agent-worker`、`packages/rag-agent` 与
+`packages/retrieval-core` 只消费 typed projection，不自行重建最终权限结论。
 
 ### 决策 2：restricted document authorization 采用 ABAC 为主、ownership 为辅的模型
 
@@ -58,7 +58,8 @@ updated: 2026-04-02
 其中：
 
 - document / chunk / evidence 类资源默认采用 attribute-driven authorization
-- conversation / request execution / memory / operator workflow 默认采用 ownership / relation / approval 语义
+- conversation / request execution / memory / operator workflow 默认采用 ownership /
+  relation / approval 语义
 - RBAC / group membership 允许作为 entitlement 的一种来源，但不等于完整授权模型
 
 ### 决策 3：前向 principal class 不再保留 `public_user`
@@ -77,7 +78,8 @@ updated: 2026-04-02
 
 - 未登录访问者保持为 `anonymous`，不再升格为独立的已登录 `public_user` principal
 - 前向 end-user 登录入口不再保留“已登录但非校内身份”的 principal 层
-- `campus_member` / `student` / `staff` / `faculty` 必须由学校权威身份源、目录同步或等价 entitlement snapshot 支撑
+- `campus_member` / `student` / `staff` / `faculty` 必须由学校权威身份源、目录同步或等价
+  entitlement snapshot 支撑
 - `operator` 与 end-user principal 必须分离
 - `service` 只用于受控机器调用，不可伪装成 end-user principal
 
@@ -99,9 +101,10 @@ updated: 2026-04-02
 
 - 这组字段只是 execution / search projection，不是 canonical authorization truth
 - `acl_level`、`acl_groups`、`campus_scope` 只属于当前迁移中的 transitional carrier
-- raw JWT、raw session、raw IdP payload、raw authz store object 不得进入 retrieval metadata
+- raw JWT、raw session、raw IdP payload、raw authz store object 不得进入 retrieval
+  metadata
 
-### 决策 5：restricted institutional documents 与 product resources 共享同一授权平面，但不共享同一 payload 语义
+### 决策 5：restricted institutional documents 与 product resources 共享授权平面
 
 以下资源类型应共享同一 principal / deny-by-default / audit 语义：
 
@@ -121,14 +124,13 @@ updated: 2026-04-02
 
 对 restricted documents，长期固定以下边界：
 
-- `visibility`
-  谁能看到
-- `applicability`
-  内容是否适用于该用户背景
+- `visibility` 谁能看到
+- `applicability` 内容是否适用于该用户背景
 
 因此：
 
-- `major`、`cohort`、`program`、`recent_goal` 默认首先属于 applicability / personalization
+- `major`、`cohort`、`program`、`recent_goal` 默认首先属于 applicability /
+  personalization
 - 只有被显式建模为 entitlement 或 policy 条件的字段，才允许进入 authorization projection
 - 当前如果某类“校区”语义同时承担可见性和适用性，必须拆成 `visibility_scope` 与 `applicability_scope`
 
@@ -145,14 +147,12 @@ updated: 2026-04-02
 
 长期固定职责如下：
 
-- Cloudflare / edge ingress
-  负责 access boundary input，例如入口认证、service auth、network/device gate
-- canonical IdP / directory / entitlement sync
-  负责校内身份与组织属性的真相输入
-- `apps/app-api`
-  负责 principal mapping、entitlement snapshot、authorization projection 与 approval / ownership truth
-- execution / retrieval path
-  只消费投影后的最小 authz projection
+- Cloudflare / edge ingress 负责 access boundary input，例如入口认证、service
+  auth、network/device gate
+- canonical IdP / directory / entitlement sync 负责校内身份与组织属性的真相输入
+- `apps/app-api` 负责 principal mapping、entitlement snapshot、authorization
+  projection 与 approval / ownership truth
+- execution / retrieval path 只消费投影后的最小 authz projection
 
 直接含义：
 
@@ -164,10 +164,8 @@ updated: 2026-04-02
 
 当前阶段，institutional documents 至少接受以下两类 visibility tier：
 
-- `public`
-  公开可见
-- `restricted`
-  仅对满足 entitlement / visibility 条件的 principal 可见
+- `public` 公开可见
+- `restricted` 仅对满足 entitlement / visibility 条件的 principal 可见
 
 示例：
 
@@ -183,7 +181,8 @@ updated: 2026-04-02
 对 restricted institutional documents，优先级固定如下：
 
 1. 若某个 collection 完全属于 restricted surface，优先 collection 级隔离
-2. 若同一 collection 混有 public 与 restricted documents，再使用 document / chunk 级 visibility / entitlement projection
+1. 若同一 collection 混有 public 与 restricted documents，再使用 document / chunk 级
+   visibility / entitlement projection
 
 这样做的目的：
 
@@ -195,10 +194,14 @@ updated: 2026-04-02
 
 直接结果如下：
 
-- 需要一份实施方案把 campus principal / entitlement snapshot / restricted document rollout 拆成波次
-- `apps/app-api` 的 principal mapping 需要扩展为 `campus_member` / `student` / `staff` / `faculty`
-- `ingestion-core` / registry / Qdrant payload 需要完成 `visibility_* + entitlement_*` 主写入
-- `retrieval-core` 需要在 restricted document 路径上只依赖 projection，并最终删除 legacy ACL carrier fallback
+- 需要一份实施方案把 campus principal / entitlement snapshot / restricted document
+  rollout 拆成波次
+- `apps/app-api` 的 principal mapping 需要扩展为 `campus_member` / `student` / `staff`
+  / `faculty`
+- `ingestion-core` / registry / Qdrant payload 需要完成 `visibility_* +
+  entitlement_*` 主写入
+- `retrieval-core` 需要在 restricted document 路径上只依赖 projection，并最终删除 legacy ACL
+  carrier fallback
 - public chat、panel、service 与 operator surface 需要补齐 allow/deny matrix 与泄露防护测试
 
 明确不做：
@@ -212,16 +215,24 @@ updated: 2026-04-02
 
 这项决策 complements：
 
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
+  d`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
 
 ## 外部依据
 
-- OWASP Authorization Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
-- NIST SP 800-162 Guide to Attribute Based Access Control: https://csrc.nist.gov/pubs/sp/800/162/upd2/final
-- Zanzibar paper: https://www.usenix.org/system/files/atc19-pang.pdf
-- Cloudflare Access policies: https://developers.cloudflare.com/cloudflare-one/access-controls/policies/
-- Cloudflare Access session management: https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/
+- OWASP Authorization Cheat Sheet:
+  <<https://cheatsheetseries.owasp.org/cheatshee>
+  ts/Authorization_Cheat_Sheet.html>
+- NIST SP 800-162 Guide to Attribute Based Access Control:
+  <https://csrc.nist.gov/pubs/sp/800/162/upd2/final>
+- Zanzibar paper: <https://www.usenix.org/system/files/atc19-pang.pdf>
+- Cloudflare Access policies:
+  <https://developers.cloudflare.com/cloudflare-one/access-controls/policies/>
+- Cloudflare Access session management:
+  <<https://developers.cloudflare.com/cloud>
+  flare-one/access-controls/access-settings/session-management/>

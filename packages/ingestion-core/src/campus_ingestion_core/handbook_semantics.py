@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
-from typing import Mapping, Sequence
-
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 _APPENDIX_PREFIXES = ("附件", "附表", "附录")
 _FORM_KEYWORDS = ("申请表", "审批表", "登记表", "备案表", "信息表")
@@ -21,10 +20,31 @@ _FORM_FIELD_KEYWORDS = (
 )
 _FORM_CHECKBOX_MARKERS = ("☐", "□", "■", "✓", "√")
 _NAVIGATION_KEYWORDS = ("流程", "程序", "步骤", "办理路径", "办理方式")
-_TIME_RULE_KEYWORDS = ("时间安排", "作息时间", "开放时间", "办理时间", "受理时间", "时间要求", "时间")
+_TIME_RULE_KEYWORDS = (
+    "时间安排",
+    "作息时间",
+    "开放时间",
+    "办理时间",
+    "受理时间",
+    "时间要求",
+    "时间",
+)
 _DEADLINE_KEYWORDS = ("截止", "时限", "期限", "截至", "逾期")
 _ELIGIBILITY_KEYWORDS = ("申请条件", "资格条件", "资格", "条件", "对象")
-_PROCEDURE_KEYWORDS = ("程序", "流程", "步骤", "申请", "审核", "审批", "办理", "补办", "挂失", "提交", "报送", "复核")
+_PROCEDURE_KEYWORDS = (
+    "程序",
+    "流程",
+    "步骤",
+    "申请",
+    "审核",
+    "审批",
+    "办理",
+    "补办",
+    "挂失",
+    "提交",
+    "报送",
+    "复核",
+)
 _TERMINAL_PROVISION_KEYWORDS = (
     "负责解释",
     "负责施行",
@@ -37,14 +57,18 @@ _TERMINAL_PROVISION_KEYWORDS = (
     "自发布之日起执行",
     "同时废止",
 )
-_SCOPE_RULE_RE = re.compile(r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}(?:适用于|适用范围)")
+_SCOPE_RULE_RE = re.compile(
+    r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}(?:适用于|适用范围)"
+)
 _DEFINITION_RE = re.compile(r"^(?:本(?:办法|规定|细则|制度|通知|规则)所称|本条所称)")
 _DATE_EFFECTIVE_RE = re.compile(
     r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}自\d{4}年\d{1,2}月\d{1,2}日起(?:开始)?(?:实施|施行|执行)"
 )
 _CLOCK_TIME_RE = re.compile(r"\d{1,2}[:：]\d{2}")
 _DATE_TIME_RE = re.compile(r"\d{4}年\d{1,2}月\d{1,2}日")
-_NESTED_NUMBERED_LINE_RE = re.compile(r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])")
+_NESTED_NUMBERED_LINE_RE = re.compile(
+    r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +133,9 @@ def _resolve_content_kind(
         return explicit_kind
     if _looks_like_form(metadata=metadata, text=text, detail_label=detail_label):
         return "form"
-    if _looks_like_navigation(anchor=anchor, metadata=metadata, text=text, detail_label=detail_label):
+    if _looks_like_navigation(
+        anchor=anchor, metadata=metadata, text=text, detail_label=detail_label
+    ):
         return "navigation"
     if _looks_like_appendix(anchor=anchor, metadata=metadata, text=text, detail_label=detail_label):
         return "appendix"
@@ -169,7 +195,15 @@ def _resolve_is_answer_bearing(
         return False
     if content_role in {"appendix", "background", "closing_provision", "navigation", "scope_rule"}:
         return False
-    if content_role in {"procedure", "requirement", "eligibility", "time_rule", "deadline", "table_fact", "definition"}:
+    if content_role in {
+        "procedure",
+        "requirement",
+        "eligibility",
+        "time_rule",
+        "deadline",
+        "table_fact",
+        "definition",
+    }:
         return True
     return bool(detail_label)
 
@@ -212,7 +246,9 @@ def _is_scope_rule(text: str) -> bool:
 
 
 def _is_time_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    scope = " ".join(part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part)
+    scope = " ".join(
+        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
+    )
     if any(keyword in scope for keyword in _TIME_RULE_KEYWORDS):
         return True
     if _CLOCK_TIME_RE.search(text):
@@ -221,7 +257,9 @@ def _is_time_rule(*, detail_label: str, anchor: Mapping[str, object], text: str)
 
 
 def _is_deadline_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    scope = " ".join(part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part)
+    scope = " ".join(
+        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
+    )
     if any(keyword in scope for keyword in _DEADLINE_KEYWORDS):
         return True
     normalized = _normalize_text(text)
@@ -233,11 +271,11 @@ def _is_eligibility_rule(*, detail_label: str, anchor: Mapping[str, object], tex
     if any(keyword in scope for keyword in _ELIGIBILITY_KEYWORDS):
         return True
     normalized = _normalize_text(text)
-    return normalized.startswith("凡符合") or normalized.startswith("符合")
+    return normalized.startswith(("凡符合", "符合"))
 
 
 def _is_definition_rule(*, detail_label: str, text: str) -> bool:
-    if "释义" in detail_label or "定义" in detail_label:
+    if any(token in detail_label for token in ("释义", "定义")):
         return True
     return bool(_DEFINITION_RE.match(_normalize_text(text)))
 
@@ -303,7 +341,9 @@ def _looks_like_navigation(
     detail_label: str,
 ) -> bool:
     del metadata
-    scope = " ".join(part for part in (detail_label, _section_leaf(anchor), _first_meaningful_line(text)) if part)
+    scope = " ".join(
+        part for part in (detail_label, _section_leaf(anchor), _first_meaningful_line(text)) if part
+    )
     if any(keyword in scope for keyword in _NAVIGATION_KEYWORDS):
         lines = _meaningful_lines(text)
         if sum(1 for line in lines if _NESTED_NUMBERED_LINE_RE.match(line)) >= 2:

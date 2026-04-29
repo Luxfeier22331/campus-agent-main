@@ -1,46 +1,67 @@
 # Architecture
 
-**Analysis Date:** 2026-03-31
+**Analysis Date:** 2026-04-26
 
 ## Pattern Overview
 
 **Overall:** Supervisor-led layered orchestrator with a dedicated execution boundary, offline ingestion/data plane, and shared Worker application/web surfaces, keeping retrieval, storage, and contracts tightly separated.
 
 **Key Characteristics:**
-- Policy-driven multi-agent path: the current forward product topology is `public-chat-web -> app-api -> supervisor-api` for public chat and `protected-panel-web -> app-api` for operator read surfaces; `apps/supervisor-api` then frames a `SupervisorRequest`, routes to an explicit specialist target, and delegates to `packages/rag-specialist` or `packages/availability-specialist` through the shared `SupervisorRequest` / `SpecialistRequest` / `SupervisorResponse` contracts documented in `packages/contracts/src/campus_contracts/models.py` and `docs/architecture/long-term-architecture.md`.
-- Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_handbook`/`curriculum_plan`, most of which is described in `docs/architecture/phase1-ingestion-and-storage-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
+- Policy-driven multi-agent path: the current forward product topology is
+  `public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker -> agent`
+  for semantic answer execution and `protected-panel-web -> app-api` for operator read
+  surfaces. Go `apps/supervisor-api` owns admission, deterministic runtime policy,
+  structured planning, response finalization, observability, and bridge projection;
+  Python `apps/supervisor-agent-worker` only dispatches private `AgentRequest` objects
+  to concrete agent packages.
+- Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_rules`/`curriculum_plan`, most of which is described in `docs/architecture/system/data-plane-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
 - Explicit boundary governance: `packages/contracts` holds allowed corpora, trace contexts, and error schemas, while `packages/shared` keeps only constants that other packages may import without pulling runtime infrastructure details into coordination logic.
 
 ## Layers
 
 **Transport & Runtime Surfaces (`apps/`):**
 - Purpose: host execution, ingestion, the shared Worker application backend, and the current public/protected Worker web surfaces.
-- Contains: `apps/supervisor-api/src/campus_supervisor_api/*`, `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/*`, `apps/public-chat-web/src/*`, and `apps/protected-panel-web/src/*`.
-- Depends on: `packages/supervisor-core` for orchestration, `packages/contracts` for request/response types, and `packages/ingestion-core` for ingestion behaviors.
+- Contains: Go `apps/supervisor-api/internal/*`, Python
+  `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*`,
+  `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/*`,
+  `apps/public-chat-web/src/*`, `apps/public-docs/*`, and `apps/protected-panel-web/src/*`.
+- Depends on: `packages/contracts` for request/response types and
+  `packages/ingestion-core` for ingestion behaviors.
 - Used by: browser clients, operator workflows, `official_web` control-plane flows, projection handoff construction, and CLI tooling for raw ingestion jobs.
 
-**Supervisor Coordination Layer (`packages/supervisor-core`):**
-- Purpose: normalize `SupervisorRequest`, apply routing policy, audit outcomes, and assemble final responses.
-- Contains: `packages/supervisor-core/src/campus_supervisor_core/agent.py`, `.routing.py`, `.response.py`, `.policy.py`, `.audit.py`, and `context.py`.
-- Depends on: `packages/contracts` for schemas, `packages/rag-specialist` via the delegate gateway, and `packages/shared` for lightweight constants.
-- Used by: `apps/supervisor-api` routes and any future supervisors that need the same policy plumbing; guardrails are spelled out in `packages/supervisor-core/AGENTS.md`.
+**Supervisor Execution And Agent Worker Layer:**
+- Purpose: keep deterministic execution control in Go while preserving Python for
+  semantic agent dispatch.
+- Contains: `apps/supervisor-api/internal/runtimepolicy`,
+  `apps/supervisor-api/internal/structuredplanning`,
+  `apps/supervisor-api/internal/httpapi`, and
+  `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/*`.
+- Depends on: `packages/contracts` for schemas and the concrete agent packages
+  injected by the worker runtime.
+- Used by: `apps/app-api` execution calls and the private bridge between Go runtime
+  and Python agents.
 
-**Specialist Capability Layer (`packages/rag-specialist`, `packages/availability-specialist`):**
-- Purpose: implement typed specialist boundaries under the supervisor, including grounded retrieval answers and controlled availability probes.
-- Contains: `packages/rag-specialist/src/campus_rag_specialist/service.py`, `.agent.py`, `.confidence.py`, plus `packages/availability-specialist/src/campus_availability_specialist/service.py`.
-- Depends on: `packages/contracts` for actor/evidence/error models; `rag-specialist` also depends on `packages/retrieval-core`.
-- Used by: the supervisor layer when `route_request` returns `rag-specialist` or `availability-specialist`.
+**Agent Capability Layer (`packages/rag-agent`, `packages/navigation-agent`, `packages/campus-services-agent`, `packages/notice-agent`):**
+- Purpose: implement typed capability boundaries under supervisor execution.
+- Contains: `packages/rag-agent/src/campus_rag_agent/*`,
+  `packages/navigation-agent/src/campus_navigation_agent/*`,
+  `packages/campus-services-agent/src/campus_services_agent/*`, and
+  `packages/notice-agent/src/campus_notice_agent/*`.
+- Depends on: `packages/contracts` for handoff models; `rag-agent` also depends on
+  `packages/retrieval-core`.
+- Used by: Go direct runtime for opened structured paths and the Python agent worker
+  for semantic delegate paths.
 
 **Retrieval & Evidence Layer (`packages/retrieval-core`):**
 - Purpose: translate a `RetrievalRequest` into evidence pulled from registries and a vector store, abstracting Qdrant/LlamaIndex details.
 - Contains: `packages/retrieval-core/src/campus_retrieval_core/service.py`, `.backend_qdrant.py`, `.models.py`, `.settings.py`, and the runtime profile loader in `packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py`.
 - Depends on: ingestion registries, Qdrant, embedding provider clients, and `packages/contracts` for `EvidenceBundle`.
-- Used by: `packages/rag-specialist` and tests under `tests/retrieval/`.
+- Used by: `packages/rag-agent` and tests under `tests/retrieval/`.
 
 **Ingestion & Storage Layer (`packages/ingestion-core`, `configs/ingestion`, `var/`):**
 - Purpose: consume raw documents, normalize them into Postgres-backed registries, chunk/embed them, and persist artifacts in an S3-compatible store backed by MinIO for the current local/shared-dev shape.
 - Contains: `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`, `.process.py`, `.object_store.py`, `.registry.py`, `.models.py`, `.settings.py`, and per-corpus configs under `configs/ingestion/*/runtime-profile.json`.
-- Depends on: `packages/contracts` for corpus enums, `packages/shared` for constants, and infrastructure (object store, Postgres registry, Qdrant) described in `docs/architecture/phase1-ingestion-and-storage-architecture.md`.
+- Depends on: `packages/contracts` for corpus enums, `packages/shared` for constants, and infrastructure (object store, Postgres registry, Qdrant) described in `docs/architecture/system/data-plane-architecture.md`.
 - Used by: `apps/ingestion-worker` entry scripts, rebuild helpers, and `packages/retrieval-core` via runtime profiles that gate `RetrievalBackend`.
 
 **Contracts & Shared Utilities (`packages/contracts`, `packages/shared`):**
@@ -55,11 +76,17 @@
 
 1. Browser chat requests hit `apps/public-chat-web/src/index.ts`, which stays same-site to `apps/app-api`.
 2. `apps/app-api/src/app.ts` owns product-layer auth/session/principal mapping, request projection, telemetry hooks, and the internal bridge into `apps/supervisor-api` when a supervisor execution is needed.
-3. `apps/supervisor-api/src/campus_supervisor_api/app.py` wires `/api/v1/answer` to `handle_answer` (`apps/supervisor-api/src/campus_supervisor_api/api.py`).
-4. `handle_answer` authenticates using `map_actor_context` (`.auth.py`), constructs a `SupervisorRequest`, and hands it to `packages/supervisor-core/src/campus_supervisor_core/agent.py`.
-5. `SupervisorAgent.handle` builds a `SupervisorRequestContext`, routes the request via `routing.route_request`, frames a `SpecialistRequest`, and invokes the configured specialist delegate.
-6. The selected specialist validates the request, performs retrieval or controlled probing, and returns a typed `SpecialistResponse`.
-7. Supervisor finalizes the specialist response into `SupervisorResponse`, audits via `packages/supervisor-core/src/campus_supervisor_core/audit.py`, and the API serializes that `SupervisorResponse` back through `app-api`.
+3. Go `apps/supervisor-api/internal/httpapi` admits the request, applies runtime
+   policy, performs deterministic direct execution when available, or builds bridge
+   v6 `runtime_decisions`.
+4. `apps/supervisor-api` calls Python `apps/supervisor-agent-worker` only through the
+   private bridge with a canonical `AgentRequest`.
+5. `apps/supervisor-agent-worker` parses the bridge v6 envelope and dispatches the
+   injected agent delegate without rebuilding routing, audit, or public response state.
+6. The selected agent validates the request, performs retrieval or semantic work, and
+   returns a typed `AgentResponse`.
+7. Go `apps/supervisor-api` finalizes `AgentResponse` into `SupervisorResponse`,
+   records execution audit/observability, and returns through `app-api`.
 
 **Ingestion/data-plane flow:**
 
@@ -69,25 +96,29 @@
 4. Chunking, embedding, and Qdrant writes happen as part of `campus_ingestion_core.chunking`/`embed`, and `packages/retrieval-core` uses `QdrantRetrievalBackend` plus `DocumentRegistry` data to produce `EvidenceBundle`.
 
 **State Management:**
-- Source and derived artifacts live in the S3-compatible tier even when served by local MinIO (`packages/ingestion-core/src/campus_ingestion_core/object_store.py` and `docs/architecture/phase1-ingestion-and-storage-architecture.md`), while `DocumentRegistry` and `RawAssetRegistry` in `packages/ingestion-core/src/campus_ingestion_core/registry.py` maintain versioned metadata in Postgres for the env-backed runtime path.
+- Source and derived artifacts live in the S3-compatible tier even when served by local MinIO (`packages/ingestion-core/src/campus_ingestion_core/object_store.py` and `docs/architecture/system/data-plane-architecture.md`), while `DocumentRegistry` and `RawAssetRegistry` in `packages/ingestion-core/src/campus_ingestion_core/registry.py` maintain versioned metadata in Postgres for the env-backed runtime path.
 - Chunk metadata and embeddings are exposed through Qdrant (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`), and corpora runtime profiles gate query availability (`packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py` with config roots in `configs/ingestion/`).
 
 ## Key Abstractions
 
 **Handoff Contracts (`packages/contracts/src/campus_contracts/models.py`):**
-- Purpose: centralize request/response/evidence/error enums such as `SupervisorRequest`, `SpecialistRequest`, `SpecialistResponse`, `EvidenceBundle`, `TraceContext`, and `ErrorInfo`.
+- Purpose: centralize request/response/evidence/error enums such as `SupervisorRequest`, `AgentRequest`, `AgentResponse`, `EvidenceBundle`, `TraceContext`, and `ErrorInfo`.
 - Examples: `ActorContext` shapes inbound auth metadata, while `ALLOWED_CORPORA` prevents unsupported corpora from leaking into the runtime.
 - Pattern: frozen dataclasses with `__post_init__` validation so every layer shares the same schema.
 
-**Supervisor Context & Audit (`packages/supervisor-core/src/campus_supervisor_core/context.py` + `.audit.py`):**
-- Purpose: wrap incoming requests in `SupervisorRequestContext`, drive routing policies (`routing.route_request`), and project minimal audit data (`SupervisorAuditRecord`).
-- Examples: `SupervisorAgent.handle` uses the context to select `primary_corpus` and trace IDs, then emits `source_doc_ids` extracted via `response.source_doc_ids_from_response`.
-- Pattern: policy-driven orchestration with per-call dataclass projections and audit record builders.
+**Runtime Policy, Bridge, And Agent Dispatch:**
+- Purpose: keep runtime decisions in Go and private semantic dispatch in Python.
+- Examples: Go `runtimepolicy` / `structuredplanning` build deterministic decisions;
+  Python `bridge_v6_parser.py` and `agent_delegates.py` consume the resulting
+  `AgentRequest`.
+- Pattern: fail-closed Go runtime policy plus injected Python agent delegates.
 
-**Specialist & Retrieval Stack (`packages/rag-specialist/src/campus_rag_specialist` + `packages/retrieval-core/src/campus_retrieval_core`):**
-- Purpose: `delegate_to_rag_agent` orchestrates query validation, retrieval (`retrieve_sources`), confidence scoring, and grounded response composition (`RagSpecialistAgent.compose_answer`).
+**Agent & Retrieval Stack (`packages/rag-agent/src/campus_rag_agent` + `packages/retrieval-core/src/campus_retrieval_core`):**
+- Purpose: `delegate_to_rag_agent` orchestrates query validation, retrieval
+  (`retrieve_sources`), confidence scoring, and grounded response composition.
 - Examples: `RetrievalRequest` normalizes query details, while `QdrantRetrievalBackend` wraps Qdrant, guardrails defined by `CorpusRuntimeProfile`, and `EvidenceBundle` captures chunk-level metadata.
-- Pattern: composable call chain where specialist code handles actor-level logic and retrieval code handles vector search and registry lookups.
+- Pattern: composable call chain where agent code handles semantic logic and retrieval
+  code handles vector search and registry lookups.
 
 **Ingestion & Registry (`packages/ingestion-core/src/campus_ingestion_core`):**
 - Purpose: ingest raw/corpus-specific artifacts, persist them via object store helpers, and surface metadata through registries and import reports.
@@ -102,36 +133,49 @@
 **`apps/public-chat-web/src/index.ts` & `apps/protected-panel-web/src/index.ts`:**
 - Location: public and protected Worker web surfaces; responsibilities include browser-facing routing, internal proxy/BFF behavior, and trace propagation into `app-api`.
 
-**`apps/supervisor-api/src/campus_supervisor_api/app.py` & `api.py`:**
-- Location: API runtime surfaces, routing `/api/v1/answer`, `/healthz`, `/readyz`, and wiring `ApiSettings`.
-- Triggers: HTTP/AgentOS requests; responsibilities include auth (`map_actor_context`), trace propagation, audit sink wiring, and delegating to `supervisor_core.handle_request`.
+**`apps/supervisor-api/cmd/supervisor-api` & `internal/httpapi`:**
+- Location: Go execution runtime surfaces, routing `/api/v1/answer`,
+  `/api/v1/answer/stream`, `/healthz`, `/readyz`, `/metrics`, and cancellation.
+- Triggers: internal HTTP requests from `apps/app-api`; responsibilities include
+  caller auth, runtime policy, bridge projection, finalization, metrics, and audit.
 
-**`packages/supervisor-core/src/campus_supervisor_core/agent.py`:**
-- Location: supervisor logic entry; responsibilities include context construction, routing, specialist delegation, and response assembly before returning `SupervisorResponse`.
+**`apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/app.py` & `api.py`:**
+- Location: private Python bridge worker; responsibilities include bridge v6 parsing,
+  agent delegate injection, prompt runtime assets, and returning `AgentResponse`.
 
-**`packages/rag-specialist/src/campus_rag_specialist/service.py`:**
-- Location: specialist entrypoint used by the supervisor; responsibilities include user goal validation, retrieving evidence, handling retrieval errors, and composing answers via `RagSpecialistAgent`.
+**`packages/rag-agent/src/campus_rag_agent/service.py`:**
+- Location: knowledge agent entrypoint; responsibilities include user goal validation,
+  retrieving evidence, handling retrieval errors, and composing grounded answers.
 
 **`apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py` & `submit_raw_ingestion_job.py`:**
 - Location: ingestion runtime shells; responsibilities include invoking `campus_ingestion_core.process_raw_ingestion_job`/`submit_raw_ingestion_job` and dumping `ImportReport`.
 
 ## Error Handling
 
-**Strategy:** Errors bubble through the specialist or supervisor into the HTTP layer, where `ErrorInfo` shapes the JSON response.
+**Strategy:** Go runtime policy and bridge errors fail closed at `apps/supervisor-api`;
+agent-level semantic errors return typed `AgentResponse` values for Go finalization.
 
 **Patterns:**
-- `apps/supervisor-api/src/campus_supervisor_api/api.py` wraps `ApiAuthError` (from `.auth.py`) and returns `error_response` with `ErrorInfo`.
-- `packages/rag-specialist/src/campus_rag_specialist/service.py` catches `CorpusQueryDisabledError` and `RetrievalBackendError` from `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`, returning statuses like `error`, `needs_clarification`, or `no_answer`.
-- `SupervisorRequest.__post_init__`, `SpecialistRequest.__post_init__`, `RetrievalRequest.__post_init__`, and `CorpusRuntimeProfile` class validators prevent invalid corpora, top_k, or artifact modes from propagating.
+- Go `apps/supervisor-api/internal/httpapi` maps admission, bridge, timeout, and direct
+  runtime failures into terminal responses.
+- `packages/rag-agent/src/campus_rag_agent/service.py` catches
+  `CorpusQueryDisabledError` and `RetrievalBackendError` from `packages/retrieval-core`,
+  returning statuses like `error`, `needs_clarification`, or `no_answer`.
+- `SupervisorRequest.__post_init__`, `AgentRequest.__post_init__`, `RetrievalRequest.__post_init__`, and `CorpusRuntimeProfile` class validators prevent invalid corpora, top_k, or artifact modes from propagating.
 
 ## Cross-Cutting Concerns
 
-**Authentication:** `ApiSettings` (`apps/supervisor-api/src/campus_supervisor_api/settings.py`) defines bearer and trusted-worker config; `map_actor_context` either projects a configured default actor in bearer mode or derives caller claims from a trusted worker JWT before building `ActorContext`.
+**Authentication:** Go `apps/supervisor-api/internal/httpapi` verifies internal caller
+auth and consumes the typed actor/context projection produced by `apps/app-api`.
 
-**Configuration:** `ApiSettings` and `RetrievalSettings` (`packages/retrieval-core/src/campus_retrieval_core/settings.py`) read runtime overrides from environment variables, keeping host, embedding provider, and registry URLs adjustable per deployment.
+**Configuration:** Go supervisor config and Python package settings read runtime
+overrides from environment variables, keeping host, embedding provider, and registry
+URLs adjustable per deployment.
 
 **Validation:** Dataclasses across contracts (`packages/contracts/src/campus_contracts/models.py`), retrieval (`RetrievalRequest`), and ingestion (`CorpusRuntimeProfile`) run `__post_init__` checks so invalid corpora/top_k/artifact mode combinations fail fast.
 
-**Auditing & Trace:** `SupervisorAuditRecord` (`packages/supervisor-core/src/campus_supervisor_core/audit.py`) projects the minimal fields (`request_id`, `trace_id`, `user_id`, `status`, `source_doc_ids`) that `packages/supervisor-core` tracks per request, plus trace IDs are echoed back to clients in `api.py`.
+**Auditing & Trace:** Go `apps/supervisor-api` owns execution audit summary,
+response observability, metrics, and OTel seams; the Python agent worker does not
+publish public runtime truth.
 
 **State & Runtime Profiles:** `packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py` loads `configs/ingestion/<corpus>/<collection>/runtime-profile.json` to gate query-serving and index bindings, while `var/` now mainly holds local artifacts such as import reports and backups rather than canonical registry truth.

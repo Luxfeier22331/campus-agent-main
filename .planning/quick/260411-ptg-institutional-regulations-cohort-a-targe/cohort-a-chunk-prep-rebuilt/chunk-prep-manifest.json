@@ -1,0 +1,83 @@
+{
+  "schema_version": "internal_notice_regulation_candidate_chunk_prep_v1",
+  "prepared_at": "2026-04-12T06:17:52.644892+00:00",
+  "target_corpus": "regulations",
+  "target_collection": "institutional_regulations",
+  "prepared_candidate_count": 9,
+  "total_unit_count": 311,
+  "total_chunk_count": 177,
+  "documents": [
+    {
+      "candidate_id": "949a87352fa79038",
+      "source_document_id": "notice:muc_internal_portal:186957",
+      "target_document_id": "institutional_regulation:muc:中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则:0d1e1a002e0f",
+      "regulation_title_normalized": "中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
+      "document_units_path": "prepared-candidates/中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则--949a87352fa79038/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则--949a87352fa79038/chunks.jsonl"
+    },
+    {
+      "candidate_id": "116d3f13533327d1",
+      "source_document_id": "notice:muc_internal_portal:186977",
+      "target_document_id": "institutional_regulation:muc:药学院2021年硕博连读博士研究生招生实施细则:7b7c0bfb53bf",
+      "regulation_title_normalized": "药学院2021年硕博连读博士研究生招生实施细则",
+      "document_units_path": "prepared-candidates/药学院2021年硕博连读博士研究生招生实施细则--116d3f13533327d1/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/药学院2021年硕博连读博士研究生招生实施细则--116d3f13533327d1/chunks.jsonl"
+    },
+    {
+      "candidate_id": "4a1bd1e147f4a9da",
+      "source_document_id": "notice:muc_internal_portal:187004",
+      "target_document_id": "institutional_regulation:muc:历史文化学院2021年硕博连读博士研究生-招生实施细则:e7ab3422164d",
+      "regulation_title_normalized": "历史文化学院2021年硕博连读博士研究生 招生实施细则",
+      "document_units_path": "prepared-candidates/历史文化学院2021年硕博连读博士研究生-招生实施细则--4a1bd1e147f4a9da/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/历史文化学院2021年硕博连读博士研究生-招生实施细则--4a1bd1e147f4a9da/chunks.jsonl"
+    },
+    {
+      "candidate_id": "0425aed278c86fda",
+      "source_document_id": "notice:muc_internal_portal:187233",
+      "target_document_id": "institutional_regulation:muc:中央民族大学采购工作管理办法:a2f1da036a48",
+      "regulation_title_normalized": "中央民族大学采购工作管理办法",
+      "document_units_path": "prepared-candidates/中央民族大学采购工作管理办法--0425aed278c86fda/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/中央民族大学采购工作管理办法--0425aed278c86fda/chunks.jsonl"
+    },
+    {
+      "candidate_id": "37cd181975cc4060",
+      "source_document_id": "notice:muc_internal_portal:191705",
+      "target_document_id": "institutional_regulation:muc:中央民族大学丰台校区就医管理办法-暂行:b1738e144c73",
+      "regulation_title_normalized": "中央民族大学丰台校区就医管理办法（暂行）",
+      "document_units_path": "prepared-candidates/中央民族大学丰台校区就医管理办法-暂行--37cd181975cc4060/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/中央民族大学丰台校区就医管理办法-暂行--37cd181975cc4060/chunks.jsonl"
+    },
+    {
+      "candidate_id": "0cce13020d53dab7",
+      "source_document_id": "notice:muc_internal_portal:196411",
+      "target_document_id": "institutional_regulation:muc:中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则:a4d4e0bb0910",
+      "regulation_title_normalized": "中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则",
+      "document_units_path": "prepared-candidates/中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则--0cce13020d53dab7/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则--0cce13020d53dab7/chunks.jsonl"
+    },
+    {
+      "candidate_id": "71bad52a7f7e9c74",
+      "source_document_id": "notice:muc_internal_portal:351907",
+      "target_document_id": "institutional_regulation:muc:新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则:2a1b49d540b1",
+      "regulation_title_normalized": "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+      "document_units_path": "prepared-candidates/新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则--71bad52a7f7e9c74/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则--71bad52a7f7e9c74/chunks.jsonl"
+    },
+    {
+      "candidate_id": "c823e8b00ed17b22",
+      "source_document_id": "notice:muc_internal_portal:353963",
+      "target_document_id": "institutional_regulation:muc:中央民族大学新闻与传播学院-2026年-英才计划-硕博连读研究生招生实施细则:4395ed875915",
+      "regulation_title_normalized": "中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则",
+      "document_units_path": "prepared-candidates/中央民族大学新闻与传播学院-2026年-英才计划-硕博连读研究生招生实施细则--c823e8b00ed17b22/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/中央民族大学新闻与传播学院-2026年-英才计划-硕博连读研究生招生实施细则--c823e8b00ed17b22/chunks.jsonl"
+    },
+    {
+      "candidate_id": "7decc4f54e3b3baf",
+      "source_document_id": "notice:muc_internal_portal:354006",
+      "target_document_id": "institutional_regulation:muc:中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则:7b30cf154aca",
+      "regulation_title_normalized": "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+      "document_units_path": "prepared-candidates/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则--7decc4f54e3b3baf/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则--7decc4f54e3b3baf/chunks.jsonl"
+    }
+  ]
+}

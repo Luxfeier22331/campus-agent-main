@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
-from typing import Any
+from dataclasses import dataclass
 
 from campus_ingestion_core.chunking import serialize_table_unit_text
 from campus_ingestion_core.source_truth_common import (
@@ -15,7 +14,6 @@ from campus_ingestion_core.source_truth_common import (
     normalize_text,
     serialize_layout_rows,
 )
-
 
 _LAYOUT_SCHEMA_VERSION = "authenticated_notice_attachment_ocr_layout_v1"
 _TABLE_LIKE_ROW_TYPES = frozenset({"table", "figure_table", "table_caption"})
@@ -97,13 +95,19 @@ def _iter_page_payloads(provider_response_bytes: bytes) -> tuple[dict[str, objec
     page_payloads: list[dict[str, object]] = []
     for line_number, line in enumerate(raw_lines, start=1):
         payload = json.loads(line)
-        candidate = payload.get("result") if isinstance(payload, dict) and isinstance(payload.get("result"), dict) else payload
+        candidate = (
+            payload.get("result")
+            if isinstance(payload, dict) and isinstance(payload.get("result"), dict)
+            else payload
+        )
         if not isinstance(candidate, dict):
             raise ValueError(f"ocr provider payload line {line_number} must be a JSON object")
         layout_results = candidate.get("layoutParsingResults")
         if isinstance(layout_results, list) and layout_results:
             if all(_looks_like_page_payload(item) for item in layout_results):
-                page_payloads.extend(dict(item) for item in layout_results if isinstance(item, dict))
+                page_payloads.extend(
+                    dict(item) for item in layout_results if isinstance(item, dict)
+                )
                 continue
             if all(_looks_like_block(item) for item in layout_results):
                 page_payloads.append({"blocks": list(layout_results)})
@@ -161,13 +165,17 @@ def _normalize_block(
     row_index: int,
     block_index: int,
 ) -> dict[str, object] | None:
-    raw_type = str(
-        block.get("blockType")
-        or block.get("blockRole")
-        or block.get("type")
-        or block.get("block_label")
-        or ""
-    ).strip().lower()
+    raw_type = (
+        str(
+            block.get("blockType")
+            or block.get("blockRole")
+            or block.get("type")
+            or block.get("block_label")
+            or ""
+        )
+        .strip()
+        .lower()
+    )
     table_cells = _extract_table_cells(block)
     text_raw = _extract_text(block)
     text_normalized = normalize_text(text_raw)
@@ -187,12 +195,19 @@ def _normalize_block(
         "row_id": f"page-{page_number:04d}-row-{block_index:04d}",
         "row_index": row_index,
         "provider_page_id": page_number,
-        "provider_block_id": str(block.get("blockId") or block.get("block_id") or f"block-{block_index:04d}"),
-        "reading_order": _coerce_int(block.get("readingOrder") or block.get("block_order")) or block_index,
+        "provider_block_id": str(
+            block.get("blockId") or block.get("block_id") or f"block-{block_index:04d}"
+        ),
+        "reading_order": _coerce_int(block.get("readingOrder") or block.get("block_order"))
+        or block_index,
         "row_type": row_type,
-        "block_role": "table" if row_type == "table" else ("heading" if row_type == "heading" else "paragraph"),
+        "block_role": "table"
+        if row_type == "table"
+        else ("heading" if row_type == "heading" else "paragraph"),
         "heading_level": 1 if row_type == "heading" else None,
-        "bbox": normalize_bbox(block.get("bbox") or block.get("block_bbox") or block.get("block_polygon_points")),
+        "bbox": normalize_bbox(
+            block.get("bbox") or block.get("block_bbox") or block.get("block_polygon_points")
+        ),
         "text_raw": text_raw,
         "text_normalized": text_normalized,
         "html": html,
@@ -243,7 +258,9 @@ def _extract_table_cells(block: dict[str, object]) -> list[list[str]] | None:
     if isinstance(value, list) and value and all(isinstance(row, list) for row in value):
         normalized_rows: list[list[str]] = []
         for row in value:
-            normalized_row = [normalize_text(str(cell)) for cell in row if normalize_text(str(cell))]
+            normalized_row = [
+                normalize_text(str(cell)) for cell in row if normalize_text(str(cell))
+            ]
             if normalized_row:
                 normalized_rows.append(normalized_row)
         if normalized_rows:
@@ -330,7 +347,12 @@ def _build_document_unit_rows(
     current_page_end: int | None = None
 
     def flush_section() -> None:
-        nonlocal section_index, current_section_lines, current_section_path, current_page_start, current_page_end
+        nonlocal \
+            section_index, \
+            current_section_lines, \
+            current_section_path, \
+            current_page_start, \
+            current_page_end
         if not current_section_lines:
             return
         section_index += 1
@@ -512,7 +534,9 @@ def _build_table_rows(
 def _render_table_markdown(table_unit_row: dict[str, object]) -> str:
     metadata = dict(table_unit_row.get("metadata") or {})
     parts: list[str] = []
-    parts.extend(str(item).strip() for item in list(metadata.get("caption_lines") or []) if str(item).strip())
+    parts.extend(
+        str(item).strip() for item in list(metadata.get("caption_lines") or []) if str(item).strip()
+    )
     header_rows = list(metadata.get("table_header_rows") or [])
     body_rows = list(metadata.get("table_body_rows") or [])
     if header_rows:

@@ -41,12 +41,11 @@ export function ChatShell() {
     visibilityType,
     isReadonly,
     isLoading,
-    votes,
     currentModelId,
     prepareConversationRoute,
-    setCurrentModelId,
     showCreditCardAlert,
     setShowCreditCardAlert,
+    threadError,
   } = useActiveChat();
 
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
@@ -99,48 +98,53 @@ export function ChatShell() {
               selectedModelId={currentModelId}
               setMessages={setMessages}
               status={status}
-              votes={votes}
             />
 
             <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
               {!isReadonly && (
-                <MultimodalInput
-                  attachments={attachments}
-                  chatId={chatId}
-                  editingMessage={editingMessage}
-                  input={input}
-                  isLoading={isLoading}
-                  messages={messages}
-                  onCancelEdit={() => {
-                    setEditingMessage(null);
-                    setInput("");
-                  }}
-                  onModelChange={setCurrentModelId}
-                  selectedModelId={currentModelId}
-                  selectedVisibilityType={visibilityType}
-                  prepareConversationRoute={prepareConversationRoute}
-                  sendMessage={
-                    editingMessage
-                      ? async () => {
-                          const msg = editingMessage;
-                          setEditingMessage(null);
-                          await submitEditedMessage({
-                            conversationId: chatId,
-                            message: msg,
-                            text: input,
-                            setMessages,
-                            regenerate,
-                          });
-                          setInput("");
-                        }
-                      : sendMessage
-                  }
-                  setAttachments={setAttachments}
-                  setInput={setInput}
-                  setMessages={setMessages}
-                  status={status}
-                  stop={stop}
-                />
+                <div className="flex w-full flex-col gap-2">
+                  {threadError ? (
+                    <div
+                      className="rounded-xl border border-destructive/25 bg-destructive/5 px-3 py-2 text-[12px] leading-relaxed text-destructive"
+                      role="alert"
+                    >
+                      <div className="font-medium">当前请求失败，输入已保留，可修改后重试。</div>
+                      <div className="mt-1 text-destructive/80">{threadError}</div>
+                    </div>
+                  ) : null}
+                  <MultimodalInput
+                    chatId={chatId}
+                    editingMessage={editingMessage}
+                    input={input}
+                    isLoading={isLoading}
+                    messages={messages}
+                    onCancelEdit={() => {
+                      setEditingMessage(null);
+                      setInput("");
+                    }}
+                    selectedVisibilityType={visibilityType}
+                    prepareConversationRoute={prepareConversationRoute}
+                    sendMessage={
+                      editingMessage
+                        ? async () => {
+                            const msg = editingMessage;
+                            setEditingMessage(null);
+                            await submitEditedMessage({
+                              conversationId: chatId,
+                              message: msg,
+                              text: input,
+                              setMessages,
+                              sendMessage,
+                            });
+                          }
+                        : sendMessage
+                    }
+                    setInput={setInput}
+                    setMessages={setMessages}
+                    status={status}
+                    stop={stop}
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -162,7 +166,6 @@ export function ChatShell() {
           setMessages={setMessages}
           status={status}
           stop={stop}
-          votes={votes}
         />
       </div>
 
@@ -171,24 +174,19 @@ export function ChatShell() {
       <AlertDialog onOpenChange={setShowCreditCardAlert} open={showCreditCardAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Activate AI Gateway</AlertDialogTitle>
+            <AlertDialogTitle>模型服务暂不可用</AlertDialogTitle>
             <AlertDialogDescription>
-              This application requires {process.env.NODE_ENV === "production" ? "the owner" : "you"} to
-              activate Vercel AI Gateway.
+              当前环境尚未启用回答模型，请稍后再试或联系管理员处理。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>关闭</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                window.open(
-                  "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%3Fmodal%3Dadd-credit-card",
-                  "_blank",
-                );
                 window.location.href = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/`;
               }}
             >
-              Activate
+              返回首页
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

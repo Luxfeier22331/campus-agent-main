@@ -10,7 +10,7 @@ binding = "APP_API"
 service = "app-api"
 
 [env.staging.vars]
-APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"
+APP_API_BASE_URL = "https://app-api.internal"
 PUBLIC_CHAT_HOSTNAME = "campus-chat-staging.ayafeed.com"
 SENTRY_ENVIRONMENT = "staging"
 

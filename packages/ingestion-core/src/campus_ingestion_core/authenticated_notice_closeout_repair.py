@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import replace
 import hashlib
 import json
+from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
@@ -24,19 +24,17 @@ from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutSt
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
 )
-from campus_ingestion_core.authenticated_notice_closeout_verification import (
-    _attachment_projection_plans_from_parent,
-)
 from campus_ingestion_core.authenticated_notice_source_projections import (
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
-    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
-    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    _attachment_projection_plans_from_parent,
 )
 from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.settings import ObjectStoreSettings
@@ -99,7 +97,9 @@ class CloseoutRepairCoordinator:
             self._rebuild_shard(
                 shard=shard,
                 batches=tuple(
-                    batch for batch in repaired_batches if int(batch.shard_id) == int(shard.shard_id)
+                    batch
+                    for batch in repaired_batches
+                    if int(batch.shard_id) == int(shard.shard_id)
                 ),
             )
             for shard in shards
@@ -108,8 +108,7 @@ class CloseoutRepairCoordinator:
             self.closeout_store.save_shard(run.run_id, shard)
 
         repaired_workers = tuple(
-            self._repair_worker(worker)
-            for worker in self.closeout_store.list_workers(run.run_id)
+            self._repair_worker(worker) for worker in self.closeout_store.list_workers(run.run_id)
         )
         for worker in repaired_workers:
             self.closeout_store.save_worker(run.run_id, worker)
@@ -225,8 +224,7 @@ class CloseoutRepairCoordinator:
             ).decode("utf-8")
         )
         parents_by_notice_id = {
-            str(parent["notice_id"]): dict(parent)
-            for parent in tuple(payload.get("parents") or ())
+            str(parent["notice_id"]): dict(parent) for parent in tuple(payload.get("parents") or ())
         }
         staged_notices = {
             str(item["notice_id"]): dict(item)
@@ -277,9 +275,7 @@ class CloseoutRepairCoordinator:
                 for item in tuple(staged_notice.get("attachment_outcomes") or ())
                 if str(item.get("attachment_ref_id") or "").strip()
             }
-            expected_attachment_ids = {
-                str(plan["attachment_ref_id"]): dict(plan) for plan in plans
-            }
+            expected_attachment_ids = {str(plan["attachment_ref_id"]): dict(plan) for plan in plans}
             if set(observed_outcomes) - set(expected_attachment_ids):
                 return True
             for attachment_ref_id, plan in expected_attachment_ids.items():
@@ -296,16 +292,26 @@ class CloseoutRepairCoordinator:
                 document_id = str(plan["document_id"])
                 materialization_policy = str(plan["materialization_policy"])
                 outcome_name = str(outcome.get("outcome") or "")
-                if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT:
+                if (
+                    materialization_policy
+                    == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
+                ):
                     expected_document_ids.add(document_id)
                     if (
-                        outcome_name != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT
+                        outcome_name
+                        != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT
                         or document_id not in staged_document_ids
                     ):
                         return True
                     continue
-                if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW:
-                    if outcome_name != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED:
+                if (
+                    materialization_policy
+                    == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
+                ):
+                    if (
+                        outcome_name
+                        != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED
+                    ):
                         return True
                     if document_id in staged_document_ids:
                         return True
@@ -394,15 +400,9 @@ class CloseoutRepairCoordinator:
         pending_batch_count = sum(
             1 for batch in batches if batch.state == CloseoutBatchState.PENDING
         )
-        completed_shard_count = sum(
-            1 for shard in shards if shard.state == CloseoutShardState.DONE
-        )
-        failed_shard_count = sum(
-            1 for shard in shards if shard.state == CloseoutShardState.FAILED
-        )
-        active_worker_count = sum(
-            1 for worker in workers if int(worker.active_batch_count) > 0
-        )
+        completed_shard_count = sum(1 for shard in shards if shard.state == CloseoutShardState.DONE)
+        failed_shard_count = sum(1 for shard in shards if shard.state == CloseoutShardState.FAILED)
+        active_worker_count = sum(1 for worker in workers if int(worker.active_batch_count) > 0)
         completed_notice_count = sum(
             int(batch.processed_notice_count)
             for batch in batches

@@ -4,138 +4,142 @@ import donorDiffClassificationDocSource from "../../../docs/reference/public-cha
 import tsconfigSource from "../tsconfig.json?raw";
 import viteConfigSource from "../vite.config.ts?raw";
 import {
-  acceptedProductDiffPaths,
-  acceptedRuntimeCompatibilityDiffPaths,
-  donorComparisonIgnoredPaths,
-  exactCompatSeams,
-  expectedVendorDiffPaths,
-  historicalDebtDiffPaths,
+	acceptedProductDiffPaths,
+	acceptedRuntimeCompatibilityDiffPaths,
+	donorComparisonIgnoredPaths,
+	exactCompatSeams,
+	expectedVendorDiffPaths,
+	historicalDebtDiffPaths,
 } from "./donor-diff-classification";
 
 const donorSourceModules = import.meta.glob<string>(
-  "../../../.tmp/vercel-ai-chatbot/**/*.{css,ts,tsx,d.ts}",
-  {
-    eager: true,
-    import: "default",
-    query: "?raw",
-  },
+	"../../../.tmp/vercel-ai-chatbot/**/*.{css,ts,tsx,d.ts}",
+	{
+		eager: true,
+		import: "default",
+		query: "?raw",
+	},
 );
 
 const vendorSourceModules = import.meta.glob<string>(
-  "../vendor/vercel-ai-chatbot/**/*.{css,ts,tsx,d.ts}",
-  {
-    eager: true,
-    import: "default",
-    query: "?raw",
-  },
+	"../vendor/vercel-ai-chatbot/**/*.{css,ts,tsx,d.ts}",
+	{
+		eager: true,
+		import: "default",
+		query: "?raw",
+	},
 );
 
 function normalizeDonorKey(moduleKey: string): string {
-  return moduleKey.replace(/^..\/..\/..\/\.tmp\/vercel-ai-chatbot\//, "");
+	return moduleKey.replace(/^..\/..\/..\/\.tmp\/vercel-ai-chatbot\//, "");
 }
 
 function normalizeVendorKey(moduleKey: string): string {
-  return moduleKey.replace(/^\.\.\/vendor\/vercel-ai-chatbot\//, "");
+	return moduleKey.replace(/^\.\.\/vendor\/vercel-ai-chatbot\//, "");
 }
 
 const donorComparisonIgnoredPathSet = new Set<string>(donorComparisonIgnoredPaths);
 
 function collectDonorDiff() {
-  const donorFiles = new Map(
-    Object.entries(donorSourceModules)
-      .map(([moduleKey, source]) => [normalizeDonorKey(moduleKey), source] as const)
-      .filter(([relativePath]) => !donorComparisonIgnoredPathSet.has(relativePath)),
-  );
-  const vendorFiles = new Map(
-    Object.entries(vendorSourceModules)
-      .map(([moduleKey, source]) => [normalizeVendorKey(moduleKey), source] as const)
-      .filter(([relativePath]) => !donorComparisonIgnoredPathSet.has(relativePath)),
-  );
-  const allPaths = [...new Set([...donorFiles.keys(), ...vendorFiles.keys()])].sort();
-  const onlyLeft: string[] = [];
-  const onlyRight: string[] = [];
-  const differ: string[] = [];
+	const donorFiles = new Map(
+		Object.entries(donorSourceModules)
+			.map(([moduleKey, source]) => [normalizeDonorKey(moduleKey), source] as const)
+			.filter(([relativePath]) => !donorComparisonIgnoredPathSet.has(relativePath)),
+	);
+	const vendorFiles = new Map(
+		Object.entries(vendorSourceModules)
+			.map(([moduleKey, source]) => [normalizeVendorKey(moduleKey), source] as const)
+			.filter(([relativePath]) => !donorComparisonIgnoredPathSet.has(relativePath)),
+	);
+	const allPaths = [...new Set([...donorFiles.keys(), ...vendorFiles.keys()])].sort();
+	const onlyLeft: string[] = [];
+	const onlyRight: string[] = [];
+	const differ: string[] = [];
 
-  for (const relativePath of allPaths) {
-    const donorSource = donorFiles.get(relativePath);
-    const vendorSource = vendorFiles.get(relativePath);
+	for (const relativePath of allPaths) {
+		const donorSource = donorFiles.get(relativePath);
+		const vendorSource = vendorFiles.get(relativePath);
 
-    if (donorSource !== undefined && vendorSource === undefined) {
-      onlyLeft.push(relativePath);
-      continue;
-    }
+		if (donorSource !== undefined && vendorSource === undefined) {
+			onlyLeft.push(relativePath);
+			continue;
+		}
 
-    if (donorSource === undefined && vendorSource !== undefined) {
-      onlyRight.push(relativePath);
-      continue;
-    }
+		if (donorSource === undefined && vendorSource !== undefined) {
+			onlyRight.push(relativePath);
+			continue;
+		}
 
-    if (donorSource !== vendorSource) {
-      differ.push(relativePath);
-    }
-  }
+		if (donorSource !== vendorSource) {
+			differ.push(relativePath);
+		}
+	}
 
-  return {
-    differ,
-    donorSnapshotAvailable: donorFiles.size > 0,
-    onlyLeft,
-    onlyRight,
-    vendorPaths: [...vendorFiles.keys()].sort(),
-  };
+	return {
+		differ,
+		donorSnapshotAvailable: donorFiles.size > 0,
+		onlyLeft,
+		onlyRight,
+		vendorPaths: [...vendorFiles.keys()].sort(),
+	};
 }
 
 describe("public chat donor diff classification", () => {
-  it("classifies every remaining vendor diff into accepted categories and leaves no historical debt", () => {
-    const { differ, donorSnapshotAvailable, onlyLeft, onlyRight, vendorPaths } = collectDonorDiff();
+	it("classifies every remaining vendor diff into accepted categories and leaves no historical debt", () => {
+		const { differ, donorSnapshotAvailable, onlyLeft, onlyRight, vendorPaths } = collectDonorDiff();
 
-    if (donorSnapshotAvailable) {
-      expect(onlyLeft).toEqual([]);
-      expect(onlyRight).toEqual([]);
-      expect(differ).toEqual(expectedVendorDiffPaths.filter((relativePath) => relativePath !== "app/globals.css"));
-    } else {
-      expect(onlyLeft).toEqual([]);
-      for (const relativePath of expectedVendorDiffPaths) {
-        expect(vendorPaths).toContain(relativePath);
-      }
-    }
+		if (donorSnapshotAvailable) {
+			expect(onlyLeft).toEqual([]);
+			expect(onlyRight).toEqual([]);
+			expect(differ).toEqual(
+				expectedVendorDiffPaths.filter((relativePath) => relativePath !== "app/globals.css"),
+			);
+		} else {
+			expect(onlyLeft).toEqual([]);
+			for (const relativePath of expectedVendorDiffPaths) {
+				expect(vendorPaths).toContain(relativePath);
+			}
+		}
 
-    expect(acceptedProductDiffPaths.length).toBeGreaterThan(0);
-    expect(acceptedRuntimeCompatibilityDiffPaths.length).toBeGreaterThan(0);
-    expect(expectedVendorDiffPaths).not.toContain("next-env.d.ts");
-    expect(donorComparisonIgnoredPaths).toContain("next-env.d.ts");
-    expect(historicalDebtDiffPaths).toEqual([]);
-  });
+		expect(acceptedProductDiffPaths.length).toBeGreaterThan(0);
+		expect(acceptedRuntimeCompatibilityDiffPaths.length).toBeGreaterThan(0);
+		expect(expectedVendorDiffPaths).not.toContain("next-env.d.ts");
+		expect(donorComparisonIgnoredPaths).toContain("next-env.d.ts");
+		expect(historicalDebtDiffPaths).toEqual([]);
+	});
 
-  it("keeps exact compat seam ownership explicit in vite and tsconfig", () => {
-    for (const seam of exactCompatSeams) {
-      expect(viteConfigSource).toContain(seam.ownerPath);
-      expect(viteConfigSource).toContain(seam.viteNeedle);
+	it("keeps exact compat seam ownership explicit in vite and tsconfig", () => {
+		for (const seam of exactCompatSeams) {
+			expect(viteConfigSource).toContain(seam.ownerPath);
+			expect(viteConfigSource).toContain(seam.viteNeedle);
 
-      if (seam.importerNeedle) {
-        expect(viteConfigSource).toContain(seam.importerNeedle);
-      }
+			if (seam.importerNeedle) {
+				expect(viteConfigSource).toContain(seam.importerNeedle);
+			}
 
-      if (seam.tsconfigNeedle) {
-        expect(tsconfigSource).toContain(seam.tsconfigNeedle);
-      }
-    }
-  });
+			if (seam.tsconfigNeedle) {
+				expect(tsconfigSource).toContain(seam.tsconfigNeedle);
+			}
+		}
+	});
 
-  it("keeps the classification doc aligned with the machine-readable inventory", () => {
-    expect(donorDiffClassificationDocSource).toMatch(/## (当前结论|分类基线)/);
-    expect(donorDiffClassificationDocSource).toContain("## Accepted Product Diffs");
-    expect(donorDiffClassificationDocSource).toContain("## Accepted Runtime Compatibility Diffs");
-    expect(donorDiffClassificationDocSource).toContain("## Exact Compat Seam Owners");
-    expect(donorDiffClassificationDocSource).toContain("## Historical Debt");
-    expect(donorDiffClassificationDocSource).toMatch(/remaining historical debt 路径数(?:固定)?为 `0`/);
+	it("keeps the classification doc aligned with the machine-readable inventory", () => {
+		expect(donorDiffClassificationDocSource).toMatch(/## (当前结论|分类基线)/);
+		expect(donorDiffClassificationDocSource).toContain("## Accepted Product Diffs");
+		expect(donorDiffClassificationDocSource).toContain("## Accepted Runtime Compatibility Diffs");
+		expect(donorDiffClassificationDocSource).toContain("## Exact Compat Seam Owners");
+		expect(donorDiffClassificationDocSource).toContain("## Historical Debt");
+		expect(donorDiffClassificationDocSource).toMatch(
+			/remaining historical debt 路径数(?:固定)?为 `0`/,
+		);
 
-    for (const relativePath of expectedVendorDiffPaths) {
-      expect(donorDiffClassificationDocSource).toContain(relativePath);
-    }
+		for (const relativePath of expectedVendorDiffPaths) {
+			expect(donorDiffClassificationDocSource).toContain(relativePath);
+		}
 
-    for (const seam of exactCompatSeams) {
-      expect(donorDiffClassificationDocSource).toContain(seam.specifier);
-      expect(donorDiffClassificationDocSource).toContain(seam.ownerPath);
-    }
-  });
+		for (const seam of exactCompatSeams) {
+			expect(donorDiffClassificationDocSource).toContain(seam.specifier);
+			expect(donorDiffClassificationDocSource).toContain(seam.ownerPath);
+		}
+	});
 });

@@ -3,9 +3,8 @@ doc_type: decision
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-03-29
+updated: 2026-04-26
 ---
-
 # ADR-0010 观测与遥测栈决策
 
 适用范围：`campus-agent` v2 的应用错误监控、trace、AI 调用观测、结构化运行事件、告警与数据最小化边界
@@ -15,17 +14,17 @@ updated: 2026-03-29
 `campus-agent` 的长期运行形态不是单一 HTTP 服务，而是至少包含：
 
 - `apps/supervisor-api` 入口边界
-- `packages/supervisor-core` 编排与审计投影
-- `packages/rag-specialist` / `packages/retrieval-core` 的在线回答链路
+- `apps/supervisor-api` execution runtime、runtime policy、finalization 与审计投影
+- `apps/supervisor-agent-worker` private agent bridge
+- `packages/rag-agent` / `packages/retrieval-core` 的在线回答链路
 - `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
-- 后续 Cloudflare public entry、consumer app 与其他 specialist 的运行时壳
+- 后续 Cloudflare public entry、consumer app 与其他 agent 的运行时壳
 
 因此系统需要同时满足两类不同的运行诉求：
 
-- 开发与故障调试
-  需要看 exception、slow request、downstream failure、trace 断点、AI 调用异常
-- 运行事件分析
-  需要看 retrieval 命中、no-answer、clarification、ACL 决策、token 成本、chunk / index / rebuild 结果等高体量结构化事件
+- 开发与故障调试 需要看 exception、slow request、downstream failure、trace 断点、AI 调用异常
+- 运行事件分析 需要看 retrieval 命中、no-answer、clarification、ACL 决策、token 成本、chunk / index
+  / rebuild 结果等高体量结构化事件
 
 如果只用单一产品承担这两类职责，长期容易出现以下问题：
 
@@ -106,7 +105,7 @@ updated: 2026-03-29
 
 原因：
 
-- 这样可以避免在 supervisor、specialist、ingestion 各层复制厂商逻辑
+- 这样可以避免在 supervisor、agent、ingestion 各层复制厂商逻辑
 - 方便在 `Axiom` 与 `Sentry` 之间执行不同的采样和字段保留策略
 - 后续若替换 sink，不需要回改核心业务语义
 
@@ -130,11 +129,13 @@ updated: 2026-03-29
 - PII、secret、token、cookie、access envelope、raw auth material 不得直接落盘
 - ACL / version / route / source locator 等治理字段必须可追踪
 - redaction 配置应先于 production sink 开启
-- 如果后续需要 operator-facing request list/detail，必须通过 runtime-owned projection/read API 提供；`Axiom`、`Sentry` 与 raw audit log 都不是 canonical panel read model
+- 如果后续需要 operator-facing request list/detail，必须通过 runtime-owned projection/read
+  API 提供；`Axiom`、`Sentry` 与 raw audit log 都不是 canonical panel read model
 
 ## 决策 6：identity / memory / personalization telemetry 也必须最小化
 
-后续当系统引入 canonical identity、profile memory、session memory 与 personalization 后，长期默认允许观测的字段仍应保持最小化。
+后续当系统引入 canonical identity、profile memory、session memory 与 personalization
+后，长期默认允许观测的字段仍应保持最小化。
 
 长期默认允许的结构化字段包括：
 
@@ -153,7 +154,8 @@ updated: 2026-03-29
 - 未脱敏的 personal conversation text
 - 用户私密笔记、profile 原文、自由文本画像摘要
 
-这些规则同样适用于 `Axiom`、`Sentry` 与后续其他 sink；Collector / telemetry adapter 应在 sink 前完成 redaction 与字段裁剪。
+这些规则同样适用于 `Axiom`、`Sentry` 与后续其他 sink；Collector / telemetry adapter 应在 sink 前完成
+redaction 与字段裁剪。
 
 ## 不冻结的内容
 
@@ -175,18 +177,18 @@ updated: 2026-03-29
 - `Axiom` 与 `Sentry` 采用职责拆分，而不是互相替代
 - Phase 5 及后续运行时工作应把 audit / trace / telemetry 字段统一到同一 request identity 模型下
 
-## 当前第一版落地基线
+## 第一版落地基线
 
-截至 2026-03-29，当前 worktree 的最小接入基线固定为：
+本 ADR 接受时记录的首版落地基线固定为：
 
-- `apps/app-api`
-  接入 `Sentry` 的 Worker `fetch` 与 `scheduled`，并作为当前 product topology 的主 observability owner
-- `apps/public-chat-web`
-  接入 `Sentry` 的 Worker shell，并向 `app-api` 透传 `x-trace-id`、`sentry-trace`、`baggage`
-- `apps/protected-panel-web`
-  接入 `Sentry` 的 Worker shell，并向 `app-api` 透传 `x-trace-id`、`sentry-trace`、`baggage`
-- `Axiom`
-  当前只在 `apps/app-api` 落地最小结构化运行事件；实现形态允许先使用 Worker-local REST ingest adapter，但不改变长期 `OTel -> Collector -> sink` 方向
+- `apps/app-api` 接入 `Sentry` 的 Worker `fetch` 与 `scheduled`，并作为当前 product
+  topology 的主 observability owner
+- `apps/public-chat-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
+  `x-trace-id`、`sentry-trace`、`baggage`
+- `apps/protected-panel-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
+  `x-trace-id`、`sentry-trace`、`baggage`
+- `Axiom` 当前只在 `apps/app-api` 落地最小结构化运行事件；实现形态允许先使用 Worker-local REST ingest
+  adapter，但不改变长期 `OTel -> Collector -> sink` 方向
 
 这一版不改变 canonical truth：
 
@@ -203,6 +205,7 @@ updated: 2026-03-29
 ## 相关文档
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d`

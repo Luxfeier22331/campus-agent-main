@@ -1,0 +1,13 @@
+{
+  "schema_version": "service_status_projection_release_manifest.v1",
+  "release_id": "service-status-live-355650-promote-20260428T105200",
+  "generated_at": "2026-04-28T10:52:00+08:00",
+  "projection_path": "/home/reptilian/code/campus-agent/.planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-07-live-admission-loop/live-355650-facility-trial/service-status-promote/service-status-live-355650-promote-20260428T105200/service-status-projection.json",
+  "current_projection_path": "/home/reptilian/code/campus-agent/.planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-07-live-admission-loop/live-355650-facility-trial/service-status-promote/current/service-status-projection.json",
+  "release_object_key": "campus_services/releases/service_status/service-status-live-355650-promote-20260428T105200/service-status-projection.json",
+  "current_object_key": "campus_services/releases/service_status/current/service-status-projection.json",
+  "validation_summary_path": "/home/reptilian/code/campus-agent/.planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-07-live-admission-loop/live-355650-facility-trial/service-status-promote/service-status-live-355650-promote-20260428T105200/validation-summary.json",
+  "release_manifest_path": "/home/reptilian/code/campus-agent/.planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-07-live-admission-loop/live-355650-facility-trial/service-status-promote/service-status-live-355650-promote-20260428T105200/release-manifest.json",
+  "rejected_source_report_path": "/home/reptilian/code/campus-agent/.planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-07-live-admission-loop/live-355650-facility-trial/service-status-promote/service-status-live-355650-promote-20260428T105200/rejected-source-report.json",
+  "rejected_source_report_object_key": "campus_services/releases/service_status/service-status-live-355650-promote-20260428T105200/rejected-source-report.json"
+}

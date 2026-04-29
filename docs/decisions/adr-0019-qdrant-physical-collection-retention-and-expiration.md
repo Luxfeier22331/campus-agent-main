@@ -5,10 +5,10 @@ status: accepted
 created: 2026-03-31
 updated: 2026-03-31
 ---
-
 # ADR-0019 Qdrant Physical Collection Retention And Expiration
 
-适用范围：所有已进入 release-managed lifecycle 的 Qdrant collection，包括当前 `query_serving` 的 `student_handbook`、`curriculum_plan`，以及当前仍处于 `offline_preparation` 的 collection
+适用范围：所有已进入 release-managed lifecycle 的 Qdrant collection，包括当前 `query_serving` 的
+`student_rules`、`curriculum_plan`，以及当前仍处于 `offline_preparation` 的 collection
 
 ## 背景
 
@@ -16,7 +16,8 @@ updated: 2026-03-31
 
 - retrieval 只读取稳定 `serving alias`
 - 每次 index release 都会生成新的 versioned physical collection
-- release manifest 会记录 `serving_alias`、`physical_collection_name` 与 `previous_physical_collection_name`
+- release manifest 会记录 `serving_alias`、`physical_collection_name` 与
+  `previous_physical_collection_name`
 - alias rollback 的标准动作是把 alias 切回上一个 physical collection
 
 但当前仍缺一条明确规则：
@@ -41,18 +42,15 @@ updated: 2026-03-31
 1. `current`
    - alias 当前指向的 physical collection
    - 永不自动删除
-2. `previous`
+1. `previous`
    - 最新一次已发布 release 的 `previous_physical_collection_name`
    - 作为热回滚位保留
-3. `migration_baseline`
-   - 当 release 变更以下任一项时，额外保留一版迁移前基线：
-     - embedding model 或 dimensions
-     - vector names / schema
-     - chunk profile
-     - cleaning policy
-     - retrieval serving shape
-4. `archive_candidate`
-   - 既不是 `current`、也不是 `previous`、也不是 `migration_baseline` 的旧 physical collection
+1. `migration_baseline`
+   - 当 release 变更以下任一项时，额外保留一版迁移前基线： - embedding model 或 dimensions - vector
+     names / schema - chunk profile - cleaning policy - retrieval serving shape
+1. `archive_candidate`
+   - 既不是 `current`、也不是 `previous`、也不是 `migration_baseline` 的旧 physical
+     collection
 
 原因：
 
@@ -66,7 +64,8 @@ updated: 2026-03-31
   - 永不自动删除
 - `previous`
   - 至少保留 `7` 天
-  - 且在一个更新的 release 完成 publish 后，还必须等该 release 的 post-publish validation / acceptance 关闭，才允许降级为 `archive_candidate`
+  - 且在一个更新的 release 完成 publish 后，还必须等该 release 的 post-publish validation /
+    acceptance 关闭，才允许降级为 `archive_candidate`
 - `migration_baseline`
   - 至少保留 `30` 天
 - `archive_candidate`
@@ -81,13 +80,15 @@ updated: 2026-03-31
 - 目标 collection 不是仍在保留窗口内的 `migration_baseline`
 - 当前没有 active incident、回归调查或手工验收仍依赖该 release
 - 对应 release 的 manifest 与 validation summary 已持久化在对象存储中
-- Qdrant Cloud backup 覆盖了这次 release 的恢复窗口；如当前环境没有足够的 cloud backup 覆盖，则先补充显式 snapshot / export，再允许删除
+- Qdrant Cloud backup 覆盖了这次 release 的恢复窗口；如当前环境没有足够的 cloud backup 覆盖，则先补充显式
+  snapshot / export，再允许删除
 
 ### 决策 4：physical collection 过期不等于文档历史版本删除
 
 - 文档历史版本保留规则继续以 `DocumentRegistry` 与 ADR-0014 为准
 - 删除旧 Qdrant physical collection，不得被解释为删除历史 `version_id`
-- 默认 current-serving 继续成立，但“历史版本必须保留”的语义属于 registry / object-store truth，不要求所有历史 release 的物理索引永久常驻 Qdrant Cloud
+- 默认 current-serving 继续成立，但“历史版本必须保留”的语义属于 registry / object-store truth，不要求所有历史
+  release 的物理索引永久常驻 Qdrant Cloud
 
 ### 决策 5：这套 retention 规则对 `query_serving` 与 `offline_preparation` collection 一致生效
 
@@ -112,7 +113,8 @@ updated: 2026-03-31
 
 - `docs/reference/runtime-serving-and-index-terms.md` 需要补充 retention role 定义
 - `docs/runbooks/index-release-runbook.md` 需要补充旧 collection 清理门禁与操作流程
-- `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md` 需要补充 Standard / Free tier 的恢复覆盖策略
+- `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transiti
+  on.md` 需要补充 Standard / Free tier 的恢复覆盖策略
 - 后续如果实现自动 GC / cleanup worker，必须严格遵守本 ADR 的角色与门禁，而不是重新发明 time-only policy
 
 明确不做：
@@ -125,8 +127,9 @@ updated: 2026-03-31
 
 这项决策 complements：
 
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/runbooks/index-release-runbook.md`
-- `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
+- `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transiti
+  on.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

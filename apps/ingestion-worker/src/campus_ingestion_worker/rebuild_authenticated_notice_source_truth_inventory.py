@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, is_dataclass
 import json
+from collections.abc import Sequence
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     rebuild_authenticated_notice_source_truth_inventory,
@@ -35,9 +36,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         corpus=args.corpus,
         collection=args.collection,
         source_projections_path=(
-            Path(args.source_projections_path)
-            if args.source_projections_path
-            else None
+            Path(args.source_projections_path) if args.source_projections_path else None
         ),
         default_visibility_scope=args.default_visibility_scope,
         notice_ids=tuple(args.notice_ids),

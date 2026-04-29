@@ -4,8 +4,15 @@ import argparse
 import json
 from pathlib import Path
 
+from campus_contracts import (
+    AgentResponse,
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    RagResultPayload,
+)
 from campus_shared import load_repo_env
-from campus_contracts import EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
+
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 from campus_evals.ragas_adapter import build_ragas_projection
 from campus_evals.scenarios import (
@@ -15,13 +22,16 @@ from campus_evals.scenarios import (
     handbook_release_gate_cases,
 )
 
-
 CONTEXT_METRIC_NAMES = ("context_precision", "context_recall")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Render per-case context diagnostics from live benchmark artifacts.")
-    parser.add_argument("--case-results", required=True, help="Path to run-XX-case-results.json artifact.")
+    parser = argparse.ArgumentParser(
+        description="Render per-case context diagnostics from live benchmark artifacts."
+    )
+    parser.add_argument(
+        "--case-results", required=True, help="Path to run-XX-case-results.json artifact."
+    )
     parser.add_argument(
         "--scenario-set",
         required=True,
@@ -56,7 +66,8 @@ def build_context_diagnostics(
         artifact_scores = _artifact_metric_scores(payload)
         response_status = _response_status(payload, case=case)
         metric_applicability = {
-            metric_name: _metric_applicable(case, metric_name) and case.expected_status == "completed"
+            metric_name: _metric_applicable(case, metric_name)
+            and case.expected_status == "completed"
             for metric_name in CONTEXT_METRIC_NAMES
         }
 
@@ -67,7 +78,12 @@ def build_context_diagnostics(
                 "response_status": response_status,
                 "context_metric_applicability": metric_applicability,
                 "artifact_scores": artifact_scores,
-                "projection": _build_projection_diagnostic(case, observed_trace, response_status=response_status, metric_applicability=metric_applicability),
+                "projection": _build_projection_diagnostic(
+                    case,
+                    observed_trace,
+                    response_status=response_status,
+                    metric_applicability=metric_applicability,
+                ),
             }
         )
 
@@ -143,7 +159,7 @@ def _scenario_cases(scenario_set: str) -> tuple[GoldenCase, ...]:
 
 
 def _artifact_metric_scores(payload: dict[str, object]) -> dict[str, float | None]:
-    scores: dict[str, float | None] = {metric_name: None for metric_name in CONTEXT_METRIC_NAMES}
+    scores: dict[str, float | None] = dict.fromkeys(CONTEXT_METRIC_NAMES, None)
     for result in payload.get("supplemental_results") or ():
         item = dict(result)
         metric_name = str(item.get("metric_name") or "")
@@ -177,12 +193,16 @@ def _build_projection_diagnostic(
     response_status: str,
     metric_applicability: dict[str, bool],
 ) -> dict[str, object] | None:
-    if observed_trace is None or response_status != "completed" or not any(metric_applicability.values()):
+    if (
+        observed_trace is None
+        or response_status != "completed"
+        or not any(metric_applicability.values())
+    ):
         return None
 
     execution = ExecutionResult(
-        response=SpecialistResponse(
-            target="rag-specialist",
+        response=AgentResponse(
+            target="rag-agent",
             status="completed",
             answer_text="artifact replay answer",
             confidence="high",
@@ -204,36 +224,64 @@ def _build_projection_diagnostic(
     reference_context_id_set = set(reference_context_ids)
     return {
         "metric_route": _metric_route(projection),
-        "projection_context_source": str(projection.metadata.get("projection_context_source") or ""),
+        "projection_context_source": str(
+            projection.metadata.get("projection_context_source") or ""
+        ),
         "retrieved_context_count": len(projection.retrieved_contexts),
         "retrieved_context_ids": retrieved_context_ids,
         "reference_context_ids": reference_context_ids,
-        "missing_reference_context_ids": sorted(reference_context_id_set - retrieved_context_id_set),
+        "missing_reference_context_ids": sorted(
+            reference_context_id_set - retrieved_context_id_set
+        ),
         "extra_retrieved_context_ids": sorted(retrieved_context_id_set - reference_context_id_set),
         "retrieved_source_count": len(observed_trace.retrieved_sources),
         "supporting_source_count": len(observed_trace.supporting_sources),
-        "retrieved_doc_ids": _ordered_unique(source.doc_id for source in observed_trace.retrieved_sources if source.doc_id),
+        "retrieved_doc_ids": _ordered_unique(
+            source.doc_id for source in observed_trace.retrieved_sources if source.doc_id
+        ),
         "retrieved_canonical_source_ids": _ordered_unique(
-            source.canonical_source_id for source in observed_trace.retrieved_sources if source.canonical_source_id
+            source.canonical_source_id
+            for source in observed_trace.retrieved_sources
+            if source.canonical_source_id
         ),
         "retrieved_source_unit_kinds": _ordered_unique(
-            source.source_unit_kind for source in observed_trace.retrieved_sources if source.source_unit_kind
+            source.source_unit_kind
+            for source in observed_trace.retrieved_sources
+            if source.source_unit_kind
         ),
         "retrieved_source_unit_keys": _ordered_unique(
-            source.source_unit_key for source in observed_trace.retrieved_sources if source.source_unit_key
+            source.source_unit_key
+            for source in observed_trace.retrieved_sources
+            if source.source_unit_key
         ),
-        "retrieved_source_titles": [source.source_title for source in observed_trace.retrieved_sources if source.source_title],
-        "supporting_doc_ids": _ordered_unique(source.doc_id for source in observed_trace.supporting_sources if source.doc_id),
+        "retrieved_source_titles": [
+            source.source_title
+            for source in observed_trace.retrieved_sources
+            if source.source_title
+        ],
+        "supporting_doc_ids": _ordered_unique(
+            source.doc_id for source in observed_trace.supporting_sources if source.doc_id
+        ),
         "supporting_canonical_source_ids": _ordered_unique(
-            source.canonical_source_id for source in observed_trace.supporting_sources if source.canonical_source_id
+            source.canonical_source_id
+            for source in observed_trace.supporting_sources
+            if source.canonical_source_id
         ),
         "supporting_source_unit_kinds": _ordered_unique(
-            source.source_unit_kind for source in observed_trace.supporting_sources if source.source_unit_kind
+            source.source_unit_kind
+            for source in observed_trace.supporting_sources
+            if source.source_unit_kind
         ),
         "supporting_source_unit_keys": _ordered_unique(
-            source.source_unit_key for source in observed_trace.supporting_sources if source.source_unit_key
+            source.source_unit_key
+            for source in observed_trace.supporting_sources
+            if source.source_unit_key
         ),
-        "supporting_source_titles": [source.source_title for source in observed_trace.supporting_sources if source.source_title],
+        "supporting_source_titles": [
+            source.source_title
+            for source in observed_trace.supporting_sources
+            if source.source_title
+        ],
     }
 
 
@@ -280,11 +328,7 @@ def _deserialize_observed_trace(payload: object) -> ObservedTrace | None:
 def _deserialize_evidence_sources(payload: object) -> tuple[EvidenceSource, ...]:
     if not isinstance(payload, list):
         return ()
-    return tuple(
-        _deserialize_evidence_source(item)
-        for item in payload
-        if isinstance(item, dict)
-    )
+    return tuple(_deserialize_evidence_source(item) for item in payload if isinstance(item, dict))
 
 
 def _deserialize_evidence_source(payload: dict[str, object]) -> EvidenceSource:
@@ -303,7 +347,9 @@ def _deserialize_evidence_source(payload: dict[str, object]) -> EvidenceSource:
         snippet=str(payload.get("snippet") or ""),
         score=float(payload.get("score") or 0.0),
         source_title=str(payload.get("source_title") or ""),
-        structural_path=tuple(str(item) for item in structural_path) if isinstance(structural_path, list) else (),
+        structural_path=tuple(str(item) for item in structural_path)
+        if isinstance(structural_path, list)
+        else (),
         content_kind=str(payload.get("content_kind") or ""),
         content_role=str(payload.get("content_role") or ""),
         detail_label=str(payload.get("detail_label") or ""),

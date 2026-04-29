@@ -2,84 +2,107 @@
 doc_type: reference
 status: active
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-24
 ---
-
 # Institutional Regulations Offline Inventory
 
 ## 文档边界
 
-本文冻结当前 repo 已采集 regulation corpus 的离线 inventory。
+本文只维护 regulation downstream consumption 的当前离线 inventory。
 
 它回答的是：
 
-- 目前有哪些已采集 notice family 可直接作为 regulation 消费
-- 哪些仍是 source hold / auth-blocked
-- 哪些虽然已采集，但不属于当前 `regulations/institutional_regulations` 导入线
+- 哪些 captured items 当前属于 `institutional_rules`
+- 哪些当前属于 `scoped_rules`
+- 哪些仍停在 duplicate hold / auth-blocked / out-of-scope
 
 它不回答：
 
-- 新一轮 portal 采集
-- OCR/provider 细节
-- chunking 规则设计
-- embedding / Qdrant / release
+- promotion/materialization acceptance 细节
+- target-side chunk acceptance 命令
+- query-serving reopen
 
-machine-readable 对应文件：
+相关文档：
 
-- [regulation-offline-inventory.json](/home/reptilian/code/campus-agent/.planning/quick/260414-ang-regulation-corpus-inventory-blocked-fron/regulation-offline-inventory.json)
+- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
+- `docs/reference/internal-notice-manual-review-collection-strategy.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery
+  .md`
 
-## 当前 formal local current target
+## Institution-Wide Current Target
 
-当前已进入 `regulations/institutional_regulations` formal local current target 的 `11` 条 regulation 为：
+当前仍属于 `regulations/institutional_rules` 的 target 只保留 institution-wide stable
+regulation，例如：
+
+- `中央民族大学采购工作管理办法`
+- `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
+
+固定解释：
+
+- attachment-backed owner body 允许进入当前 target
+- wrapper notice 本身不充当 target owner
+
+当前 frozen target count: `2`
+
+## Scoped Rules Holding Target
+
+以下 captured items 当前属于 `regulations/scoped_rules`，不再回混到 `institutional_rules`：
 
 - `中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则`
 - `药学院2021年硕博连读博士研究生招生实施细则`
 - `历史文化学院2021年硕博连读博士研究生 招生实施细则`
-- `中央民族大学采购工作管理办法`
 - `生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
 - `中央民族大学丰台校区就医管理办法（暂行）`
 - `中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则`
 - `新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则`
 - `中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则`
 - `中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则`
-- `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
 
-`355282 / 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知` 当前已不再是 isolated sample：
+当前 frozen target count: `9`
 
-- 当前语义：attachment owner recovered 并已 formal current-target materialized
-- 当前状态：`accepted_current_target`
-- 当前 owner kind：`attachment_document`
+## Acceptance Evidence
 
-## 当前 source hold / blocked frontier
+当前 bounded `11` 条 target 的 local-only target-side acceptance evidence 冻结在：
+
+- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+
+最终通过口径：
+
+- `institutional_rules` lane: `prepared_document_count=2`，`passed=true`
+- `scoped_rules` lane: `prepared_document_count=9`，`passed=true`
+- 当前 stop point 仍是 `offline_preparation`
+
+## Hold / Blocked Frontier
 
 ### Duplicate Hold
 
 - `191177 / 生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
-  - 当前状态：`duplicate_hold_source`
-  - 对应 primary：`191176`
+  - primary：`191176`
+  - 当前只保留 source truth，不再生成第二份 regulation target
 
-### Auth-Blocked
+### Excluded
 
 - `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知`
-  - 当前状态：`auth_blocked_file_release_owner_missing`
-  - 缺口：
-    - next auth window 的 bounded `file_release` capture
-    - 以及真正的 `file_release -> owner body recovery`
+  - 该样本已被显式排除，不再作为 auth-dependent `file_release` owner recovery target
+  - historical source truth 继续保留，但 non-auth downstream line 与 auth
+    owner-recovery line 都不再继续承接它
 
-## 当前不属于 regulation target 的 follow-up
+## Out Of Scope For Regulation Target
 
 - `351699 / 关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知`
-  - 当前状态：`handbook_follow_up_not_regulation`
 - `351704 / 关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知`
-  - 当前状态：`handbook_follow_up_not_regulation`
 - `177880 / 关于印发实施《中央民族大学学生申诉管理办法》的通知`
-  - 当前状态：`wrapper_follow_up_not_in_current_target`
 
-## 当前可做的离线工作
+固定解释：
 
-在没有认证态的前提下，当前只建议围绕这份 inventory 做：
+- 这些 follow-up 当前不进入 regulation target
+- 其中 handbook / wrapper follow-up 继续在各自 owner lane 处理
 
-- 继续消费已进入 formal local current target 的 `11` 条 regulation
-- 保持 `355282` 作为 attachment-backed regulation current truth，不再回退成 isolated sample
-- 保持 `351119` 为 auth-blocked frontier，不再误推进
-- 保持 `351699 / 351704 / 177880` 不进入当前 regulation target
+## Usage Rule
+
+- 需要看“哪些 title 当前在哪个 target bucket”，读本文
+- 需要看 identity / provenance / materialization acceptance，读
+  `institutional-regulations-promotion-quality-acceptance.md`
+- 需要看 current frontier 的 execution status，读 `.planning/WORKSTREAMS.md` 与对应
+  workstream `STATE.md`

@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core.authenticated_notice_closeout import (
     AuthenticatedNoticeCloseoutService,
     AuthenticatedNoticeSourceTruthReplayRequest,
     CloseoutPlanner,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
@@ -46,9 +47,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             corpus=args.corpus,
             collection=args.collection,
             source_projections_path=(
-                Path(args.source_projections_path)
-                if args.source_projections_path
-                else None
+                Path(args.source_projections_path) if args.source_projections_path else None
             ),
             default_visibility_scope=args.visibility_scope,
             notice_ids=tuple(args.notice_ids),

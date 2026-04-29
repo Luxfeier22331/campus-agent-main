@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 import json
 import os
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol
 from urllib.parse import quote
 
 import requests
+from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 from qdrant_client.http.models import SnapshotPriority
@@ -25,7 +26,6 @@ from campus_ingestion_core.object_store import (
     build_qdrant_backup_artifact_key,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
-from campus_retrieval_core.settings import RetrievalSettings
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,7 +260,7 @@ class QdrantSnapshotAdmin:
 
 
 def default_backup_id(*, now: datetime | None = None) -> str:
-    runtime_now = now or datetime.now(timezone.utc)
+    runtime_now = now or datetime.now(UTC)
     return runtime_now.strftime("b%Y%m%dT%H%M%SZ")
 
 
@@ -371,7 +371,9 @@ def restore_snapshot_backup(
         collection=request.collection,
         release_id=request.release_id,
     )
-    restored_collection_name = request.target_collection_name or backup_manifest.physical_collection_name
+    restored_collection_name = (
+        request.target_collection_name or backup_manifest.physical_collection_name
+    )
     restore_report_key = build_qdrant_backup_artifact_key(
         corpus=request.corpus,
         collection=request.collection,
@@ -484,15 +486,16 @@ def check_snapshot_gc_eligibility(
     if target_manifest.physical_collection_name == current_alias_target:
         role = "current"
         blockers.append("current_alias_target")
-    elif latest_manifest.previous_physical_collection_name == target_manifest.physical_collection_name:
+    elif (
+        latest_manifest.previous_physical_collection_name
+        == target_manifest.physical_collection_name
+    ):
         role = "previous"
         blockers.append("latest_previous_release")
     elif target_manifest.physical_collection_name in request.protected_physical_collection_names:
         role = "migration_baseline"
         blockers.append("migration_baseline_protected")
-    if target_manifest.validation_summary_object_key is None:
-        blockers.append("missing_validation_summary")
-    elif not _object_exists(
+    if target_manifest.validation_summary_object_key is None or not _object_exists(
         object_store=runtime_object_store,
         bucket=bucket_derived,
         key=target_manifest.validation_summary_object_key,
@@ -628,8 +631,7 @@ def _load_snapshot_backup_manifest(
         serving_alias=str(payload["serving_alias"]),
         physical_collection_name=str(payload["physical_collection_name"]),
         alias_bindings={
-            str(key): str(value)
-            for key, value in (payload.get("alias_bindings") or {}).items()
+            str(key): str(value) for key, value in (payload.get("alias_bindings") or {}).items()
         },
         index_release_manifest_key=str(payload["index_release_manifest_key"]),
         validation_summary_key=(
@@ -716,7 +718,9 @@ def _remap_alias_bindings(
     remapped: dict[str, str] = {}
     for alias_name, collection_name in alias_bindings.items():
         remapped[alias_name] = (
-            restored_collection_name if collection_name == original_collection_name else collection_name
+            restored_collection_name
+            if collection_name == original_collection_name
+            else collection_name
         )
     return remapped
 
@@ -735,7 +739,7 @@ def _sha256_file(file_path: str) -> str:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _write_json_object(

@@ -3,13 +3,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 interface CollectorPackageMetadata {
-  name?: string;
-  version?: string;
-  dependencies?: Record<string, string>;
+	name?: string;
+	version?: string;
+	dependencies?: Record<string, string>;
 }
 
 const packageMetadata = JSON.parse(
-  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf-8"),
+	readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf-8"),
 ) as CollectorPackageMetadata;
 
 export const OFFICIAL_WEB_COLLECTOR_VERSION = `${packageMetadata.name ?? "official-web-collector"}@${packageMetadata.version ?? "0.0.0"}`;

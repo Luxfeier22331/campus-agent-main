@@ -102,6 +102,7 @@ const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
 // ============================================================================
 
 export interface AttachmentsContext {
+  enabled: boolean;
   files: (FileUIPart & { id: string })[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
@@ -250,6 +251,7 @@ export const PromptInputProvider = ({
     () => ({
       add,
       clear,
+      enabled: true,
       fileInputRef,
       files: attachmentFiles,
       openFileDialog,
@@ -346,6 +348,9 @@ export const PromptInputActionAddAttachments = ({
   const handleSelect = useCallback(
     (e: Event) => {
       e.preventDefault();
+      if (!attachments.enabled) {
+        return;
+      }
       attachments.openFileDialog();
     },
     [attachments]
@@ -367,6 +372,7 @@ export type PromptInputProps = Omit<
   HTMLAttributes<HTMLFormElement>,
   "onSubmit" | "onError"
 > & {
+  attachmentsEnabled?: boolean;
   // e.g., "image/*" or leave undefined for any
   accept?: string;
   multiple?: boolean;
@@ -389,6 +395,7 @@ export type PromptInputProps = Omit<
 };
 
 export const PromptInput = ({
+  attachmentsEnabled = false,
   className,
   accept,
   multiple,
@@ -411,7 +418,11 @@ export const PromptInput = ({
 
   // ----- Local attachments (only used when no provider)
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
-  const files = usingProvider ? controller.attachments.files : items;
+  const files = attachmentsEnabled
+    ? usingProvider
+      ? controller.attachments.files
+      : items
+    : [];
 
   // ----- Local referenced sources (always local to PromptInput)
   const [referencedSources, setReferencedSources] = useState<
@@ -426,8 +437,11 @@ export const PromptInput = ({
   }, [files]);
 
   const openFileDialogLocal = useCallback(() => {
+    if (!attachmentsEnabled) {
+      return;
+    }
     inputRef.current?.click();
-  }, []);
+  }, [attachmentsEnabled]);
 
   const matchesAccept = useCallback(
     (f: File) => {
@@ -454,6 +468,10 @@ export const PromptInput = ({
 
   const addLocal = useCallback(
     (fileList: File[] | FileList) => {
+      if (!attachmentsEnabled) {
+        return;
+      }
+
       const incoming = [...fileList];
       const accepted = incoming.filter((f) => matchesAccept(f));
       if (incoming.length && accepted.length === 0) {
@@ -500,7 +518,7 @@ export const PromptInput = ({
         return [...prev, ...next];
       });
     },
-    [matchesAccept, maxFiles, maxFileSize, onError]
+    [attachmentsEnabled, matchesAccept, maxFiles, maxFileSize, onError]
   );
 
   const removeLocal = useCallback(
@@ -518,6 +536,10 @@ export const PromptInput = ({
   // Wrapper that validates files before calling provider's add
   const addWithProviderValidation = useCallback(
     (fileList: File[] | FileList) => {
+      if (!attachmentsEnabled) {
+        return;
+      }
+
       const incoming = [...fileList];
       const accepted = incoming.filter((f) => matchesAccept(f));
       if (incoming.length && accepted.length === 0) {
@@ -556,22 +578,38 @@ export const PromptInput = ({
         controller?.attachments.add(capped);
       }
     },
-    [matchesAccept, maxFileSize, maxFiles, onError, files.length, controller]
+    [
+      attachmentsEnabled,
+      matchesAccept,
+      maxFileSize,
+      maxFiles,
+      onError,
+      files.length,
+      controller,
+    ]
   );
 
   const clearAttachments = useCallback(
-    () =>
-      usingProvider
-        ? controller?.attachments.clear()
-        : setItems((prev) => {
-            for (const file of prev) {
-              if (file.url) {
-                URL.revokeObjectURL(file.url);
-              }
-            }
-            return [];
-          }),
-    [usingProvider, controller]
+    () => {
+      if (!attachmentsEnabled) {
+        return;
+      }
+
+      if (usingProvider) {
+        controller?.attachments.clear();
+        return;
+      }
+
+      setItems((prev) => {
+        for (const file of prev) {
+          if (file.url) {
+            URL.revokeObjectURL(file.url);
+          }
+        }
+        return [];
+      });
+    },
+    [attachmentsEnabled, usingProvider, controller]
   );
 
   const clearReferencedSources = useCallback(
@@ -579,11 +617,24 @@ export const PromptInput = ({
     []
   );
 
-  const add = usingProvider ? addWithProviderValidation : addLocal;
-  const remove = usingProvider ? controller.attachments.remove : removeLocal;
-  const openFileDialog = usingProvider
-    ? controller.attachments.openFileDialog
-    : openFileDialogLocal;
+  const noopAdd = useCallback((_files: File[] | FileList) => {}, []);
+  const noopRemove = useCallback((_id: string) => {}, []);
+  const noopOpenFileDialog = useCallback(() => {}, []);
+  const add = attachmentsEnabled
+    ? usingProvider
+      ? addWithProviderValidation
+      : addLocal
+    : noopAdd;
+  const remove = attachmentsEnabled
+    ? usingProvider
+      ? controller.attachments.remove
+      : removeLocal
+    : noopRemove;
+  const openFileDialog = attachmentsEnabled
+    ? usingProvider
+      ? controller.attachments.openFileDialog
+      : openFileDialogLocal
+    : noopOpenFileDialog;
 
   const clear = useCallback(() => {
     clearAttachments();
@@ -592,24 +643,24 @@ export const PromptInput = ({
 
   // Let provider know about our hidden file input so external menus can call openFileDialog()
   useEffect(() => {
-    if (!usingProvider) {
+    if (!(usingProvider && attachmentsEnabled)) {
       return;
     }
     controller.__registerFileInput(inputRef, () => inputRef.current?.click());
-  }, [usingProvider, controller]);
+  }, [usingProvider, controller, attachmentsEnabled]);
 
   // Note: File input cannot be programmatically set for security reasons
   // The syncHiddenInput prop is no longer functional
   useEffect(() => {
-    if (syncHiddenInput && inputRef.current && files.length === 0) {
+    if (attachmentsEnabled && syncHiddenInput && inputRef.current && files.length === 0) {
       inputRef.current.value = "";
     }
-  }, [files, syncHiddenInput]);
+  }, [attachmentsEnabled, files, syncHiddenInput]);
 
   // Attach drop handlers on nearest form and document (opt-in)
   useEffect(() => {
     const form = formRef.current;
-    if (!form) {
+    if (!(attachmentsEnabled && form)) {
       return;
     }
     if (globalDrop) {
@@ -636,10 +687,10 @@ export const PromptInput = ({
       form.removeEventListener("dragover", onDragOver);
       form.removeEventListener("drop", onDrop);
     };
-  }, [add, globalDrop]);
+  }, [add, attachmentsEnabled, globalDrop]);
 
   useEffect(() => {
-    if (!globalDrop) {
+    if (!(attachmentsEnabled && globalDrop)) {
       return;
     }
 
@@ -662,7 +713,7 @@ export const PromptInput = ({
       document.removeEventListener("dragover", onDragOver);
       document.removeEventListener("drop", onDrop);
     };
-  }, [add, globalDrop]);
+  }, [add, attachmentsEnabled, globalDrop]);
 
   useEffect(
     () => () => {
@@ -680,25 +731,30 @@ export const PromptInput = ({
 
   const handleChange: ChangeEventHandler<HTMLInputElement> = useCallback(
     (event) => {
+      if (!attachmentsEnabled) {
+        return;
+      }
+
       if (event.currentTarget.files) {
         add(event.currentTarget.files);
       }
       // Reset input value to allow selecting files that were previously removed
       event.currentTarget.value = "";
     },
-    [add]
+    [add, attachmentsEnabled]
   );
 
   const attachmentsCtx = useMemo<AttachmentsContext>(
     () => ({
       add,
       clear: clearAttachments,
+      enabled: attachmentsEnabled,
       fileInputRef: inputRef,
       files: files.map((item) => ({ ...item, id: item.id })),
       openFileDialog,
       remove,
     }),
-    [files, add, remove, clearAttachments, openFileDialog]
+    [attachmentsEnabled, files, add, remove, clearAttachments, openFileDialog]
   );
 
   const refsCtx = useMemo<ReferencedSourcesContext>(
@@ -739,21 +795,26 @@ export const PromptInput = ({
 
       try {
         // Convert blob URLs to data URLs asynchronously
-        const convertedFiles: FileUIPart[] = await Promise.all(
-          files.map(async ({ id: _id, ...item }) => {
-            if (item.url?.startsWith("blob:")) {
-              const dataUrl = await convertBlobUrlToDataUrl(item.url);
-              // If conversion failed, keep the original blob URL
-              return {
-                ...item,
-                url: dataUrl ?? item.url,
-              };
-            }
-            return item;
-          })
-        );
+        const convertedFiles: FileUIPart[] = attachmentsEnabled
+          ? await Promise.all(
+              files.map(async ({ id: _id, ...item }) => {
+                if (item.url?.startsWith("blob:")) {
+                  const dataUrl = await convertBlobUrlToDataUrl(item.url);
+                  // If conversion failed, keep the original blob URL
+                  return {
+                    ...item,
+                    url: dataUrl ?? item.url,
+                  };
+                }
+                return item;
+              })
+            )
+          : [];
 
-        const result = onSubmit({ files: convertedFiles, text }, event);
+        const result = onSubmit(
+          { files: attachmentsEnabled ? convertedFiles : [], text },
+          event
+        );
 
         // Handle both sync and async onSubmit
         if (result instanceof Promise) {
@@ -777,22 +838,26 @@ export const PromptInput = ({
         // Don't clear on error - user may want to retry
       }
     },
-    [usingProvider, controller, files, onSubmit, clear]
+    [usingProvider, controller, files, onSubmit, clear, attachmentsEnabled]
   );
 
   // Render with or without local provider
   const inner = (
     <>
-      <input
-        accept={accept}
-        aria-label="Upload files"
-        className="hidden"
-        multiple={multiple}
-        onChange={handleChange}
-        ref={inputRef}
-        title="Upload files"
-        type="file"
-      />
+      {attachmentsEnabled ? (
+        <input
+          accept={accept}
+          aria-label="Upload files"
+          className="hidden"
+          id="prompt-attachment-input"
+          multiple={multiple}
+          name="attachments"
+          onChange={handleChange}
+          ref={inputRef}
+          title="Upload files"
+          type="file"
+        />
+      ) : null}
       <form
         className={cn("w-full", className)}
         onSubmit={handleSubmit}
@@ -875,6 +940,7 @@ export const PromptInputTextarea = ({
 
       // Remove last attachment when Backspace is pressed and textarea is empty
       if (
+        attachments.enabled &&
         e.key === "Backspace" &&
         e.currentTarget.value === "" &&
         attachments.files.length > 0
@@ -894,6 +960,10 @@ export const PromptInputTextarea = ({
       const items = event.clipboardData?.items;
 
       if (!items) {
+        return;
+      }
+
+      if (!attachments.enabled) {
         return;
       }
 
@@ -1127,7 +1197,7 @@ export const PromptInputSubmit = ({
 
   return (
     <InputGroupButton
-      aria-label={isGenerating ? "Stop" : "Submit"}
+      aria-label={isGenerating ? "停止生成" : "发送消息"}
       className={cn(className)}
       onClick={handleClick}
       size={size}

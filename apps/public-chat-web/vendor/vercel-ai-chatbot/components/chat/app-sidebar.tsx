@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
+import { deleteAllConversations } from "@/app/(chat)/actions";
 import {
   getChatHistoryPaginationKey,
   SidebarHistory,
@@ -49,19 +50,28 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   const { setOpenMobile, toggleSidebar } = useSidebar();
   const { mutate } = useSWRConfig();
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
-  const handleDeleteAll = () => {
-    setShowDeleteAllDialog(false);
-    router.replace("/");
-    mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
-      revalidate: false,
-    });
+  const handleDeleteAll = async () => {
+    if (isDeletingAll) {
+      return;
+    }
 
-    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history`, {
-      method: "DELETE",
-    });
+    setIsDeletingAll(true);
 
-    toast.success("All chats deleted");
+    try {
+      await deleteAllConversations();
+      setShowDeleteAllDialog(false);
+      router.replace("/");
+      mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
+        revalidate: false,
+      });
+      toast.success("已清空全部对话");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "清空历史失败，请稍后重试。");
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   return (
@@ -74,7 +84,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                 <SidebarMenuButton
                   asChild
                   className="size-8 !px-0 items-center justify-center group-data-[collapsible=icon]:group-hover/logo:opacity-0"
-                  tooltip="Chatbot"
+                  tooltip="校园助理"
                 >
                   <Link href="/" onClick={() => setOpenMobile(false)}>
                     <MessageSquareIcon className="size-4 text-sidebar-foreground/50" />
@@ -90,7 +100,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                     </SidebarMenuButton>
                   </TooltipTrigger>
                   <TooltipContent className="hidden md:block" side="right">
-                    Open sidebar
+                    展开侧边栏
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -106,26 +116,26 @@ export function AppSidebar({ user }: { user: User | undefined }) {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    className="h-8 rounded-lg border border-sidebar-border text-[13px] text-sidebar-foreground/70 transition-colors duration-150 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    className="min-h-10 rounded-lg border border-sidebar-border text-[13px] text-sidebar-foreground/70 transition-colors duration-150 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                     onClick={() => {
                       setOpenMobile(false);
                       router.push("/");
                     }}
-                    tooltip="New Chat"
+                    tooltip="新建对话"
                   >
                     <PenSquareIcon className="size-4" />
-                    <span className="font-medium">New chat</span>
+                    <span className="font-medium">新建对话</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 {user && (
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      className="rounded-lg text-sidebar-foreground/40 transition-colors duration-150 hover:bg-destructive/10 hover:text-destructive"
+                      className="min-h-10 rounded-lg text-sidebar-foreground/40 transition-colors duration-150 hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => setShowDeleteAllDialog(true)}
-                      tooltip="Delete All Chats"
+                      tooltip="清空全部对话"
                     >
                       <TrashIcon className="size-4" />
-                      <span className="text-[13px]">Delete all</span>
+                      <span className="text-[13px]">清空历史</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
@@ -146,16 +156,15 @@ export function AppSidebar({ user }: { user: User | undefined }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete all chats?</AlertDialogTitle>
+            <AlertDialogTitle>清空全部对话？</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete all
-              your chats and remove them from our servers.
+              此操作不可撤销。删除后，你的全部历史对话都会从当前账号中移除。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteAll}>
-              Delete All
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction disabled={isDeletingAll} onClick={handleDeleteAll}>
+              {isDeletingAll ? "删除中..." : "全部删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

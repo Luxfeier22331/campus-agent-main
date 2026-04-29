@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.query_sentry_spans import (
     DEFAULT_FIELDS,
@@ -39,7 +39,7 @@ class QuerySentrySpansTest(unittest.TestCase):
                     ],
                     "meta": {
                         "dataset": "spans",
-                        "fields": {field: "string" for field in DEFAULT_FIELDS},
+                        "fields": dict.fromkeys(DEFAULT_FIELDS, "string"),
                     },
                 }
 

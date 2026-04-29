@@ -4,7 +4,6 @@ status: active
 created: 2026-04-11
 updated: 2026-04-14
 ---
-
 # Campus Navigation Place Catalog
 
 ## 文档边界
@@ -28,15 +27,17 @@ updated: 2026-04-14
 ## 当前 Artifact 位置
 
 - seed：`configs/ingestion/campus_navigation/place_catalog/seed.v1.json`
-- runtime profile：`configs/ingestion/campus_navigation/place_catalog/runtime-profile.json`
-- consumption owner：`packages/navigation-specialist`
-- authoritative source inventory：`docs/reference/campus-navigation-authoritative-source-inventory.md`
+- runtime profile：`configs/ingestion/campus_navigation/place_catalog/runtime-pro
+  file.json`
+- consumption owner：`packages/navigation-agent`
+- authoritative source
+  inventory：`docs/reference/campus-navigation-authoritative-source-inventory.md`
 
 ## 当前用途
 
 `place_catalog` 当前是：
 
-- `navigation-specialist` 的 repo-owned spatial truth 输入
+- `navigation-agent` 的 repo-owned spatial truth 输入
 - alias-first place resolution 的 canonical source
 - 地图实际上线后 `place_card` / map surface 的预留 place truth
 
@@ -50,8 +51,8 @@ updated: 2026-04-14
 ## 当前产品状态
 
 - 当前 supervisor 产品路径已对 `place_lookup` fail-close
-- 校内导航 / 地点查询暂不作为已开放能力
-- `place_catalog` 继续保留为 repo-owned foundation，而不是当前浏览器可消费 surface
+- 校内导航 / 地点查询暂不作为已开放能力，等待地图产品上线后再开放
+- `place_catalog` 继续保留为 repo-owned spatial truth foundation，而不是当前浏览器可消费 surface
 - `place_card` / map consumption 已后置到地图实际上线后的 backlog
 
 ## Record Shape
@@ -96,7 +97,8 @@ updated: 2026-04-14
 
 - alias 必须 institution-scoped
 - 相同 alias 可以跨校区或跨地点重复存在
-- 如果 alias 命中多个 canonical place，`navigation-specialist` 必须返回 clarification，而不是 top1 猜测
+- 如果 alias 命中多个 canonical place，`navigation-agent` 必须返回 clarification，而不是 top1
+  猜测
 
 ### `point_geometry`
 
@@ -104,7 +106,8 @@ updated: 2026-04-14
 - 当前 seed 使用 `EPSG:4326`
 - 字段顺序固定为 `longitude` 后 `latitude`
 - 官方示意图当前只用于 label / campus-scope admission，不得直接反推精确 geometry
-- 允许为空；当官方来源足以支持 canonical label 与 coarse `location_description`，但不足以支持精确 point truth 时，row 可以以 `point_geometry = null` admitted into seed
+- 允许为空；当官方来源足以支持 canonical label 与 coarse `location_description`，但不足以支持精确 point
+  truth 时，row 可以以 `point_geometry = null` admitted into seed
 
 ### `source_refs`
 
@@ -128,10 +131,12 @@ updated: 2026-04-14
 
 当前 authoritative source posture 已冻结为：
 
-- official map / official campus-tour page 负责 canonical place label 与 `campus_scope`
+- official map / official campus-tour page 负责 canonical place label 与
+  `campus_scope`
 - geometry 有两种受控 admitted 形态：
   - 已有受控来源或人工校准的 point geometry
-  - `point_geometry = null`，但 coarse location description / provenance / verification posture 完整
+  - `point_geometry = null`，但 coarse location description / provenance /
+    verification posture 完整
 - 仅靠示意图视觉位置、且连 coarse 位置描述都不足的 candidate，仍必须先 `park_pending_geometry`
 
 详见：
@@ -175,7 +180,7 @@ updated: 2026-04-14
 
 直接含义：
 
-- `place_catalog` 当前是 specialist-private truth，不是公开 query surface
+- `place_catalog` 当前是 agent-private truth，不是公开 query surface
 - 它不会通过默认 retrieval-serving alias 对外开放
 - `app-api` 也不应把它伪装成 `requested_scope`
 - 当前产品路径也不应把它伪装成已开放的导航回答能力
@@ -197,6 +202,6 @@ updated: 2026-04-14
 - `docs/contracts/navigation-place-finding-contract.md`
 - `docs/domains/navigation.md`
 - `docs/reference/campus-navigation-authoritative-source-inventory.md`
-- `docs/architecture/navigation-and-wayfinding-architecture.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `docs/architecture/domains/navigation/architecture.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`

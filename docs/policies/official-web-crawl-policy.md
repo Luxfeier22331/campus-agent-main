@@ -4,12 +4,12 @@ status: active
 created: 2026-03-28
 updated: 2026-04-10
 ---
-
 # Official Web Crawl Policy
 
 ## 文档边界
 
-本文冻结 `official_web` source channel 的 crawl scope、URL admission、robots/sitemap、frontier、重试与节流 policy。
+本文冻结 `official_web` source channel 的 crawl scope、URL
+admission、robots/sitemap、frontier、重试与节流 policy。
 
 它回答的是：
 
@@ -27,9 +27,10 @@ updated: 2026-04-10
 
 对应文档：
 
-- source channel 边界：`docs/architecture/official-web-architecture.md`
-- freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
-- source-truth schema：`docs/architecture/official-web-source-truth-contract.md`
+- source channel 边界：`docs/architecture/domains/official-web/architecture.md`
+- freshness /
+  增量采集：`docs/architecture/domains/official-web/freshness-and-incremental-crawling.md`
+- source-truth schema：`docs/data/official-web-source-truth-schema.md`
 
 ## 目标
 
@@ -42,7 +43,8 @@ updated: 2026-04-10
 ## 核心结论
 
 - crawl scope 的真相源是 `site config + host allowlist + seed URLs`，不是“所有导航可达链接”。
-- host 是 crawl policy 的一级边界；robots、rate limit、seed URLs、allow/deny 规则都必须按 host 配置。
+- host 是 crawl policy 的一级边界；robots、rate limit、seed URLs、allow/deny 规则都必须按 host
+  配置。
 - sitemap 只是 discovery signal，不是 scope truth。
 - sitemap `lastmod`、RSS/Atom 时间戳等外部更新信号只能作为 discovery / priority input，不是页面变化真相。
 - query URL 默认拒绝；只有显式白名单参数才允许进入 canonical identity。
@@ -134,9 +136,9 @@ host-level policy 负责冻结：
 collector 应按以下顺序发现 URL：
 
 1. repo-tracked seed URLs
-2. `robots.txt` 中显式声明的 sitemap URLs
-3. host config 中显式声明的 sitemap URLs
-4. 页面导航与内容出链扩展
+1. `robots.txt` 中显式声明的 sitemap URLs
+1. host config 中显式声明的 sitemap URLs
+1. 页面导航与内容出链扩展
 
 ### Sitemap 原则
 
@@ -332,7 +334,8 @@ collector 可以使用 Crawlee 的 autoscaling，但必须在 host policy 上限
 - `404`、`410`、显式 `Disallow`、内容类型不受支持不得重试为成功
 - `429` 必须带指数退避
 - redirect loop 必须终止并记为 failure
-- 已知 canonical URL 在 retryable 失败后，collector 必须上报 `fetch_failed` page observation，交给 `app-api` 写入 repair cadence
+- 已知 canonical URL 在 retryable 失败后，collector 必须上报 `fetch_failed` page
+  observation，交给 `app-api` 写入 repair cadence
 
 ## 生命周期语义
 
@@ -380,12 +383,20 @@ collector 可以使用 Crawlee 的 autoscaling，但必须在 host policy 上限
 
 ## 参考
 
-- RFC 9309 Robots Exclusion Protocol: https://www.rfc-editor.org/rfc/rfc9309
-- Google robots.txt interpretation: https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt
-- Google managing faceted navigation URLs: https://developers.google.com/crawling/docs/faceted-navigation
-- Google crawl budget guidance: https://developers.google.com/search/docs/crawling-indexing/large-site-managing-crawl-budget
-- Google canonical URL guidance: https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls
-- Sitemaps protocol: https://www.sitemaps.org/protocol.html
-- Crawlee adding URLs: https://crawlee.dev/js/docs/introduction/adding-urls
-- Crawlee enqueueLinks: https://crawlee.dev/js/api/core/function/enqueueLinks
-- Crawlee RobotsTxtFile: https://crawlee.dev/js/api/3.14/utils/class/RobotsTxtFile
+- RFC 9309 Robots Exclusion Protocol: <https://www.rfc-editor.org/rfc/rfc9309>
+- Google robots.txt interpretation:
+  <<https://developers.google.com/search/docs/c>
+  rawling-indexing/robots/robots_txt>
+- Google managing faceted navigation URLs:
+  <https://developers.google.com/crawling/docs/faceted-navigation>
+- Google crawl budget guidance:
+  <<https://developers.google.com/search/docs/crawl>
+  ing-indexing/large-site-managing-crawl-budget>
+- Google canonical URL guidance:
+  <<https://developers.google.com/search/docs/craw>
+  ling-indexing/consolidate-duplicate-urls>
+- Sitemaps protocol: <https://www.sitemaps.org/protocol.html>
+- Crawlee adding URLs: <https://crawlee.dev/js/docs/introduction/adding-urls>
+- Crawlee enqueueLinks: <https://crawlee.dev/js/api/core/function/enqueueLinks>
+- Crawlee RobotsTxtFile:
+  <https://crawlee.dev/js/api/3.14/utils/class/RobotsTxtFile>

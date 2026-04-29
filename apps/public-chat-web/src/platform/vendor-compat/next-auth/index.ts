@@ -1,10 +1,10 @@
-export type User = {
-  email?: string | null;
-  name?: string | null;
-};
+export interface User {
+	email?: string | null;
+	name?: string | null;
+}
 
 export interface DefaultSession {
-  user?: User | null;
+	user?: User | null;
 }
 
 export interface Session extends DefaultSession {}

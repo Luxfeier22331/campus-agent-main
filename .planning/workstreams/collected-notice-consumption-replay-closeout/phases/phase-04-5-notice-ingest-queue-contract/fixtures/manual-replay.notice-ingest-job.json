@@ -1,0 +1,27 @@
+{
+  "schema_version": "notice_ingest_job.v1",
+  "job_id": "notice_ingest_job:3c5323be977da46c6223e5e6",
+  "job_kind": "notice_ingest",
+  "source_channel": "authenticated_notice_portal",
+  "source_surface": "file_release",
+  "source_identity": "file_release:8127",
+  "capture_id": "capture:file-release:8127:sha256-manual",
+  "capture_manifest_object_ref": {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/file_release/8127/source-truth/file-release-manifest.json",
+    "role": "source-truth/file-release-manifest.json"
+  },
+  "source_object_refs": [
+    {
+      "bucket": "campus-rag-source",
+      "key": "authenticated_notice_portal/file_release/8127/source-truth/released-file-ref.json",
+      "role": "source-truth/released-file-ref.json"
+    }
+  ],
+  "content_hash": "sha256-manual",
+  "run_id": "manual-replay-source",
+  "enqueue_source": "manual_replay",
+  "replay_batch_id": "manual-replay-20260429",
+  "priority": 25,
+  "idempotency_key": "notice_ingest:41492b3c120f4a5cc6465cc8ace4f1f76867413ab95292b9d5f501b241d5ff8e"
+}

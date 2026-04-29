@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from campus_shared import load_repo_env
+
 from campus_evals.benchmark import (
     evaluate_retrieval_run,
     load_retrieval_benchmark_run,
@@ -18,10 +19,14 @@ from campus_evals.benchmark import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run deterministic retrieval benchmark against qrels.")
+    parser = argparse.ArgumentParser(
+        description="Run deterministic retrieval benchmark against qrels."
+    )
     parser.add_argument("--qrels", required=True, help="Path to retrieval qrels JSON fixture.")
     parser.add_argument("--results", required=True, help="Path to observed retrieval results JSON.")
-    parser.add_argument("--manifest", help="Optional split-manifest path used for qrels validation.")
+    parser.add_argument(
+        "--manifest", help="Optional split-manifest path used for qrels validation."
+    )
     parser.add_argument(
         "--format",
         choices=("text", "json"),
@@ -35,7 +40,11 @@ def main(argv: list[str] | None = None) -> int:
     load_repo_env()
     args = build_parser().parse_args(argv)
     qrels_path = Path(args.qrels)
-    manifest_path = Path(args.manifest) if args.manifest else resolve_retrieval_fixture_manifest_path(qrels_path)
+    manifest_path = (
+        Path(args.manifest)
+        if args.manifest
+        else resolve_retrieval_fixture_manifest_path(qrels_path)
+    )
     issues = validate_retrieval_qrels_fixture(
         qrels_path,
         manifest_path=manifest_path,

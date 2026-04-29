@@ -1,22 +1,26 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import replace
 from statistics import fmean
-from typing import Callable, Protocol
+from typing import Protocol
 
 from campus_evals.expectations import KNOWN_DETERMINISTIC_METRICS, evaluate_case
 from campus_evals.models import (
     CaseResult,
+    DimensionResult,
     ExecutionResult,
     GoldenCase,
+    OrchestrationCaseResults,
     RunReport,
+    SummaryCount,
     SupplementalMetricSummary,
     SupplementalResult,
-    SummaryCount,
 )
 from campus_evals.runtime_observability import bind_runtime_event_context
-
 
 Executor = Callable[[GoldenCase], ExecutionResult]
 
@@ -24,8 +28,9 @@ Executor = Callable[[GoldenCase], ExecutionResult]
 class SupplementalAdapter(Protocol):
     adapter_id: str
 
-    def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
-        ...
+    def evaluate(
+        self, case: GoldenCase, execution: ExecutionResult
+    ) -> tuple[SupplementalResult, ...]: ...
 
 
 def run_cases(
@@ -36,33 +41,88 @@ def run_cases(
     supplemental_adapters: tuple[SupplementalAdapter, ...] = (),
     run_number: int | None = None,
     benchmark_mode: str = "run",
+    case_workers: int = 1,
 ) -> RunReport:
+    if case_workers <= 0:
+        raise ValueError("case_workers must be greater than zero")
     selected_cases = tuple(case for case in cases if split is None or case.split == split)
-    results: list[CaseResult] = []
+    if case_workers == 1 or len(selected_cases) <= 1:
+        return summarize_case_results(
+            selected_cases,
+            tuple(
+                _run_case(
+                    case,
+                    executor=executor,
+                    supplemental_adapters=supplemental_adapters,
+                    run_number=run_number,
+                    benchmark_mode=benchmark_mode,
+                )
+                for case in selected_cases
+            ),
+        )
 
-    for case in selected_cases:
-        with bind_runtime_event_context(
-            run_number=run_number,
-            benchmark_mode=benchmark_mode,
-            case_id=case.case_id,
-            case_split=case.split,
-            expected_status=case.expected_status,
-        ):
-            execution = executor(case)
-            result = evaluate_case(case, execution)
-            if execution.observed_trace is not None:
-                result = replace(result, observed_trace=execution.observed_trace)
-            if execution.request_correlation is not None:
-                result = replace(result, request_correlation=execution.request_correlation)
-            supplemental_results = _evaluate_supplemental_results(
-                case,
-                execution,
-                supplemental_adapters=supplemental_adapters,
+    indexed_results: list[CaseResult | None] = [None] * len(selected_cases)
+    with ThreadPoolExecutor(max_workers=case_workers) as pool:
+        futures = [
+            (
+                index,
+                pool.submit(
+                    copy_context().run,
+                    _run_case,
+                    case,
+                    executor,
+                    supplemental_adapters,
+                    run_number,
+                    benchmark_mode,
+                ),
             )
-            if supplemental_results:
-                result = replace(result, supplemental_results=supplemental_results)
-            results.append(result)
-    return summarize_case_results(selected_cases, tuple(results))
+            for index, case in enumerate(selected_cases)
+        ]
+        for index, future in futures:
+            indexed_results[index] = future.result()
+
+    return summarize_case_results(
+        selected_cases,
+        tuple(result for result in indexed_results if result is not None),
+    )
+
+
+def _run_case(
+    case: GoldenCase,
+    executor: Executor,
+    supplemental_adapters: tuple[SupplementalAdapter, ...],
+    run_number: int | None,
+    benchmark_mode: str,
+) -> CaseResult:
+    with bind_runtime_event_context(
+        run_number=run_number,
+        benchmark_mode=benchmark_mode,
+        case_id=case.case_id,
+        case_split=case.split,
+        expected_status=case.expected_status,
+    ):
+        execution = executor(case)
+        result = evaluate_case(case, execution)
+        if execution.observed_trace is not None:
+            result = replace(result, observed_trace=execution.observed_trace)
+        if execution.request_correlation is not None:
+            result = replace(result, request_correlation=execution.request_correlation)
+        if execution.workflow_trace_summary is not None:
+            result = replace(result, workflow_trace_summary=execution.workflow_trace_summary)
+        if execution.orchestration_case_results is not None:
+            result = replace(
+                result,
+                orchestration_case_results=execution.orchestration_case_results,
+            )
+            result = _apply_orchestration_case_gate(result, execution.orchestration_case_results)
+        supplemental_results = _evaluate_supplemental_results(
+            case,
+            execution,
+            supplemental_adapters=supplemental_adapters,
+        )
+        if supplemental_results:
+            result = replace(result, supplemental_results=supplemental_results)
+        return result
 
 
 def summarize_case_results(
@@ -104,7 +164,9 @@ def summarize_case_results(
         passed=passed,
         failed=total - passed,
         by_split={name: _summary_from_counter(counter) for name, counter in split_stats.items()},
-        by_dimension={name: _summary_from_counter(counter) for name, counter in dimension_stats.items()},
+        by_dimension={
+            name: _summary_from_counter(counter) for name, counter in dimension_stats.items()
+        },
         by_metric={
             name: _summary_from_counter(metric_stats.get(name, Counter()))
             for name in _metric_summary_names(metric_stats)
@@ -147,6 +209,57 @@ def _evaluate_supplemental_results(
     return tuple(results)
 
 
+def _apply_orchestration_case_gate(
+    result: CaseResult,
+    orchestration_results: OrchestrationCaseResults,
+) -> CaseResult:
+    failed_dimensions = tuple(
+        name
+        for name, dimension in _orchestration_dimension_items(orchestration_results)
+        if not dimension.passed
+    )
+    if not failed_dimensions:
+        return result
+    trace_result = DimensionResult(
+        False,
+        "workflow_trace_gate_failed: " + ", ".join(failed_dimensions),
+    )
+    metric_results = dict(result.metric_results)
+    metric_results["trace_path_correctness"] = trace_result
+    return replace(
+        result,
+        passed=False,
+        trace_result=trace_result,
+        metric_results=metric_results,
+    )
+
+
+def _orchestration_dimension_items(
+    orchestration_results: OrchestrationCaseResults,
+) -> tuple[tuple[str, DimensionResult], ...]:
+    return (
+        (
+            "direct_vs_delegate_branch_correctness",
+            orchestration_results.direct_vs_delegate_branch_correctness,
+        ),
+        ("handoff_correctness", orchestration_results.handoff_correctness),
+        ("tool_argument_precision", orchestration_results.tool_argument_precision),
+        ("guardrail_correctness", orchestration_results.guardrail_correctness),
+        ("fail_close_correctness", orchestration_results.fail_close_correctness),
+        (
+            "trace_projection_completeness",
+            orchestration_results.trace_projection_completeness,
+        ),
+        ("tool_order_correctness", orchestration_results.tool_order_correctness),
+        (
+            "tool_result_status_correctness",
+            orchestration_results.tool_result_status_correctness,
+        ),
+        ("fail_close_provenance", orchestration_results.fail_close_provenance),
+        ("evidence_source_selection", orchestration_results.evidence_source_selection),
+    )
+
+
 def _supplemental_bucket_key(result: SupplementalResult) -> str:
     return f"{result.adapter_id}.{result.metric_name}"
 
@@ -157,11 +270,7 @@ def _summarize_supplemental_results(
 ) -> SupplementalMetricSummary:
     adapter_id, metric_name = key.split(".", 1)
     scored_items = [item.score for item in items if item.score is not None]
-    verdict_counts = Counter(
-        item.verdict
-        for item in items
-        if item.verdict is not None
-    )
+    verdict_counts = Counter(item.verdict for item in items if item.verdict is not None)
     return SupplementalMetricSummary(
         adapter_id=adapter_id,
         metric_name=metric_name,

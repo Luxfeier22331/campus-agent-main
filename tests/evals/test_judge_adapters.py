@@ -3,19 +3,25 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
-from campus_shared.provider_config import ProviderConfigResolutionError
+from campus_contracts import (
+    ActorContext,
+    AgentResponse,
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    RagResultPayload,
+)
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, TraceExpectation
 from campus_evals.judge_adapters import (
     build_answer_rubric_adapter,
-    build_json_judge,
     build_handbook_ragas_adapter,
+    build_json_judge,
     build_refusal_rubric_adapter,
 )
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
+from campus_shared.provider_config import ProviderConfigResolutionError
 
-
-HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _source(
@@ -34,7 +40,7 @@ def _source(
         canonical_url="https://example.edu/handbook/library",
         latest_url="https://example.edu/handbook/library",
         source_channel="pdf_ocr",
-        collection="student_handbook",
+        collection="student_rules",
         is_current=False,
         snippet=snippet,
         score=0.91,
@@ -47,9 +53,9 @@ def _response(
     answer_text: str = "",
     follow_up_question: str = "",
     sources: tuple[EvidenceSource, ...] = (),
-) -> SpecialistResponse:
-    return SpecialistResponse(
-        target="rag-specialist",
+) -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -58,7 +64,7 @@ def _response(
             evidence=EvidenceBundle(
                 query_text="query",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 sources=sources,
             )
         ),
@@ -252,7 +258,9 @@ class JudgeSettingsTest(unittest.TestCase):
 
             def generate_text(self, prompt):
                 del prompt
-                generation = type("Generation", (), {"text": '{"score":1.0,"verdict":"passed","rationale":"ok"}'})()
+                generation = type(
+                    "Generation", (), {"text": '{"score":1.0,"verdict":"passed","rationale":"ok"}'}
+                )()
                 return type("LLMResult", (), {"generations": [[generation]]})()
 
         with patch("campus_evals.judge_adapters.OpenAICompatibleResponsesLLM", FakeLLM):
@@ -267,6 +275,7 @@ class JudgeSettingsTest(unittest.TestCase):
 
         def handler(request):
             import json
+
             import httpx
 
             captured["url"] = str(request.url)
@@ -338,8 +347,12 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
 
         with (
             patch("campus_evals.supplemental_http.build_http_ragas_llm", return_value=object()),
-            patch("campus_evals.supplemental_http.build_http_ragas_embeddings", return_value=object()),
-            patch("campus_evals.judge_adapters.build_ragas_scorer", return_value=lambda projection: ()) as build_scorer,
+            patch(
+                "campus_evals.supplemental_http.build_http_ragas_embeddings", return_value=object()
+            ),
+            patch(
+                "campus_evals.judge_adapters.build_ragas_scorer", return_value=lambda projection: ()
+            ) as build_scorer,
         ):
             adapter = build_handbook_ragas_adapter(
                 ragas_settings,
@@ -349,7 +362,9 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         self.assertEqual(adapter.metric_names, ("faithfulness",))
         self.assertEqual(build_scorer.call_args.kwargs["metric_names"], ("faithfulness",))
 
-    def test_answer_rubric_adapter_scores_completed_case_and_marks_non_completed_not_applicable(self) -> None:
+    def test_answer_rubric_adapter_scores_completed_case_and_marks_non_completed_not_applicable(
+        self,
+    ) -> None:
         adapter = build_answer_rubric_adapter(
             JudgeLLMSettings.from_env(
                 {
@@ -389,7 +404,9 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         self.assertEqual(no_answer[0].metric_name, "answer_correctness_rubric")
         self.assertEqual(no_answer[0].verdict, "not_applicable")
 
-    def test_refusal_rubric_adapter_scores_boundary_cases_and_marks_completed_not_applicable(self) -> None:
+    def test_refusal_rubric_adapter_scores_boundary_cases_and_marks_completed_not_applicable(
+        self,
+    ) -> None:
         adapter = build_refusal_rubric_adapter(
             JudgeLLMSettings.from_env(
                 {
@@ -455,9 +472,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         )
         adapter = build_handbook_ragas_adapter(
             ragas_settings,
-            scorer=lambda projection: (
-                type("Result", (), {})(),
-            ),
+            scorer=lambda projection: (type("Result", (), {})(),),
             metric_names=("faithfulness", "answer_relevancy"),
         )
 
@@ -469,10 +484,14 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(tuple(item.metric_name for item in results), ("faithfulness", "answer_relevancy"))
+        self.assertEqual(
+            tuple(item.metric_name for item in results), ("faithfulness", "answer_relevancy")
+        )
         self.assertTrue(all(item.verdict == "not_applicable" for item in results))
 
-    def test_handbook_ragas_adapter_converts_runtime_errors_into_failed_report_only_results(self) -> None:
+    def test_handbook_ragas_adapter_converts_runtime_errors_into_failed_report_only_results(
+        self,
+    ) -> None:
         ragas_settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
@@ -483,7 +502,9 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         )
         adapter = build_handbook_ragas_adapter(
             ragas_settings,
-            scorer=lambda projection: (_ for _ in ()).throw(RuntimeError(f"524 timeout for {projection.case_id}")),
+            scorer=lambda projection: (_ for _ in ()).throw(
+                RuntimeError(f"524 timeout for {projection.case_id}")
+            ),
             metric_names=("faithfulness", "answer_relevancy"),
         )
 
@@ -499,11 +520,15 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(tuple(item.metric_name for item in results), ("faithfulness", "answer_relevancy"))
+        self.assertEqual(
+            tuple(item.metric_name for item in results), ("faithfulness", "answer_relevancy")
+        )
         self.assertTrue(all(item.verdict == "failed" for item in results))
         self.assertTrue(all(item.score is None for item in results))
 
-    def test_answer_rubric_adapter_converts_runtime_errors_into_failed_report_only_result(self) -> None:
+    def test_answer_rubric_adapter_converts_runtime_errors_into_failed_report_only_result(
+        self,
+    ) -> None:
         adapter = build_answer_rubric_adapter(
             JudgeLLMSettings.from_env(
                 {

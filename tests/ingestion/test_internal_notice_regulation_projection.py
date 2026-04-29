@@ -25,7 +25,7 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         document_nature="institutional_regulation",
         semantic_owner_kind="notice_body",
         target_corpus="regulations",
-        target_collection="institutional_regulations",
+        target_collection="institutional_rules",
         regulation_title_normalized="中央民族大学采购工作管理办法",
         issuing_org="中央民族大学",
         effective_date="2021年3月1日",
@@ -87,7 +87,7 @@ def _versioned_candidate_document() -> InternalNoticeRegulationCandidateArtifact
         document_nature="institutional_regulation",
         semantic_owner_kind="attachment_document",
         target_corpus="regulations",
-        target_collection="institutional_regulations",
+        target_collection="institutional_rules",
         regulation_title_normalized="中央民族大学关于学生使用人工智能的指导意见（2026版）",
         issuing_org="中央民族大学",
         effective_date=None,
@@ -149,8 +149,12 @@ class InternalNoticeRegulationProjectionTest(unittest.TestCase):
         )
         self.assertEqual(rows[7]["anchor"]["provision_label"], "1.")
         self.assertEqual(rows[0]["metadata"]["semantic_owner_kind"], "notice_body")
-        self.assertEqual(rows[0]["metadata"]["regulation_work_title"], "中央民族大学采购工作管理办法")
-        self.assertEqual(rows[0]["metadata"]["regulation_display_title"], "中央民族大学采购工作管理办法")
+        self.assertEqual(
+            rows[0]["metadata"]["regulation_work_title"], "中央民族大学采购工作管理办法"
+        )
+        self.assertEqual(
+            rows[0]["metadata"]["regulation_display_title"], "中央民族大学采购工作管理办法"
+        )
         self.assertEqual(
             rows[0]["metadata"]["source_notice_document_id"],
             "notice:muc_internal_portal:187233",
@@ -160,7 +164,9 @@ class InternalNoticeRegulationProjectionTest(unittest.TestCase):
             "notice:muc_internal_portal:187233",
         )
 
-    def test_projected_document_uses_work_title_for_identity_and_display_title_for_title(self) -> None:
+    def test_projected_document_uses_work_title_for_identity_and_display_title_for_title(
+        self,
+    ) -> None:
         projected = build_internal_notice_regulation_projected_document(
             candidate_document=_versioned_candidate_document()
         )

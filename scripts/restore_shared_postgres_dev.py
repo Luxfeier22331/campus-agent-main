@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     load_target_seed,
     parse_env_file,
     replace_or_append_env_values,
@@ -88,9 +90,7 @@ def execute_shared_postgres_restore(plan: dict[str, Any]) -> dict[str, Any]:
         repo_root=repo_root,
         source_env_path=shared_root_env_source,
         app_api_env_source_path=(
-            Path(str(source_paths["app_api_env"]))
-            if source_paths.get("app_api_env")
-            else None
+            Path(str(source_paths["app_api_env"])) if source_paths.get("app_api_env") else None
         ),
     )
     target_app_api_dev_vars_path = _restore_app_api_dev_vars(
@@ -168,9 +168,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.shared_app_api_env.resolve() if args.shared_app_api_env else None
         ),
         app_api_dev_vars_source_path=(
-            args.shared_app_api_dev_vars.resolve()
-            if args.shared_app_api_dev_vars
-            else None
+            args.shared_app_api_dev_vars.resolve() if args.shared_app_api_dev_vars else None
         ),
         app_api_database_sslmode=args.app_api_database_sslmode,
     )
@@ -188,13 +186,22 @@ def _rewrite_root_env_from_shared_source(
     source_env_path: Path,
 ) -> Path:
     source_values = parse_env_file(source_env_path)
+    shared_operator_url = (
+        source_values.get(SHARED_POSTGRES_OPERATOR_ENV_KEY, "").strip()
+        or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip()
+        or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()
+    )
     assignments = {
         key: value
         for key, value in (
             (SHARED_POSTGRES_ENV_KEY, source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()),
             (
+                SHARED_POSTGRES_OPERATOR_ENV_KEY,
+                shared_operator_url,
+            ),
+            (
                 SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-                source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip(),
+                shared_operator_url,
             ),
             (
                 "DOCUMENT_REGISTRY_DATABASE_URL",
@@ -202,9 +209,16 @@ def _rewrite_root_env_from_shared_source(
                 or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip(),
             ),
             (
+                "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+                source_values.get("DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
+            ),
+            (
                 "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
-                source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
-                or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip(),
+                source_values.get("DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
             ),
             (
                 "RAW_ASSET_REGISTRY_DATABASE_URL",
@@ -212,9 +226,16 @@ def _rewrite_root_env_from_shared_source(
                 or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip(),
             ),
             (
+                "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+                source_values.get("RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
+            ),
+            (
                 "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL",
-                source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
-                or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip(),
+                source_values.get("RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
             ),
         )
         if value
@@ -255,8 +276,14 @@ def _restore_or_sync_app_api_env(
                 ).strip(),
             ),
             (
+                "APP_API_OPERATOR_DATABASE_URL",
+                source_values.get("APP_API_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
+            ),
+            (
                 "APP_API_MANAGEMENT_DATABASE_URL",
-                source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
+                source_values.get("APP_API_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
             ),
         )
         if value
@@ -278,8 +305,7 @@ def _restore_app_api_dev_vars(
     if app_api_dev_vars_source_path is not None:
         source_values = parse_env_file(app_api_dev_vars_source_path)
         resolved_sslmode = (
-            source_values.get("APP_API_DATABASE_SSLMODE", "").strip()
-            or app_api_database_sslmode
+            source_values.get("APP_API_DATABASE_SSLMODE", "").strip() or app_api_database_sslmode
         )
     content = replace_or_append_env_values(
         load_target_seed(target_path),

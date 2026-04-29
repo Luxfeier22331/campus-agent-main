@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
-import json
 from pathlib import Path
 
 from campus_ingestion_core.scope_catalog import assert_known_scope
-
 
 SplitManifestValidator = Callable[["SplitManifest"], None]
 
@@ -138,7 +137,9 @@ def _assert_manifest_uses_canonical_authorization_projection(payload: dict[str, 
             )
 
 
-def _collect_unsupported_authorization_projection_keys(payload: dict[str, object]) -> tuple[str, ...]:
+def _collect_unsupported_authorization_projection_keys(
+    payload: dict[str, object],
+) -> tuple[str, ...]:
     supported_keys = {
         "entitlement_groups",
         "visibility_scope",
@@ -148,24 +149,20 @@ def _collect_unsupported_authorization_projection_keys(payload: dict[str, object
     return tuple(
         key
         for key in payload
-        if _looks_like_authorization_projection_key(key)
-        and key not in supported_keys
+        if _looks_like_authorization_projection_key(key) and key not in supported_keys
     )
 
 
 def _looks_like_authorization_projection_key(key: str) -> bool:
-    return (
-        key.startswith("entitlement_")
-        or key.startswith("visibility_")
-        or key.startswith("policy_projection_")
-        or key.endswith("_groups")
-        or key.endswith("_scope")
-        or key.endswith("_level")
+    return key.startswith(("entitlement_", "visibility_", "policy_projection_")) or key.endswith(
+        ("_groups", "_scope", "_level")
     )
 
 
 def _validate_non_overlapping_page_ranges(documents: tuple[SplitManifestDocument, ...]) -> None:
-    sorted_documents = sorted(documents, key=lambda item: (item.page_start, item.page_end, item.document_id))
+    sorted_documents = sorted(
+        documents, key=lambda item: (item.page_start, item.page_end, item.document_id)
+    )
     seen_document_ids: set[str] = set()
     current_end = 0
     for document in sorted_documents:
@@ -213,11 +210,11 @@ def _resolved_manifest_visibility_scope(item: dict[str, object]) -> str | None:
 def _validate_student_handbook_manifest(manifest: SplitManifest) -> None:
     for document in manifest.documents:
         if not document.handbook_section:
-            raise ValueError("student_handbook split manifest requires handbook_section")
+            raise ValueError("student_rules split manifest requires handbook_section")
         if not document.source_uri:
-            raise ValueError("student_handbook split manifest requires source_uri")
+            raise ValueError("student_rules split manifest requires source_uri")
 
 
 _SPLIT_MANIFEST_VALIDATORS: dict[tuple[str, str], SplitManifestValidator] = {
-    ("regulations", "student_handbook"): _validate_student_handbook_manifest,
+    ("regulations", "student_rules"): _validate_student_handbook_manifest,
 }

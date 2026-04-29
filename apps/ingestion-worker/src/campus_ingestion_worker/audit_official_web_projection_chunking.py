@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core import audit_official_web_projection_chunking
 

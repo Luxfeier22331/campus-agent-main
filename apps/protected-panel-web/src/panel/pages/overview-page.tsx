@@ -1,219 +1,184 @@
-import { startTransition, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Divider,
-  Stack,
-  Typography,
-} from "@mui/material";
-import { useAuthenticated, useDataProvider } from "react-admin";
+import { Alert, Stack } from "@mui/material";
+import { useQueries } from "@tanstack/react-query";
+import { startTransition, useDeferredValue, useState } from "react";
+import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { PANEL_COPY } from "../panel-copy";
-import { formatSurfaceLabel } from "../requests/request-formatters";
-import type { PanelOverviewRecord } from "../types";
-
-function formatPrincipalClass(value: string) {
-  if (value === "human") {
-    return "人工";
-  }
-
-  return value;
-}
-
-function renderDomainStatus(status: string) {
-  if (status === "ready") {
-    return <Chip color="success" label={PANEL_COPY.domainStatus.ready} size="small" />;
-  }
-  if (status === "deferred") {
-    return <Chip color="warning" label={PANEL_COPY.domainStatus.deferred} size="small" variant="outlined" />;
-  }
-
-  return <Chip color="default" label={PANEL_COPY.domainStatus.blocked} size="small" variant="outlined" />;
-}
+import { PanelPage } from "../panel-page";
+import type { OperatorOverviewWindow } from "../types";
+import { buildCostTrendSeries } from "./cost-domain";
+import { buildQualityTrendSeries, resolveOverviewGranularity } from "./overview-domain";
+import {
+	OverviewHeaderSection,
+	OverviewLoadingGrid,
+	OverviewPrimaryContent,
+} from "./overview-page/cards";
+import type { OverviewFilterState } from "./overview-page/constants";
+import { normalizeFilterValue, toQueryErrorMessage } from "./overview-page/formatters";
 
 export function OverviewPage() {
-  useAuthenticated();
-  const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [record, setRecord] = useState<PanelOverviewRecord | null>(null);
-  const getOverviewRef = useRef(dataProvider.getOverview);
+	useAuthenticated();
+	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
+	const [filters, setFilters] = useState<OverviewFilterState>({
+		selectedTarget: null,
+		surface: null,
+		window: "24h",
+	});
 
-  useEffect(() => {
-    getOverviewRef.current = dataProvider.getOverview;
-  }, [dataProvider.getOverview]);
+	const deferredWindow = useDeferredValue(filters.window);
+	const deferredSurface = useDeferredValue(filters.surface);
+	const deferredSelectedTarget = useDeferredValue(filters.selectedTarget);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    startTransition(() => {
-      setError(null);
-      setIsLoading(true);
-    });
+	const isRefreshing =
+		filters.window !== deferredWindow ||
+		filters.surface !== deferredSurface ||
+		filters.selectedTarget !== deferredSelectedTarget;
 
-    void (async () => {
-      try {
-        const response = await getOverviewRef.current({
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) {
-          return;
-        }
+	const [overviewQuery, qualityTimeseriesQuery, costTimeseriesQuery, runtimeDiagnosticsQuery] =
+		useQueries({
+			queries: [
+				{
+					queryFn: ({ signal }) =>
+						dataProvider.getOperatorOverview({
+							selectedTarget: deferredSelectedTarget,
+							signal,
+							surface: deferredSurface,
+							window: deferredWindow,
+						}),
+					queryKey: [
+						"protected-panel-overview",
+						deferredWindow,
+						deferredSurface,
+						deferredSelectedTarget,
+					] as const,
+					staleTime: 30_000,
+				},
+				{
+					queryFn: ({ signal }) =>
+						dataProvider.getOperatorQualityTimeseries({
+							granularity: resolveOverviewGranularity(deferredWindow),
+							selectedTarget: deferredSelectedTarget,
+							signal,
+							surface: deferredSurface,
+							window: deferredWindow,
+						}),
+					queryKey: [
+						"protected-panel-quality-timeseries",
+						deferredWindow,
+						resolveOverviewGranularity(deferredWindow),
+						deferredSurface,
+						deferredSelectedTarget,
+					] as const,
+					staleTime: 30_000,
+				},
+				{
+					queryFn: ({ signal }) =>
+						dataProvider.getOperatorCostTimeseries({
+							granularity: resolveOverviewGranularity(deferredWindow),
+							selectedTarget: deferredSelectedTarget,
+							signal,
+							surface: deferredSurface,
+							window: deferredWindow,
+						}),
+					queryKey: [
+						"protected-panel-cost-timeseries",
+						deferredWindow,
+						resolveOverviewGranularity(deferredWindow),
+						deferredSurface,
+						deferredSelectedTarget,
+					] as const,
+					staleTime: 30_000,
+				},
+				{
+					queryFn: ({ signal }) => dataProvider.getOverview({ signal }),
+					queryKey: ["protected-panel-runtime-diagnostics"] as const,
+					staleTime: 60_000,
+				},
+			] as const,
+		});
 
-        startTransition(() => {
-          setRecord(response.data);
-          setIsLoading(false);
-        });
-      } catch (loadError) {
-        if (controller.signal.aborted) {
-          return;
-        }
+	const primaryQueries = [overviewQuery, qualityTimeseriesQuery, costTimeseriesQuery];
+	const primaryError = primaryQueries.find((query) => query.error)?.error;
+	const primaryErrorMessage = primaryError
+		? toQueryErrorMessage(primaryError, PANEL_COPY.overviewPage.states.loadFailed)
+		: null;
+	const runtimeErrorMessage = runtimeDiagnosticsQuery.error
+		? toQueryErrorMessage(
+				runtimeDiagnosticsQuery.error,
+				PANEL_COPY.overviewPage.states.runtimeLoadFailed,
+			)
+		: null;
 
-        startTransition(() => {
-          setError(loadError instanceof Error ? loadError.message : "加载面板总览失败。");
-          setIsLoading(false);
-        });
-      }
-    })();
+	const isPending = primaryQueries.some((query) => query.isPending);
+	const overviewRecord = overviewQuery.data?.data ?? null;
+	const qualityTimeseries = qualityTimeseriesQuery.data?.data ?? null;
+	const costTimeseries = costTimeseriesQuery.data?.data ?? null;
+	const runtimeDiagnostics = runtimeDiagnosticsQuery.data?.data ?? null;
 
-    return () => {
-      controller.abort();
-    };
-  }, []);
+	const qualitySeries = qualityTimeseries ? buildQualityTrendSeries(qualityTimeseries.series) : [];
+	const costSeries = costTimeseries ? buildCostTrendSeries(costTimeseries.series) : [];
+	const asOf = overviewRecord?.asOf ?? qualityTimeseries?.asOf ?? costTimeseries?.asOf ?? null;
+	const handleWindowChange = (value: string) => {
+		const nextWindow = value as OperatorOverviewWindow;
+		startTransition(() => {
+			setFilters((current) => ({
+				...current,
+				window: nextWindow,
+			}));
+		});
+	};
+	const handleSurfaceChange = (value: string) => {
+		const nextSurface = normalizeFilterValue(value);
+		startTransition(() => {
+			setFilters((current) => ({
+				...current,
+				surface: nextSurface,
+			}));
+		});
+	};
+	const handleSelectedTargetChange = (value: string) => {
+		const nextTarget = normalizeFilterValue(value);
+		startTransition(() => {
+			setFilters((current) => ({
+				...current,
+				selectedTarget: nextTarget,
+			}));
+		});
+	};
 
-  return (
-    <Box sx={{ p: 3 }}>
-      <Stack spacing={3}>
-        <Stack spacing={1}>
-          <Typography variant="h4">总览</Typography>
-          <Typography color="text.secondary" variant="body1">
-            展示 Worker 壳层及其 app-api 查询接缝的受保护运维控制面状态。
-          </Typography>
-        </Stack>
+	return (
+		<>
+			<Title title={PANEL_COPY.menu.overview} />
+			<PanelPage>
+				<Stack spacing={3}>
+					<OverviewHeaderSection
+						asOf={asOf}
+						filters={filters}
+						isRefreshing={isRefreshing}
+						onSelectedTargetChange={handleSelectedTargetChange}
+						onSurfaceChange={handleSurfaceChange}
+						onWindowChange={handleWindowChange}
+					/>
 
-        {isLoading ? (
-          <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 240 }}>
-            <CircularProgress />
-          </Stack>
-        ) : null}
+					{isPending ? <OverviewLoadingGrid /> : null}
 
-        {!isLoading && error ? <Alert severity="error">{error}</Alert> : null}
+					{!isPending && primaryErrorMessage ? (
+						<Alert severity="error">{primaryErrorMessage}</Alert>
+					) : null}
 
-        {!isLoading && record ? (
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: {
-                lg: "repeat(2, minmax(0, 1fr))",
-                xs: "1fr",
-              },
-            }}
-          >
-            <Card>
-              <CardContent>
-                <Stack spacing={2}>
-                  <Typography variant="h6">运行时</Typography>
-                  <Divider />
-                  <Stack spacing={1}>
-                    <Typography variant="body2">
-                      <strong>应用</strong>: {record.appName}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>接入面</strong>: {formatSurfaceLabel(record.surface)}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>运行时</strong>: {record.runtime}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>受保护域名</strong>: {record.protectedHostname || PANEL_COPY.notSet}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>保护封装</strong>: {record.protectionEnvelope}
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>App API 基础 URL</strong>: {record.runtimeApiBaseUrl || PANEL_COPY.workerServiceBinding}
-                    </Typography>
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent>
-                <Stack spacing={2}>
-                  <Typography variant="h6">运维身份上下文</Typography>
-                  <Divider />
-                  {record.operatorContext ? (
-                    <Stack spacing={1}>
-                      <Typography variant="body2">
-                        <strong>运维 ID</strong>: {record.operatorContext.operatorId}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>显示名称</strong>: {record.operatorContext.displayName || PANEL_COPY.notProvided}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>邮箱</strong>: {record.operatorContext.email || PANEL_COPY.notProvided}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>主体类别</strong>: {formatPrincipalClass(record.operatorContext.principalClass)}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>分组</strong>:{" "}
-                        {record.operatorContext.groups.length > 0
-                          ? record.operatorContext.groups.join(", ")
-                          : PANEL_COPY.noGroupsProjected}
-                      </Typography>
-                    </Stack>
-                  ) : (
-                    <Alert severity="info">
-                      需要先通过上游受保护访问，面板才会把运维身份投影到总览页。
-                    </Alert>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-
-            <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
-              <CardContent>
-                <Stack spacing={2}>
-                  <Typography variant="h6">域能力 rollout</Typography>
-                  <Divider />
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gap: 1.5,
-                      gridTemplateColumns: {
-                        md: "repeat(3, minmax(0, 1fr))",
-                        xs: "1fr",
-                      },
-                    }}
-                  >
-                    {Object.entries(record.panelDomains).map(([domain, status]) => (
-                      <Stack
-                        direction="row"
-                        justifyContent="space-between"
-                        key={domain}
-                        spacing={2}
-                        sx={{ alignItems: "center" }}
-                      >
-                        <Typography variant="body2">
-                          {PANEL_COPY.overviewDomains[domain as keyof typeof PANEL_COPY.overviewDomains] ?? domain}
-                        </Typography>
-                        {renderDomainStatus(status)}
-                      </Stack>
-                    ))}
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Box>
-        ) : null}
-      </Stack>
-    </Box>
-  );
+					{!(isPending || primaryErrorMessage) && overviewRecord ? (
+						<OverviewPrimaryContent
+							costSeries={costSeries}
+							overviewRecord={overviewRecord}
+							qualitySeries={qualitySeries}
+							runtimeDiagnostics={runtimeDiagnostics}
+							runtimeErrorMessage={runtimeErrorMessage}
+							runtimeIsPending={runtimeDiagnosticsQuery.isPending}
+						/>
+					) : null}
+				</Stack>
+			</PanelPage>
+		</>
+	);
 }

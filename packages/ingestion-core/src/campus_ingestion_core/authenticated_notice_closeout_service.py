@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
+import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,9 @@ from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
     CloseoutArtifactManager,
     CloseoutObjectStore,
     CloseoutS3ObjectStore,
+)
+from campus_ingestion_core.authenticated_notice_closeout_execution import (
+    CloseoutExecutionCoordinator,
 )
 from campus_ingestion_core.authenticated_notice_closeout_planning import (
     CloseoutPlanner,
@@ -30,19 +34,11 @@ from campus_ingestion_core.authenticated_notice_closeout_verification import (
     CloseoutRunVerifier,
     CloseoutVerifier,
 )
-from campus_ingestion_core.authenticated_notice_closeout_execution import (
-    CloseoutExecutionCoordinator,
-)
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
 )
-from campus_ingestion_core.authenticated_notice_source_truth_replay import (
-    SOURCE_TRUTH_REPLAY_INPUT_KIND,
-    AuthenticatedNoticeSourceTruthReplayRequest,
-    _load_parent_source_truth_from_snapshot,
-)
 from campus_ingestion_core.authenticated_notice_source_projections import (
-    build_authenticated_notice_attachment_projection_plans,
+    build_authenticated_notice_attachment_routing_records,
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
@@ -54,13 +50,23 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     _derive_notice_risk_label,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    AuthenticatedNoticeSourceTruthReplayInventory,
+    AuthenticatedNoticeSourceTruthReplayRequest,
+    _load_parent_source_truth_from_snapshot,
+    build_authenticated_notice_source_truth_replay_batch_input_payload,
+    build_authenticated_notice_source_truth_replay_inventory_payload,
+    load_authenticated_notice_source_truth_replay_inventory_from_payload,
+)
+from campus_ingestion_core.object_store import build_operations_artifact_key
+from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
-from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -144,21 +150,21 @@ class AuthenticatedNoticeCloseoutService:
         return cls(
             closeout_store=build_authenticated_notice_closeout_store_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             object_store=CloseoutS3ObjectStore(settings),
             object_store_settings=settings,
             document_registry=build_document_registry_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             raw_asset_registry=build_raw_asset_registry_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             source_truth_inventory_store=build_authenticated_notice_source_truth_inventory_store_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             planner=planner,
         )
@@ -272,9 +278,7 @@ class AuthenticatedNoticeCloseoutService:
         if run.state.value == "done":
             return self._build_run_summary(run_id)
         if run.state.value not in ("verified", "promoting"):
-            raise ValueError(
-                f"closeout run must be verified before promotion: {run.state.value}"
-            )
+            raise ValueError(f"closeout run must be verified before promotion: {run.state.value}")
         return self.promotion.promote_run(
             run=run,
             request=self._request_from_run(run),
@@ -330,14 +334,10 @@ class AuthenticatedNoticeCloseoutService:
             "notice_risk_counts": dict(run.notice_risk_counts),
             "high_risk_notice_count": run.high_risk_notice_count,
             "expected_notice_count": run.expected_notice_count,
-            "expected_document_count": (
-                run.expected_document_count or run.expected_notice_count
-            ),
+            "expected_document_count": (run.expected_document_count or run.expected_notice_count),
             "expected_attachment_document_count": run.expected_attachment_document_count,
             "expected_ocr_candidate_count": run.expected_ocr_candidate_count,
-            "expected_raw_asset_count": (
-                run.expected_raw_asset_count or run.expected_notice_count
-            ),
+            "expected_raw_asset_count": (run.expected_raw_asset_count or run.expected_notice_count),
             "source_projections_path": run.source_projections_path,
             "operations_prefix": run.operations_prefix,
             "shard_count": run.shard_count or len(shards),
@@ -347,9 +347,7 @@ class AuthenticatedNoticeCloseoutService:
             "completed_batch_count": run.completed_batch_count,
             "running_batch_count": run.running_batch_count,
             "pending_batch_count": run.pending_batch_count,
-            "active_worker_count": sum(
-                1 for worker in workers if worker.active_batch_count > 0
-            ),
+            "active_worker_count": sum(1 for worker in workers if worker.active_batch_count > 0),
             "staged_notice_count": run.staged_notice_count,
             "staged_raw_asset_count": run.staged_raw_asset_count,
             "staged_document_count": run.staged_document_count,
@@ -381,6 +379,7 @@ class AuthenticatedNoticeCloseoutService:
             export_manifest_path=Path(run.manifest_path) if run.manifest_path else None,
             site_id=run.site_id,
             source_home_url=run.source_home_url,
+            allow_local_fixture_import=True,
             corpus=run.corpus,
             collection=run.collection,
             default_entitlement_groups=run.default_entitlement_groups,
@@ -402,10 +401,10 @@ class AuthenticatedNoticeCloseoutService:
                 key=inventory_key,
             ).decode("utf-8")
         )
-        if str(payload.get("run_id") or "") != run.run_id:
-            raise ValueError(
-                f"source-truth replay frozen inventory run mismatch: {run.run_id}"
-            )
+        frozen_inventory = load_authenticated_notice_source_truth_replay_inventory_from_payload(
+            payload,
+            expected_run_id=run.run_id,
+        )
         config_path = (
             Path(run.source_projections_path)
             if run.source_projections_path
@@ -416,15 +415,15 @@ class AuthenticatedNoticeCloseoutService:
         required_attachment_document_count = 0
         ocr_candidate_count = 0
         notice_risk_counts: dict[str, int] = {}
-        for parent in tuple(payload.get("parents") or ()):
+        for parent in frozen_inventory.parents:
             parent_source_truth = _load_parent_source_truth_from_snapshot(
                 parent_snapshot=dict(parent),
                 object_store=self.object_store,
                 object_store_settings=self.object_store_settings,
             )
-            attachment_projection_plans = [
+            attachment_routing_records = [
                 dict(item)
-                for item in build_authenticated_notice_attachment_projection_plans(
+                for item in build_authenticated_notice_attachment_routing_records(
                     parent_document_id=parent_source_truth.record.document_id,
                     attachment_refs=parent_source_truth.attachment_refs,
                     config=config,
@@ -432,6 +431,14 @@ class AuthenticatedNoticeCloseoutService:
                     object_store_settings=self.object_store_settings,
                     parent_record=parent_source_truth.record,
                 )
+            ]
+            attachment_projection_plans = [
+                dict(item)
+                for item in attachment_routing_records
+                if "materialization_policy" in item
+            ]
+            terminal_attachment_outcomes = [
+                dict(item) for item in attachment_routing_records if "terminal_outcome" in item
             ]
             required_documents = [
                 dict(plan)
@@ -446,45 +453,56 @@ class AuthenticatedNoticeCloseoutService:
             parent_ocr_candidate_count = sum(
                 1
                 for plan in attachment_projection_plans
-                if str(plan.get("materialization_policy") or "")
-                == "conditional_on_extracted_text"
+                if str(plan.get("materialization_policy") or "") == "conditional_on_extracted_text"
             )
-            manual_review_required_count = sum(
+            multimodal_processing_required_count = sum(
                 1
                 for plan in attachment_projection_plans
-                if str(plan.get("materialization_policy") or "") == "manual_review"
+                if str(plan.get("materialization_policy") or "") == "multimodal_processing"
+            )
+            reference_only_count = sum(
+                1
+                for outcome in terminal_attachment_outcomes
+                if str(outcome.get("classification") or "") == "reference_only"
+            )
+            unsupported_binary_count = sum(
+                1
+                for outcome in terminal_attachment_outcomes
+                if str(outcome.get("classification") or "") == "unsupported_binary"
             )
             required_attachment_document_count += len(required_documents)
             ocr_candidate_count += parent_ocr_candidate_count
             parent_payload = dict(parent)
             parent_payload["attachment_projection_plans"] = attachment_projection_plans
+            parent_payload["terminal_attachment_outcomes"] = terminal_attachment_outcomes
             parent_payload["expected_attachment_documents"] = required_documents
             parent_payload["attachment_document_count"] = len(required_documents)
             parent_payload["text_extractable_count"] = text_extractable_count
             parent_payload["ocr_required_count"] = parent_ocr_candidate_count
-            parent_payload["manual_review_required_count"] = manual_review_required_count
-            parent_payload["reference_only_count"] = max(
-                len(parent_source_truth.attachment_refs)
-                - text_extractable_count
-                - parent_ocr_candidate_count
-                - manual_review_required_count,
-                0,
+            parent_payload["multimodal_processing_required_count"] = (
+                multimodal_processing_required_count
             )
+            parent_payload["reference_only_count"] = reference_only_count
+            parent_payload["unsupported_binary_count"] = unsupported_binary_count
             parent_payload["attachment_ref_count"] = len(parent_source_truth.attachment_refs)
             parent_payload["has_text_table_attachment"] = (
                 text_extractable_count > 0 or parent_ocr_candidate_count > 0
             )
-            parent_payload["has_spatial_attachment"] = manual_review_required_count > 0
+            parent_payload["has_spatial_attachment"] = multimodal_processing_required_count > 0
             parent_payload["has_reference_only_attachment"] = (
                 parent_payload["reference_only_count"] > 0
+            )
+            parent_payload["has_unsupported_binary_attachment"] = (
+                parent_payload["unsupported_binary_count"] > 0
             )
             attachment_lane_count = sum(
                 1
                 for count in (
                     text_extractable_count,
                     parent_ocr_candidate_count,
-                    manual_review_required_count,
+                    multimodal_processing_required_count,
                     int(parent_payload["reference_only_count"]),
+                    int(parent_payload["unsupported_binary_count"]),
                 )
                 if count > 0
             )
@@ -495,14 +513,13 @@ class AuthenticatedNoticeCloseoutService:
                 attachment_ref_count=int(parent_payload["attachment_ref_count"]),
                 has_text_table_attachment=bool(parent_payload["has_text_table_attachment"]),
                 has_spatial_attachment=bool(parent_payload["has_spatial_attachment"]),
-                has_reference_only_attachment=bool(
-                    parent_payload["has_reference_only_attachment"]
+                has_reference_only_attachment=bool(parent_payload["has_reference_only_attachment"]),
+                has_unsupported_binary_attachment=bool(
+                    parent_payload["has_unsupported_binary_attachment"]
                 ),
             )
             parent_payload["notice_risk_label"] = notice_risk_label
-            notice_risk_counts[notice_risk_label] = (
-                notice_risk_counts.get(notice_risk_label, 0) + 1
-            )
+            notice_risk_counts[notice_risk_label] = notice_risk_counts.get(notice_risk_label, 0) + 1
             parents.append(parent_payload)
         notice_count = len(parents)
         aggregated_notice_risk_counts = _aggregate_notice_risk_counts(
@@ -513,29 +530,30 @@ class AuthenticatedNoticeCloseoutService:
             for label, count in aggregated_notice_risk_counts.items()
             if label in HIGH_RISK_NOTICE_LABELS
         )
+        refreshed_inventory = AuthenticatedNoticeSourceTruthReplayInventory(
+            site_id=frozen_inventory.site_id,
+            source_home_url=frozen_inventory.source_home_url,
+            embedding_model=frozen_inventory.embedding_model,
+            selected_notice_ids=frozen_inventory.selected_notice_ids,
+            notice_risk_counts=aggregated_notice_risk_counts,
+            high_risk_notice_count=high_risk_notice_count,
+            expected_notice_count=notice_count,
+            expected_document_count=notice_count + required_attachment_document_count,
+            expected_attachment_document_count=required_attachment_document_count,
+            expected_ocr_candidate_count=ocr_candidate_count,
+            expected_raw_asset_count=(
+                frozen_inventory.expected_raw_asset_count or run.expected_raw_asset_count
+            ),
+            parents=tuple(parents),
+        )
         self.object_store.put_bytes(
             bucket=self.object_store_settings.bucket_derived,
             key=inventory_key,
             data=json.dumps(
-                {
-                    "run_id": run.run_id,
-                    "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
-                    "selected_notice_ids": list(
-                        payload.get("selected_notice_ids")
-                        or [str(parent["notice_id"]) for parent in parents]
-                    ),
-                    "notice_risk_counts": aggregated_notice_risk_counts,
-                    "high_risk_notice_count": high_risk_notice_count,
-                    "site_id": payload["site_id"],
-                    "source_home_url": payload["source_home_url"],
-                    "embedding_model": payload["embedding_model"],
-                    "expected_notice_count": notice_count,
-                    "expected_document_count": notice_count + required_attachment_document_count,
-                    "expected_attachment_document_count": required_attachment_document_count,
-                    "expected_ocr_candidate_count": ocr_candidate_count,
-                    "expected_raw_asset_count": int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
-                    "parents": parents,
-                },
+                build_authenticated_notice_source_truth_replay_inventory_payload(
+                    run_id=run.run_id,
+                    inventory=refreshed_inventory,
+                ),
                 ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
@@ -549,9 +567,17 @@ class AuthenticatedNoticeCloseoutService:
             expected_document_count=notice_count + required_attachment_document_count,
             expected_attachment_document_count=required_attachment_document_count,
             expected_ocr_candidate_count=ocr_candidate_count,
-            expected_raw_asset_count=int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
+            expected_raw_asset_count=refreshed_inventory.expected_raw_asset_count,
+        )
+        refreshed_batches = self._refresh_source_truth_replay_batch_inputs(
+            run=refreshed_run,
+            parents=parents,
         )
         self.closeout_store.save_run(refreshed_run)
+        self._write_refreshed_source_truth_replay_artifacts(
+            run=refreshed_run,
+            batches=refreshed_batches,
+        )
         self.closeout_store.record_milestone(
             run.run_id,
             "inventory_refreshed",
@@ -564,10 +590,127 @@ class AuthenticatedNoticeCloseoutService:
                 "expected_document_count": notice_count + required_attachment_document_count,
                 "expected_attachment_document_count": required_attachment_document_count,
                 "expected_ocr_candidate_count": ocr_candidate_count,
-                "expected_raw_asset_count": int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
+                "expected_raw_asset_count": refreshed_inventory.expected_raw_asset_count,
             },
         )
         return refreshed_run
+
+    def _refresh_source_truth_replay_batch_inputs(
+        self,
+        *,
+        run,
+        parents: list[dict[str, Any]],
+    ) -> tuple[Any, ...]:
+        parent_by_notice_id = {str(parent["notice_id"]): dict(parent) for parent in parents}
+        refreshed_batches = []
+        for batch in self.closeout_store.list_batches(run.run_id):
+            input_key = str(batch.input_object_key or "").strip() or build_operations_artifact_key(
+                corpus=run.corpus,
+                operation="authenticated-notice-closeout",
+                run_id=run.run_id,
+                filename="input.json",
+                segments=("batches", f"{int(batch.batch_id):06d}"),
+            )
+            batch_payload = build_authenticated_notice_source_truth_replay_batch_input_payload(
+                run_id=run.run_id,
+                batch_id=batch.batch_id,
+                shard_id=batch.shard_id,
+                notice_ids=batch.notice_ids,
+                parent_by_notice_id=parent_by_notice_id,
+            )
+            batch_bytes = json.dumps(
+                batch_payload,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ).encode("utf-8")
+            batch_sha256 = hashlib.sha256(batch_bytes).hexdigest()
+            self.object_store.put_bytes(
+                bucket=self.object_store_settings.bucket_derived,
+                key=input_key,
+                data=batch_bytes,
+                content_type="application/json",
+                metadata={"sha256": batch_sha256},
+            )
+            refreshed_batch = replace(
+                batch,
+                input_object_key=input_key,
+                input_sha256=batch_sha256,
+            )
+            self.closeout_store.save_batch(run.run_id, refreshed_batch)
+            refreshed_batches.append(refreshed_batch)
+        return tuple(refreshed_batches)
+
+    def _write_refreshed_source_truth_replay_artifacts(
+        self,
+        *,
+        run,
+        batches: tuple[Any, ...],
+    ) -> None:
+        request = self._request_from_run(run)
+        self.artifacts.write_json_artifact(
+            request=request,
+            run_id=run.run_id,
+            filename="run-manifest.json",
+            payload={
+                "run_id": run.run_id,
+                "bundle_path": None,
+                "manifest_path": None,
+                "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                "selected_notice_ids": list(run.selected_notice_ids),
+                "notice_risk_counts": dict(run.notice_risk_counts),
+                "high_risk_notice_count": run.high_risk_notice_count,
+                "source_truth_inventory_object_key": run.source_truth_inventory_object_key,
+                "expected_notice_count": run.expected_notice_count,
+                "expected_document_count": run.expected_document_count,
+                "expected_attachment_document_count": run.expected_attachment_document_count,
+                "expected_ocr_candidate_count": run.expected_ocr_candidate_count,
+                "expected_raw_asset_count": run.expected_raw_asset_count,
+                "shard_size": run.shard_size,
+                "batch_size": run.batch_size,
+                "max_shards": self.planner.max_shards,
+                "max_concurrency": run.max_concurrency,
+                "notice_concurrency": run.notice_concurrency,
+                "object_store_concurrency": run.object_store_concurrency,
+                "lease_seconds": run.lease_seconds,
+                "operations_prefix": run.operations_prefix,
+                "corpus": run.corpus,
+                "collection": run.collection,
+                "site_id": run.site_id,
+                "source_home_url": run.source_home_url,
+                "visibility_scope": run.visibility_scope,
+                "parser_version": run.parser_version,
+                "embedding_model": run.embedding_model,
+                "import_source": run.import_source,
+                "source_projections_path": run.source_projections_path,
+            },
+        )
+        self.artifacts.write_json_artifact(
+            request=request,
+            run_id=run.run_id,
+            filename="batch-plan.json",
+            payload={
+                "run_id": run.run_id,
+                "batches": [
+                    {
+                        "batch_id": batch.batch_id,
+                        "shard_id": batch.shard_id,
+                        "notice_ids": list(batch.notice_ids),
+                        "input_object_key": batch.input_object_key,
+                        "input_sha256": batch.input_sha256,
+                    }
+                    for batch in batches
+                ],
+            },
+        )
+        for batch in batches:
+            self.artifacts.write_json_artifact(
+                request=request,
+                run_id=run.run_id,
+                filename="manifest.json",
+                payload=asdict(batch),
+                segments=("batches", f"{int(batch.batch_id):06d}"),
+            )
 
 
 __all__ = [

@@ -19,5 +19,5 @@
 它不负责：
 
 - online query-serving 编排
-- supervisor / specialist 路由
+- supervisor / agent 路由
 - API transport 或 HTTP host

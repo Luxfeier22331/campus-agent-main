@@ -1,0 +1,347 @@
+{
+	"schemaVersion": "handbook_curated_service_guide.v1",
+	"projectionName": "handbook_student_financial_aid_service_guide",
+	"targetDocumentId": "campus_services:service_catalog:student-financial-aid-services",
+	"sourceDocumentId": "handbook:8371280fde48b4c568850475814538a6aff13976",
+	"documentData": {
+		"title": "中央民族大学学生资助办理指南",
+		"sourceHandbookSection": "中央民族大学学生资助管理规定",
+		"sourcePageStart": 217,
+		"sourcePageEnd": 246,
+		"manualReviewRequired": false,
+		"extractionStatus": "ready",
+		"services": [
+			{
+				"serviceId": "service:handbook:temporary-hardship-subsidy",
+				"displayName": "临时困难补助申请指南",
+				"aliases": [
+					"临时困难补助",
+					"困难补助申请",
+					"减免学费",
+					"突发性困难补助",
+					"专项困难补助",
+					"临时困难补助申请表"
+				],
+				"category": "financial_aid",
+				"campusScope": "all",
+				"audience": ["student"],
+				"sourceRefs": [
+					"handbook:student_rules:pages:217-219#page=217",
+					"handbook:student_rules:pages:217-219#page=218"
+				],
+				"guideSections": [
+					{
+						"sectionId": "service:handbook:temporary-hardship-subsidy:section:overview",
+						"sectionType": "overview",
+						"title": "补助类型",
+						"content": "临时困难补助包括减免学费（住宿费）、突发性困难补助和专项困难补助三类。专项困难补助包括寒假留校贫困生春节生活补助、家庭经济特别困难学生寒假返乡交通补助、寒假留校学生春节伙食补助三类。",
+						"order": 1,
+						"sourceRefs": [
+							"handbook:student_rules:pages:217-219#page=217",
+							"handbook:student_rules:pages:217-219#page=218"
+						]
+					},
+					{
+						"sectionId": "service:handbook:temporary-hardship-subsidy:section:eligibility",
+						"sectionType": "eligibility",
+						"title": "申请条件",
+						"content": "严格遵守国家法律法规和校规校纪、学习刻苦、生活俭朴，但因家庭经济困难而难以维持自身基本生活费用，或因突发变故导致家庭经济困难而自身正常学习生活受到严重影响的学生，可申请一次性临时困难补助。",
+						"order": 2,
+						"sourceRefs": ["handbook:student_rules:pages:217-219#page=217"]
+					},
+					{
+						"sectionId": "service:handbook:temporary-hardship-subsidy:section:procedure",
+						"sectionType": "procedure",
+						"title": "申请流程",
+						"content": "1. 符合申请条件的学生填写《中央民族大学临时困难补助申请表》。\n2. 申请学生所在学院（系）党委、党总支初审并提出资助建议。\n3. 党委学生工作部、学生处审核并提出资助建议。\n4. 主管校领导审批。",
+						"order": 3,
+						"sourceRefs": ["handbook:student_rules:pages:217-219#page=218"]
+					},
+					{
+						"sectionId": "service:handbook:temporary-hardship-subsidy:section:required-materials",
+						"sectionType": "required_materials",
+						"title": "申请材料",
+						"content": "申请临时困难补助需填写《中央民族大学临时困难补助申请表》并如实提交申请材料；如发现弄虚作假，须全额退还所得补助款项，并视情节按学校学生管理有关规定处理。",
+						"order": 4,
+						"sourceRefs": ["handbook:student_rules:pages:217-219#page=218"]
+					}
+				],
+				"materials": [
+					{
+						"materialId": "service:handbook:temporary-hardship-subsidy:material:application-form",
+						"name": "《中央民族大学临时困难补助申请表》",
+						"required": true,
+						"note": "符合申请条件的学生填写该申请表。",
+						"sourceRefs": ["handbook:student_rules:pages:217-219#page=218"]
+					},
+					{
+						"materialId": "service:handbook:temporary-hardship-subsidy:material:supporting-materials",
+						"name": "申请材料",
+						"required": true,
+						"note": "申请人须如实填写和提交申请材料。",
+						"sourceRefs": ["handbook:student_rules:pages:217-219#page=218"]
+					}
+				],
+				"entryRefs": [
+					{
+						"entryId": "service:handbook:temporary-hardship-subsidy:entry:college",
+						"label": "申请学生所在学院（系）",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:217-219#page=218"]
+					},
+					{
+						"entryId": "service:handbook:temporary-hardship-subsidy:entry:student-affairs-office",
+						"label": "党委学生工作部、学生处",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:217-219#page=218"]
+					}
+				],
+				"officeHours": [],
+				"contactRefs": [],
+				"eligibilityNotes": [
+					"适用于学校统一招收的全日制本（预）科学生。",
+					"因家庭经济困难或突发变故导致正常学习生活受到严重影响的学生可申请。"
+				],
+				"extractionStatus": "ready",
+				"manualReviewNotes": []
+			},
+			{
+				"serviceId": "service:handbook:national-student-loan-application",
+				"displayName": "国家助学贷款申请指南",
+				"aliases": [
+					"国家助学贷款",
+					"助学贷款申请",
+					"贷款申请材料",
+					"国家助学贷款申请审批表",
+					"生源地信用助学贷款",
+					"助学贷款初审"
+				],
+				"category": "student_loan",
+				"campusScope": "all",
+				"audience": ["student"],
+				"sourceRefs": [
+					"handbook:student_rules:pages:240-246#page=241",
+					"handbook:student_rules:pages:240-246#page=242"
+				],
+				"guideSections": [
+					{
+						"sectionId": "service:handbook:national-student-loan-application:section:overview",
+						"sectionType": "overview",
+						"title": "助学贷款类型与额度",
+						"content": "助学贷款用于帮助高等院校家庭经济困难学生支付在校期间的学费、住宿费和基本生活费。现有国家助学贷款和生源地信用助学贷款两种方式，两者中只可选择一种；贷款学生申请助学贷款金额每人每学年最高不超过6000元。",
+						"order": 1,
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=240"]
+					},
+					{
+						"sectionId": "service:handbook:national-student-loan-application:section:procedure",
+						"sectionType": "procedure",
+						"title": "校内国家助学贷款申请受理",
+						"content": "1. 申请国家助学贷款学生需在入学后按学校发布的国家助学贷款申请时间要求，持本人填写的国家助学贷款申请书、国家助学贷款申请审批表及相关材料，向所在院系提出申请。\n2. 院系对学生填写内容及所提供材料的完整性和真实性进行资格审查，填制《中央民族大学XX（系）20XX-20XX学年度申请国家助学贷款学生审核信息表》，并报送学校助学服务中心初审。\n3. 学校助学服务中心对院系上报材料逐一进行初审、公示，汇总填制审批表，并将初审合格的申请审批表盖章后连同相关材料递交银行复审。\n4. 银行复审通过后，由学校助学服务中心通知所在院系组织学生填写贷款资料、合同及借款借据，并将材料提交经办银行。",
+						"order": 2,
+						"sourceRefs": [
+							"handbook:student_rules:pages:240-246#page=241",
+							"handbook:student_rules:pages:240-246#page=242"
+						]
+					},
+					{
+						"sectionId": "service:handbook:national-student-loan-application:section:required-materials",
+						"sectionType": "required_materials",
+						"title": "校内国家助学贷款材料",
+						"content": "申请国家助学贷款的学生须如实提供：本人学生证或入学通知书、身份证或户口迁移证明复印件；本人家庭所在地当年出具并加盖户籍所在地乡、镇、街道及以上民政部门审核公章的家庭经济情况调查函；未成年人须提供法定监护人的有效身份证明和书面同意申请贷款并承诺负连带责任的证明材料；国家助学贷款申请审批表。",
+						"order": 3,
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=242"]
+					},
+					{
+						"sectionId": "service:handbook:national-student-loan-application:section:entry",
+						"sectionType": "entry",
+						"title": "申请入口",
+						"content": "校内国家助学贷款向所在院系提出申请，由院系资格审查后报送学校助学服务中心初审；生源地信用助学贷款由学生户籍所在县（区）资助中心具体负责。",
+						"order": 4,
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=241"]
+					}
+				],
+				"materials": [
+					{
+						"materialId": "service:handbook:national-student-loan-application:material:application-letter",
+						"name": "国家助学贷款申请书",
+						"required": true,
+						"note": "申请国家助学贷款时需本人填写。",
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=241"]
+					},
+					{
+						"materialId": "service:handbook:national-student-loan-application:material:approval-form",
+						"name": "国家助学贷款申请审批表",
+						"required": true,
+						"note": "申请国家助学贷款时需本人填写并提交。",
+						"sourceRefs": [
+							"handbook:student_rules:pages:240-246#page=241",
+							"handbook:student_rules:pages:240-246#page=242"
+						]
+					},
+					{
+						"materialId": "service:handbook:national-student-loan-application:material:supporting-materials",
+						"name": "相关材料",
+						"required": true,
+						"note": "包括学生证或入学通知书、身份证或户口迁移证明复印件、家庭经济情况调查函；未成年人还须提供监护人有效身份证明和书面同意申请贷款并承诺负连带责任的证明材料。",
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=242"]
+					},
+					{
+						"materialId": "service:handbook:national-student-loan-application:material:college-audit-sheet",
+						"name": "院系申请国家助学贷款学生审核信息表",
+						"required": true,
+						"note": "院系资格审查后填制《中央民族大学XX（系）20XX-20XX学年度申请国家助学贷款学生审核信息表》，并报送学校助学服务中心初审。",
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=241"]
+					}
+				],
+				"entryRefs": [
+					{
+						"entryId": "service:handbook:national-student-loan-application:entry:college",
+						"label": "所在院系",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=241"]
+					},
+					{
+						"entryId": "service:handbook:national-student-loan-application:entry:aid-service-center",
+						"label": "学校助学服务中心",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": [
+							"handbook:student_rules:pages:240-246#page=241",
+							"handbook:student_rules:pages:240-246#page=242"
+						]
+					},
+					{
+						"entryId": "service:handbook:national-student-loan-application:entry:county-aid-center",
+						"label": "户籍所在县（区）资助中心",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=241"]
+					}
+				],
+				"officeHours": [
+					{
+						"hoursId": "service:handbook:national-student-loan-application:hours:published-window",
+						"label": "国家助学贷款申请时间",
+						"dayPattern": "",
+						"timeRange": "",
+						"effectiveNote": "入学后按学校发布的国家助学贷款申请时间要求办理。",
+						"sourceRefs": ["handbook:student_rules:pages:240-246#page=241"]
+					}
+				],
+				"contactRefs": [],
+				"eligibilityNotes": [
+					"家庭经济困难学生可申请助学贷款。",
+					"国家助学贷款和生源地信用助学贷款两种方式只能选择一种。"
+				],
+				"extractionStatus": "ready",
+				"manualReviewNotes": []
+			},
+			{
+				"serviceId": "service:handbook:work-study-position",
+				"displayName": "勤工助学岗位聘用指南",
+				"aliases": [
+					"勤工助学",
+					"勤工助学岗位",
+					"勤工助学申请",
+					"勤工助学岗位聘用",
+					"校内岗位见习",
+					"勤工助学报酬"
+				],
+				"category": "work_study",
+				"campusScope": "all",
+				"audience": ["student"],
+				"sourceRefs": [
+					"handbook:student_rules:pages:220-225#page=221",
+					"handbook:student_rules:pages:220-225#page=222",
+					"handbook:student_rules:pages:220-225#page=223"
+				],
+				"guideSections": [
+					{
+						"sectionId": "service:handbook:work-study-position:section:overview",
+						"sectionType": "overview",
+						"title": "勤工助学活动范围",
+						"content": "勤工助学活动是指学生在学校统一组织和安排下，利用课余时间自愿参加的助管、助教、助研等校内岗位见习实践活动。学生个人自行联系和参加的校外兼职活动不在该办法规定之列。",
+						"order": 1,
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=220"]
+					},
+					{
+						"sectionId": "service:handbook:work-study-position:section:eligibility",
+						"sectionType": "eligibility",
+						"title": "申请基本条件",
+						"content": "学生申请勤工助学岗位的基本条件包括：自觉遵守国家法律法规和校规校纪、无违纪受处分记录；学习成绩良好、无不及格课程；身体健康、工作责任心强，能够胜任并顺利完成岗位工作任务。同等条件下，优先聘用家庭经济困难学生和有岗位专长学生。",
+						"order": 2,
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=222"]
+					},
+					{
+						"sectionId": "service:handbook:work-study-position:section:procedure",
+						"sectionType": "procedure",
+						"title": "岗位聘用流程",
+						"content": "1. 岗位需求单位在规定时间内通过学校学生工作管理系统向学校助学服务中心提出岗位需求申请。\n2. 学校助学服务中心核定各单位可聘用的勤工助学岗位职数，并在全校范围内进行公示。\n3. 各单位根据核定岗位职数公开发布选聘信息，自行组织面试并公示拟录用学生名单。\n4. 各单位在学校学生工作管理系统内填报最终录用勤工助学岗位学生基本信息，并经岗前培训和签订协议书后安排学生正式上岗。",
+						"order": 3,
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=223"]
+					},
+					{
+						"sectionId": "service:handbook:work-study-position:section:office-hours",
+						"sectionType": "office_hours",
+						"title": "工作时间限制",
+						"content": "学生参加勤工助学的工作时间原则上每周不超过10小时、每月不超过40小时，寒暑假可适当延长。",
+						"order": 4,
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=221"]
+					},
+					{
+						"sectionId": "service:handbook:work-study-position:section:entry",
+						"sectionType": "entry",
+						"title": "岗位入口",
+						"content": "岗位需求单位通过学校学生工作管理系统向学校助学服务中心提出岗位需求申请；各单位公开发布选聘信息并组织面试，最终录用信息在学校学生工作管理系统内填报。",
+						"order": 5,
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=223"]
+					}
+				],
+				"materials": [],
+				"entryRefs": [
+					{
+						"entryId": "service:handbook:work-study-position:entry:student-work-system",
+						"label": "学校学生工作管理系统",
+						"entryType": "instructions_only",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=223"]
+					},
+					{
+						"entryId": "service:handbook:work-study-position:entry:aid-service-center",
+						"label": "学校助学服务中心",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=223"]
+					}
+				],
+				"officeHours": [
+					{
+						"hoursId": "service:handbook:work-study-position:hours:weekly-monthly-limit",
+						"label": "勤工助学工作时间上限",
+						"dayPattern": "每周、每月",
+						"timeRange": "每周不超过10小时，每月不超过40小时",
+						"effectiveNote": "寒暑假可适当延长。",
+						"sourceRefs": ["handbook:student_rules:pages:220-225#page=221"]
+					}
+				],
+				"contactRefs": [],
+				"eligibilityNotes": [
+					"同等条件下，优先聘用家庭经济困难学生和有岗位专长学生。",
+					"家庭经济困难学生的勤工助学岗位聘用率原则上不低于70%。"
+				],
+				"extractionStatus": "ready",
+				"manualReviewNotes": []
+			}
+		]
+	}
+}

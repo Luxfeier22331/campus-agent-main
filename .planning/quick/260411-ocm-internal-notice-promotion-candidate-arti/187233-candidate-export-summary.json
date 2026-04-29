@@ -1,0 +1,14 @@
+{
+  "manifest_path": "/home/reptilian/code/campus-agent/.planning/quick/260411-ocm-internal-notice-promotion-candidate-arti/promotion-candidate-manifest.json",
+  "documents_path": "/home/reptilian/code/campus-agent/.planning/quick/260411-ocm-internal-notice-promotion-candidate-arti/candidate-documents.jsonl",
+  "exported_candidate_count": 1,
+  "candidate_ids": [
+    "0425aed278c86fda"
+  ],
+  "candidate_markdown_paths": [
+    "/home/reptilian/code/campus-agent/.planning/quick/260411-ocm-internal-notice-promotion-candidate-arti/candidates/中央民族大学采购工作管理办法--0425aed278c86fda/canonical.md"
+  ],
+  "source_notice_release_times": [
+    "2021-02-28 16:09"
+  ]
+}

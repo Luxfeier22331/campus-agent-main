@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from typing import Any, Literal, Protocol, Sequence
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Any, Literal, Protocol
 
 from campus_ingestion_core.authenticated_notice_closeout_staged_documents import (
     load_verified_closeout_run_document_record_pairs,
@@ -20,7 +21,10 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_record
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
-from campus_ingestion_core.registry_scope_common import record_label, select_releasable_registry_records
+from campus_ingestion_core.registry_scope_common import (
+    record_label,
+    select_releasable_registry_records,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION = "registry-scope-chunk-preparation"
@@ -103,7 +107,7 @@ class RegistryScopeChunkPreparationReport:
 
 
 def default_preparation_run_id(*, now: datetime | None = None) -> str:
-    runtime_now = now or datetime.now(timezone.utc)
+    runtime_now = now or datetime.now(UTC)
     return runtime_now.strftime("prep-%Y%m%d-%H%M%S")
 
 
@@ -124,17 +128,21 @@ def prepare_registry_scope_chunks(
     if object_store is None:
         from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 
-        runtime_object_store: RegistryScopePreparationObjectStore = S3ObjectStoreAdmin(object_store_settings)
+        runtime_object_store: RegistryScopePreparationObjectStore = S3ObjectStoreAdmin(
+            object_store_settings
+        )
     else:
         runtime_object_store = object_store
-    records, manifest_records, selection_mode, resolved_closeout_run_id = _select_preparation_records(
-        source=source,
-        corpus=corpus,
-        collection=collection,
-        runtime_profile=runtime_profile,
-        runtime_registry=registry,
-        closeout_run_id=closeout_run_id,
-        closeout_store=closeout_store,
+    records, manifest_records, selection_mode, resolved_closeout_run_id = (
+        _select_preparation_records(
+            source=source,
+            corpus=corpus,
+            collection=collection,
+            runtime_profile=runtime_profile,
+            runtime_registry=registry,
+            closeout_run_id=closeout_run_id,
+            closeout_store=closeout_store,
+        )
     )
     if not records:
         raise ValueError(f"no releasable registry records found for {corpus}/{collection}")
@@ -166,7 +174,7 @@ def prepare_registry_scope_chunks(
         chunks=tuple(chunks),
         documents_without_chunks=tuple(documents_without_chunks),
     )
-    prepared_at = datetime.now(timezone.utc).isoformat()
+    prepared_at = datetime.now(UTC).isoformat()
     manifest = build_chunk_preparation_manifest(
         preparation_run_id=preparation_run_id or default_preparation_run_id(),
         corpus=corpus,
@@ -187,8 +195,7 @@ def prepare_registry_scope_chunks(
     )
     if validation.status != "passed":
         raise ValueError(
-            "chunk preparation validation failed for "
-            f"{corpus}/{collection}: {validation.summary}"
+            f"chunk preparation validation failed for {corpus}/{collection}: {validation.summary}"
         )
     return _build_chunk_preparation_report(artifacts)
 
@@ -214,7 +221,9 @@ def build_chunk_preparation_manifest(
             version_id=record.version_id,
             document_units_object_key=record.document_units_object_key,
         )
-        for record in sorted(records, key=lambda item: (item.document_id, item.revision_track, item.version_id))
+        for record in sorted(
+            records, key=lambda item: (item.document_id, item.revision_track, item.version_id)
+        )
     )
     return RegistryScopeChunkPreparationManifest(
         preparation_run_id=preparation_run_id,
@@ -230,7 +239,9 @@ def build_chunk_preparation_manifest(
         document_version_ids_hash=_hash_values(
             f"{item.document_id}|{item.revision_track}|{item.version_id}" for item in document_refs
         ),
-        document_units_keys_hash=_hash_values(item.document_units_object_key or "" for item in document_refs),
+        document_units_keys_hash=_hash_values(
+            item.document_units_object_key or "" for item in document_refs
+        ),
         validation_status=validation.status,
         validation_summary_object_key=None,
         document_report_object_key=None,
@@ -257,7 +268,9 @@ def write_chunk_preparation_artifacts(
         writer.put_bytes(
             bucket=bucket,
             key=validation_summary_object_key,
-            data=(json.dumps(validation_summary, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            data=(json.dumps(validation_summary, ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            ),
             content_type="application/json",
         )
 
@@ -305,7 +318,9 @@ def write_chunk_preparation_artifacts(
     writer.put_bytes(
         bucket=bucket,
         key=manifest_object_key,
-        data=(json.dumps(asdict(runtime_manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        data=(json.dumps(asdict(runtime_manifest), ensure_ascii=False, indent=2) + "\n").encode(
+            "utf-8"
+        ),
         content_type="application/json",
     )
     return RegistryScopeChunkPreparationArtifacts(
@@ -395,9 +410,12 @@ def _select_preparation_records(
     str | None,
 ]:
     if closeout_run_id:
-        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
-            source,
-            prefer_management=True,
+        runtime_closeout_store = (
+            closeout_store
+            or build_authenticated_notice_closeout_store_from_env(
+                source,
+                prefer_operator=True,
+            )
         )
         pairs = load_verified_closeout_run_document_record_pairs(
             run_id=closeout_run_id,
@@ -410,7 +428,9 @@ def _select_preparation_records(
             runtime_profile=runtime_profile,
         )
         pair_by_key = {_record_key(pair.staged_record): pair for pair in pairs}
-        selected_pairs = tuple(pair_by_key[_record_key(record)] for record in selected_processing_records)
+        selected_pairs = tuple(
+            pair_by_key[_record_key(record)] for record in selected_processing_records
+        )
         return (
             tuple(pair.staged_record for pair in selected_pairs),
             tuple(pair.final_record for pair in selected_pairs),
@@ -419,8 +439,7 @@ def _select_preparation_records(
         )
     records = select_releasable_registry_records(
         records=(
-            runtime_registry
-            or build_document_registry_from_env(source, prefer_management=True)
+            runtime_registry or build_document_registry_from_env(source, prefer_operator=True)
         ).list_by_scope(corpus, collection),
         runtime_profile=runtime_profile,
     )
@@ -440,8 +459,7 @@ def require_verified_chunk_preparation(
     if preparation_run_id is None:
         if requires_preparation:
             raise ValueError(
-                "chunk preparation run id is required before release for "
-                f"{corpus}/{collection}"
+                f"chunk preparation run id is required before release for {corpus}/{collection}"
             )
         return None
     manifest = load_chunk_preparation_manifest(
@@ -464,7 +482,9 @@ def require_verified_chunk_preparation(
             "chunk preparation document scope hash does not match current registry scope for "
             f"{corpus}/{collection}"
         )
-    expected_document_units_hash = _hash_values(record.document_units_object_key or "" for record in records)
+    expected_document_units_hash = _hash_values(
+        record.document_units_object_key or "" for record in records
+    )
     if manifest.document_units_keys_hash != expected_document_units_hash:
         raise ValueError(
             "chunk preparation document-units hash does not match current registry scope for "
@@ -496,7 +516,9 @@ def _validate_prepared_scope(
     ]
     max_chunk_size_limit: int | None = None
     if (corpus, collection) in MANDATORY_PREPARATION_SCOPES:
-        max_chunk_size_limit = load_chunk_profile(corpus, collection).runtime_defaults.max_chunk_size
+        max_chunk_size_limit = load_chunk_profile(
+            corpus, collection
+        ).runtime_defaults.max_chunk_size
     oversized_chunks = (
         [
             chunk.chunk_id
@@ -507,12 +529,19 @@ def _validate_prepared_scope(
         else []
     )
     attachment_ref_chunks = [
-        chunk.chunk_id for chunk in chunks if str(chunk.metadata.get("unit_type") or "") == "attachment_ref"
+        chunk.chunk_id
+        for chunk in chunks
+        if str(chunk.metadata.get("unit_type") or "") == "attachment_ref"
     ]
     status = "passed"
     if base_validation.status != "passed":
         status = "failed"
-    if documents_without_chunks or invalid_token_count_chunks or oversized_chunks or attachment_ref_chunks:
+    if (
+        documents_without_chunks
+        or invalid_token_count_chunks
+        or oversized_chunks
+        or attachment_ref_chunks
+    ):
         status = "failed"
     summary = {
         **dict(base_validation.summary),

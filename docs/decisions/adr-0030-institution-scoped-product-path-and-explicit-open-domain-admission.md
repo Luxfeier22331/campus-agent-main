@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-06
 updated: 2026-04-06
 ---
-
 # ADR-0030 Institution-Scoped Product Path And Explicit Open-Domain Admission
 
 ## 状态
@@ -20,7 +19,8 @@ Accepted on 2026-04-06.
 - 当前 campus path 不接受隐式 general web / world knowledge fallback
 - `out_of_scope`、`policy_refusal`、`unsupported_by_evidence` 必须在产品语义、评测与可观测性上显式区分
 
-但在完成 Domain-Bounded Answering And Refusal Foundation 的 Wave 1-5 之后，repo 仍缺一条更高层的正式决策：
+但在完成 Domain-Bounded Answering And Refusal Foundation 的 Wave 1-5 之后，repo
+仍缺一条更高层的正式决策：
 
 - 未来是否要把开放域 generalist / web capability 接入主产品路径
 - 如果以后真的要做，这件事应以什么边界进入，而不是偷渡成临时 fallback
@@ -30,7 +30,7 @@ Accepted on 2026-04-06.
 - 把 `out_of_scope` 重新解释成“先去 web 上试一下”
 - 在 campus path 内引入 silent fallback，稀释当前 institution-scoped trust model
 - 把开放域回答与校园受控回答混在同一条 policy / eval / operator 路径里
-- 为了“更像通用助手”而绕开 `ADR-0006` 对 specialist 准入和安全边界的要求
+- 为了“更像通用助手”而绕开 `ADR-0006` 对 agent 准入和安全边界的要求
 
 ## 决策
 
@@ -42,7 +42,8 @@ Accepted on 2026-04-06.
 
 - `campus-agent` 当前不是开放域 general assistant
 - 当前主路径不以“世界知识也可以顺手回答”为产品目标
-- 产品扩展优先继续沿校园能力面推进，例如 campus service、place finding、navigation、identity-aware assistance
+- 产品扩展优先继续沿校园能力面推进，例如 campus service、place finding、navigation、identity-aware
+  assistance
 
 ### 决策 2：campus path 内不允许隐式 general web / world fallback
 
@@ -56,7 +57,8 @@ Accepted on 2026-04-06.
 
 ### 决策 3：Wave 1-5 收口出的拒答语义保持独立，不被未来 fallback 语义稀释
 
-当前已建立的 `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`restricted_access_denied` 语义继续保持独立。
+当前已建立的 `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`restricted_acc
+ess_denied` 语义继续保持独立。
 
 直接含义：
 
@@ -72,13 +74,13 @@ Accepted on 2026-04-06.
 
 - 这不是当前 target architecture 的既有组成部分
 - 这不是当前 campus path 的隐含 backlog
-- 它不能以“先接一个 web specialist 试试”的方式绕过产品决策
+- 它不能以“先接一个 web agent 试试”的方式绕过产品决策
 
 ### 决策 5：未来开放域能力若被批准，必须以独立边界接入，而不是污染当前 campus path
 
 如果未来确实接受开放域能力，至少需要同时满足以下准入条件：
 
-- 独立 capability boundary 或 specialist boundary
+- 独立 capability boundary 或 agent boundary
 - 显式 routing / admission 规则，区分 campus path 与 open-domain path
 - 独立的 policy、prompt、grounding 与 refusal 语义
 - 独立的 eval lane、release gate 与 operator observability 维度
@@ -86,13 +88,13 @@ Accepted on 2026-04-06.
 
 禁止做法：
 
-- 让 campus specialist 在失败时静默切到 web
+- 让 campus agent 在失败时静默切到 web
 - 把开放域 evidence 和 institution truth 放进同一个真实性承诺
 - 因为存在 generalist 能力，就放松当前 campus path 的 fail-close 约束
 
 ### 决策 6：本 ADR 不引入任何新的开放域实现
 
-本 ADR 只冻结产品与架构决策，不引入新的 web capability、generalist specialist 或开放域运行时路径。
+本 ADR 只冻结产品与架构决策，不引入新的 web capability、generalist agent 或开放域运行时路径。
 
 ## 结果
 
@@ -106,6 +108,6 @@ Accepted on 2026-04-06.
 
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`

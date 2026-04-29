@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from concurrent.futures import Executor
 from dataclasses import asdict
 from functools import partial
-import json
 from typing import Any, Protocol
 
 from campus_ingestion_core.authenticated_notice_closeout_models import (
@@ -238,9 +238,7 @@ class CloseoutArtifactManager:
             return None
 
     def _json_bytes(self, payload: dict[str, Any]) -> bytes:
-        return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True).encode(
-            "utf-8"
-        )
+        return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")
 
 
 __all__ = [

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
-import json
 
 from campus_contracts import ActorContext, KnowledgeScope
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
@@ -18,8 +18,7 @@ from campus_evals.live_benchmark import (
     run_live_benchmark_profile,
 )
 
-
-TEST_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+TEST_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _case() -> GoldenCase:
@@ -58,21 +57,29 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             description="test profile",
             policy_path=Path("/tmp/test-policy.json"),
             cases_factory=lambda: (_case(),),
-            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            executor_factory=lambda: (
+                lambda case: ExecutionResult(response=object(), observed_trace=None)
+            ),
             supplemental_adapters_factory=lambda: (),
+            case_workers=3,
         )
 
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "run"
             with patch(
-                "campus_evals.live_benchmark.run_handbook_formal_benchmark",
+                "campus_evals.live_benchmark.run_formal_benchmark",
                 return_value={"benchmark_type": "test_live_gate"},
             ) as run_benchmark:
-                summary = run_live_benchmark_profile(profile=profile, reruns=2, output_dir=output_dir)
+                summary = run_live_benchmark_profile(
+                    profile=profile, reruns=2, output_dir=output_dir
+                )
 
         self.assertEqual(summary["benchmark_type"], "test_live_gate")
-        self.assertEqual(run_benchmark.call_args.kwargs["policy_path"], Path("/tmp/test-policy.json"))
+        self.assertEqual(
+            run_benchmark.call_args.kwargs["policy_path"], Path("/tmp/test-policy.json")
+        )
         self.assertEqual(run_benchmark.call_args.kwargs["benchmark_type"], "test_live_gate")
+        self.assertEqual(run_benchmark.call_args.kwargs["case_workers"], 3)
 
     def test_repair_live_benchmark_profile_passes_explicit_profile_policy_to_core(self) -> None:
         profile = BenchmarkProfile(
@@ -84,15 +91,18 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             description="test profile",
             policy_path=Path("/tmp/test-policy.json"),
             cases_factory=lambda: (_case(),),
-            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            executor_factory=lambda: (
+                lambda case: ExecutionResult(response=object(), observed_trace=None)
+            ),
             supplemental_adapters_factory=lambda: (),
+            case_workers=3,
         )
 
         with TemporaryDirectory() as tmpdir:
             benchmark_dir = Path(tmpdir) / "benchmark"
             output_dir = Path(tmpdir) / "repair"
             with patch(
-                "campus_evals.live_benchmark.repair_handbook_formal_benchmark",
+                "campus_evals.live_benchmark.repair_formal_benchmark",
                 return_value={"benchmark_type": "test_live_gate_repair"},
             ) as repair_benchmark:
                 summary = repair_live_benchmark_profile(
@@ -102,8 +112,13 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                 )
 
         self.assertEqual(summary["benchmark_type"], "test_live_gate_repair")
-        self.assertEqual(repair_benchmark.call_args.kwargs["policy_path"], Path("/tmp/test-policy.json"))
-        self.assertEqual(repair_benchmark.call_args.kwargs["benchmark_type"], "test_live_gate_repair")
+        self.assertEqual(
+            repair_benchmark.call_args.kwargs["policy_path"], Path("/tmp/test-policy.json")
+        )
+        self.assertEqual(
+            repair_benchmark.call_args.kwargs["benchmark_type"], "test_live_gate_repair"
+        )
+        self.assertEqual(repair_benchmark.call_args.kwargs["case_workers"], 3)
 
     def test_accept_live_benchmark_profile_runs_repair_and_writes_final_summary(self) -> None:
         profile = BenchmarkProfile(
@@ -115,7 +130,9 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             description="test profile",
             policy_path=Path("/tmp/test-policy.json"),
             cases_factory=lambda: (_case(),),
-            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            executor_factory=lambda: (
+                lambda case: ExecutionResult(response=object(), observed_trace=None)
+            ),
             supplemental_adapters_factory=lambda: (),
         )
 
@@ -151,14 +168,26 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                 return payload
 
             with (
-                patch("campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run) as run_profile,
-                patch("campus_evals.live_benchmark.collect_repairable_handbook_benchmark_targets", return_value=[{"case_id": "c1"}]) as collect_targets,
-                patch("campus_evals.live_benchmark.repair_live_benchmark_profile", side_effect=fake_repair) as repair_profile,
+                patch(
+                    "campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run
+                ) as run_profile,
+                patch(
+                    "campus_evals.live_benchmark.collect_repairable_benchmark_targets",
+                    return_value=[{"case_id": "c1"}],
+                ) as collect_targets,
+                patch(
+                    "campus_evals.live_benchmark.repair_live_benchmark_profile",
+                    side_effect=fake_repair,
+                ) as repair_profile,
             ):
-                summary = accept_live_benchmark_profile(profile=profile, reruns=2, output_dir=output_dir)
+                summary = accept_live_benchmark_profile(
+                    profile=profile, reruns=2, output_dir=output_dir
+                )
                 self.assertTrue((output_dir / "final-summary.json").exists())
                 self.assertTrue((output_dir / "accept-config.json").exists())
-                written_summary = json.loads((output_dir / "final-summary.json").read_text(encoding="utf-8"))
+                written_summary = json.loads(
+                    (output_dir / "final-summary.json").read_text(encoding="utf-8")
+                )
                 self.assertEqual(
                     written_summary["runtime_observability"],
                     {
@@ -189,7 +218,9 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             description="test profile",
             policy_path=Path("/tmp/test-policy.json"),
             cases_factory=lambda: (_case(),),
-            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            executor_factory=lambda: (
+                lambda case: ExecutionResult(response=object(), observed_trace=None)
+            ),
             supplemental_adapters_factory=lambda: (),
         )
 
@@ -210,11 +241,20 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                 return payload
 
             with (
-                patch("campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run),
-                patch("campus_evals.live_benchmark.collect_repairable_handbook_benchmark_targets", return_value=[]),
-                patch("campus_evals.live_benchmark.repair_live_benchmark_profile") as repair_profile,
+                patch(
+                    "campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run
+                ),
+                patch(
+                    "campus_evals.live_benchmark.collect_repairable_benchmark_targets",
+                    return_value=[],
+                ),
+                patch(
+                    "campus_evals.live_benchmark.repair_live_benchmark_profile"
+                ) as repair_profile,
             ):
-                summary = accept_live_benchmark_profile(profile=profile, reruns=2, output_dir=output_dir)
+                summary = accept_live_benchmark_profile(
+                    profile=profile, reruns=2, output_dir=output_dir
+                )
                 self.assertTrue((output_dir / "final-summary.json").exists())
                 self.assertTrue((output_dir / "accept-config.json").exists())
 
@@ -223,7 +263,9 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
         self.assertEqual(summary["repair"]["selected_target_count"], 0)
         repair_profile.assert_not_called()
 
-    def test_accept_live_benchmark_profile_publishes_final_case_results_when_configured(self) -> None:
+    def test_accept_live_benchmark_profile_publishes_final_case_results_when_configured(
+        self,
+    ) -> None:
         profile = BenchmarkProfile(
             profile_id="test_profile",
             benchmark_type="test_live_gate",
@@ -233,7 +275,9 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             description="test profile",
             policy_path=Path("/tmp/test-policy.json"),
             cases_factory=lambda: (_case(),),
-            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            executor_factory=lambda: (
+                lambda case: ExecutionResult(response=object(), observed_trace=None)
+            ),
             supplemental_adapters_factory=lambda: (),
         )
 
@@ -269,8 +313,13 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                 return payload
 
             with (
-                patch("campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run),
-                patch("campus_evals.live_benchmark.collect_repairable_handbook_benchmark_targets", return_value=[]),
+                patch(
+                    "campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run
+                ),
+                patch(
+                    "campus_evals.live_benchmark.collect_repairable_benchmark_targets",
+                    return_value=[],
+                ),
                 patch(
                     "campus_evals.live_benchmark.publish_case_results_artifact",
                     return_value={
@@ -296,7 +345,9 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                 self.assertTrue(
                     (output_dir / "operator-observability-publish-summary.json").exists()
                 )
-                accept_config = json.loads((output_dir / "accept-config.json").read_text(encoding="utf-8"))
+                accept_config = json.loads(
+                    (output_dir / "accept-config.json").read_text(encoding="utf-8")
+                )
 
         publish_artifact.assert_called_once_with(
             case_results_path=run_dir / "run-02-case-results.json",
@@ -336,7 +387,9 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             description="test profile",
             policy_path=Path("/tmp/test-policy.json"),
             cases_factory=lambda: (_case(),),
-            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            executor_factory=lambda: (
+                lambda case: ExecutionResult(response=object(), observed_trace=None)
+            ),
             supplemental_adapters_factory=lambda: (),
         )
 
@@ -344,7 +397,9 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             output_dir = Path(tmpdir) / "accept"
             with (
                 patch("campus_evals.live_benchmark.load_repo_env"),
-                patch("campus_evals.live_benchmark.accept_live_benchmark_profile") as accept_profile,
+                patch(
+                    "campus_evals.live_benchmark.accept_live_benchmark_profile"
+                ) as accept_profile,
                 patch("builtins.print"),
             ):
                 exit_code = main_for_profile(

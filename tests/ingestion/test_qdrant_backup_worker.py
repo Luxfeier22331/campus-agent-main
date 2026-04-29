@@ -21,7 +21,9 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
     def test_backup_create_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.qdrant_backup_create.load_worker_env"),
-            patch("campus_ingestion_worker.qdrant_backup_create.create_snapshot_backup") as create_backup,
+            patch(
+                "campus_ingestion_worker.qdrant_backup_create.create_snapshot_backup"
+            ) as create_backup,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             create_backup.return_value = SnapshotBackupManifest(
@@ -29,14 +31,14 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
                 backup_mode="qdrant_collection_snapshot_export",
                 captured_at="2026-04-01T01:02:03+00:00",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 release_id="r20260331_120000",
-                serving_alias="student_handbook",
-                physical_collection_name="student_handbook__r20260331_120000",
-                alias_bindings={"student_handbook": "student_handbook__r20260331_120000"},
-                index_release_manifest_key="regulations/releases/student_handbook/r20260331_120000/index-release.json",
+                serving_alias="student_rules",
+                physical_collection_name="student_rules__r20260331_120000",
+                alias_bindings={"student_rules": "student_rules__r20260331_120000"},
+                index_release_manifest_key="regulations/releases/student_rules/r20260331_120000/index-release.json",
                 validation_summary_key=None,
-                snapshot_object_key="regulations/backups/student_handbook/r20260331_120000/b20260401T010203Z/student_handbook__r20260331_120000.snapshot",
+                snapshot_object_key="regulations/backups/student_rules/r20260331_120000/b20260401T010203Z/student_rules__r20260331_120000.snapshot",
                 snapshot_sha256="abc",
                 backup_reason="pre-gc",
                 operator="tester",
@@ -46,7 +48,7 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
                     "--corpus",
                     "regulations",
                     "--collection",
-                    "student_handbook",
+                    "student_rules",
                     "--release-id",
                     "r20260331_120000",
                     "--backup-reason",
@@ -66,19 +68,21 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
     def test_backup_restore_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.qdrant_backup_restore.load_worker_env"),
-            patch("campus_ingestion_worker.qdrant_backup_restore.restore_snapshot_backup") as restore_backup,
+            patch(
+                "campus_ingestion_worker.qdrant_backup_restore.restore_snapshot_backup"
+            ) as restore_backup,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             restore_backup.return_value = SnapshotRestoreReport(
                 backup_id="b20260401T010203Z",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 release_id="r20260331_120000",
-                restored_collection_name="student_handbook__r20260331_120000",
-                applied_alias_bindings={"student_handbook": "student_handbook__r20260331_120000"},
+                restored_collection_name="student_rules__r20260331_120000",
+                applied_alias_bindings={"student_rules": "student_rules__r20260331_120000"},
                 points_count=20,
                 restored_at="2026-04-01T02:03:04+00:00",
-                restore_report_object_key="regulations/backups/student_handbook/r20260331_120000/b20260401T010203Z/restore-report.json",
+                restore_report_object_key="regulations/backups/student_rules/r20260331_120000/b20260401T010203Z/restore-report.json",
                 verification_status="passed",
             )
             backup_restore_worker.main(
@@ -86,7 +90,7 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
                     "--corpus",
                     "regulations",
                     "--collection",
-                    "student_handbook",
+                    "student_rules",
                     "--release-id",
                     "r20260331_120000",
                     "--backup-id",
@@ -106,15 +110,17 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
     def test_gc_check_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.qdrant_gc_check.load_worker_env"),
-            patch("campus_ingestion_worker.qdrant_gc_check.check_snapshot_gc_eligibility") as gc_check,
+            patch(
+                "campus_ingestion_worker.qdrant_gc_check.check_snapshot_gc_eligibility"
+            ) as gc_check,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             gc_check.return_value = CollectionGcEligibilityReport(
                 eligible=False,
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 release_id="r20260328_095627",
-                physical_collection_name="student_handbook__r20260328_095627",
+                physical_collection_name="student_rules__r20260328_095627",
                 role="archive_candidate",
                 blockers=("missing_snapshot_backup",),
                 backup_manifest_object_key=None,
@@ -124,7 +130,7 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
                     "--corpus",
                     "regulations",
                     "--collection",
-                    "student_handbook",
+                    "student_rules",
                     "--release-id",
                     "r20260328_095627",
                 ]

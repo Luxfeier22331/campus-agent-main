@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
-from typing import Sequence
+from collections.abc import Sequence
+from dataclasses import asdict
 
-from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_core import (
     StudentHandbookMigrationReport,
     StudentHandbookSourceAssetRequest,
     migrate_student_handbook_source_faithful,
 )
 
+from campus_ingestion_worker.env_bootstrap import load_worker_env
+
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run a typed student handbook source-faithful migration")
+    parser = argparse.ArgumentParser(
+        description="Run a typed student handbook source-faithful migration"
+    )
     parser.add_argument("--raw-version-id", required=True)
     parser.add_argument("--raw-asset-id")
     parser.add_argument("--canonical-raw-filename")
@@ -39,8 +42,8 @@ __all__ = [
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
     "build_parser",
-    "migrate_student_handbook_source_faithful",
     "main",
+    "migrate_student_handbook_source_faithful",
 ]
 
 

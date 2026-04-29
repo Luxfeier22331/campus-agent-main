@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import os
-from typing import Protocol, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Protocol
 
+from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
@@ -27,11 +29,15 @@ from campus_ingestion_core.process import (
     index_chunks_to_qdrant,
 )
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
-from campus_ingestion_core.registry_scope_chunk_preparation import require_verified_chunk_preparation
-from campus_ingestion_core.registry_scope_common import record_label, select_releasable_registry_records
+from campus_ingestion_core.registry_scope_chunk_preparation import (
+    require_verified_chunk_preparation,
+)
+from campus_ingestion_core.registry_scope_common import (
+    record_label,
+    select_releasable_registry_records,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import SparseEmbeddingSettings, build_sparse_embedding_model
-from campus_retrieval_core.settings import RetrievalSettings
 
 DEFAULT_QDRANT_UPSERT_BATCH_SIZE = 128
 DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS = 60.0
@@ -90,7 +96,7 @@ def release_registry_scope(
         runtime_object_store = object_store
     runtime_registry = registry or build_document_registry_from_env(
         source,
-        prefer_management=True,
+        prefer_operator=True,
     )
     runtime_qdrant_client = qdrant_client or _build_qdrant_client(
         RetrievalSettings.from_env(source),
@@ -135,9 +141,7 @@ def release_registry_scope(
         chunks.extend(document_chunks)
     if empty_chunk_documents:
         raise ValueError(
-            "registry document "
-            + "; ".join(empty_chunk_documents)
-            + " produced no chunks"
+            "registry document " + "; ".join(empty_chunk_documents) + " produced no chunks"
         )
 
     return publish_scope_release(
@@ -182,7 +186,7 @@ def publish_scope_release(
         alias_name=binding.alias_name,
     )
     validation = validate_scope_release(corpus=corpus, collection=collection, chunks=tuple(chunks))
-    indexed_at = datetime.now(timezone.utc).isoformat()
+    indexed_at = datetime.now(UTC).isoformat()
     prepublish_manifest = build_index_release_manifest(
         release_id=release_id,
         corpus=corpus,
@@ -199,9 +203,7 @@ def publish_scope_release(
     )
     release_metadata = build_release_metadata_payload(
         manifest=prepublish_manifest,
-        manifest_object_key=(
-            f"{corpus}/releases/{collection}/{release_id}/index-release.json"
-        ),
+        manifest_object_key=(f"{corpus}/releases/{collection}/{release_id}/index-release.json"),
     )
 
     pending_chunks: list[IndexableChunk] = []
@@ -257,7 +259,7 @@ def publish_scope_release(
         )
         return _build_release_report(artifacts)
 
-    published_at = datetime.now(timezone.utc).isoformat()
+    published_at = datetime.now(UTC).isoformat()
     published_manifest = build_index_release_manifest(
         release_id=release_id,
         corpus=corpus,
@@ -321,6 +323,8 @@ def _build_release_report(artifacts) -> RegistryScopeReleaseReport:
         indexed_at=manifest.indexed_at,
         published_at=manifest.published_at,
     )
+
+
 def _build_qdrant_client(
     settings: RetrievalSettings,
     *,
@@ -355,7 +359,9 @@ def _resolve_ingestion_qdrant_timeout_seconds(
 
 
 def _read_qdrant_upsert_batch_size(source: dict[str, str]) -> int:
-    raw_value = (source.get("QDRANT_UPSERT_BATCH_SIZE") or str(DEFAULT_QDRANT_UPSERT_BATCH_SIZE)).strip()
+    raw_value = (
+        source.get("QDRANT_UPSERT_BATCH_SIZE") or str(DEFAULT_QDRANT_UPSERT_BATCH_SIZE)
+    ).strip()
     batch_size = int(raw_value)
     if batch_size <= 0:
         raise ValueError("QDRANT_UPSERT_BATCH_SIZE must be greater than zero")

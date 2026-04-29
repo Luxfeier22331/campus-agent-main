@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-14
 updated: 2026-04-14
 ---
-
 # ADR-0040 Regulation Work Title And Edition Separation
 
 ## 状态
@@ -14,7 +13,8 @@ Accepted on 2026-04-14.
 
 ## 背景
 
-`internal_notice -> regulations/institutional_regulations` 这条 regulation promotion 线已经冻结了以下边界：
+`internal_notice -> regulations/institutional_rules` 这条 regulation promotion
+线已经冻结了以下边界：
 
 - `notice`、`attachment`、`regulation` 是不同层级
 - wrapper notice 继续留在 `campus_notices/internal_notice`
@@ -30,7 +30,8 @@ Accepted on 2026-04-14.
 这类扁平建模与外部元数据/法律文本规范不一致：
 
 - Dublin Core 把 `title`、`hasVersion/isVersionOf`、`issued`、`valid` 分开建模
-- DataCite 把 `Version` 与 `HasVersion` / `IsVersionOf`、`IsNewVersionOf` / `IsPreviousVersionOf` 分开建模，并允许 canonical resource 持有多个具体版本
+- DataCite 把 `Version` 与 `HasVersion` / `IsVersionOf`、`IsNewVersionOf` /
+  `IsPreviousVersionOf` 分开建模，并允许 canonical resource 持有多个具体版本
 - Akoma Ntoso / FRBR 明确区分 `work`、`expression`、`manifestation`、`item`
 
 对 repo 当前 regulation lane，更合理的对应关系是：
@@ -44,7 +45,7 @@ Accepted on 2026-04-14.
 
 ### 决策 1：regulation 标题固定拆成 work / edition / display 三层
 
-对 `regulations/institutional_regulations`，长期正确的标题字段固定拆为：
+对 `regulations/institutional_rules`，长期正确的标题字段固定拆为：
 
 - `regulation_work_title`
   - 制度作品标题，不包含年份版次、最新版等版本标签
@@ -67,7 +68,8 @@ Accepted on 2026-04-14.
 - 同理：
   - `中央民族大学实验室安全管理规定 / 2026年修订`
   - 不得压成 `... / 2026`
-- 如果后续 operator 确实需要 machine-friendly 排序或 facet，再单独引入派生字段，例如 `regulation_edition_year`
+- 如果后续 operator 确实需要 machine-friendly 排序或 facet，再单独引入派生字段，例如
+  `regulation_edition_year`
 - 该派生字段不能替代 `regulation_edition_label` 或 `regulation_display_title`
 
 ### 决策 2：`document_id` 只绑定 work identity
@@ -174,19 +176,13 @@ Accepted on 2026-04-14.
 对比示例：
 
 - `中央民族大学实验室安全管理规定（2026年修订）`
-  - `regulation_work_title`
-    - `中央民族大学实验室安全管理规定`
-  - `regulation_edition_label`
-    - `2026年修订`
-  - `regulation_display_title`
-    - `中央民族大学实验室安全管理规定 / 2026年修订`
+  - `regulation_work_title` - `中央民族大学实验室安全管理规定`
+  - `regulation_edition_label` - `2026年修订`
+  - `regulation_display_title` - `中央民族大学实验室安全管理规定 / 2026年修订`
 - `中央民族大学丰台校区就医管理办法（暂行）`
-  - `regulation_work_title`
-    - `中央民族大学丰台校区就医管理办法（暂行）`
-  - `regulation_edition_label`
-    - `null`
-  - `regulation_display_title`
-    - `中央民族大学丰台校区就医管理办法（暂行）`
+  - `regulation_work_title` - `中央民族大学丰台校区就医管理办法（暂行）`
+  - `regulation_edition_label` - `null`
+  - `regulation_display_title` - `中央民族大学丰台校区就医管理办法（暂行）`
 
 ## 结果
 
@@ -195,7 +191,8 @@ Accepted on 2026-04-14.
 - regulation collection 的长期 identity 语义由“标题扁平值”收口为 “work + version”
 - 年份版次不再继续污染 work-level identity
 - retrieval / operator / future serving 可统一消费 `display_title`
-- attachment-backed regulation 与 notice-body regulation 可以使用同一套标题/version 语义，不再依赖 source channel 差异
+- attachment-backed regulation 与 notice-body regulation 可以使用同一套标题/version
+  语义，不再依赖 source channel 差异
 
 当前不在本 ADR 范围内的内容：
 
@@ -208,20 +205,24 @@ Accepted on 2026-04-14.
 ## Related Docs
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
-- `configs/ingestion/regulations/institutional_regulations/canonical-profile.json`
-- `configs/ingestion/regulations/institutional_regulations/source-projections.v1.json`
+- `configs/ingestion/regulations/institutional_rules/canonical-profile.json`
+- `configs/ingestion/regulations/institutional_rules/source-projections.v1.json`
 
 ## External References
 
-- DCMI Terms: Title  
-  https://www.dublincore.org/specifications/dublin-core/dcmi-terms/terms/title/
-- DCMI Terms: Has Version  
-  https://www.dublincore.org/specifications/dublin-core/dcmi-terms/terms/hasVersion/
-- DCMI Terms: Date Issued  
-  https://www.dublincore.org/specifications/dublin-core/dcmi-terms/terms/issued/
-- DataCite Support: Versioning  
-  https://support.datacite.org/docs/versioning
-- Akoma Ntoso Version 1.0 Part 1: XML Vocabulary  
-  https://docs.oasis-open.org/legaldocml/akn-core/v1.0/cos01/part1-vocabulary/akn-core-v1.0-cos01-part1-vocabulary.html
+- DCMI Terms: Title
+  <<https://www.dublincore.org/specifications/dublin-core/dcmi->
+  terms/terms/title/>
+- DCMI Terms: Has Version
+  <<https://www.dublincore.org/specifications/dublin-core>
+  /dcmi-terms/terms/hasVersion/>
+- DCMI Terms: Date Issued
+  <<https://www.dublincore.org/specifications/dublin-core>
+  /dcmi-terms/terms/issued/>
+- DataCite Support: Versioning <https://support.datacite.org/docs/versioning>
+- Akoma Ntoso Version 1.0 Part 1: XML Vocabulary
+  <<https://docs.oasis-open.org/le>
+  galdocml/akn-core/v1.0/cos01/part1-vocabulary/akn-core-v1.0-cos01-part1-vocabu
+  lary.html>

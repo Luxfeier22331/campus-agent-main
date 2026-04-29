@@ -1,0 +1,27 @@
+{
+  "schema_version": "notice_ingest_job.v1",
+  "job_id": "notice_ingest_job:f264342609468d13e580efd7",
+  "job_kind": "notice_ingest",
+  "source_channel": "authenticated_notice_portal",
+  "source_surface": "notice",
+  "source_identity": "muc_internal_portal:355512",
+  "capture_id": "capture:muc_internal_portal:notice:355512:sha256-historical",
+  "capture_manifest_object_ref": {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355512/2026/source-truth/notice-manifest.json",
+    "role": "source-truth/notice-manifest.json"
+  },
+  "source_object_refs": [
+    {
+      "bucket": "campus-rag-source",
+      "key": "authenticated_notice_portal/runs/historical-run-001/bundle.json",
+      "role": "collector-run/bundle.json"
+    }
+  ],
+  "content_hash": "sha256-historical",
+  "run_id": "historical-run-001",
+  "enqueue_source": "historical_backfill",
+  "replay_batch_id": "phase-04-7-historical-backfill",
+  "priority": 100,
+  "idempotency_key": "notice_ingest:97a58b8f9ccacc8e417cae6a9b8f4293aed745e9e57d458336f01fd5aca70e23"
+}

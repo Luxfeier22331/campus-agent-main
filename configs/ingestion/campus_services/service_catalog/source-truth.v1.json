@@ -1,0 +1,21 @@
+{
+	"schema_version": "campus_services_service_catalog_source_truth_manifest.v1",
+	"target_corpus": "campus_services",
+	"target_collection": "service_catalog",
+	"release_id_prefix": "service-catalog-handbook",
+	"expected_ready_records": 14,
+	"upstream_projections": {
+		"service_guide": {
+			"required": true,
+			"source_family": "service_guide_projection_v1",
+			"schema_version": "campus_services_service_guide_projection.v1",
+			"current_object_key": "campus_services/releases/service_guide/current/service-guide-projection.json"
+		},
+		"contact_directory": {
+			"required": false,
+			"source_family": "contact_directory_projection_v1",
+			"schema_version": "campus_services_contact_directory_projection.v1",
+			"current_object_key": "campus_services/releases/contact_directory/current/contact-directory-projection.json"
+		}
+	}
+}

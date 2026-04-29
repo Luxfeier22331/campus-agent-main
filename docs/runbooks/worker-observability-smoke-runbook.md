@@ -4,7 +4,6 @@ status: active
 created: 2026-03-31
 updated: 2026-04-14
 ---
-
 # Worker Observability Smoke Runbook
 
 ## 文档边界
@@ -25,19 +24,20 @@ updated: 2026-04-14
 
 - env ownership：`docs/environment/README.md`
 - surface runtime smoke：`docs/runbooks/forward-worker-surface-smoke-runbook.md`
-- observability 设计边界：`docs/decisions/adr-0010-observability-and-telemetry-stack.md`
+- observability
+  设计边界：`docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 
 ## 闭环模型
 
 这条 runbook 明确分成两个阶段：
 
 1. `Pre-Deploy Readiness`
-2. `Post-Deploy Verification`
+1. `Post-Deploy Verification`
 
 判定标准不是“代码里已经接了 Sentry/Axiom”，而是：
 
 1. 在未部署前，本地 env/preflight 与 Worker smoke 可以重复通过
-2. 在首次真实部署后，真实 Worker surface、真实 release 和真实 sink 都能留下可追溯证据
+1. 在首次真实部署后，真实 Worker surface、真实 release 和真实 sink 都能留下可追溯证据
 
 `Pre-Deploy Readiness` 可以在真实部署前重复执行；`Post-Deploy Verification` 只在真实部署环境存在后执行。
 
@@ -48,19 +48,23 @@ updated: 2026-04-14
 先检查 root `.env` 与 app-local `.dev.vars` 是否已经对齐：
 
 ```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_worker_observability_env --json
+env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
+  scripts.check_worker_observability_env --json
 ```
 
 通过标准：
 
 - `overall_ready = true`
-- `apps/app-api/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE`、`AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN`
-- `apps/public-chat-web/.dev.vars` 与 `apps/protected-panel-web/.dev.vars` 已包含各自 `SENTRY_*`
+- `apps/app-api/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE
+  `、`AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN`
+- `apps/public-chat-web/.dev.vars` 与 `apps/protected-panel-web/.dev.vars` 已包含各自
+  `SENTRY_*`
 
 如果未通过，可先执行：
 
 ```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.sync_worker_observability_env
+env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
+  scripts.sync_worker_observability_env
 ```
 
 然后再次运行 preflight。
@@ -71,11 +75,15 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.sync_work
 
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
-pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "smokes a chat request through public-chat-web into app-api"
-pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes request queries through protected-panel-web into app-api with internal caller admission"
+pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
+  "smokes a chat request through public-chat-web into app-api"
+pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
+  "smokes request queries through protected-panel-web into app-api with \
+  internal caller admission"
 ```
 
-这一步只证明 Worker shell、proxy seam、internal bridge 和 `no-store` 行为正常；它不证明第三方 sink 已收到事件。
+这一步只证明 Worker shell、proxy seam、internal bridge 和 `no-store` 行为正常；它不证明第三方 sink
+已收到事件。
 
 ### 3. Pre-Deploy 证据
 
@@ -92,7 +100,7 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 建议直接从模板起手：
 
-- `docs/runbooks/worker-observability-smoke-artifact-template.md`
+- `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`
 
 ## Deployment Handoff Inputs
 
@@ -109,21 +117,30 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 - `wrangler` 远程检查可以作为辅助手段，但不是唯一 gate
 - 真正的 closure 以真实请求、真实 trace 和真实 runtime event 是否进入 sink 为准
-- release identity 默认由三端 deploy 脚本按 `<app>@staging-<sha>` 自动生成；artifact 目录必须复用同一 release 标识，不要另起名
-- `AXIOM_TOKEN` 可以只是 deploy-side ingest token；如果 query API 返回 `403 token does not have required permissions`，应改用独立的 read/query token
-- `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry UI 或 repo-local `SENTRY_API_TOKEN`
-- `SENTRY_API_TOKEN` 是 repo-local lookup credential，不应 fan out 到任何 Worker `.dev.vars` 或 deploy secret store
+- release identity 默认由三端 deploy 脚本按 `<app>@staging-<sha>` 自动生成；artifact 目录必须复用同一
+  release 标识，不要另起名
+- `AXIOM_TOKEN` 可以只是 deploy-side ingest token；如果 query API 返回 `403 token does
+  not have required permissions`，应改用独立的 read/query token
+- `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry
+  UI 或 repo-local `SENTRY_API_TOKEN`
+- `SENTRY_API_TOKEN` 是 repo-local lookup credential，不应 fan out 到任何 Worker
+  `.dev.vars` 或 deploy secret store
 - 建议先执行：
 
 ```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_sentry_lookup_access --json
+env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
+  scripts.check_sentry_lookup_access --json
 ```
 
-  确认 token 至少能读取目标 org / project，再进入 trace / event 证据留存
-- 如果 `organizations/.../issues` 这类 issue/event list endpoint 返回 `403 You do not have permission to perform this action.`，不要把它误判成 staging observability blocker。当前 repo 的默认 closure 路径是直接查询 Sentry Explore `spans`：
+确认 token 至少能读取目标 org / project，再进入 trace / event 证据留存
+
+- 如果 `organizations/.../issues` 这类 issue/event list endpoint 返回 `403 You do not
+  have permission to perform this action.`，不要把它误判成 staging observability
+  blocker。当前 repo 的默认 closure 路径是直接查询 Sentry Explore `spans`：
 
 ```bash
-env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sentry_spans \
+env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
+  scripts.query_sentry_spans
   --org-slug <org-slug> \
   --project <surface-project-id-or-slug> \
   --project <app-api-project-id-or-slug> \
@@ -133,8 +150,10 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
   --markdown-output .tmp/observability-smoke/<timestamp>/trace-query.md
 ```
 
-  这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
-- 建议先用 `docs/runbooks/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
+这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
+
+- 建议先用 `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`
+  填完 handoff 与 evidence 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification
 
@@ -173,9 +192,12 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
 
 注意：
 
-- 当前 `apps/app-api` 只会把非 `AppApiRouteError` 的未处理异常送入 `telemetry.captureException(...)`
-- 缺失必须字段、`validation_failed`、`401/403/404/422` 这类 route error 会直接变成 `routeErrorResponse(...)`，不能作为 `Sentry` exception closure 证据
-- 如果当前没有显式的 non-`AppApiRouteError` probe，优先使用前两节的 trace-linked `spans` 证据完成 closure
+- 当前 `apps/app-api` 只会把非 `AppApiRouteError` 的未处理异常送入
+  `telemetry.captureException(...)`
+- 缺失必须字段、`validation_failed`、`401/403/404/422` 这类 route error 会直接变成
+  `routeErrorResponse(...)`，不能作为 `Sentry` exception closure 证据
+- 如果当前没有显式的 non-`AppApiRouteError` probe，优先使用前两节的 trace-linked `spans` 证据完成
+  closure
 
 预期：
 
@@ -226,14 +248,16 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
 
 建议直接复制的骨架：
 
-- `docs/runbooks/worker-observability-smoke-artifact-template.md`
+- `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`
 
 ## 判定规则
 
-- `Pre-Deploy Readiness` 关闭条件：
-  root `.env` 与 app-local `.dev.vars` 对齐，且三个 Worker surface 的本地 smoke 全部通过
-- `Post-Deploy Verification` 触发条件：
-  已存在至少一个真实部署环境，并具备本 runbook 的 deployment handoff inputs
+- `Pre-Deploy Readiness` 关闭条件： root `.env` 与 app-local `.dev.vars` 对齐，且三个 Worker
+  surface 的本地 smoke 全部通过
+- `Post-Deploy Verification` 触发条件： 已存在至少一个真实部署环境，并具备本 runbook 的 deployment
+  handoff inputs
 - `Post-Deploy Verification` 关闭条件：
-  `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到 `projection.drain` 或等价 runtime event，并且 `Sentry` 至少保留一条 trace-linked 或 controlled-error event evidence
+  `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到
+  `projection.drain` 或等价 runtime event，并且 `Sentry` 至少保留一条 trace-linked 或
+  controlled-error event evidence
 - 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”

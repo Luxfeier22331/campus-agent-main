@@ -1,11 +1,11 @@
 {
-  "corpus": "curriculum",
-  "collection": "curriculum_plan",
-  "retrieval_profile_version": "curriculum_plan_retrieval_v1",
-  "notes": [
-    "Keep retrieval disabled for curriculum_plan until offline ingestion quality is accepted.",
-    "Freezing chunk/runtime truth in ingestion-core does not enable query serving by itself.",
-    "When enabled, scope filters and ACL metadata must be inherited from the split manifest.",
-    "Qdrant collection strategy should be decided separately from raw/processed object-store topology."
-  ]
+	"corpus": "curriculum",
+	"collection": "curriculum_plan",
+	"retrieval_profile_version": "curriculum_plan_retrieval_v1",
+	"notes": [
+		"Keep retrieval disabled for curriculum_plan until offline ingestion quality is accepted.",
+		"Freezing chunk/runtime truth in ingestion-core does not enable query serving by itself.",
+		"When enabled, scope filters and ACL metadata must be inherited from the split manifest.",
+		"Qdrant collection strategy should be decided separately from raw/processed object-store topology."
+	]
 }

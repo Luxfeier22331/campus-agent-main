@@ -1,0 +1,24 @@
+# Local
+.DS_Store
+*.local
+*.log*
+
+# Dist
+node_modules
+dist/
+doc_build/
+
+# Generated canonical reader content
+docs/.components/
+docs/.generated/
+docs/campus-regulations/
+docs/curriculum-plan/
+docs/docs/
+docs/public/course-maps/
+docs/student-handbook/
+src/generated/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea

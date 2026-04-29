@@ -1,39 +1,39 @@
 {
-  "schema_version": 1,
-  "required_runs": 3,
-  "metrics": [
-    {
-      "adapter_id": "ragas",
-      "metric_name": "faithfulness",
-      "gate_level": "soft_gate",
-      "min_mean_score": 0.9,
-      "min_run_average_score": 0.85,
-      "max_run_average_drift": 0.2,
-      "notes": "completed cases only; curriculum live gate 当前只消费 ragas supplemental metrics"
-    },
-    {
-      "adapter_id": "ragas",
-      "metric_name": "answer_relevancy",
-      "gate_level": "soft_gate",
-      "min_mean_score": 0.8,
-      "min_run_average_score": 0.75,
-      "max_run_average_drift": 0.25
-    },
-    {
-      "adapter_id": "ragas",
-      "metric_name": "context_precision",
-      "gate_level": "soft_gate",
-      "min_mean_score": 0.9,
-      "min_run_average_score": 0.85,
-      "max_run_average_drift": 0.2
-    },
-    {
-      "adapter_id": "ragas",
-      "metric_name": "context_recall",
-      "gate_level": "soft_gate",
-      "min_mean_score": 0.9,
-      "min_run_average_score": 0.85,
-      "max_run_average_drift": 0.2
-    }
-  ]
+	"schema_version": 1,
+	"required_runs": 3,
+	"metrics": [
+		{
+			"adapter_id": "ragas",
+			"metric_name": "faithfulness",
+			"gate_level": "soft_gate",
+			"min_mean_score": 0.9,
+			"min_run_average_score": 0.85,
+			"max_run_average_drift": 0.2,
+			"notes": "completed cases only; curriculum live gate 当前只消费 ragas supplemental metrics"
+		},
+		{
+			"adapter_id": "ragas",
+			"metric_name": "answer_relevancy",
+			"gate_level": "soft_gate",
+			"min_mean_score": 0.8,
+			"min_run_average_score": 0.75,
+			"max_run_average_drift": 0.25
+		},
+		{
+			"adapter_id": "ragas",
+			"metric_name": "context_precision",
+			"gate_level": "soft_gate",
+			"min_mean_score": 0.9,
+			"min_run_average_score": 0.85,
+			"max_run_average_drift": 0.2
+		},
+		{
+			"adapter_id": "ragas",
+			"metric_name": "context_recall",
+			"gate_level": "soft_gate",
+			"min_mean_score": 0.9,
+			"min_run_average_score": 0.85,
+			"max_run_average_drift": 0.2
+		}
+	]
 }

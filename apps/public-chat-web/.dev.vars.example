@@ -1,5 +1,8 @@
 PUBLIC_CHAT_APP_NAME=campus-agent-public-chat-web
 PUBLIC_CHAT_HOSTNAME=chat.example.com
+AUTH_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+AUTH_TURNSTILE_APPEARANCE=interaction-only
+AUTH_TURNSTILE_EXECUTION=render
 # Must point to the shared `apps/app-api` runtime, not `apps/supervisor-api`.
 APP_API_BASE_URL=https://app-api.internal
 SENTRY_DSN=

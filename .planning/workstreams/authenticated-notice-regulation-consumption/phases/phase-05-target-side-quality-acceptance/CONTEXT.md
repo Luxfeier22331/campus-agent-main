@@ -1,0 +1,29 @@
+---
+phase: "5"
+name: "Target-side Chunk And Quality Acceptance"
+created: 2026-04-19
+status: completed
+---
+
+# Phase 5 Context
+
+## Goal
+
+在不扩 scope 的前提下，完成 `institutional_rules` / `scoped_rules` 的 target-side chunk、metadata 与 quality acceptance。
+
+## Current Truth
+
+- 当前 bounded lane 固定为 `11` 条 admitted regulation target
+- `materialized_document_count=11`
+- `current_target_count=11`
+- stop point 继续固定在 `offline_preparation`
+
+## Guardrails
+
+- 不做 unfiltered source-wide materialization
+- 不碰 embedding、Qdrant、release、alias publish
+- `annual rule` 缺少 `school_unit_name` 继续 fail-close
+
+## Entry
+
+- `.planning/workstreams/authenticated-notice-regulation-consumption/REQUIREMENTS.md`

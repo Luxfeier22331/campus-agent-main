@@ -3,9 +3,8 @@ doc_type: decision
 decision_id: ADR-0031
 status: accepted
 created: 2026-04-08
-updated: 2026-04-09
+updated: 2026-04-28
 ---
-
 # ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
 
 ## 状态
@@ -14,7 +13,8 @@ Accepted on 2026-04-08.
 
 ## 背景
 
-`authenticated_notice_portal -> campus_notices/internal_notice` 这条链路已经明确暴露出一个长期边界问题：
+`authenticated_notice_portal -> campus_notices/internal_notice`
+这条链路已经明确暴露出一个长期边界问题：
 
 - notice 正文整体较干净，主要噪声集中在 attachments
 - 同一条 notice 往往混有多种附件形态，而不是单一类型
@@ -42,7 +42,8 @@ Accepted on 2026-04-08.
 - 把 notice 级标签误当成 attachment 执行路由
 - 把空间图伪装成 OCR candidate
 - 把 attachment 噪声反向传播为 parent notice 的全局 chunk 策略
-- 在 `manual_review_required`、`unsupported_binary`、`no_extractable_text` 上做静默 fallback
+- 在 `pending_multimodal_processing`、`unsupported_binary`、`no_extractable_text`、
+  `no_adoption` 上做静默 fallback
 
 ## 决策
 
@@ -73,26 +74,29 @@ Accepted on 2026-04-08.
 
 - parent notice 只消费正文结构单元
 - attachment refs 继续留在 source-truth relation truth
-- attachments 如需进入 document/chunk pipeline，必须先 materialize 为 repo-owned child documents
+- attachments 如需进入 document/chunk pipeline，必须先 materialize 为 repo-owned child
+  documents
 - attachment 的噪声、失败和例外，不得反向驱动 parent notice body 的全局策略
 
-### 决策 3：attachment typed routing 固定采用五类终态
+### 决策 3：attachment typed routing 固定采用机器可处置终态
 
 长期上，authenticated notice attachment 固定只允许以下 typed routing 结果：
 
 - `reference_only`
 - `text_extractable`
 - `ocr_required`
-- `manual_review_required`
+- `pending_multimodal_processing`
+- `no_adoption`
 - `unsupported_binary`
 
 补充要求：
 
 - `ocr_required` lane 内部仍允许产生 `materialized_document` 或 `no_extractable_text`
-- `manual_review_required`、`reference_only`、`no_extractable_text` 都属于显式 terminal outcome
+- `pending_multimodal_processing` 表示机器可继续处理，不表示人工队列
+- `reference_only`、`no_extractable_text`、`no_adoption` 都属于显式 terminal outcome
 - 不允许把 terminal outcome 伪装成“成功进入可检索 child document”
 
-### 决策 4：空间关系主导图片固定进入 `manual_review_required`
+### 决策 4：空间关系主导图片不得进入 generic OCR
 
 长期上，以下 attachment 类型不进入当前 generic OCR lane：
 
@@ -101,16 +105,17 @@ Accepted on 2026-04-08.
 - 楼宇分区图
 - 其他主要价值在空间关系而不是线性正文的 visual asset
 
-这类 attachment 固定进入：
+这类 attachment 固定进入机器 owned lane：
 
-- `manual_review_required`
+- 高价值、可机器理解的空间/视觉缺口进入 `pending_multimodal_processing`
+- 低价值或当前不采纳的视觉资产进入显式 skip / `no_adoption`
 
 直接含义：
 
 - 它们不是 `reference_only decorative asset`
 - 它们仍然是 notice 的信息组成部分
-- 当前 canonical 形态固定为“保留 relation truth + 显式 manual outcome + `review_reason`”
-- 如后续需要自动处理这类内容，应新增独立 `spatial/manual` lane，而不是回退到 generic OCR
+- 当前 canonical 形态固定为“保留 relation truth + 显式机器处理 policy + reason code”
+- 如后续需要更强空间理解，应新增独立 spatial/multimodal lane，而不是回退到 generic OCR
 
 ### 决策 5：OCR lane 只覆盖文本与表格主导的图片
 
@@ -155,13 +160,14 @@ Accepted on 2026-04-08.
 
 - 这些标签是 inventory / replay / closeout read model 的派生字段
 - 它们由 attachment composition 派生，不回写 source-truth contract
-- 后续如需引入 title / `notice_type_names` / 正文关键词等更强 notice-level heuristics，也只能增强 risk labeling，不能替代 attachment routing
+- 后续如需引入 title / `notice_type_names` / 正文关键词等更强 notice-level heuristics，也只能增强
+  risk labeling，不能替代 attachment routing
 
 ### 决策 7：禁止静默 fallback 与全局劣化
 
 长期上，authenticated notice attachment routing 固定禁止：
 
-- 把 `manual_review_required` 偷偷继续送入 OCR
+- 把 non-text visual recovery / no-adoption outcome 偷偷继续送入 OCR
 - 把 `unsupported_binary` 伪装成 `reference_only`
 - 把 `no_extractable_text` 伪装成成功 materialized child document
 - 因个别 attachment 脏表格、导览图或 OCR 噪声，全局缩小 parent notice body 的 chunk 策略
@@ -175,18 +181,19 @@ Accepted on 2026-04-08.
 
 直接结果如下：
 
-- `authenticated_notice_portal` 的 typed routing 需要先做 attachment inventory，再做 extraction lane 决策
+- `authenticated_notice_portal` 的 typed routing 需要先做 attachment inventory，再做
+  extraction lane 决策
 - `internal_notice` 的 notice-level classification 只作为辅助 read model，不是主执行模型
 - 空间关系主导图片继续留在 relation truth + manual outcome，不进入当前 chunk / retrieval truth
-- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation-specialist` / spatial truth 方向另开能力，而不是继续加大 OCR lane
+- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation-agent` / spatial truth 方向另开能力，而不是继续加大 OCR
+  lane
 
 ## Related Docs
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`

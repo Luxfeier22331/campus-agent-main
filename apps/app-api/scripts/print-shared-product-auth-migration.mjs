@@ -1,6 +1,6 @@
 import {
-  compileBetterAuthMigrationSql,
-  readSharedProductBootstrapEnv,
+	compileBetterAuthMigrationSql,
+	readSharedProductBootstrapEnv,
 } from "./shared-product-database-bootstrap.mjs";
 
 const env = readSharedProductBootstrapEnv(process.env);

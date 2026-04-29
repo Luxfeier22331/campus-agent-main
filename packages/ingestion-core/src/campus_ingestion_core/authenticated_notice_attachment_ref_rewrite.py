@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
 import json
 import os
-from pathlib import Path
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 from campus_ingestion_core.object_store import (
@@ -482,20 +482,27 @@ def _discover_provider_artifact_keys(
     object_store: AuthenticatedNoticeAttachmentRefRewriteObjectStore,
 ) -> tuple[str, ...]:
     parsed = parse_source_object_key(attachment_refs_key)
-    if parsed is None or parsed.get("stage") != SOURCE_TRUTH_STAGE or parsed.get("filename") != "attachment-refs.jsonl":
+    if (
+        parsed is None
+        or parsed.get("stage") != SOURCE_TRUTH_STAGE
+        or parsed.get("filename") != "attachment-refs.jsonl"
+    ):
         raise ValueError(f"invalid attachment refs artifact key: {attachment_refs_key}")
     raw_version_segments = parsed.get("raw_version_segments")
     if not isinstance(raw_version_segments, tuple):
         raise ValueError(f"invalid raw_version_segments in artifact key: {attachment_refs_key}")
-    prefix = "/".join(
-        [
-            str(parsed["source_channel"]),
-            str(parsed["source_asset_slug"]),
-            str(parsed["year"]),
-            *[str(segment) for segment in raw_version_segments],
-            SOURCE_PROVIDER_STAGE,
-        ]
-    ) + "/"
+    prefix = (
+        "/".join(
+            [
+                str(parsed["source_channel"]),
+                str(parsed["source_asset_slug"]),
+                str(parsed["year"]),
+                *[str(segment) for segment in raw_version_segments],
+                SOURCE_PROVIDER_STAGE,
+            ]
+        )
+        + "/"
+    )
     provider_keys = []
     for key in object_store.list_keys(bucket=bucket, prefix=prefix):
         parsed_provider = parse_source_object_key(key)
@@ -543,9 +550,9 @@ def _load_jsonl_payload(payload: bytes) -> tuple[dict[str, Any], ...]:
 def _jsonl_bytes(rows: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> bytes:
     if not rows:
         return b""
-    return (
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows).strip() + "\n"
-    ).encode("utf-8")
+    return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows).strip() + "\n").encode(
+        "utf-8"
+    )
 
 
 def _write_jsonl(path: Path, rows: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> None:

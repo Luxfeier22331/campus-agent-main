@@ -4,7 +4,6 @@ import unittest
 from unittest.mock import Mock, patch
 
 import httpx
-
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 
 
@@ -27,7 +26,9 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
         self.assertEqual(settings.dimensions, 2560)
 
     @patch("campus_ingestion_core.embed.OpenAIEmbedding")
-    def test_build_embedding_model_uses_openai_embedding_for_official_provider(self, openai_embedding) -> None:
+    def test_build_embedding_model_uses_openai_embedding_for_official_provider(
+        self, openai_embedding
+    ) -> None:
         settings = EmbeddingSettings(
             provider="openai",
             model="Qwen3-Embedding-4B",

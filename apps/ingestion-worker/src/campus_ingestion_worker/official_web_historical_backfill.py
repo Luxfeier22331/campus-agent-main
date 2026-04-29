@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
 import hashlib
 import json
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, Protocol, Sequence
+from typing import Literal, Protocol
 
-from campus_ingestion_core import DEFAULT_BUCKET_SOURCE, ObjectStoreSettings
+from campus_ingestion_core import (
+    DEFAULT_BUCKET_SOURCE,
+    ObjectStoreSettings,
+    build_official_web_run_artifact_key,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
-
-OFFICIAL_WEB_HISTORICAL_BACKFILL_REPORT_SCHEMA_VERSION = "official_web_historical_backfill_report.v1"
+OFFICIAL_WEB_HISTORICAL_BACKFILL_REPORT_SCHEMA_VERSION = (
+    "official_web_historical_backfill_report.v1"
+)
 RUN_ARTIFACT_TYPE_BY_NAME = {
     "crawl-run.json": "crawl_run_manifest",
     "host-summary.json": "host_summary",
@@ -43,17 +50,17 @@ class OfficialWebHistoricalBackfillSettings:
         cls,
         *,
         local_output_dirs: Sequence[Path] = (),
-    ) -> "OfficialWebHistoricalBackfillSettings":
+    ) -> OfficialWebHistoricalBackfillSettings:
         object_store_settings = ObjectStoreSettings.from_env()
         return cls(
             inbox_dir=Path(
-                (
-                    __import__("os").getenv(
-                        "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR",
-                        "./var/official-web-handoffs",
-                    ).strip()
-                    or "./var/official-web-handoffs"
+                __import__("os")
+                .getenv(
+                    "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR",
+                    "./var/official-web-handoffs",
                 )
+                .strip()
+                or "./var/official-web-handoffs"
             ),
             local_output_dirs=tuple(local_output_dirs),
             source_bucket=object_store_settings.bucket_source,
@@ -63,7 +70,9 @@ class OfficialWebHistoricalBackfillSettings:
 @dataclass(frozen=True, slots=True)
 class OfficialWebHistoricalInventoryResult:
     event_id: str
-    inventory_status: Literal["bucket_ready", "recoverable_local_output", "unrecoverable_missing_local_output"]
+    inventory_status: Literal[
+        "bucket_ready", "recoverable_local_output", "unrecoverable_missing_local_output"
+    ]
     local_output_dir: str | None
     missing_object_keys: tuple[str, ...]
     record_path: str
@@ -108,12 +117,16 @@ def inventory_historical_handoff_record(
     local_output_dir = _resolve_local_output_dir(payload=payload, settings=settings)
 
     missing_object_keys: list[str] = []
-    bundle_key = _build_run_artifact_key(site_id=site_id, run_id=run_id, artifact_name="source-truth-bundle.json")
+    bundle_key = _build_run_artifact_key(
+        site_id=site_id, run_id=run_id, artifact_name="source-truth-bundle.json"
+    )
     if not _object_exists(object_store=object_store, bucket=settings.source_bucket, key=bundle_key):
         missing_object_keys.append(bundle_key)
 
     if not missing_object_keys:
-        status: Literal["bucket_ready", "recoverable_local_output", "unrecoverable_missing_local_output"] = "bucket_ready"
+        status: Literal[
+            "bucket_ready", "recoverable_local_output", "unrecoverable_missing_local_output"
+        ] = "bucket_ready"
     elif local_output_dir is not None:
         status = "recoverable_local_output"
     else:
@@ -191,13 +204,17 @@ def backfill_historical_handoff_record(
                 "byteSize": len(data),
                 "contentSha256": hashlib.sha256(data).hexdigest(),
                 "objectKey": key,
-                "recordCount": _count_records(artifact_name=artifact_name, path=source_path, payload=bundle),
+                "recordCount": _count_records(
+                    artifact_name=artifact_name, path=source_path, payload=bundle
+                ),
             }
         )
 
     source_assets_dir = local_output_dir / "source-assets"
     if source_assets_dir.exists():
-        for path in sorted(candidate for candidate in source_assets_dir.rglob("*") if candidate.is_file()):
+        for path in sorted(
+            candidate for candidate in source_assets_dir.rglob("*") if candidate.is_file()
+        ):
             key = _build_source_asset_key(path.relative_to(source_assets_dir))
             object_store.put_bytes(
                 bucket=settings.source_bucket,
@@ -308,7 +325,11 @@ def _resolve_local_output_dir(
 def _expand_local_output_globs(patterns: Sequence[str]) -> tuple[Path, ...]:
     results: list[Path] = []
     for pattern in patterns:
-        for path in sorted(Path("/").glob(pattern.lstrip("/")) if pattern.startswith("/") else Path(".").glob(pattern)):
+        for path in sorted(
+            Path("/").glob(pattern.lstrip("/"))
+            if pattern.startswith("/")
+            else Path(".").glob(pattern)
+        ):
             if path.is_dir():
                 results.append(path)
     return tuple(dict.fromkeys(path.resolve() for path in results))
@@ -328,7 +349,11 @@ def _object_exists(
 
 
 def _build_run_artifact_key(*, site_id: str, run_id: str, artifact_name: str) -> str:
-    return f"official_web/{site_id}/runs/{run_id}/{artifact_name}"
+    return build_official_web_run_artifact_key(
+        site_id=site_id,
+        run_id=run_id,
+        artifact_name=artifact_name,
+    )
 
 
 def _build_source_asset_key(relative_path: Path) -> str:

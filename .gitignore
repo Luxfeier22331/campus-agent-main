@@ -37,9 +37,19 @@ node_modules/
 .planning/quick/**/run-output-*/
 .planning/quick/**/rerun-output/
 .planning/quick/**/materialization-output/
+.planning/active-workstream
+.planning/runtime/
+.planning/reports/
 
 # Local map/screenshot scratch files
 tmp-*.png
 tmp-*.jpg
 tmp-*.jpeg
 tmp-*.webp
+
+# Local runtime and scratch artifacts
+apps/authenticated-notice-collector/runtime/
+artifacts/
+tmp/
+docs-*.png
+rspress-*.png

@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import json
+import sys
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
-import json
 from pathlib import Path
-import sys
-from typing import Iterator, Sequence
 from unittest.mock import patch
 
+import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 from campus_contracts import AuthorizedRetrievalFilter
+from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
+from campus_retrieval_core import RetrievalRequest, build_retrieval_backend
+from campus_shared import load_repo_env
+
 from campus_evals.benchmark import (
     RetrievalBenchmarkRun,
     RetrievalMetricSummary,
@@ -23,16 +28,17 @@ from campus_evals.benchmark import (
     summarize_retrieval_metrics,
     validate_retrieval_qrels_fixture,
 )
-from campus_retrieval_core import RetrievalRequest, build_retrieval_backend
-import campus_retrieval_core.backend_qdrant as backend_qdrant_module
-from campus_shared import load_repo_env
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Execute live retrieval for a qrels fixture and write run-results.")
+    parser = argparse.ArgumentParser(
+        description="Execute live retrieval for a qrels fixture and write run-results."
+    )
     parser.add_argument("--qrels", required=True, help="Path to retrieval qrels JSON fixture.")
     parser.add_argument("--output", required=True, help="Path to write run-results JSON.")
-    parser.add_argument("--manifest", help="Optional split-manifest path used for qrels validation.")
+    parser.add_argument(
+        "--manifest", help="Optional split-manifest path used for qrels validation."
+    )
     parser.add_argument(
         "--format",
         choices=("text", "json"),
@@ -61,7 +67,11 @@ def main(argv: list[str] | None = None) -> int:
     load_repo_env()
     args = build_parser().parse_args(argv)
     qrels_path = Path(args.qrels)
-    manifest_path = Path(args.manifest) if args.manifest else resolve_retrieval_fixture_manifest_path(qrels_path)
+    manifest_path = (
+        Path(args.manifest)
+        if args.manifest
+        else resolve_retrieval_fixture_manifest_path(qrels_path)
+    )
     issues = validate_retrieval_qrels_fixture(
         qrels_path,
         manifest_path=manifest_path,
@@ -140,12 +150,23 @@ def _execute_live_retrieval_run(
 
 def _build_retrieval_request(*, case: RetrievalQrelsCase, default_top_k: int) -> RetrievalRequest:
     overrides = dict(case.request_overrides)
+    query_text = case.query
+    target_document_ids = _coerce_tuple(overrides.get("target_document_ids"))
+    if (
+        case.scope.corpus == "regulations"
+        and case.scope.collection == "student_rules"
+        and not target_document_ids
+    ):
+        handbook_plan = plan_student_handbook_query(case.query)
+        if handbook_plan.status == "resolved":
+            query_text = handbook_plan.rewritten_query_text
+            target_document_ids = handbook_plan.target_document_ids
     return RetrievalRequest(
-        query_text=case.query,
+        query_text=query_text,
         corpus=case.scope.corpus,
         collection=case.scope.collection,
         authorized_filter=_build_authorized_filter(overrides),
-        target_document_ids=_coerce_tuple(overrides.get("target_document_ids")),
+        target_document_ids=target_document_ids,
         preferred_document_ids=_coerce_tuple(overrides.get("preferred_document_ids")),
         top_k=_coerce_top_k(overrides.get("top_k"), default=default_top_k),
     )
@@ -241,7 +262,9 @@ def _override_runtime_profile(
             qdrant_index_binding=qdrant_index_binding,
         )
 
-    with patch.object(backend_qdrant_module, "load_runtime_profile", side_effect=_load_runtime_profile):
+    with patch.object(
+        backend_qdrant_module, "load_runtime_profile", side_effect=_load_runtime_profile
+    ):
         yield
 
 

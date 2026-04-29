@@ -1,13 +1,19 @@
-## scoped_rules collection config
+# scoped_rules collection config
 
-This directory holds the repo-tracked config scaffold for the
-`scoped_rules` collection within the `regulations` corpus.
+This directory holds the repo-tracked config scaffold for the `scoped_rules`
+collection within the `regulations` corpus.
 
-- `runtime-profile.json`: canonical runtime gate for the unified scoped-rule holding collection
-- `canonical-profile.json`: canonical identity and provenance truth for imported scoped-rule documents
-- `chunk-profile.json`: chunk-preparation scaffold for canonical scoped-rule text
-- `source-projections.v1.json`: import-facing projection scaffold from `campus_notices/internal_notice`
-- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`: freeze that adjudicated scoped rules should import first into one unified holding collection instead of waiting for full query semantics
+- `runtime-profile.json`: canonical runtime gate for the unified scoped-rule
+  holding collection
+- `canonical-profile.json`: canonical identity and provenance truth for imported
+  scoped-rule documents
+- `chunk-profile.json`: chunk-preparation scaffold for canonical scoped-rule
+  text
+- `source-projections.v1.json`: import-facing projection scaffold from
+  `campus_notices/internal_notice`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`: freeze
+  that adjudicated scoped rules should import first into one unified holding
+  collection instead of waiting for full query semantics
 
 Current runtime truth:
 
@@ -24,12 +30,20 @@ Collection boundary:
   - `annual_cycle_rule`
   - `time_bound_operational_rule`
 - wrapper notices remain in `campus_notices/internal_notice`
-- stable institution-wide regulations remain in `regulations/institutional_regulations`
+- stable institution-wide regulations remain in
+  `regulations/institutional_rules`
 
 Current scaffold note:
 
 - this collection is import-first and query-disabled
-- repo now has a completed `materialize_internal_notice_scoped_rules` worker path and a local-only `prepare_scoped_rule_chunks` acceptance path
-- target scope refresh must rewrite `document-units/chunks` when provenance metadata expands, even if semantic content hash and version id stay stable
-- local-only quality acceptance must use an isolated snapshot root instead of reusing the long-lived historical local-smoke object-store output root
-- detailed `current / historical / as_of / compare` semantics are future work and do not block import
+- repo now has a completed `materialize_internal_notice_scoped_rules` worker
+  path and a local-only `prepare_scoped_rule_chunks` acceptance path
+- selected `regulation_candidate` document-site dry-runs admit the broad
+  `regulations/*` family, then publish scoped-rule reader assets from resolved
+  `regulations/scoped_rules` projection truth without opening query-serving
+- target scope refresh must rewrite `document-units/chunks` when provenance
+  metadata expands, even if semantic content hash and version id stay stable
+- local-only quality acceptance must use an isolated snapshot root instead of
+  reusing the long-lived historical local-smoke object-store output root
+- detailed `current / historical / as_of / compare` semantics are future work
+  and do not block import

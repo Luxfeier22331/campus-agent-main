@@ -5,14 +5,15 @@ status: accepted
 created: 2026-04-04
 updated: 2026-04-04
 ---
-
 # ADR-0025 Authenticated Notice Async Staged Closeout
 
-适用范围：`authenticated_notice_portal` historical export closeout、对象存储 operations prefix、staging tables、single-promoter commit、deterministic verification
+适用范围：`authenticated_notice_portal` historical export closeout、对象存储 operations
+prefix、staging tables、single-promoter commit、deterministic verification
 
 ## 背景
 
-Phase 12.1 的 historical closeout runner 已把 bundle / manifest / checkpoint / reconciliation 收口成 repo-owned workflow，但它的核心执行模型仍然是：
+Phase 12.1 的 historical closeout runner 已把 bundle / manifest / checkpoint /
+reconciliation 收口成 repo-owned workflow，但它的核心执行模型仍然是：
 
 - cumulative prefix replay
 - 同一 `internal_notice` scope 的重复 `scope_refresh`
@@ -23,19 +24,23 @@ Phase 12.1 的 historical closeout runner 已把 bundle / manifest / checkpoint 
 - checkpoint 成本随前缀扩大而累积
 - progress visibility 依赖长时间运行中的同一进程
 - 真实昂贵的工作其实是 per-notice source-truth / document artifact materialization，却没有被并行化
-- canonical document scope 的 single-writer 语义又不允许把当前 importer 直接拆成多个 disjoint shard 并发写最终 scope
+- canonical document scope 的 single-writer 语义又不允许把当前 importer 直接拆成多个 disjoint
+  shard 并发写最终 scope
 
-因此需要一条新的 closeout execution model，在不破坏 authenticated notice source-channel / data-plane 边界的前提下，把可并行工作与 single-writer promotion 严格拆开。
+因此需要一条新的 closeout execution model，在不破坏 authenticated notice source-channel /
+data-plane 边界的前提下，把可并行工作与 single-writer promotion 严格拆开。
 
 ## 决策 1：closeout 改为 staged async pipeline
 
 canonical closeout pipeline 固定为：
 
-`frozen bundle -> shard plan -> async shard executors -> staged artifacts/state -> deterministic verification -> single promoter -> replace_scope`
+`frozen bundle -> shard plan -> async shard executors -> staged artifacts/state
+-> deterministic verification -> single promoter -> replace_scope`
 
 其中：
 
-- shard executor 只负责并发写 source-truth artifacts、staged document artifacts 和 staging rows
+- shard executor 只负责并发写 source-truth artifacts、staged document artifacts 和
+  staging rows
 - canonical `campus_notices/internal_notice` document scope 只能由 promoter 一次性提交
 - 不再把 repeated cumulative rerun 当成 canonical closeout model
 
@@ -57,7 +62,8 @@ canonical closeout pipeline 固定为：
 - `promotions/promotion-0001.json`
 - `staging/shards/<shard>/documents/...`
 
-这些 artifacts 属于 operations / staging truth，不是 source-truth 或 final document truth。
+这些 artifacts 属于 operations / staging truth，不是 source-truth 或 final document
+truth。
 
 ## 决策 3：staging state 固定落在独立 closeout schema
 
@@ -91,10 +97,11 @@ closeout staging tables 固定落在：
 
 closeout 中的 artifact ownership 固定为：
 
-- `capture/*`、`provider/*`、`source-truth/*`
-  shard 可直接写 canonical source bucket/key，因为这些对象围绕 `raw_asset_id + raw_version_id` 稳定命名、天然可重放、且不承担 final document scope ownership
-- `document-units` / canonical markdown
-  shard 先写 operations prefix 下的 staged object，promoter 再复制到 canonical `campus_notices/documents/internal_notice/...`
+- `capture/*`、`provider/*`、`source-truth/*` shard 可直接写 canonical source
+  bucket/key，因为这些对象围绕 `raw_asset_id + raw_version_id` 稳定命名、天然可重放、且不承担 final
+  document scope ownership
+- `document-units` / canonical markdown shard 先写 operations prefix 下的 staged
+  object，promoter 再复制到 canonical `campus_notices/documents/internal_notice/...`
 
 因此：
 
@@ -143,14 +150,16 @@ promoter 的职责固定为：
 
 直接结果如下：
 
-- `packages/ingestion-core` 新增 authenticated notice closeout planner / store / service / verifier
+- `packages/ingestion-core` 新增 authenticated notice closeout planner / store /
+  service / verifier
 - `apps/ingestion-worker` 新增 run / show / promote 三条 CLI
 - historical cumulative closeout runner 降级为 legacy workflow，保留给已启动或需要对照的旧执行
-- operations prefix 与 closeout staging schema 成为 authenticated notice historical closeout 的 canonical progress truth
+- operations prefix 与 closeout staging schema 成为 authenticated notice historical
+  closeout 的 canonical progress truth
 
 ## Complementary Docs
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`

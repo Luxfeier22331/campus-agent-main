@@ -4,17 +4,17 @@ import hashlib
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_attachment_ref_rewrite import (
     AuthenticatedNoticeAttachmentRefRewriteRequest,
     rewrite_authenticated_notice_source_attachment_refs,
 )
-from tests.ingestion.test_authenticated_notice_import import _FakeObjectStore
 
+from tests.ingestion.test_authenticated_notice_import import _FakeObjectStore
 
 rewrite_worker = importlib.import_module(
     "campus_ingestion_worker.rewrite_authenticated_notice_source_attachment_refs"
@@ -40,9 +40,7 @@ def _attachment_keys(filename: str = "application.docx") -> tuple[str, str, str]
     payload = b"authenticated notice attachment"
     sha256 = hashlib.sha256(payload).hexdigest()
     legacy_key = f"{sha256[:2]}/{sha256}/{filename}"
-    canonical_key = (
-        f"authenticated_notice_portal/attachment-{sha256[:12]}/2026/sha256/{sha256}/capture/{filename}"
-    )
+    canonical_key = f"authenticated_notice_portal/attachment-{sha256[:12]}/2026/sha256/{sha256}/capture/{filename}"
     return sha256, legacy_key, canonical_key
 
 
@@ -50,15 +48,17 @@ def _artifact_keys() -> tuple[str, str]:
     attachment_refs_key = (
         "authenticated_notice_portal/355119/2026/sha256/abc/source-truth/attachment-refs.jsonl"
     )
-    provider_key = (
-        "authenticated_notice_portal/355119/2026/sha256/abc/provider/bundle-import-v1/attachment-observations.jsonl"
-    )
+    provider_key = "authenticated_notice_portal/355119/2026/sha256/abc/provider/bundle-import-v1/attachment-observations.jsonl"
     return attachment_refs_key, provider_key
 
 
 class _FakeRewriteObjectStore(_FakeObjectStore):
     def list_keys(self, *, bucket: str, prefix: str) -> tuple[str, ...]:
-        keys = [key for stored_bucket, key in self.objects if stored_bucket == bucket and key.startswith(prefix)]
+        keys = [
+            key
+            for stored_bucket, key in self.objects
+            if stored_bucket == bucket and key.startswith(prefix)
+        ]
         return tuple(sorted(keys))
 
 
@@ -142,16 +142,16 @@ class AuthenticatedNoticeAttachmentRefRewriteTest(unittest.TestCase):
             ).decode("utf-8")
             rewritten_attachment_artifacts = [
                 json.loads(line)
-                for line in (output_dir / "rewritten-attachment-refs-artifacts.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "rewritten-attachment-refs-artifacts.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             rewritten_provider_artifacts = [
                 json.loads(line)
-                for line in (output_dir / "rewritten-provider-artifacts.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "rewritten-provider-artifacts.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -277,7 +277,9 @@ class AuthenticatedNoticeAttachmentRefRewriteTest(unittest.TestCase):
                 content_type="application/x-ndjson",
             )
 
-            with self.assertRaisesRegex(FileNotFoundError, "provider attachment-observations artifact"):
+            with self.assertRaisesRegex(
+                FileNotFoundError, "provider attachment-observations artifact"
+            ):
                 rewrite_authenticated_notice_source_attachment_refs(
                     request=AuthenticatedNoticeAttachmentRefRewriteRequest(
                         referenced_inventory_path=inventory_path,

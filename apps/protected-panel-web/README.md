@@ -2,7 +2,8 @@
 
 Protected panel web runtime shell for campus-agent v2.
 
-This app is an `apps/*` protected operator surface. It exists as a runtime shell only:
+This app is an `apps/*` protected operator surface. It exists as a runtime shell
+only:
 
 - it remains separate from `apps/supervisor-api`
 - it consumes runtime APIs only
@@ -10,7 +11,8 @@ This app is an `apps/*` protected operator surface. It exists as a runtime shell
 - it stays fail-closed by default
 - it uses controlled operator access instead of a full end-user account system
 - its long-term runtime is frozen to `Cloudflare Workers`
-- its preferred UI shell is an open-source admin framework, with `react-admin` as the first-choice direction
+- its preferred UI shell is an open-source admin framework, with `react-admin`
+  as the first-choice direction
 - its preferred Worker-local BFF direction is `Hono`
 
 Current shell scope:
@@ -22,37 +24,38 @@ Current shell scope:
 - `GET /api/requests`
 - `GET /api/requests/:requestId`
 
-The root route and protected SPA routes now serve the `react-admin` shell once upstream operator admission, frontend assets, and the trusted panel-to-`app-api` bridge are configured. If any of those assumptions are missing, the Worker fails closed instead of exposing a public panel shell.
+The root route and protected SPA routes now serve the `react-admin` shell once
+upstream operator admission, frontend assets, and the trusted panel-to-`app-api`
+bridge are configured. If any of those assumptions are missing, the Worker fails
+closed instead of exposing a public panel shell.
 
 Canonical references:
 
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/current-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+  md`
 
 Implementation references:
 
 - `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
+- `docs/plans/shared-product-surfaces-acceptance-hardening.md`
 - `docs/plans/protected-panel-requests-triage-table-redesign.md`
-- `.planning/protected-panel-worker-implementation-plan.md`
-- `.planning/protected-panel-runtime-api-inventory.md`
-
-Historical handoff:
-
-- `.planning/phases/04.4-protected-internal-panel-runtime-shell-inserted/04.4-IMPLEMENTATION-HANDOFF.md`
+- `.planning/workstreams/shared-product-surfaces-acceptance-hardening/protected-
+  panel-runtime-api-inventory.md`
 
 Long-term operator access assumptions:
 
-- Cloudflare Access or another controlled upstream identity source gates the protected hostname
-- origin admission must validate `Cf-Access-Jwt-Assertion` or an equivalent signed access assertion
-- the app maps only minimal operator context; it does not own self-serve signup, password reset, or profile management
+- Cloudflare Access or another controlled upstream identity source gates the
+  protected hostname
+- origin admission must validate `Cf-Access-Jwt-Assertion` or an equivalent
+  signed access assertion
+- the app maps only minimal operator context; it does not own self-serve signup,
+  password reset, or profile management
 - dynamic HTML/API responses remain fail-closed and non-public-cache by default
 
 Long-term functional domains:
@@ -66,17 +69,23 @@ Long-term functional domains:
 Current rollout default:
 
 - `Overview` is implemented as the runtime and operator-context landing page
-- `Requests` is implemented as a request projection list/detail surface through `react-admin`
+- `Requests` is implemented as a request projection list/detail surface through
+  `react-admin`
 - `Jobs` and `Operations` are delayed pending re-discussion
-- `Audit` currently remains a delayed route skeleton rather than a raw-log viewer
+- `Audit` currently remains a delayed route skeleton rather than a raw-log
+  viewer
 
-`Requests` is defined against `apps/app-api` owned request projection APIs. This app must not treat consumer chat persistence, raw audit logs, or telemetry sinks as canonical request list/detail sources.
+`Requests` is defined against `apps/app-api` owned request projection APIs. This
+app must not treat consumer chat persistence, raw audit logs, or telemetry sinks
+as canonical request list/detail sources.
 
 Requests UX notes:
 
 - list/detail views are projection snapshots, not execution replay pages
-- pagination is cursor-backed and intentionally supports sequential next-page navigation only
-- freshly completed chat requests can appear slightly later than the chat response because projection materialization is eventually consistent
+- pagination is cursor-backed and intentionally supports sequential next-page
+  navigation only
+- freshly completed chat requests can appear slightly later than the chat
+  response because projection materialization is eventually consistent
 
 UI / BFF direction:
 
@@ -84,7 +93,8 @@ UI / BFF direction:
 - the open-source default `<Layout>` is the starting layout
 - the `Help Desk` demo is a reference, not a template to clone wholesale
 - `Hono` is the preferred Worker-local BFF layer
-- `ContainerLayout`, `SolarLayout`, `Appsmith`, and `ToolJet` are not the current default path
+- `ContainerLayout`, `SolarLayout`, `Appsmith`, and `ToolJet` are not the
+  current default path
 
 Environment:
 
@@ -97,8 +107,10 @@ Environment:
 
 Hostname mapping:
 
-- the protected hostname is owned by `wrangler.toml` Custom Domain deploy config, not by runtime env
-- staging `ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` are deploy-time injected and must not be hardcoded into `wrangler.toml`
+- the protected hostname is owned by `wrangler.toml` Custom Domain deploy
+  config, not by runtime env
+- staging `ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` are deploy-time injected
+  and must not be hardcoded into `wrangler.toml`
 
 Runtime bindings:
 
@@ -107,14 +119,26 @@ Runtime bindings:
 
 Readiness expectations:
 
-- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, runtime base URL, `PANEL_APP_API_SHARED_SECRET`, `PANEL_PROTECTION_ENVELOPE=cloudflare-access`, `ACCESS_TEAM_DOMAIN`, and `ACCESS_POLICY_AUD` are all configured
-- placeholder Access defaults such as `https://team.cloudflareaccess.com` and `panel-audience` are treated as not configured
-- `GET /readyz` also probes shared `app-api /readyz`; panel readiness is not green until shared runtime dependencies are actually ready
-- shell routes and `/api/overview` stay fail-closed until upstream admission, the trusted `APP_API` bridge, and frontend assets are all configured
-- when admission config is missing or `PANEL_PROTECTION_ENVELOPE` is not `cloudflare-access`, the Worker fails closed for the shell and `/api/overview` instead of exposing a partially protected panel surface
-- `pnpm deploy` now fails before publish if the generated Worker deploy config loses the required `APP_API` service binding
-- `pnpm deploy:staging` also fails before publish unless `STAGING_ACCESS_TEAM_DOMAIN` and `STAGING_ACCESS_POLICY_AUD` are explicitly provided
-- `pnpm deploy:staging` injects `SENTRY_RELEASE=protected-panel-web@staging-<git-sha>` by default; use `STAGING_SENTRY_RELEASE` only when a fixed release override is required
+- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, runtime base URL,
+  `PANEL_APP_API_SHARED_SECRET`, `PANEL_PROTECTION_ENVELOPE=cloudflare-access`,
+  `ACCESS_TEAM_DOMAIN`, and `ACCESS_POLICY_AUD` are all configured
+- placeholder Access defaults such as `<https://team.cloudflareaccess.com`> and
+  `panel-audience` are treated as not configured
+- `GET /readyz` also probes shared `app-api /readyz`; panel readiness is not
+  green until shared runtime dependencies are actually ready
+- shell routes and `/api/overview` stay fail-closed until upstream admission,
+  the trusted `APP_API` bridge, and frontend assets are all configured
+- when admission config is missing or `PANEL_PROTECTION_ENVELOPE` is not
+  `cloudflare-access`, the Worker fails closed for the shell and `/api/overview`
+  instead of exposing a partially protected panel surface
+- `pnpm deploy` now fails before publish if the generated Worker deploy config
+  loses the required `APP_API` service binding
+- `pnpm deploy:staging` also fails before publish unless
+  `STAGING_ACCESS_TEAM_DOMAIN` and `STAGING_ACCESS_POLICY_AUD` are explicitly
+  provided
+- `pnpm deploy:staging` injects
+  `SENTRY_RELEASE=protected-panel-web@staging-<git-sha>` by default; use
+  `STAGING_SENTRY_RELEASE` only when a fixed release override is required
 - proxied panel API responses are forced to `Cache-Control: no-store`
 
 Current operator-access env contract for Cloudflare Access admission includes:
@@ -126,14 +150,19 @@ Later env expansion is still expected to add values such as:
 
 - operator identity claim mapping
 - audit sink / trace projection configuration
-- app-api request projection runtime API configuration beyond the current `APP_API` service binding
+- app-api request projection runtime API configuration beyond the current
+  `APP_API` service binding
 
 Observability:
 
-- this Worker attaches Sentry at the protected shell only; it does not become the telemetry owner or panel truth source
-- proxied panel queries preserve canonical `x-trace-id` and also forward `sentry-trace` / `baggage` into `app-api`
-- operator-facing `Requests` still read `operator.request_projection`; telemetry sinks are debugging/analysis surfaces only
-- raw Access JWTs, cookies, operator email, prompt text, answer text, and transcript text are not intended to enter the sink
+- this Worker attaches Sentry at the protected shell only; it does not become
+  the telemetry owner or panel truth source
+- proxied panel queries preserve canonical `x-trace-id` and also forward
+  `sentry-trace` / `baggage` into `app-api`
+- operator-facing `Requests` still read `operator.request_projection`; telemetry
+  sinks are debugging/analysis surfaces only
+- raw Access JWTs, cookies, operator email, prompt text, answer text, and
+  transcript text are not intended to enter the sink
 
 Additional env:
 
@@ -141,7 +170,9 @@ Additional env:
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE`
 
-This app does not close retrieval ACL, actor mapping, approval flow, or full governance semantics. It also does not exist to become a CMS, database console, or generic admin platform.
+This app does not close retrieval ACL, actor mapping, approval flow, or full
+governance semantics. It also does not exist to become a CMS, database console,
+or generic admin platform.
 
 Local commands:
 
@@ -155,3 +186,21 @@ pnpm typecheck
 pnpm dev
 pnpm deploy
 ```
+
+Authenticated local smoke:
+
+```bash
+pnpm --dir apps/protected-panel-web dev:live-smoke:access
+pnpm --dir apps/protected-panel-web dev:live-smoke
+```
+
+Then enter through:
+
+```text
+http://127.0.0.1:9798/login?redirect=http://127.0.0.1:5174/observability/overview
+```
+
+The local Access smoke server issues a signed `CF_Authorization` cookie and
+serves the matching JWKS at `/cdn-cgi/access/certs`. This keeps local smoke on
+the same signed-assertion admission path as the Worker instead of adding a
+panel-side bypass.

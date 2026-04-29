@@ -43,7 +43,9 @@ class CurriculumCourseFactsProjectionTest(unittest.TestCase):
                     "学校除开设马克思主义基本原理、中国近现代史纲要、毛泽东思想和中国特色社会主义理论体系概论、"
                     "习近平新时代中国特色社会主义思想概论、思想道德与法治、形势与政策等6门思政课外，还开设一门特色思政课“中华民族共同体概论”。"
                 ),
-                _row("思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。"),
+                _row(
+                    "思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。"
+                ),
                 _row("2. 历史学专业不开设“中国近现代史纲要”课程。"),
                 {
                     "clean_text": (
@@ -63,7 +65,9 @@ class CurriculumCourseFactsProjectionTest(unittest.TestCase):
         )
 
         self.assertTrue(documents)
-        family_document = next(document for document in documents if document.title == "思想政治理论课课程事实")
+        family_document = next(
+            document for document in documents if document.title == "思想政治理论课课程事实"
+        )
         row = json.loads(family_document.document_units_bytes.decode("utf-8").splitlines()[0])
 
         self.assertEqual(

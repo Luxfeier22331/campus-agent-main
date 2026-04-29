@@ -23,7 +23,9 @@ class ScopeAliasWorkerCliTest(unittest.TestCase):
         )
         with (
             patch("campus_ingestion_worker.scope_alias.load_worker_env"),
-            patch("campus_ingestion_worker.scope_alias.set_scope_release_alias") as set_scope_release_alias,
+            patch(
+                "campus_ingestion_worker.scope_alias.set_scope_release_alias"
+            ) as set_scope_release_alias,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             set_scope_release_alias.return_value = report
@@ -58,7 +60,9 @@ class ScopeAliasWorkerCliTest(unittest.TestCase):
         )
         with (
             patch("campus_ingestion_worker.scope_alias.load_worker_env"),
-            patch("campus_ingestion_worker.scope_alias.set_scope_release_alias") as set_scope_release_alias,
+            patch(
+                "campus_ingestion_worker.scope_alias.set_scope_release_alias"
+            ) as set_scope_release_alias,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             set_scope_release_alias.return_value = report

@@ -1,0 +1,284 @@
+{
+  "schema_version": "collected_notice_consumer_admission.v1",
+  "batch_id": "fixture-phase-02-consumer-admission",
+  "generated_at": "2026-04-29T00:00:00Z",
+  "generated_by": "phase-02-contract-fixture",
+  "source_scope": {
+    "source_channel": "authenticated_notice_portal",
+    "site_id": "muc_internal_portal",
+    "source_surface": "notice",
+    "source_corpus": "campus_notices",
+    "source_collection": "internal_notice",
+    "run_ids": [
+      "muc_internal_portal:notice:fixture"
+    ]
+  },
+  "baseline": {
+    "state": "captured_but_not_imported",
+    "requires_reset_before_replay": true
+  },
+  "dry_run_report_ref": "reimport-plan.dry-run.json",
+  "selection_policy": {
+    "name": "collected_notice_phase2_fixture_policy",
+    "version": "v1"
+  },
+  "entries": [
+    {
+      "entry_id": "notice:muc_internal_portal:fixture-search-only",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "fixture-search-only",
+      "source_url": "https://my.muc.edu.cn/page/11#/detail/fixture-search-only",
+      "run_id": "muc_internal_portal:notice:fixture",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "object_key": "authenticated_notice_portal/runs/fixture/notices-bundle.json",
+          "sha256": "fixture-sha256",
+          "byte_size": 123
+        }
+      ],
+      "consumption_class": "search_only",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {},
+      "multimodal_policy": "not_required",
+      "reason_codes": [
+        "valid_capture",
+        "no_structured_downstream_target"
+      ],
+      "preconditions": [
+        "searchable_notice_layer_available"
+      ],
+      "operator_notes": ""
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:fixture-regulation",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "fixture-regulation",
+      "source_url": "https://my.muc.edu.cn/page/11#/detail/fixture-regulation",
+      "run_id": "muc_internal_portal:notice:fixture",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "object_key": "authenticated_notice_portal/attachment-fixture-regulation.pdf",
+          "sha256": "fixture-regulation-sha256",
+          "byte_size": 456
+        }
+      ],
+      "consumption_class": "downstream_admitted",
+      "target": "regulation",
+      "target_surface": "regulations/scoped_rules",
+      "target_hints": {
+        "rule_scope": "scoped",
+        "default_stop_point": "gated_materialization"
+      },
+      "multimodal_policy": "not_required",
+      "reason_codes": [
+        "valid_capture",
+        "rule_document_semantics"
+      ],
+      "preconditions": [
+        "source_object_verified",
+        "searchable_notice_layer_available",
+        "regulation_materialization_dry_run_passed"
+      ],
+      "operator_notes": ""
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:fixture-transport-schedule",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "fixture-transport-schedule",
+      "source_url": "https://my.muc.edu.cn/page/11#/detail/fixture-transport-schedule",
+      "run_id": "muc_internal_portal:notice:fixture",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "object_key": "authenticated_notice_portal/attachment-fixture-schedule.png",
+          "sha256": "fixture-schedule-sha256",
+          "byte_size": 789
+        }
+      ],
+      "consumption_class": "downstream_admitted",
+      "target": "transport_schedule",
+      "target_surface": "campus_services/transport_schedule",
+      "target_hints": {
+        "schedule_fact_source": "ocr_table",
+        "requires_current_promotion": false
+      },
+      "multimodal_policy": "completed",
+      "reason_codes": [
+        "valid_capture",
+        "transport_schedule_semantics",
+        "ocr_evidence_available"
+      ],
+      "preconditions": [
+        "source_object_verified",
+        "searchable_notice_layer_available",
+        "normalized_schedule_evidence_available",
+        "transport_replay_dry_run_passed"
+      ],
+      "operator_notes": ""
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:fixture-service-status",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "fixture-service-status",
+      "source_url": "https://my.muc.edu.cn/page/11#/detail/fixture-service-status",
+      "run_id": "muc_internal_portal:notice:fixture",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "object_key": "authenticated_notice_portal/runs/fixture/notices-bundle.json",
+          "sha256": "fixture-sha256",
+          "byte_size": 123
+        }
+      ],
+      "consumption_class": "downstream_admitted",
+      "target": "service_status",
+      "target_surface": "campus_services/service_status",
+      "target_hints": {
+        "status_subject": "facility_or_platform",
+        "requires_current_promotion": false
+      },
+      "multimodal_policy": "not_required",
+      "reason_codes": [
+        "valid_capture",
+        "service_status_change_semantics"
+      ],
+      "preconditions": [
+        "source_object_verified",
+        "searchable_notice_layer_available",
+        "service_status_replay_dry_run_passed"
+      ],
+      "operator_notes": ""
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:fixture-needs-multimodal",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "fixture-needs-multimodal",
+      "source_url": "https://my.muc.edu.cn/page/11#/detail/fixture-needs-multimodal",
+      "run_id": "muc_internal_portal:notice:fixture",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "object_key": "authenticated_notice_portal/attachment-fixture-visual.jpg",
+          "sha256": "fixture-visual-sha256",
+          "byte_size": 321
+        }
+      ],
+      "consumption_class": "needs_multimodal",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {
+        "candidate_targets": [
+          "transport_schedule",
+          "service_status"
+        ]
+      },
+      "multimodal_policy": "required",
+      "reason_codes": [
+        "valid_capture",
+        "critical_facts_in_media"
+      ],
+      "preconditions": [
+        "notice_multimodal_consumption_ledger_available"
+      ],
+      "operator_notes": ""
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:fixture-defer",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "fixture-defer",
+      "source_url": "https://my.muc.edu.cn/page/11#/detail/fixture-defer",
+      "run_id": "muc_internal_portal:notice:fixture",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "object_key": "authenticated_notice_portal/runs/fixture/notices-bundle.json",
+          "sha256": "fixture-sha256",
+          "byte_size": 123
+        }
+      ],
+      "consumption_class": "defer",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {},
+      "multimodal_policy": "not_required",
+      "reason_codes": [
+        "valid_capture",
+        "downstream_not_designed"
+      ],
+      "preconditions": [
+        "searchable_notice_layer_available"
+      ],
+      "operator_notes": ""
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:fixture-invalid-capture",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "fixture-invalid-capture",
+      "source_url": "https://my.muc.edu.cn/page/11#/detail/fixture-invalid-capture",
+      "run_id": "muc_internal_portal:notice:fixture",
+      "source_object_refs": [],
+      "consumption_class": "invalid_capture",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {},
+      "multimodal_policy": "failed",
+      "reason_codes": [
+        "missing_required_source_object"
+      ],
+      "preconditions": [],
+      "operator_notes": ""
+    }
+  ],
+  "counts": {
+    "total_entries": 7,
+    "by_class": {
+      "search_only": 1,
+      "downstream_admitted": 3,
+      "needs_multimodal": 1,
+      "defer": 1,
+      "invalid_capture": 1
+    },
+    "by_target": {
+      "regulation": 1,
+      "transport_schedule": 1,
+      "service_status": 1
+    }
+  },
+  "evidence_refs": [
+    "CHAIN-CONTRACT.md",
+    "CONSUMER-ADMISSION-SCHEMA.md",
+    "SEARCHABLE-NOTICE-LAYER-SCHEMA.md",
+    "DOWNSTREAM-BATCHING-POLICY.md"
+  ]
+}

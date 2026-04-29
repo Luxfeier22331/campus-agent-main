@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.link_worktree_app_local_env import (
     link_worktree_app_local_env,

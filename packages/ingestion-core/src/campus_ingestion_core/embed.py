@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 import httpx
-from llama_index.core.base.embeddings.base import BaseEmbedding
-from llama_index.core.base.embeddings.base import Embedding
+from llama_index.core.base.embeddings.base import BaseEmbedding, Embedding
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.embeddings.mock_embed_model import MockEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -142,7 +141,7 @@ class EmbeddingSettings:
         env: dict[str, str] | None = None,
         *,
         model_override: str | None = None,
-    ) -> "EmbeddingSettings":
+    ) -> EmbeddingSettings:
         source = env if env is not None else os.environ
         model = (
             model_override
@@ -166,9 +165,14 @@ class EmbeddingSettings:
             api_base=(source.get("EMBEDDING_BASE_URL") or "").strip() or None,
             dimensions=dimensions,
             timeout_seconds=float(
-                (source.get("EMBEDDING_TIMEOUT_SECONDS") or str(DEFAULT_EMBEDDING_TIMEOUT_SECONDS)).strip()
+                (
+                    source.get("EMBEDDING_TIMEOUT_SECONDS")
+                    or str(DEFAULT_EMBEDDING_TIMEOUT_SECONDS)
+                ).strip()
             ),
-            embed_batch_size=int((source.get("EMBEDDING_BATCH_SIZE") or str(DEFAULT_EMBED_BATCH_SIZE)).strip()),
+            embed_batch_size=int(
+                (source.get("EMBEDDING_BATCH_SIZE") or str(DEFAULT_EMBED_BATCH_SIZE)).strip()
+            ),
         )
 
 
@@ -186,7 +190,9 @@ def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
     provider = settings.provider.strip().lower()
     if provider == "openai":
         sync_http_client = _build_openai_http_client(timeout_seconds=settings.timeout_seconds)
-        async_http_client = _build_openai_async_http_client(timeout_seconds=settings.timeout_seconds)
+        async_http_client = _build_openai_async_http_client(
+            timeout_seconds=settings.timeout_seconds
+        )
         kwargs = {
             "model": settings.model,
             "api_key": settings.api_key or None,

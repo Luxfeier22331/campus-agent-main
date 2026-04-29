@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
-from pathlib import Path
 import secrets
-from typing import Callable, Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
-
 
 OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION = "official_web_handoff_dispatch.v1"
 _EXPECTED_TOP_LEVEL_FIELDS = {
@@ -66,7 +65,7 @@ class OfficialWebHandoffReceiverSettings:
     inbox_dir: Path = Path("./var/official-web-handoffs")
 
     @classmethod
-    def from_env(cls) -> "OfficialWebHandoffReceiverSettings":
+    def from_env(cls) -> OfficialWebHandoffReceiverSettings:
         inbox_dir = os.getenv(
             "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR",
             "./var/official-web-handoffs",
@@ -85,7 +84,7 @@ class OfficialWebHandoffServerSettings:
     port: int = 8789
 
     @classmethod
-    def from_env(cls) -> "OfficialWebHandoffServerSettings":
+    def from_env(cls) -> OfficialWebHandoffServerSettings:
         return cls(
             host=os.getenv("INGESTION_WORKER_HTTP_HOST", "127.0.0.1"),
             port=int(os.getenv("INGESTION_WORKER_HTTP_PORT", "8789")),
@@ -191,13 +190,16 @@ def healthz(settings: OfficialWebHandoffReceiverSettings) -> HttpResponse:
 
 
 def readyz(settings: OfficialWebHandoffReceiverSettings) -> HttpResponse:
+    token_configured = bool(settings.bearer_token)
+    inbox_configured = bool(str(settings.inbox_dir).strip())
+    ready = token_configured and inbox_configured
     return HttpResponse(
-        status_code=200,
+        status_code=200 if ready else 503,
         json_body={
-            "status": "ready",
+            "status": "ready" if ready else "not_ready",
             "dependencies": {
-                "officialWebHandoffToken": "configured" if settings.bearer_token else "not_configured",
-                "officialWebInbox": "configured" if str(settings.inbox_dir).strip() else "not_configured",
+                "officialWebHandoffToken": "configured" if token_configured else "not_configured",
+                "officialWebInbox": "configured" if inbox_configured else "not_configured",
             },
             "inboxDir": str(settings.inbox_dir),
         },
@@ -379,17 +381,9 @@ def persist_handoff_record(
     inbox_dir.mkdir(parents=True, exist_ok=True)
     event_id = _require_non_empty_text(payload.get("eventId"), "eventId")
     record_path = inbox_dir / f"{_safe_event_id(event_id)}.json"
-    if record_path.exists():
-        existing = json.loads(record_path.read_text(encoding="utf-8"))
-        existing_payload = existing.get("payload")
-        if existing_payload != payload:
-            raise FileExistsError(f"handoff event {event_id} already exists with different payload.")
-        dispatch_ref = _require_non_empty_text(existing.get("dispatchRef"), "dispatchRef")
-        received_at = _require_non_empty_text(existing.get("receivedAt"), "receivedAt")
-        return dispatch_ref, received_at
 
     dispatch_ref = f"owdispatch_{uuid4().hex}"
-    received_at = datetime.now(timezone.utc).isoformat()
+    received_at = datetime.now(UTC).isoformat()
     record = {
         "schemaVersion": OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION,
         "dispatchRef": dispatch_ref,
@@ -405,18 +399,25 @@ def persist_handoff_record(
         "replayInputDir": None,
         "payload": payload,
     }
-    record_path.write_text(
-        json.dumps(record, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    return dispatch_ref, received_at
+    try:
+        with record_path.open("x", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, indent=2))
+        return dispatch_ref, received_at
+    except FileExistsError:
+        existing = json.loads(record_path.read_text(encoding="utf-8"))
+        existing_payload = existing.get("payload")
+        if existing_payload != payload:
+            raise FileExistsError(
+                f"handoff event {event_id} already exists with different payload."
+            ) from None
+        existing_dispatch_ref = _require_non_empty_text(existing.get("dispatchRef"), "dispatchRef")
+        existing_received_at = _require_non_empty_text(existing.get("receivedAt"), "receivedAt")
+        return existing_dispatch_ref, existing_received_at
 
 
 def _safe_event_id(event_id: str) -> str:
     sanitized = "".join(
-        character
-        for character in event_id
-        if character.isalnum() or character in {"-", "_"}
+        character for character in event_id if character.isalnum() or character in {"-", "_"}
     )
     if not sanitized:
         raise ValueError("eventId must contain at least one safe filename character.")
@@ -523,6 +524,7 @@ def main() -> None:
 
 
 __all__ = [
+    "OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION",
     "ErrorInfo",
     "HttpResponse",
     "HttpRoute",
@@ -530,7 +532,6 @@ __all__ = [
     "OfficialWebHandoffReceiverApp",
     "OfficialWebHandoffReceiverSettings",
     "OfficialWebHandoffServerSettings",
-    "OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION",
     "accept_handoff",
     "build_routes",
     "create_app",

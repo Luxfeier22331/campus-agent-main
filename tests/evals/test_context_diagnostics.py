@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from contextlib import redirect_stdout
-from dataclasses import asdict
 import io
 import json
+import unittest
+from contextlib import redirect_stdout
+from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_contracts import EvidenceSource
-from campus_evals.context_diagnostics import build_context_diagnostics, main as context_diagnostics_main
+from campus_evals.context_diagnostics import build_context_diagnostics
+from campus_evals.context_diagnostics import main as context_diagnostics_main
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
 )
@@ -50,7 +51,9 @@ def _source(
 
 
 class ContextDiagnosticsTest(unittest.TestCase):
-    def test_build_context_diagnostics_reconstructs_projection_for_curriculum_completed_case(self) -> None:
+    def test_build_context_diagnostics_reconstructs_projection_for_curriculum_completed_case(
+        self,
+    ) -> None:
         completed_sources = (
             _source(
                 "curriculum:民族学本科人才培养方案",
@@ -155,7 +158,11 @@ class ContextDiagnosticsTest(unittest.TestCase):
             scenario_set="curriculum_live_gate",
         )
 
-        completed_case = next(item for item in diagnostics["cases"] if item["case_id"] == "curriculum-release-gate-total-credits")
+        completed_case = next(
+            item
+            for item in diagnostics["cases"]
+            if item["case_id"] == "curriculum-release-gate-total-credits"
+        )
         self.assertEqual(completed_case["context_metric_applicability"]["context_precision"], True)
         self.assertEqual(completed_case["artifact_scores"]["context_precision"], 0.0)
         self.assertEqual(completed_case["projection"]["metric_route"], "id_based")
@@ -171,7 +178,11 @@ class ContextDiagnosticsTest(unittest.TestCase):
         self.assertEqual(completed_case["projection"]["extra_retrieved_context_ids"], [])
         self.assertEqual(completed_case["projection"]["supporting_source_count"], 2)
 
-        no_answer_case = next(item for item in diagnostics["cases"] if item["case_id"] == "curriculum-release-gate-no-answer")
+        no_answer_case = next(
+            item
+            for item in diagnostics["cases"]
+            if item["case_id"] == "curriculum-release-gate-no-answer"
+        )
         self.assertEqual(no_answer_case["context_metric_applicability"]["context_precision"], False)
         self.assertIsNone(no_answer_case["projection"])
 
@@ -256,7 +267,9 @@ class ContextDiagnosticsTest(unittest.TestCase):
         self.assertEqual(completed_case["projection"]["missing_reference_context_ids"], [])
         self.assertEqual(completed_case["projection"]["extra_retrieved_context_ids"], [])
 
-    def test_build_context_diagnostics_separates_physical_and_canonical_ids_for_semester_facts(self) -> None:
+    def test_build_context_diagnostics_separates_physical_and_canonical_ids_for_semester_facts(
+        self,
+    ) -> None:
         semester_fact_doc_id = build_curriculum_program_semester_fact_document_id(
             "curriculum:法学（民族实验班）本科人才培养方案",
             "第四学期",
@@ -353,7 +366,9 @@ class ContextDiagnosticsTest(unittest.TestCase):
             completed_case["projection"]["supporting_canonical_source_ids"],
             ["curriculum:法学（民族实验班）本科人才培养方案"],
         )
-        self.assertEqual(completed_case["projection"]["supporting_source_unit_keys"], ["semester-4"])
+        self.assertEqual(
+            completed_case["projection"]["supporting_source_unit_keys"], ["semester-4"]
+        )
 
     def test_context_diagnostics_main_supports_json_output(self) -> None:
         payload = {

@@ -2,14 +2,14 @@
 doc_type: reference
 status: active
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-20
 ---
-
 # Restricted Document Center Artifact Contract
 
 ## 文档边界
 
-本文冻结“采集并清洗还原的受限文档，可同时服务附件库 / 文档站与 semantic collection”这件事的 repo-tracked artifact contract。
+本文冻结“采集并清洗还原的受限文档，可同时服务附件库 / 文档站与 semantic collection”这件事的 repo-tracked artifact
+contract。
 
 它回答的是：
 
@@ -25,53 +25,44 @@ updated: 2026-04-15
 - 某个具体 collection 何时开放 query-serving
 - 具体 code path 已经实现到哪一步
 
-## 当前状态说明
+## Contract 姿态
 
-这份 contract 记录的是：
+这份 contract 记录的是 approved target，而不是“当前 merged truth 已全部实现”的状态板。
 
-- approved target
+它的作用固定为：
 
-不是：
+- 先冻结 `original / normalized_readable / semantic_document` 的正式边界
+- 避免后续把现有清洗结果临时拼接成没有 owner 分层的附件库
+- 为后续 restricted rollout / document center productization 提供稳定 contract
 
-- current merged-truth fully implemented execution
+如果需要判断当前实现进度，应转到：
 
-截至 2026-04-15，当前 repo 已明确成立的 execution truth 仍是：
-
-- source channel 把 originals 吸入 source bucket / source-truth
-- `internal_notice -> regulations/*` 可以把部分 owner text materialize 成 semantic document
-
-当前尚未宣称已经 fully implemented 的部分是：
-
-- 面向已认证用户开放的 document center product surface
-- `normalized_readable` 作为独立 product artifact 的全链路 materialization / registry scope / serving
-
-因此本文的作用是：
-
-- 把正式链路应该长成什么样先冻结
-- 避免后续把“现有清洗结果”临时拼接成没有边界的附件库
+- `../architecture/current-architecture.md`
+- `../domains/identity-authz-memory.md`
+- `../plans/restricted-document-rollout-and-verification.md`
+- `../../.planning/PROJECT.md`
+- `../../.planning/WORKSTREAMS.md`
 
 ## 核心结论
 
 对 restricted institutional document sources，长期正确的 fan-out 形态固定为三类 artifact：
 
 1. `original`
-2. `normalized_readable`
-3. `semantic_document`
+1. `normalized_readable`
+1. `semantic_document`
 
 三者可以共享 provenance，但不能混成同一资源层。
 
 repo 级 canonical chain 继续表达为：
 
-`raw asset -> provider output -> source truth -> declared projections -> canonical document artifacts -> document-units -> chunks -> index`
+`raw asset -> provider output -> source truth -> declared projections ->
+canonical document artifacts -> document-units -> chunks -> index`
 
 在 document center 语境下，正确解释固定为：
 
-- `original`
-  属于 raw/source/provenance/download layer
-- `normalized_readable`
-  属于 document-center readable projection
-- `semantic_document`
-  属于 semantic-owner collection projection
+- `original` 属于 raw/source/provenance/download layer
+- `normalized_readable` 属于 document-center readable projection
+- `semantic_document` 属于 semantic-owner collection projection
 
 ## Artifact Families
 
@@ -135,7 +126,7 @@ repo 级 canonical chain 继续表达为：
 
 例如：
 
-- `regulations/institutional_regulations` 中的制度正文
+- `regulations/institutional_rules` 中的制度正文
 - 后续可能存在的 handbook / procedure / scoped-rule semantic collection
 
 它的职责固定为：
@@ -197,17 +188,18 @@ repo 级 canonical chain 继续表达为：
 
 `semantic_document` 继续进入各自的 semantic collection scope，例如：
 
-- `regulations/institutional_regulations`
+- `regulations/institutional_rules`
 - `regulations/scoped_rules`
 
 固定要求：
 
-- `semantic_document` 的 `document_id/version_id` 不得复用 `original` resource identity
+- `semantic_document` 的 `document_id/version_id` 不得复用 `original` resource
+  identity
 - source notice / attachment / file_release provenance 继续显式保留
 
 ## Identity 规则
 
-### `original`
+### `original` object-store layout
 
 `original` 的稳定 identity 必须 anchored 在 source-native resource 上。
 
@@ -230,7 +222,7 @@ repo 级 canonical chain 继续表达为：
 - 用 semantic `document_id` 充当 original identity
 - 用 `notice_id` 单独充当 original identity
 
-### `normalized_readable`
+### `normalized_readable` object-store layout
 
 `normalized_readable` 的资源身份固定与 `original` 对齐，但版本必须额外区分 derivation policy。
 
@@ -246,7 +238,7 @@ repo 级 canonical chain 继续表达为：
 - 同一原件在 OCR/cleanup policy 升级后，可以生成新的 readable version
 - 但它仍然属于同一 original resource family
 
-### `semantic_document`
+### `semantic_document` object-store layout
 
 `semantic_document` 继续使用 collection-owned `document_id/version_id`。
 
@@ -266,18 +258,21 @@ repo 级 canonical chain 继续表达为：
 - authenticated notice attachment
   - `authenticated_notice_portal/.../capture/<filename>`
 - `file_release`
-  - `authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/capture/<filename>`
+  - `authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/captur
+    e/<filename>`
 
 固定规则：
 
 - document center 不重复定义 original bytes 的 canonical object key
-- 若后续需要 CDN / download token / preview proxy，那是访问层动作，不改写 original object identity
+- 若后续需要 CDN / download token / preview proxy，那是访问层动作，不改写 original object
+  identity
 
 ### `normalized_readable`
 
 `normalized_readable` 的 approved target prefix 固定建议为：
 
-`document_center/resources/<resource_family>/<stable_resource_key>/<revision_track>/<year>/`
+`document_center/resources/<resource_family>/<stable_resource_key>/<revision_tra
+ck>/<year>/`
 
 第一阶段推荐 artifact 集合：
 
@@ -289,16 +284,12 @@ repo 级 canonical chain 继续表达为：
 
 其中：
 
-- `resource-manifest.json`
-  持有 original back-link、policy version、authz projection、artifact refs
-- `normalized-readable.md`
-  持有对用户展示的 markdown/text-readable body
-- `readable-units.jsonl`
-  持有文档站内部结构单元，不直接等于 retrieval chunk
-- `preview.html`
-  可选；用于更接近原版面的阅读视图
-- `layout-elements.jsonl`
-  只在 OCR/layout lane 下出现；保留 provider-structure truth
+- `resource-manifest.json` 持有 original back-link、policy version、authz
+  projection、artifact refs
+- `normalized-readable.md` 持有对用户展示的 markdown/text-readable body
+- `readable-units.jsonl` 持有文档站内部结构单元，不直接等于 retrieval chunk
+- `preview.html` 可选；用于更接近原版面的阅读视图
+- `layout-elements.jsonl` 只在 OCR/layout lane 下出现；保留 provider-structure truth
 
 固定禁止：
 
@@ -342,7 +333,8 @@ repo 级 canonical chain 继续表达为：
 
 - `materialized`
 - `reference_only`
-- `manual_review_required`
+- `pending_machine_processing`
+- `no_adoption`
 - `no_extractable_text`
 
 ### `semantic_document` provenance
@@ -441,14 +433,11 @@ repo 级 canonical chain 继续表达为：
 
 对当前 authenticated notice / file release 链路，正式形态应理解为：
 
-- `notice` / `file_release`
-  提供 source relation 与 provenance
-- `original`
-  提供原件 bytes 与下载锚点
-- `normalized_readable`
-  提供文档站阅读视图与 metadata search 文本
-- `semantic_document`
-  只在 semantic owner 已恢复时进入 `regulations/*` 或其他 semantic collection
+- `notice` / `file_release` 提供 source relation 与 provenance
+- `original` 提供原件 bytes 与下载锚点
+- `normalized_readable` 提供文档站阅读视图与 metadata search 文本
+- `semantic_document` 只在 semantic owner 已恢复时进入 `regulations/*` 或其他 semantic
+  collection
 
 因此：
 
@@ -465,11 +454,14 @@ repo 级 canonical chain 继续表达为：
 
 ## Related Docs
 
-- `docs/architecture/data-plane-architecture.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
-- `docs/decisions/adr-0041-authenticated-document-center-and-regulation-layer-split.md`
+- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
+  .md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
+  d`
+- `docs/decisions/adr-0041-authenticated-document-center-and-regulation-layer-sp
+  lit.md`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`

@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.models import DocumentRegistryRecord
-from qdrant_client import QdrantClient
-from tests.support.in_memory_registry import InMemoryDocumentRegistry
-
 from campus_ingestion_core.registry_scope_release import release_registry_scope
+from qdrant_client import QdrantClient
+
+from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
 
 class _FakeObjectStore:
@@ -133,7 +132,7 @@ class RegistryScopeReleaseTest(unittest.TestCase):
                         document_id="official_web:muc_public_pages:news-002",
                         version_id="owver:news-002",
                         text="中央民族大学法学院新闻正文。",
-                    )
+                    ),
                 }
             )
             qdrant_client = QdrantClient(location=":memory:")

@@ -6,15 +6,16 @@ from campus_ingestion_core import default_query_scopes, load_runtime_profile
 from campus_ingestion_core.corpus_profiles import (
     is_official_web_stable_reference_like_collection,
     is_official_web_stable_reference_like_profile,
+    load_chunk_profile,
 )
 
 
 class CorpusRuntimeProfileTest(unittest.TestCase):
     def test_load_student_handbook_runtime_profile_requires_split_manifest(self) -> None:
-        profile = load_runtime_profile("regulations", "student_handbook")
+        profile = load_runtime_profile("regulations", "student_rules")
 
         self.assertEqual(profile.corpus, "regulations")
-        self.assertEqual(profile.collection, "student_handbook")
+        self.assertEqual(profile.collection, "student_rules")
         self.assertEqual(profile.serving_stage, "query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
         self.assertTrue(profile.split_manifest_required)
@@ -36,10 +37,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         )
         self.assertEqual(profile.no_hit_min_top_score, 0.6)
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
-        self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")
-        self.assertEqual(profile.chunk_profile_version, "student_handbook_semantic_v3")
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "student_handbook")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_handbook")
+        self.assertEqual(profile.cleaning_policy_version, "student_rules_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "student_rules_semantic_v3")
+        self.assertEqual(profile.source_ocr_provider, "mineru_api")
+        self.assertEqual(profile.source_ocr_model, "vlm")
+        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "student_rules")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_rules")
 
     def test_load_curriculum_plan_runtime_profile(self) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")
@@ -69,6 +73,9 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "curriculum_plan_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "curriculum_plan_semantic_v2")
+        self.assertEqual(profile.source_ocr_provider, "mineru_api")
+        self.assertEqual(profile.source_ocr_model, "vlm")
+        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "curriculum_plan")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "curriculum_plan")
 
@@ -113,8 +120,12 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
         self.assertEqual(profile.retrieval_top_k, 5)
-        self.assertEqual(profile.cleaning_policy_version, "curriculum_program_family_facts_projection_v1")
-        self.assertEqual(profile.chunk_profile_version, "curriculum_program_family_facts_semantic_v1")
+        self.assertEqual(
+            profile.cleaning_policy_version, "curriculum_program_family_facts_projection_v1"
+        )
+        self.assertEqual(
+            profile.chunk_profile_version, "curriculum_program_family_facts_semantic_v1"
+        )
         self.assertEqual(profile.qdrant_index_binding.alias_name, "program_family_facts")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "program_family_facts")
 
@@ -133,8 +144,12 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.retrieval_top_k, 5)
         self.assertEqual(profile.document_support_limit, 24)
         self.assertEqual(profile.document_support_strategy, "targeted_overfetch")
-        self.assertEqual(profile.cleaning_policy_version, "curriculum_program_semester_facts_projection_v1")
-        self.assertEqual(profile.chunk_profile_version, "curriculum_program_semester_facts_semantic_v1")
+        self.assertEqual(
+            profile.cleaning_policy_version, "curriculum_program_semester_facts_projection_v1"
+        )
+        self.assertEqual(
+            profile.chunk_profile_version, "curriculum_program_semester_facts_semantic_v1"
+        )
         self.assertEqual(profile.qdrant_index_binding.alias_name, "program_semester_facts")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "program_semester_facts")
 
@@ -158,6 +173,16 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "service_catalog")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_catalog")
 
+    def test_load_service_catalog_chunk_profile(self) -> None:
+        profile = load_chunk_profile("campus_services", "service_catalog")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_catalog")
+        self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
+        self.assertEqual(profile.structured_input, "document_units_jsonl")
+        self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "service_catalog_structure_v1")
+
     def test_load_contact_directory_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "contact_directory")
 
@@ -178,7 +203,45 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "contact_directory")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "contact_directory")
 
-    def test_load_official_web_runtime_profile_current_truth_remains_offline_and_not_freshness_ready(self) -> None:
+    def test_load_contact_directory_chunk_profile(self) -> None:
+        profile = load_chunk_profile("campus_services", "contact_directory")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "contact_directory")
+        self.assertEqual(profile.chunk_profile_version, "contact_directory_semantic_v1")
+        self.assertEqual(profile.structured_input, "document_units_jsonl")
+        self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "contact_directory_structure_v1")
+
+    def test_load_transport_schedule_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "transport_schedule")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "transport_schedule")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertEqual(profile.cleaning_policy_version, "transport_schedule_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "transport_schedule_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "transport_schedule")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "transport_schedule")
+
+    def test_load_internal_notice_runtime_profile_uses_mineru_primary_source_ocr(self) -> None:
+        profile = load_runtime_profile("campus_notices", "internal_notice")
+
+        self.assertEqual(profile.corpus, "campus_notices")
+        self.assertEqual(profile.collection, "internal_notice")
+        self.assertEqual(profile.source_ocr_provider, "mineru_api")
+        self.assertEqual(profile.source_ocr_model, "vlm")
+        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
+        self.assertTrue(profile.source_ocr_fallback_enabled)
+        self.assertEqual(profile.source_ocr_image_routing_strategy, "mineru_primary")
+
+    def test_load_official_web_runtime_profile_current_truth_remains_offline_and_not_freshness_ready(
+        self,
+    ) -> None:
         profile = load_runtime_profile("official_web", "muc_public_pages")
 
         self.assertEqual(profile.corpus, "official_web")
@@ -218,7 +281,9 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
         self.assertEqual(profile.chunk_profile_version, "official_web_semantic_v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "official_web_stable_reference")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "official_web_stable_reference")
+        self.assertEqual(
+            profile.qdrant_index_binding.collection_prefix, "official_web_stable_reference"
+        )
 
     def test_load_official_web_fresh_news_runtime_profile(self) -> None:
         profile = load_runtime_profile("official_web", "fresh_news")
@@ -290,7 +355,9 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
         self.assertEqual(profile.chunk_profile_version, "official_web_semantic_v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "official_web_news_archive")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "official_web_news_archive")
+        self.assertEqual(
+            profile.qdrant_index_binding.collection_prefix, "official_web_news_archive"
+        )
 
     def test_official_web_stable_reference_like_helpers_match_runtime_profiles(self) -> None:
         bridge_profile = load_runtime_profile("official_web", "muc_public_pages")
@@ -325,11 +392,50 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "internal_notice")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "internal_notice")
 
+    def test_load_authenticated_documents_common_download_source_runtime_profile(self) -> None:
+        profile = load_runtime_profile("authenticated_documents", "common_download_source")
+
+        self.assertEqual(profile.corpus, "authenticated_documents")
+        self.assertEqual(profile.collection, "common_download_source")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.chunk_profile_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "common_download_source")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "common_download_source")
+
+    def test_load_authenticated_documents_file_release_source_runtime_profile(self) -> None:
+        profile = load_runtime_profile("authenticated_documents", "file_release_source")
+
+        self.assertEqual(profile.corpus, "authenticated_documents")
+        self.assertEqual(profile.collection, "file_release_source")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.chunk_profile_version, "authenticated_documents_holding_v1")
+        self.assertEqual(profile.source_ocr_provider, "mineru_api")
+        self.assertEqual(profile.source_ocr_model, "vlm")
+        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "file_release_source")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "file_release_source")
+
     def test_load_institutional_regulations_runtime_profile(self) -> None:
-        profile = load_runtime_profile("regulations", "institutional_regulations")
+        profile = load_runtime_profile("regulations", "institutional_rules")
 
         self.assertEqual(profile.corpus, "regulations")
-        self.assertEqual(profile.collection, "institutional_regulations")
+        self.assertEqual(profile.collection, "institutional_rules")
         self.assertEqual(profile.serving_stage, "offline_preparation")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
         self.assertFalse(profile.split_manifest_required)
@@ -338,10 +444,10 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
         self.assertEqual(profile.retrieval_top_k, 3)
-        self.assertEqual(profile.cleaning_policy_version, "institutional_regulations_cleaning_v1")
-        self.assertEqual(profile.chunk_profile_version, "institutional_regulations_semantic_v1")
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "institutional_regulations")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "institutional_regulations")
+        self.assertEqual(profile.cleaning_policy_version, "institutional_rules_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "institutional_rules_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "institutional_rules")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "institutional_rules")
 
     def test_load_scoped_rules_runtime_profile(self) -> None:
         profile = load_runtime_profile("regulations", "scoped_rules")
@@ -367,7 +473,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
             (
                 ("curriculum", "curriculum_plan"),
                 ("official_web", "stable_reference"),
-                ("regulations", "student_handbook"),
+                ("regulations", "student_rules"),
             ),
         )
 

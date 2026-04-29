@@ -21,7 +21,6 @@ from campus_ingestion_core.authenticated_notice_import import AuthenticatedNotic
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
 
-
 DEFAULT_PROMOTION_ID = "promotion-0001"
 DEFAULT_PROMOTION_COPY_BATCH_SIZE = 128
 
@@ -170,8 +169,7 @@ class CloseoutPromotionCoordinator:
     ) -> int:
         del request
         records = tuple(
-            _raw_record_from_payload(staged_raw["raw_record"])
-            for staged_raw in raw_assets
+            _raw_record_from_payload(staged_raw["raw_record"]) for staged_raw in raw_assets
         )
         if records:
             self.raw_asset_registry.upsert_many(records)
@@ -412,6 +410,8 @@ def _raw_record_from_payload(payload: dict[str, Any]):
         ingestion_timestamp=str(payload["ingestion_timestamp"]),
         import_source=str(payload["import_source"]),
     )
+
+
 def _document_ref(staged_document: dict[str, Any]) -> tuple[str, str, str]:
     payload = dict(staged_document["document"])
     return (
@@ -435,7 +435,7 @@ def _chunked(
 
 
 __all__ = [
-    "CloseoutPromotionCoordinator",
     "DEFAULT_PROMOTION_COPY_BATCH_SIZE",
     "DEFAULT_PROMOTION_ID",
+    "CloseoutPromotionCoordinator",
 ]

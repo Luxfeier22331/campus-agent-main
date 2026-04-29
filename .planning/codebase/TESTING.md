@@ -64,7 +64,8 @@ Meaning:
 
 ## Test File Organization
 
-- Python tests still live under `tests/` and mirror repo layers such as `tests/api/`, `tests/ingestion/`, `tests/retrieval/`, `tests/specialist/`, and `tests/supervisor/`.
+- Python tests still live under `tests/` and mirror repo layers such as `tests/api/`,
+  `tests/ingestion/`, `tests/retrieval/`, `tests/agent/`, and `tests/supervisor/`.
 - `apps/app-api/test/` now has an explicit split between:
   - `*.test.ts` for default Node lane coverage
   - `worker.test.ts` for Worker runtime coverage

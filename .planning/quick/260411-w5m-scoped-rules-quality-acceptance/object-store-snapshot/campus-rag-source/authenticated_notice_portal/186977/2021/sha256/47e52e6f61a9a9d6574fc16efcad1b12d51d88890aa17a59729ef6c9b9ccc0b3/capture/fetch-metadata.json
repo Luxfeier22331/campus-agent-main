@@ -1,0 +1,136 @@
+{
+  "schema_version": "authenticated_notice_fetch_metadata_v1",
+  "captured_at": "2026-04-09T19:30:29.385954+00:00",
+  "export_manifest": {
+    "schema_version": "authenticated_notice_legacy_bootstrap_normalized_v1",
+    "exported_at": "2026-04-09T19:30:29.385954+00:00",
+    "export_date": "20260409",
+    "export_scope": "run14-policy-regulation-expanded",
+    "source_channel": "authenticated_notice_portal",
+    "site_id": "muc_internal_portal",
+    "source_home_url": "https://my.muc.edu.cn",
+    "collector": {
+      "runtime_shell": "legacy_external_collector",
+      "export_contract_version": "legacy_authenticated_notice_export_v3",
+      "link_collection_mode": "legacy_bundle_preserved",
+      "attachment_collection_mode": "legacy_bundle_preserved",
+      "attachment_storage_mode": "blob_store_reference"
+    },
+    "filters": {
+      "notice_types": [
+        "6",
+        "32",
+        "5"
+      ],
+      "max_notices": 16,
+      "selected_notice_ids": [
+        "355282",
+        "354006",
+        "353963",
+        "351907",
+        "351704",
+        "351699",
+        "351119",
+        "196411",
+        "191705",
+        "191177",
+        "191176",
+        "187233",
+        "187004",
+        "186977",
+        "186957",
+        "177880"
+      ]
+    },
+    "notice_type_policy": [
+      {
+        "type": "5",
+        "name": "办公通知",
+        "enabled": true,
+        "incremental": {
+          "pages": 3,
+          "page_size": 20
+        },
+        "backfill": {
+          "pages": 108,
+          "page_size": 20
+        }
+      },
+      {
+        "type": "6",
+        "name": "教学通知",
+        "enabled": true,
+        "incremental": {
+          "pages": 3,
+          "page_size": 20
+        },
+        "backfill": {
+          "pages": 120,
+          "page_size": 20
+        }
+      },
+      {
+        "type": "32",
+        "name": "学工通知",
+        "enabled": true,
+        "incremental": {
+          "pages": 3,
+          "page_size": 20
+        },
+        "backfill": {
+          "pages": 66,
+          "page_size": 20
+        }
+      }
+    ],
+    "run": {
+      "mode": "legacy_normalized_selection",
+      "status": "success",
+      "started_at": "2026-04-02T23:50:17.023Z",
+      "finished_at": "2026-04-09T19:30:29.385954+00:00",
+      "pages_fetched": 337,
+      "items_seen": 6694,
+      "items_inserted": 16,
+      "detail_fetched": 16,
+      "errors": 0
+    },
+    "legacy_source": {
+      "schema_version": "v3",
+      "exported_at": "2026-04-02T23:59:19.838Z",
+      "export_scope": "run-14",
+      "filters": {
+        "run_id": 14,
+        "since": null,
+        "until": null
+      },
+      "run": {
+        "id": 14,
+        "mode": "backfill",
+        "status": "success",
+        "started_at": "2026-04-02T23:50:17.023Z",
+        "finished_at": "2026-04-02T23:57:57.563Z",
+        "pages_fetched": 337,
+        "items_seen": 6694,
+        "items_inserted": 6454,
+        "items_updated": 0,
+        "errors": 0,
+        "error_message": null
+      },
+      "counts": {
+        "notices": 6694,
+        "notice_links": 558,
+        "attachments": 270,
+        "notice_attachments": 271,
+        "bundles": 6694
+      },
+      "files": {
+        "notices": "notices-20260403-run-14.json",
+        "attachments": "attachments-20260403-run-14.json",
+        "notice_links": "notice-links-20260403-run-14.json",
+        "notice_attachments": "notice-attachments-20260403-run-14.json",
+        "bundles": "notices-bundle-20260403-run-14.json",
+        "manifest": "export-manifest-20260403-run-14.json"
+      }
+    }
+  }
+}

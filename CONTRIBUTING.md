@@ -11,14 +11,57 @@
 - `docs/architecture/current-architecture.md`
 - `.planning/PROJECT.md`
 
-只有在你需要接手当前 worktree 的执行现场、恢复上一个协作者的上下文时，再读 `.planning/STATE.md`。
+只有在你需要接手当前 worktree 的执行现场、恢复上一个协作者的上下文时，再读 `.planning/WORKSTREAMS.md` 和对应
+`.planning/workstreams/<slug>/STATE.md`。
 
 ## 分支与合流
 
 - 默认流程：`feature/worktree -> develop -> main`
 - `develop` 是长期集成分支，`main` 是稳定发布分支
 - 尚未合回 `develop` 的实现只能描述为 worktree-local progress，不能冒充 merged truth
-- 改动长期边界、contract 或 serving surface 时，同时更新对应 `docs/architecture/`、`docs/decisions/`、`docs/contracts/`、`docs/data/`
+- 改动长期边界、contract 或 serving surface 时，同时更新对应
+  `docs/architecture/`、`docs/decisions/`、`docs/contracts/`、`docs/data/`
+
+## Workstream Claim Workflow
+
+多人并发时，不再靠口头约定或把“谁在做什么”写回 tracked planning 文档； 默认使用 repo-owned harness workflow。
+
+开始前先在本机配置稳定 operator id：
+
+```bash
+uv run --all-packages python -m scripts.workstream_claim operator set \
+  <operator_id>
+```
+
+正常执行入口固定为 harness-managed session：
+
+```bash
+uv run --all-packages python -m scripts.workstream_harness codex shell \
+  <workstream-slug>
+uv run --all-packages python -m scripts.workstream_harness codex exec \
+  <workstream-slug> -- "<task>"
+```
+
+补充说明：
+
+- plain `codex` 继续用于普通讨论、代码评审、架构辨析和问答；这类会话不进入
+  harness terminal-result contract
+- harness wrapper 底层仍会执行 `claim -> heartbeat -> child process -> release`
+- interactive / exec run 的 runtime ledger 固定写入 gitignored
+  `.planning/runtime/harness/`
+- terminal result 只认 result artifact side channel；assistant message
+  只保留给人读或审计，不再承担 terminal result transport
+- 当前会话上下文可用 `uv run --all-packages python -m scripts.workstream_claim session
+  current` 查看
+- 交接、接受交接、强制接管与诊断分别使用 `claim handoff`、`claim accept`、`claim takeover`、`claim
+  doctor`
+- tracked planning truth 继续留在 `.planning/WORKSTREAMS.md` 与
+  `.planning/workstreams/<slug>/`
+- 运行时 claim/operator/session 状态只落到 gitignored 的 `.planning/runtime/`
+
+低层 `session shell/start` 仍保留为恢复与非-Codex runtime 的 escape hatch。 完整命令与恢复流程见
+`docs/runbooks/workstream-harness-workflow.md` 与
+`docs/runbooks/workstream-claim-workflow.md`。
 
 ## 环境准备
 
@@ -58,7 +101,11 @@ pnpm web:build
 
 - `docs/` 记录共享、可长期引用的真相
 - `.planning/PROJECT.md` 记录当前项目级范围与关键决策
-- `.planning/STATE.md` 只记录当前 worktree 的 `now / next / blockers / continuity`
+- `.planning/WORKSTREAMS.md` 记录 repo 级 active / deferred / backlog workstream 总览
+- `.planning/workstreams/<slug>/STATE.md` 记录单条 workstream 的 `now / next /
+  blockers / continuity`
+- `.planning/runtime/` 只保存 gitignored 的本地 operator 配置、claim lease、claim history
+  与 session pointer 辅助状态
 - `docs/plans/` 记录仍有前向指导价值的计划，不承担 merged truth
 
 如果你在改这些内容：

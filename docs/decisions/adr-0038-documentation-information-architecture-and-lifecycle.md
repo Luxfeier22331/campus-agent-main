@@ -3,9 +3,8 @@ doc_type: decision
 decision_id: ADR-0038
 status: accepted
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-22
 ---
-
 # ADR-0038 Documentation Information Architecture And Lifecycle
 
 ## 状态
@@ -42,7 +41,7 @@ Accepted on 2026-04-12.
 - 目标架构
 - 分区 landing pages
 - `.planning/PROJECT.md`
-- `.planning/STATE.md`
+- `.planning/WORKSTREAMS.md`
 
 具体子类内容通过各分区 `README.md` 导航，而不是继续在根入口堆长列表。
 
@@ -56,10 +55,12 @@ Accepted on 2026-04-12.
   - reference-oriented 稳定真相
 - `runbooks/`
   - how-to oriented 可重复操作步骤
-- `plans/`
-  - repo-specific forward implementation docs
+- `docs/plans/archive/`
+  - archived implementation snapshots、supporting references 与 superseded
+    predecessor
 - `.planning/`
-  - live execution state、phase artefacts 与 worktree-local execution context
+  - live execution state、native workstream entry、phase artefacts 与
+    worktree-local execution context
 
 这意味着：
 
@@ -90,22 +91,40 @@ Accepted on 2026-04-12.
 - 其他 canonical 文档类型
   - `active`
 
+补充规则：
+
+- 文档 front matter 的 `status` 只表达该文档自己的 lifecycle，不表达 repo 级 workstream registry
+  state
+- `.planning/WORKSTREAMS.md` 中的 `active / deferred / backlog / legacy` 是
+  planning registry 语义，不是 `docs/plans/*.md` 的第二套 front matter 枚举
+- 因此 backlog entry plan 继续使用 `status: deferred`；`backlog` 只在
+  registry、索引说明和正文解释里出现，不新增为 plan front matter status
+
 ### 决策 4：已完成或历史性计划必须退出默认阅读路径
 
-`docs/plans/` 中的计划默认分成四类：
+native workstream 的 live entry 固定迁到 `.planning/workstreams/<slug>/README.md`。
 
-- 仍指导前向实施的 `active`
-- 能力仍接受但当前没有 active wave 的 `deferred`
-- closeout 已完成的 `completed`
-- 只保留历史基线、对照或迁移价值的 `historical`
+`docs/plans/` 不再承载 active / deferred workstream entry；根层只保留索引页，archive namespace
+默认分成：
 
-`completed`、`historical` 与 `superseded` plan 不再进入根入口与默认阅读路径。
+- `completed`
+- `historical`
+- `superseded`
+
+这些 archived plan 不再进入根入口与默认阅读路径。
+
+`docs/plans/README.md` 只负责解释 archive contract，不再扮演 repo 级 active/deferred
+workstream registry。
+
+当 archived plan 累积到会污染根层命名空间时，应优先物理下沉到 `docs/plans/archive/`，而不是继续让根层目录承担
+archive 角色。
 
 历史证据型 `reference` 和历史操作型 `runbook` 可以继续保留在 `docs/` 下，但必须：
 
 - 显式标记为 `historical`
 - 退出根入口的默认阅读路径
 - 由对应分区 landing page 承担说明和聚合
+- 当 volume 已足以影响根层可读性时，进一步物理下沉到各自 `archive/` 子目录
 
 ### 决策 5：ADR 不删除旧决策，而是显式 supersede
 
@@ -133,7 +152,8 @@ Accepted on 2026-04-12.
 
 - 根 `README.md` 与 `docs/README.md` 缩回真正的入口页
 - 顶层文档分区补齐 `README.md`
-- 明显失真的 plan 状态被校正
+- native workstream entry 统一回到 `.planning/workstreams/<slug>/README.md`
+- `docs/plans/` 收口为 archive-only namespace
 - 后续文档清理按 lifecycle 继续推进，而不是继续向入口页堆内容
 
 ## 关联文档
@@ -142,4 +162,4 @@ Accepted on 2026-04-12.
 - `docs/architecture/current-architecture.md`
 - `docs/plans/README.md`
 - `.planning/PROJECT.md`
-- `.planning/STATE.md`
+- `.planning/WORKSTREAMS.md`

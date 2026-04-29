@@ -4,7 +4,6 @@ status: active
 created: 2026-04-01
 updated: 2026-04-01
 ---
-
 # Official Web Dynamic Shell Discovery
 
 ## 文档边界
@@ -28,14 +27,16 @@ updated: 2026-04-01
 - shell 页本身仍然保持 `dynamic_shell_page` / `manual_review`
 - browser-assisted discovery 只负责发现可复抓的同源列表页和详情页 URL
 - promoted URL 重新进入现有 `crawl.ts` request queue，使用当前 `manual_requeue` 语义
-- `manual_requeue` URL 不再继续作为通用 navigation frontier 扩张，避免详情页导航噪声反向污染 crawl frontier
+- `manual_requeue` URL 不再继续作为通用 navigation frontier 扩张，避免详情页导航噪声反向污染 crawl
+  frontier
 - promoted URL 最终仍由静态 HTML fetch + Cheerio extraction 产出 source-truth
 
 ## Host Config
 
 当前 host-scoped policy 放在：
 
-- [hosts.json](/home/reptilian/code/campus-agent/.worktrees/official-web-crawler/configs/sources/official_web/muc_public/hosts.json)
+- [hosts.json](/home/reptilian/code/campus-agent/configs/sources/official_web/mu
+  c_public/hosts.json)
 
 `dynamic_shell_discovery` 字段负责冻结：
 
@@ -77,7 +78,8 @@ pnpm --dir apps/official-web-collector crawl -- \
 然后执行 validator 和 QC gate：
 
 ```bash
-pnpm --dir apps/official-web-collector validate -- --output-dir /tmp/official-web-lib-dynamic-shell-20260401-v6 --json
+pnpm --dir apps/official-web-collector validate -- --output-dir \
+  /tmp/official-web-lib-dynamic-shell-20260401-v6 --json
 
 pnpm --dir apps/official-web-collector qc-report -- \
   --output-dir /tmp/official-web-lib-dynamic-shell-20260401-v6 \
@@ -86,7 +88,7 @@ pnpm --dir apps/official-web-collector qc-report -- \
 
 ## 抽样重点
 
-- 根页 `https://lib.muc.edu.cn/` 是否仍然留在 `dynamic_shell_page`
+- 根页 `<https://lib.muc.edu.cn/`> 是否仍然留在 `dynamic_shell_page`
 - `url-results.jsonl` 是否出现 `manual_requeue` 的同源 promoted URL
 - `dynamic-shell-discovery-audit.jsonl` 是否记录：
   - response / selector wait 是否命中
@@ -101,7 +103,11 @@ pnpm --dir apps/official-web-collector qc-report -- \
 
 ## 失败处理
 
-- 如果 Playwright 不可用，collector 会把问题写入 `failures.jsonl`，reason 为 `dynamic_shell_discovery_failed`
-- 如果 event-driven wait 始终没有命中，先看 `dynamic-shell-discovery-audit.jsonl`；只有确认前端确实没有出现稳定 response / selector 信号时，才回退扩大 `wait_after_load_ms`
-- 如果 promoted URL 因 query allowlist 被拒绝，应先修 host policy，不要在 extractor 里加 host-specific hack
+- 如果 Playwright 不可用，collector 会把问题写入 `failures.jsonl`，reason 为
+  `dynamic_shell_discovery_failed`
+- 如果 event-driven wait 始终没有命中，先看
+  `dynamic-shell-discovery-audit.jsonl`；只有确认前端确实没有出现稳定 response / selector
+  信号时，才回退扩大 `wait_after_load_ms`
+- 如果 promoted URL 因 query allowlist 被拒绝，应先修 host policy，不要在 extractor 里加
+  host-specific hack
 - 如果 promoted URL 进入 crawl 后仍落成 shell family，应继续保留 review，不要直接把 shell 页投成正文页

@@ -3,7 +3,6 @@ from campus_ingestion_core.in_memory_registries import (
     InMemoryRawAssetRegistry,
 )
 
-
 __all__ = [
     "InMemoryDocumentRegistry",
     "InMemoryRawAssetRegistry",

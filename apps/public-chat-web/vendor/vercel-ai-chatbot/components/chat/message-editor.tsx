@@ -9,13 +9,13 @@ export async function submitEditedMessage({
   message,
   text,
   setMessages,
-  regenerate,
+  sendMessage,
 }: {
   conversationId: string;
   message: ChatMessage;
   text: string;
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
-  regenerate: UseChatHelpers<ChatMessage>["regenerate"];
+  sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
 }) {
   await deleteTrailingMessages({
     conversationId,
@@ -28,11 +28,11 @@ export async function submitEditedMessage({
       return messages;
     }
 
-    return [
-      ...messages.slice(0, index),
-      { ...message, parts: [{ type: "text" as const, text }] },
-    ];
+    return messages.slice(0, index);
   });
 
-  regenerate();
+  await sendMessage({
+    role: "user",
+    parts: [{ type: "text", text }],
+  });
 }

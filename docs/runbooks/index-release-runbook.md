@@ -4,7 +4,6 @@ status: active
 created: 2026-03-28
 updated: 2026-04-11
 ---
-
 # Index Release Runbook
 
 ## 文档边界
@@ -19,12 +18,16 @@ updated: 2026-04-11
 它不重复：
 
 - 长期架构边界：`docs/architecture/target-architecture.md`
-- 数据平面分层：`docs/architecture/data-plane-architecture.md`
+- 数据平面分层：`docs/architecture/system/data-plane-architecture.md`
 - 术语定义：`docs/reference/runtime-serving-and-index-terms.md`
-- 旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
-- Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
-- Qdrant Cloud 备份 / 恢复操作：`docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md`
-- 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-co
+  llection-retention-and-expiration.md`
+- Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-an
+  d-object-store-transition.md`
+- Qdrant Cloud 备份 /
+  恢复操作：`docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md`
+- 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
+  `STATE.md`
 
 ## 前置检查
 
@@ -43,14 +46,21 @@ updated: 2026-04-11
 建议先检查：
 
 ```bash
-uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild tests.ingestion.test_registry_scope_release tests.retrieval.test_backend_qdrant
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_corpus_runtime_profile \
+  tests.ingestion.test_rebuild_local_data \
+  tests.ingestion.test_provider_result_replay_rebuild \
+  tests.ingestion.test_registry_scope_release \
+  tests.retrieval.test_backend_qdrant
 ```
 
 ## Qdrant Cloud Proxy Rule
 
 当前 WSL operator shell 对 Qdrant Cloud 有一个已验证的固定约束：
 
-- 如果进程继承了宿主机代理值，`curl "$QDRANT_URL/collections"`、`QdrantClient.get_collections()` 和 `get_aliases()` 都可能直接超时
+- 如果进程继承了宿主机代理值，`curl
+  "$QDRANT_URL/collections"`、`QdrantClient.get_collections()` 和 `get_aliases()`
+  都可能直接超时
 - 对 `release_registry_scope`、Qdrant 健康检查和 alias 检查，不能只做 `env -u HTTP_PROXY ...`
 - 原因是 repo bootstrap 会从 `.env` 回填缺失 env；仅仅 unset 变量，坏代理值仍可能被重新注入当前进程
 
@@ -81,7 +91,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 ```bash
 HTTP_PROXY='' HTTPS_PROXY='' ALL_PROXY='' NO_PROXY='*' \
 http_proxy='' https_proxy='' all_proxy='' no_proxy='*' \
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.release_registry_scope ...
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.release_registry_scope ...
 ```
 
 原因：
@@ -134,12 +145,15 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 - `DocumentRegistry.list_by_scope(...)`
 - runtime-profile-governed serving/current selection
-- `document_units_object_key -> chunking -> embedding -> indexing -> optional alias publish`
+- `document_units_object_key -> chunking -> embedding -> indexing -> optional
+  alias publish`
 
-对上游已经是 canonical `document-units` 的派生 collection，先执行 collection-specific materialization，再走同一个 release shell。当前实例是 `curriculum/program_semester_facts`：
+对上游已经是 canonical `document-units` 的派生 collection，先执行 collection-specific
+materialization，再走同一个 release shell。当前实例是 `curriculum/program_semester_facts`：
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.materialize_curriculum_program_semester_facts
+uv run --all-packages python -m \
+  campus_ingestion_worker.materialize_curriculum_program_semester_facts
 
 uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   --corpus curriculum \
@@ -158,8 +172,11 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 补充说明：
 
-- `student_handbook` 的一次 replay release 会同时 fan out 并索引 repo-tracked source projections，例如 `campus_services/contact_directory` 与 `campus_services/service_catalog`
-- `offline_preparation` collection 只要已经纳入这条 release-managed lifecycle，也应使用稳定 alias；不要等“正式开放 query-serving”后再补做 alias 迁移
+- `student_rules` 的一次 replay release 会同时 fan out 并索引 repo-tracked source
+  projections，例如 `campus_services/contact_directory` 与
+  `campus_services/service_catalog`
+- `offline_preparation` collection 只要已经纳入这条 release-managed lifecycle，也应使用稳定
+  alias；不要等“正式开放 query-serving”后再补做 alias 迁移
 
 ## 标准流程
 
@@ -204,7 +221,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_index \
 
 ### 3. 已导入 registry scope 的发布
 
-当 source-truth replay/import 已经完成，并且 registry 中已有当前 scope truth 时，不需要再走 `provider_response_replay`。例如当前 `official_web/muc_public_pages`：
+当 source-truth replay/import 已经完成，并且 registry 中已有当前 scope truth 时，不需要再走
+`provider_response_replay`。例如当前 `official_web/muc_public_pages`：
 
 ```bash
 uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
@@ -227,7 +245,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - release 输入来自 registry + derived bucket，不回到 raw/crawl 输出
 - collection selection 仍由 `runtime-profile.json` 控制
 - `offline_preparation` scope 也应使用稳定 alias + versioned physical collection
-- 如果某个派生 collection 的输入来自另一条 canonical document scope，先做 materialization，再做 `release_registry_scope`
+- 如果某个派生 collection 的输入来自另一条 canonical document scope，先做 materialization，再做
+  `release_registry_scope`
 
 ## 发布后检查
 
@@ -274,9 +293,9 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 1. 从 `index-release.json` 读取：
    - `serving_alias`
    - `previous_physical_collection_name`
-2. 将 alias 切回上一个 physical collection
-3. 重新做 retrieval 抽样
-4. 记录 rollback 原因
+1. 将 alias 切回上一个 physical collection
+1. 重新做 retrieval 抽样
+1. 记录 rollback 原因
 
 回滚后仍保留：
 
@@ -294,7 +313,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   - 最新 manifest 的 `previous_physical_collection_name`
   - 至少保留 `7` 天，且要等更新 release 的 post-publish validation / acceptance 关闭
 - `migration_baseline`
-  - 当 release 涉及 embedding model / dimensions、vector schema、chunk profile、cleaning policy、retrieval shape 迁移时，额外保留一版迁移前基线
+  - 当 release 涉及 embedding model / dimensions、vector schema、chunk
+    profile、cleaning policy、retrieval shape 迁移时，额外保留一版迁移前基线
   - 至少保留 `30` 天
 - `archive_candidate`
   - 不再承担回滚或迁移保护角色的旧 collection
@@ -313,11 +333,11 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 删除前必须同时确认：
 
 1. 目标 collection 不是任何 alias 的 `current`
-2. 目标 collection 不是最新 manifest 的 `previous`
-3. 目标 collection 不是仍在保护窗口内的 `migration_baseline`
-4. 对应 release 的 `index-release.json` 与 `validation-summary.json` 已在对象存储落盘
-5. 当前没有 active incident、回归调查或人工验收仍依赖该 release
-6. Qdrant Cloud backup 或显式 snapshot/export 已覆盖这次 release 的恢复窗口
+1. 目标 collection 不是最新 manifest 的 `previous`
+1. 目标 collection 不是仍在保护窗口内的 `migration_baseline`
+1. 对应 release 的 `index-release.json` 与 `validation-summary.json` 已在对象存储落盘
+1. 当前没有 active incident、回归调查或人工验收仍依赖该 release
+1. Qdrant Cloud backup 或显式 snapshot/export 已覆盖这次 release 的恢复窗口
 
 ### 清理步骤
 
@@ -325,14 +345,14 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
    - `serving_alias`
    - `physical_collection_name`
    - `previous_physical_collection_name`
-2. 列出同一 `collection_prefix` 下的 physical collections。
-3. 标出：
+1. 列出同一 `collection_prefix` 下的 physical collections。
+1. 标出：
    - `current`
    - `previous`
    - `migration_baseline`
    - `archive_candidate`
-4. 只删除通过全部门禁的 `archive_candidate`。
-5. 记录本次清理：
+1. 只删除通过全部门禁的 `archive_candidate`。
+1. 记录本次清理：
    - alias
    - 删除的 physical collection 名称
    - 对应 release id
@@ -341,8 +361,10 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 ### 额外说明
 
-- 删除旧 physical collection 不等于删除历史文档版本；历史版本保留语义仍由 registry / object-store truth 承担
-- `offline_preparation` collection 和 `query_serving` collection 使用同一套 retention 规则
+- 删除旧 physical collection 不等于删除历史文档版本；历史版本保留语义仍由 registry / object-store truth
+  承担
+- `offline_preparation` collection 和 `query_serving` collection 使用同一套 retention
+  规则
 - `--reset-index` 只用于显式硬重置，不用于日常 retention cleanup
 
 ## 禁止事项

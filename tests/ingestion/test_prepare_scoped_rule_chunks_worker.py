@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.in_memory_registries import InMemoryDocumentRegistry
 from campus_ingestion_core.models import DocumentRegistryRecord
-
 
 worker = importlib.import_module("campus_ingestion_worker.prepare_scoped_rule_chunks")
 
@@ -124,7 +122,9 @@ class PrepareScopedRuleChunksWorkerCliTest(unittest.TestCase):
             registry_path = root / "documents.json"
             InMemoryDocumentRegistry((record,), backing_path=registry_path)
             object_root = root / "object-store"
-            derived_units_path = object_root / "campus-rag-derived" / record.document_units_object_key
+            derived_units_path = (
+                object_root / "campus-rag-derived" / record.document_units_object_key
+            )
             derived_units_path.parent.mkdir(parents=True, exist_ok=True)
             derived_units_path.write_bytes(
                 _rows(document_id=record.document_id, version_id=record.version_id)

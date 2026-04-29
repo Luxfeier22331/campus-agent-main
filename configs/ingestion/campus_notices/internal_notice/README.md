@@ -1,128 +1,196 @@
-## internal_notice collection config
+# internal_notice collection config
 
-This directory holds the repo-tracked config scaffolding for the
-`internal_notice` collection within the `campus_notices` corpus.
+This directory holds the repo-tracked config contract for
+`campus_notices/internal_notice`.
 
-- `runtime-profile.json`: canonical runtime gate for bootstrap import plus serving policy
-- `canonical-profile.json`: primary source unit, identity strategy, and projection notes
-- `chunk-profile.json`: current generic runtime defaults for chunk preparation admission
-- `source-projections.v1.json`: offline source-truth replay contract for clean parent notices and derived attachment documents
-- `notice-family-classification.v1.json`: read-only notice-family admission config for policy-first stratification
-- `promotion-routing.v1.json`: source-side scaffold for deciding which canonical documents may be promoted into `regulations/institutional_regulations`
-- `historical-batches/run14-policy-regulation-core.v1.json`: first curated donor intake batch for stable regulation/policy notices
-- `historical-batches/run14-policy-regulation-expanded.v1.json`: broader policy_regulation donor batch with body-shape stratification for policy-text handling
-- `historical-batches/run14-attachment-routing-probe.v1.json`: second curated donor intake batch for attachment route coverage (`text_extractable` / `ocr_required` / `reference_only`)
-- `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md`: controlled donor normalization + local smoke workflow
-- `docs/reference/authenticated-notice-historical-donor-intake-evidence.md`: current accepted evidence for the donor intake batches
-- `docs/reference/internal-notice-offline-preparation-strategy.md`: collection-specific offline preparation and lane strategy
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`: collection-specific quality acceptance criteria before any index release
-- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`: freeze that `internal_notice` remains source/triage and canonical regulation text must cross a separate promotion boundary
-- `docs/reference/internal-notice-manual-review-future-query-contract.md`: freeze the future query-serving reopen contract for `annual_cycle_rule` / `time_bound_operational_rule`; this is no longer the current import gate
-- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`: freeze the unified `regulations/scoped_rules` holding collection for import-first consumption of adjudicated scoped rules
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`: forward implementation plan for promoting `policy_regulation` notice content from `internal_notice` into a dedicated `regulations/*` target without rewriting current merged truth
-- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest ...`: read-only promotion manifest builder for `candidate / hold / manual_review_required` stratification before any target-collection writes; supports repo-local snapshot mode via `--documents-json --source-truth-inventory-json --object-store-root`
-- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`: repo-owned post-release consumption worker that materializes `promote_candidate` rows into `regulations/institutional_regulations` via scope refresh; also supports repo-local snapshot mode via `--documents-json --source-truth-inventory-json --object-store-root`
-- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`: repo-owned post-adjudication worker that materializes scoped-rule rows into `regulations/scoped_rules` via scope refresh; also supports repo-local snapshot mode via `--documents-json --source-truth-inventory-json --object-store-root`
-- `.planning/archive-docs/docs/plans/authenticated-notice-source-attachment-key-reorganization.md`: 已完成的 source bucket attachment key cleanup 历史方案
+It explains:
 
-Current runtime truth:
+- which tracked config files define current collection behavior
+- which worker/materialization entrypoints consume those files
+- which files are active runtime truth versus non-default supporting inputs
 
-- source channel: `authenticated_notice_portal`
-- primary source unit: `notice`
-- serving stage: `offline_preparation`
-- retrieval enabled: `false`
-- query enabled by default: `false`
-- collection visibility baseline: `restricted`
-- default entitlement baseline: `campus_members`
+It does not carry:
 
-Current guarded release truth:
+- fixed release snapshots
+- one-off operator caveats
+- historical donor acceptance evidence
+- archive reading guides
 
-- local Postgres Wave D chain is fully closed through:
-  - `closeout_run_id=local-postgres-wave-d-full-20260410-141615`
-  - `preparation_run_id=prep-local-postgres-wave-d-full-20260410-141615`
-  - `promotion_id=promotion-0001`
-  - `release_id=r20260411_090101`
-  - `physical_collection_name=internal_notice__r20260411_090101`
-- current release manifest facts:
-  - `document_count=21`
-  - `point_count=213`
-  - `validation_status=passed`
-  - `published_at=null`
-- `internal_notice` alias intentionally remains unpublished; this collection is still `restricted + offline_preparation`
-- current WSL operator shells must blank uppercase/lowercase proxy vars before Qdrant Cloud release or inspection commands; simple `env -u HTTP_PROXY ...` is not sufficient in this repo bootstrap path
+## Active config files
 
-`internal_notice` is the first restricted rollout target for authenticated portal notices.
-It is intentionally isolated from public surfaces and should not be exposed as a default
-query-serving collection until restricted document authorization, projection, and leakage
-guards are verified end-to-end.
+- `runtime-profile.json`
+  - canonical runtime gate for import posture, serving stage, and
+    query/retrieval admission
+- `canonical-profile.json`
+  - primary source unit, collection identity, and source-truth projection notes
+- `chunk-profile.json`
+  - current generic chunk-preparation runtime defaults
+- `source-projections.v1.json`
+  - source-truth replay contract for parent notices and derived attachment
+    documents
+- `notice-family-classification.v1.json`
+  - read-only notice-family admission metadata used by inventory/replay/operator
+    read models
+  - owns explicit family route policy, terminal title rules, residual
+    default-family overrides, machine-processing policy, and attachment
+    processing policy
+  - current taxonomy covers high-value notice-level query families, service
+    status candidate families, procurement/history, regulation candidates, and
+    low-value defer/no-adoption families
+- `routing-taxonomy-eval.v1.jsonl`
+  - fixed routing taxonomy fixture consumed by the deterministic eval gate for
+    `notice_family`, `suggested_consumption_route`, and
+    `machine_processing_policy`; eval also derives or checks
+    `attachment_processing_policy` so low-value notices do not become an
+    attachment/OCR backlog
+- `promotion-routing.v1.json`
+  - downstream routing scaffold for `regulations/institutional_rules` and
+    `regulations/scoped_rules`
+- `consumption-layer-schema.sql`
+  - repo-owned PG schema artifact / operator runbook for consumption projection,
+    read model, admission current/event log, and multimodal attempt stores
+- `multimodal-decision-eval.v1.jsonl`
+  - fixed multimodal action/classification fixture consumed by the worker eval
+    gate
+- `multimodal-visual-eval.v1.jsonl`
+  - fixed multimodal visual-understanding fixture for groundedness checks:
+    required text spans, forbidden claims, required reason codes, and minimum
+    confidence
 
-It is also explicitly a source-channel-first triage collection, not a formal regulation
-collection. Wrapper notices, attachment outcome truth, and replay evidence remain here;
-only separately promoted canonical regulation text may later enter `regulations/*`.
+## Active runtime posture
 
-Offline source-truth replay rules:
+Current collection posture is:
 
-- parent notice documents only carry notice body structure
-- attachment refs remain in source-truth and do not participate in parent chunk identity
-- downloaded attachments are materialized as derived restricted child documents
+- `source_channel=authenticated_notice_portal`
+- `primary_source_unit=notice`
+- source OCR uses `source_ocr_provider=mineru_api`,
+  `source_ocr_model=vlm`, and
+  `source_ocr_image_routing_strategy=mineru_primary`
+- `source_ocr_fallback_enabled=true`; Paddle async OCR remains the fallback
+  provider when a MinerU image/attachment attempt fails and Paddle credentials
+  are configured
+- `serving_stage=offline_preparation`
+- `retrieval_enabled=false`
+- `query_enabled_by_default=false`
+- `collection_visibility=restricted`
+- `default_entitlement=campus_members`
 
-Current chunk-preparation truth:
+Current interpretation is:
 
-- parent notice and attachment child docs must not share one global quality target
-- the current `220/320/32/32` values are generic runtime defaults, not the final lane-specific semantic policy
-- verified chunk preparation is a separate stage from `release_registry_scope`
-- `release_registry_scope` now requires an explicit successful `preparation_run_id`
-- structural preparation pass is not quality acceptance; attachment cleanup / extraction / chunk quality must be accepted separately
-- notice-family stratification is a read-only admission layer above replay/preparation; it does not rewrite source-truth or attachment routing
-- repo-local live collector notice-type config may intentionally be narrower than historical donor scope; current tracked live default only enables `5 / 办公通知`
-- historical donor processing still starts from full bundle family analysis, then admits `policy_regulation` first; current repo-tracked policy batches now include both a small governance core batch and a broader 16-notice expanded batch before cross-family attachment probes
-- verified chunk preparation may advance into `release_registry_scope --no-publish-alias`, but alias publish remains a separate operator decision
+- `internal_notice` remains a source-channel-first triage collection
+- it is not the canonical regulation corpus
+- replay and chunk preparation truth stay separate from release / alias publish
+- downstream regulation materialization consumes promoted candidates and does
+  not rewrite this collection
 
-Accepted attachment-consumption design:
+## Worker / materialization consumers
 
-- `docx` default lane: `text_extractable`
-- `pdf` default lane: `ocr_required`
-- policy / handbook `pdf` should trust cloud async OCR as the canonical extraction path
-- native PDF extraction is only a diagnostics / quality-probe path, not the default success path
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest
+  ...`
+  - read-only promotion manifest builder for `candidate / hold /
+    requires_multimodal_processing`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.sample_authenticated_notice_routing_candidates ...`
+  - read-only stratified routing sampler for notice-family taxonomy review; it
+    can replay a historical bundle or sample current source-truth inventory, and
+    does not create consumption admission
+  - inventory mode reads source-truth `content-blocks.jsonl` when object-store
+    env is available so residual routing can use body text; pass
+    `--skip-content-blocks` for fast title/type-only sampling
+  - pass `--audit-output-path <path>` to write a full read-only taxonomy audit
+    artifact with terminal default-family residual notices and deterministic
+    clusters; this artifact is operator evidence, not an admission manifest
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.evaluate_authenticated_notice_routing_taxonomy
+  --fail-on-error`
+  - deterministic routing taxonomy gate for repo-tracked JSONL fixtures; it
+    validates notice family, suggested route, and machine-processing policy
+    before taxonomy rule changes are promoted
 
-Current promotion-manifest guardrails:
+Current routing taxonomy groups include:
 
-- `notice_body` parent rows may only become promotion candidates when the body itself has standalone regulation structure; wrapper summaries stay in `internal_notice`
-- document age is not a standalone exclusion signal for campus regulations
-- `暂行/试行` does not by itself degrade a document to `manual_review_required`
-- annual-cycle/program-specific rules such as 招生/推免/硕博连读/英才计划实施细则 currently still route to `manual_review_required` in the read-only manifest path
-- body text with explicit temporary or sunset semantics such as 假期期间规定、正式运营前、临时医疗点 currently still route to `manual_review_required` in the read-only manifest path
-- if inventory expects attachment child docs but the current snapshot does not contain them, the manifest must emit `manual_review_required` rather than a business hold/candidate result
-- attachment provenance fields remain mandatory for attachment-derived candidates, but stay nullable for parent-body candidates
-- repo-level downstream target for these adjudicated scoped rules is now `regulations/scoped_rules`, governed by `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
-- source-side read-only manifest output still remains `manual_review_required` for these scoped-rule classes; downstream consumption now happens through the dedicated `materialize_internal_notice_scoped_rules` worker instead of rewriting `campus_notices/internal_notice`
+- `regulation_candidate`: stable policy/regulation texts such as management
+  measures, implementation rules, implementation measures, provisions,
+  management norms, implementation opinions, charters, bylaws, and work
+  procedures; learning sessions, interpretation meetings, promotional
+  materials, plans, and reports are not treated as regulation bodies
+- high-value `notice_level_query`: course/teaching, academic lifecycle,
+  academic course/exam operations, academic program selection, student
+  applications, student status / registration, student program / award
+  selection, document collection, exchange/visit, research project,
+  safety/compliance, finance/payment, health/medical, health/welfare service,
+  form/template, survey collection, IT platform operations, library resources,
+  library acquisition service, and operational procedures
+- `service_status_candidate`: service windows, facility status, IT/platform
+  status, library opening/status, transport/commute status, and
+  facility/transport/classroom availability
+- `defer` / low-value machine skip: lectures, activities, meeting/training,
+  competition, recruitment, staff/internal admin, research publicity calls,
+  governance/party life, internal governance events, general cultural publicity,
+  cultural publicity activities, and campus news/publicity
+- fallback `other` with no actionable signal closes as terminal `no_adoption`
+  with `machine_processing_policy=skip`; deterministic high-confidence clusters
+  are promoted into explicit routes, while clearly unconsumable terminal titles
+  such as obituaries also close as `no_adoption`. Bare "通知/公告/通告" titles
+  require source-truth body text before they can be promoted into a service or
+  action route. There is no deferred human handling state in this taxonomy
+- attachment processing policy is derived from route: admitted high-value
+  routes with attachment refs use `process`; body-only admitted routes use
+  `not_required`; `defer` and `no_adoption` use
+  `metadata_only`, meaning source-truth may retain attachment facts but
+  operator补采不应下载、OCR、materialize, or send them to multimodal processing
+- current source-truth inventory replay can be audited without bundle input;
+  historical bundle replay remains supported for wider taxonomy regression
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
+  - target-collection materializer for `regulations/institutional_rules`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.dry_run_internal_notice_regulation_document_site ...`
+  - selected dry-run path for `regulation_candidate` notices
+  - writes local `regulations/institutional_rules` and `regulations/scoped_rules`
+    registry/object-store artifacts plus canonical document reader assets from
+    snapshot inputs
+  - uses `target_surface=regulations/*` for admission, then lets consumption
+    projection resolve each notice into its concrete regulation target scope
+  - reads the input object-store snapshot but writes generated objects into the
+    dry-run output overlay
+  - stops before release, retrieval/index preparation, and query-serving
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`
+  - target-collection materializer for `regulations/scoped_rules`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.evaluate_internal_notice_multimodal_decisions`
+  - deterministic action gate for repo-tracked multimodal decision fixtures
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.evaluate_internal_notice_multimodal_visual`
+  - deterministic visual fixture gate for grounded retain/no-adoption decisions;
+    it uses synthetic/desensitized fixture outputs and is not a hosted eval upload
 
-Current post-release consumption truth:
+These entrypoints support repo-local snapshot mode via:
 
-- `internal_notice` 当前已经具备 repo-owned target-collection consumption path：
-  - `build_internal_notice_regulation_promotion_manifest`
-  - `materialize_internal_notice_regulation_candidates`
-  - `materialize_internal_notice_scoped_rules`
-- 这条路径只会刷新 `regulations/institutional_regulations` 的 registry/object-store truth
-- `materialize_internal_notice_scoped_rules` 只会刷新 `regulations/scoped_rules` 的 registry/object-store truth
-- 当 target document 的 semantic content hash / version id 不变，但 provenance metadata 扩展时，这条路径也必须重写 target `document-units/chunks`，不能复用旧 artifact
-- 它不会改写 `campus_notices/internal_notice`
-- 它不会自动执行 chunk preparation、embedding、Qdrant write、release 或 alias publish
+- `--documents-json`
+- `--source-truth-inventory-json`
+- `--object-store-root`
 
-Current config sync note:
+## Non-default supporting inputs
 
-- the accepted design above is now documented by `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
-- `source-projections.v1.json` now routes `pdf` into `ocr_required`, includes `application/pdf`, and uses the broadened OCR kind metadata needed by replay artifacts
+- `historical-batches/run14-policy-regulation-core.v1.json`
+- `historical-batches/run14-policy-regulation-expanded.v1.json`
+- `historical-batches/run14-attachment-routing-probe.v1.json`
 
-Live taxonomy reference:
+These files are retained bounded inputs for donor-era replay/promotion probes.
+They are not the default live operator path and should not be read as current
+collection truth.
 
-- `docs/reference/authenticated-notice-portal-live-observations.md`
-- `docs/reference/authenticated-notice-historical-donor-intake-evidence.md`
+## Canonical references
 
-Read-only notice-family analysis entry:
-
-- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.analyze_authenticated_notice_notice_families --bundle-path <notices-bundle.json>`
-
-Historical donor normalization + local smoke entry:
-
-- `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md`
+- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/reference/internal-notice-manual-review-future-query-contract.md`
+- `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
+- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
+- `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
+- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`

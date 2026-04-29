@@ -1,0 +1,415 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { buildCourseMapDataImportName, buildCourseMapDataModule } from "./course-map";
+import {
+	asArray,
+	asRecord,
+	buildAppSrcImportPath,
+	buildDocumentMetaPanelBlock,
+	buildReaderFrontmatterLines,
+	type DocumentReaderMetadata,
+	formatSourcePageRange,
+	HANDBOOK_SOURCE_PROJECTIONS_PATH,
+	HANDBOOK_YEAR,
+	type HandbookFlowGraphDoc,
+	jsonString,
+	removeStaleGeneratedFiles,
+	SOURCE_BUCKET,
+	writeText,
+} from "./shared";
+import type { ObjectStoreClient } from "./storage";
+
+const FLOW_GRAPH_FILENAME = "flow-graph.json";
+const FLOW_GRAPH_SCHEMA_VERSION = "handbook_service_navigation_projection_v1";
+const CURATED_FLOW_GRAPH_SCHEMA_VERSION = "handbook_curated_service_flow_graph.v1";
+const HANDBOOK_CURATED_FLOW_GRAPHS_DIR = resolve(
+	HANDBOOK_SOURCE_PROJECTIONS_PATH,
+	"../curated-flow-graphs",
+);
+const HANDBOOK_FLOW_GRAPH_DOC_SLUG_OVERRIDES = new Map<string, string>([
+	["handbook_navigation_service_catalog", "central-minzu-student-dormitory-management-workflow"],
+]);
+
+export async function syncHandbookFlowGraphArtifacts(input: {
+	client: ObjectStoreClient;
+	docsRoot: string;
+	routeDepthFromDocsRoot: number;
+	targetDir: string;
+}): Promise<HandbookFlowGraphDoc[]> {
+	const generatedDir = resolve(input.docsRoot, "../src/generated/handbook-flow-graphs");
+	const generatedDocs: HandbookFlowGraphDoc[] = [];
+	const expectedDataFiles = new Set<string>();
+
+	for (const projection of loadHandbookFlowGraphProjectionConfigs()) {
+		const payload = await loadHandbookFlowGraphDataPayload(input.client, projection);
+		if (!payload) {
+			continue;
+		}
+		const title = requireText(projection, "target_title");
+		const slug = buildHandbookFlowGraphDocSlug(projection);
+		const dataModuleName = `${slug}.data.ts`;
+		const dataImportName = buildCourseMapDataImportName(slug);
+		const dataImportPath = buildAppSrcImportPath({
+			routeDepthFromDocsRoot: input.routeDepthFromDocsRoot,
+			srcPath: `generated/handbook-flow-graphs/${slug}.data`,
+		});
+		writeText(
+			resolve(generatedDir, dataModuleName),
+			buildCourseMapDataModule(payload, {
+				biomeFilePath: `apps/public-docs/src/generated/handbook-flow-graphs/${dataModuleName}`,
+			}),
+		);
+		writeText(
+			resolve(input.targetDir, `${slug}.mdx`),
+			buildHandbookFlowGraphMarkdown({
+				componentImportPath: buildAppSrcImportPath({
+					routeDepthFromDocsRoot: input.routeDepthFromDocsRoot,
+					srcPath: "components/HandbookFlowGraphSection",
+				}),
+				dataImportName,
+				dataImportPath,
+				metadata: buildHandbookFlowGraphMetadata(projection),
+				title,
+			}),
+		);
+		expectedDataFiles.add(dataModuleName);
+		generatedDocs.push({ filename: `${slug}.mdx`, slug, title });
+	}
+	removeStaleGeneratedFiles(generatedDir, expectedDataFiles);
+	return generatedDocs;
+}
+
+async function loadHandbookFlowGraphDataPayload(
+	client: ObjectStoreClient,
+	projection: Record<string, unknown>,
+): Promise<Record<string, unknown> | undefined> {
+	const curatedPayload = loadCuratedHandbookFlowGraphDataPayload(projection);
+	if (curatedPayload) {
+		return curatedPayload;
+	}
+	const projectionName = requireText(projection, "projection_name");
+	const flowGraphKey = await findHandbookFlowGraphObjectKey(client, projectionName);
+	if (!flowGraphKey) {
+		return;
+	}
+	const rawBytes = await client.readOptionalBytesObject({
+		bucket: SOURCE_BUCKET,
+		key: flowGraphKey,
+	});
+	if (!rawBytes) {
+		return;
+	}
+	const payload = JSON.parse(new TextDecoder().decode(rawBytes)) as Record<string, unknown>;
+	validateHandbookFlowGraphPayload(payload, projection);
+	return buildHandbookFlowGraphDataPayload(payload);
+}
+
+function loadCuratedHandbookFlowGraphDataPayload(
+	projection: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+	const slug = buildHandbookFlowGraphDocSlug(projection);
+	const path = resolve(HANDBOOK_CURATED_FLOW_GRAPHS_DIR, `${slug}.v1.json`);
+	if (!existsSync(path)) {
+		return;
+	}
+	const payload = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+	validateCuratedHandbookFlowGraphPayload(payload, projection);
+	return requireMapping(payload, "documentData");
+}
+
+function loadHandbookFlowGraphProjectionConfigs(): Record<string, unknown>[] {
+	const payload = JSON.parse(readFileSync(HANDBOOK_SOURCE_PROJECTIONS_PATH, "utf-8"));
+	return asArray(asRecord(payload)?.projections)
+		.map(asRecord)
+		.filter(isRecord)
+		.filter(
+			(projection) =>
+				projection.attachment_role === "service_navigation_document" &&
+				projection.target_collection === "service_catalog",
+		);
+}
+
+async function findHandbookFlowGraphObjectKey(
+	client: ObjectStoreClient,
+	projectionName: string,
+): Promise<string | undefined> {
+	const suffix = `/projection/${projectionName}/${FLOW_GRAPH_FILENAME}`;
+	for (const prefix of [
+		`official_pdf/student-handbook/${HANDBOOK_YEAR}/`,
+		"official_pdf/student-handbook/",
+	]) {
+		const candidates = (await client.listObjectKeys({ bucket: SOURCE_BUCKET, prefix })).filter(
+			(key) => key.endsWith(suffix),
+		);
+		if (candidates.length > 0) {
+			return candidates.sort().at(-1);
+		}
+	}
+	return;
+}
+
+function validateHandbookFlowGraphPayload(
+	payload: Record<string, unknown>,
+	projection: Record<string, unknown>,
+): void {
+	const projectionName = requireText(projection, "projection_name");
+	const targetTitle = requireText(projection, "target_title");
+	const sourcePageStart = requireInt(projection, "source_page_start");
+	const sourcePageEnd = requireInt(projection, "source_page_end");
+	if (payload.schema_version !== FLOW_GRAPH_SCHEMA_VERSION) {
+		throw new Error(
+			`${projectionName} flow graph schema mismatch: ${String(payload.schema_version)}`,
+		);
+	}
+	if (payload.projection_name !== projectionName) {
+		throw new Error(
+			`${projectionName} flow graph projection mismatch: ${String(payload.projection_name)}`,
+		);
+	}
+	if (payload.target_title !== targetTitle) {
+		throw new Error(
+			`${projectionName} flow graph target_title mismatch: ${String(payload.target_title)}`,
+		);
+	}
+	if (requireInt(payload, "source_page_start") !== sourcePageStart) {
+		throw new Error(`${projectionName} flow graph source_page_start mismatch`);
+	}
+	if (requireInt(payload, "source_page_end") !== sourcePageEnd) {
+		throw new Error(`${projectionName} flow graph source_page_end mismatch`);
+	}
+	const flowGraph = requireMapping(payload, "flow_graph");
+	if (flowGraph.document_title !== targetTitle) {
+		throw new Error(`${projectionName} flow_graph document_title mismatch`);
+	}
+	if (iterBodyBearingFlowSteps(flowGraph).length === 0) {
+		throw new Error(`${projectionName} flow graph has no body-bearing steps`);
+	}
+}
+
+function validateCuratedHandbookFlowGraphPayload(
+	payload: Record<string, unknown>,
+	projection: Record<string, unknown>,
+): void {
+	const projectionName = requireText(projection, "projection_name");
+	const targetTitle = requireText(projection, "target_title");
+	const sourcePageStart = requireInt(projection, "source_page_start");
+	const sourcePageEnd = requireInt(projection, "source_page_end");
+	if (payload.schemaVersion !== CURATED_FLOW_GRAPH_SCHEMA_VERSION) {
+		throw new Error(
+			`${projectionName} curated flow graph schema mismatch: ${String(payload.schemaVersion)}`,
+		);
+	}
+	if (payload.projectionName !== projectionName) {
+		throw new Error(
+			`${projectionName} curated flow graph projection mismatch: ${String(payload.projectionName)}`,
+		);
+	}
+	const documentData = requireMapping(payload, "documentData");
+	if (documentData.title !== targetTitle) {
+		throw new Error(
+			`${projectionName} curated flow graph title mismatch: ${String(documentData.title)}`,
+		);
+	}
+	if (requireInt(documentData, "sourcePageStart") !== sourcePageStart) {
+		throw new Error(`${projectionName} curated flow graph sourcePageStart mismatch`);
+	}
+	if (requireInt(documentData, "sourcePageEnd") !== sourcePageEnd) {
+		throw new Error(`${projectionName} curated flow graph sourcePageEnd mismatch`);
+	}
+	if (
+		documentData.extractionStatus !== "ready" &&
+		documentData.extractionStatus !== "needs_review"
+	) {
+		throw new Error(`${projectionName} curated flow graph extractionStatus mismatch`);
+	}
+	if (iterDocumentDataFlowSteps(documentData).length === 0) {
+		throw new Error(`${projectionName} curated flow graph has no body-bearing steps`);
+	}
+}
+
+function buildHandbookFlowGraphDocSlug(projection: Record<string, unknown>): string {
+	const projectionName = requireText(projection, "projection_name");
+	const override = HANDBOOK_FLOW_GRAPH_DOC_SLUG_OVERRIDES.get(projectionName);
+	if (override) {
+		return override;
+	}
+	const title = requireText(projection, "target_title");
+	return title.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || projectionName;
+}
+
+function buildHandbookFlowGraphDataPayload(
+	payload: Record<string, unknown>,
+): Record<string, unknown> {
+	const flowGraph = requireMapping(payload, "flow_graph");
+	const manualReviewRequired = Boolean(flowGraph.global_manual_review_required);
+	const pageFindings: Record<string, unknown>[] = [];
+	for (const page of asArray(flowGraph.page_findings).map(asRecord).filter(isRecord)) {
+		const flows = buildHandbookFlowPayloads(page);
+		if (flows.length === 0) {
+			continue;
+		}
+		pageFindings.push({
+			sourcePage: requireInt(page, "source_page"),
+			pageHeading: String(page.page_heading ?? "").trim(),
+			flows,
+		});
+	}
+	return {
+		title: requireText(payload, "target_title"),
+		sourceHandbookSection: requireText(payload, "source_handbook_section"),
+		sourcePageStart: requireInt(payload, "source_page_start"),
+		sourcePageEnd: requireInt(payload, "source_page_end"),
+		manualReviewRequired,
+		extractionStatus: manualReviewRequired ? "needs_review" : "ready",
+		pageFindings,
+	};
+}
+
+function buildHandbookFlowPayloads(page: Record<string, unknown>): Record<string, unknown>[] {
+	const flows: Record<string, unknown>[] = [];
+	for (const flow of asArray(page.flows).map(asRecord).filter(isRecord)) {
+		const steps = buildHandbookFlowStepPayloads(flow);
+		if (steps.length === 0) {
+			continue;
+		}
+		flows.push({
+			flowHeading: String(flow.flow_heading ?? "未命名流程").trim(),
+			audienceScope: String(flow.audience_scope ?? "").trim(),
+			steps,
+			manualReviewNotes: asArray(flow.manual_review_notes)
+				.map((note) => String(note).trim())
+				.filter(Boolean),
+		});
+	}
+	return flows;
+}
+
+function buildHandbookFlowStepPayloads(flow: Record<string, unknown>): Record<string, unknown>[] {
+	const steps: Record<string, unknown>[] = [];
+	for (const step of asArray(flow.steps).map(asRecord).filter(isRecord)) {
+		const stepText = String(step.step_text ?? "").trim();
+		if (!stepText) {
+			continue;
+		}
+		steps.push({
+			stepId: String(step.step_id ?? "").trim(),
+			stepText,
+			nextStepIds: asArray(step.next_step_ids)
+				.map((stepId) => String(stepId).trim())
+				.filter(Boolean),
+		});
+	}
+	return steps;
+}
+
+function buildHandbookFlowGraphMarkdown(input: {
+	componentImportPath: string;
+	title: string;
+	dataImportName: string;
+	dataImportPath: string;
+	metadata: DocumentReaderMetadata;
+}): string {
+	return [
+		"---",
+		`title: ${jsonString(input.title)}`,
+		"description: 学生手册中服务流程图的结构化阅读页。",
+		"footer: false",
+		...buildReaderFrontmatterLines({
+			kind: "workflow",
+			layout: "graph",
+			measure: "full",
+		}),
+		"---",
+		"",
+		`import HandbookFlowGraphSection from "${input.componentImportPath}";`,
+		`import ${input.dataImportName} from "${input.dataImportPath}";`,
+		"",
+		buildDocumentMetaPanelBlock(input.metadata, { mdx: true }),
+		"",
+		`<HandbookFlowGraphSection data={${input.dataImportName}} />`,
+		"",
+	].join("\n");
+}
+
+function buildHandbookFlowGraphMetadata(
+	projection: Record<string, unknown>,
+): DocumentReaderMetadata {
+	return {
+		collectionLabel: "学生手册",
+		pageLabel: formatSourcePageRange(
+			requireInt(projection, "source_page_start"),
+			requireInt(projection, "source_page_end"),
+		),
+		sourceLabel: requireText(projection, "source_title"),
+		statusLabel: "当前展示版",
+		versionLabel: `${HANDBOOK_YEAR} 版`,
+		technicalDetails: [
+			{ label: "projection_name", value: requireText(projection, "projection_name") },
+		],
+	};
+}
+
+function iterBodyBearingFlowSteps(flowGraph: Record<string, unknown>): Record<string, unknown>[] {
+	const steps: Record<string, unknown>[] = [];
+	for (const page of asArray(flowGraph.page_findings).map(asRecord).filter(isRecord)) {
+		for (const flow of asArray(page.flows).map(asRecord).filter(isRecord)) {
+			for (const step of asArray(flow.steps).map(asRecord).filter(isRecord)) {
+				if (String(step.step_text ?? "").trim()) {
+					steps.push(step);
+				}
+			}
+		}
+	}
+	return steps;
+}
+
+function iterDocumentDataFlowSteps(
+	documentData: Record<string, unknown>,
+): Record<string, unknown>[] {
+	const steps: Record<string, unknown>[] = [];
+	for (const page of asArray(documentData.pageFindings).map(asRecord).filter(isRecord)) {
+		for (const flow of asArray(page.flows).map(asRecord).filter(isRecord)) {
+			for (const step of asArray(flow.steps).map(asRecord).filter(isRecord)) {
+				if (String(step.stepText ?? "").trim()) {
+					steps.push(step);
+				}
+			}
+		}
+	}
+	return steps;
+}
+
+function requireMapping(
+	payload: Record<string, unknown>,
+	fieldName: string,
+): Record<string, unknown> {
+	const value = asRecord(payload[fieldName]);
+	if (!value) {
+		throw new Error(`${fieldName} object is required`);
+	}
+	return value;
+}
+
+function requireText(payload: Record<string, unknown>, fieldName: string): string {
+	const value = String(payload[fieldName] ?? "").trim();
+	if (!value) {
+		throw new Error(`${fieldName} is required`);
+	}
+	return value;
+}
+
+function requireInt(payload: Record<string, unknown>, fieldName: string): number {
+	const value = payload[fieldName];
+	if (typeof value === "boolean") {
+		throw new Error(`${fieldName} must be an integer`);
+	}
+	const parsed = Number.parseInt(String(value ?? ""), 10);
+	if (!Number.isFinite(parsed)) {
+		throw new Error(`${fieldName} must be an integer`);
+	}
+	return parsed;
+}
+
+function isRecord(value: Record<string, unknown> | undefined): value is Record<string, unknown> {
+	return value !== undefined;
+}

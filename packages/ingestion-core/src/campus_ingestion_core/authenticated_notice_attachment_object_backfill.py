@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
 import hashlib
 import os
-from pathlib import Path
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 from campus_ingestion_core.authenticated_notice_import import (
@@ -74,15 +74,7 @@ class AuthenticatedNoticeAttachmentObjectBackfillRequest:
         object.__setattr__(
             self,
             "notice_ids",
-            tuple(
-                sorted(
-                    {
-                        str(item).strip()
-                        for item in self.notice_ids
-                        if str(item).strip()
-                    }
-                )
-            ),
+            tuple(sorted({str(item).strip() for item in self.notice_ids if str(item).strip()})),
         )
 
 
@@ -290,7 +282,9 @@ def _process_candidate(
         if not _is_missing_object_error(exc):
             raise
         if candidate.mime_type is None:
-            raise ValueError(f"{candidate.target_object_key} mime_type is required for upload") from exc
+            raise ValueError(
+                f"{candidate.target_object_key} mime_type is required for upload"
+            ) from exc
         local_blob_path = _select_local_blob_path(candidate)
         if local_blob_path is None:
             raise FileNotFoundError(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from campus_ingestion_core.embed import (
@@ -39,7 +39,9 @@ class RetrievalSettings:
 
     def __post_init__(self) -> None:
         if self.embedding_dimensions is None:
-            resolved_dimensions = _resolve_embedding_dimensions(model=self.embedding_model, raw_dimensions="")
+            resolved_dimensions = _resolve_embedding_dimensions(
+                model=self.embedding_model, raw_dimensions=""
+            )
             if resolved_dimensions is not None:
                 object.__setattr__(self, "embedding_dimensions", resolved_dimensions)
         if self.qdrant_url != ":memory:":
@@ -70,7 +72,7 @@ class RetrievalSettings:
                 )
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "RetrievalSettings":
+    def from_env(cls, env: dict[str, str] | None = None) -> RetrievalSettings:
         source = env if env is not None else os.environ
         qdrant_url = (source.get("QDRANT_URL") or "").strip()
         if not qdrant_url:
@@ -79,14 +81,16 @@ class RetrievalSettings:
             qdrant_url=qdrant_url,
             qdrant_api_key=(source.get("QDRANT_API_KEY") or "").strip() or None,
             qdrant_timeout_seconds=float(
-                (source.get("QDRANT_TIMEOUT_SECONDS") or str(DEFAULT_QDRANT_TIMEOUT_SECONDS)).strip()
+                (
+                    source.get("QDRANT_TIMEOUT_SECONDS") or str(DEFAULT_QDRANT_TIMEOUT_SECONDS)
+                ).strip()
             ),
             document_registry_database_url=(
-                source.get(DOCUMENT_REGISTRY_ENV_KEY)
-                or source.get(SHARED_POSTGRES_ENV_KEY)
-                or ""
+                source.get(DOCUMENT_REGISTRY_ENV_KEY) or source.get(SHARED_POSTGRES_ENV_KEY) or ""
             ).strip(),
-            embedding_provider=(source.get("EMBEDDING_PROVIDER") or DEFAULT_EMBEDDING_PROVIDER).strip()
+            embedding_provider=(
+                source.get("EMBEDDING_PROVIDER") or DEFAULT_EMBEDDING_PROVIDER
+            ).strip()
             or DEFAULT_EMBEDDING_PROVIDER,
             embedding_model=(source.get("EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL).strip(),
             embedding_api_key=(source.get("EMBEDDING_API_KEY") or "").strip(),
@@ -97,7 +101,8 @@ class RetrievalSettings:
             ),
             sparse_provider=(source.get("SPARSE_PROVIDER") or DEFAULT_SPARSE_PROVIDER).strip()
             or DEFAULT_SPARSE_PROVIDER,
-            sparse_model=(source.get("SPARSE_MODEL") or DEFAULT_SPARSE_MODEL).strip() or DEFAULT_SPARSE_MODEL,
+            sparse_model=(source.get("SPARSE_MODEL") or DEFAULT_SPARSE_MODEL).strip()
+            or DEFAULT_SPARSE_MODEL,
             sparse_tokenizer=(source.get("SPARSE_TOKENIZER") or DEFAULT_SPARSE_TOKENIZER).strip()
             or DEFAULT_SPARSE_TOKENIZER,
             sparse_language=(source.get("SPARSE_LANGUAGE") or DEFAULT_SPARSE_LANGUAGE).strip()

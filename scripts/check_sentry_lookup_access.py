@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -32,7 +32,7 @@ def load_sentry_api_token(
     env: Mapping[str, str] | None = None,
 ) -> tuple[str, str, Path]:
     source_path = source_env_path or resolve_source_env_path(repo_root)
-    process_env = env or os.environ
+    process_env = env or {}
     process_value = process_env.get(SENTRY_API_TOKEN_KEY, "").strip()
     if process_value:
         return process_value, "process_env", source_path
@@ -150,9 +150,7 @@ def render_markdown_report(status: Mapping[str, Any]) -> str:
     if status["org_slug_required"]:
         lines.append("- `--org-slug` required because multiple organizations are visible")
     for organization in status["organizations"]:
-        lines.append(
-            f"- `{organization['slug']}` ({organization['name'] or 'unknown-name'})"
-        )
+        lines.append(f"- `{organization['slug']}` ({organization['name'] or 'unknown-name'})")
 
     lines.extend(
         [

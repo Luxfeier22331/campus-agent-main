@@ -1,0 +1,38 @@
+{
+  "schema_version": "authenticated_notice_manifest_v1",
+  "source_channel": "authenticated_notice_portal",
+  "site_id": "muc_internal_portal",
+  "notice_id": "351699",
+  "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:351699",
+  "raw_version_id": "sha256:c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5",
+  "captured_at": "2026-04-09T19:30:29.385954+00:00",
+  "list_observed_at": "2026-04-02T23:50:31.368Z",
+  "detail_observed_at": "2026-04-02T23:50:31.368Z",
+  "fetcher_name": "authenticated_notice_bundle_import",
+  "fetcher_version": "authenticated_notice_legacy_bootstrap_normalized_v1",
+  "collector_version": "legacy_authenticated_notice_export_v3",
+  "credentials_mode": "authenticated",
+  "notice_title_raw": "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知",
+  "notice_title_normalized": "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知",
+  "organization_name": "教务处（考试中心、教师教学发展中心）",
+  "organization_id": "00011",
+  "notice_release_time": "2025-08-29 22:58",
+  "notice_create_time": "2025-08-28 18:06",
+  "notice_first_time": "2025-08-28 22:51",
+  "notice_source": 0,
+  "notice_link_state": 0,
+  "notice_state": 1,
+  "notice_stick": 0,
+  "notice_type_ids": [
+    "5"
+  ],
+  "notice_type_names": [
+    "办公通知"
+  ],
+  "source_notice_link": "campusnotice://muc_internal_portal/notice/351699",
+  "source_home_url": "https://my.muc.edu.cn",
+  "body_html_hash": "0af2353bd3d572ae54dace486c2e1d5e333fe8430651a7b2b34c28af2aba0f08",
+  "block_count": 7,
+  "link_count": 0,
+  "attachment_ref_count": 0
+}

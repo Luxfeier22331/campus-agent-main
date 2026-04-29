@@ -46,7 +46,9 @@ def _make_chunk(
         text=text,
         source_channel="official_web" if corpus == "official_web" else "pdf_ocr",
         is_current=True,
-        parser_version="official_web_projection_v1" if corpus == "official_web" else "raw-online-ocr-v1",
+        parser_version="official_web_projection_v1"
+        if corpus == "official_web"
+        else "raw-online-ocr-v1",
         embedding_model="Qwen3-Embedding-4B",
         metadata=metadata,
     )
@@ -134,6 +136,40 @@ class IndexReleaseValidationTest(unittest.TestCase):
                     text="六、课程地图\n\n参见各专业培养方案的课程地图。",
                     section_path=["理工科交叉创新人才培养实验班本科人才培养方案", "六、课程地图"],
                     tokens=15,
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "passed")
+        self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
+
+    def test_curriculum_validation_allows_title_with_version_note_opener(self) -> None:
+        validation = validate_scope_release(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="文物与博物馆学本科第二学士学位人才培养方案\n(2020版)",
+                    section_path=["文物与博物馆学本科第二学士学位人才培养方案"],
+                    tokens=19,
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "passed")
+        self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
+
+    def test_curriculum_validation_allows_page_split_subsection_fragment(self) -> None:
+        validation = validate_scope_release(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="二、毕业要求\n(二)知识\n究。\n(三)能力",
+                    section_path=["法学（民族实验班）本科人才培养方案", "二、毕业要求"],
+                    tokens=16,
                 ),
             ),
         )
@@ -294,7 +330,10 @@ class IndexReleaseValidationTest(unittest.TestCase):
                     collection="muc_public_pages",
                     document_id="official_web:muc_public:article:doc-002",
                     page_family="article_detail",
-                    extra_metadata={"serving_intent": "audit_only", "promotion_block_reason": "manual_review_pending"},
+                    extra_metadata={
+                        "serving_intent": "audit_only",
+                        "promotion_block_reason": "manual_review_pending",
+                    },
                 ),
             ),
         )

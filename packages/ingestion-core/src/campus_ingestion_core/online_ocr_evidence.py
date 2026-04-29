@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from io import BytesIO
 import hashlib
 import json
-from pathlib import Path
 import re
-from typing import Any
 import zipfile
+from io import BytesIO
+from pathlib import Path
+from typing import Any
 
-from campus_ingestion_core.online_ocr_routing import MINERU_PROVIDER
+from campus_ingestion_core.file_asset_routing import MINERU_PROVIDER
 
 
 def extract_online_ocr_text(result_payload: dict[str, object]) -> str:
@@ -30,6 +30,8 @@ def extract_online_ocr_text(result_payload: dict[str, object]) -> str:
 
 def extract_provider_plain_text(*, provider: str, provider_response_bytes: bytes) -> str:
     if provider == MINERU_PROVIDER:
+        if not _looks_like_zip_archive(provider_response_bytes):
+            return extract_paddle_plain_text(provider_response_bytes)
         return _extract_mineru_archive_text(provider_response_bytes)
     return extract_paddle_plain_text(provider_response_bytes)
 
@@ -42,7 +44,9 @@ def extract_paddle_plain_text(provider_response_bytes: bytes) -> str:
         payload = json.loads(line)
         if not isinstance(payload, dict):
             continue
-        result_payload = payload.get("result") if isinstance(payload.get("result"), dict) else payload
+        result_payload = (
+            payload.get("result") if isinstance(payload.get("result"), dict) else payload
+        )
         if not isinstance(result_payload, dict):
             continue
         text = extract_online_ocr_text(result_payload)
@@ -152,7 +156,9 @@ def build_adjudication(
         reason_codes.append("baseline_markup_inflation_detected")
     if _has_markup_inflation(noisy_summary=candidate_summary, cleaner_summary=baseline_summary):
         reason_codes.append("candidate_markup_inflation_detected")
-    if _has_clear_structure_advantage(preferred_summary=candidate_summary, other_summary=baseline_summary):
+    if _has_clear_structure_advantage(
+        preferred_summary=candidate_summary, other_summary=baseline_summary
+    ):
         reason_codes.append("candidate_structure_advantage")
         return _winner_payload(
             winner="candidate",
@@ -160,7 +166,9 @@ def build_adjudication(
             reason_codes=reason_codes,
             manual_review_required=False,
         )
-    if _has_clear_structure_advantage(preferred_summary=baseline_summary, other_summary=candidate_summary):
+    if _has_clear_structure_advantage(
+        preferred_summary=baseline_summary, other_summary=candidate_summary
+    ):
         reason_codes.append("baseline_structure_advantage")
         return _winner_payload(
             winner="baseline",
@@ -188,6 +196,10 @@ def _extract_mineru_archive_text(archive_bytes: bytes) -> str:
         if not markdown_names:
             return ""
         return archive.read(markdown_names[0]).decode("utf-8")
+
+
+def _looks_like_zip_archive(payload: bytes) -> bool:
+    return len(payload) >= 4 and payload[:4] == b"PK\x03\x04"
 
 
 def _build_text_summary(*, provider: str, model: str, text: str) -> dict[str, object]:

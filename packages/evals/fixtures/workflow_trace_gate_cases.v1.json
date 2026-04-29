@@ -1,0 +1,218 @@
+{
+	"schema_version": 1,
+	"case_family": "workflow_trace_gate.v1",
+	"updated_at": "2026-04-29",
+	"cases": [
+		{
+			"case_id": "workflow-direct-structured-service-status",
+			"family": "workflow_trace",
+			"description": "campus services status direct structured branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "direct",
+				"selected_target": "campus-services-agent",
+				"selected_tools": ["service_status_lookup"],
+				"handoff": {
+					"target": "campus-services-agent"
+				},
+				"tool_argument_summary": {
+					"payload_kind": "service_status_lookup",
+					"service_key": "campus_card"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-transport-schedule-direct",
+			"family": "workflow_trace",
+			"description": "campus services transport schedule direct structured branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "direct",
+				"selected_target": "campus-services-agent",
+				"selected_tools": ["transport_schedule_lookup"],
+				"handoff": {
+					"target": "campus-services-agent"
+				},
+				"tool_argument_summary": {
+					"payload_kind": "transport_schedule_lookup",
+					"service_key": "transport_commute",
+					"time_scope": "current"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-service-guide-direct",
+			"family": "workflow_trace",
+			"description": "campus services guide direct structured branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "direct",
+				"selected_target": "campus-services-agent",
+				"selected_tools": ["service_guide_lookup"],
+				"handoff": {
+					"target": "campus-services-agent"
+				},
+				"tool_argument_summary": {
+					"payload_kind": "service_guide_lookup",
+					"guide_key": "medical_reimbursement"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-notice-discover-direct",
+			"family": "workflow_trace",
+			"description": "notice discover direct structured branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "direct",
+				"selected_target": "notice-agent",
+				"selected_tools": ["campus_notice_discover"],
+				"handoff": {
+					"target": "notice-agent"
+				},
+				"tool_argument_summary": {
+					"payload_kind": "campus_notice_discover",
+					"query_kind": "title_url_card"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-notice-detail-direct",
+			"family": "workflow_trace",
+			"description": "notice detail direct structured branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "direct",
+				"selected_target": "notice-agent",
+				"selected_tools": ["campus_notice_get"],
+				"handoff": {
+					"target": "notice-agent"
+				},
+				"tool_argument_summary": {
+					"payload_kind": "campus_notice_get",
+					"source_family": "public_notice_detail"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-knowledge-delegate",
+			"family": "workflow_trace",
+			"description": "student rules knowledge family delegate branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "delegate",
+				"selected_target": "rag-agent",
+				"selected_tools": ["retrieval.query"],
+				"handoff": {
+					"target": "rag-agent"
+				},
+				"tool_argument_summary": {
+					"collection": "student_rules"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-curriculum-delegate",
+			"family": "workflow_trace",
+			"description": "curriculum plan knowledge family delegate branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "delegate",
+				"selected_target": "rag-agent",
+				"selected_tools": ["retrieval.query"],
+				"handoff": {
+					"target": "rag-agent"
+				},
+				"tool_argument_summary": {
+					"collection": "curriculum_plan"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-ambiguous-follow-up-clarification",
+			"family": "workflow_trace",
+			"description": "contextual follow-up remains ambiguous and asks for clarification",
+			"expectation": {
+				"direct_vs_delegate_branch": "clarification",
+				"selected_target": "campus-services-agent",
+				"selected_tools": [],
+				"handoff": {
+					"target": "campus-services-agent",
+					"missing_slots": ["service_key"]
+				},
+				"tool_argument_summary": {
+					"payload_kind": "clarification"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow",
+					"clarification_required": true
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-transactional-service-fail-close",
+			"family": "workflow_trace",
+			"description": "transactional service request is outside medium-term product scope",
+			"expectation": {
+				"direct_vs_delegate_branch": "fail_close",
+				"selected_target": "none",
+				"selected_tools": [],
+				"handoff": {
+					"target": "none"
+				},
+				"tool_argument_summary": {
+					"requested_action": "submit_application"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "deny",
+					"capability_status": "closed"
+				},
+				"fail_close_expected": true,
+				"fail_close_reason": "transactional_action_not_supported"
+			}
+		},
+		{
+			"case_id": "workflow-service-guide-no-result",
+			"family": "workflow_trace",
+			"description": "service guide routes correctly but read model has no matching guide",
+			"expectation": {
+				"direct_vs_delegate_branch": "direct",
+				"selected_target": "campus-services-agent",
+				"selected_tools": ["service_guide_lookup"],
+				"handoff": {
+					"target": "campus-services-agent"
+				},
+				"tool_argument_summary": {
+					"payload_kind": "service_guide_lookup",
+					"result_status": "not_found"
+				},
+				"guardrail_outcomes": {
+					"scope_gate": "allow"
+				},
+				"fail_close_expected": false
+			}
+		}
+	]
+}

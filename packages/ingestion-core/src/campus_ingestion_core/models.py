@@ -7,6 +7,7 @@ from campus_contracts import (
     ALLOWED_SOURCE_CHANNELS,
     DEFAULT_POLICY_PROJECTION_VERSION,
 )
+
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
 
@@ -84,10 +85,15 @@ class RawAssetRecord:
             raise ValueError("image_width must be greater than zero")
         if self.image_height is not None and self.image_height <= 0:
             raise ValueError("image_height must be greater than zero")
-        if self.classification_confidence is not None and not 0.0 <= self.classification_confidence <= 1.0:
+        if (
+            self.classification_confidence is not None
+            and not 0.0 <= self.classification_confidence <= 1.0
+        ):
             raise ValueError("classification_confidence must be between 0.0 and 1.0")
 
-        normalized_content_type = self.content_type.strip() if self.content_type is not None else None
+        normalized_content_type = (
+            self.content_type.strip() if self.content_type is not None else None
+        )
         normalized_extension = self.file_extension.strip().lower()
         if normalized_extension and not normalized_extension.startswith("."):
             normalized_extension = f".{normalized_extension}"
@@ -175,7 +181,9 @@ class DocumentRegistryRecord:
         if not self.import_source:
             raise ValueError("import_source is required")
         if sum(1 for observation in self.source_observations if observation.is_primary) > 1:
-            raise ValueError("source_observations must not contain more than one primary observation")
+            raise ValueError(
+                "source_observations must not contain more than one primary observation"
+            )
 
         visibility_level = self.visibility_level.strip() or (
             "restricted" if self.entitlement_groups else "public"

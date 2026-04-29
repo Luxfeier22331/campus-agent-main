@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,236 +7,252 @@ const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(TEST_DIR, "fixtures", "pages");
 
 export function writeTestConfigRoot(): { configRoot: string; outputDir: string } {
-  const root = mkdtempSync(resolve(tmpdir(), "official-web-collector-"));
-  const configRoot = resolve(root, "official_web");
-  const siteRoot = resolve(configRoot, "campus_public");
-  mkdirSync(siteRoot, { recursive: true });
+	const root = mkdtempSync(resolve(tmpdir(), "official-web-collector-"));
+	const configRoot = resolve(root, "official_web");
+	const siteRoot = resolve(configRoot, "campus_public");
+	mkdirSync(siteRoot, { recursive: true });
 
-  writeFileSync(
-    resolve(siteRoot, "site.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_site_config.v1",
-        config_version: "campus_public.v1",
-        site_id: "campus_public",
-        display_name: "Campus public",
-        source_channel: "official_web",
-        entry_host: "www.example.edu",
-        allowed_hosts: ["www.example.edu"],
-        seed_set_version: "campus_public_seeds_v1",
-        host_policy_version: "campus_public_hosts_v1",
-        crawl_policy_version: "campus_public_crawl_policy_v1",
-        projection_policy_version: "campus_public_projection_v1",
-        credentials_mode: "public",
-        user_agent: "collector-test/1.0",
-        request_timeout_ms: 15000,
-        request_handler_timeout_ms: 30000,
-        max_request_retries: 2,
-        max_redirect_hops: 5,
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    resolve(siteRoot, "hosts.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_host_policy.v1",
-        site_id: "campus_public",
-        host_policy_version: "campus_public_hosts_v1",
-        hosts: [
-          {
-            host: "www.example.edu",
-            public_kind: "directory_site",
-            enabled: true,
-            seed_urls: ["https://www.example.edu/"],
-            allowed_path_prefixes: ["/"],
-            denied_path_patterns: ["^/login"],
-            query_param_allowlist: ["id"],
-            max_depth: 2,
-            max_pages_per_run: 10,
-            max_concurrency: 1,
-            min_delay_ms: 1000,
-            respect_robots: true,
-            explicit_sitemaps: [],
-          },
-        ],
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    resolve(siteRoot, "seeds.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_seed_set.v1",
-        site_id: "campus_public",
-        seed_set_version: "campus_public_seeds_v1",
-        seeds: [
-          {
-            seed_id: "home",
-            url: "https://www.example.edu/",
-            host: "www.example.edu",
-            reason: "homepage",
-            discovery_method: "seed",
-          },
-        ],
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    resolve(siteRoot, "crawl-policy.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_crawl_policy.v1",
-        site_id: "campus_public",
-        crawl_policy_version: "campus_public_crawl_policy_v1",
-        scheme_allowlist: ["https"],
-        content_type_allowlist: ["text/html"],
-        discovery_order: ["seed", "navigation"],
-        default_query_policy: "deny_all",
-        default_query_param_allowlist: [],
-        default_denied_path_patterns: ["^/search"],
-        frontier_identity_key: "normalized_canonical_url",
-        expand_within_same_hostname_only: true,
-        cross_host_expansion_requires_allowlist: true,
-        allow_cross_host_redirect_only_if_allowlisted: true,
-        respect_robots_by_default: true,
-        robots_4xx_behavior: "allow",
-        robots_429_behavior: "backoff_host",
-        robots_5xx_behavior: "fail_closed_host",
-        record_redirect_chain: true,
-        use_conditional_fetch: true,
-        max_total_pages_per_run: 10,
-        max_total_failures_per_run: 10,
-        max_runtime_minutes: 10,
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    resolve(siteRoot, "credentials.schema.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_credentials_schema.v1",
-        site_id: "campus_public",
-        credentials_mode: "public",
-        title: "public",
-        description: "public",
-        type: "object",
-        additionalProperties: false,
-        properties: {},
-        required: [],
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    resolve(siteRoot, "scheduler-policy.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_scheduler_policy.v1",
-        site_id: "campus_public",
-        scheduler_policy_version: "campus_public_scheduler_v1",
-        timezone: "Asia/Shanghai",
-        lanes: [
-          {
-            enabled: true,
-            run_intent: "baseline",
-            cadence_minutes: 1440,
-            host_filter: [],
-            max_pages_per_host: 10,
-            max_total_pages: 10,
-            notes: "baseline coverage for all enabled hosts",
-          },
-          {
-            enabled: true,
-            run_intent: "hot",
-            cadence_minutes: 30,
-            host_filter: ["www.example.edu"],
-            max_pages_per_host: 5,
-            max_total_pages: 10,
-            notes: "hot listing and recent detail refresh",
-          },
-          {
-            enabled: true,
-            run_intent: "repair",
-            cadence_minutes: 120,
-            host_filter: [],
-            max_pages_per_host: 5,
-            max_total_pages: 10,
-            notes: "repair failed fetches",
-          },
-        ],
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    resolve(siteRoot, "qc-policy.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_qc_policy.v1",
-        site_id: "campus_public",
-        qc_policy_version: "campus_public_qc_v1",
-        allowed_review_issue_codes: [],
-        allowed_review_page_families: [],
-        host_overrides: [],
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    resolve(siteRoot, "projection-declarations.json"),
-    JSON.stringify(
-      {
-        schema_version: "official_web_projection_declarations.v1",
-        site_id: "campus_public",
-        projection_policy_version: "campus_public_projection_v1",
-        declarations: [],
-      },
-      null,
-      2,
-    ),
-  );
+	writeFileSync(
+		resolve(siteRoot, "site.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_site_config.v1",
+				config_version: "campus_public.v1",
+				site_id: "campus_public",
+				display_name: "Campus public",
+				source_channel: "official_web",
+				entry_host: "www.example.edu",
+				allowed_hosts: ["www.example.edu"],
+				seed_set_version: "campus_public_seeds_v1",
+				host_policy_version: "campus_public_hosts_v1",
+				crawl_policy_version: "campus_public_crawl_policy_v1",
+				projection_policy_version: "campus_public_projection_v1",
+				credentials_mode: "public",
+				user_agent: "collector-test/1.0",
+				request_timeout_ms: 15000,
+				request_handler_timeout_ms: 30000,
+				max_request_retries: 2,
+				max_redirect_hops: 5,
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "hosts.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_host_policy.v1",
+				site_id: "campus_public",
+				host_policy_version: "campus_public_hosts_v1",
+				hosts: [
+					{
+						host: "www.example.edu",
+						public_kind: "directory_site",
+						host_group: "university_core",
+						owner_label: "Example homepage",
+						rollout_order: 10,
+						enabled: true,
+						seed_urls: ["https://www.example.edu/"],
+						allowed_path_prefixes: ["/"],
+						denied_path_patterns: ["^/login"],
+						query_param_allowlist: ["id"],
+						max_depth: 2,
+						max_pages_per_run: 10,
+						max_concurrency: 1,
+						min_delay_ms: 1000,
+						respect_robots: true,
+						explicit_sitemaps: [],
+					},
+				],
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "seeds.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_seed_set.v1",
+				site_id: "campus_public",
+				seed_set_version: "campus_public_seeds_v1",
+				seeds: [
+					{
+						seed_id: "home",
+						url: "https://www.example.edu/",
+						host: "www.example.edu",
+						reason: "homepage",
+						discovery_method: "seed",
+					},
+				],
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "crawl-policy.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_crawl_policy.v1",
+				site_id: "campus_public",
+				crawl_policy_version: "campus_public_crawl_policy_v1",
+				scheme_allowlist: ["https"],
+				content_type_allowlist: ["text/html"],
+				discovery_order: ["seed", "navigation"],
+				default_query_policy: "deny_all",
+				default_query_param_allowlist: [],
+				default_denied_path_patterns: ["^/search"],
+				frontier_identity_key: "normalized_canonical_url",
+				expand_within_same_hostname_only: true,
+				cross_host_expansion_requires_allowlist: true,
+				allow_cross_host_redirect_only_if_allowlisted: true,
+				respect_robots_by_default: true,
+				robots_4xx_behavior: "allow",
+				robots_429_behavior: "backoff_host",
+				robots_5xx_behavior: "fail_closed_host",
+				record_redirect_chain: true,
+				use_conditional_fetch: true,
+				max_total_pages_per_run: 10,
+				max_total_failures_per_run: 10,
+				max_runtime_minutes: 10,
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "credentials.schema.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_credentials_schema.v1",
+				site_id: "campus_public",
+				credentials_mode: "public",
+				title: "public",
+				description: "public",
+				type: "object",
+				additionalProperties: false,
+				properties: {},
+				required: [],
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "scheduler-policy.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_scheduler_policy.v1",
+				site_id: "campus_public",
+				scheduler_policy_version: "campus_public_scheduler_v1",
+				timezone: "Asia/Shanghai",
+				lanes: [
+					{
+						lane_id: "baseline",
+						enabled: true,
+						run_intent: "baseline",
+						cadence_minutes: 1440,
+						host_filter: [],
+						max_pages_per_host: 10,
+						max_total_pages: 10,
+						notes: "baseline coverage for all enabled hosts",
+					},
+					{
+						lane_id: "hot",
+						enabled: true,
+						run_intent: "hot",
+						cadence_minutes: 30,
+						host_filter: ["www.example.edu"],
+						max_pages_per_host: 5,
+						max_total_pages: 10,
+						notes: "hot listing and recent detail refresh",
+					},
+					{
+						lane_id: "repair",
+						enabled: true,
+						run_intent: "repair",
+						cadence_minutes: 120,
+						host_filter: [],
+						max_pages_per_host: 5,
+						max_total_pages: 10,
+						notes: "repair failed fetches",
+					},
+				],
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "qc-policy.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_qc_policy.v1",
+				site_id: "campus_public",
+				qc_policy_version: "campus_public_qc_v1",
+				allowed_review_issue_codes: [],
+				allowed_review_page_families: [],
+				host_overrides: [],
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "projection-declarations.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_projection_declarations.v1",
+				site_id: "campus_public",
+				projection_policy_version: "campus_public_projection_v1",
+				declarations: [],
+			},
+			null,
+			2,
+		),
+	);
 
-  return {
-    configRoot,
-    outputDir: resolve(root, "output"),
-  };
+	return {
+		configRoot,
+		outputDir: resolve(root, "output"),
+	};
 }
 
 function readFixture(name: string): string {
-  return readFileSync(resolve(FIXTURE_DIR, name), "utf-8").trim();
+	return readFileSync(resolve(FIXTURE_DIR, name), "utf-8").trim();
 }
 
 export const SAMPLE_PAGE_HTML = readFixture("sample-page.html");
 export const SAMPLE_HOME_PAGE_HTML = readFixture("sample-home-page.html");
 export const SAMPLE_DIRECTORY_PAGE_HTML = readFixture("sample-directory-page.html");
 export const SAMPLE_ROSTER_DIRECTORY_PAGE_HTML = readFixture("sample-roster-directory-page.html");
-export const SAMPLE_ORGANIZATION_DIRECTORY_PAGE_HTML = readFixture("sample-organization-directory-page.html");
+export const SAMPLE_ORGANIZATION_DIRECTORY_PAGE_HTML = readFixture(
+	"sample-organization-directory-page.html",
+);
 export const SAMPLE_NEWS_HOME_PAGE_HTML = readFixture("sample-news-home-page.html");
 export const SAMPLE_NEWS_ARTICLE_DETAIL_HTML = readFixture("sample-news-article-detail.html");
 export const SAMPLE_HISTORY_HOME_CARD_PAGE_HTML = readFixture("sample-history-home-card-page.html");
-export const SAMPLE_LAW_DENSE_ROSTER_DIRECTORY_PAGE_HTML = readFixture("sample-law-dense-roster-directory-page.html");
-export const SAMPLE_LAW_TABMENU_DIRECTORY_PAGE_HTML = readFixture("sample-law-tabmenu-directory-page.html");
+export const SAMPLE_LAW_DENSE_ROSTER_DIRECTORY_PAGE_HTML = readFixture(
+	"sample-law-dense-roster-directory-page.html",
+);
+export const SAMPLE_LAW_TABMENU_DIRECTORY_PAGE_HTML = readFixture(
+	"sample-law-tabmenu-directory-page.html",
+);
 export const SAMPLE_DT_LIST_PAGE_HTML = readFixture("sample-dt-list-page.html");
 export const SAMPLE_FEATURE_LIST_PAGE_HTML = readFixture("sample-feature-list-page.html");
 export const SAMPLE_CONTACT_CARD_PAGE_HTML = readFixture("sample-contact-card-page.html");
 export const SAMPLE_DYNAMIC_SHELL_PAGE_HTML = readFixture("sample-dynamic-shell-page.html");
-export const SAMPLE_IMAGE_STRUCTURAL_SHELL_PAGE_HTML = readFixture("sample-image-structural-shell-page.html");
+export const SAMPLE_IMAGE_STRUCTURAL_SHELL_PAGE_HTML = readFixture(
+	"sample-image-structural-shell-page.html",
+);
 export const SAMPLE_STRUCTURAL_SHELL_PAGE_HTML = readFixture("sample-structural-shell-page.html");
 export const SAMPLE_SPORT_CARD_HOME_PAGE_HTML = readFixture("sample-sport-card-home-page.html");
 export const SAMPLE_XIAOYOU_HOME_PAGE_HTML = readFixture("sample-xiaoyou-home-page.html");
-export const SAMPLE_XIAOYOU_HOME_PAGE_TITLE_ATTR_HTML = readFixture("sample-xiaoyou-home-page-title-attr.html");
+export const SAMPLE_XIAOYOU_HOME_PAGE_TITLE_ATTR_HTML = readFixture(
+	"sample-xiaoyou-home-page-title-attr.html",
+);
 export const SAMPLE_XIAOYOU_LIST_PAGE_HTML = readFixture("sample-xiaoyou-list-page.html");
 export const SAMPLE_VISIBLE_CONTENT_DYNAMIC_PAGE_HTML = `
 <!doctype html>

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
+from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
@@ -11,7 +12,6 @@ from campus_ingestion_core.index_release import (
     resolve_alias_target,
     unpublish_release_alias,
 )
-from campus_retrieval_core.settings import RetrievalSettings
 
 
 @dataclass(frozen=True, slots=True)

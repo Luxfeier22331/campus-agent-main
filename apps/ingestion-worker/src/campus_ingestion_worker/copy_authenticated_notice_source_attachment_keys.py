@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core.authenticated_notice_attachment_key_copy import (
     AuthenticatedNoticeAttachmentKeyCopyRequest,
     copy_authenticated_notice_source_attachment_keys,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

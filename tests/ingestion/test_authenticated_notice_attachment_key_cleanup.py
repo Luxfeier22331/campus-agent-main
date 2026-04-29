@@ -4,9 +4,9 @@ import hashlib
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from tests.ingestion.test_authenticated_notice_import import _FakeObjectStore
@@ -118,16 +118,16 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
 
             deleted_rows = [
                 json.loads(line)
-                for line in (output_dir / "deleted-objects.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "deleted-objects.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             already_absent_rows = [
                 json.loads(line)
-                for line in (output_dir / "already-absent-objects.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "already-absent-objects.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -241,6 +241,7 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                         str(inventory_path),
                         "--output-dir",
                         str(output_dir),
+                        "--yes",
                     ]
                 )
 

@@ -1,0 +1,34 @@
+{
+  "schema_version": "campus_app_api_public_chat_service_status_smoke.v1",
+  "selected_target": "campus-services-agent",
+  "status": "completed",
+  "input_refs": [
+    "notice:muc_internal_portal:355650"
+  ],
+  "visible_payload": {
+    "assistant_text": "静园10号楼负一层女浴室：当前状态：有限开放。 有效时间：4月16日 00:00 起。 提示：静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行。（来源：校内通知）",
+    "structured_parts": [
+      {
+        "type": "campus_service_trace_cards",
+        "traceCards": [
+          {
+            "title": "相关通知",
+            "refs": [
+              "校内通知 #355650"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "assertions": {
+    "contains_chinese_status": true,
+    "contains_open_ended_effective_window": true,
+    "contains_low_distraction_source_summary": true,
+    "contains_low_distraction_trace_ref": true,
+    "hides_raw_notice_locator": true,
+    "hides_internal_portal_name": true,
+    "hides_release_id": true,
+    "hides_open_ended_sentinel_year": true
+  }
+}

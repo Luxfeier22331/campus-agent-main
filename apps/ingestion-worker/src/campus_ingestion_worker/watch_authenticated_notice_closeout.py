@@ -3,16 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from typing import Sequence
+from collections.abc import Sequence
 
 from campus_ingestion_core.authenticated_notice_closeout import AuthenticatedNoticeCloseoutService
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Watch authenticated notice closeout progress"
-    )
+    parser = argparse.ArgumentParser(description="Watch authenticated notice closeout progress")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--interval", type=float, default=2.0)
     parser.add_argument("--iterations", type=int, default=5)

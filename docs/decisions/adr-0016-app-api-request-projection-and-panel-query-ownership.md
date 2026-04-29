@@ -3,12 +3,12 @@ doc_type: decision
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-04-10
+updated: 2026-04-26
 ---
-
 # ADR-0016 App API Request Projection And Panel Query Ownership
 
-适用范围：operator-facing request list/detail、shared `app-api` request projection、panel `Requests` domain 的长期 ownership
+适用范围：operator-facing request list/detail、shared `app-api` request
+projection、panel `Requests` domain 的长期 ownership
 
 ## 背景
 
@@ -16,10 +16,10 @@ updated: 2026-04-10
 
 - `apps/supervisor-api` 是 execution engine boundary
 - `apps/app-api` 已被接受并实现为 shared application/control-plane backend
-- `packages/supervisor-core` 已能产出最小 audit record
-- `apps/supervisor-api` 当前仍会把该 audit record 持久化到 JSONL
+- `apps/supervisor-api` 当前拥有 execution audit summary 与 response observability projection
 - chat conversation history 会记录 `request_id`
-- protected panel 已冻结为 `runtime APIs only` 的 protected Worker shell；forward web-surface 名称为 `apps/protected-panel-web`
+- protected panel 已冻结为 `runtime APIs only` 的 protected Worker shell；forward
+  web-surface 名称为 `apps/protected-panel-web`
 
 但仓库仍缺一条长期清晰规则：
 
@@ -29,10 +29,10 @@ updated: 2026-04-10
 
 - panel 直接读 audit log 或 telemetry sink
 - conversation store 被误当成 request truth
-- `packages/supervisor-core` 被反向扩成 request read-model host
+- `apps/supervisor-agent-worker` 被反向扩成 request read-model host
 - `apps/supervisor-api` 顺手继续长成 panel query backend
 
-## 决策 1：canonical request facts 与 projection input 在 shared `app-api` command path 内一次产出
+## 决策 1：canonical request facts 与 projection input 一次产出
 
 结论：
 
@@ -42,7 +42,8 @@ updated: 2026-04-10
 
 原因：
 
-- `app-api` 同时拥有产品层 request identity、principal、conversation correlation、execution correlation 与 request status 的闭环上下文
+- `app-api` 同时拥有产品层 request identity、principal、conversation
+  correlation、execution correlation 与 request status 的闭环上下文
 - 在这条链路内一次产出，能避免多处拼装、多真相源和时序错位
 
 ## 决策 2：第一 owner 冻结为 `apps/app-api`
@@ -57,7 +58,8 @@ updated: 2026-04-10
 
 原因：
 
-- `apps/app-api` 是 public chat 与 protected panel 的 shared application/control-plane backend
+- `apps/app-api` 是 public chat 与 protected panel 的 shared
+  application/control-plane backend
 - 它负责 chat ingress，并且是最适合收口 request ledger / query surface 的边界
 - 该决策不要求把 request projection host 下沉到 `packages/*`
 
@@ -77,17 +79,19 @@ updated: 2026-04-10
 - execution engine 与 operator query 是不同产品边界
 - 否则会重新把 `supervisor-api` 扩回产品 backend
 
-## 决策 4：`packages/supervisor-core` 只拥有最小 audit / trace projector
+## 决策 4：agent worker 不拥有 panel read model host
 
 结论：
 
-- `packages/supervisor-core` 继续拥有最小 audit / trace 语义投影
+- `apps/supervisor-agent-worker` 只返回 private `AgentResponse`
 - 不拥有 request projection store、list/detail API 或面向 panel 的 read model host
+- execution audit summary、response observability projection 与 public
+  finalization 由 `apps/supervisor-api` 拥有
 
 原因：
 
-- supervisor-core 的职责是编排与最小治理语义，而不是产品 surface 数据面
-- 这样可以保持 `packages/*` 与 `apps/*` 的长期边界清晰
+- agent worker 的职责是 private semantic worker，而不是产品 surface 数据面
+- 这样可以保持 product-layer、execution runtime 与 agent semantic worker 的边界清晰
 
 ## 决策 5：以下数据面不是 canonical request projection truth
 
@@ -111,7 +115,8 @@ updated: 2026-04-10
 
 结论：
 
-- `apps/protected-panel-web` 的 `Requests` domain 只能读 `apps/app-api` 暴露的 request projection APIs
+- `apps/protected-panel-web` 的 `Requests` domain 只能读 `apps/app-api` 暴露的 request
+  projection APIs
 - panel Worker-local BFF 不得扫描 log、会话表或 telemetry sink 来拼 request list/detail
 
 原因：
@@ -123,7 +128,8 @@ updated: 2026-04-10
 
 直接结果：
 
-- `GET /api/operator/requests` / `GET /api/operator/requests/:requestId` 应由 `apps/app-api` 或其继任 shared app boundary 提供
+- `GET /api/operator/requests` / `GET /api/operator/requests/:requestId` 应由
+  `apps/app-api` 或其继任 shared app boundary 提供
 - panel `Requests` 的合法数据源固定为这些 runtime-owned APIs
 - chat 会话可以继续记录 `request_id` 用于 UX 关联，但不承担 operator-facing request truth
 
@@ -131,12 +137,12 @@ updated: 2026-04-10
 
 - 不让 panel 直接读取 JSONL audit
 - 不让 telemetry sink 兼任 panel 主数据面
-- 不把 request projection read-model host 做进 `packages/supervisor-core`
+- 不把 request projection read-model host 做进 `apps/supervisor-agent-worker`
 - 不让 `apps/supervisor-api` 顺手扩成 panel 查询后端
 
 ## 相关文档
 
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`

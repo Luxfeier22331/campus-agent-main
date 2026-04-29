@@ -1,0 +1,1410 @@
+[
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 768
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3733
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 2856
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1671
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 6403
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/355282/2026/sha256/5ac9176bcd2db9b9d0a21402293925897aa432579208f1513224a2dc3ee3e516/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 769
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 35447
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 33897
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 534
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1680
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 44102
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/354006/2025/sha256/f4ad50d95f1474d452fff16f2181c913f3bacd67eeac917153c8bb8df70f887c/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 757
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 35087
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 34210
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1662
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 60778
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/353963/2025/sha256/f27240ca093ae9f94dfeee96a377c3e0eaf561c3ab9d3ed8f16e557224c60cd3/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 735
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 6525
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 5648
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1618
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 22586
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351907/2025/sha256/4171753e2e5459504d86fb89b6ea4bec5374f19f4f0d10809bc779a946cee2d3/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 789
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 5185
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 4308
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1691
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 5877
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351704/2025/sha256/41d0904ddfd12f9e1d3077134dcb479067aedf9e127031bfe638d42d8f2bb37b/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 788
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 4527
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3650
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1690
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 5877
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351699/2025/sha256/c0527f8ac1c642a6b64b60877ecfcff4870535fdb33beea824578a77317b79a5/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 749
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 5003
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 4126
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1657
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 4853
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/351119/2025/sha256/541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 756
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 17896
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 17019
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1654
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 33646
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/196411/2022/sha256/b23d24e63ceead434c2c6dbca8bd58a37f759ed9006a46eec87133ab404ecd7e/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 742
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 4934
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3643
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1617
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 9522
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191705/2021/sha256/e6e76354af195a9a1f18df50b618821d7c078d13f50f5bcd2c35f8072d09f545/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 739
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 6190
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 5069
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1619
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 9516
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191177/2021/sha256/cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 738
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 6199
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 5080
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1618
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 9516
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/191176/2021/sha256/f34707cc2f461543eaa11d5b3ab6cc23078c38308aebfc3f2b136df10895ead2/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 770
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 9064
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 8210
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1648
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 18372
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187233/2021/sha256/28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 721
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 15285
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 14408
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1593
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 30772
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/187004/2021/sha256/2451994a4f34a271e8a5d04490d8486478e950746746917c02dd7e74b4e0acdf/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 702
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 14526
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 13649
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1564
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 33006
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186977/2021/sha256/47e52e6f61a9a9d6574fc16efcad1b12d51d88890aa17a59729ef6c9b9ccc0b3/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 756
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 21790
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 20889
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1654
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 29478
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/186957/2021/sha256/0354db12d7dcf9c2a2f44a8f853de0b81a6077e4b1573493741e27a38f80a2a0/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/capture/list-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/capture/list-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 735
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/capture/detail-response.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/capture/detail-response.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 5657
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/capture/fetch-metadata.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/capture/fetch-metadata.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 3579
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/provider/bundle-import-v1/normalized-notice.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/provider/bundle-import-v1/normalized-notice.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 4780
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/provider/bundle-import-v1/discovered-links.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/provider/bundle-import-v1/discovered-links.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/provider/bundle-import-v1/attachment-observations.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/source-truth/notice-manifest.json",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/source-truth/notice-manifest.json",
+    "content_type": "application/json",
+    "metadata": {},
+    "content_length": 1610
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/source-truth/content-blocks.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/source-truth/content-blocks.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 4445
+  },
+  {
+    "bucket": "campus-rag-source",
+    "key": "authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/source-truth/attachment-refs.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-source/authenticated_notice_portal/177880/2020/sha256/e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3/source-truth/attachment-refs.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 0
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于发布-中央民族大学关于学生使用人工智能的指导意见-2026版-的通知--355282/source-faithful/2026/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于发布-中央民族大学关于学生使用人工智能的指导意见-2026版-的通知--355282/source-faithful/2026/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 1176
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于发布-中央民族大学关于学生使用人工智能的指导意见-2026版-的通知--355282/source-faithful/2026/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于发布-中央民族大学关于学生使用人工智能的指导意见-2026版-的通知--355282/source-faithful/2026/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 7272
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则--354006/source-faithful/2025/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则--354006/source-faithful/2025/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 6947
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则--354006/source-faithful/2025/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则--354006/source-faithful/2025/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 48752
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学新闻与传播学院-2026年-英才计划-硕博连读研究生招生实施细则--353963/source-faithful/2025/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学新闻与传播学院-2026年-英才计划-硕博连读研究生招生实施细则--353963/source-faithful/2025/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 8578
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学新闻与传播学院-2026年-英才计划-硕博连读研究生招生实施细则--353963/source-faithful/2025/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学新闻与传播学院-2026年-英才计划-硕博连读研究生招生实施细则--353963/source-faithful/2025/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 66060
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则--351907/source-faithful/2025/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则--351907/source-faithful/2025/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 3450
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则--351907/source-faithful/2025/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则--351907/source-faithful/2025/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 24852
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351704/source-faithful/2025/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351704/source-faithful/2025/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 913
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351704/source-faithful/2025/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351704/source-faithful/2025/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 6483
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351699/source-faithful/2025/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351699/source-faithful/2025/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 913
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351699/source-faithful/2025/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于发布-中央民族大学新一轮本科教育教学审核评估应知应会手册-的通知--351699/source-faithful/2025/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 6483
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于-中央民族大学差旅费管理办法-民大校发-2025-104号-发布实施的通知--351119/source-faithful/2025/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于-中央民族大学差旅费管理办法-民大校发-2025-104号-发布实施的通知--351119/source-faithful/2025/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 691
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于-中央民族大学差旅费管理办法-民大校发-2025-104号-发布实施的通知--351119/source-faithful/2025/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于-中央民族大学差旅费管理办法-民大校发-2025-104号-发布实施的通知--351119/source-faithful/2025/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 5280
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则--196411/source-faithful/2022/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则--196411/source-faithful/2022/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 4906
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则--196411/source-faithful/2022/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则--196411/source-faithful/2022/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 36752
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/重要通知-中央民族大学丰台校区就医管理办法-暂行--191705/source-faithful/2021/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/重要通知-中央民族大学丰台校区就医管理办法-暂行--191705/source-faithful/2021/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 1283
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/重要通知-中央民族大学丰台校区就医管理办法-暂行--191705/source-faithful/2021/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/重要通知-中央民族大学丰台校区就医管理办法-暂行--191705/source-faithful/2021/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 10281
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191177/source-faithful/2021/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191177/source-faithful/2021/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 1571
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191177/source-faithful/2021/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191177/source-faithful/2021/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 10607
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191176/source-faithful/2021/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191176/source-faithful/2021/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 1571
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191176/source-faithful/2021/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/生命与环境科学学院关于2021年暑假期间实验室安全管理规定--191176/source-faithful/2021/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 10607
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于修订-中央民族大学采购工作管理办法-的通知--187233/source-faithful/2021/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于修订-中央民族大学采购工作管理办法-的通知--187233/source-faithful/2021/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 2798
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于修订-中央民族大学采购工作管理办法-的通知--187233/source-faithful/2021/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于修订-中央民族大学采购工作管理办法-的通知--187233/source-faithful/2021/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 20206
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/历史文化学院2021年硕博连读博士研究生-招生实施细则--187004/source-faithful/2021/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/历史文化学院2021年硕博连读博士研究生-招生实施细则--187004/source-faithful/2021/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 4633
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/历史文化学院2021年硕博连读博士研究生-招生实施细则--187004/source-faithful/2021/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/历史文化学院2021年硕博连读博士研究生-招生实施细则--187004/source-faithful/2021/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 33781
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/药学院2021年硕博连读博士研究生招生实施细则--186977/source-faithful/2021/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/药学院2021年硕博连读博士研究生招生实施细则--186977/source-faithful/2021/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 5168
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/药学院2021年硕博连读博士研究生招生实施细则--186977/source-faithful/2021/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/药学院2021年硕博连读博士研究生招生实施细则--186977/source-faithful/2021/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 36462
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则--186957/source-faithful/2021/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则--186957/source-faithful/2021/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 4568
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则--186957/source-faithful/2021/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则--186957/source-faithful/2021/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 32510
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于印发实施-中央民族大学学生申诉管理办法-的通知--177880/source-faithful/2020/canonical.md",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于印发实施-中央民族大学学生申诉管理办法-的通知--177880/source-faithful/2020/canonical.md",
+    "content_type": "text/markdown; charset=utf-8",
+    "metadata": {},
+    "content_length": 487
+  },
+  {
+    "bucket": "campus-rag-derived",
+    "key": "campus_notices/documents/internal_notice/关于印发实施-中央民族大学学生申诉管理办法-的通知--177880/source-faithful/2020/document-units.jsonl",
+    "path": ".tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store/campus-rag-derived/campus_notices/documents/internal_notice/关于印发实施-中央民族大学学生申诉管理办法-的通知--177880/source-faithful/2020/document-units.jsonl",
+    "content_type": "application/x-ndjson",
+    "metadata": {},
+    "content_length": 4668
+  }
+]

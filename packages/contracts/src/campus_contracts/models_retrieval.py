@@ -1,0 +1,321 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from campus_contracts.models_shared import (
+    AllowedCorpus,
+    RevisionTrack,
+    SourceChannel,
+    SourceTrustTier,
+    VersionQueryMode,
+    _normalize_source_trust_tier,
+    _validate_collection,
+    _validate_collection_scope,
+    _validate_corpus,
+    _validate_remote_content_suspicion_label,
+    _validate_revision_track,
+    _validate_source_channel,
+    _validate_source_trust_tier,
+    _validate_version_query_mode,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeScope:
+    corpus: AllowedCorpus
+    collection: str
+
+    def __post_init__(self) -> None:
+        _validate_corpus(self.corpus)
+        _validate_collection(self.collection)
+        _validate_collection_scope(self.corpus, self.collection)
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentRef:
+    document_id: str
+    revision_track: RevisionTrack
+    version_id: str
+    corpus: AllowedCorpus
+    collection: str
+    source_uri: str
+    content_hash: str
+
+    def __post_init__(self) -> None:
+        _validate_corpus(self.corpus)
+        _validate_collection(self.collection)
+        _validate_collection_scope(self.corpus, self.collection)
+        _validate_revision_track(self.revision_track)
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceSource:
+    doc_id: str
+    revision_track: RevisionTrack
+    version_id: str
+    chunk_id: str
+    anchor: dict[str, object]
+    canonical_url: str
+    latest_url: str
+    source_channel: SourceChannel
+    collection: str
+    is_current: bool
+    snippet: str
+    score: float
+    source_title: str = ""
+    structural_path: tuple[str, ...] = field(default_factory=tuple)
+    content_kind: str = ""
+    content_role: str = ""
+    detail_label: str = ""
+    is_answer_bearing: bool = False
+    canonical_source_id: str = ""
+    canonical_source_title: str = ""
+    source_unit_kind: str = ""
+    source_unit_key: str = ""
+    source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
+    remote_content_suspicion_labels: tuple[str, ...] = field(default_factory=tuple, compare=False)
+
+    def __post_init__(self) -> None:
+        _validate_revision_track(self.revision_track)
+        _validate_source_channel(self.source_channel)
+        _validate_collection(self.collection)
+        normalized_source_trust_tier = _normalize_source_trust_tier(
+            self.source_trust_tier,
+            collection=self.collection,
+            source_channel=self.source_channel,
+        )
+        if normalized_source_trust_tier != self.source_trust_tier:
+            object.__setattr__(self, "source_trust_tier", normalized_source_trust_tier)
+        for label in self.remote_content_suspicion_labels:
+            _validate_remote_content_suspicion_label(label)
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceBundle:
+    corpus: AllowedCorpus
+    collection: str
+    query_text: str = ""
+    sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        _validate_corpus(self.corpus)
+        _validate_collection(self.collection)
+        _validate_collection_scope(self.corpus, self.collection)
+        for source in self.sources:
+            normalized_source_trust_tier = _normalize_source_trust_tier(
+                source.source_trust_tier,
+                collection=source.collection or self.collection,
+                source_channel=source.source_channel,
+            )
+            if normalized_source_trust_tier != source.source_trust_tier:
+                object.__setattr__(source, "source_trust_tier", normalized_source_trust_tier)
+
+
+@dataclass(frozen=True, slots=True)
+class ErrorInfo:
+    code: str
+    message: str
+    retryable: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class VersionQuery:
+    mode: VersionQueryMode = "current"
+    as_of: str = ""
+    version_id: str = ""
+    compare_to_version_id: str = ""
+
+    def __post_init__(self) -> None:
+        _validate_version_query_mode(self.mode)
+        normalized_as_of = self.as_of.strip()
+        normalized_version_id = self.version_id.strip()
+        normalized_compare_to_version_id = self.compare_to_version_id.strip()
+        if normalized_as_of != self.as_of:
+            object.__setattr__(self, "as_of", normalized_as_of)
+        if normalized_version_id != self.version_id:
+            object.__setattr__(self, "version_id", normalized_version_id)
+        if normalized_compare_to_version_id != self.compare_to_version_id:
+            object.__setattr__(self, "compare_to_version_id", normalized_compare_to_version_id)
+        if self.mode == "as_of":
+            if not normalized_as_of:
+                raise ValueError("as_of is required when version mode is as_of")
+            if normalized_version_id:
+                raise ValueError("version_id is not allowed when version mode is as_of")
+            if normalized_compare_to_version_id:
+                raise ValueError(
+                    "compare_to_version_id is only allowed when version mode is compare"
+                )
+        elif normalized_as_of:
+            raise ValueError("as_of is only allowed when version mode is as_of")
+        if self.mode not in {"historical", "compare"} and normalized_version_id:
+            raise ValueError(
+                "version_id is only allowed when version mode is historical or compare"
+            )
+        if self.mode != "compare" and normalized_compare_to_version_id:
+            raise ValueError("compare_to_version_id is only allowed when version mode is compare")
+        if normalized_compare_to_version_id and not normalized_version_id:
+            raise ValueError("version_id is required when compare_to_version_id is set")
+
+
+@dataclass(frozen=True, slots=True)
+class RagRequestPayload:
+    scope: KnowledgeScope | None = None
+    version_query: VersionQuery = field(default_factory=lambda: VersionQuery())
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimSupport:
+    claim_type: str
+    claim_text: str
+    supported: bool
+    support_source_doc_id: str = ""
+    support_snippet: str = ""
+    required_source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
+    support_source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.claim_type.strip():
+            raise ValueError("claim_type must not be empty")
+        if not self.claim_text.strip():
+            raise ValueError("claim_text must not be empty")
+        if self.required_source_trust_tier:
+            _validate_source_trust_tier(self.required_source_trust_tier)
+        if self.support_source_trust_tier:
+            _validate_source_trust_tier(self.support_source_trust_tier)
+
+
+@dataclass(frozen=True, slots=True)
+class SourceTrustSummary:
+    observed_tiers: tuple[SourceTrustTier, ...] = field(default_factory=tuple)
+    answer_bearing_tiers: tuple[SourceTrustTier, ...] = field(default_factory=tuple)
+    blocked_claim_types: tuple[str, ...] = field(default_factory=tuple)
+    freshness_claim_blocked: bool = False
+    authorization_claim_blocked: bool = False
+
+    def __post_init__(self) -> None:
+        for tier in self.observed_tiers:
+            _validate_source_trust_tier(tier)
+        for tier in self.answer_bearing_tiers:
+            _validate_source_trust_tier(tier)
+
+
+@dataclass(frozen=True, slots=True)
+class RemoteContentSuspicionSummary:
+    flagged_source_count: int = 0
+    flag_labels: tuple[str, ...] = field(default_factory=tuple)
+    generation_blocked: bool = False
+
+    def __post_init__(self) -> None:
+        if self.flagged_source_count < 0:
+            raise ValueError("flagged_source_count must not be negative")
+        for label in self.flag_labels:
+            _validate_remote_content_suspicion_label(label)
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalStepActivitySummary:
+    step_id: str
+    step_type: str
+    corpus: AllowedCorpus
+    collection: str
+    status: str
+    top_k: int = 0
+    latency_ms: int | None = None
+    candidate_count: int = 0
+    reference_count: int = 0
+    failure_kind: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.step_id.strip():
+            raise ValueError("step_id must not be empty")
+        if not self.step_type.strip():
+            raise ValueError("step_type must not be empty")
+        if not self.collection.strip():
+            raise ValueError("collection must not be empty")
+        if not self.status.strip():
+            raise ValueError("status must not be empty")
+        if self.top_k < 0:
+            raise ValueError("top_k must not be negative")
+        if self.latency_ms is not None and self.latency_ms < 0:
+            raise ValueError("latency_ms must not be negative")
+        if self.candidate_count < 0:
+            raise ValueError("candidate_count must not be negative")
+        if self.reference_count < 0:
+            raise ValueError("reference_count must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalPlanSummary:
+    plan_id: str
+    query_mode: str
+    replan_count: int = 0
+    terminal_state: str = "completed"
+    step_activities: tuple[RetrievalStepActivitySummary, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.plan_id.strip():
+            raise ValueError("plan_id must not be empty")
+        if not self.query_mode.strip():
+            raise ValueError("query_mode must not be empty")
+        if self.replan_count < 0:
+            raise ValueError("replan_count must not be negative")
+        if self.terminal_state not in {"completed", "blocked", "failed_closed"}:
+            raise ValueError(f"unsupported terminal_state: {self.terminal_state}")
+
+
+@dataclass(frozen=True, slots=True)
+class PromptTrace:
+    prompt_id: str = ""
+    prompt_version: str = ""
+    template_sha256: str = ""
+    variables_schema_version: str = ""
+    output_schema_version: str = ""
+    model_provider: str = ""
+    model_name: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class RagResultDiagnostics:
+    resolved_scope_corpus: AllowedCorpus | None = None
+    resolved_scope_collection: str = ""
+    resolved_policy_document_id: str = ""
+    resolved_policy_title: str = ""
+    rewritten_query: str = ""
+    clarification_reason: str = ""
+    no_answer_reason: str = ""
+    semantic_outcome: str = ""
+    retrieval_adequacy_verdict: str = ""
+    retrieval_adequacy_reason: str = ""
+    grounding_verdict: str = ""
+    grounding_downgraded: bool = False
+    freshness_fail_closed: bool = False
+    scope_class: str = ""
+    policy_reason: str = ""
+    retrieved_title_summary: tuple[str, ...] = field(default_factory=tuple)
+    candidate_title_summary: tuple[str, ...] = field(default_factory=tuple)
+    resolution_mode: str = ""
+    used_verified_identity: bool = False
+    used_soft_preference: bool = False
+    resolved_entity_type: str = ""
+    resolved_course_id: str = ""
+    resolved_course_title: str = ""
+    resolved_course_family_id: str = ""
+    resolved_course_family_title: str = ""
+    resolved_program_family_id: str = ""
+    resolved_program_family_title: str = ""
+    session_program_family: str = ""
+    session_program: str = ""
+    session_semester: str = ""
+    remote_content_suspicion_summary: RemoteContentSuspicionSummary | None = field(
+        default=None,
+        compare=False,
+    )
+    source_trust_summary: SourceTrustSummary | None = field(default=None, compare=False)
+    claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
+    unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
+    partial_answer: bool = False
+    prompt_runtime_state: str = ""
+    prompt_runtime_detail: str = ""
+    retrieval_plan_summary: RetrievalPlanSummary | None = field(default=None, compare=False)
+    retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
+    prompt_trace: PromptTrace | None = None

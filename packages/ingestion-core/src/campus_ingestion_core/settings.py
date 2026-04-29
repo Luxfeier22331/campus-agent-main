@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from urllib.parse import urlparse
-
 
 DEFAULT_BUCKET_SOURCE = "campus-rag-source"
 DEFAULT_BUCKET_DERIVED = "campus-rag-derived"
@@ -71,7 +70,11 @@ class ObjectStoreSettings:
 
     @property
     def has_any_credentials(self) -> bool:
-        return self.has_shared_credentials or self.has_source_credentials or self.has_derived_credentials
+        return (
+            self.has_shared_credentials
+            or self.has_source_credentials
+            or self.has_derived_credentials
+        )
 
     @property
     def has_source_credentials(self) -> bool:
@@ -92,7 +95,7 @@ class ObjectStoreSettings:
         raise ValueError(f"no object-store credentials configured for bucket {normalized_bucket}")
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "ObjectStoreSettings":
+    def from_env(cls, env: dict[str, str] | None = None) -> ObjectStoreSettings:
         source = env if env is not None else os.environ
         endpoint = (source.get("OBJECT_STORE_ENDPOINT") or "").strip()
         access_key = (source.get("OBJECT_STORE_ACCESS_KEY") or "").strip()
@@ -131,7 +134,9 @@ class ObjectStoreSettings:
         if has_access_key == has_secret_key:
             return
         missing_name = secret_key_name if has_access_key else access_key_name
-        raise ValueError(f"{access_key_name} and {secret_key_name} must be configured together; missing {missing_name}")
+        raise ValueError(
+            f"{access_key_name} and {secret_key_name} must be configured together; missing {missing_name}"
+        )
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:

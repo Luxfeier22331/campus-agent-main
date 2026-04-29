@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, replace
 import json
+from collections.abc import Sequence
+from dataclasses import asdict, replace
+from datetime import UTC
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from campus_ingestion_core import (
     DEFAULT_BUCKET_SOURCE,
@@ -12,15 +14,21 @@ from campus_ingestion_core import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.campusrag_ingestion_reporting import write_import_report
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     ImportReport,
     load_metadata_from_bytes,
     persist_import_documents,
 )
+from campus_ingestion_core.in_memory_registries import (
+    InMemoryDocumentRegistry,
+    InMemoryRawAssetRegistry,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 _PROMOTION_DISALLOWED_PAGE_FAMILIES = frozenset(
@@ -47,6 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", required=True)
     parser.add_argument("--source-bucket", default=DEFAULT_BUCKET_SOURCE)
     parser.add_argument("--require-promotable", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     return parser
 
 
@@ -62,6 +71,7 @@ def import_projection_output(
     object_store_settings: ObjectStoreSettings,
     scope_refresh: tuple[str, str] | None = None,
     require_promotable: bool = False,
+    dry_run: bool = False,
 ) -> ImportReport:
     projection_report = _read_json(projection_output_dir / "projection-report.json")
     bundle_payload = _read_json(replay_input_dir / "source-truth-bundle.json")
@@ -105,7 +115,9 @@ def import_projection_output(
                 continue
 
         canonical_path = Path(
-            _require_text(document.get("canonical_markdown_path"), "documents[].canonical_markdown_path")
+            _require_text(
+                document.get("canonical_markdown_path"), "documents[].canonical_markdown_path"
+            )
         )
         document_units_path = Path(
             _require_text(document.get("document_units_path"), "documents[].document_units_path")
@@ -134,7 +146,9 @@ def import_projection_output(
                 source_channel="official_web",
                 is_current=True,
                 corpus=_require_text(document.get("target_corpus"), "documents[].target_corpus"),
-                collection=_require_text(document.get("target_collection"), "documents[].target_collection"),
+                collection=_require_text(
+                    document.get("target_collection"), "documents[].target_collection"
+                ),
                 raw_source_uri=_require_text(
                     document.get("normalized_canonical_url"),
                     "documents[].normalized_canonical_url",
@@ -146,10 +160,12 @@ def import_projection_output(
                     key
                     for key in (
                         _optional_text(
-                            page.get("pageManifestObjectKey") or page.get("page_manifest_object_key")
+                            page.get("pageManifestObjectKey")
+                            or page.get("page_manifest_object_key")
                         ),
                         _optional_text(
-                            page.get("contentBlocksObjectKey") or page.get("content_blocks_object_key")
+                            page.get("contentBlocksObjectKey")
+                            or page.get("content_blocks_object_key")
                         ),
                     )
                     if key is not None
@@ -162,6 +178,27 @@ def import_projection_output(
                 bundle_page=page,
                 document=documents[-1],
             )
+        )
+
+    if dry_run:
+        document_ids = tuple(document.source_label for document in documents)
+        skipped_document_ids = tuple(skipped_non_promotable_document_ids)
+        return write_import_report(
+            import_mode="official_web_source_truth_replay_dry_run",
+            report_dir=work_dir / "import-reports",
+            report_prefix="official-web-import-dry-run",
+            success_count=len(document_ids),
+            skipped_count=len(skipped_document_ids),
+            failed_count=0,
+            raw_uploaded_count=0,
+            raw_reused_count=0,
+            document_ids=document_ids,
+            created_document_ids=document_ids,
+            updated_document_ids=(),
+            skipped_document_ids=skipped_document_ids,
+            unresolved_source_pdfs=(),
+            errors=(),
+            timestamp=_utcnow(),
         )
 
     report = persist_import_documents(
@@ -218,7 +255,9 @@ def _build_official_web_raw_asset_record(
     bundle_page: dict[str, object],
     document: DocumentImportInput,
 ) -> RawAssetRecord:
-    raw_asset_id = _require_text(bundle_page.get("rawAssetId") or bundle_page.get("raw_asset_id"), "rawAssetId")
+    raw_asset_id = _require_text(
+        bundle_page.get("rawAssetId") or bundle_page.get("raw_asset_id"), "rawAssetId"
+    )
     raw_version_id = _require_text(
         bundle_page.get("rawVersionId") or bundle_page.get("raw_version_id"),
         "rawVersionId",
@@ -262,8 +301,10 @@ def _document_matches_scope_refresh(
     scope_refresh: tuple[str, str],
 ) -> bool:
     return (
-        _require_text(document.get("target_corpus"), "documents[].target_corpus") == scope_refresh[0]
-        and _require_text(document.get("target_collection"), "documents[].target_collection") == scope_refresh[1]
+        _require_text(document.get("target_corpus"), "documents[].target_corpus")
+        == scope_refresh[0]
+        and _require_text(document.get("target_collection"), "documents[].target_collection")
+        == scope_refresh[1]
     )
 
 
@@ -282,7 +323,9 @@ def _rewrite_import_report(report: ImportReport) -> None:
         "unresolved_source_pdfs": list(report.unresolved_source_pdfs),
         "errors": list(report.errors),
     }
-    Path(report.report_path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    Path(report.report_path).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def _load_provider_bytes(
@@ -353,9 +396,9 @@ def _optional_text(value: object) -> str | None:
 
 
 def _utcnow() -> str:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -363,22 +406,33 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     object_store_settings = _resolve_object_store_settings(source_bucket=args.source_bucket)
     object_store = S3ObjectStoreAdmin(object_store_settings)
+    document_registry = (
+        InMemoryDocumentRegistry()
+        if args.dry_run
+        else build_document_registry_from_env(prefer_operator=True)
+    )
+    raw_asset_registry = (
+        InMemoryRawAssetRegistry()
+        if args.dry_run
+        else build_raw_asset_registry_from_env(prefer_operator=True)
+    )
     report = import_projection_output(
         work_dir=Path(args.work_dir).resolve(),
         projection_output_dir=Path(args.projection_output_dir).resolve(),
         replay_input_dir=Path(args.replay_input_dir).resolve(),
         source_object_store=object_store,
         derived_object_store=object_store,
-        document_registry=build_document_registry_from_env(),
-        raw_asset_registry=build_raw_asset_registry_from_env(),
+        document_registry=document_registry,
+        raw_asset_registry=raw_asset_registry,
         object_store_settings=object_store_settings,
         scope_refresh=(args.corpus, args.collection),
         require_promotable=args.require_promotable,
+        dry_run=args.dry_run,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 
-__all__ = ["build_parser", "import_projection_output", "main", "ObjectStoreSettings"]
+__all__ = ["ObjectStoreSettings", "build_parser", "import_projection_output", "main"]
 
 
 if __name__ == "__main__":

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import unicodedata
-from typing import Sequence
-
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 TOP_LEVEL_CLAUSE_RE = re.compile(
     r"^(?:[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]|[一二三四五六七八九十百千万〇零两]+、)"
@@ -29,7 +28,8 @@ HEADING_SUFFIXES = (
     "申请",
     "考核",
 )
-TITLE_HEADING_SUFFIXES = HEADING_SUFFIXES + (
+TITLE_HEADING_SUFFIXES = (
+    *HEADING_SUFFIXES,
     "计划",
     "通知",
     "奖励",
@@ -71,6 +71,8 @@ PLAIN_HEADING_ALLOWLIST = {
 INLINE_HEADING_ALLOWLIST = {
     "候选人公示",
     "学生申请",
+    "院系审核,提交材料",
+    "公布参加转专业考试学生名单及考试具体安排",
     "报名审核",
     "公示",
     "办理出国(境)手续",
@@ -78,6 +80,9 @@ INLINE_HEADING_ALLOWLIST = {
     "笔试考核",
     "面试考核",
     "确定入围名单方式",
+    "考核方式",
+    "拟接收名单的确定",
+    "手续办理",
     "课程认定",
     "学分认定",
     "成绩认定",
@@ -87,6 +92,7 @@ INLINE_HEADING_BODY_STARTERS = (
     "中央民族大学",
     "党委学生工作部、学生处",
     "国家民族事务委员会",
+    "本科学生",
     "学生需要",
     "学生工作部",
     "学校将",
@@ -100,6 +106,7 @@ INLINE_HEADING_BODY_STARTERS = (
     "入围名单确定后",
     "有多个项目同时进行选拔时",
     "教务处综合申请者",
+    "考核形式",
     "按照分数优先原则",
     "语言类专家",
     "项目管理人员",
@@ -188,7 +195,10 @@ def _normalize_article_structure_line(line: str) -> tuple[str, ...]:
     if inline_match is not None:
         split_body = _split_inline_heading_body(inline_match.group("body").strip())
         if split_body is not None:
-            return (_compose_heading_line(inline_match.group("label").strip(), split_body[0]), split_body[1])
+            return (
+                _compose_heading_line(inline_match.group("label").strip(), split_body[0]),
+                split_body[1],
+            )
         return (line,)
 
     split_plain = _split_plain_heading_body(line)
@@ -247,9 +257,7 @@ def _is_heading_candidate(text: str) -> bool:
         return False
     if any(fragment in text for fragment in HEADING_FORBIDDEN_FRAGMENTS):
         return False
-    if text.endswith(("的", "地", "得", "了", "时", "后", "前")):
-        return False
-    return True
+    return not text.endswith(("的", "地", "得", "了", "时", "后", "前"))
 
 
 def _split_note_marker_body(text: str) -> tuple[str, str] | None:
@@ -290,7 +298,9 @@ def _strip_trailing_parenthetical(text: str) -> str:
         left_index = normalized.rfind(left)
         if left_index <= 0:
             continue
-        if normalized[left_index + 1 : -1].count(left) or normalized[left_index + 1 : -1].count(right):
+        if normalized[left_index + 1 : -1].count(left) or normalized[left_index + 1 : -1].count(
+            right
+        ):
             continue
         return normalized[:left_index].strip()
     return normalized
@@ -301,9 +311,9 @@ def _normalize_fragment(value: str) -> str:
 
 
 __all__ = [
-    "ArticleStructureGroup",
-    "TOP_LEVEL_CLAUSE_RE",
     "NUMERIC_SUBCLAUSE_RE",
+    "TOP_LEVEL_CLAUSE_RE",
+    "ArticleStructureGroup",
     "article_structure_has_nested_subclauses",
     "build_article_structure_groups",
     "is_title_like_heading",

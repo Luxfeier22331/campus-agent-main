@@ -5,16 +5,26 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.scope_catalog import assert_known_corpus
-
+from campus_ingestion_core.settings import ObjectStoreSettings
 
 DEFAULT_RAW_SOURCE_CHANNEL = "official_pdf"
 DEFAULT_SOURCE_MODEL_SLUG = "paddleocr-vl-1-5"
+OFFICIAL_WEB_SOURCE_CHANNEL = "official_web"
 SOURCE_CAPTURE_STAGE = "capture"
 SOURCE_PROVIDER_STAGE = "provider"
 SOURCE_TRUTH_STAGE = "source-truth"
-SOURCE_STAGES = {SOURCE_CAPTURE_STAGE, SOURCE_PROVIDER_STAGE, SOURCE_TRUTH_STAGE}
+SOURCE_PROJECTION_STAGE = "projection"
+SOURCE_STAGES = {
+    SOURCE_CAPTURE_STAGE,
+    SOURCE_PROVIDER_STAGE,
+    SOURCE_TRUTH_STAGE,
+    SOURCE_PROJECTION_STAGE,
+}
+READER_ASSET_DIRECTORY = "reader-assets"
+ALLOWED_READER_ASSET_FILENAMES = frozenset(
+    {"reader.json", "outline.json", "meta.json", "asset-manifest.json"}
+)
 YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
 REDUNDANT_SOURCE_SUFFIXES = {
     "pdf",
@@ -29,6 +39,7 @@ REDUNDANT_SOURCE_SUFFIXES = {
     "csv",
     "zip",
 }
+MAX_DOCUMENT_DIRECTORY_SEGMENT_BYTES = 180
 
 
 def build_raw_asset_key(
@@ -96,7 +107,7 @@ def build_source_provider_artifact_key(
     source_channel: str = DEFAULT_RAW_SOURCE_CHANNEL,
     model_slug: str = DEFAULT_SOURCE_MODEL_SLUG,
     year: str | None = None,
-    ) -> str:
+) -> str:
     _validate_filename_only(filename=filename)
     if not raw_asset_id:
         raise ValueError("raw_asset_id is required")
@@ -144,6 +155,35 @@ def build_source_truth_artifact_key(
     )
 
 
+def build_source_projection_artifact_key(
+    *,
+    raw_asset_id: str,
+    raw_version_id: str,
+    projection_name: str,
+    filename: str,
+    source_channel: str = DEFAULT_RAW_SOURCE_CHANNEL,
+    year: str | None = None,
+) -> str:
+    _validate_filename_only(filename=filename)
+    if not raw_asset_id:
+        raise ValueError("raw_asset_id is required")
+    if not raw_version_id:
+        raise ValueError("raw_version_id is required")
+    if not projection_name:
+        raise ValueError("projection_name is required")
+    return "/".join(
+        [
+            _validate_path_segment(source_channel, field_name="source_channel"),
+            _source_asset_slug(raw_asset_id),
+            _normalize_year_label(year),
+            *_identity_segments(raw_version_id),
+            SOURCE_PROJECTION_STAGE,
+            _validate_path_segment(projection_name, field_name="projection_name"),
+            filename,
+        ]
+    )
+
+
 def build_processed_artifact_key(
     *,
     corpus: str,
@@ -164,6 +204,43 @@ def build_processed_artifact_key(
         filename=filename,
         title=title,
         year=year,
+    )
+
+
+def build_reader_asset_artifact_key(
+    *,
+    corpus: str,
+    collection: str,
+    document_id: str,
+    revision_track: str,
+    version_id: str,
+    asset_name: str,
+    title: str | None = None,
+    year: str | None = None,
+) -> str:
+    _validate_corpus_and_filename(corpus=corpus, filename=asset_name)
+    if asset_name not in ALLOWED_READER_ASSET_FILENAMES:
+        allowed_names = ", ".join(sorted(ALLOWED_READER_ASSET_FILENAMES))
+        raise ValueError(
+            f"unsupported reader asset name: {asset_name!r}; expected one of {allowed_names}"
+        )
+    if not document_id:
+        raise ValueError("document_id is required")
+    if not revision_track:
+        raise ValueError("revision_track is required")
+    if not version_id:
+        raise ValueError("version_id is required")
+    return "/".join(
+        [
+            corpus,
+            "documents",
+            _validate_path_segment(collection, field_name="collection"),
+            _document_directory_name(document_id=document_id, title=title),
+            _validate_path_segment(revision_track, field_name="revision_track"),
+            _normalize_year_label(year),
+            READER_ASSET_DIRECTORY,
+            asset_name,
+        ]
     )
 
 
@@ -203,6 +280,24 @@ def build_qdrant_backup_artifact_key(
             _validate_path_segment(release_id, field_name="release_id"),
             _validate_path_segment(backup_id, field_name="backup_id"),
             filename,
+        ]
+    )
+
+
+def build_official_web_run_artifact_key(
+    *,
+    site_id: str,
+    run_id: str,
+    artifact_name: str,
+) -> str:
+    _validate_filename_only(filename=artifact_name)
+    return "/".join(
+        [
+            OFFICIAL_WEB_SOURCE_CHANNEL,
+            _validate_path_segment(site_id, field_name="site_id"),
+            "runs",
+            _validate_path_segment(run_id, field_name="run_id"),
+            artifact_name,
         ]
     )
 
@@ -298,11 +393,17 @@ def parse_source_object_key(key: str) -> dict[str, object] | None:
         return None
     stage = parts[stage_index]
     model_slug: str | None = None
+    projection_name: str | None = None
     filename_index = stage_index + 1
     if stage == SOURCE_PROVIDER_STAGE:
         if len(parts) < stage_index + 3:
             return None
         model_slug = parts[stage_index + 1]
+        filename_index = stage_index + 2
+    if stage == SOURCE_PROJECTION_STAGE:
+        if len(parts) < stage_index + 3:
+            return None
+        projection_name = parts[stage_index + 1]
         filename_index = stage_index + 2
     if len(parts) != filename_index + 1:
         return None
@@ -315,6 +416,7 @@ def parse_source_object_key(key: str) -> dict[str, object] | None:
         "raw_version_id": ":".join(raw_version_segments),
         "stage": stage,
         "model_slug": model_slug,
+        "projection_name": projection_name,
         "filename": filename,
     }
 
@@ -386,7 +488,9 @@ def _document_directory_name(*, document_id: str, title: str | None) -> str:
     document_suffix = _document_id_suffix(document_id)
     title_slug = _slugify_path_label(title or document_suffix)
     docid8 = _document_id_short_label(document_id=document_id, document_suffix=document_suffix)
-    return f"{title_slug}--{docid8}"
+    suffix = f"--{docid8}"
+    title_budget = MAX_DOCUMENT_DIRECTORY_SEGMENT_BYTES - len(suffix.encode("utf-8"))
+    return f"{_truncate_utf8_path_segment(title_slug, max_bytes=title_budget)}{suffix}"
 
 
 def _document_id_suffix(document_id: str) -> str:
@@ -416,6 +520,22 @@ def _normalize_year_label(value: str | None) -> str:
     if match is None:
         return "undated"
     return match.group(1)
+
+
+def _truncate_utf8_path_segment(value: str, *, max_bytes: int) -> str:
+    if max_bytes <= 0:
+        raise ValueError("max_bytes must be greater than zero")
+    if len(value.encode("utf-8")) <= max_bytes:
+        return value
+    output: list[str] = []
+    used = 0
+    for char in value:
+        char_size = len(char.encode("utf-8"))
+        if used + char_size > max_bytes:
+            break
+        output.append(char)
+        used += char_size
+    return "".join(output).strip("-") or "document"
 
 
 def infer_year_label(value: str | None) -> str | None:
@@ -463,7 +583,9 @@ class S3ObjectStoreClientFactory:
             "config": Config(s3={"addressing_style": "path"}),
         }
 
-    def create(self, *, bucket: str | None = None):  # pragma: no cover - exercised only when boto3 is installed
+    def create(
+        self, *, bucket: str | None = None
+    ):  # pragma: no cover - exercised only when boto3 is installed
         if bucket is not None:
             return self._create_base_client(bucket=bucket)
         return _BucketAwareS3Client(self)
