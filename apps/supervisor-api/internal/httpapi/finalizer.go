@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 )
 
@@ -27,6 +28,8 @@ func finalizerContextFromExecutionRequest(
 		RuntimeDecisions: request.RuntimeDecisions,
 		Handoff:          request.StructuredHandoff,
 		Branch:           branch,
+		RuntimeVersions:  request.RuntimeDecisions.RuntimeVersions,
+		PolicyVersions:   request.RuntimeDecisions.PolicyArtifactVersions,
 	}
 }
 
@@ -55,6 +58,9 @@ func finalizeAgentBridgeResponse(
 	}
 	confidence = defaultString(confidence, "low")
 	if !allowedAgentTarget(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
+		return nil, errInvalidAgentResponse
+	}
+	if !validFinalizerHandoffInvariant(target, context) {
 		return nil, errInvalidAgentResponse
 	}
 	answerText, err := optionalAgentResponseString(agentResponse, "answer_text")
@@ -124,7 +130,10 @@ func buildWorkflowTraceSummary(
 	agentObservability map[string]any,
 ) map[string]any {
 	decisions := context.RuntimeDecisions
-	selectedTool := defaultString(context.SelectedTool, decisions.SelectedTool)
+	selectedTool := defaultString(
+		stringValue(agentObservability["selected_tool"]),
+		defaultString(context.SelectedTool, decisions.SelectedTool),
+	)
 	if selectedTool == "" {
 		selectedTool = inferSelectedTool(target, result)
 	}
@@ -138,6 +147,21 @@ func buildWorkflowTraceSummary(
 		defaultString(decisions.FailCloseReason, stringValue(result["fail_close_reason"])),
 		stringValue(agentObservability["fail_close_reason"]),
 	)
+	branch = workflowBranch(branch, status, failCloseReason)
+	toolArgumentSummary := workflowToolArgumentSummary(
+		selectedTool,
+		context.Handoff,
+		agentObservability,
+	)
+	runtimeVersions := context.RuntimeVersions
+	if len(runtimeVersions) == 0 {
+		runtimeVersions = decisions.RuntimeVersions
+	}
+	runtimeVersions = workflowRuntimeVersions(runtimeVersions)
+	policyVersions := context.PolicyVersions
+	if len(policyVersions) == 0 {
+		policyVersions = decisions.PolicyArtifactVersions
+	}
 	return map[string]any{
 		"routing_frame": map[string]any{
 			"scope_gate_decision":     decisions.ScopeGateDecision,
@@ -153,10 +177,16 @@ func buildWorkflowTraceSummary(
 		"handoff":                   handoff,
 		"selected_target":           target,
 		"selected_tools":            selectedTools,
-		"tool_argument_summary": workflowToolArgumentSummary(
+		"tool_argument_summary":     toolArgumentSummary,
+		"trace_steps":               workflowTraceSteps(branch, target, selectedTool, status, decisions, failCloseReason),
+		"tool_call_summaries": workflowToolCallSummaries(
 			selectedTool,
-			context.Handoff,
+			target,
+			status,
+			result,
+			toolArgumentSummary,
 			agentObservability,
+			failCloseReason,
 		),
 		"guardrail_outcomes": map[string]any{
 			"scope_gate":        decisions.ScopeGateDecision,
@@ -164,9 +194,61 @@ func buildWorkflowTraceSummary(
 			"context_preflight": decisions.ContextPreflightState,
 		},
 		"fail_close_reason":        failCloseReason,
-		"runtime_versions":         safeWorkflowMap(context.RuntimeVersions),
-		"policy_artifact_versions": safeWorkflowMap(context.PolicyVersions),
+		"runtime_versions":         safeWorkflowMap(runtimeVersions),
+		"policy_artifact_versions": safeWorkflowMap(policyVersions),
 	}
+}
+
+func validFinalizerHandoffInvariant(target string, context supervisorFinalizerContext) bool {
+	isDelegate := context.Branch == "delegate" || context.RuntimeDecisions.RoutingNextAction == "delegate"
+	if !isDelegate {
+		return true
+	}
+	if context.Handoff == nil {
+		return false
+	}
+	if context.RuntimeDecisions.SelectedTarget != "" && context.RuntimeDecisions.SelectedTarget != target {
+		return false
+	}
+	if context.Handoff.Target != "" && context.Handoff.Target != target {
+		return false
+	}
+	if context.SelectedTool != "" && len(context.Handoff.AllowedTools) > 0 {
+		for _, tool := range context.Handoff.AllowedTools {
+			if tool == context.SelectedTool {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func workflowRuntimeVersions(source map[string]any) map[string]any {
+	versions := safeWorkflowMap(source)
+	if _, exists := versions["workflow_trace_summary"]; !exists {
+		versions["workflow_trace_summary"] = contractsv1.WorkflowTraceSummaryVersion
+	}
+	if _, exists := versions["bridge_contract"]; !exists {
+		versions["bridge_contract"] = contractsv1.BridgeVersion
+	}
+	if _, exists := versions["response_contract"]; !exists {
+		versions["response_contract"] = contractsv1.ResponseContract
+	}
+	return versions
+}
+
+func workflowBranch(branch string, status string, failCloseReason string) string {
+	if branch != "terminal" {
+		return branch
+	}
+	if failCloseReason != "" {
+		return "fail_close"
+	}
+	if status == "needs_clarification" {
+		return "clarification"
+	}
+	return branch
 }
 
 func branchFromRuntimeDecision(decisions execution.RuntimeDecisionSummary) string {
@@ -195,13 +277,119 @@ func workflowHandoffSummary(
 }
 
 func workflowSelectedTools(handoff *execution.RuntimeHandoff, selectedTool string) []string {
-	if handoff != nil && len(handoff.AllowedTools) > 0 {
-		return append([]string(nil), handoff.AllowedTools...)
-	}
 	if selectedTool != "" {
 		return []string{selectedTool}
 	}
 	return []string{}
+}
+
+func workflowTraceSteps(
+	branch string,
+	target string,
+	selectedTool string,
+	status string,
+	decisions execution.RuntimeDecisionSummary,
+	failCloseReason string,
+) []map[string]any {
+	steps := []map[string]any{
+		{
+			"step_id":        "runtime_policy",
+			"span_kind":      "runtime_policy",
+			"parent_step_id": "",
+			"outcome": defaultString(
+				decisions.RoutingNextAction,
+				defaultString(branch, status),
+			),
+		},
+	}
+	if branch != "" {
+		steps = append(steps, map[string]any{
+			"step_id":        "handoff",
+			"span_kind":      "handoff",
+			"parent_step_id": "runtime_policy",
+			"target":         target,
+			"outcome":        branch,
+		})
+	}
+	if selectedTool != "" {
+		steps = append(steps, map[string]any{
+			"step_id":        "tool_call",
+			"span_kind":      "tool_call",
+			"parent_step_id": workflowToolCallParentStep(branch),
+			"tool_name":      selectedTool,
+			"target":         target,
+			"outcome":        status,
+			"result_status":  status,
+			"retry_count":    0,
+		})
+	}
+	finalization := map[string]any{
+		"step_id":        "finalization",
+		"span_kind":      "finalization",
+		"parent_step_id": workflowFinalizationParentStep(branch, selectedTool),
+		"outcome":        status,
+		"result_status":  status,
+	}
+	if failCloseReason != "" {
+		finalization["fail_close_reason"] = failCloseReason
+	}
+	steps = append(steps, finalization)
+	return steps
+}
+
+func workflowToolCallParentStep(branch string) string {
+	if branch != "" {
+		return "handoff"
+	}
+	return "runtime_policy"
+}
+
+func workflowFinalizationParentStep(branch string, selectedTool string) string {
+	if selectedTool != "" {
+		return "tool_call"
+	}
+	if branch != "" {
+		return "handoff"
+	}
+	return "runtime_policy"
+}
+
+func workflowToolCallSummaries(
+	selectedTool string,
+	target string,
+	status string,
+	result map[string]any,
+	argumentSummary map[string]any,
+	agentObservability map[string]any,
+	failCloseReason string,
+) []map[string]any {
+	if selectedTool == "" {
+		return []map[string]any{}
+	}
+	summary := map[string]any{
+		"tool_name":        selectedTool,
+		"target":           target,
+		"result_status":    status,
+		"argument_summary": safeWorkflowMap(argumentSummary),
+		"source_ids":       workflowSourceIDs(result),
+	}
+	if businessOutcome := defaultString(
+		stringValue(agentObservability["tool_outcome"]),
+		defaultString(stringValue(agentObservability["result_outcome"]), stringValue(result["outcome"])),
+	); businessOutcome != "" {
+		summary["business_outcome"] = businessOutcome
+	}
+	if failCloseReason != "" {
+		summary["fail_close_reason"] = failCloseReason
+	}
+	if accessDecision := stringValue(agentObservability["access_decision"]); accessDecision != "" {
+		summary["access_decision"] = accessDecision
+	}
+	if safeDetails, ok := agentObservability["safe_details"].(map[string]any); ok &&
+		!hasForbiddenWorkflowTraceKey(safeDetails) {
+		summary["safe_details"] = safeDetails
+	}
+	return []map[string]any{summary}
 }
 
 func workflowToolArgumentSummary(
@@ -383,6 +571,44 @@ func stringFields(payload map[string]any, keys ...string) map[string]any {
 		copyStringField(summary, payload, key)
 	}
 	return summary
+}
+
+func workflowSourceIDs(result map[string]any) []string {
+	ids := []string{}
+	collectWorkflowSourceIDs(result, &ids)
+	return ids
+}
+
+func collectWorkflowSourceIDs(value any, ids *[]string) {
+	switch current := value.(type) {
+	case map[string]any:
+		for key, item := range current {
+			switch key {
+			case "doc_id", "docId", "source_id", "sourceId", "source_ref", "sourceRef",
+				"notice_id", "noticeId":
+				appendWorkflowSourceID(ids, stringValue(item))
+			case "source_ids", "sourceIds", "evidence_ids", "evidenceIds", "related_notice_refs",
+				"relatedNoticeRefs", "source_refs", "sourceRefs", "notice_refs", "noticeRefs",
+				"override_source_refs", "overrideSourceRefs":
+				for _, sourceID := range stringArrayValue(item) {
+					appendWorkflowSourceID(ids, sourceID)
+				}
+			}
+			collectWorkflowSourceIDs(item, ids)
+		}
+	case []any:
+		for _, item := range current {
+			collectWorkflowSourceIDs(item, ids)
+		}
+	}
+}
+
+func appendWorkflowSourceID(ids *[]string, id string) {
+	normalized := strings.TrimSpace(id)
+	if normalized == "" || containsString(*ids, normalized) {
+		return
+	}
+	*ids = append(*ids, normalized)
 }
 
 func safeWorkflowMap(value map[string]any) map[string]any {

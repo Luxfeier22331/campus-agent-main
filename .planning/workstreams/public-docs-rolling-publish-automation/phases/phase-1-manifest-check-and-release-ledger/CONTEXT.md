@@ -24,7 +24,7 @@ ingestion 侧会持续产出新的 canonical reader assets，并维护 public do
 ## Accepted Direction
 
 - prod 每天北京时间 `00:00 / 06:00 / 12:00 / 18:00` 检查 manifest。
-- scheduled expression 采用 UTC `0 4,10,16,22 * * *`。
+- controlled runner scheduled expression 采用 UTC `7 4,10,16,22 * * *`。
 - manifest 变化时才执行 build/smoke/deploy。
 - manifest 无变化时 ledger 记录 skipped，不触发 deploy。
 - deploy job 不扫描对象存储决定公开子集。

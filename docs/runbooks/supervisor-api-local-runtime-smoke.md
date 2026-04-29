@@ -8,11 +8,13 @@ updated: 2026-04-24
 
 ## 文档边界
 
-这份 runbook 只覆盖本地 Docker-first `supervisor-api` supervisor runtime smoke。
+这份 runbook 覆盖本地 `supervisor-api` supervisor runtime smoke。面向本地开发时优先使用
+direct-process smoke；Docker smoke 只用于验证部署 substrate。
 
 它回答的是：
 
-- 如何在本机启动 `supervisor-api + Python orchestration` 双容器 runtime
+- 如何在本机直接启动 `supervisor-api + Python orchestration` 两个进程
+- 何时使用 Docker substrate smoke
 - 最小 health / ready / metrics / answer smoke 要怎么做
 - 当前 accepted runback 路径是什么
 
@@ -38,17 +40,19 @@ updated: 2026-04-24
   - `GET /internal/bridge/healthz`
   - `GET /internal/bridge/readyz`
 
-compose entry：
+direct-process smoke entry：
+
+- [`scripts/supervisor_runtime_process_smoke.py`](../../scripts/supervisor_runtime_process_smoke.py)
+
+Docker substrate smoke entry：
 
 - [`infra/local/docker-compose.supervisor-runtime.yml`](../../infra/local/docker-compose.supervisor-runtime.yml)
 - [`infra/local/start-supervisor-runtime.sh`](../../infra/local/start-supervisor-runtime.sh)
 
 ## Required Env
 
-本地 smoke 默认使用 `infra/local/start-supervisor-runtime.sh` 启动。它会先加载 repo root
-`.env` 与 `apps/app-api/.dev.vars`，再把传入容器的
-`DOCUMENT_REGISTRY_DATABASE_URL` / `CAMPUS_SHARED_POSTGRES_URL` 中的
-`127.0.0.1` / `localhost` 改写为 `host.docker.internal`。
+本地开发 smoke 默认使用 direct-process runner 启动。它不改写 localhost，也不启动 Docker /
+Wrangler。
 
 手动绕过启动脚本时，最小必填：
 
@@ -88,9 +92,27 @@ export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 - 如果没有配置真实 prompt runtime，`/readyz` 可能返回 `503 degraded`
 - `503 degraded` 不阻塞 transport smoke，但必须在记录中解释原因
 
-## Step 1. Start Runtime
+## Step 1. Run Direct-Process Smoke
 
-先跑 deploy-side doctor gate：
+```bash
+uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \
+  --output-dir .tmp/supervisor-api-process-smoke
+```
+
+这个入口会：
+
+- 用 `uv run --all-packages python -m campus_supervisor_agent_worker.bridge_server`
+  启动 Python worker
+- 用 `go run ./cmd/supervisor-api` 启动 Go supervisor-api
+- 探测 worker `/internal/bridge/healthz`
+- 探测 supervisor `/healthz`、`/readyz`、`/metrics`
+- 对 `/api/v1/answer` 发起 closed structured-runtime contract probe
+
+它是本地开发联调的推荐入口；不要为了本地 smoke 先构建 Docker 镜像。
+
+## Step 2. Docker Substrate Smoke
+
+需要验证 Docker-first deploy substrate 时，先跑 deploy-side doctor gate：
 
 ```bash
 uv run --all-packages python -m scripts.doctor_env supervisor-api --json
@@ -106,7 +128,7 @@ infra/local/start-supervisor-runtime.sh
 
 - `supervisor-api` -> `http://127.0.0.1:18080`
 
-## Step 2. Probe Health And Readiness
+## Step 3. Probe Health And Readiness
 
 ```bash
 curl -sS http://127.0.0.1:18080/healthz
@@ -174,7 +196,7 @@ answer path 会得到 bridge `connection refused` 的假阴性。
 runtime 不健康；只要未 draining 且 admission queue 仍能接收短突发，`/readyz` 可以继续
 返回 `200 ready`。队列满、draining 或 bridge 不健康才会让 readiness degraded。
 
-## Step 3. Probe Answer Path
+## Step 4. Probe Answer Path
 
 推荐直接用固定 smoke profile，自动落盘 artifact：
 
@@ -230,7 +252,7 @@ JSON
 
 这里只验证 execution runtime / bridge / response contract，不把答案质量当成这份 smoke 的通过条件。
 
-## Step 4. Inspect Metrics And Logs
+## Step 5. Inspect Metrics And Logs
 
 再次拉取：
 

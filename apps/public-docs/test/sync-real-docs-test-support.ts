@@ -3,10 +3,10 @@ import { afterEach } from "vitest";
 import type { ObjectStoreClient } from "../scripts/sync-real-docs/storage";
 
 export class FakeObjectStore implements ObjectStoreClient {
-	private readonly objects: ReadonlyMap<string, Uint8Array | string>;
+	private readonly objects: Map<string, Uint8Array | string>;
 
 	constructor(objects: ReadonlyMap<string, Uint8Array | string>) {
-		this.objects = objects;
+		this.objects = new Map(objects);
 	}
 
 	async readTextObject({ key }: { bucket?: string; key: string }): Promise<string> {
@@ -32,6 +32,17 @@ export class FakeObjectStore implements ObjectStoreClient {
 
 	async listObjectKeys({ prefix }: { bucket?: string; prefix: string }): Promise<string[]> {
 		return [...this.objects.keys()].filter((key) => key.startsWith(prefix)).sort();
+	}
+
+	async writeTextObject({
+		key,
+		text,
+	}: {
+		bucket?: string;
+		key: string;
+		text: string;
+	}): Promise<void> {
+		this.objects.set(key, text);
 	}
 }
 

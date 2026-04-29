@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -11,11 +11,11 @@ updated: 2026-04-29
 
 ## Current Position
 
-- status: `active`
-- current phase: `Phase 6R.3 complete; Phase 7 next`
-- current slice: regulation no-write gated materialization preview now has canonical text normalization quality gates and before/after evidence for the 8 refreshed downstream-admitted candidates
+- status: `completed`
+- current phase: `Phase 7 complete`
+- current slice: collected notice consumption replay closeout completed with deferred service-status items explicitly recorded
 - last activity: 2026-04-29
-- last activity description: Phase 6R.3 completed regulation normalization quality gate: 8 downstream-admitted preview docs, quality verdict passed, consistency verdict passed, 594 wrapper residue removed, no DB/object-store/release/query-serving writes.
+- last activity description: Phase 7 closeout completed. Acceptance verdict is `passed_with_deferred_items`: `338` valid captured notices are searchable, queue-backed replay projected `338` jobs with `0` failed, regulation remains no-write offline preparation, transport schedule respects baseline/OCR gates, and service-status replay is explicit with `3` blocked/deferred candidates and no current promotion.
 
 ## Why This Workstream Exists
 
@@ -82,6 +82,29 @@ updated: 2026-04-29
 - [x] Implemented Phase 6R.3 regulation text normalization boundary and quality report.
 - [x] Reran regulation materialization preview with normalized canonical text.
 - [x] Produced Phase 6R.3 before/after evidence and consistency report.
+- [x] Implemented Phase 6R.4 collected notice classification precision repair.
+- [x] Reran Phase 4 searchable preview with taxonomy-backed `classification`.
+- [x] Reran Phase 5 multimodal readiness with classification-backed priority.
+- [x] Reran Phase 6R.1 regulation admission/audit against repaired classification.
+- [x] Produced Phase 6R.4 classification precision audit report with `verdict=passed`.
+- [x] Implemented Phase 6R.5 target classification hardening.
+- [x] Reran Phase 4 searchable preview with target-specific resolver output.
+- [x] Reran Phase 5 multimodal readiness with hardened target candidates.
+- [x] Reran Phase 6R.1 regulation admission/audit against hardened classification.
+- [x] Produced Phase 6R.5 target hardening audit report with `verdict=passed`.
+- [x] Implemented Phase 6.2 official transport baseline canonical preview.
+- [x] Ran MinerU no-write OCR against the user-provided baseline image.
+- [x] Parsed `32` official baseline canonical rows with `effective_from=2026-03-20`.
+- [x] Reclassified transport notice batch against the imported baseline.
+- [x] Implemented Phase 6.3 schedule image OCR mini-batch manifest and post-run preview.
+- [x] Ran provider OCR dry-run for `4` baseline-aware schedule images.
+- [x] Produced `32` dry-run transport stage candidates from `355867`.
+- [x] Kept low-confidence OCR outputs for `355867` image 3 and `355881` image 1 out of downstream stage.
+- [x] Built `service_status` downstream replay admission manifest.
+- [x] Dry-run replayed `service_status` target batch.
+- [x] Produced `service_status` stage, consistency, trace, and rejected/deferred reports.
+- [x] Generated Phase 7 acceptance summary and source-to-queue-to-search-to-downstream trace.
+- [x] Completed workstream closeout with verdict `passed_with_deferred_items`.
 
 ## Current Phase Tasks
 
@@ -110,11 +133,19 @@ updated: 2026-04-29
 - [x] Implement Phase 6R.3 regulation text normalization boundary and quality report.
 - [x] Rerun regulation materialization preview with normalized canonical text.
 - [x] Produce Phase 6R.3 before/after evidence and consistency report.
-- [ ] Wait for official `2026-03-01` baseline file before Phase 6.2.
-- [ ] Run schedule image OCR mini batch only after baseline-aware eligibility is available.
-- [ ] Build `service_status` downstream replay admission manifest.
-- [ ] Dry-run replay admitted `service_status` target batch.
-- [ ] Produce `service_status` stage and consistency report.
+- [x] Fix collected notice classifier so weak keyword hints do not drive typed admission.
+- [x] Verify ordinary notice false-positive probes are absent from regulation admission.
+- [x] Fix `transport_schedule` target projection so only shuttle/commute schedule notices remain.
+- [x] Fix `service_status` target projection so procurement and construction/bid/result notices are excluded.
+- [x] Expand file-release regulation taxonomy coverage for stable owner documents.
+- [x] Wait for official `2026-03-01` baseline file before Phase 6.2.
+- [x] Run official baseline no-write OCR and canonical preview.
+- [x] Reclassify transport batch against baseline source coverage.
+- [x] Run schedule image OCR mini batch only for baseline-aware eligible overlays.
+- [x] Build `service_status` downstream replay admission manifest.
+- [x] Dry-run replay `service_status` target batch.
+- [x] Produce `service_status` stage and consistency report.
+- [x] Generate Phase 7 acceptance and closeout evidence.
 
 ## Known Non-Overlap
 
@@ -125,8 +156,9 @@ updated: 2026-04-29
 
 ## Blockers
 
-- Transport lane blocker: official `2026-03-01` transport baseline file is required before Phase 6.2 can ingest the baseline or reopen schedule-image OCR eligibility.
-- Queue/regulation lane dependency: Phase 6R.3 canonical text normalization quality gate is complete for the 8 downstream-admitted preview docs. Remaining regulation rows are either `needs_multimodal` or `manual_review`; further admission requires additional OCR/owner-text recovery or manual policy review.
+- No closeout blockers remain for this workstream.
+- Deferred service-status items are tracked, not hidden blockers: `355549` and `355650` need multimodal owner text before target readiness; `355283` needs extractor/policy review because no service-status window/signal was materialized from the available text.
+- Remaining regulation `needs_multimodal` / manual-review rows are outside this closeout's required no-write acceptance and should be reopened only through a new explicit admission slice.
 
 ## Verification Plan
 
@@ -136,7 +168,7 @@ Planning-only start:
 pnpm docs:lint
 ```
 
-Implementation phases will add focused Python and worker tests once reset / replay commands are introduced.
+Final closeout verification uses focused ingestion tests, ruff, docs lint, JSON validation, and diff whitespace checks.
 
 ## Resume Notes
 
@@ -174,6 +206,7 @@ Start with:
 - `phases/phase-06-r3-regulation-normalization-quality-gate/SUMMARY.md`
 - `phases/phase-06-2-official-transport-baseline-ingest-and-overlay-reclassification/PLAN.md`
 - `phases/phase-06-3-schedule-image-ocr-mini-batch/PLAN.md`
+- `phases/phase-06-3-schedule-image-ocr-mini-batch/SUMMARY.md`
 - `evidence/phase-03-reset-derived-state-to-collected-only/post-reset-collected-only-audit.json`
 - `evidence/phase-04-dry-run-reimport-and-universal-search-preview/reimport-plan.dry-run.json`
 - `evidence/phase-04-dry-run-reimport-and-universal-search-preview/searchable-coverage-report.json`
@@ -203,6 +236,10 @@ Start with:
 - `evidence/phase-05-multimodal-ocr-consumption-readiness/multimodal-gap-report.json`
 - `evidence/phase-06-batched-downstream-replay/pilot-transport-schedule-355512/consistency-report.json`
 - `evidence/phase-06-batched-downstream-replay/batch-transport-schedule/consistency-report.json`
+- `evidence/phase-06-2-official-transport-baseline-ingest-and-overlay-reclassification/official-baseline-consistency-report.json`
+- `evidence/phase-06-2-official-transport-baseline-ingest-and-overlay-reclassification/transport-batch-reclassified/consumer-admission-manifest.json`
+- `evidence/phase-06-3-schedule-image-ocr-mini-batch/schedule-image-ocr-execution-manifest.json`
+- `evidence/phase-06-3-schedule-image-ocr-mini-batch/post-run-preview/transport-ocr-consistency-report.json`
+- `evidence/phase-06-3-schedule-image-ocr-mini-batch/post-run-preview/schedule-image-ocr-post-run-gap-report.json`
 
-The next collected-notice slice is Phase 7 acceptance and closeout. Transport
-work is still on hold pending the official `2026-03-01` baseline.
+This workstream is closed out. Reopen only if collected-notice replay evidence drifts, a new downstream target is explicitly admitted, service-status deferred candidates receive normalized multimodal evidence and are ready for a new target replay, or Phase 7 acceptance evidence becomes stale against the current chain contract.

@@ -9,9 +9,10 @@ updated: 2026-04-29
 
 ## Problem
 
-Phase 1 can check a manifest and produce a release ledger record, but it is still an
-operator-invoked CLI. Rolling publish needs a repeatable scheduled entrypoint that
-can be called by CI or a controlled runner at the accepted publish windows.
+Phase 1 can check a manifest and produce a release ledger record, but it is
+still an operator-invoked CLI. Rolling publish needs a repeatable scheduled
+entrypoint that can be called by CI or a controlled runner at the accepted
+publish windows.
 
 Without Phase 2, the system cannot reliably answer:
 
@@ -23,7 +24,8 @@ Without Phase 2, the system cannot reliably answer:
 ## Accepted Direction
 
 - Prod check windows remain Shanghai time `00:00 / 06:00 / 12:00 / 18:00`.
-- Equivalent UTC cron expression remains `0 4,10,16,22 * * *`.
+- Controlled runner UTC cron is `7 4,10,16,22 * * *`, remaining within the accepted
+  Shanghai publish windows.
 - The scheduled runner performs manifest check and ledger append only.
 - Build, smoke, deploy and rollback remain Phase 3+.
 - The lock is owned by the controlled runner substrate, not by browser runtime.

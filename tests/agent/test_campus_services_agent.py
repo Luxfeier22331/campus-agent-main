@@ -227,6 +227,25 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(response.agent_observability.source_ref_count, 1)
         self.assertEqual(response.agent_observability.access_decision, "allowed")
         self.assertEqual(
+            response.agent_observability.safe_details["agent_plan"],
+            {
+                "schema_version": "agent-local-plan-v1",
+                "planner": "deterministic_payload_router",
+                "selected_tool": "service_status_lookup",
+                "payload_kind": "service_status_lookup",
+                "tool_selection_reason": "typed_payload_allowed_tool",
+            },
+        )
+        self.assertEqual(
+            response.agent_observability.safe_details["result_guardrail"],
+            {
+                "schema_version": "agent-result-guardrail-v1",
+                "outcome": "source_backed",
+                "source_ref_count": 1,
+                "access_decision": "allowed",
+            },
+        )
+        self.assertEqual(
             query_service.last_service_status_query,
             ServiceStatusQuery(
                 payload=ServiceStatusLookupPayload(subject_query="图书馆今天开门吗"),

@@ -40,10 +40,16 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 		t.Fatalf("lane = %v, want campus_services", payload["lane"])
 	}
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	if runtimeDecisions["schema_version"] != "supervisor-runtime-decisions-v1" {
+		t.Fatalf("runtime_decisions.schema_version = %v, want supervisor-runtime-decisions-v1", runtimeDecisions["schema_version"])
+	}
 	if runtimeDecisions["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v", runtimeDecisions["effective_capability"])
 	}
 	summary := expectExecutionRecord(t, runtimeDecisions["runtime_decision_summary"], "runtime_decision_summary")
+	if summary["schema_version"] != "runtime-decision-summary-v1" {
+		t.Fatalf("runtime_decision_summary.schema_version = %v, want runtime-decision-summary-v1", summary["schema_version"])
+	}
 	if summary["planning_outcome"] != "preplanned" {
 		t.Fatalf("runtime_decision_summary.planning_outcome = %v, want preplanned", summary["planning_outcome"])
 	}

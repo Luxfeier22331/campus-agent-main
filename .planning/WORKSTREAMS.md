@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-29
+updated: 2026-04-30
 ---
 
 # Workstreams
@@ -41,16 +41,17 @@ updated: 2026-04-29
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5B blocked` | `Phase 1-5A`、Phase 6 workflow trace runtime gate、Phase 7 observed regression review workflow 与 Phase 8-13 deterministic eval seams 已完成；5B 因 domain 数据补全阻塞；当前没有独立编号的 Phase 14，Total Phases=14 来自 Phase 5A/5B 拆分 |
 | `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 7` | 类型化 chat 来源列表已本地实现；app-api/public-chat 定向验证与仓库级 `web:lint` 已通过 |
-| `public docs rolling publish automation` | `public-docs-rolling-publish-automation` | `yes` | `.planning/workstreams/public-docs-rolling-publish-automation/README.md` | `Phase 2 in progress` | Phase 2 已规划 scheduled runner + single-flight lock；当前实现到点检查、lock/stale cleanup 与 ledger append，不进入 build/deploy |
 | `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `yes` | `.planning/workstreams/wechat-official-account-public-source-channel/README.md` | `Phase 12` | repo-side 采集/消费链路已恢复为 `FeedWe discovery -> real mp.weixin page capture -> canonical source-truth -> notice consumption`，并补齐 runtime smoke、历史 audit/purge 与 post-batch shell；当前只剩 live repair 与 acceptance evidence closeout |
 | `official web collection restart closeout` | `official-web-collection-restart-closeout` | `yes` | `.planning/workstreams/official-web-collection-restart-closeout/README.md` | `Phase 2` | Fresh university-core 与 `law.muc.edu.cn` single-host evidence 已补；crawl / validator / QC 通过，fixed projection validator / chunk audit 通过；后续收口 scheduler/preflight/repeated-run/retention/alert 与 import/promote handoff |
 | `authenticated notice object-native ingestion closeout` | `authenticated-notice-object-native-ingestion-closeout` | `yes` | `.planning/workstreams/authenticated-notice-object-native-ingestion-closeout/README.md` | `Phase 7` | Full historical `file_release_capture` recollection/import 已完成，backup/repair evidence 已补齐，refreshed object-locator audit 为 `3332/3332 verified` 且 `missing_object_count=0` |
-| `collected notice consumption replay closeout` | `collected-notice-consumption-replay-closeout` | `yes` | `.planning/workstreams/collected-notice-consumption-replay-closeout/README.md` | `Phase 6R.3 complete; Phase 7 next` | Phase 4.8 已刷新为全量 queue-backed dry-run evidence：338 个 job 投影、338 个 searchable units、0 failed；Phase 6R.1b 已对首批 10 个 PDF attempts 执行 MinerU owner-text recovery，10/10 succeeded，object-store refs written，DB writes disabled；Phase 6R.1 已重跑并吸收 owner-text-ready refs，106 个候选中 8 个 downstream_admitted、82 个 needs_multimodal、16 个 manual_review；Phase 6R.2 已生成 no-write materialization previews：1 个 institutional_rules、7 个 scoped_rules，consistency passed；Phase 6R.3 已完成 regulation canonical text normalization quality gate，8 个 preview docs quality passed，594 wrapper residue 已移除；下一步 Phase 7 acceptance/closeout；transport baseline lane 暂等 `2026-03-01` 官方车次表 |
+| `notice ingest fact state machine` | `notice-ingest-fact-state-machine` | `yes` | `.planning/workstreams/notice-ingest-fact-state-machine/README.md` | `Phase 1 planned` | 新建 source/media/fact/target 四层状态机 workstream，目标是修复 notice-level pending media hard gate；Phase 1 先建立 failure taxonomy 与 sample corpus，覆盖 `355881` text-complete schedule、`355867` OCR-primary schedule、service-status、regulation、WeChat 与 search-only image 样本 |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `public docs rolling publish automation` | `public-docs-rolling-publish-automation` | `yes` | `.planning/workstreams/public-docs-rolling-publish-automation/README.md` | 只有在 public-docs rolling publish manifest contract、scheduled cadence、deploy ledger、retry/rollback policy、hook nudger 或 production acceptance harness 被显式改写，或 operator evidence 与当前 pipeline 行为漂移时恢复 |
+| `collected notice consumption replay closeout` | `collected-notice-consumption-replay-closeout` | `yes` | `.planning/workstreams/collected-notice-consumption-replay-closeout/README.md` | 只有在 collected-notice replay evidence 漂移、新 downstream target 被显式 admission、service-status deferred candidates 获得 normalized multimodal evidence 需要重放、或 Phase 7 acceptance evidence 对当前 chain contract 失效时恢复 |
 | `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/archive/completed/execution-capability-family-convergence.md` | 只有在 repo 重新 admission raw runtime target family rename、显式改写 `selected_target` / `selectedTarget` 语义，或新增 capability family 需要重开 repo-wide naming / label convergence 规则时才恢复 |
 | `official web university-level collection dev closeout` | `official-web-university-level-collection-dev-closeout` | `yes` | `.planning/workstreams/official-web-university-level-collection-dev-closeout/README.md` | 只有在校级 `university-core-*` lane 的 crawl/projection/chunk audit/repeated-run/import dry-run gate 重新失败，或准备把 artifact-only replay 正式提升为 registry current truth 时才恢复 |
 | `handbook curriculum MinerU cutover` | `handbook-curriculum-mineru-cutover` | `yes` | `.planning/workstreams/handbook-curriculum-mineru-cutover/README.md` | 只有在 `student_rules` / `curriculum_plan` 需要重新切换 OCR provider、回滚 serving alias、或重开 Paddle/MinerU source-truth cutover 时才恢复 |

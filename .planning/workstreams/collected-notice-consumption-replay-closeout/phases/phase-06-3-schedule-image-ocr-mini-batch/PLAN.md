@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: planned
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -42,7 +42,7 @@ notice 可以从 `needs_multimodal` 进入 structured downstream stage。
 1. Build OCR execution manifest from eligible image refs.
 2. Read image bytes through object-store refs.
 3. Call configured OCR/multimodal provider.
-4. Write provider response / visual text / layout output refs.
+4. Record provider response / visual text / layout output refs in local no-write evidence.
 5. Update attempt outcome evidence.
 6. Merge OCR text into searchable preview.
 7. Re-run transport admission / replay / stage / consistency evidence.

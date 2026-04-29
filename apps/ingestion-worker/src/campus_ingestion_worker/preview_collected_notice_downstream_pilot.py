@@ -59,6 +59,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Official transport baseline effective date, e.g. 2026-03-01. Empty means missing.",
     )
+    parser.add_argument(
+        "--transport-baseline-source-notice-id",
+        action="append",
+        default=[],
+        help="Notice id covered by the imported official transport baseline.",
+    )
     return parser
 
 
@@ -75,6 +81,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             searchable_notice_preview_path=Path(args.searchable_notice_preview_path),
             multimodal_candidate_inventory_path=Path(args.multimodal_candidate_inventory_path),
             transport_baseline_effective_date=str(args.transport_baseline_effective_date),
+            transport_baseline_source_notice_ids=tuple(args.transport_baseline_source_notice_id),
         )
     else:
         preview = build_transport_schedule_single_notice_pilot_preview_from_paths(
@@ -82,6 +89,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             multimodal_candidate_inventory_path=Path(args.multimodal_candidate_inventory_path),
             source_notice_id=str(args.source_notice_id),
             transport_baseline_effective_date=str(args.transport_baseline_effective_date),
+            transport_baseline_source_notice_ids=tuple(args.transport_baseline_source_notice_id),
         )
     files = write_preview_evidence_files(preview=preview, output_dir=output_dir)
     admission_counts = preview.admission_manifest["counts"]
@@ -104,6 +112,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "transport_baseline_effective_date": (
                     preview.admission_manifest.get("transport_baseline", {}).get(
                         "effective_date", ""
+                    )
+                ),
+                "transport_baseline_source_notice_ids": (
+                    preview.admission_manifest.get("transport_baseline", {}).get(
+                        "source_notice_ids", []
                     )
                 ),
                 **source_scope,

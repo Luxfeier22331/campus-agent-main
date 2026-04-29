@@ -300,6 +300,18 @@ Docker build:
 docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .
 ```
 
+Direct local process smoke for development:
+
+```bash
+uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \
+  --output-dir .tmp/supervisor-api-process-smoke
+```
+
+This starts `apps/supervisor-agent-worker` with `uv` and `apps/supervisor-api`
+with `go run` on localhost, then probes bridge health, supervisor health,
+readiness, metrics, and the closed structured-runtime answer contract. It does
+not use Docker or Wrangler.
+
 Docker smoke:
 
 ```bash

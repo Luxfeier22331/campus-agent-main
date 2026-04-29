@@ -3,11 +3,21 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 from collections.abc import Callable
 from contextlib import redirect_stdout
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+from campus_evals.profile_registry import (
+    EvalProfileDefinition,
+    accepted_profile_ids,
+    dispatchable_profile_ids,
+    get_profile_definition,
+    iter_profile_definitions,
+    operations_policy_profile_ids,
+    resolve_profile_id,
+)
 
 from scripts.check_worker_secret_presence import collect_worker_secret_presence
 from scripts.doctor_env import collect_env_doctor_status
@@ -17,113 +27,6 @@ DEFAULT_WORKER_APPS = (
     "apps/public-chat-web",
     "apps/protected-panel-web",
 )
-
-
-@dataclass(frozen=True, slots=True)
-class EvalGateProfileSpec:
-    name: str
-    default_reruns: int
-    output_prefix: str
-    official_web_scope: str | None = None
-    supports_publish_dry_run: bool = True
-
-
-_PROFILE_SPECS = {
-    "handbook": EvalGateProfileSpec(
-        name="handbook",
-        default_reruns=3,
-        output_prefix="student-handbook-formal-benchmark-accept",
-    ),
-    "curriculum": EvalGateProfileSpec(
-        name="curriculum",
-        default_reruns=3,
-        output_prefix="curriculum-plan-live-gate-accept",
-    ),
-    "official-web-stable-reference": EvalGateProfileSpec(
-        name="official-web-stable-reference",
-        default_reruns=1,
-        output_prefix="official-web-stable-reference-live-gate-accept",
-        official_web_scope="stable_reference",
-    ),
-    "official-web-fresh-news": EvalGateProfileSpec(
-        name="official-web-fresh-news",
-        default_reruns=1,
-        output_prefix="official-web-fresh-news-live-gate-accept",
-        official_web_scope="fresh_news",
-    ),
-    "service-guide-lookup": EvalGateProfileSpec(
-        name="service-guide-lookup",
-        default_reruns=1,
-        output_prefix="service-guide-lookup-release-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "contact-directory-lookup": EvalGateProfileSpec(
-        name="contact-directory-lookup",
-        default_reruns=1,
-        output_prefix="contact-directory-lookup-release-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "campus-services-product-path": EvalGateProfileSpec(
-        name="campus-services-product-path",
-        default_reruns=1,
-        output_prefix="campus-services-product-path-opening-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "multi-agent-product-path": EvalGateProfileSpec(
-        name="multi-agent-product-path",
-        default_reruns=1,
-        output_prefix="multi-agent-product-path-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "multi-agent-runtime-contract": EvalGateProfileSpec(
-        name="multi-agent-runtime-contract",
-        default_reruns=1,
-        output_prefix="multi-agent-runtime-contract-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "public-chat-product-path": EvalGateProfileSpec(
-        name="public-chat-product-path",
-        default_reruns=1,
-        output_prefix="public-chat-product-path-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "tool-family-denominator": EvalGateProfileSpec(
-        name="tool-family-denominator",
-        default_reruns=1,
-        output_prefix="tool-family-denominator-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "document-quality": EvalGateProfileSpec(
-        name="document-quality",
-        default_reruns=1,
-        output_prefix="document-quality-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "authz-privacy": EvalGateProfileSpec(
-        name="authz-privacy",
-        default_reruns=1,
-        output_prefix="authz-privacy-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "agentic-retrieval-plan": EvalGateProfileSpec(
-        name="agentic-retrieval-plan",
-        default_reruns=1,
-        output_prefix="agentic-retrieval-plan-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "eval-operations-governance": EvalGateProfileSpec(
-        name="eval-operations-governance",
-        default_reruns=1,
-        output_prefix="eval-operations-governance-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-    "quality-calibration": EvalGateProfileSpec(
-        name="quality-calibration",
-        default_reruns=1,
-        output_prefix="quality-calibration-gate-accept",
-        supports_publish_dry_run=False,
-    ),
-}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -169,7 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     accept_parser.add_argument(
         "--profile",
-        choices=tuple(_PROFILE_SPECS),
+        choices=accepted_profile_ids(),
         required=True,
         help="Repo-owned eval profile to execute.",
     )
@@ -280,34 +183,29 @@ def build_parser() -> argparse.ArgumentParser:
 
     publish_profile_parser = subparsers.add_parser(
         "publish-profile",
-        help="Build or execute operator observability publish from profile report artifacts.",
+        help="Build or execute operator observability publish from profile-report.json artifacts.",
     )
     publish_profile_parser.add_argument(
         "--profile-report",
         required=True,
-        help="profile report artifact path.",
+        help="profile-report.json path produced by an eval profile gate.",
     )
-    publish_profile_parser.add_argument(
-        "--grade-source",
-        required=True,
-        help="Stable producer/source id.",
-    )
-    publish_profile_parser.add_argument(
-        "--grader-version",
-        required=True,
-        help="Stable grader/runtime version label.",
-    )
+    publish_profile_parser.add_argument("--grade-source", required=True)
+    publish_profile_parser.add_argument("--grader-version", required=True)
     publish_profile_parser.add_argument(
         "--dry-run",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Default true. Use --no-dry-run to POST into app-api operator ingest seams.",
     )
-    publish_profile_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Render publish summary as JSON.",
+    publish_profile_parser.add_argument("--json", action="store_true")
+
+    audit_parser = subparsers.add_parser(
+        "audit",
+        help="Audit eval profile registry, workflow, policy, and fixture coverage.",
     )
+    audit_parser.add_argument("--repo-root", default=".")
+    audit_parser.add_argument("--json", action="store_true")
     return parser
 
 
@@ -360,11 +258,13 @@ def run_eval_acceptance(
     profile_spec = _resolve_profile_spec(profile)
     runner = _resolve_profile_runner(profile)
     resolved_reruns = reruns or profile_spec.default_reruns
-    if publish_dry_run and not profile_spec.supports_publish_dry_run:
+    if publish_dry_run and not profile_spec.supports_case_results_publish:
         raise ValueError(
-            f"{profile_spec.name} does not produce live case-results artifacts; "
+            f"{profile_spec.profile_id} does not produce live case-results artifacts; "
             "operator publish dry-run is not applicable"
         )
+    if collect_runtime and not profile_spec.supports_collect_runtime:
+        raise ValueError(f"{profile_spec.profile_id} does not support runtime collection")
 
     argv = [
         "accept",
@@ -411,7 +311,7 @@ def run_eval_acceptance(
 
     exit_code = runner(argv)
     return {
-        "profile": profile_spec.name,
+        "profile": profile_spec.profile_id,
         "output_dir": str(output_dir),
         "reruns": resolved_reruns,
         "publish_dry_run": publish_dry_run,
@@ -486,19 +386,33 @@ def render_eval_acceptance_text(summary: dict[str, object]) -> str:
     )
 
 
-def _resolve_profile_spec(profile: str) -> EvalGateProfileSpec:
-    normalized = profile.strip().lower()
-    try:
-        return _PROFILE_SPECS[normalized]
-    except KeyError as exc:
-        allowed = ", ".join(sorted(_PROFILE_SPECS))
-        raise ValueError(
-            f"unsupported eval profile {profile!r}; expected one of {allowed}"
-        ) from exc
+def audit_eval_gate_configuration(*, repo_root: Path) -> dict[str, object]:
+    checks = (
+        _audit_profile_registry_runners(),
+        _audit_workflow_dispatch_choices(
+            repo_root / ".github" / "workflows" / "eval-release-gate.yml"
+        ),
+        _audit_workflow_contract_generation_check(
+            repo_root / ".github" / "workflows" / "eval-release-gate.yml"
+        ),
+        _audit_operations_policy_coverage(),
+        _audit_denominator_registry_coverage(),
+        _audit_tool_family_fixture_coverage(),
+        _audit_profile_fixture_smoke(),
+    )
+    return {
+        "surface": "eval_gate_audit",
+        "passed": all(bool(check["passed"]) for check in checks),
+        "checks": list(checks),
+    }
+
+
+def _resolve_profile_spec(profile: str) -> EvalProfileDefinition:
+    return get_profile_definition(profile)
 
 
 def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
-    normalized = profile.strip().lower()
+    normalized = resolve_profile_id(profile)
     if normalized == "handbook":
         from campus_evals.handbook_live_benchmark import main as runner
 
@@ -523,8 +437,16 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.campus_services_product_path_opening_gate import main as runner
 
         return runner
-    if normalized in {"multi-agent-product-path", "multi-agent-runtime-contract"}:
-        from campus_evals.multi_agent_product_path_gate import main as runner
+    if normalized == "multi-agent-runtime-contract":
+        from campus_evals.multi_agent_runtime_contract_gate import main as runner
+
+        return runner
+    if normalized == "multi-agent-live-smoke":
+        from campus_evals.multi_agent_live_smoke_gate import main as runner
+
+        return runner
+    if normalized == "public-chat-entry-e2e":
+        from campus_evals.public_chat_entry_e2e import main as runner
 
         return runner
     if normalized == "public-chat-product-path":
@@ -533,6 +455,10 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         return runner
     if normalized == "tool-family-denominator":
         from campus_evals.eval_profile_gate import tool_family_denominator_main as runner
+
+        return runner
+    if normalized == "tool-routing-product-path":
+        from campus_evals.tool_routing_product_path import main as runner
 
         return runner
     if normalized == "document-quality":
@@ -547,6 +473,10 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.eval_profile_gate import agentic_retrieval_plan_main as runner
 
         return runner
+    if normalized == "answer-quality-contract":
+        from campus_evals.answer_quality_contract import main as runner
+
+        return runner
     if normalized == "eval-operations-governance":
         from campus_evals.eval_profile_gate import eval_operations_governance_main as runner
 
@@ -556,6 +486,155 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
 
         return runner
     raise ValueError(f"unsupported eval profile runner: {profile}")
+
+
+def _audit_profile_registry_runners() -> dict[str, object]:
+    missing: list[str] = []
+    for definition in iter_profile_definitions():
+        try:
+            _resolve_profile_runner(definition.profile_id)
+        except Exception as exc:  # pragma: no cover - surfaced in audit payload
+            missing.append(f"{definition.profile_id}: {exc}")
+    return {
+        "check_id": "profile_registry_runners",
+        "passed": not missing,
+        "missing": missing,
+    }
+
+
+def _audit_workflow_dispatch_choices(workflow_path: Path) -> dict[str, object]:
+    choices = _extract_workflow_profile_choices(workflow_path)
+    expected = set(dispatchable_profile_ids())
+    actual = set(choices)
+    return {
+        "check_id": "workflow_dispatch_choices",
+        "passed": expected == actual,
+        "missing": sorted(expected - actual),
+        "extra": sorted(actual - expected),
+    }
+
+
+def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, object]:
+    text = workflow_path.read_text(encoding="utf-8")
+    required_tokens = (
+        "scripts.generate_supervisor_execution_contracts",
+        "--check",
+        "multi-agent-runtime-contract",
+        "actions/upload-artifact",
+    )
+    missing = [token for token in required_tokens if token not in text]
+    return {
+        "check_id": "workflow_contract_generation_check",
+        "passed": not missing,
+        "missing": missing,
+    }
+
+
+def _audit_operations_policy_coverage() -> dict[str, object]:
+    from campus_evals.eval_operations_governance import load_eval_operations_profile_policy
+
+    policy = load_eval_operations_profile_policy()
+    expected = set(operations_policy_profile_ids())
+    actual = set(policy.profiles)
+    return {
+        "check_id": "operations_policy_coverage",
+        "passed": expected.issubset(actual),
+        "missing": sorted(expected - actual),
+        "extra": sorted(actual - expected),
+    }
+
+
+def _audit_denominator_registry_coverage() -> dict[str, object]:
+    from campus_evals.case_governance import load_denominator_registry
+
+    registry = load_denominator_registry()
+    surface_ids = {entry.surface_id for entry in registry.entries}
+    required = {
+        "public_chat_product_path",
+        "multimodal_ocr_document_quality",
+        "restricted_authz_privacy",
+        "agentic_retrieval_plan",
+        "eval_operations_governance",
+    }
+    return {
+        "check_id": "denominator_registry_coverage",
+        "passed": required.issubset(surface_ids),
+        "missing": sorted(required - surface_ids),
+    }
+
+
+def _audit_tool_family_fixture_coverage() -> dict[str, object]:
+    from campus_evals.tool_family_denominator import load_tool_family_denominator
+
+    fixture = load_tool_family_denominator()
+    required_splits = {"smoke", "release_gate"}
+    splits_by_tool = {
+        tool.tool_name: {case.split for case in fixture.cases if case.tool_name == tool.tool_name}
+        for tool in fixture.tools
+    }
+    missing = {
+        tool_name: sorted(required_splits - splits)
+        for tool_name, splits in splits_by_tool.items()
+        if not required_splits.issubset(splits)
+    }
+    return {
+        "check_id": "tool_family_fixture_coverage",
+        "passed": not missing,
+        "missing": missing,
+    }
+
+
+def _audit_profile_fixture_smoke() -> dict[str, object]:
+    loaders: tuple[tuple[str, Callable[[], object]], ...] = (
+        ("public-chat-product-path", _load_public_chat_product_path_smoke),
+        ("tool-routing-product-path", _load_tool_routing_smoke),
+        ("public-chat-entry-e2e", _load_public_chat_entry_smoke),
+        ("answer-quality-contract", _load_answer_quality_smoke),
+    )
+    missing: list[str] = []
+    for profile_id, loader in loaders:
+        try:
+            loader()
+        except Exception as exc:
+            missing.append(f"{profile_id}: {exc}")
+    return {
+        "check_id": "profile_fixture_smoke",
+        "passed": not missing,
+        "missing": missing,
+    }
+
+
+def _load_public_chat_product_path_smoke() -> object:
+    from campus_evals.public_chat_product_path_eval import load_public_chat_product_path_cases
+
+    return load_public_chat_product_path_cases()
+
+
+def _load_tool_routing_smoke() -> object:
+    from campus_evals.tool_routing_product_path import load_tool_routing_cases
+
+    return load_tool_routing_cases()
+
+
+def _load_public_chat_entry_smoke() -> object:
+    from campus_evals.public_chat_entry_e2e import load_public_chat_entry_cases
+
+    return load_public_chat_entry_cases()
+
+
+def _load_answer_quality_smoke() -> object:
+    from campus_evals.answer_quality_contract import load_answer_quality_cases
+
+    return load_answer_quality_cases()
+
+
+def _extract_workflow_profile_choices(workflow_path: Path) -> tuple[str, ...]:
+    text = workflow_path.read_text(encoding="utf-8")
+    match = re.search(r"profile:\n(?P<body>.*?)(?:\n      [a-zA-Z_]+:|\npermissions:)", text, re.S)
+    if not match:
+        return ()
+    body = match.group("body")
+    return tuple(re.findall(r"^\s+-\s+([a-z0-9-]+)\s*$", body, re.M))
 
 
 def _build_default_output_dir(prefix: str) -> Path:
@@ -593,6 +672,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(render_eval_gate_status_text(status))
         return 0 if status["overall_ready"] else 1
+
+    if args.command == "audit":
+        report = audit_eval_gate_configuration(repo_root=Path(args.repo_root).resolve())
+        if args.json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0 if report["passed"] else 1
 
     if args.command == "accept":
         resolved_output_dir = (

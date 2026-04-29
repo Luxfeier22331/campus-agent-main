@@ -246,6 +246,43 @@ class CollectedNoticeRegulationAdmissionTests(unittest.TestCase):
             ]
         )
 
+    def test_notice_with_only_regulation_citation_is_not_regulation_candidate(self) -> None:
+        unit = _regulation_unit(
+            source_notice_id="354925",
+            title="关于办理2025年度个人所得税综合所得年度汇算的通知",
+            body_text=(
+                "根据《个人所得税综合所得汇算清缴管理办法》有关规定，"
+                "请师生按期办理个人所得税年度汇算。"
+            ),
+            multimodal_status="pending",
+            attachment_refs=[
+                {
+                    "attachment_ref_id": "attachment-0001",
+                    "resource_role": "inline_image",
+                    "mime_type": "image/png",
+                    "object_key": "authenticated_notice_portal/354925/qr.png",
+                }
+            ],
+        )
+
+        preview = build_collected_notice_regulation_admission_preview(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": "searchable:notice:muc_internal_portal:354925",
+                        "status": "pending",
+                        "target_hints": ["regulation"],
+                    }
+                ]
+            },
+            generated_at="2026-04-29T00:00:00+08:00",
+        )
+
+        self.assertEqual(preview.admission_manifest["entries"], [])
+        self.assertEqual(preview.candidate_audit["candidates"], [])
+        self.assertEqual(preview.rejected_deferred_source_report["entry_count"], 0)
+
     def test_owner_text_ready_reclassifies_pending_file_release_regulation(self) -> None:
         unit = _regulation_unit(
             source_notice_id="188897",
@@ -299,7 +336,7 @@ class CollectedNoticeRegulationAdmissionTests(unittest.TestCase):
         self.assertIn("owner_text_recovered", entry["reason_codes"])
         self.assertEqual(preview.rejected_deferred_source_report["entry_count"], 0)
 
-    def test_structured_operational_notice_is_not_admitted_as_regulation(self) -> None:
+    def test_structured_operational_notice_is_not_selected_as_regulation(self) -> None:
         preview = build_collected_notice_regulation_admission_preview(
             searchable_notice_preview={
                 "units": [
@@ -319,11 +356,8 @@ class CollectedNoticeRegulationAdmissionTests(unittest.TestCase):
             generated_at="2026-04-29T00:00:00+08:00",
         )
 
-        entry = preview.admission_manifest["entries"][0]
-        self.assertEqual(entry["consumption_class"], "defer")
-        self.assertEqual(entry["regulation_admission_class"], "manual_review")
-        self.assertIsNone(entry["target"])
-        self.assertIsNone(entry["target_identity_preview"])
+        self.assertEqual(preview.admission_manifest["entries"], [])
+        self.assertEqual(preview.candidate_audit["candidates"], [])
 
     def test_queue_trace_limits_candidate_scope_and_output_files_are_phase_artifacts(self) -> None:
         preview = build_collected_notice_regulation_admission_preview(

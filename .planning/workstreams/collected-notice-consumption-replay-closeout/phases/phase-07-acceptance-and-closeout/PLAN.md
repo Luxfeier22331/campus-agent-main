@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: planned
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -15,16 +15,26 @@ updated: 2026-04-29
 
 ## Tasks
 
-1. 运行 source/search/downstream 数量一致性检查。
-2. 验证 historical inventory 和 future live discovery 使用同一 `notice_ingest`
+1. [x] 运行 source/search/downstream 数量一致性检查。
+2. [x] 验证 historical inventory 和 future live discovery 使用同一 `notice_ingest`
    queue contract。
-3. 运行 searchable sample smoke。
-4. 运行 regulation/schedule/status sample smoke。
-5. 验证 regulation stop point 仍为 `offline_preparation`，未打开 query-serving。
-6. 验证 transport schedule image OCR 未绕过 baseline-aware gate。
-7. 生成 source-to-queue-to-search-to-downstream trace artifact。
-8. 汇总 reset/replay/OCR/downstream evidence。
-9. 更新 workstream state 和 closeout 文档。
+3. [x] 运行 searchable sample smoke。
+4. [x] 运行 regulation/schedule/status sample smoke。
+5. [x] 验证 regulation stop point 仍为 `offline_preparation`，未打开 query-serving。
+6. [x] 验证 transport schedule image OCR 未绕过 baseline-aware gate。
+7. [x] 生成 source-to-queue-to-search-to-downstream trace artifact。
+8. [x] 汇总 reset/replay/OCR/downstream evidence。
+9. [x] 更新 workstream state 和 closeout 文档。
+
+## Result
+
+Phase 7 closeout evidence:
+
+`.planning/workstreams/collected-notice-consumption-replay-closeout/evidence/phase-07-acceptance-and-closeout/`
+
+Acceptance verdict: `passed_with_deferred_items`.
+
+The deferred items are explicit, reasoned service-status blockers; they remain searchable and do not enter typed downstream or current promotion.
 
 ## Acceptance
 

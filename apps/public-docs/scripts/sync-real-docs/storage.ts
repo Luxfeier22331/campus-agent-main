@@ -1,10 +1,16 @@
-import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import {
+	GetObjectCommand,
+	ListObjectsV2Command,
+	PutObjectCommand,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import { DERIVED_BUCKET } from "./shared";
 
 export interface ObjectStoreClient {
 	readTextObject(input: { bucket?: string; key: string }): Promise<string>;
 	readOptionalBytesObject(input: { bucket?: string; key: string }): Promise<Uint8Array | undefined>;
 	listObjectKeys(input: { bucket?: string; prefix: string }): Promise<string[]>;
+	writeTextObject?(input: { bucket?: string; key: string; text: string }): Promise<void>;
 }
 
 export function createS3ObjectStore(): ObjectStoreClient {
@@ -68,6 +74,17 @@ class S3ObjectStore implements ObjectStoreClient {
 			continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
 		} while (continuationToken);
 		return [...keys].sort();
+	}
+
+	async writeTextObject(input: { bucket?: string; key: string; text: string }): Promise<void> {
+		await this.client.send(
+			new PutObjectCommand({
+				Body: input.text,
+				Bucket: input.bucket ?? DERIVED_BUCKET,
+				ContentType: "application/json; charset=utf-8",
+				Key: input.key,
+			}),
+		);
 	}
 
 	private async readBytesObject(input: { bucket?: string; key: string }): Promise<Uint8Array> {

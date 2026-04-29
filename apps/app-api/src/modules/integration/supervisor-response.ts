@@ -1,5 +1,9 @@
 import { summarizeObservedSources } from "../source-trace";
 
+import {
+	SUPERVISOR_STATUSES,
+	type SupervisorExecutionResponseWire,
+} from "./generated/supervisor-execution-contract";
 import type {
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
@@ -18,6 +22,37 @@ const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 	"retrieval_backend_dump",
 ];
 
+const SUPERVISOR_RESPONSE_WIRE_KEYS = new Set([
+	"answer_text",
+	"confidence",
+	"error",
+	"follow_up_question",
+	"observability",
+	"result",
+	"selected_target",
+	"status",
+	"trace_id",
+	"workflow_trace_summary",
+]);
+
+const REQUIRED_SUPERVISOR_RESPONSE_WIRE_KEYS = [
+	"answer_text",
+	"confidence",
+	"error",
+	"follow_up_question",
+	"result",
+	"selected_target",
+	"status",
+	"trace_id",
+] as const;
+
+class SupervisorResponseContractError extends Error {
+	constructor(message: string) {
+		super(`supervisor response contract violation: ${message}`);
+		this.name = "SupervisorResponseContractError";
+	}
+}
+
 function getRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
@@ -34,6 +69,74 @@ function normalizeNullableNumber(value: unknown): number | null {
 
 function normalizeNullableString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value : null;
+}
+
+function isSupervisorStatus(value: unknown): value is SupervisorExecutionResponse["status"] {
+	return typeof value === "string" && (SUPERVISOR_STATUSES as readonly string[]).includes(value);
+}
+
+function assertSupervisorExecutionResponseWire(
+	value: unknown,
+): asserts value is SupervisorExecutionResponseWire {
+	const record = getRecord(value);
+	if (!record) {
+		throw new SupervisorResponseContractError("response body must be an object");
+	}
+	for (const key of Object.keys(record)) {
+		if (!SUPERVISOR_RESPONSE_WIRE_KEYS.has(key)) {
+			throw new SupervisorResponseContractError(`unexpected top-level field ${key}`);
+		}
+	}
+	for (const key of REQUIRED_SUPERVISOR_RESPONSE_WIRE_KEYS) {
+		if (!(key in record)) {
+			throw new SupervisorResponseContractError(`missing required field ${key}`);
+		}
+	}
+	if (!(typeof record.answer_text === "string")) {
+		throw new SupervisorResponseContractError("answer_text must be a string");
+	}
+	if (!(typeof record.follow_up_question === "string")) {
+		throw new SupervisorResponseContractError("follow_up_question must be a string");
+	}
+	if (!(typeof record.trace_id === "string")) {
+		throw new SupervisorResponseContractError("trace_id must be a string");
+	}
+	if (!isSupervisorStatus(record.status)) {
+		throw new SupervisorResponseContractError("status must be a known supervisor status");
+	}
+	if (!["high", "medium", "low"].includes(String(record.confidence))) {
+		throw new SupervisorResponseContractError("confidence must be high, medium, or low");
+	}
+	if (!(record.selected_target === null || typeof record.selected_target === "string")) {
+		throw new SupervisorResponseContractError("selected_target must be a string or null");
+	}
+	if (!(record.result === null || getRecord(record.result))) {
+		throw new SupervisorResponseContractError("result must be an object or null");
+	}
+	if (!(record.error === null || getRecord(record.error))) {
+		throw new SupervisorResponseContractError("error must be an object or null");
+	}
+	if (record.error) {
+		const error = getRecord(record.error);
+		if (!(error && typeof error.code === "string" && typeof error.message === "string")) {
+			throw new SupervisorResponseContractError("error.code and error.message are required");
+		}
+		if ("retryable" in error && typeof error.retryable !== "boolean") {
+			throw new SupervisorResponseContractError("error.retryable must be boolean when present");
+		}
+	}
+	if (
+		"observability" in record &&
+		!(record.observability === null || getRecord(record.observability))
+	) {
+		throw new SupervisorResponseContractError("observability must be an object or null");
+	}
+	if (
+		"workflow_trace_summary" in record &&
+		!(record.workflow_trace_summary === null || getRecord(record.workflow_trace_summary))
+	) {
+		throw new SupervisorResponseContractError("workflow_trace_summary must be an object or null");
+	}
 }
 
 function normalizeRecordString(
@@ -323,23 +426,15 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 }
 
 export function parseSupervisorExecutionResponsePayload(
-	parsed: Record<string, unknown> | null | undefined,
+	parsed: (Partial<SupervisorExecutionResponseWire> & Record<string, unknown>) | null | undefined,
 	fallbackTraceId: string,
 ): SupervisorExecutionResponse {
-	const workflowTraceSummary = parseWorkflowTraceSummary(
-		"workflow_trace_summary" in (parsed ?? {})
-			? parsed?.workflow_trace_summary
-			: parsed?.workflowTraceSummary,
-	);
+	assertSupervisorExecutionResponseWire(parsed);
+	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
 	return {
-		answerText:
-			typeof parsed?.answer_text === "string"
-				? parsed.answer_text
-				: typeof parsed?.answerText === "string"
-					? parsed.answerText
-					: "",
+		answerText: parsed.answer_text,
 		error:
-			parsed?.error && typeof parsed.error === "object"
+			parsed.error && typeof parsed.error === "object"
 				? {
 						code:
 							typeof (parsed.error as { code?: unknown }).code === "string"
@@ -355,35 +450,12 @@ export function parseSupervisorExecutionResponsePayload(
 								: undefined,
 					}
 				: null,
-		followUpQuestion:
-			typeof parsed?.follow_up_question === "string"
-				? parsed.follow_up_question
-				: typeof parsed?.followUpQuestion === "string"
-					? parsed.followUpQuestion
-					: "",
-		observability: parseExecutionObservability(parsed?.observability),
-		result: parsed?.result ?? null,
-		selectedTarget:
-			typeof parsed?.selected_target === "string"
-				? parsed.selected_target
-				: typeof parsed?.selectedTarget === "string"
-					? parsed.selectedTarget
-					: null,
-		status:
-			parsed?.status === "needs_clarification" ||
-			parsed?.status === "no_answer" ||
-			parsed?.status === "error" ||
-			parsed?.status === "approval_required" ||
-			parsed?.status === "rejected" ||
-			parsed?.status === "cancelled"
-				? parsed.status
-				: "completed",
-		traceId:
-			typeof parsed?.trace_id === "string"
-				? parsed.trace_id
-				: typeof parsed?.traceId === "string"
-					? parsed.traceId
-					: fallbackTraceId,
+		followUpQuestion: parsed.follow_up_question,
+		observability: parseExecutionObservability(parsed.observability),
+		result: parsed.result ?? null,
+		selectedTarget: parsed.selected_target,
+		status: parsed.status,
+		traceId: parsed.trace_id || fallbackTraceId,
 		...(workflowTraceSummary ? { workflowTraceSummary } : {}),
 	};
 }
