@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 ---
@@ -20,13 +20,14 @@ status 问题回退成 generic RAG 或 notice body query-time scan。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 9`
+- status: `completed`
+- current phase: `Phase 9 completed`
 - current focus: Phase 9 current release composition 已完成。PG current release
   为 `service-status-current-20260428T122000`，当前有效 records 包含
   `355650` 静园 10 号楼女浴室与 `354845` 丰台校区校医院皮肤科门诊；Phase 8
   historical samples `247726`、`352345`、`354502`、`354575`、`354674`
-  保留为 rejected-source evidence，不进入 current truth。
+  保留为 rejected-source evidence，不进入 current truth。本 workstream 已归档到
+  `.planning/milestones/ws-authenticated-notice-service-status-consumption-2026-04-28/`。
 - runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
   claim status authenticated-notice-service-status-consumption` 查看；tracked
   planning 文档不保存 claim lease

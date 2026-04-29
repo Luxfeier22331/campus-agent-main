@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 workstream: authenticated-notice-service-status-consumption
@@ -11,13 +11,13 @@ workstream: authenticated-notice-service-status-consumption
 
 ## Current Position
 
-- status: `active`
-- current phase: `Phase 9`
+- status: `completed`
+- current phase: `Phase 9 completed`
 - current phase name: `Current Release Composition And Safe Promotion`
 - current plan:
-  `.planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-09-current-release-composition-and-safe-promotion/PLAN.md`
+  `.planning/milestones/ws-authenticated-notice-service-status-consumption-2026-04-28/phases/phase-09-current-release-composition-and-safe-promotion/PLAN.md`
 - total phases: `9`
-- progress: `9/9 phases implemented; workstream remains active pending explicit archive decision`
+- progress: `9/9 phases complete; workstream archived`
 - last activity: `2026-04-28`
 - last activity description: Completed Phase 9 current release composition and
   safe promotion. PG current release is
@@ -104,8 +104,9 @@ Phase 1 live audit answered three questions:
 - Do not use this workstream to absorb regulation, schedule, service guide,
   contact-directory or generic notice-query work. Those remain adjacent
   workstreams/surfaces.
-- The workstream should remain active after Phase 9 and should not be archived
-  without an explicit user decision.
+- The explicit archive decision has been accepted. This workstream is now
+  completed and archived under
+  `.planning/milestones/ws-authenticated-notice-service-status-consumption-2026-04-28/`.
 
 ## Verification Status
 
@@ -171,16 +172,10 @@ uv run --all-packages python -m scripts.workstream_claim claim status \
 
 ## Resume Instructions
 
-Resume from the Phase 9 archive-decision point:
-
-```bash
-uv run --all-packages python -m scripts.workstream_harness codex shell \
-  authenticated-notice-service-status-consumption
-```
-
-Then inspect:
+This workstream is completed. Reopen only through `.planning/WORKSTREAMS.md`
+if the completed entry's reopen rule is met.
 
 ```bash
 sed -n '1,240p' \
-  .planning/workstreams/authenticated-notice-service-status-consumption/phases/phase-09-current-release-composition-and-safe-promotion/SUMMARY.md
+  .planning/milestones/ws-authenticated-notice-service-status-consumption-2026-04-28/phases/phase-09-current-release-composition-and-safe-promotion/SUMMARY.md
 ```

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 # Workstreams
@@ -44,7 +44,6 @@ updated: 2026-04-28
 | `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `yes` | `.planning/workstreams/wechat-official-account-public-source-channel/README.md` | `Phase 12` | repo-side 采集/消费链路已恢复为 `FeedWe discovery -> real mp.weixin page capture -> canonical source-truth -> notice consumption`，并补齐 runtime smoke、历史 audit/purge 与 post-batch shell；当前只剩 live repair 与 acceptance evidence closeout |
 | `official web collection restart closeout` | `official-web-collection-restart-closeout` | `yes` | `.planning/workstreams/official-web-collection-restart-closeout/README.md` | `Phase 2` | Fresh university-core 与 `law.muc.edu.cn` single-host evidence 已补；crawl / validator / QC 通过，fixed projection validator / chunk audit 通过；后续收口 scheduler/preflight/repeated-run/retention/alert 与 import/promote handoff |
 | `authenticated notice object-native ingestion closeout` | `authenticated-notice-object-native-ingestion-closeout` | `yes` | `.planning/workstreams/authenticated-notice-object-native-ingestion-closeout/README.md` | `Phase 3` | Phase 2 已完成 collector object-native handoff：bundle/manifest 直接写 source bucket、run ledger 记录 verified refs 与 started/success/failed 生命周期、local export 默认关闭；当前进入 worker `run_id` / object-ref import |
-| `authenticated-notice -> service status downstream consumption` | `authenticated-notice-service-status-consumption` | `yes` | `.planning/workstreams/authenticated-notice-service-status-consumption/README.md` | `Phase 9` | Phase 9 已完成：当前有效 service-status release 已组合并 promote，PG current read model 现包含 `355650` 与 `354845`；historical Phase 8 样本保留为 rejected-source evidence |
 
 ## Completed
 
@@ -66,6 +65,7 @@ updated: 2026-04-28
 | `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | 只有在 repo 重新 admission 非-Codex adapter implementation、显式改写 terminal-result transport / blocker taxonomy / hook contract，或需要再次调整默认 execution entrypoint 时才恢复 |
 | `public chat campus services E2E acceptance` | `public-chat-campus-services-e2e-acceptance` | `yes` | `.planning/workstreams/public-chat-campus-services-e2e-acceptance/README.md` | 只有在 campus-services tool denominator 新增、tool-level opening verdict 改写、rollout/rollback contract 改写，或 staging opening evidence 与当前 verdict 发生漂移时才恢复 |
 | `campus services runtime tool gap closeout` | `campus-services-runtime-tool-gap-closeout` | `yes` | `.planning/workstreams/campus-services-runtime-tool-gap-closeout/README.md` | 只有在 campus-services tool denominator、新 product-path tool、admission profile、opening verdict 或 runtime gate contract 被显式改写，或 `public-chat-campus-services-e2e-acceptance` 发现真实入口证据与当前 local gate 漂移时才恢复 |
+| `authenticated-notice -> service status downstream consumption` | `authenticated-notice-service-status-consumption` | `yes` | `.planning/milestones/ws-authenticated-notice-service-status-consumption-2026-04-28/README.md` | 只有在 `service_status_lookup` denominator、release/read-model contract、current promotion gate 被显式改写，新 service-status notice family 重新 admission，PG current truth 与 object release evidence 漂移，或 public-chat campus-services E2E 发现 service-status runtime 证据漂移时恢复 |
 | `notice consumption layer` | `notice-consumption-layer` | `yes` | `.planning/workstreams/notice-consumption-layer/README.md` | 只有在 repo 重新 admission internal_notice consumption projection schema/route semantics、打开新的 notice-derived downstream target，或发现 projection store/rebuild/operator status truth 与代码漂移时恢复 |
 | `notice routing taxonomy and Web card consumption` | `notice-routing-taxonomy-and-web-card-consumption` | `yes` | `.planning/workstreams/notice-routing-taxonomy-and-web-card-consumption/README.md` | 只有在产品范围决定把 procurement 从 generic notice search/card 提升为 dedicated facet/history surface、新增 dedicated notice downstream family，或真实入口验收发现 generic notice title/url card contract 漂移时恢复 |
 | `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | 只有在新 admission authenticated-notice regulation target、显式改写 `institutional_rules` / `scoped_rules` 边界，或把 stop point 从 `offline_preparation` 提升到 release / query-serving 时恢复 |
