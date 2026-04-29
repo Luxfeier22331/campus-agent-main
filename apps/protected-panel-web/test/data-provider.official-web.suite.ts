@@ -338,4 +338,108 @@ export function registerDataProviderOfficialWebSuite() {
 			},
 		});
 	});
+
+	it("encodes official web detail path identifiers before calling protected seams", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				createJsonResponse({
+					freshnessBacklog: {
+						deletedPages: [],
+						duePages: [],
+						failedFetchPages: [],
+						hotPages: [],
+					},
+					freshnessSummary: {
+						changedLast24h: 0,
+						deletedPages: 0,
+						duePages: 0,
+						failedFetchPages: 0,
+						hotPages: 0,
+						repairPages: 0,
+						totalPages: 0,
+					},
+					recentPageChanges: [],
+					recentRuns: [],
+					site: {
+						displayName: "Encoded Site",
+						hostRoots: ["www.muc.edu.cn"],
+						lastFailureAt: null,
+						lastSuccessAt: null,
+						latestCollectorVersion: null,
+						latestConfigVersion: null,
+						latestIngestionDispatchStatus: null,
+						latestIngestionExecutionErrorCode: null,
+						latestIngestionExecutionStatus: null,
+						latestIngestionExecutionUpdatedAt: null,
+						latestRunId: null,
+						latestRunStatus: null,
+						projectedAt: "2026-03-29T08:17:33.000Z",
+						siteId: "site/01?debug=true#frag",
+					},
+				}),
+			)
+			.mockResolvedValueOnce(
+				createJsonResponse({
+					run: {
+						pageChangeSummary: {},
+						pageChanges: [],
+						run: {
+							artifacts: [],
+							collectorVersion: null,
+							configVersion: null,
+							failureCount: 0,
+							finishedAt: null,
+							ingestionDispatchRef: null,
+							ingestionDispatchStatus: "queued",
+							ingestionExecutionErrorCode: null,
+							ingestionExecutionErrorMessage: null,
+							ingestionExecutionRef: null,
+							ingestionExecutionStatus: "pending",
+							ingestionExecutionUpdatedAt: null,
+							lastHeartbeatAt: null,
+							projectedAt: "2026-03-29T08:17:33.000Z",
+							runId: "run/01?debug=true#frag",
+							runIntent: "baseline",
+							siteId: "site_01",
+							startedAt: "2026-03-29T08:00:01.000Z",
+							status: "accepted",
+							summary: null,
+						},
+					},
+				}),
+			);
+
+		await protectedPanelDataProvider.getOne("officialWebSites", {
+			id: "site/01?debug=true#frag",
+			meta: undefined,
+			signal: undefined,
+		});
+		await protectedPanelDataProvider.getOne("officialWebRuns", {
+			id: "run/01?debug=true#frag",
+			meta: undefined,
+			signal: undefined,
+		});
+
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			1,
+			"/api/official-web/sites/site%2F01%3Fdebug%3Dtrue%23frag",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			2,
+			"/api/official-web/runs/run%2F01%3Fdebug%3Dtrue%23frag",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
 }
