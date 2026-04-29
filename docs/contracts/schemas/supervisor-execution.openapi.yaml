@@ -9,6 +9,12 @@ x-campus-contract:
   runtime_decisions_schema_version: supervisor-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
   workflow_trace_summary_version: workflow-trace-summary-v1
+  versioning_policy:
+    bridge_version: incompatible bridge envelope changes must bump bridge_version
+    response_contract: AgentResponse wire contract changes must bump response_contract
+    runtime_decisions_schema_version: runtime_decisions shape changes must bump runtime_decisions_schema_version
+    runtime_decision_summary_schema_version: runtime decision summary shape changes must bump runtime_decision_summary_schema_version
+    workflow_trace_summary_version: operator-visible workflow trace summary changes must bump workflow_trace_summary_version
 paths:
   /api/v1/answer:
     post:

@@ -40,9 +40,8 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
             "bridge_v6_invalid_enum.invalid.json",
             "bridge_v6_invalid_version.invalid.json",
         ):
-            with self.subTest(fixture_name=fixture_name):
-                with self.assertRaises(ValueError):
-                    parse_bridge_supervisor_envelope(load_fixture(fixture_name))
+            with self.subTest(fixture_name=fixture_name), self.assertRaises(ValueError):
+                parse_bridge_supervisor_envelope(load_fixture(fixture_name))
 
     def test_python_response_model_accepts_terminal_state_fixtures(self) -> None:
         expected_status_by_fixture = {
@@ -64,9 +63,8 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
             "response_camel_case.invalid.json",
             "response_extra_field.invalid.json",
         ):
-            with self.subTest(fixture_name=fixture_name):
-                with self.assertRaises(Exception):
-                    SupervisorResponseWire.model_validate(load_fixture(fixture_name))
+            with self.subTest(fixture_name=fixture_name), self.assertRaises(ValueError):
+                SupervisorResponseWire.model_validate(load_fixture(fixture_name))
 
 
 if __name__ == "__main__":
