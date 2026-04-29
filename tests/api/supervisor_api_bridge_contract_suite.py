@@ -166,3 +166,187 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("bridge_version", response.json_body["error"]["message"])
+
+    def test_bridge_answer_rejects_non_string_actor_projection_fields(self) -> None:
+        captured_requests = []
+        context = {
+            "actor": {
+                "user_id": 12345,
+            },
+            "authorization": {
+                "retrieval_filter": {
+                    "entitlement_groups": [],
+                    "visibility_level": "public",
+                    "policy_projection_version": "phase1-authorization-projection-v1",
+                },
+            },
+        }
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            ),
+            agent_handler=lambda request: (
+                captured_requests.append(request)
+                or AgentResponse(
+                    target=request.target,
+                    status="completed",
+                    answer_text="unexpected",
+                    confidence="high",
+                )
+            ),
+        )
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=_bridge_v6_payload(
+                request_id="req-reject-non-string-actor",
+                context=context,
+            ),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("context.actor.user_id", response.json_body["error"]["message"])
+        self.assertEqual(captured_requests, [])
+
+    def test_bridge_answer_rejects_non_string_requested_scope_fields(self) -> None:
+        captured_requests = []
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            ),
+            agent_handler=lambda request: (
+                captured_requests.append(request)
+                or AgentResponse(
+                    target=request.target,
+                    status="completed",
+                    answer_text="unexpected",
+                    confidence="high",
+                )
+            ),
+        )
+        body = _bridge_v6_payload(
+            request_id="req-reject-non-string-scope",
+        )
+        body["requested_scope"] = {
+            "corpus": 12345,
+            "collection": "student_rules",
+        }
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=body,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("requested_scope.corpus", response.json_body["error"]["message"])
+        self.assertEqual(captured_requests, [])
+
+    def test_bridge_answer_preserves_selected_notice_ref_session_projection(self) -> None:
+        captured_requests = []
+        context = {
+            "actor": {
+                "user_id": "student@example.edu",
+            },
+            "authorization": {
+                "retrieval_filter": {
+                    "entitlement_groups": [],
+                    "visibility_level": "public",
+                    "policy_projection_version": "phase1-authorization-projection-v1",
+                },
+            },
+            "session": {
+                "selected_notice_ref": {
+                    "notice_id": "notice:internal:355119",
+                    "source_family": "internal_notice_restricted",
+                    "title": "奖学金评定通知",
+                },
+                "turn_count": 2,
+            },
+        }
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            ),
+            agent_handler=lambda request: (
+                captured_requests.append(request)
+                or AgentResponse(
+                    target=request.target,
+                    status="completed",
+                    answer_text="ok",
+                    confidence="high",
+                )
+            ),
+        )
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=_bridge_v6_payload(
+                request_id="req-selected-notice-ref",
+                context=context,
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(captured_requests), 1)
+        selected_notice_ref = captured_requests[0].context.session.selected_notice_ref
+        self.assertIsNotNone(selected_notice_ref)
+        self.assertEqual(selected_notice_ref.notice_id, "notice:internal:355119")
+        self.assertEqual(selected_notice_ref.source_family, "internal_notice_restricted")
+        self.assertEqual(selected_notice_ref.title, "奖学金评定通知")
+
+    def test_bridge_answer_rejects_unsupported_nested_agent_payload_fields(self) -> None:
+        captured_requests = []
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            ),
+            agent_handler=lambda request: (
+                captured_requests.append(request)
+                or AgentResponse(
+                    target=request.target,
+                    status="completed",
+                    answer_text="unexpected",
+                    confidence="high",
+                )
+            ),
+        )
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=_bridge_v6_payload_with_handoff(
+                user_goal="明天去丰台的班车",
+                request_id="req-reject-unsupported-nested-payload",
+                trace_id="trace-reject-unsupported-nested-payload",
+                effective_capability="campus_services",
+                lane="campus_services",
+                handoff_target="campus-services-agent",
+                payload_kind="transport_schedule_lookup",
+                allowed_tools=["transport_schedule_lookup"],
+                payload={
+                    "query_text": "明天去丰台的班车",
+                    "intent": "timetable",
+                    "route_selector": {
+                        "destination_campus": "fengtai",
+                        "unexpected_selector_field": "must fail closed",
+                    },
+                    "snapshot_query": {"mode": "current"},
+                },
+            ),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn(
+            "route_selector.unexpected_selector_field", response.json_body["error"]["message"]
+        )
+        self.assertEqual(captured_requests, [])

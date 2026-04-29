@@ -43,9 +43,16 @@ def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuperv
     lane = require_string(payload.get("lane"), field_name="lane")
     request = SupervisorRequest(
         user_goal=require_string(payload.get("user_goal"), field_name="user_goal"),
-        conversation_id=parse_optional_string(payload.get("conversation_id")) or "",
+        conversation_id=parse_optional_string(
+            payload.get("conversation_id"),
+            field_name="conversation_id",
+        )
+        or "",
         request_id=require_string(payload.get("request_id"), field_name="request_id"),
-        safety_identifier=parse_optional_string(payload.get("safety_identifier")),
+        safety_identifier=parse_optional_string(
+            payload.get("safety_identifier"),
+            field_name="safety_identifier",
+        ),
         trace=parse_trace_context(payload.get("trace")),
         actor=parse_actor_context(payload.get("actor"), field_prefix="actor"),
         context=parse_bridge_context_projection(payload.get("context")),
@@ -81,12 +88,18 @@ def _require_response_contract(raw_contract: object) -> None:
 
 
 def _parse_effective_capability(payload: dict[str, object]) -> str:
-    effective_capability = parse_requested_capability(payload.get("effective_capability"))
+    effective_capability = parse_requested_capability(
+        payload.get("effective_capability"),
+        field_name="effective_capability",
+    )
     if effective_capability is None:
         raise ValueError("effective_capability must be a non-empty string")
     if effective_capability not in ALLOWED_REQUESTED_CAPABILITIES:
         raise ValueError(f"unsupported effective_capability: {effective_capability}")
-    requested_capability = parse_requested_capability(payload.get("requested_capability"))
+    requested_capability = parse_requested_capability(
+        payload.get("requested_capability"),
+        field_name="requested_capability",
+    )
     if requested_capability is not None and requested_capability != effective_capability:
         raise ValueError("requested_capability must match effective_capability")
     return effective_capability
@@ -122,7 +135,10 @@ def _parse_runtime_decisions(
     if suggested_next_action != "delegate":
         raise ValueError("Python delegate bridge only accepts delegate routing frames")
     handoff = require_object(raw_handoff, field_name="runtime_decisions.handoff")
-    planning_outcome = parse_optional_string(handoff.get("planning_outcome"))
+    planning_outcome = parse_optional_string(
+        handoff.get("planning_outcome"),
+        field_name="runtime_decisions.handoff.planning_outcome",
+    )
     if planning_outcome != "preplanned":
         raise ValueError("runtime_decisions.handoff.planning_outcome must be preplanned")
     target = require_string(
@@ -227,12 +243,21 @@ def _parse_agent_handoff_request(
             request.get("user_goal"),
             field_name="runtime_decisions.handoff.agent_request.user_goal",
         ),
-        conversation_id=(parse_optional_string(request.get("conversation_id")) or ""),
+        conversation_id=(
+            parse_optional_string(
+                request.get("conversation_id"),
+                field_name="runtime_decisions.handoff.agent_request.conversation_id",
+            )
+            or ""
+        ),
         request_id=require_string(
             request.get("request_id"),
             field_name="runtime_decisions.handoff.agent_request.request_id",
         ),
-        safety_identifier=parse_optional_string(request.get("safety_identifier")),
+        safety_identifier=parse_optional_string(
+            request.get("safety_identifier"),
+            field_name="runtime_decisions.handoff.agent_request.safety_identifier",
+        ),
         trace=parse_trace_context(request.get("trace")),
         actor=parse_actor_context(
             request.get("actor"),

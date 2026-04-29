@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime
 
 from campus_contracts import (
+    AgentObservability,
     AgentRequest,
     AgentResponse,
     ContactDirectoryLookupPayload,
@@ -50,6 +52,11 @@ def dispatch_tool_request(
                 "transport schedule, or contact directory payload"
             ),
         ),
+        agent_observability=AgentObservability(
+            tool_attempted=False,
+            failure_class="invalid_payload",
+            access_decision="not_evaluated",
+        ),
     )
 
 
@@ -69,7 +76,7 @@ def _handle_service_status_lookup(
             )
         )
     except Exception as exc:
-        return _query_service_failed(str(exc))
+        return _query_service_failed(tool_name, str(exc))
     return _service_status_response(result)
 
 
@@ -89,7 +96,7 @@ def _handle_service_guide_lookup(
             )
         )
     except Exception as exc:
-        return _query_service_failed(str(exc))
+        return _query_service_failed(tool_name, str(exc))
     return _service_guide_response(result)
 
 
@@ -109,7 +116,7 @@ def _handle_transport_schedule_lookup(
             )
         )
     except Exception as exc:
-        return _query_service_failed(str(exc))
+        return _query_service_failed(tool_name, str(exc))
     return _transport_schedule_response(result)
 
 
@@ -129,7 +136,7 @@ def _handle_contact_directory_lookup(
             )
         )
     except Exception as exc:
-        return _query_service_failed(str(exc))
+        return _query_service_failed(tool_name, str(exc))
     return _contact_directory_response(result)
 
 
@@ -147,6 +154,7 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
             answer_text=f"{service_name}：\n{guide_text}" if guide_text else service_name,
             confidence="high",
             result=result,
+            agent_observability=_agent_observability("service_guide_lookup", result),
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要查询的具体服务。"
@@ -157,6 +165,7 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
             follow_up_question=follow_up,
             confidence="medium",
             result=result,
+            agent_observability=_agent_observability("service_guide_lookup", result),
         )
     if result.outcome == "temporarily_unverifiable":
         return AgentResponse(
@@ -165,6 +174,7 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
             answer_text="当前还不能稳定确认这项办理指南。",
             confidence="low",
             result=result,
+            agent_observability=_agent_observability("service_guide_lookup", result),
         )
     return AgentResponse(
         target="campus-services-agent",
@@ -172,6 +182,7 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
         answer_text="当前没有找到对应的办理指南。",
         confidence="low",
         result=result,
+        agent_observability=_agent_observability("service_guide_lookup", result),
     )
 
 
@@ -192,6 +203,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
             ).strip(),
             confidence="high",
             result=result,
+            agent_observability=_agent_observability("service_status_lookup", result),
         )
     if result.outcome == "resolved_historical_reference":
         subject = result.resolved_subject or result.subject_query
@@ -201,6 +213,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
             answer_text=f"当前年份没有命中，找到历史参考：{subject}。",
             confidence="medium",
             result=result,
+            agent_observability=_agent_observability("service_status_lookup", result),
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要查询的校园服务对象。"
@@ -211,6 +224,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
             follow_up_question=follow_up,
             confidence="medium",
             result=result,
+            agent_observability=_agent_observability("service_status_lookup", result),
         )
     if result.outcome == "temporarily_unverifiable":
         return AgentResponse(
@@ -219,6 +233,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
             answer_text="当前还不能稳定确认这项校园服务的状态。",
             confidence="low",
             result=result,
+            agent_observability=_agent_observability("service_status_lookup", result),
         )
     return AgentResponse(
         target="campus-services-agent",
@@ -226,6 +241,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse
         answer_text="当前没有找到对应的校园服务状态。",
         confidence="low",
         result=result,
+        agent_observability=_agent_observability("service_status_lookup", result),
     )
 
 
@@ -292,6 +308,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 ),
                 confidence="high",
                 result=result,
+                agent_observability=_agent_observability("transport_schedule_lookup", result),
             )
         if result.schedule_snapshot is not None and result.intent == "schedule_snapshot_metadata":
             return AgentResponse(
@@ -303,6 +320,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 ),
                 confidence="high",
                 result=result,
+                agent_observability=_agent_observability("transport_schedule_lookup", result),
             )
         if result.departure_options:
             departures = "、".join(departure.departure_at for departure in result.departure_options)
@@ -316,6 +334,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 ),
                 confidence="high",
                 result=result,
+                agent_observability=_agent_observability("transport_schedule_lookup", result),
             )
         if result.service_window is not None:
             return AgentResponse(
@@ -332,6 +351,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 ),
                 confidence="high",
                 result=result,
+                agent_observability=_agent_observability("transport_schedule_lookup", result),
             )
         if result.timetable_entries:
             entries = "、".join(departure.departure_at for departure in result.timetable_entries)
@@ -345,6 +365,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
                 ),
                 confidence="high",
                 result=result,
+                agent_observability=_agent_observability("transport_schedule_lookup", result),
             )
         return AgentResponse(
             target="campus-services-agent",
@@ -360,6 +381,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
             ),
             confidence="high",
             result=result,
+            agent_observability=_agent_observability("transport_schedule_lookup", result),
         )
     if result.outcome == "resolved_historical_reference":
         route_name = (
@@ -373,6 +395,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
             answer_text=f"当前年份没有命中，找到历史班次参考：{route_name}。",
             confidence="medium",
             result=result,
+            agent_observability=_agent_observability("transport_schedule_lookup", result),
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要查询的班车类型、方向或线路。"
@@ -383,6 +406,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
             follow_up_question=follow_up,
             confidence="medium",
             result=result,
+            agent_observability=_agent_observability("transport_schedule_lookup", result),
         )
     if result.outcome == "temporarily_unverifiable":
         return AgentResponse(
@@ -391,6 +415,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
             answer_text="当前还不能稳定确认这条班车线路的运行状态。",
             confidence="low",
             result=result,
+            agent_observability=_agent_observability("transport_schedule_lookup", result),
         )
     return AgentResponse(
         target="campus-services-agent",
@@ -398,6 +423,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Agent
         answer_text="当前没有找到对应的班车线路信息。",
         confidence="low",
         result=result,
+        agent_observability=_agent_observability("transport_schedule_lookup", result),
     )
 
 
@@ -415,6 +441,7 @@ def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentRe
             answer_text=f"{contact_name}：\n{contact_text}" if contact_text else contact_name,
             confidence="high",
             result=result,
+            agent_observability=_agent_observability("contact_directory_lookup", result),
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要查询的部门或联系对象。"
@@ -425,6 +452,7 @@ def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentRe
             follow_up_question=follow_up,
             confidence="medium",
             result=result,
+            agent_observability=_agent_observability("contact_directory_lookup", result),
         )
     if result.outcome == "temporarily_unverifiable":
         return AgentResponse(
@@ -433,6 +461,7 @@ def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentRe
             answer_text="当前还不能稳定确认这项联系方式。",
             confidence="low",
             result=result,
+            agent_observability=_agent_observability("contact_directory_lookup", result),
         )
     return AgentResponse(
         target="campus-services-agent",
@@ -440,6 +469,7 @@ def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentRe
         answer_text="当前没有找到对应的联系方式。",
         confidence="low",
         result=result,
+        agent_observability=_agent_observability("contact_directory_lookup", result),
     )
 
 
@@ -616,6 +646,60 @@ def _access_context_from_request(request: AgentRequest) -> CampusServicesAccessC
     )
 
 
+def _agent_observability(tool_name: str, result) -> AgentObservability:
+    outcome = str(getattr(result, "outcome", "") or "")
+    return AgentObservability(
+        selected_tool=tool_name,
+        tool_attempted=True,
+        tool_outcome=outcome,
+        failure_class=_failure_class_for_outcome(outcome),
+        fail_close_reason=str(getattr(result, "fail_close_reason", "") or ""),
+        clarification_reason=str(getattr(result, "clarification_reason", "") or ""),
+        result_outcome=outcome,
+        source_ref_count=_source_ref_count(result),
+        access_decision="allowed",
+        safe_details={
+            "result_type": result.__class__.__name__,
+        },
+    )
+
+
+def _failure_class_for_outcome(outcome: str) -> str:
+    if outcome == "temporarily_unverifiable":
+        return "fail_close"
+    if outcome == "clarification_required":
+        return "clarification"
+    if outcome == "not_found":
+        return "not_found"
+    return ""
+
+
+def _source_ref_count(result) -> int:
+    refs: set[str] = set()
+
+    def collect(value) -> None:
+        if isinstance(value, str):
+            return
+        if isinstance(value, dict):
+            for key, item in value.items():
+                normalized_key = str(key)
+                if normalized_key in {"source_ref"} and isinstance(item, str) and item.strip():
+                    refs.add(item.strip())
+                    continue
+                if normalized_key.endswith(("source_refs", "notice_refs")):
+                    if isinstance(item, (list, tuple)):
+                        refs.update(str(ref).strip() for ref in item if str(ref).strip())
+                    continue
+                collect(item)
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                collect(item)
+
+    collect(asdict(result))
+    return len(refs)
+
+
 def _tool_not_allowed(tool_name: str) -> AgentResponse:
     return AgentResponse(
         target="campus-services-agent",
@@ -625,10 +709,16 @@ def _tool_not_allowed(tool_name: str) -> AgentResponse:
             code="disallowed_tool",
             message=f"campus-services-agent cannot execute tool: {tool_name}",
         ),
+        agent_observability=AgentObservability(
+            selected_tool=tool_name,
+            tool_attempted=False,
+            failure_class="tool_policy",
+            access_decision="not_evaluated",
+        ),
     )
 
 
-def _query_service_failed(message: str) -> AgentResponse:
+def _query_service_failed(tool_name: str, message: str) -> AgentResponse:
     return AgentResponse(
         target="campus-services-agent",
         status="error",
@@ -636,5 +726,11 @@ def _query_service_failed(message: str) -> AgentResponse:
         error=ErrorInfo(
             code="internal_query_service_failed",
             message=message or "internal query service failed",
+        ),
+        agent_observability=AgentObservability(
+            selected_tool=tool_name,
+            tool_attempted=True,
+            failure_class="query_service_failed",
+            access_decision="allowed",
         ),
     )

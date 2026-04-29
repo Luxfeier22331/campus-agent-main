@@ -61,6 +61,27 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(answer_responses[0].status_code, 499)
         self.assertEqual(answer_responses[0].json_body["error"]["code"], "execution_cancelled")
 
+    def test_bridge_cancel_route_rejects_non_string_contract_fields(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            ),
+        )
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/execution/cancel",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body={
+                "request_id": 12345,
+                "reason": ["user_requested"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("request_id", response.json_body["error"]["message"])
+
     def test_bridge_answer_wires_configured_campus_services_query_service(self) -> None:
         query_requests: list[dict[str, object]] = []
 

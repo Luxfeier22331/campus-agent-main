@@ -30,12 +30,14 @@ from campus_contracts.models_retrieval import (
     VersionQuery,
 )
 from campus_contracts.models_runtime import (
+    AgentObservability,
     AgentRequest,
     AgentResponse,
     RagResultPayload,
     SupervisorObservability,
     SupervisorRequest,
     SupervisorResponse,
+    WorkflowTraceSummary,
 )
 from campus_contracts.models_shared import (
     ALLOWED_AGENT_TARGETS,
@@ -165,6 +167,7 @@ __all__ = [
     "DEFAULT_REVISION_TRACK",
     "DEFAULT_SOURCE_CHANNEL",
     "ActorContext",
+    "AgentObservability",
     "AgentRequest",
     "AgentResponse",
     "AgentTarget",
@@ -273,5 +276,6 @@ __all__ = [
     "TransportStopRef",
     "VersionQuery",
     "VersionQueryMode",
+    "WorkflowTraceSummary",
     "resolve_curriculum_follow_up_slots",
 ]

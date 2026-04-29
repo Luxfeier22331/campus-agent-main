@@ -57,6 +57,24 @@ func TestEmitterEnabledWithoutEndpointFailsOpen(t *testing.T) {
 	}
 }
 
+func TestEmitterStatusRedactsTransportErrorDetails(t *testing.T) {
+	emitter := &Emitter{
+		enabled:   true,
+		lastError: "Post https://otel.example.test/v1/traces?token=secret-token: dial tcp 127.0.0.1:4318: connect: connection refused",
+	}
+
+	status := emitter.Status()
+
+	if status.LastError != "telemetry exporter error" {
+		t.Fatalf("last error = %q", status.LastError)
+	}
+	for _, secret := range []string{"secret-token", "127.0.0.1:4318", "otel.example.test"} {
+		if strings.Contains(status.LastError, secret) {
+			t.Fatalf("last error leaked %q: %s", secret, status.LastError)
+		}
+	}
+}
+
 func TestEmitterUnavailableLogUsesSupervisorAPIEventName(t *testing.T) {
 	var logBuffer bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))

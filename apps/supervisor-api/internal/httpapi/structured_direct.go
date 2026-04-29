@@ -86,6 +86,7 @@ func (s *Server) handleDirectStructuredAnswer(
 		handoff.PayloadKind,
 		resultBody,
 		executionRequest.TraceID,
+		finalizerContextFromExecutionRequest(executionRequest, "direct"),
 	)
 	setOutcome(response, "supervisor_response")
 	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
@@ -181,6 +182,7 @@ func (s *Server) handleDirectStructuredAnswerStream(
 		handoff.PayloadKind,
 		resultBody,
 		executionRequest.TraceID,
+		finalizerContextFromExecutionRequest(executionRequest, "direct"),
 	)
 	setOutcome(response, "supervisor_response")
 	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{

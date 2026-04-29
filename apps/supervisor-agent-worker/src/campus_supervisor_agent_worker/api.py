@@ -11,6 +11,7 @@ from campus_supervisor_agent_worker.agent_dispatch import (
     dispatch_agent_request,
 )
 from campus_supervisor_agent_worker.bridge_auth import error_response, require_bridge_auth
+from campus_supervisor_agent_worker.bridge_parse_utils import parse_optional_string, require_string
 from campus_supervisor_agent_worker.bridge_readiness import (
     RuntimeStatusProvider,
     handle_bridge_healthz,
@@ -171,13 +172,14 @@ def handle_bridge_cancel(
         return bridge_auth_error
 
     payload = body or {}
-    request_id = str(payload.get("request_id", "")).strip()
-    if not request_id:
+    try:
+        request_id = require_string(payload.get("request_id"), field_name="request_id")
+        reason = parse_optional_string(payload.get("reason"), field_name="reason") or ""
+    except ValueError as exc:
         return error_response(
             400,
-            ErrorInfo(code="invalid_request", message="request_id is required."),
+            ErrorInfo(code="invalid_request", message=str(exc)),
         )
-    reason = str(payload.get("reason", "")).strip()
     record = cancel_flags.cancel(request_id, reason)
     if record is None:
         return error_response(

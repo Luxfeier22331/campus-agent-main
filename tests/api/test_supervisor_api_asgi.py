@@ -27,6 +27,21 @@ class SupervisorApiAsgiTest(unittest.TestCase):
         self.assertEqual(response.json_body["error"]["code"], "invalid_json")
         app.close()
 
+    def test_dispatch_rejects_invalid_utf8_body_as_invalid_json(self) -> None:
+        app = create_bridge_app(settings=ApiSettings(bridge_shared_secret="bridge-secret"))
+
+        response = dispatch_http_request(
+            app,
+            method="POST",
+            path="/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            raw_body=b"\xff\xfe\xfd",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_json")
+        app.close()
+
     def test_dispatch_does_not_treat_valid_json_object_as_invalid_json_sentinel(self) -> None:
         app = create_bridge_app(settings=ApiSettings(bridge_shared_secret="bridge-secret"))
 

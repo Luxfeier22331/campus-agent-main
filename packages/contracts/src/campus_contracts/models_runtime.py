@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from campus_contracts.models_context import (
     ActorContext,
@@ -49,11 +51,114 @@ from campus_contracts.models_tools import (
     TransportScheduleLookupResult,
 )
 
+_FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = (
+    "raw_prompt",
+    "raw_transcript",
+    "provider_raw_response",
+    "raw_response",
+    "jwt",
+    "cookie",
+    "auth_envelope",
+    "retrieval_backend_dump",
+)
+_FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS = (
+    "authorization:",
+    "bearer ",
+    "cookie:",
+    "set-cookie:",
+    "x-app-internal-auth:",
+    "access_token=",
+    "refresh_token=",
+    "sessionid=",
+    "session_id=",
+    "sso_tgc=",
+    "token=",
+)
+_JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
+
+
+def _normalize_workflow_trace_key_token(value: str) -> str:
+    return "".join(char for char in value.strip().lower() if char.isalnum())
+
+
+def _reject_raw_workflow_trace_keys(value: object, field_name: str) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            normalized_key = _normalize_workflow_trace_key_token(str(key))
+            if any(
+                _normalize_workflow_trace_key_token(token) in normalized_key
+                for token in _FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS
+            ):
+                raise ValueError(f"{field_name} contains forbidden raw workflow trace key: {key}")
+            _reject_raw_workflow_trace_keys(item, field_name)
+        return
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            _reject_raw_workflow_trace_keys(item, field_name)
+        return
+    if isinstance(value, str):
+        _reject_raw_workflow_trace_value(value, field_name)
+
+
+def _reject_raw_workflow_trace_value(value: str, field_name: str) -> None:
+    normalized = value.strip().lower()
+    if not normalized:
+        return
+    if any(token in normalized for token in _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS):
+        raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
+    if _JWT_VALUE_RE.search(value):
+        raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
+
 
 @dataclass(frozen=True, slots=True)
 class RagResultPayload:
     evidence: EvidenceBundle
     diagnostics: RagResultDiagnostics | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AgentObservability:
+    selected_tool: str = ""
+    tool_attempted: bool | None = None
+    tool_outcome: str = ""
+    failure_class: str = ""
+    fail_close_reason: str = ""
+    clarification_reason: str = ""
+    source_ref_count: int | None = None
+    result_outcome: str = ""
+    access_decision: str = ""
+    safe_details: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _reject_raw_workflow_trace_keys(self.safe_details, "safe_details")
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowTraceSummary:
+    routing_frame: dict[str, Any] = field(default_factory=dict)
+    context_resolution: dict[str, Any] = field(default_factory=dict)
+    planning_outcome: str = ""
+    direct_vs_delegate_branch: str = ""
+    handoff: dict[str, Any] = field(default_factory=dict)
+    selected_target: str = ""
+    selected_tools: tuple[str, ...] = field(default_factory=tuple)
+    tool_argument_summary: dict[str, Any] = field(default_factory=dict)
+    guardrail_outcomes: dict[str, Any] = field(default_factory=dict)
+    fail_close_reason: str = ""
+    runtime_versions: dict[str, Any] = field(default_factory=dict)
+    policy_artifact_versions: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for field_name, payload in (
+            ("routing_frame", self.routing_frame),
+            ("context_resolution", self.context_resolution),
+            ("handoff", self.handoff),
+            ("tool_argument_summary", self.tool_argument_summary),
+            ("guardrail_outcomes", self.guardrail_outcomes),
+            ("runtime_versions", self.runtime_versions),
+            ("policy_artifact_versions", self.policy_artifact_versions),
+        ):
+            _reject_raw_workflow_trace_keys(payload, field_name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +326,7 @@ class AgentResponse:
         | None
     ) = None
     error: ErrorInfo | None = None
+    agent_observability: AgentObservability | None = None
 
     def __post_init__(self) -> None:
         if self.target not in ALLOWED_AGENT_TARGETS:
@@ -251,6 +357,7 @@ class SupervisorResponse:
     ) = None
     error: ErrorInfo | None = None
     observability: SupervisorObservability | None = None
+    workflow_trace_summary: WorkflowTraceSummary | None = None
 
     def __post_init__(self) -> None:
         if self.selected_target is not None and self.selected_target not in ALLOWED_AGENT_TARGETS:

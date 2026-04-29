@@ -104,7 +104,7 @@ func (s *Server) writeBridgeResponse(
 		supervisorResponse, err := finalizeAgentBridgeResponse(
 			body,
 			executionRequest.TraceID,
-			executionRequest.RuntimeDecisions.SelectedTool,
+			finalizerContextFromExecutionRequest(executionRequest, "delegate"),
 		)
 		if err != nil {
 			return s.writeInvalidBridgeResponse(

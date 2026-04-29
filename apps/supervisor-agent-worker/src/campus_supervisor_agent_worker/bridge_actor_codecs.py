@@ -15,17 +15,30 @@ def parse_actor_context(raw_actor: object, *, field_prefix: str) -> ActorContext
         raise ValueError(f"{field_prefix} must be an object")
     _assert_supported_actor_context_fields(raw_actor, field_prefix=field_prefix)
     return ActorContext(
-        user_id=parse_optional_string(raw_actor.get("user_id")) or "",
-        principal_id=parse_optional_string(raw_actor.get("principal_id")) or "",
-        principal_type=parse_optional_string(raw_actor.get("principal_type")) or "",
+        user_id=parse_optional_string(
+            raw_actor.get("user_id"), field_name=f"{field_prefix}.user_id"
+        )
+        or "",
+        principal_id=parse_optional_string(
+            raw_actor.get("principal_id"),
+            field_name=f"{field_prefix}.principal_id",
+        )
+        or "",
+        principal_type=parse_optional_string(
+            raw_actor.get("principal_type"),
+            field_name=f"{field_prefix}.principal_type",
+        )
+        or "",
         roles=parse_string_tuple(raw_actor.get("roles"), field_name=f"{field_prefix}.roles"),
         departments=parse_string_tuple(
             raw_actor.get("departments"),
             field_name=f"{field_prefix}.departments",
         ),
-        cohort=parse_optional_string(raw_actor.get("cohort")),
-        major=parse_optional_string(raw_actor.get("major")),
-        program=parse_optional_string(raw_actor.get("program")),
+        cohort=parse_optional_string(raw_actor.get("cohort"), field_name=f"{field_prefix}.cohort"),
+        major=parse_optional_string(raw_actor.get("major"), field_name=f"{field_prefix}.major"),
+        program=parse_optional_string(
+            raw_actor.get("program"), field_name=f"{field_prefix}.program"
+        ),
     )
 
 

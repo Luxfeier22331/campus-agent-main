@@ -72,8 +72,12 @@ type serviceStatusMatch struct {
 }
 
 func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Response {
+	payloadBody, err := structuredQueryPayloadBody(rawBody)
+	if err != nil {
+		return invalidRequest("Service status request body must be a JSON object.")
+	}
 	var request serviceStatusRequest
-	if err := json.Unmarshal(rawBody, &request); err != nil {
+	if err := json.Unmarshal(payloadBody, &request); err != nil {
 		return invalidRequest("Service status request body must be a JSON object.")
 	}
 	request.SubjectQuery = strings.TrimSpace(request.SubjectQuery)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import ErrorInfo, AgentRequest, AgentResponse
+from campus_contracts import AgentObservability, AgentRequest, AgentResponse, ErrorInfo
 
 from campus_notice_agent.query_service import NoticeQueryService
 from campus_notice_agent.tool_adapter import dispatch_tool_request
@@ -20,6 +20,11 @@ def delegate_to_notice_agent(
                 code="invalid_agent_target",
                 message="notice-agent requires target='notice-agent'",
             ),
+            agent_observability=AgentObservability(
+                tool_attempted=False,
+                failure_class="invalid_agent_target",
+                access_decision="not_evaluated",
+            ),
         )
     if query_service is None:
         return AgentResponse(
@@ -29,6 +34,11 @@ def delegate_to_notice_agent(
             error=ErrorInfo(
                 code="internal_query_service_unavailable",
                 message="notice-agent requires an internal query service",
+            ),
+            agent_observability=AgentObservability(
+                tool_attempted=False,
+                failure_class="query_service_unavailable",
+                access_decision="not_evaluated",
             ),
         )
     return dispatch_tool_request(request, query_service=query_service)

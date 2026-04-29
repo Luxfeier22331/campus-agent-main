@@ -23,10 +23,22 @@ def parse_profile_memory_summary(raw_memory: object) -> ProfileMemorySummary:
         if not isinstance(raw_item, dict):
             raise ValueError("context.profile_memory.items must only contain objects")
         kwargs: dict[str, str] = {}
-        source_type = parse_optional_string(raw_item.get("source_type"))
-        confidence = parse_optional_string(raw_item.get("confidence"))
-        visibility = parse_optional_string(raw_item.get("visibility"))
-        last_verified_at = parse_optional_string(raw_item.get("last_verified_at"))
+        source_type = parse_optional_string(
+            raw_item.get("source_type"),
+            field_name="context.profile_memory.items[].source_type",
+        )
+        confidence = parse_optional_string(
+            raw_item.get("confidence"),
+            field_name="context.profile_memory.items[].confidence",
+        )
+        visibility = parse_optional_string(
+            raw_item.get("visibility"),
+            field_name="context.profile_memory.items[].visibility",
+        )
+        last_verified_at = parse_optional_string(
+            raw_item.get("last_verified_at"),
+            field_name="context.profile_memory.items[].last_verified_at",
+        )
         if source_type is not None:
             kwargs["source_type"] = source_type
         if confidence is not None:

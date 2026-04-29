@@ -182,7 +182,7 @@ func (e *Emitter) Status() Status {
 		ExportedCount:      e.exportedCount,
 		DroppedCount:       e.droppedCount,
 		FailedCount:        e.failedCount,
-		LastError:          e.lastError,
+		LastError:          statusSafeLastError(e.lastError, "telemetry exporter error"),
 		SampleRatio:        formatSampleRatio(e.sampleRatio),
 	}
 }
@@ -268,6 +268,21 @@ func defaultString(value string, fallback string) string {
 
 func formatSampleRatio(value float64) string {
 	return strings.TrimRight(strings.TrimRight(fmtFloat(value), "0"), ".")
+}
+
+func statusSafeLastError(value string, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "://") ||
+		strings.Contains(lower, "dial tcp") ||
+		strings.Contains(lower, "token=") ||
+		strings.Contains(lower, "authorization") {
+		return fallback
+	}
+	return trimmed
 }
 
 func fmtFloat(value float64) string {

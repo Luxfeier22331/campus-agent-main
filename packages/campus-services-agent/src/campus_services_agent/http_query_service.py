@@ -72,7 +72,10 @@ class CampusServicesHTTPQueryService:
     def lookup_service_status(self, query: ServiceStatusQuery) -> ServiceStatusLookupResult:
         body = self._post(
             "/internal/query/campus-services/service-status",
-            asdict(query.payload),
+            _query_body(
+                payload=asdict(query.payload),
+                access_context=asdict(query.access_context),
+            ),
         )
         return _service_status_result_from_dict(
             body,
@@ -82,7 +85,10 @@ class CampusServicesHTTPQueryService:
     def lookup_service_guide(self, query: ServiceGuideQuery) -> ServiceGuideLookupResult:
         body = self._post(
             "/internal/query/campus-services/service-guide",
-            asdict(query.payload),
+            _query_body(
+                payload=asdict(query.payload),
+                access_context=asdict(query.access_context),
+            ),
         )
         return _service_guide_result_from_dict(
             body,
@@ -96,7 +102,10 @@ class CampusServicesHTTPQueryService:
     ) -> ContactDirectoryLookupResult:
         body = self._post(
             "/internal/query/campus-services/contact-directory",
-            asdict(query.payload),
+            _query_body(
+                payload=asdict(query.payload),
+                access_context=asdict(query.access_context),
+            ),
         )
         return _contact_directory_result_from_dict(
             body,
@@ -110,7 +119,10 @@ class CampusServicesHTTPQueryService:
     ) -> TransportScheduleLookupResult:
         body = self._post(
             "/internal/query/campus-services/transport-schedule",
-            asdict(query.payload),
+            _query_body(
+                payload=asdict(query.payload),
+                access_context=asdict(query.access_context),
+            ),
         )
         return _transport_schedule_result_from_dict(
             body,
@@ -165,6 +177,17 @@ def _decode_json_object(raw: bytes) -> dict[str, object]:
     if not isinstance(value, dict):
         raise RuntimeError("query service response must be a JSON object")
     return value
+
+
+def _query_body(
+    *,
+    payload: dict[str, object],
+    access_context: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "payload": payload,
+        "access_context": access_context,
+    }
 
 
 def _service_status_result_from_dict(

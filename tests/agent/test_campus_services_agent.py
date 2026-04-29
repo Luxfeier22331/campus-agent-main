@@ -220,6 +220,12 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("工作日开放，节假日另行通知", response.answer_text)
         self.assertNotIn("运营提示", response.answer_text)
         self.assertNotIn("open", response.answer_text)
+        self.assertIsNotNone(response.agent_observability)
+        self.assertEqual(response.agent_observability.selected_tool, "service_status_lookup")
+        self.assertEqual(response.agent_observability.tool_attempted, True)
+        self.assertEqual(response.agent_observability.tool_outcome, "resolved_current")
+        self.assertEqual(response.agent_observability.source_ref_count, 1)
+        self.assertEqual(response.agent_observability.access_decision, "allowed")
         self.assertEqual(
             query_service.last_service_status_query,
             ServiceStatusQuery(
@@ -765,7 +771,8 @@ class CampusServicesAgentTest(unittest.TestCase):
             "http://supervisor-api.internal/internal/query/campus-services/transport-schedule",
         )
         self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
-        self.assertEqual(transport.calls[0][2]["intent"], "first_departure")
+        self.assertEqual(transport.calls[0][2]["payload"]["intent"], "first_departure")
+        self.assertIn("access_context", transport.calls[0][2])
         self.assertEqual(transport.calls[0][3], 0.75)
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_route.display_name, "海淀到丰台通勤车")
@@ -814,7 +821,8 @@ class CampusServicesAgentTest(unittest.TestCase):
             transport.calls[0][0],
             "http://supervisor-api.internal/internal/query/campus-services/service-status",
         )
-        self.assertEqual(transport.calls[0][2]["campus_scope"], "fengtai")
+        self.assertEqual(transport.calls[0][2]["payload"]["campus_scope"], "fengtai")
+        self.assertIn("access_context", transport.calls[0][2])
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.observed_status, "limited_service")
         self.assertIn("聚雅餐厅东侧停车场路口", result.status_note)
@@ -868,7 +876,8 @@ class CampusServicesAgentTest(unittest.TestCase):
             transport.calls[0][0],
             "http://supervisor-api.internal/internal/query/campus-services/service-guide",
         )
-        self.assertEqual(transport.calls[0][2]["guide_focus"], "procedure")
+        self.assertEqual(transport.calls[0][2]["payload"]["guide_focus"], "procedure")
+        self.assertIn("access_context", transport.calls[0][2])
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_service.display_name, "公寓楼新生办理入住手续流程")
         self.assertEqual(result.matched_service_category, "student_housing")
@@ -922,7 +931,8 @@ class CampusServicesAgentTest(unittest.TestCase):
             transport.calls[0][0],
             "http://supervisor-api.internal/internal/query/campus-services/contact-directory",
         )
-        self.assertEqual(transport.calls[0][2]["contact_focus"], "phone")
+        self.assertEqual(transport.calls[0][2]["payload"]["contact_focus"], "phone")
+        self.assertIn("access_context", transport.calls[0][2])
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_contact.display_name, "研究生院招生办公室")
         self.assertEqual(result.contact_points[0].value, "010-68930001")

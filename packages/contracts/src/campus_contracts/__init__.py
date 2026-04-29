@@ -22,6 +22,7 @@ from campus_contracts.models import (
     DEFAULT_REVISION_TRACK,
     DEFAULT_SOURCE_CHANNEL,
     ActorContext,
+    AgentObservability,
     AgentRequest,
     AgentResponse,
     AgentTarget,
@@ -127,6 +128,7 @@ from campus_contracts.models import (
     TransportStopRef,
     VersionQuery,
     VersionQueryMode,
+    WorkflowTraceSummary,
     resolve_curriculum_follow_up_slots,
 )
 
@@ -154,6 +156,7 @@ __all__ = [
     "DEFAULT_REVISION_TRACK",
     "DEFAULT_SOURCE_CHANNEL",
     "ActorContext",
+    "AgentObservability",
     "AgentRequest",
     "AgentResponse",
     "AgentTarget",
@@ -259,5 +262,6 @@ __all__ = [
     "TransportStopRef",
     "VersionQuery",
     "VersionQueryMode",
+    "WorkflowTraceSummary",
     "resolve_curriculum_follow_up_slots",
 ]

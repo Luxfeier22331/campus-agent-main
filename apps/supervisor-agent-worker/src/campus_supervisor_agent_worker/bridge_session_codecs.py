@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from campus_contracts import SessionSlot, SessionSummary
+from campus_contracts import SelectedNoticeRef, SessionSlot, SessionSummary
 
-from campus_supervisor_agent_worker.bridge_parse_utils import require_string
+from campus_supervisor_agent_worker.bridge_parse_utils import (
+    parse_optional_string,
+    require_object,
+    require_string,
+)
 
 
 def parse_session_summary(raw_session: object) -> SessionSummary:
@@ -40,8 +44,31 @@ def parse_session_summary(raw_session: object) -> SessionSummary:
 
     return SessionSummary(
         confirmed_slots=tuple(confirmed_slots),
+        selected_notice_ref=parse_selected_notice_ref(raw_session.get("selected_notice_ref")),
         turn_count=raw_turn_count,
     )
 
 
-__all__ = ["parse_session_summary"]
+def parse_selected_notice_ref(raw_ref: object) -> SelectedNoticeRef | None:
+    if raw_ref is None:
+        return None
+    ref = require_object(raw_ref, field_name="context.session.selected_notice_ref")
+    return SelectedNoticeRef(
+        notice_id=require_string(
+            ref.get("notice_id"),
+            field_name="context.session.selected_notice_ref.notice_id",
+        ),
+        source_family=parse_optional_string(
+            ref.get("source_family"),
+            field_name="context.session.selected_notice_ref.source_family",
+        )
+        or "",
+        title=parse_optional_string(
+            ref.get("title"),
+            field_name="context.session.selected_notice_ref.title",
+        )
+        or "",
+    )
+
+
+__all__ = ["parse_selected_notice_ref", "parse_session_summary"]

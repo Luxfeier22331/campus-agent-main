@@ -13,8 +13,11 @@ def parse_requested_scope(raw_scope: object) -> KnowledgeScope | None:
         return None
     if not isinstance(raw_scope, dict):
         raise ValueError("requested_scope must be an object")
-    corpus = str(raw_scope.get("corpus", "")).strip()
-    collection = str(raw_scope.get("collection", "")).strip()
+    corpus = require_string(raw_scope.get("corpus"), field_name="requested_scope.corpus")
+    collection = require_string(
+        raw_scope.get("collection"),
+        field_name="requested_scope.collection",
+    )
     if not corpus or not collection:
         raise ValueError("requested_scope requires corpus and collection")
     return KnowledgeScope(corpus=corpus, collection=collection)
@@ -32,10 +35,16 @@ def parse_version_query(raw_version_query: object) -> VersionQuery:
         return VersionQuery()
     if not isinstance(raw_version_query, dict):
         raise ValueError("version_query must be an object")
-    mode = parse_optional_string(raw_version_query.get("mode"))
-    as_of = parse_optional_string(raw_version_query.get("as_of"))
-    version_id = parse_optional_string(raw_version_query.get("version_id"))
-    compare_to_version_id = parse_optional_string(raw_version_query.get("compare_to_version_id"))
+    mode = parse_optional_string(raw_version_query.get("mode"), field_name="version_query.mode")
+    as_of = parse_optional_string(raw_version_query.get("as_of"), field_name="version_query.as_of")
+    version_id = parse_optional_string(
+        raw_version_query.get("version_id"),
+        field_name="version_query.version_id",
+    )
+    compare_to_version_id = parse_optional_string(
+        raw_version_query.get("compare_to_version_id"),
+        field_name="version_query.compare_to_version_id",
+    )
     return VersionQuery(
         mode="current" if mode is None else mode,
         as_of="" if as_of is None else as_of,

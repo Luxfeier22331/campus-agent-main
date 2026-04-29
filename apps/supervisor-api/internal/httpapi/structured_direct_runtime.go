@@ -25,16 +25,12 @@ func isStructuredPayloadKind(payloadKind string) bool {
 
 func structuredQueryPayload(
 	handoff *execution.RuntimeHandoff,
-	noticeAccessContext map[string]any,
+	accessContext map[string]any,
 ) ([]byte, error) {
-	if handoff.PayloadKind == structuredquery.ToolCampusNoticeDiscover ||
-		handoff.PayloadKind == structuredquery.ToolCampusNoticeGet {
-		return json.Marshal(map[string]any{
-			"payload":        handoff.Payload,
-			"access_context": noticeAccessContext,
-		})
-	}
-	return json.Marshal(handoff.Payload)
+	return json.Marshal(map[string]any{
+		"payload":        handoff.Payload,
+		"access_context": accessContext,
+	})
 }
 
 func (s *Server) executeStructuredRuntime(

@@ -98,6 +98,56 @@ class ApiSettings:
     structured_query_timeout_seconds: float = 1.0
     cancel_flag_ttl_seconds: float = 900.0
 
+    def __post_init__(self) -> None:
+        _require_positive_float(
+            "prompt_runtime_connect_timeout_seconds",
+            self.prompt_runtime_connect_timeout_seconds,
+        )
+        _require_positive_float(
+            "prompt_runtime_read_timeout_seconds",
+            self.prompt_runtime_read_timeout_seconds,
+        )
+        _require_positive_float(
+            "prompt_runtime_write_timeout_seconds",
+            self.prompt_runtime_write_timeout_seconds,
+        )
+        _require_positive_float(
+            "prompt_runtime_pool_timeout_seconds",
+            self.prompt_runtime_pool_timeout_seconds,
+        )
+        _require_positive_int(
+            "prompt_runtime_max_connections",
+            self.prompt_runtime_max_connections,
+        )
+        _require_non_negative_int(
+            "prompt_runtime_max_keepalive_connections",
+            self.prompt_runtime_max_keepalive_connections,
+        )
+        if self.prompt_runtime_max_keepalive_connections > self.prompt_runtime_max_connections:
+            raise ValueError(
+                "prompt_runtime_max_keepalive_connections must not exceed "
+                "prompt_runtime_max_connections"
+            )
+        _require_positive_float(
+            "prompt_runtime_keepalive_expiry_seconds",
+            self.prompt_runtime_keepalive_expiry_seconds,
+        )
+        if self.prompt_runtime_max_output_tokens is not None:
+            _require_positive_int(
+                "prompt_runtime_max_output_tokens",
+                self.prompt_runtime_max_output_tokens,
+            )
+        _require_positive_int("bridge_worker_threads", self.bridge_worker_threads)
+        _require_positive_int(
+            "bridge_request_body_limit_bytes",
+            self.bridge_request_body_limit_bytes,
+        )
+        _require_positive_float(
+            "structured_query_timeout_seconds",
+            self.structured_query_timeout_seconds,
+        )
+        _require_positive_float("cancel_flag_ttl_seconds", self.cancel_flag_ttl_seconds)
+
     @classmethod
     def from_env(cls) -> ApiSettings:
         prompt_runtime_model = (os.getenv("PROMPT_RUNTIME_MODEL", "")).strip()
@@ -189,3 +239,18 @@ class ApiSettings:
                 default=900.0,
             ),
         )
+
+
+def _require_positive_int(name: str, value: int) -> None:
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")
+
+
+def _require_non_negative_int(name: str, value: int) -> None:
+    if value < 0:
+        raise ValueError(f"{name} must not be negative")
+
+
+def _require_positive_float(name: str, value: float) -> None:
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")

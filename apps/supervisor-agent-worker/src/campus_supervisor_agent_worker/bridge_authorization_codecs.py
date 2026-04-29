@@ -26,27 +26,45 @@ def parse_authorization_projection(
         raw_authorization.get("entitlement_groups"),
         field_name="context.authorization.entitlement_groups",
     )
-    visibility_scope = parse_optional_string(raw_authorization.get("visibility_scope"))
+    visibility_scope = parse_optional_string(
+        raw_authorization.get("visibility_scope"),
+        field_name="context.authorization.visibility_scope",
+    )
     retrieval_filter = parse_authorized_retrieval_filter(
         raw_authorization.get("retrieval_filter"),
     )
     return AuthorizationProjection(
-        principal_id=parse_optional_string(raw_authorization.get("principal_id"))
+        principal_id=parse_optional_string(
+            raw_authorization.get("principal_id"),
+            field_name="context.authorization.principal_id",
+        )
         or actor.principal_id
         or actor.user_id,
-        projection_source=parse_optional_string(raw_authorization.get("projection_source")) or "",
+        projection_source=parse_optional_string(
+            raw_authorization.get("projection_source"),
+            field_name="context.authorization.projection_source",
+        )
+        or "",
         entitlement_snapshot_id=parse_optional_string(
-            raw_authorization.get("entitlement_snapshot_id")
+            raw_authorization.get("entitlement_snapshot_id"),
+            field_name="context.authorization.entitlement_snapshot_id",
         )
         or "",
         entitlement_groups=entitlement_groups,
         visibility_scope=visibility_scope,
-        applicability_scope=parse_optional_string(raw_authorization.get("applicability_scope")),
+        applicability_scope=parse_optional_string(
+            raw_authorization.get("applicability_scope"),
+            field_name="context.authorization.applicability_scope",
+        ),
         ownership_scopes=parse_string_tuple(
             raw_authorization.get("ownership_scopes"),
             field_name="context.authorization.ownership_scopes",
         ),
-        approval_state=parse_optional_string(raw_authorization.get("approval_state")) or "",
+        approval_state=parse_optional_string(
+            raw_authorization.get("approval_state"),
+            field_name="context.authorization.approval_state",
+        )
+        or "",
         retrieval_filter=retrieval_filter,
     )
 
@@ -63,9 +81,19 @@ def parse_authorized_retrieval_filter(raw_filter: object) -> AuthorizedRetrieval
             raw_filter.get("entitlement_groups"),
             field_name="context.authorization.retrieval_filter.entitlement_groups",
         ),
-        visibility_level=parse_optional_string(raw_filter.get("visibility_level")) or "public",
-        visibility_scope=parse_optional_string(raw_filter.get("visibility_scope")),
-        policy_projection_version=parse_optional_string(raw_filter.get("policy_projection_version"))
+        visibility_level=parse_optional_string(
+            raw_filter.get("visibility_level"),
+            field_name="context.authorization.retrieval_filter.visibility_level",
+        )
+        or "public",
+        visibility_scope=parse_optional_string(
+            raw_filter.get("visibility_scope"),
+            field_name="context.authorization.retrieval_filter.visibility_scope",
+        ),
+        policy_projection_version=parse_optional_string(
+            raw_filter.get("policy_projection_version"),
+            field_name="context.authorization.retrieval_filter.policy_projection_version",
+        )
         or "",
     )
 

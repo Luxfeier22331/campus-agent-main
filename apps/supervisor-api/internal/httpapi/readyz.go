@@ -53,7 +53,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				bridgeLastError = "Supervisor Python bridge readiness timed out."
 			} else {
-				bridgeLastError = err.Error()
+				bridgeLastError = "Supervisor Python bridge readiness check failed."
 			}
 		}
 	}

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     ErrorInfo,
     PlaceLookupPayload,
     PlaceLookupResult,
-    AgentRequest,
-    AgentResponse,
 )
 
 from campus_navigation_agent.catalog import (

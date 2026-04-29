@@ -115,10 +115,14 @@ def matching_curriculum_doc_ids(
         ):
             exact_doc_ids.append(source.doc_id)
             continue
-        if any(
-            interpretation.program_compact_key and interpretation.program_compact_key in compact_key
-            for compact_key in compact_keys
-        ) and source.doc_id not in partial_doc_ids:
+        if (
+            any(
+                interpretation.program_compact_key
+                and interpretation.program_compact_key in compact_key
+                for compact_key in compact_keys
+            )
+            and source.doc_id not in partial_doc_ids
+        ):
             partial_doc_ids.append(source.doc_id)
     if exact_doc_ids:
         return tuple(exact_doc_ids)

@@ -195,7 +195,7 @@ func (e *Emitter) Status() Status {
 		EmittedCount:      e.emittedCount,
 		Enabled:           e.enabled,
 		FailedCount:       e.failedCount,
-		LastError:         e.lastError,
+		LastError:         statusSafeLastError(e.lastError, "execution audit delivery error"),
 		QueueDepth:        queueDepth,
 		RetriedCount:      e.retriedCount,
 		SpooledCount:      e.spooledCount,
@@ -203,6 +203,21 @@ func (e *Emitter) Status() Status {
 		SpoolDroppedCount: e.spoolDroppedCount,
 		SpoolEnabled:      e.spoolDir != "",
 	}
+}
+
+func statusSafeLastError(value string, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "://") ||
+		strings.Contains(lower, "dial tcp") ||
+		strings.Contains(lower, "token=") ||
+		strings.Contains(lower, "authorization") {
+		return fallback
+	}
+	return trimmed
 }
 
 func (e *Emitter) Shutdown(ctx context.Context) error {

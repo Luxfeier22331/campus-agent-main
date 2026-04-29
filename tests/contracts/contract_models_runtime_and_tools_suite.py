@@ -37,6 +37,97 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             },
         )
 
+    def test_agent_response_serializes_safe_agent_observability(self) -> None:
+        response = AgentResponse(
+            target="campus-services-agent",
+            status="completed",
+            answer_text="当前班车正常运行。",
+            confidence="high",
+            agent_observability=AgentObservability(
+                selected_tool="transport_schedule_lookup",
+                tool_attempted=True,
+                tool_outcome="resolved_current",
+                source_ref_count=2,
+                access_decision="allowed",
+                safe_details={"payload_kind": "transport_schedule_lookup"},
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(
+            payload["agent_observability"]["selected_tool"],
+            "transport_schedule_lookup",
+        )
+        self.assertEqual(payload["agent_observability"]["tool_attempted"], True)
+        self.assertEqual(payload["agent_observability"]["source_ref_count"], 2)
+        self.assertNotIn("raw_prompt", str(payload["agent_observability"]))
+
+    def test_agent_observability_rejects_raw_or_auth_material_keys(self) -> None:
+        for key in (
+            "raw_prompt",
+            "rawPrompt",
+            "provider_raw_response",
+            "providerRawResponse",
+            "jwt",
+            "cookie",
+        ):
+            with (
+                self.subTest(key=key),
+                self.assertRaisesRegex(
+                    ValueError,
+                    "forbidden raw workflow trace key",
+                ),
+            ):
+                AgentObservability(
+                    selected_tool="service_status_lookup",
+                    safe_details={"debug": {key: "secret"}},
+                )
+
+    def test_supervisor_response_serializes_workflow_trace_summary(self) -> None:
+        response = SupervisorResponse(
+            selected_target="campus-services-agent",
+            status="completed",
+            confidence="high",
+            workflow_trace_summary=WorkflowTraceSummary(
+                routing_frame={"suggested_next_action": "delegate"},
+                context_resolution={"state": "not_follow_up"},
+                planning_outcome="preplanned",
+                direct_vs_delegate_branch="delegate",
+                handoff={
+                    "target": "campus-services-agent",
+                    "payload_kind": "transport_schedule_lookup",
+                },
+                selected_target="campus-services-agent",
+                selected_tools=("transport_schedule_lookup",),
+                tool_argument_summary={"payload_kind": "transport_schedule_lookup"},
+                guardrail_outcomes={"scope_gate": "allow", "policy_gate": "allow"},
+                runtime_versions={"supervisor-api": "test"},
+                policy_artifact_versions={"intent-policy": "v1"},
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(
+            payload["workflow_trace_summary"]["selected_tools"],
+            ("transport_schedule_lookup",),
+        )
+        self.assertEqual(
+            payload["workflow_trace_summary"]["handoff"]["target"],
+            "campus-services-agent",
+        )
+
+    def test_workflow_trace_summary_rejects_nested_raw_or_auth_material_keys(self) -> None:
+        with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
+            WorkflowTraceSummary(
+                routing_frame={"intent": "knowledge_lookup"},
+                tool_argument_summary={
+                    "collection": "student_rules",
+                    "debug": {"auth_envelope": {"cookie": "secret"}},
+                },
+            )
+
     def test_source_trust_summary_serializes_as_contract_field(self) -> None:
         diagnostics = RagResultDiagnostics(
             source_trust_summary=SourceTrustSummary(
@@ -179,7 +270,9 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
 
         payload = asdict(response)
         self.assertEqual(payload["result"]["contact_focus"], "phone")
-        self.assertEqual(payload["result"]["resolved_contact"]["contact_id"], "contact:admission-office")
+        self.assertEqual(
+            payload["result"]["resolved_contact"]["contact_id"], "contact:admission-office"
+        )
 
     def test_tool_fail_close_reason_rejects_legacy_manual_review_required(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported tool fail-close reason"):
@@ -383,6 +476,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 "confidence",
                 "result",
                 "error",
+                "agent_observability",
             ),
         )
 

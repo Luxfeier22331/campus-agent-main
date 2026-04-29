@@ -15,18 +15,21 @@ def parse_optional_int(raw_value: object) -> int | None:
     return raw_value
 
 
-def parse_optional_string(raw_value: object) -> str | None:
+def parse_optional_string(raw_value: object, *, field_name: str = "string field") -> str | None:
     if raw_value is None:
         return None
-    value = str(raw_value).strip()
+    if not isinstance(raw_value, str):
+        raise ValueError(f"{field_name} must be a string")
+    value = raw_value.strip()
     return value or None
 
 
-def parse_requested_capability(raw_capability: object) -> str | None:
-    if raw_capability is None:
-        return None
-    capability = str(raw_capability).strip()
-    return capability or None
+def parse_requested_capability(
+    raw_capability: object,
+    *,
+    field_name: str = "requested_capability",
+) -> str | None:
+    return parse_optional_string(raw_capability, field_name=field_name)
 
 
 def parse_string_dict(raw_value: object, *, field_name: str) -> dict[str, str]:
@@ -68,7 +71,7 @@ def require_bool(raw_value: object, *, field_name: str) -> bool:
 
 
 def require_string(raw_value: object, *, field_name: str) -> str:
-    value = parse_optional_string(raw_value)
+    value = parse_optional_string(raw_value, field_name=field_name)
     if value is None:
         raise ValueError(f"{field_name} must be a non-empty string")
     return value

@@ -5,6 +5,7 @@ func shapeStructuredSupervisorResponse(
 	payloadKind string,
 	result map[string]any,
 	traceID string,
+	context supervisorFinalizerContext,
 ) map[string]any {
 	outcome := stringValue(result["outcome"])
 	status := supervisorStatusForStructuredOutcome(outcome)
@@ -20,7 +21,7 @@ func shapeStructuredSupervisorResponse(
 			"error":              nil,
 		},
 		traceID,
-		payloadKind,
+		structuredFinalizerContext(context, payloadKind),
 	)
 	if err != nil {
 		return map[string]any{
@@ -35,6 +36,19 @@ func shapeStructuredSupervisorResponse(
 		}
 	}
 	return supervisorResponse
+}
+
+func structuredFinalizerContext(
+	context supervisorFinalizerContext,
+	payloadKind string,
+) supervisorFinalizerContext {
+	if context.SelectedTool == "" {
+		context.SelectedTool = payloadKind
+	}
+	if context.Branch == "" {
+		context.Branch = "direct"
+	}
+	return context
 }
 
 func supervisorStatusForStructuredOutcome(outcome string) string {

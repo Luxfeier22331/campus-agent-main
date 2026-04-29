@@ -93,8 +93,12 @@ func (r *Runtime) Close() {
 }
 
 func (r *Runtime) LookupTransportSchedule(ctx context.Context, rawBody []byte) Response {
+	payloadBody, err := structuredQueryPayloadBody(rawBody)
+	if err != nil {
+		return invalidRequest("Transport schedule request body must be a JSON object.")
+	}
 	var request transportScheduleRequest
-	if err := json.Unmarshal(rawBody, &request); err != nil {
+	if err := json.Unmarshal(payloadBody, &request); err != nil {
 		return invalidRequest("Transport schedule request body must be a JSON object.")
 	}
 	request.QueryText = strings.TrimSpace(request.QueryText)

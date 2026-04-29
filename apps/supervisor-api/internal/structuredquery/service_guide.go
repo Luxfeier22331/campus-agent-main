@@ -6,8 +6,12 @@ import (
 )
 
 func (r *Runtime) LookupServiceGuide(ctx context.Context, rawBody []byte) Response {
+	payloadBody, err := structuredQueryPayloadBody(rawBody)
+	if err != nil {
+		return invalidRequest("Service guide request body must be a JSON object.")
+	}
 	var request serviceGuideRequest
-	if err := json.Unmarshal(rawBody, &request); err != nil {
+	if err := json.Unmarshal(payloadBody, &request); err != nil {
 		return invalidRequest("Service guide request body must be a JSON object.")
 	}
 	normalizeServiceGuideRequest(&request)

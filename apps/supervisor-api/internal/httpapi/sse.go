@@ -115,7 +115,7 @@ func (s *Server) streamBridgePayload(
 		responseBody, err := finalizeAgentBridgeResponse(
 			body,
 			executionRequest.TraceID,
-			executionRequest.RuntimeDecisions.SelectedTool,
+			finalizerContextFromExecutionRequest(executionRequest, "delegate"),
 		)
 		if err != nil {
 			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid agent response.")

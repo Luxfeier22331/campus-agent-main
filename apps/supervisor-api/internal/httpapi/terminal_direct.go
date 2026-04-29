@@ -21,6 +21,7 @@ func (s *Server) handleDirectTerminalAnswer(
 	supervisorResponse := terminalSupervisorResponse(
 		executionRequest.TerminalEnvelope,
 		executionRequest.TraceID,
+		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
 	setOutcome(response, "supervisor_response")
 	s.telemetry.Emit(request.Context(), runtimeTelemetryEvent(telemetry.Event{
@@ -49,6 +50,7 @@ func (s *Server) handleDirectTerminalAnswerStream(
 	supervisorResponse := terminalSupervisorResponse(
 		executionRequest.TerminalEnvelope,
 		executionRequest.TraceID,
+		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
 	setOutcome(response, "supervisor_response")
 	s.telemetry.Emit(request.Context(), runtimeTelemetryEvent(telemetry.Event{
@@ -73,10 +75,26 @@ func (s *Server) handleDirectTerminalAnswerStream(
 	return true
 }
 
-func terminalSupervisorResponse(envelope map[string]any, traceID string) map[string]any {
-	response := make(map[string]any, len(envelope)+1)
+func terminalSupervisorResponse(
+	envelope map[string]any,
+	traceID string,
+	context supervisorFinalizerContext,
+) map[string]any {
+	response := make(map[string]any, len(envelope)+2)
 	for key, value := range envelope {
 		response[key] = value
+	}
+	if _, exists := response["workflow_trace_summary"]; !exists {
+		target, _ := response["selected_target"].(string)
+		status, _ := response["status"].(string)
+		result, _ := response["result"].(map[string]any)
+		response["workflow_trace_summary"] = buildWorkflowTraceSummary(
+			context,
+			target,
+			status,
+			result,
+			nil,
+		)
 	}
 	response["trace_id"] = traceID
 	return response

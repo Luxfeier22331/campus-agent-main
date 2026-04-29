@@ -101,6 +101,12 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.notice_cards[0].notice_id, "notice:2026-spring-holiday")
         self.assertIn("2026 年春假安排通知", response.answer_text)
+        self.assertIsNotNone(response.agent_observability)
+        self.assertEqual(response.agent_observability.selected_tool, "campus_notice_discover")
+        self.assertEqual(response.agent_observability.tool_attempted, True)
+        self.assertEqual(response.agent_observability.tool_outcome, "resolved_current")
+        self.assertEqual(response.agent_observability.source_ref_count, 1)
+        self.assertEqual(response.agent_observability.access_decision, "allowed")
         self.assertEqual(
             query_service.last_discover_query,
             NoticeDiscoverQuery(

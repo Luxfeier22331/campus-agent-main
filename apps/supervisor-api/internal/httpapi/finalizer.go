@@ -3,41 +3,468 @@ package httpapi
 import (
 	"errors"
 	"strings"
+
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 )
 
 var errInvalidAgentResponse = errors.New("invalid agent response")
 
+type supervisorFinalizerContext struct {
+	SelectedTool     string
+	RuntimeDecisions execution.RuntimeDecisionSummary
+	Handoff          *execution.RuntimeHandoff
+	Branch           string
+	RuntimeVersions  map[string]any
+	PolicyVersions   map[string]any
+}
+
+func finalizerContextFromExecutionRequest(
+	request execution.AnswerExecutionRequest,
+	branch string,
+) supervisorFinalizerContext {
+	return supervisorFinalizerContext{
+		SelectedTool:     request.RuntimeDecisions.SelectedTool,
+		RuntimeDecisions: request.RuntimeDecisions,
+		Handoff:          request.StructuredHandoff,
+		Branch:           branch,
+	}
+}
+
 func finalizeAgentBridgeResponse(
 	agentResponse map[string]any,
 	traceID string,
-	selectedTool string,
+	context supervisorFinalizerContext,
 ) (map[string]any, error) {
-	target := stringValue(agentResponse["target"])
-	if target == "" {
-		target = stringValue(agentResponse["selected_target"])
-	}
-	status := stringValue(agentResponse["status"])
-	if target == "" || !allowedDelegateStatus(status) {
+	target, err := optionalAgentResponseString(agentResponse, "target")
+	if err != nil {
 		return nil, errInvalidAgentResponse
 	}
-	result, _ := agentResponse["result"].(map[string]any)
+	if target == "" {
+		target, err = optionalAgentResponseString(agentResponse, "selected_target")
+		if err != nil {
+			return nil, errInvalidAgentResponse
+		}
+	}
+	status, err := optionalAgentResponseString(agentResponse, "status")
+	if err != nil {
+		return nil, errInvalidAgentResponse
+	}
+	confidence, err := optionalAgentResponseString(agentResponse, "confidence")
+	if err != nil {
+		return nil, errInvalidAgentResponse
+	}
+	confidence = defaultString(confidence, "low")
+	if !allowedAgentTarget(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
+		return nil, errInvalidAgentResponse
+	}
+	answerText, err := optionalAgentResponseString(agentResponse, "answer_text")
+	if err != nil {
+		return nil, errInvalidAgentResponse
+	}
+	followUpQuestion, err := optionalAgentResponseString(agentResponse, "follow_up_question")
+	if err != nil {
+		return nil, errInvalidAgentResponse
+	}
+	result, err := optionalAgentResponseObject(agentResponse, "result")
+	if err != nil {
+		return nil, errInvalidAgentResponse
+	}
+	errorBody, err := optionalAgentResponseObject(agentResponse, "error")
+	if err != nil {
+		return nil, errInvalidAgentResponse
+	}
+	agentObservability, err := optionalAgentResponseObject(agentResponse, "agent_observability")
+	if err != nil || hasForbiddenWorkflowTraceKey(agentObservability) {
+		return nil, errInvalidAgentResponse
+	}
 	response := map[string]any{
-		"selected_target":    target,
-		"status":             status,
-		"answer_text":        stringValue(agentResponse["answer_text"]),
-		"follow_up_question": stringValue(agentResponse["follow_up_question"]),
-		"confidence":         defaultString(stringValue(agentResponse["confidence"]), "low"),
-		"result":             agentResponse["result"],
-		"error":              agentResponse["error"],
-		"observability":      buildSupervisorObservability(target, status, result, selectedTool),
-		"trace_id":           traceID,
+		"selected_target":        target,
+		"status":                 status,
+		"answer_text":            answerText,
+		"follow_up_question":     followUpQuestion,
+		"confidence":             confidence,
+		"result":                 result,
+		"error":                  errorBody,
+		"observability":          buildSupervisorObservability(target, status, result, context.SelectedTool),
+		"workflow_trace_summary": buildWorkflowTraceSummary(context, target, status, result, agentObservability),
+		"trace_id":               traceID,
 	}
 	return response, nil
+}
+
+func optionalAgentResponseString(agentResponse map[string]any, field string) (string, error) {
+	value, exists := agentResponse[field]
+	if !exists || value == nil {
+		return "", nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", errInvalidAgentResponse
+	}
+	return strings.TrimSpace(text), nil
+}
+
+func optionalAgentResponseObject(agentResponse map[string]any, field string) (map[string]any, error) {
+	value, exists := agentResponse[field]
+	if !exists || value == nil {
+		return nil, nil
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, errInvalidAgentResponse
+	}
+	return object, nil
+}
+
+func buildWorkflowTraceSummary(
+	context supervisorFinalizerContext,
+	target string,
+	status string,
+	result map[string]any,
+	agentObservability map[string]any,
+) map[string]any {
+	decisions := context.RuntimeDecisions
+	selectedTool := defaultString(context.SelectedTool, decisions.SelectedTool)
+	if selectedTool == "" {
+		selectedTool = inferSelectedTool(target, result)
+	}
+	branch := context.Branch
+	if branch == "" {
+		branch = branchFromRuntimeDecision(decisions)
+	}
+	handoff := workflowHandoffSummary(context.Handoff, target, selectedTool)
+	selectedTools := workflowSelectedTools(context.Handoff, selectedTool)
+	failCloseReason := defaultString(
+		defaultString(decisions.FailCloseReason, stringValue(result["fail_close_reason"])),
+		stringValue(agentObservability["fail_close_reason"]),
+	)
+	return map[string]any{
+		"routing_frame": map[string]any{
+			"scope_gate_decision":     decisions.ScopeGateDecision,
+			"policy_gate_decision":    decisions.PolicyGateDecision,
+			"context_preflight_state": decisions.ContextPreflightState,
+			"routing_next_action":     decisions.RoutingNextAction,
+		},
+		"context_resolution": map[string]any{
+			"state": decisions.ContextPreflightState,
+		},
+		"planning_outcome":          defaultString(decisions.PlanningOutcome, "not_preplanned"),
+		"direct_vs_delegate_branch": branch,
+		"handoff":                   handoff,
+		"selected_target":           target,
+		"selected_tools":            selectedTools,
+		"tool_argument_summary": workflowToolArgumentSummary(
+			selectedTool,
+			context.Handoff,
+			agentObservability,
+		),
+		"guardrail_outcomes": map[string]any{
+			"scope_gate":        decisions.ScopeGateDecision,
+			"policy_gate":       decisions.PolicyGateDecision,
+			"context_preflight": decisions.ContextPreflightState,
+		},
+		"fail_close_reason":        failCloseReason,
+		"runtime_versions":         safeWorkflowMap(context.RuntimeVersions),
+		"policy_artifact_versions": safeWorkflowMap(context.PolicyVersions),
+	}
+}
+
+func branchFromRuntimeDecision(decisions execution.RuntimeDecisionSummary) string {
+	if decisions.RoutingNextAction == "delegate" {
+		return "delegate"
+	}
+	if decisions.RoutingNextAction != "" {
+		return "terminal"
+	}
+	return ""
+}
+
+func workflowHandoffSummary(
+	handoff *execution.RuntimeHandoff,
+	target string,
+	selectedTool string,
+) map[string]any {
+	if handoff == nil {
+		return map[string]any{}
+	}
+	return map[string]any{
+		"target":        defaultString(handoff.Target, target),
+		"payload_kind":  handoff.PayloadKind,
+		"allowed_tools": append([]string(nil), handoff.AllowedTools...),
+	}
+}
+
+func workflowSelectedTools(handoff *execution.RuntimeHandoff, selectedTool string) []string {
+	if handoff != nil && len(handoff.AllowedTools) > 0 {
+		return append([]string(nil), handoff.AllowedTools...)
+	}
+	if selectedTool != "" {
+		return []string{selectedTool}
+	}
+	return []string{}
+}
+
+func workflowToolArgumentSummary(
+	selectedTool string,
+	handoff *execution.RuntimeHandoff,
+	agentObservability map[string]any,
+) map[string]any {
+	summary := map[string]any{}
+	if selectedTool != "" {
+		summary["selected_tool"] = selectedTool
+	}
+	if handoff != nil && handoff.PayloadKind != "" {
+		summary["payload_kind"] = handoff.PayloadKind
+	}
+	for key, value := range workflowHandoffPayloadSummary(handoff) {
+		summary[key] = value
+	}
+	for _, key := range []string{
+		"tool_attempted",
+		"tool_outcome",
+		"failure_class",
+		"fail_close_reason",
+		"clarification_reason",
+		"source_ref_count",
+		"result_outcome",
+		"access_decision",
+	} {
+		if value, ok := agentObservability[key]; ok {
+			summary[key] = value
+		}
+	}
+	if safeDetails, ok := agentObservability["safe_details"].(map[string]any); ok &&
+		!hasForbiddenWorkflowTraceKey(safeDetails) {
+		summary["safe_details"] = safeDetails
+	}
+	return summary
+}
+
+func workflowHandoffPayloadSummary(handoff *execution.RuntimeHandoff) map[string]any {
+	if handoff == nil || len(handoff.Payload) == 0 || hasForbiddenWorkflowTraceKey(handoff.Payload) {
+		return map[string]any{}
+	}
+	payload := handoff.Payload
+	switch handoff.PayloadKind {
+	case "rag_request":
+		return workflowRagPayloadSummary(payload)
+	case "transport_schedule_lookup":
+		return workflowTransportPayloadSummary(payload)
+	case "service_status_lookup":
+		return workflowServiceStatusPayloadSummary(payload)
+	case "service_guide_lookup":
+		return workflowServiceGuidePayloadSummary(payload)
+	case "contact_directory_lookup":
+		return workflowContactDirectoryPayloadSummary(payload)
+	case "campus_notice_discover":
+		return workflowNoticeDiscoverPayloadSummary(payload)
+	case "campus_notice_get":
+		return workflowNoticeGetPayloadSummary(payload)
+	default:
+		return map[string]any{}
+	}
+}
+
+func workflowRagPayloadSummary(payload map[string]any) map[string]any {
+	summary := map[string]any{}
+	if scope, ok := payload["scope"].(map[string]any); ok {
+		copyStringField(summary, scope, "corpus")
+		copyStringField(summary, scope, "collection")
+	}
+	if versionQuery, ok := payload["version_query"].(map[string]any); ok {
+		copyPrefixedStringField(summary, versionQuery, "mode", "version_query_mode")
+		copyPrefixedStringField(summary, versionQuery, "as_of", "version_query_as_of")
+		copyPrefixedStringField(summary, versionQuery, "version_id", "version_query_version_id")
+		copyPrefixedStringField(
+			summary,
+			versionQuery,
+			"compare_to_version_id",
+			"version_query_compare_to_version_id",
+		)
+	}
+	return summary
+}
+
+func workflowTransportPayloadSummary(payload map[string]any) map[string]any {
+	summary := map[string]any{}
+	copyStringField(summary, payload, "intent")
+	copyStringField(summary, payload, "campus_scope")
+	if snapshotQuery, ok := payload["snapshot_query"].(map[string]any); ok {
+		copyPrefixedStringField(summary, snapshotQuery, "mode", "snapshot_query_mode")
+		copyPrefixedStringField(summary, snapshotQuery, "year_hint", "snapshot_query_year_hint")
+		copyPrefixedStringField(summary, snapshotQuery, "as_of", "snapshot_query_as_of")
+	}
+	if serviceTimeQuery, ok := payload["service_time_query"].(map[string]any); ok {
+		serviceTimeSummary := stringFields(
+			serviceTimeQuery,
+			"date_mode",
+			"daypart",
+			"time_anchor",
+		)
+		if len(serviceTimeSummary) > 0 {
+			summary["service_time_query"] = serviceTimeSummary
+		}
+	}
+	if routeSelector, ok := payload["route_selector"].(map[string]any); ok {
+		routeSelectorSummary := stringFields(
+			routeSelector,
+			"route_id",
+			"service_family",
+			"origin_campus",
+			"destination_campus",
+		)
+		if len(routeSelectorSummary) > 0 {
+			summary["route_selector"] = routeSelectorSummary
+		}
+	}
+	return summary
+}
+
+func workflowServiceStatusPayloadSummary(payload map[string]any) map[string]any {
+	summary := map[string]any{}
+	copyStringField(summary, payload, "campus_scope")
+	if temporalQuery, ok := payload["temporal_query"].(map[string]any); ok {
+		copyPrefixedStringField(summary, temporalQuery, "mode", "temporal_query_mode")
+		copyPrefixedStringField(summary, temporalQuery, "year_hint", "temporal_query_year_hint")
+		copyPrefixedStringField(summary, temporalQuery, "as_of", "temporal_query_as_of")
+	}
+	return summary
+}
+
+func workflowServiceGuidePayloadSummary(payload map[string]any) map[string]any {
+	summary := workflowServiceStatusPayloadSummary(payload)
+	copyStringField(summary, payload, "guide_focus")
+	copyStringField(summary, payload, "audience")
+	return summary
+}
+
+func workflowContactDirectoryPayloadSummary(payload map[string]any) map[string]any {
+	summary := workflowServiceStatusPayloadSummary(payload)
+	copyStringField(summary, payload, "contact_focus")
+	copyStringField(summary, payload, "audience")
+	return summary
+}
+
+func workflowNoticeDiscoverPayloadSummary(payload map[string]any) map[string]any {
+	summary := map[string]any{}
+	if temporalQuery, ok := payload["temporal_query"].(map[string]any); ok {
+		copyPrefixedStringField(summary, temporalQuery, "mode", "temporal_query_mode")
+		copyPrefixedStringField(summary, temporalQuery, "year_hint", "temporal_query_year_hint")
+		copyPrefixedStringField(summary, temporalQuery, "as_of", "temporal_query_as_of")
+	}
+	return summary
+}
+
+func workflowNoticeGetPayloadSummary(payload map[string]any) map[string]any {
+	summary := map[string]any{}
+	copyStringField(summary, payload, "notice_id")
+	copyStringField(summary, payload, "source_family")
+	return summary
+}
+
+func copyStringField(summary map[string]any, payload map[string]any, key string) {
+	copyPrefixedStringField(summary, payload, key, key)
+}
+
+func copyPrefixedStringField(
+	summary map[string]any,
+	payload map[string]any,
+	sourceKey string,
+	summaryKey string,
+) {
+	if value := stringValue(payload[sourceKey]); value != "" {
+		summary[summaryKey] = value
+	}
+}
+
+func stringFields(payload map[string]any, keys ...string) map[string]any {
+	summary := map[string]any{}
+	for _, key := range keys {
+		copyStringField(summary, payload, key)
+	}
+	return summary
+}
+
+func safeWorkflowMap(value map[string]any) map[string]any {
+	if value == nil || hasForbiddenWorkflowTraceKey(value) {
+		return map[string]any{}
+	}
+	return value
+}
+
+func hasForbiddenWorkflowTraceKey(value any) bool {
+	switch item := value.(type) {
+	case nil:
+		return false
+	case map[string]any:
+		for key, nested := range item {
+			normalized := strings.ToLower(strings.TrimSpace(key))
+			if forbiddenWorkflowTraceKey(normalized) || hasForbiddenWorkflowTraceKey(nested) {
+				return true
+			}
+		}
+	case []any:
+		for _, nested := range item {
+			if hasForbiddenWorkflowTraceKey(nested) {
+				return true
+			}
+		}
+	case []string:
+		return false
+	}
+	return false
+}
+
+func forbiddenWorkflowTraceKey(key string) bool {
+	normalizedKey := normalizeWorkflowTraceKeyToken(key)
+	for _, token := range []string{
+		"raw_prompt",
+		"raw_transcript",
+		"provider_raw_response",
+		"raw_response",
+		"jwt",
+		"cookie",
+		"auth_envelope",
+		"retrieval_backend_dump",
+	} {
+		if strings.Contains(normalizedKey, normalizeWorkflowTraceKeyToken(token)) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeWorkflowTraceKeyToken(value string) string {
+	var builder strings.Builder
+	for _, char := range strings.ToLower(strings.TrimSpace(value)) {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') {
+			builder.WriteRune(char)
+		}
+	}
+	return builder.String()
+}
+
+func allowedAgentTarget(target string) bool {
+	switch target {
+	case "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent":
+		return true
+	default:
+		return false
+	}
 }
 
 func allowedDelegateStatus(status string) bool {
 	switch status {
 	case "completed", "needs_clarification", "no_answer", "error":
+		return true
+	default:
+		return false
+	}
+}
+
+func allowedConfidence(confidence string) bool {
+	switch confidence {
+	case "high", "medium", "low":
 		return true
 	default:
 		return false
@@ -51,12 +478,16 @@ func buildSupervisorObservability(
 	selectedTool string,
 ) map[string]any {
 	if target == "rag-agent" {
-		return buildRagSupervisorObservability(status, result)
+		return buildRagSupervisorObservability(status, result, selectedTool)
 	}
 	return buildStructuredSupervisorObservability(target, status, result, selectedTool)
 }
 
-func buildRagSupervisorObservability(status string, result map[string]any) map[string]any {
+func buildRagSupervisorObservability(
+	status string,
+	result map[string]any,
+	selectedTool string,
+) map[string]any {
 	diagnostics := nestedMap(result, "diagnostics")
 	evidence := nestedMap(result, "evidence")
 	supportingSources := arrayValue(evidence["sources"])
@@ -97,7 +528,8 @@ func buildRagSupervisorObservability(status string, result map[string]any) map[s
 		"resolved_scope_collection": stringValue(
 			diagnostics["resolved_scope_collection"],
 		),
-		"prompt_trace": diagnostics["prompt_trace"],
+		"selected_tool": selectedTool,
+		"prompt_trace":  diagnostics["prompt_trace"],
 	}
 }
 

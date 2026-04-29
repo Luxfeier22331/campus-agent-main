@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,6 +36,41 @@ func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
 	bridgeRuntime := expectRecord(t, body["bridge_runtime"], "bridge_runtime")
 	if bridgeRuntime["configured"] != false {
 		t.Fatalf("bridge configured = %v, want false", bridgeRuntime["configured"])
+	}
+}
+
+func TestReadyzRedactsBridgeReadinessTransportErrors(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "gpt-supervisor",
+		AgentPromptModel:              "gpt-agent",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyzErr:  errors.New("Get http://127.0.0.1:8888/internal/bridge/readyz?token=secret-token: dial tcp 127.0.0.1:8888: connect: connection refused"),
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	bridgeRuntime := expectRecord(t, body["bridge_runtime"], "bridge_runtime")
+	lastError, _ := bridgeRuntime["last_error"].(string)
+	if lastError != "Supervisor Python bridge readiness check failed." {
+		t.Fatalf("bridge_runtime.last_error = %q", lastError)
+	}
+	for _, secret := range []string{"secret-token", "127.0.0.1:8888", "/internal/bridge/readyz"} {
+		if strings.Contains(lastError, secret) {
+			t.Fatalf("bridge_runtime.last_error leaked %q: %s", secret, lastError)
+		}
 	}
 }
 

@@ -8,6 +8,7 @@ from campus_contracts import (
     CURRICULUM_PROGRAM_SLOT_NAME,
     CURRICULUM_SEMESTER_SLOT_NAME,
     ActorContext,
+    AgentObservability,
     AgentRequest,
     AgentResponse,
     AuthorizationProjection,
@@ -70,6 +71,7 @@ from campus_contracts import (
     TransportServiceWindow,
     TransportStopRef,
     VersionQuery,
+    WorkflowTraceSummary,
 )
 
 __all__ = [
@@ -77,6 +79,7 @@ __all__ = [
     "CURRICULUM_PROGRAM_SLOT_NAME",
     "CURRICULUM_SEMESTER_SLOT_NAME",
     "ActorContext",
+    "AgentObservability",
     "AgentRequest",
     "AgentResponse",
     "AuthorizationProjection",
@@ -139,6 +142,7 @@ __all__ = [
     "TransportServiceWindow",
     "TransportStopRef",
     "VersionQuery",
+    "WorkflowTraceSummary",
     "asdict",
     "fields",
     "unittest",

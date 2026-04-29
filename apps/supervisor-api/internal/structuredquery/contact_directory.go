@@ -6,8 +6,12 @@ import (
 )
 
 func (r *Runtime) LookupContactDirectory(ctx context.Context, rawBody []byte) Response {
+	payloadBody, err := structuredQueryPayloadBody(rawBody)
+	if err != nil {
+		return invalidRequest("Contact directory request body must be a JSON object.")
+	}
 	var request contactDirectoryRequest
-	if err := json.Unmarshal(rawBody, &request); err != nil {
+	if err := json.Unmarshal(payloadBody, &request); err != nil {
 		return invalidRequest("Contact directory request body must be a JSON object.")
 	}
 	normalizeContactDirectoryRequest(&request)

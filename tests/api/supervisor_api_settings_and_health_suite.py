@@ -147,6 +147,43 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.supervisor_prompt_model, "gpt-shared")
         self.assertEqual(settings.agent_prompt_model, "gpt-shared")
 
+    def test_api_settings_from_env_rejects_invalid_prompt_http_pool_numbers(self) -> None:
+        invalid_envs = (
+            {"PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS": "0"},
+            {"PROMPT_RUNTIME_READ_TIMEOUT_SECONDS": "-1"},
+            {"PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS": "0"},
+            {"PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS": "-1"},
+            {"PROMPT_RUNTIME_MAX_CONNECTIONS": "0"},
+            {"PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS": "-1"},
+            {
+                "PROMPT_RUNTIME_MAX_CONNECTIONS": "2",
+                "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS": "3",
+            },
+            {"PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "0"},
+            {"PROMPT_RUNTIME_MAX_OUTPUT_TOKENS": "0"},
+        )
+        for env in invalid_envs:
+            with (
+                self.subTest(env=env),
+                patch.dict(os.environ, env, clear=True),
+                self.assertRaises(ValueError),
+            ):
+                ApiSettings.from_env()
+
+    def test_api_settings_from_env_rejects_invalid_bridge_and_query_numbers(self) -> None:
+        invalid_envs = (
+            {"SUPERVISOR_AGENT_WORKER_THREADS": "0"},
+            {"SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES": "0"},
+            {"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "0"},
+        )
+        for env in invalid_envs:
+            with (
+                self.subTest(env=env),
+                patch.dict(os.environ, env, clear=True),
+                self.assertRaises(ValueError),
+            ):
+                ApiSettings.from_env()
+
 
 if __name__ == "__main__":
     unittest.main()

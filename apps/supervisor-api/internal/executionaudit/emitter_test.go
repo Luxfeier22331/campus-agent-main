@@ -35,6 +35,24 @@ func TestEmitterDisabledNoops(t *testing.T) {
 	}
 }
 
+func TestEmitterStatusRedactsDeliveryErrorDetails(t *testing.T) {
+	emitter := &Emitter{
+		enabled:   true,
+		lastError: "Post https://audit.example.test/ingest?token=secret-token: dial tcp 127.0.0.1:9443: connect: connection refused",
+	}
+
+	status := emitter.Status()
+
+	if status.LastError != "execution audit delivery error" {
+		t.Fatalf("last error = %q", status.LastError)
+	}
+	for _, secret := range []string{"secret-token", "127.0.0.1:9443", "audit.example.test"} {
+		if strings.Contains(status.LastError, secret) {
+			t.Fatalf("last error leaked %q: %s", secret, status.LastError)
+		}
+	}
+}
+
 func TestEmitterBatchesEventsBeforePosting(t *testing.T) {
 	received := make(chan map[string]any, 1)
 	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

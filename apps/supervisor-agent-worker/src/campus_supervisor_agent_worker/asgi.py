@@ -209,7 +209,7 @@ def _parse_json_body(
 
     try:
         payload = json.loads(raw_body.decode("utf-8"))
-    except json.JSONDecodeError:
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return None, True
 
     if not isinstance(payload, dict):
