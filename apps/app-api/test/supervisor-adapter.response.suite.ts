@@ -11,7 +11,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 		SupervisorTransportError,
 	} = ctx;
 
-	it("ignores legacy target fallback and only trusts selected_target", async () => {
+	it("rejects legacy target fallback fields on the supervisor execution wire", async () => {
 		const client = createSupervisorExecutionClient(
 			{
 				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
@@ -45,15 +45,10 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				traceId: "trace_01HQ",
 				userGoal: "图书馆开放到几点？",
 			}),
-		).resolves.toEqual({
-			answerText: "图书馆开放到 22:00。",
-			error: null,
-			followUpQuestion: "",
-			observability: null,
-			result: null,
-			selectedTarget: null,
-			status: "completed",
-			traceId: "trace_01HQ",
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
 		});
 	});
 	it("preserves approval_required without forcing an agent target", async () => {
