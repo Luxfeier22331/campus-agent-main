@@ -141,6 +141,63 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	}
 }
 
+func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
+	_, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "campus-services-agent",
+			"status":      "completed",
+			"answer_text": "当前班车正常运行。",
+			"confidence":  "high",
+		},
+		"trace-finalizer-missing-handoff",
+		supervisorFinalizerContext{
+			Branch: "delegate",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				PlanningOutcome:   "preplanned",
+				RoutingNextAction: "delegate",
+				SelectedTarget:    "campus-services-agent",
+				SelectedTool:      "transport_schedule_lookup",
+			},
+		},
+	)
+
+	if err == nil {
+		t.Fatal("expected delegate branch without handoff to be rejected")
+	}
+}
+
+func TestFinalizeAgentBridgeResponseRejectsSelectedTargetMismatch(t *testing.T) {
+	_, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "notice-agent",
+			"status":      "completed",
+			"answer_text": "通知详情。",
+			"confidence":  "high",
+		},
+		"trace-finalizer-target-mismatch",
+		supervisorFinalizerContext{
+			Branch: "delegate",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				PlanningOutcome:   "preplanned",
+				RoutingNextAction: "delegate",
+				SelectedTarget:    "campus-services-agent",
+				SelectedTool:      "service_status_lookup",
+			},
+			Handoff: &execution.RuntimeHandoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "service_status_lookup",
+				Payload:      map[string]any{"subject_query": "校园卡"},
+				AllowedTools: []string{"service_status_lookup"},
+			},
+			SelectedTool: "service_status_lookup",
+		},
+	)
+
+	if err == nil {
+		t.Fatal("expected selected target mismatch to be rejected")
+	}
+}
+
 func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
@@ -263,6 +320,9 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	runtimeVersions, ok := traceSummary["runtime_versions"].(map[string]any)
 	if !ok || runtimeVersions["supervisor_api_runtime"] != "go-runtime-control-plane-v1" {
 		t.Fatalf("runtime_versions = %#v, want supervisor_api_runtime", traceSummary["runtime_versions"])
+	}
+	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v1" {
+		t.Fatalf("runtime_versions = %#v, want workflow trace summary version", runtimeVersions)
 	}
 	policyVersions, ok := traceSummary["policy_artifact_versions"].(map[string]any)
 	if !ok || policyVersions["intent_classifier"] != "go-runtime-policy-v2" {

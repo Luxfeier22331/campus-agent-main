@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 )
 
@@ -57,6 +58,9 @@ func finalizeAgentBridgeResponse(
 	}
 	confidence = defaultString(confidence, "low")
 	if !allowedAgentTarget(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
+		return nil, errInvalidAgentResponse
+	}
+	if !validFinalizerHandoffInvariant(target, context) {
 		return nil, errInvalidAgentResponse
 	}
 	answerText, err := optionalAgentResponseString(agentResponse, "answer_text")
@@ -153,6 +157,7 @@ func buildWorkflowTraceSummary(
 	if len(runtimeVersions) == 0 {
 		runtimeVersions = decisions.RuntimeVersions
 	}
+	runtimeVersions = workflowRuntimeVersions(runtimeVersions)
 	policyVersions := context.PolicyVersions
 	if len(policyVersions) == 0 {
 		policyVersions = decisions.PolicyArtifactVersions
@@ -192,6 +197,45 @@ func buildWorkflowTraceSummary(
 		"runtime_versions":         safeWorkflowMap(runtimeVersions),
 		"policy_artifact_versions": safeWorkflowMap(policyVersions),
 	}
+}
+
+func validFinalizerHandoffInvariant(target string, context supervisorFinalizerContext) bool {
+	isDelegate := context.Branch == "delegate" || context.RuntimeDecisions.RoutingNextAction == "delegate"
+	if !isDelegate {
+		return true
+	}
+	if context.Handoff == nil {
+		return false
+	}
+	if context.RuntimeDecisions.SelectedTarget != "" && context.RuntimeDecisions.SelectedTarget != target {
+		return false
+	}
+	if context.Handoff.Target != "" && context.Handoff.Target != target {
+		return false
+	}
+	if context.SelectedTool != "" && len(context.Handoff.AllowedTools) > 0 {
+		for _, tool := range context.Handoff.AllowedTools {
+			if tool == context.SelectedTool {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func workflowRuntimeVersions(source map[string]any) map[string]any {
+	versions := safeWorkflowMap(source)
+	if _, exists := versions["workflow_trace_summary"]; !exists {
+		versions["workflow_trace_summary"] = contractsv1.WorkflowTraceSummaryVersion
+	}
+	if _, exists := versions["bridge_contract"]; !exists {
+		versions["bridge_contract"] = contractsv1.BridgeVersion
+	}
+	if _, exists := versions["response_contract"]; !exists {
+		versions["response_contract"] = contractsv1.ResponseContract
+	}
+	return versions
 }
 
 func workflowBranch(branch string, status string, failCloseReason string) string {
