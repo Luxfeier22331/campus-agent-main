@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -47,7 +47,24 @@ updated: 2026-04-29
   - `service_guide_read_model`: `33` 行。
   - `transport_release_notices`: `218` 行。
 
-这说明 object-native 采集 / holding 基础已经存在，但首期“全量可检索 + 分批进入下游”的消费链路还没有干净重放。
+这段 baseline 是启动时的 reset/replay 输入状态；最终 closeout truth 以
+`STATE.md`、`ROADMAP.md` 和 Phase 7 evidence 为准。
+
+## Closeout
+
+Completed on 2026-04-29.
+
+Final evidence:
+
+`.planning/workstreams/collected-notice-consumption-replay-closeout/evidence/phase-07-acceptance-and-closeout/`
+
+Final verdict: `passed_with_deferred_items`.
+
+- `338` valid captured notices have searchable preview rows.
+- `338` historical jobs replay through the shared `notice_ingest` queue contract with `0` failed.
+- `regulation` stops at no-write offline preparation.
+- `transport_schedule` respects official baseline and OCR review gates.
+- `service_status` was explicitly replayed; current candidates remain blocked/deferred and searchable, with no current promotion.
 
 ## Owned Scope
 
