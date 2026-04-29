@@ -161,6 +161,58 @@ class EvalProfileGateSuite(unittest.TestCase):
             },
         )
 
+    def test_public_chat_profile_replays_workflow_trace_summary_consistency(self) -> None:
+        case_set = load_public_chat_product_path_cases()
+        case = next(
+            item
+            for item in case_set.cases
+            if item.expected.selected_target == "campus-services-agent"
+            and item.expected.terminal_outcome == "completed"
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            observations_path = root / "observations.json"
+            observations_path.write_text(
+                json.dumps(
+                    {
+                        "observations": [
+                            {
+                                "case_id": case.case_id,
+                                "request_id": "req_public_trace_replay",
+                                "trace_id": "trace_public_trace_replay",
+                                "selected_target": case.expected.selected_target,
+                                "terminal_outcome": case.expected.terminal_outcome,
+                                "fail_close_reason": case.expected.fail_close_reason,
+                                "response_contract": case.expected.response_contract,
+                                "operator_backflow": case.expected.operator_backflow,
+                                "workflow_trace_summary": {
+                                    "direct_vs_delegate_branch": "delegate",
+                                    "selected_target": "notice-agent",
+                                    "selected_tools": ["campus_notice_discover"],
+                                    "fail_close_reason": "",
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            report = run_public_chat_product_path_profile_gate(
+                output_dir=root / "out",
+                cases_path=_single_public_chat_case_path(root, case),
+                observations_path=observations_path,
+                git_head_resolver=lambda: "abc123",
+            )
+            payload = json.loads(report.output_path.read_text(encoding="utf-8"))
+
+        self.assertFalse(report.passed)
+        self.assertIn(
+            "workflow_trace_summary.selected_target expected",
+            payload["sanitized_results"][0]["reason"],
+        )
+
     def test_runtime_metrics_missing_from_profile_artifact_fails_operations_governance(
         self,
     ) -> None:
