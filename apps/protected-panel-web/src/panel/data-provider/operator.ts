@@ -53,6 +53,7 @@ import {
 	appendOperatorTimeseriesFilters,
 	appendOptionalQueryParam,
 } from "./filters";
+import { encodePathIdentifier } from "./path";
 
 export async function getOperatorOverview(
 	input?: OperatorAggregateFilterInput & { signal?: AbortSignal },
@@ -353,7 +354,7 @@ export async function getOperatorAuditEvent(input: {
 	signal?: AbortSignal;
 }): Promise<{ data: OperatorAuditEventDetailResponse }> {
 	const payload = await fetchJson<RawOperatorAuditEventDetailResponse>(
-		`/api/operator/audit/${input.auditEventId}`,
+		`/api/operator/audit/${encodePathIdentifier(input.auditEventId)}`,
 		{
 			signal: input.signal,
 		},
