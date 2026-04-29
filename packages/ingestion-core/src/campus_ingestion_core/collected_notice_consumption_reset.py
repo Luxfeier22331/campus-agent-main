@@ -341,9 +341,7 @@ def generate_collected_notice_reset_dry_run_report(
             deleted_release_ids=release_sets["service_guide_deleted_release_ids"],
             stable_release_ids=release_sets["service_guide_stable_release_ids"],
         )
-        planned_deletes = [
-            _delete_action_report(cursor, action) for action in plan.planned_deletes
-        ]
+        planned_deletes = [_delete_action_report(cursor, action) for action in plan.planned_deletes]
         planned_updates = _planned_current_updates(cursor, current_action=current_action)
         preserved_counts = _preserved_counts(cursor)
 
@@ -435,8 +433,7 @@ def generate_collected_notice_reset_backup(
         },
         "counts": {
             "table_backup_count": len(table_backups),
-            "row_count": sum(int(item["row_count"]) for item in table_backups)
-            + len(current_rows),
+            "row_count": sum(int(item["row_count"]) for item in table_backups) + len(current_rows),
         },
     }
 
