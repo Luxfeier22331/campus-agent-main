@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { appApiSchema } from "../src/db/schema";
+
 const appRoot = resolve(import.meta.dirname, "..");
 
 function readAppFile(relativePath: string): string {
@@ -60,6 +62,10 @@ describe("app-api shared product bootstrap contracts", () => {
 		for (const relativePath of requiredFiles) {
 			expect(existsSync(join(appRoot, relativePath)), relativePath).toBe(true);
 		}
+	});
+
+	it("exports chat message feedback from the unified app-api schema object", () => {
+		expect(Object.keys(appApiSchema)).toEqual(expect.arrayContaining(["messageFeedback"]));
 	});
 
 	it("documents app-api as the shared product DB bootstrap owner", () => {
