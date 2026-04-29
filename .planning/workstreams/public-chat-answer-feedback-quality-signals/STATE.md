@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: backlog
+status: active
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -11,11 +11,11 @@ updated: 2026-04-29
 
 ## Current Status
 
-- status: `backlog`
-- current slice: planning only
-- owner: unassigned
-- active implementation: no
-- next phase if activated: `Phase 0: Scope And Contract Freeze`
+- status: `active`
+- current slice: Phase 0 completed; Phase 1 ready
+- owner: current Codex session
+- active implementation: no code implementation yet
+- next phase: `Phase 1: App API Feedback Truth`
 
 ## Captured Context
 
@@ -32,17 +32,34 @@ updated: 2026-04-29
 - 当前 `chat.messages` 已有 assistant message、`kind`、`request_id` 与 structured parts，
   适合成为 feedback target，但尚无 feedback schema。
 
+## Phase 0 Frozen Decisions
+
+- Route shape:
+  - `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
+  - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
+- Read path: conversation detail returns nullable feedback state on current owner assistant messages.
+- Target: assistant messages with non-null `request_id`; feedback controls should only render for
+  `kind in ('answer', 'clarification', 'no_answer')`.
+- Request body: `vote: helpful | unhelpful`, optional `reasonCodes` for `unhelpful` only.
+- Reason codes: `wrong_intent`, `not_enough_detail`, `outdated_or_missing_source`,
+  `incorrect_answer`, `unclear_or_hard_to_use`, `other`.
+- v1 does not accept free-form comment.
+- Idempotency: latest row per owner user + assistant message.
+- Delete: hard-delete current feedback row; no tombstone in v1.
+- Metrics: coverage denominator is feedback-eligible assistant answers, not all requests.
+
 ## Blockers
 
-- 需要 Phase 0 冻结 route shape、feedback enum、reason codes、comment 是否开放与删除语义。
-- 需要确认 operator quality 当前 store / API 是否已有足够 join 字段支持 feedback aggregate。
-- 需要确认 public-chat-web 当前 vendor compatibility 类型是否要保留 `Vote` 兼容层或重命名成
-  repo-owned `AnswerFeedback` 类型。
+- Phase 0 blockers resolved.
+- Phase 1 still needs implementation decisions for exact migration number, service file ownership,
+  and store method names.
+- Phase 2 still needs implementation decision on whether vendor compatibility keeps an internal
+  adapter or renames donor `Vote` usage to repo-owned `AnswerFeedback`.
 
 ## Verification
 
-- 本 workstream 当前只完成 planning 文件落盘；未执行功能实现验证。
-- 激活后第一批验证应覆盖：
+- Phase 0 verification: docs diff review plus `pnpm docs:lint`.
+- Phase 1 第一批验证应覆盖：
   - `pnpm --dir apps/app-api test`
   - `pnpm --dir apps/public-chat-web test:worker`
   - `pnpm --dir apps/public-chat-web typecheck`

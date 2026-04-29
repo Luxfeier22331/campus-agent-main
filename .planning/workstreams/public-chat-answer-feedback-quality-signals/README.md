@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: backlog
+status: active
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -13,9 +13,9 @@ updated: 2026-04-29
 
 ## Current Status
 
-- status: `backlog`
-- current phase: `Phase 0` planned, not started
-- active implementation: no
+- status: `active`
+- current phase: `Phase 1` ready
+- active implementation: Phase 0 contract freeze completed; Phase 1 not started
 - current posture: public-chat-web 中旧 donor `/api/vote` 行为保持关闭；只有在
   `app-api` 拥有反馈写入、持久化、权限校验、指标与导出链路后，才恢复用户可见的
   helpful / unhelpful action
@@ -29,6 +29,7 @@ updated: 2026-04-29
 ## Phase Plans
 
 - Phase 0: `./phases/phase-00-scope-and-contract-freeze/PLAN.md`
+- Phase 0 summary: `./phases/phase-00-scope-and-contract-freeze/SUMMARY.md`
 - Phase 1: `./phases/phase-01-app-api-feedback-truth/PLAN.md`
 - Phase 2: `./phases/phase-02-browser-surface-and-public-chat-ui/PLAN.md`
 - Phase 3: `./phases/phase-03-quality-read-model-and-metrics/PLAN.md`

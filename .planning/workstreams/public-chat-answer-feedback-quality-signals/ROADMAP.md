@@ -1,16 +1,17 @@
 ---
 doc_type: roadmap
-status: backlog
+status: active
 created: 2026-04-29
 updated: 2026-04-29
 ---
 
 # Roadmap: Public Chat Answer Feedback And Quality Signals
 
-当前为 backlog planning draft，不代表已经进入 active implementation。恢复为 active 前，
-先重新确认 feedback contract、route shape 与 operator metric denominator。
+当前 Phase 0 已完成 contract freeze，下一步进入 Phase 1 app-api durable feedback truth。
 
 ## Phase 0: Scope And Contract Freeze
+
+**Status:** completed on 2026-04-29.
 
 **Goal:** 冻结 answer feedback 的产品语义、route contract、schema denominator 与
 operator metric 口径。
@@ -26,15 +27,19 @@ operator metric 口径。
 
 ## Phase 1: App API Feedback Truth
 
+**Status:** ready.
+
 **Goal:** 在 `apps/app-api` 内建立 durable feedback truth 与 command service。
 
 **Scope:**
 
-- 新增 `chat.message_feedback` 或等价 schema。
+- 新增 `chat.message_feedback` 或等价 schema，包含 latest feedback upsert truth。
 - Drizzle schema、migration、bootstrap/test lane coverage。
 - command service 校验 conversation ownership、assistant role、message/request correlation。
 - 幂等 upsert：同一 owner principal + assistant message 只保留 latest feedback。
-- route exposure inventory 标记为 `browser-surface` + `session principal required`。
+- `PUT` / `DELETE` feedback route exposure inventory 标记为 `browser-surface` +
+  `session principal required`。
+- conversation detail 返回当前 owner 的 assistant message feedback state。
 
 ## Phase 2: Browser Surface And Public Chat UI
 
@@ -45,7 +50,7 @@ operator metric 口径。
 - typed public-chat-web API helper。
 - Worker same-site proxy / forwarding tests。
 - message action 中展示 helpful / unhelpful，保留 copy。
-- unhelpful reason popover / dialog 的第一版交互。
+- unhelpful reason popover / dialog 的第一版交互；v1 不开放自由文本 comment。
 - loading、submitted、error、retry 与 selected-state 展示。
 - regressions：不得重新调用 `/api/vote` 或 donor DB helper。
 
@@ -56,6 +61,7 @@ operator metric 口径。
 **Scope:**
 
 - feedback count、helpful rate、unhelpful rate、feedback coverage。
+- negative answer rate。
 - 按 time window、surface、intent/capability summary、answer kind、source/citation posture
   聚合。
 - no-answer + unhelpful overlap、wrong-intent reason 与 route mismatch suspected case。

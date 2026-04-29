@@ -1,6 +1,6 @@
 ---
 doc_type: phase_plan
-status: backlog
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -8,6 +8,9 @@ updated: 2026-04-29
 <!-- markdownlint-disable MD013 -->
 
 # Phase 0 Plan: Scope And Contract Freeze
+
+Status: completed on 2026-04-29. Frozen decisions are recorded in `SUMMARY.md`,
+`../../REQUIREMENTS.md`, `../../ROADMAP.md`, and `../../STATE.md`.
 
 ## Goal
 
@@ -45,4 +48,4 @@ updated: 2026-04-29
 
 ## Verification
 
-- planning-only phase；验证方式是文档 diff review。
+- planning-only phase；验证方式是文档 diff review 与 `pnpm docs:lint`。
