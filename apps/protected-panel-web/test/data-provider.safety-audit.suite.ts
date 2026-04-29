@@ -180,6 +180,54 @@ export function registerDataProviderSafetyAuditSuite() {
 		);
 	});
 
+	it("encodes operator audit path identifiers before calling protected seams", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				event: {
+					auditEventId: "audit/01?debug=true#frag",
+					diagnostics: {
+						aclAnomalyCode: null,
+						failClosed: false,
+						sourceDocIds: [],
+					},
+					entitlementSnapshotId: null,
+					eventType: "request.completed",
+					occurredAt: "2026-03-28T08:00:01.000Z",
+					policyProjectionVersion: null,
+					principalType: "campus_member",
+					requestId: "req_01HQ",
+					requestedCapability: "knowledge",
+					selectedTarget: "rag-agent",
+					status: "completed",
+					summary: "Knowledge request completed via rag-agent.",
+					surface: "public_chat_web",
+					terminalCode: "completed",
+					traceId: "trace_01HQ",
+				},
+				links: {
+					issueFingerprint: null,
+					issueLink: null,
+					traceLink: null,
+				},
+			}),
+		);
+
+		await protectedPanelDataProvider.getOperatorAuditEvent({
+			auditEventId: "audit/01?debug=true#frag",
+			signal: undefined,
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/operator/audit/audit%2F01%3Fdebug%3Dtrue%23frag",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
 	it("maps operator audit list filters onto the protected same-site seam with sequential pagination", async () => {
 		const fetchSpy = mockJsonFetch(
 			{
