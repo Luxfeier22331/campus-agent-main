@@ -15,6 +15,7 @@ import {
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
 import { appendOfficialWebRunFilters } from "./filters";
+import { encodePathIdentifier } from "./path";
 
 export async function getOfficialWebRunList(params: GetListParams): Promise<{
 	data: OfficialWebRunRecord[];
@@ -49,9 +50,12 @@ export async function getOfficialWebRunDetail(
 	id: Identifier,
 	signal?: AbortSignal,
 ): Promise<{ data: OfficialWebRunRecord }> {
-	const payload = await fetchJson<RawOfficialWebRunDetailResponse>(`/api/official-web/runs/${id}`, {
-		signal,
-	});
+	const payload = await fetchJson<RawOfficialWebRunDetailResponse>(
+		`/api/official-web/runs/${encodePathIdentifier(id)}`,
+		{
+			signal,
+		},
+	);
 
 	return {
 		data: normalizeOfficialWebRunDetailRecord(payload.run),
@@ -86,7 +90,7 @@ export async function getOfficialWebSiteDetail(
 	signal?: AbortSignal,
 ): Promise<{ data: OfficialWebSiteRecord }> {
 	const payload = await fetchJson<RawOfficialWebSiteDetailResponse>(
-		`/api/official-web/sites/${id}`,
+		`/api/official-web/sites/${encodePathIdentifier(id)}`,
 		{
 			signal,
 		},

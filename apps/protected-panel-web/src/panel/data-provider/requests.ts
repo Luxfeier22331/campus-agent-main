@@ -11,6 +11,7 @@ import {
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
 import { appendRequestFilters } from "./filters";
+import { encodePathIdentifier } from "./path";
 
 export async function getRequestList(params: GetListParams): Promise<{
 	data: RequestProjectionRecord[];
@@ -45,9 +46,12 @@ export async function getRequestDetail(
 	id: Identifier,
 	signal?: AbortSignal,
 ): Promise<{ data: RequestProjectionRecord }> {
-	const payload = await fetchJson<RawRequestDetailResponse>(`/api/requests/${id}`, {
-		signal,
-	});
+	const payload = await fetchJson<RawRequestDetailResponse>(
+		`/api/requests/${encodePathIdentifier(id)}`,
+		{
+			signal,
+		},
+	);
 
 	return {
 		data: normalizeRequestRecord(payload.request),
@@ -59,7 +63,7 @@ export async function getRequestObservabilityDetail(
 	signal?: AbortSignal,
 ): Promise<{ data: RequestObservabilityRecord }> {
 	const payload = await fetchJson<RawRequestObservabilityRecord>(
-		`/api/requests/${requestId}/observability`,
+		`/api/requests/${encodePathIdentifier(requestId)}/observability`,
 		{
 			signal,
 		},
