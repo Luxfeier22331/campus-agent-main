@@ -333,8 +333,6 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				},
 				selectedTarget: "rag-agent",
 				selectedTools: ["retrieval.query"],
-				traceSteps: [],
-				toolCallSummaries: [],
 				toolArgumentSummary: {
 					collection: "student_rules",
 				},

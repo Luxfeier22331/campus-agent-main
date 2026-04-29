@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
 )
 

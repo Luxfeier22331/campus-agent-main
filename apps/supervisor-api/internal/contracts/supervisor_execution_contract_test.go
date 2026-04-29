@@ -40,10 +40,10 @@ func TestDecodeBridgeV6RequestWireJSONRejectsInvalidFixtures(t *testing.T) {
 
 func TestDecodeSupervisorResponseWireJSONAcceptsTerminalFixtures(t *testing.T) {
 	expectedStatusByFixture := map[string]SupervisorStatus{
-		"response_cancelled_null_target.valid.json":          SupervisorStatusCancelled,
-		"response_completed_delegate.valid.json":             SupervisorStatusCompleted,
-		"response_error_bridge_unavailable.valid.json":       SupervisorStatusError,
-		"response_timeout.valid.json":                        SupervisorStatusError,
+		"response_cancelled_null_target.valid.json":    SupervisorStatusCancelled,
+		"response_completed_delegate.valid.json":       SupervisorStatusCompleted,
+		"response_error_bridge_unavailable.valid.json": SupervisorStatusError,
+		"response_timeout.valid.json":                  SupervisorStatusError,
 	}
 
 	for fixtureName, expectedStatus := range expectedStatusByFixture {
