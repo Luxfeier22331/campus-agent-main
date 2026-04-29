@@ -36,6 +36,7 @@ import {
 	useSidebarState,
 } from "react-admin";
 
+import { clearSequentialCursorHistory } from "./data-provider/cursor";
 import { PANEL_COPY } from "./panel-copy";
 
 function ProtectedPanelSidebarToggleButton() {
@@ -74,7 +75,8 @@ function ProtectedPanelLogoutMenuItem() {
 	return (
 		<MenuItem
 			onClick={() => {
-				void logout();
+				clearSequentialCursorHistory();
+				void logout(null);
 			}}
 		>
 			<ListItemIcon>

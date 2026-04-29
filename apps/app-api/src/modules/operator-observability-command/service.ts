@@ -30,6 +30,7 @@ const FORBIDDEN_EXECUTION_AUDIT_FIELDS = new Set([
 	"transcript",
 	"user_goal",
 ]);
+const SAFE_EXTERNAL_LINK_PROTOCOLS = new Set(["http:", "https:"]);
 
 export interface OperatorQualityGradePayloadItem {
 	requestId?: unknown;
@@ -141,6 +142,30 @@ function normalizeString(value: unknown): string {
 function normalizeNullableString(value: unknown): string | null {
 	const normalized = normalizeString(value);
 	return normalized || null;
+}
+
+function normalizeNullableSafeExternalLink(value: unknown, field: string): string | null {
+	const normalized = normalizeNullableString(value);
+	if (!normalized) {
+		return null;
+	}
+
+	try {
+		const parsed = new URL(normalized);
+		if (SAFE_EXTERNAL_LINK_PROTOCOLS.has(parsed.protocol)) {
+			return parsed.toString();
+		}
+	} catch {
+		// Fall through to a uniform validation error.
+	}
+
+	throw new AppApiRouteError({
+		code: "validation_failed",
+		details: { field },
+		message: `${field} must be an http(s) URL.`,
+		retryable: false,
+		status: 422,
+	});
 }
 
 function normalizeNullableBoolean(value: unknown, field: string): boolean | null {
@@ -572,11 +597,11 @@ export function buildOperatorObservabilityCommandService(
 
 				writes.push({
 					issueFingerprint: normalizeNullableString(item.issueFingerprint),
-					issueLink: normalizeNullableString(item.issueLink),
+					issueLink: normalizeNullableSafeExternalLink(item.issueLink, `${prefix}.issueLink`),
 					projectedAt: now().toISOString(),
 					requestId,
 					traceId,
-					traceLink: normalizeNullableString(item.traceLink),
+					traceLink: normalizeNullableSafeExternalLink(item.traceLink, `${prefix}.traceLink`),
 				});
 			}
 

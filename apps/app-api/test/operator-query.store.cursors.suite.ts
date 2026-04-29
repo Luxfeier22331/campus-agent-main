@@ -70,7 +70,10 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 			cursor: null,
 			detectedBy: null,
 			limit: 1,
+			selectedTarget: null,
 			status: null,
+			surface: null,
+			window: null,
 		});
 
 		expect(result.badcases).toHaveLength(1);
@@ -271,7 +274,8 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 				traceId: "trace_02",
 			},
 		];
-		const anomalyOrderBy = vi.fn().mockResolvedValue(anomalyRows);
+		const anomalyLimit = vi.fn().mockResolvedValue(anomalyRows);
+		const anomalyOrderBy = vi.fn(() => ({ limit: anomalyLimit }));
 		const anomalyWhere = vi.fn(() => ({ orderBy: anomalyOrderBy }));
 		const backlinkWhere = vi.fn().mockResolvedValue([]);
 		const select = vi
@@ -296,8 +300,11 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 			anomalyCode: null,
 			cursor: null,
 			limit: 1,
+			selectedTarget: null,
 			severity: null,
 			status: null,
+			surface: null,
+			window: null,
 		});
 
 		expect(result.anomalies).toHaveLength(1);
@@ -313,5 +320,6 @@ export function registerOperatorQueryStoreCursorsSuite(ctx: OperatorQueryStoreSu
 				requestId: "req_02",
 			}),
 		);
+		expect(anomalyLimit).toHaveBeenCalledWith(2);
 	});
 }

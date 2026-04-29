@@ -23,6 +23,7 @@ import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
+import { normalizeSafeExternalHref } from "../../panel-safe-links";
 import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
 import type {
 	OperatorOverviewWindow,
@@ -100,6 +101,19 @@ function SectionCard(props: { children: ReactNode; description?: string; title: 
 				</Stack>
 			</CardContent>
 		</Card>
+	);
+}
+
+function SafeExternalLink(props: { unsafeHref: string | null; label: string }) {
+	const safeHref = normalizeSafeExternalHref(props.unsafeHref);
+	if (!safeHref) {
+		return null;
+	}
+
+	return (
+		<MuiLink href={safeHref} rel="noreferrer" target="_blank">
+			{props.label}
+		</MuiLink>
 	);
 }
 
@@ -384,6 +398,7 @@ export function QualityQueueSection(props: {
 	badcaseErrorMessage: string | null;
 	badcases: OperatorQualityBadcaseRecord[];
 	hasNextPage: boolean;
+	isPageChanging: boolean;
 	isPending: boolean;
 	onCauseClassChange(value: string): void;
 	onDetectedByChange(value: string): void;
@@ -512,13 +527,17 @@ export function QualityQueueSection(props: {
 				</Typography>
 				<Stack direction="row" spacing={1}>
 					<Button
-						disabled={props.queueFilters.page <= 1}
+						disabled={props.isPageChanging || props.queueFilters.page <= 1}
 						onClick={props.onPreviousPage}
 						variant="outlined"
 					>
 						{PANEL_COPY.qualityPage.queue.previousPage}
 					</Button>
-					<Button disabled={!props.hasNextPage} onClick={props.onNextPage} variant="contained">
+					<Button
+						disabled={props.isPageChanging || !props.hasNextPage}
+						onClick={props.onNextPage}
+						variant="contained"
+					>
 						{PANEL_COPY.qualityPage.queue.nextPage}
 					</Button>
 				</Stack>
@@ -531,6 +550,7 @@ export function QualityEvalCandidateSection(props: {
 	candidates: OperatorQualityEvalCandidateRecord[];
 	errorMessage: string | null;
 	hasNextPage: boolean;
+	isPageChanging: boolean;
 	isPending: boolean;
 	onNextPage(): void;
 	onPreviousPage(): void;
@@ -601,13 +621,17 @@ export function QualityEvalCandidateSection(props: {
 				</Typography>
 				<Stack direction="row" spacing={1}>
 					<Button
-						disabled={props.queueFilters.evalPage <= 1}
+						disabled={props.isPageChanging || props.queueFilters.evalPage <= 1}
 						onClick={props.onPreviousPage}
 						variant="outlined"
 					>
 						{PANEL_COPY.qualityPage.queue.previousPage}
 					</Button>
-					<Button disabled={!props.hasNextPage} onClick={props.onNextPage} variant="contained">
+					<Button
+						disabled={props.isPageChanging || !props.hasNextPage}
+						onClick={props.onNextPage}
+						variant="contained"
+					>
 						{PANEL_COPY.qualityPage.queue.nextPage}
 					</Button>
 				</Stack>
@@ -712,24 +736,14 @@ export function QualityDetailDrawer(props: {
 								>
 									{PANEL_COPY.qualityPage.queue.viewRequest}
 								</Button>
-								{props.selectedBadcase.links.traceLink ? (
-									<MuiLink
-										href={props.selectedBadcase.links.traceLink}
-										rel="noreferrer"
-										target="_blank"
-									>
-										{PANEL_COPY.qualityPage.detail.traceLink}
-									</MuiLink>
-								) : null}
-								{props.selectedBadcase.links.issueLink ? (
-									<MuiLink
-										href={props.selectedBadcase.links.issueLink}
-										rel="noreferrer"
-										target="_blank"
-									>
-										{PANEL_COPY.qualityPage.detail.issueLink}
-									</MuiLink>
-								) : null}
+								<SafeExternalLink
+									unsafeHref={props.selectedBadcase.links.traceLink}
+									label={PANEL_COPY.qualityPage.detail.traceLink}
+								/>
+								<SafeExternalLink
+									unsafeHref={props.selectedBadcase.links.issueLink}
+									label={PANEL_COPY.qualityPage.detail.issueLink}
+								/>
 								{props.selectedBadcase.links.issueFingerprint ? (
 									<Typography color="text.secondary" variant="body2">
 										{PANEL_COPY.qualityPage.detail.issueFingerprint}:{" "}

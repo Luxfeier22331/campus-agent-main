@@ -158,7 +158,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/safety/anomalies?limit=10&severity=high&anomalyCode=projection_missing",
+					"https://app-api.internal/api/operator/safety/anomalies?limit=10&window=24h&surface=public_chat_web&selectedTarget=rag-agent&severity=high&anomalyCode=projection_missing",
 				),
 			);
 
@@ -194,8 +194,11 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 					anomalyCode: "projection_missing",
 					cursor: null,
 					limit: 10,
+					selectedTarget: "rag-agent",
 					severity: "high",
 					status: null,
+					surface: "public_chat_web",
+					window: "24h",
 				},
 				principal,
 			});

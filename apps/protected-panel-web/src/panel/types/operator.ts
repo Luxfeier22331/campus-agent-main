@@ -24,13 +24,19 @@ export interface OperatorCursorPageInput {
 export interface OperatorQualityBadcaseListFilterInput extends OperatorCursorPageInput {
 	causeClass?: string | null;
 	detectedBy?: string | null;
+	selectedTarget?: string | null;
 	status?: string | null;
+	surface?: string | null;
+	window?: OperatorOverviewWindow | null;
 }
 
 export interface OperatorSafetyAnomalyListFilterInput extends OperatorCursorPageInput {
 	anomalyCode?: string | null;
+	selectedTarget?: string | null;
 	severity?: string | null;
 	status?: string | null;
+	surface?: string | null;
+	window?: OperatorOverviewWindow | null;
 }
 
 export interface OperatorAuditListFilterInput extends OperatorCursorPageInput {

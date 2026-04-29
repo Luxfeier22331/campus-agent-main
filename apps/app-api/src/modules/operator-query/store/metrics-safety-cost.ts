@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNotNull, isNull, lt, not, or, type SQL } from "drizzle-orm";
 
 import { requestObservabilityFact } from "../../../db/schema";
 import type {
@@ -21,10 +21,46 @@ import {
 	loadTraceBacklinksByRequestIds,
 	resolveBucketStart,
 	resolveResultGranularity,
+	resolveWindowBounds,
 	sumNullableInteger,
 	toLinks,
 	toRatio,
 } from "./shared";
+
+function buildHighSeveritySafetyAnomalyCodeCondition(): SQL {
+	const condition = or(
+		ilike(requestObservabilityFact.aclAnomalyCode, "%projection_missing%"),
+		ilike(requestObservabilityFact.aclAnomalyCode, "%projection_conflict%"),
+		ilike(requestObservabilityFact.aclAnomalyCode, "%fail_open%"),
+		ilike(requestObservabilityFact.aclAnomalyCode, "%unauthorized%"),
+	);
+	if (!condition) {
+		throw new Error("high severity safety anomaly code condition must be constructible.");
+	}
+	return condition;
+}
+
+function buildHighSeveritySafetyAnomalyCondition(): SQL {
+	const condition = or(
+		eq(requestObservabilityFact.failClosed, true),
+		buildHighSeveritySafetyAnomalyCodeCondition(),
+	);
+	if (!condition) {
+		throw new Error("high severity safety anomaly condition must be constructible.");
+	}
+	return condition;
+}
+
+function buildMediumSeveritySafetyAnomalyCondition(): SQL {
+	const condition = and(
+		or(isNull(requestObservabilityFact.failClosed), eq(requestObservabilityFact.failClosed, false)),
+		not(buildHighSeveritySafetyAnomalyCodeCondition()),
+	);
+	if (!condition) {
+		throw new Error("medium severity safety anomaly condition must be constructible.");
+	}
+	return condition;
+}
 
 export function createSafetyCostMetricHandlers(runtime: OperatorQueryRuntime) {
 	return {
@@ -53,46 +89,72 @@ export function createSafetyCostMetricHandlers(runtime: OperatorQueryRuntime) {
 		},
 
 		async listSafetyAnomalies(filters: NormalizedOperatorSafetyAnomalyListFilters) {
+			if (filters.status && filters.status !== "open") {
+				return {
+					anomalies: [],
+					page: {
+						nextCursor: null,
+					},
+				} satisfies OperatorSafetyAnomalyListResult;
+			}
+
 			const db = await runtime.getDb();
-			const conditions = [isNotNull(requestObservabilityFact.aclAnomalyCode)];
+			const conditions: SQL[] = [isNotNull(requestObservabilityFact.aclAnomalyCode)];
 
 			if (filters.anomalyCode) {
 				conditions.push(eq(requestObservabilityFact.aclAnomalyCode, filters.anomalyCode));
+			}
+			if (filters.surface) {
+				conditions.push(eq(requestObservabilityFact.surface, filters.surface));
+			}
+			if (filters.selectedTarget) {
+				conditions.push(eq(requestObservabilityFact.selectedTarget, filters.selectedTarget));
+			}
+			if (filters.window) {
+				const bounds = resolveWindowBounds(filters.window, runtime.now());
+				conditions.push(gte(requestObservabilityFact.startedAt, bounds.from));
+				conditions.push(lt(requestObservabilityFact.startedAt, bounds.to));
+			}
+			if (filters.severity) {
+				const highSeverityCondition = buildHighSeveritySafetyAnomalyCondition();
+				if (filters.severity === "high") {
+					conditions.push(highSeverityCondition);
+				} else if (filters.severity === "medium") {
+					conditions.push(buildMediumSeveritySafetyAnomalyCondition());
+				} else {
+					return {
+						anomalies: [],
+						page: {
+							nextCursor: null,
+						},
+					} satisfies OperatorSafetyAnomalyListResult;
+				}
+			}
+
+			const cursor = filters.cursor ? decodeSafetyAnomalyCursor(filters.cursor) : null;
+			if (cursor) {
+				const cursorDetectedAt = new Date(cursor.detectedAt);
+				const cursorCondition = or(
+					lt(requestObservabilityFact.startedAt, cursorDetectedAt),
+					and(
+						eq(requestObservabilityFact.startedAt, cursorDetectedAt),
+						lt(requestObservabilityFact.requestId, cursor.requestId),
+					),
+				);
+				if (cursorCondition) {
+					conditions.push(cursorCondition);
+				}
 			}
 
 			const rows = await db
 				.select()
 				.from(requestObservabilityFact)
 				.where(and(...conditions))
-				.orderBy(
-					desc(requestObservabilityFact.startedAt),
-					desc(requestObservabilityFact.requestId),
-				);
+				.orderBy(desc(requestObservabilityFact.startedAt), desc(requestObservabilityFact.requestId))
+				.limit(filters.limit + 1);
 
-			const cursor = filters.cursor ? decodeSafetyAnomalyCursor(filters.cursor) : null;
-			const filteredRows = rows.filter((row) => {
-				const severity = inferSafetyAnomalySeverity(row);
-				const status = "open" as const;
-
-				if (filters.severity && severity !== filters.severity) {
-					return false;
-				}
-				if (filters.status && status !== filters.status) {
-					return false;
-				}
-				if (!cursor) {
-					return true;
-				}
-
-				const detectedAt = row.startedAt.toISOString();
-				return (
-					detectedAt < cursor.detectedAt ||
-					(detectedAt === cursor.detectedAt && row.requestId < cursor.requestId)
-				);
-			});
-
-			const visibleRows = filteredRows.slice(0, filters.limit);
-			const cursorRow = filteredRows.length > filters.limit ? visibleRows.at(-1) : null;
+			const visibleRows = rows.slice(0, filters.limit);
+			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
 			const backlinksByRequestId = await loadTraceBacklinksByRequestIds(
 				db,
 				visibleRows.map((row) => row.requestId),

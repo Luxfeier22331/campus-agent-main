@@ -39,7 +39,10 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 			cursor,
 			detectedBy: null,
 			limit: 10,
+			selectedTarget: null,
 			status: null,
+			surface: null,
+			window: null,
 		});
 
 		expect(badcaseWhere).toHaveBeenCalledTimes(1);
@@ -107,7 +110,10 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 			cursor: null,
 			detectedBy: null,
 			limit: 10,
+			selectedTarget: null,
 			status: null,
+			surface: null,
+			window: null,
 		});
 
 		expect(result.badcases[0]?.grade).toEqual({
@@ -203,7 +209,10 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 			cursor: null,
 			detectedBy: null,
 			limit: 10,
+			selectedTarget: null,
 			status: null,
+			surface: null,
+			window: null,
 		});
 
 		expect(result.badcases).toEqual([

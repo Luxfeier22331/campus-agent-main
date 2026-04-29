@@ -271,7 +271,7 @@ export const PANEL_COPY = {
 		subtitle: "聚焦授权决策、Fail Closed 态势与 ACL 异常队列，供运维值守使用。",
 		asOf: "数据时间",
 		refreshing: "筛选已更新，正在刷新安全域数据。",
-		summaryFilterHint: "上方筛选只影响决策摘要与态势区块，不会改写下方异常队列。",
+		summaryFilterHint: "上方筛选会同步影响决策摘要、安全态势与下方异常队列。",
 		filters: {
 			selectedTarget: "执行目标",
 			surface: "接入面",
@@ -309,7 +309,7 @@ export const PANEL_COPY = {
 			closeDetail: "关闭详情",
 			detail: "查看详情",
 			empty: "当前筛选下没有 ACL 异常。",
-			filterHint: "队列筛选只作用于 anomaly queue；摘要筛选不会被隐式下推到这里。",
+			filterHint: "队列筛选会叠加在上方时间窗、接入面和执行目标筛选之上。",
 			filters: {
 				anomalyCode: "异常代码",
 				anomalyCodePlaceholder: "例如 projection_missing",
@@ -490,6 +490,7 @@ export const PANEL_COPY = {
 	actions: {
 		columnSettings: "列设置",
 		export: "导出",
+		refreshList: "刷新列表",
 	},
 	requestsList: {
 		title: "请求分诊台",

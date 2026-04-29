@@ -43,6 +43,7 @@ export function OfficialWebSitesListPage() {
 	return (
 		<List
 			actions={<PanelListActions />}
+			disableSyncWithLocation
 			empty={<OfficialWebSitesEmpty />}
 			emptyWhileLoading
 			error={

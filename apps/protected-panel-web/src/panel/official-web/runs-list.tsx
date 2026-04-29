@@ -94,6 +94,7 @@ export function OfficialWebRunsListPage() {
 	return (
 		<List
 			actions={<PanelListActions />}
+			disableSyncWithLocation
 			empty={<OfficialWebRunsEmpty />}
 			emptyWhileLoading
 			error={

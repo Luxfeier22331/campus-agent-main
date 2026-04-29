@@ -440,6 +440,9 @@ export interface OperatorIntentTimeseriesResult {
 export interface OperatorQualityBadcaseListFilters {
 	limit?: number | null;
 	cursor?: string | null;
+	window?: string | null;
+	surface?: string | null;
+	selectedTarget?: string | null;
 	status?: string | null;
 	causeClass?: string | null;
 	detectedBy?: string | null;
@@ -448,6 +451,9 @@ export interface OperatorQualityBadcaseListFilters {
 export interface OperatorSafetyAnomalyListFilters {
 	limit?: number | null;
 	cursor?: string | null;
+	window?: string | null;
+	surface?: string | null;
+	selectedTarget?: string | null;
 	severity?: string | null;
 	status?: string | null;
 	anomalyCode?: string | null;
@@ -456,6 +462,9 @@ export interface OperatorSafetyAnomalyListFilters {
 export interface NormalizedOperatorQualityBadcaseListFilters {
 	limit: number;
 	cursor: string | null;
+	window: OperatorOverviewWindow | null;
+	surface: string | null;
+	selectedTarget: string | null;
 	status: string | null;
 	causeClass: string | null;
 	detectedBy: string | null;
@@ -464,6 +473,9 @@ export interface NormalizedOperatorQualityBadcaseListFilters {
 export interface NormalizedOperatorSafetyAnomalyListFilters {
 	limit: number;
 	cursor: string | null;
+	window: OperatorOverviewWindow | null;
+	surface: string | null;
+	selectedTarget: string | null;
 	severity: string | null;
 	status: string | null;
 	anomalyCode: string | null;

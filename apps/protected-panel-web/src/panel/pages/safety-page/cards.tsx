@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
+import { normalizeSafeExternalHref } from "../../panel-safe-links";
 import {
 	formatPrincipalTypeLabel,
 	formatSelectedTargetLabel,
@@ -100,6 +101,19 @@ function SectionCard(props: { children: ReactNode; description?: string; title: 
 				</Stack>
 			</CardContent>
 		</Card>
+	);
+}
+
+function SafeExternalLink(props: { unsafeHref: string | null; label: string }) {
+	const safeHref = normalizeSafeExternalHref(props.unsafeHref);
+	if (!safeHref) {
+		return null;
+	}
+
+	return (
+		<MuiLink href={safeHref} rel="noreferrer" target="_blank">
+			{props.label}
+		</MuiLink>
 	);
 }
 
@@ -322,6 +336,7 @@ export function SafetyQueueSection(props: {
 	anomalyErrorMessage: string | null;
 	anomalies: OperatorSafetyAnomalyRecord[];
 	hasNextPage: boolean;
+	isPageChanging: boolean;
 	isPending: boolean;
 	onAnomalyCodeChange(value: string): void;
 	onNextPage(): void;
@@ -471,13 +486,17 @@ export function SafetyQueueSection(props: {
 				</Typography>
 				<Stack direction="row" spacing={1}>
 					<Button
-						disabled={props.queueFilters.page <= 1}
+						disabled={props.isPageChanging || props.queueFilters.page <= 1}
 						onClick={props.onPreviousPage}
 						variant="outlined"
 					>
 						{PANEL_COPY.safetyPage.queue.previousPage}
 					</Button>
-					<Button disabled={!props.hasNextPage} onClick={props.onNextPage} variant="contained">
+					<Button
+						disabled={props.isPageChanging || !props.hasNextPage}
+						onClick={props.onNextPage}
+						variant="contained"
+					>
 						{PANEL_COPY.safetyPage.queue.nextPage}
 					</Button>
 				</Stack>
@@ -569,24 +588,14 @@ export function SafetyDetailDrawer(props: {
 									>
 										{PANEL_COPY.safetyPage.queue.viewRequest}
 									</Button>
-									{props.selectedAnomaly.links.traceLink ? (
-										<MuiLink
-											href={props.selectedAnomaly.links.traceLink}
-											rel="noreferrer"
-											target="_blank"
-										>
-											{PANEL_COPY.safetyPage.detail.traceLink}
-										</MuiLink>
-									) : null}
-									{props.selectedAnomaly.links.issueLink ? (
-										<MuiLink
-											href={props.selectedAnomaly.links.issueLink}
-											rel="noreferrer"
-											target="_blank"
-										>
-											{PANEL_COPY.safetyPage.detail.issueLink}
-										</MuiLink>
-									) : null}
+									<SafeExternalLink
+										unsafeHref={props.selectedAnomaly.links.traceLink}
+										label={PANEL_COPY.safetyPage.detail.traceLink}
+									/>
+									<SafeExternalLink
+										unsafeHref={props.selectedAnomaly.links.issueLink}
+										label={PANEL_COPY.safetyPage.detail.issueLink}
+									/>
 									{props.selectedAnomaly.links.issueFingerprint ? (
 										<Typography color="text.secondary" variant="body2">
 											{PANEL_COPY.safetyPage.detail.issueFingerprint}:{" "}

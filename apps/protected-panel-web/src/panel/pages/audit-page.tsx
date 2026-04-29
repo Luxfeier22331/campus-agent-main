@@ -19,12 +19,21 @@ import {
 	Typography,
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, startTransition, useDeferredValue, useMemo, useState } from "react";
+import {
+	type ReactNode,
+	startTransition,
+	useDeferredValue,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 import { Link as RouterLink } from "react-router-dom";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { formatPanelTimestamp, PANEL_COPY, translateRuntimeErrorMessage } from "../panel-copy";
+import { normalizeSafeExternalHref } from "../panel-safe-links";
 import {
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
@@ -127,10 +136,25 @@ function SectionCard(props: { children: ReactNode; description?: string; title: 
 	);
 }
 
+function SafeExternalLink(props: { unsafeHref: string | null; label: string }) {
+	const safeHref = normalizeSafeExternalHref(props.unsafeHref);
+	if (!safeHref) {
+		return null;
+	}
+
+	return (
+		<MuiLink href={safeHref} rel="noreferrer" target="_blank">
+			{props.label}
+		</MuiLink>
+	);
+}
+
 export function AuditPage() {
 	useAuthenticated();
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
 	const [selectedEvent, setSelectedEvent] = useState<OperatorAuditEventRecord | null>(null);
+	const auditPageLockRef = useRef(false);
+	const [auditPageTransitionPending, setAuditPageTransitionPending] = useState(false);
 	const [filters, setFilters] = useState<AuditFilterState>({
 		eventType: "",
 		page: 1,
@@ -207,6 +231,8 @@ export function AuditPage() {
 
 	const auditEvents = auditListQuery.data?.data ?? [];
 	const auditPageInfo = auditListQuery.data?.pageInfo;
+	const auditPageChanging =
+		auditListQuery.isPending || auditListQuery.isFetching || auditPageTransitionPending;
 	const selectedEventDetail = auditDetailQuery.data?.data ?? null;
 	const listErrorMessage = auditListQuery.error
 		? toQueryErrorMessage(auditListQuery.error, PANEL_COPY.auditPage.states.loadFailed)
@@ -214,6 +240,13 @@ export function AuditPage() {
 	const detailErrorMessage = auditDetailQuery.error
 		? toQueryErrorMessage(auditDetailQuery.error, PANEL_COPY.auditPage.states.detailLoadFailed)
 		: null;
+
+	useEffect(() => {
+		if (!(auditListQuery.isPending || auditListQuery.isFetching)) {
+			auditPageLockRef.current = false;
+			setAuditPageTransitionPending(false);
+		}
+	}, [auditListQuery.isPending, auditListQuery.isFetching]);
 
 	const filterSummaryItems = useMemo(() => {
 		const items = [
@@ -532,8 +565,13 @@ export function AuditPage() {
 									))}
 								</TextField>
 								<Button
-									disabled={filters.page === 1}
+									disabled={auditPageChanging || filters.page === 1}
 									onClick={() => {
+										if (auditPageLockRef.current || auditPageChanging || filters.page <= 1) {
+											return;
+										}
+										auditPageLockRef.current = true;
+										setAuditPageTransitionPending(true);
 										startTransition(() => {
 											setFilters((current) => ({
 												...current,
@@ -546,8 +584,17 @@ export function AuditPage() {
 									{PANEL_COPY.auditPage.timeline.previousPage}
 								</Button>
 								<Button
-									disabled={!auditPageInfo?.hasNextPage}
+									disabled={auditPageChanging || !auditPageInfo?.hasNextPage}
 									onClick={() => {
+										if (
+											auditPageLockRef.current ||
+											auditPageChanging ||
+											!auditPageInfo?.hasNextPage
+										) {
+											return;
+										}
+										auditPageLockRef.current = true;
+										setAuditPageTransitionPending(true);
 										startTransition(() => {
 											setFilters((current) => ({
 												...current,
@@ -688,23 +735,21 @@ export function AuditPage() {
 								>
 									{PANEL_COPY.auditPage.timeline.viewRequest}
 								</Button>
-								{detailLinks?.traceLink ? (
-									<MuiLink href={detailLinks.traceLink} rel="noreferrer" target="_blank">
-										{PANEL_COPY.auditPage.detail.traceLink}
-									</MuiLink>
-								) : null}
-								{detailLinks?.issueLink ? (
-									<MuiLink href={detailLinks.issueLink} rel="noreferrer" target="_blank">
-										{PANEL_COPY.auditPage.detail.issueLink}
-									</MuiLink>
-								) : null}
+								<SafeExternalLink
+									unsafeHref={detailLinks?.traceLink ?? null}
+									label={PANEL_COPY.auditPage.detail.traceLink}
+								/>
+								<SafeExternalLink
+									unsafeHref={detailLinks?.issueLink ?? null}
+									label={PANEL_COPY.auditPage.detail.issueLink}
+								/>
 								{detailLinks?.issueFingerprint ? (
 									<Typography color="text.secondary" variant="body2">
 										{PANEL_COPY.auditPage.detail.issueFingerprint}: {detailLinks.issueFingerprint}
 									</Typography>
 								) : null}
-								{detailLinks?.traceLink ||
-								detailLinks?.issueLink ||
+								{normalizeSafeExternalHref(detailLinks?.traceLink ?? null) ||
+								normalizeSafeExternalHref(detailLinks?.issueLink ?? null) ||
 								detailLinks?.issueFingerprint ? null : (
 									<Typography color="text.secondary" variant="body2">
 										{PANEL_COPY.auditPage.detail.noLinks}

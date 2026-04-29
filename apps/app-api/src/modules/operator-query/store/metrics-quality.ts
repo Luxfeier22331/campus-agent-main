@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, or, type SQL } from "drizzle-orm";
 
 import { qualityBadcaseProjection, qualityGradeProjection } from "../../../db/schema";
 import type {
@@ -17,6 +17,7 @@ import {
 	inferGradeDomainFromCauseClass,
 	loadTraceBacklinksByRequestIds,
 	resolveBucketStart,
+	resolveWindowBounds,
 	toLinks,
 	toRatio,
 	toScore,
@@ -192,6 +193,17 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 			}
 			if (filters.detectedBy) {
 				conditions.push(eq(qualityBadcaseProjection.detectedBy, filters.detectedBy));
+			}
+			if (filters.surface) {
+				conditions.push(eq(qualityBadcaseProjection.surface, filters.surface));
+			}
+			if (filters.selectedTarget) {
+				conditions.push(eq(qualityBadcaseProjection.selectedTarget, filters.selectedTarget));
+			}
+			if (filters.window) {
+				const bounds = resolveWindowBounds(filters.window, runtime.now());
+				conditions.push(gte(qualityBadcaseProjection.openedAt, bounds.from));
+				conditions.push(lt(qualityBadcaseProjection.openedAt, bounds.to));
 			}
 			const cursor = filters.cursor ? decodeQualityBadcaseCursor(filters.cursor) : null;
 			if (cursor) {

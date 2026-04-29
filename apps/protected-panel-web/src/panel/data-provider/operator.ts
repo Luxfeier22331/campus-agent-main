@@ -153,6 +153,9 @@ export async function listOperatorQualityBadcases(
 		OperatorQualityBadcaseRecord
 	>({
 		buildQuery(query) {
+			appendOptionalQueryParam(query, "window", input?.window);
+			appendOptionalQueryParam(query, "surface", input?.surface);
+			appendOptionalQueryParam(query, "selectedTarget", input?.selectedTarget);
 			appendOptionalQueryParam(query, "status", input?.status);
 			appendOptionalQueryParam(query, "causeClass", input?.causeClass);
 			appendOptionalQueryParam(query, "detectedBy", input?.detectedBy);
@@ -160,7 +163,10 @@ export async function listOperatorQualityBadcases(
 		cursorFilter: {
 			causeClass: input?.causeClass,
 			detectedBy: input?.detectedBy,
+			selectedTarget: input?.selectedTarget,
 			status: input?.status,
+			surface: input?.surface,
+			window: input?.window,
 		},
 		normalizeRecord: normalizeOperatorQualityBadcaseRecord,
 		page: input?.page,
@@ -184,6 +190,9 @@ export async function listOperatorQualityEvalCandidates(
 		OperatorQualityEvalCandidateRecord
 	>({
 		buildQuery(query) {
+			appendOptionalQueryParam(query, "window", input?.window);
+			appendOptionalQueryParam(query, "surface", input?.surface);
+			appendOptionalQueryParam(query, "selectedTarget", input?.selectedTarget);
 			appendOptionalQueryParam(query, "status", input?.status);
 			appendOptionalQueryParam(query, "causeClass", input?.causeClass);
 			appendOptionalQueryParam(query, "detectedBy", input?.detectedBy);
@@ -191,7 +200,10 @@ export async function listOperatorQualityEvalCandidates(
 		cursorFilter: {
 			causeClass: input?.causeClass,
 			detectedBy: input?.detectedBy,
+			selectedTarget: input?.selectedTarget,
 			status: input?.status,
+			surface: input?.surface,
+			window: input?.window,
 		},
 		normalizeRecord: normalizeOperatorQualityEvalCandidateRecord,
 		page: input?.page,
@@ -233,14 +245,20 @@ export async function listOperatorSafetyAnomalies(
 		OperatorSafetyAnomalyRecord
 	>({
 		buildQuery(query) {
+			appendOptionalQueryParam(query, "window", input?.window);
+			appendOptionalQueryParam(query, "surface", input?.surface);
+			appendOptionalQueryParam(query, "selectedTarget", input?.selectedTarget);
 			appendOptionalQueryParam(query, "severity", input?.severity);
 			appendOptionalQueryParam(query, "status", input?.status);
 			appendOptionalQueryParam(query, "anomalyCode", input?.anomalyCode);
 		},
 		cursorFilter: {
 			anomalyCode: input?.anomalyCode,
+			selectedTarget: input?.selectedTarget,
 			severity: input?.severity,
 			status: input?.status,
+			surface: input?.surface,
+			window: input?.window,
 		},
 		normalizeRecord: normalizeOperatorSafetyAnomalyRecord,
 		page: input?.page,

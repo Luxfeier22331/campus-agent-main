@@ -64,15 +64,21 @@ export function registerDataProviderSafetyAuditSuite() {
 			anomalyCode: "projection_missing",
 			page: 1,
 			perPage: 10,
+			selectedTarget: "rag-agent",
 			severity: "high",
 			signal: undefined,
+			surface: "public_chat_web",
+			window: "24h",
 		});
 		const secondPage = await protectedPanelDataProvider.listOperatorSafetyAnomalies({
 			anomalyCode: "projection_missing",
 			page: 2,
 			perPage: 10,
+			selectedTarget: "rag-agent",
 			severity: "high",
 			signal: undefined,
+			surface: "public_chat_web",
+			window: "24h",
 		});
 
 		expect(firstPage.data[0]).toMatchObject({
@@ -89,7 +95,7 @@ export function registerDataProviderSafetyAuditSuite() {
 		});
 		expect(fetchSpy).toHaveBeenNthCalledWith(
 			2,
-			"/api/operator/safety/anomalies?limit=10&severity=high&anomalyCode=projection_missing&cursor=cursor_acl_02",
+			"/api/operator/safety/anomalies?limit=10&window=24h&surface=public_chat_web&selectedTarget=rag-agent&severity=high&anomalyCode=projection_missing&cursor=cursor_acl_02",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",
@@ -103,8 +109,11 @@ export function registerDataProviderSafetyAuditSuite() {
 				anomalyCode: "projection_missing",
 				page: 3,
 				perPage: 10,
+				selectedTarget: "rag-agent",
 				severity: "high",
 				signal: undefined,
+				surface: "public_chat_web",
+				window: "24h",
 			}),
 		).rejects.toMatchObject({
 			status: 400,

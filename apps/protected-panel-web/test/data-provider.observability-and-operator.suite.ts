@@ -401,8 +401,11 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 				detectedBy: "runtime_monitor",
 				page: 1,
 				perPage: 10,
+				selectedTarget: "navigation-agent",
 				signal: undefined,
 				status: "open",
+				surface: "public_chat_web",
+				window: "24h",
 			}),
 		).resolves.toMatchObject({
 			data: [
@@ -426,8 +429,11 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 				detectedBy: "runtime_monitor",
 				page: 2,
 				perPage: 10,
+				selectedTarget: "navigation-agent",
 				signal: undefined,
 				status: "open",
+				surface: "public_chat_web",
+				window: "24h",
 			}),
 		).resolves.toMatchObject({
 			data: [],
@@ -439,7 +445,7 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 
 		expect(fetchSpy).toHaveBeenNthCalledWith(
 			1,
-			"/api/operator/quality/eval-candidates?limit=10&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor",
+			"/api/operator/quality/eval-candidates?limit=10&window=24h&surface=public_chat_web&selectedTarget=navigation-agent&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",
@@ -449,7 +455,67 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		);
 		expect(fetchSpy).toHaveBeenNthCalledWith(
 			2,
-			"/api/operator/quality/eval-candidates?limit=10&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor&cursor=cursor_eval_02",
+			"/api/operator/quality/eval-candidates?limit=10&window=24h&surface=public_chat_web&selectedTarget=navigation-agent&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor&cursor=cursor_eval_02",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("maps quality queue runtime filters onto the protected same-site seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				badcases: [
+					{
+						badcaseId: "qbad_01",
+						causeClass: "citation_missing",
+						detectedBy: "runtime_monitor",
+						grade: null,
+						links: {
+							issueFingerprint: null,
+							issueLink: null,
+							traceLink: null,
+						},
+						openedAt: "2026-04-01T10:00:00.000Z",
+						requestId: "req_01",
+						selectedTarget: "rag-agent",
+						status: "open",
+						summary: "Missing citation.",
+						surface: "public_chat_web",
+						traceId: "trace_01",
+					},
+				],
+				page: {
+					nextCursor: null,
+				},
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.listOperatorQualityBadcases({
+				causeClass: "citation_missing",
+				detectedBy: "runtime_monitor",
+				page: 1,
+				perPage: 10,
+				selectedTarget: "rag-agent",
+				status: "open",
+				surface: "public_chat_web",
+				window: "24h",
+			}),
+		).resolves.toMatchObject({
+			data: [
+				{
+					badcaseId: "qbad_01",
+					id: "qbad_01",
+				},
+			],
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/operator/quality/badcases?limit=10&window=24h&surface=public_chat_web&selectedTarget=rag-agent&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",

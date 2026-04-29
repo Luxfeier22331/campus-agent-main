@@ -2,15 +2,20 @@ import { describe, expect, it } from "vitest";
 import workerModuleSource from "../src/index/worker.ts?raw";
 import workerSource from "../src/index.ts?raw";
 import appSource from "../src/panel/app.tsx?raw";
+import cursorSource from "../src/panel/data-provider/cursor.ts?raw";
 import auditPageSource from "../src/panel/pages/audit-page.tsx?raw";
 import costPageSource from "../src/panel/pages/cost-page.tsx?raw";
 import intentPageSource from "../src/panel/pages/intent-page.tsx?raw";
 import overviewPageCardsSource from "../src/panel/pages/overview-page/cards.tsx?raw";
 import overviewPageSource from "../src/panel/pages/overview-page.tsx?raw";
+import qualityPageCardsSource from "../src/panel/pages/quality-page/cards.tsx?raw";
 import qualityPageSource from "../src/panel/pages/quality-page.tsx?raw";
+import safetyPageCardsSource from "../src/panel/pages/safety-page/cards.tsx?raw";
 import safetyPageSource from "../src/panel/pages/safety-page.tsx?raw";
 import layoutSource from "../src/panel/panel-layout.tsx?raw";
+import panelListActionsSource from "../src/panel/panel-list-actions.tsx?raw";
 import requestListSource from "../src/panel/requests/request-list.tsx?raw";
+import requestShowSource from "../src/panel/requests/request-show.tsx?raw";
 
 describe("protected panel shell chinese copy", () => {
 	it("does not rely on react-admin default resource menu labels or default app bar actions", () => {
@@ -33,6 +38,11 @@ describe("protected panel shell chinese copy", () => {
 		expect(layoutSource).not.toContain("UserMenu label=");
 		expect(layoutSource).not.toContain("\tUserMenu,");
 		expect(layoutSource).not.toContain("skip-nav-button");
+	});
+
+	it("routes the visible account logout through the Access logout endpoint", () => {
+		expect(layoutSource).toContain("void logout(null)");
+		expect(layoutSource).not.toContain("void logout();");
 	});
 
 	it("wires requests list through explicit chinese sort and error scaffolding", () => {
@@ -64,8 +74,22 @@ describe("protected panel shell chinese copy", () => {
 			'"& .RaList-root, & .RaList-main, & .RaList-actions, & .RaList-content"',
 		);
 		expect(layoutSource).toContain("minWidth: 0");
+		expect(requestListSource).toContain("PanelResponsiveDatagrid");
 		expect(requestListSource).toContain('alignSelf: "stretch"');
 		expect(requestListSource).toContain('whiteSpace: "normal"');
+	});
+
+	it("does not expose generic export on cursor-backed operator lists", () => {
+		expect(requestListSource).not.toContain("ExportButton");
+		expect(panelListActionsSource).not.toContain("ExportButton");
+		expect(requestListSource).toContain("RefreshButton");
+		expect(panelListActionsSource).toContain("RefreshButton");
+	});
+
+	it("keeps cursor-backed request lists session-local and gives empty state a refresh action", () => {
+		expect(requestListSource).toContain("disableSyncWithLocation");
+		expect(requestListSource).toContain("useRefresh");
+		expect(requestListSource).toContain("PANEL_COPY.actions.refreshList");
 	});
 
 	it("reserves operator observability domains as explicit custom routes instead of fake resources", () => {
@@ -188,5 +212,29 @@ describe("protected panel shell chinese copy", () => {
 		expect(auditPageSource).not.toContain("fetch(");
 		expect(auditPageSource).not.toContain('getList("operatorAudit"');
 		expect(auditPageSource).not.toContain('resource="operatorAudit"');
+	});
+
+	it("renders operator trace and issue links through the safe external href guard", () => {
+		expect(requestShowSource).toContain("normalizeSafeExternalHref");
+		expect(qualityPageCardsSource).toContain("normalizeSafeExternalHref");
+		expect(safetyPageCardsSource).toContain("normalizeSafeExternalHref");
+		expect(auditPageSource).toContain("normalizeSafeExternalHref");
+		expect(requestShowSource).not.toContain("href={href}");
+		expect(qualityPageCardsSource).not.toContain("href={props.selectedBadcase.links.traceLink}");
+		expect(safetyPageCardsSource).not.toContain("href={props.selectedAnomaly.links.traceLink}");
+		expect(auditPageSource).not.toContain("href={detailLinks.traceLink}");
+	});
+
+	it("keeps manual cursor queue pagination locked while page queries are in flight", () => {
+		expect(qualityPageCardsSource).toContain("disabled={props.isPageChanging ||");
+		expect(safetyPageCardsSource).toContain("disabled={props.isPageChanging ||");
+		expect(auditPageSource).toContain("auditPageChanging");
+		expect(auditPageSource).toContain("disabled={auditPageChanging ||");
+	});
+
+	it("bounds and clears session-local cursor history for long-lived operator sessions", () => {
+		expect(cursorSource).toContain("MAX_SEQUENTIAL_CURSOR_KEYS");
+		expect(cursorSource).toContain("clearSequentialCursorHistory");
+		expect(layoutSource).toContain("clearSequentialCursorHistory()");
 	});
 });

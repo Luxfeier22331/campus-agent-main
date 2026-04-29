@@ -2,6 +2,7 @@ import { type GetListParams, HttpError } from "react-admin";
 
 import { fetchJson } from "../http";
 
+const MAX_SEQUENTIAL_CURSOR_KEYS = 64;
 const sequentialPageCursors = new Map<string, Map<number, string | null>>();
 
 export interface SequentialCursorListResult<RecordType> {
@@ -37,11 +38,21 @@ function buildCursorKey(input: {
 function getCursorHistory(cursorKey: string) {
 	let history = sequentialPageCursors.get(cursorKey);
 	if (!history) {
+		if (sequentialPageCursors.size >= MAX_SEQUENTIAL_CURSOR_KEYS) {
+			const oldestKey = sequentialPageCursors.keys().next().value;
+			if (oldestKey) {
+				sequentialPageCursors.delete(oldestKey);
+			}
+		}
 		history = new Map<number, string | null>([[1, null]]);
 		sequentialPageCursors.set(cursorKey, history);
 	}
 
 	return history;
+}
+
+export function clearSequentialCursorHistory() {
+	sequentialPageCursors.clear();
 }
 
 function pruneCursorHistory(history: Map<number, string | null>, currentPage: number) {

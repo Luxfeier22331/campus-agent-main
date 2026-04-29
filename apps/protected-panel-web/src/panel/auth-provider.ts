@@ -1,5 +1,6 @@
 import type { AuthProvider } from "react-admin";
 
+import { clearSequentialCursorHistory } from "./data-provider/cursor";
 import { fetchJson } from "./http";
 import {
 	normalizeOverviewRecord,
@@ -108,6 +109,7 @@ export const protectedPanelAuthProvider: AuthProvider = {
 	},
 	async logout(params) {
 		clearOverviewCache();
+		clearSequentialCursorHistory();
 
 		if (params === null) {
 			if (typeof window !== "undefined") {

@@ -286,4 +286,46 @@ describe("operator observability command service", () => {
 		});
 		expect(store.enqueueExecutionAuditEvents).not.toHaveBeenCalled();
 	});
+
+	it("rejects unsafe trace backlink URL schemes before writing panel-visible links", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn().mockResolvedValue({
+				collection: "student_rules",
+				modelName: "gpt-5.2-mini",
+				principalType: "student",
+				requestId: "req_01HQ",
+				requestStartedAt: "2026-04-24T09:59:00.000Z",
+				requestedCapability: "knowledge",
+				requestedScopeSummary: "regulations/student_rules",
+				selectedTarget: "rag-agent",
+				surface: "public_chat_web",
+				traceId: "trace_01HQ",
+			}),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({
+			store,
+		});
+
+		await expect(
+			service.ingestTraceBacklinks({
+				payload: {
+					backlinks: [
+						{
+							issueLink: "https://sentry.example/issues/123",
+							requestId: "req_01HQ",
+							traceId: "trace_01HQ",
+							traceLink: "javascript:alert(1)",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.upsertTraceBacklinks).not.toHaveBeenCalled();
+	});
 });

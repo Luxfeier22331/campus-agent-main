@@ -100,24 +100,32 @@ export function normalizeAuditListFilters(
 export function normalizeQualityBadcaseListFilters(
 	filters: OperatorQualityBadcaseListFilters,
 ): NormalizedOperatorQualityBadcaseListFilters {
+	const window = normalizeOptionalString(filters.window);
 	return {
 		causeClass: normalizeOptionalString(filters.causeClass),
 		cursor: normalizeOptionalString(filters.cursor),
 		detectedBy: normalizeOptionalString(filters.detectedBy),
 		limit: normalizeLimit(filters.limit),
+		selectedTarget: normalizeOptionalString(filters.selectedTarget),
 		status: normalizeOptionalString(filters.status),
+		surface: normalizeOptionalString(filters.surface),
+		window: window ? normalizeOverviewWindow(window) : null,
 	};
 }
 
 export function normalizeSafetyAnomalyListFilters(
 	filters: OperatorSafetyAnomalyListFilters,
 ): NormalizedOperatorSafetyAnomalyListFilters {
+	const window = normalizeOptionalString(filters.window);
 	return {
 		anomalyCode: normalizeOptionalString(filters.anomalyCode),
 		cursor: normalizeOptionalString(filters.cursor),
 		limit: normalizeLimit(filters.limit),
+		selectedTarget: normalizeOptionalString(filters.selectedTarget),
 		severity: normalizeOptionalString(filters.severity),
 		status: normalizeOptionalString(filters.status),
+		surface: normalizeOptionalString(filters.surface),
+		window: window ? normalizeOverviewWindow(window) : null,
 	};
 }
 

@@ -1,6 +1,6 @@
 import { Alert, Box, Stack } from "@mui/material";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
@@ -22,6 +22,8 @@ export function SafetyPage() {
 	useAuthenticated();
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
 	const [selectedAnomaly, setSelectedAnomaly] = useState<OperatorSafetyAnomalyRecord | null>(null);
+	const anomalyPageLockRef = useRef(false);
+	const [anomalyPageTransitionPending, setAnomalyPageTransitionPending] = useState(false);
 	const [filters, setFilters] = useState<SafetyFilterState>({
 		anomalyCode: "",
 		page: 1,
@@ -75,14 +77,20 @@ export function SafetyPage() {
 				anomalyCode: normalizeFilterValue(deferredAnomalyCode),
 				page: filters.page,
 				perPage: filters.perPage,
+				selectedTarget: deferredSelectedTarget,
 				severity: normalizeFilterValue(deferredSeverity),
 				signal,
 				status: normalizeFilterValue(deferredStatus),
+				surface: deferredSurface,
+				window: deferredWindow,
 			}),
 		queryKey: [
 			"protected-panel-safety-anomalies",
 			filters.page,
 			filters.perPage,
+			deferredWindow,
+			deferredSurface,
+			deferredSelectedTarget,
 			deferredSeverity,
 			deferredStatus,
 			deferredAnomalyCode,
@@ -97,9 +105,18 @@ export function SafetyPage() {
 		? toQueryErrorMessage(anomaliesQuery.error, PANEL_COPY.safetyPage.states.anomalyLoadFailed)
 		: null;
 
+	useEffect(() => {
+		if (!(anomaliesQuery.isPending || anomaliesQuery.isFetching)) {
+			anomalyPageLockRef.current = false;
+			setAnomalyPageTransitionPending(false);
+		}
+	}, [anomaliesQuery.isPending, anomaliesQuery.isFetching]);
+
 	const summary = summaryQuery.data?.data ?? null;
 	const anomalies = anomaliesQuery.data?.data ?? [];
 	const anomalyPageInfo = anomaliesQuery.data?.pageInfo;
+	const anomalyPageChanging =
+		anomaliesQuery.isPending || anomaliesQuery.isFetching || anomalyPageTransitionPending;
 	const decisionCards = buildSafetyDecisionCards(summary);
 	const summaryFilterItems = useMemo(() => buildSafetyFilterSummaryItems(filters), [filters]);
 
@@ -157,6 +174,7 @@ export function SafetyPage() {
 						anomalyErrorMessage={anomalyErrorMessage}
 						anomalies={anomalies}
 						hasNextPage={Boolean(anomalyPageInfo?.hasNextPage)}
+						isPageChanging={anomalyPageChanging}
 						isPending={anomaliesQuery.isPending}
 						onAnomalyCodeChange={(value) => {
 							startTransition(() => {
@@ -168,6 +186,15 @@ export function SafetyPage() {
 							});
 						}}
 						onNextPage={() => {
+							if (
+								anomalyPageLockRef.current ||
+								anomalyPageChanging ||
+								!anomalyPageInfo?.hasNextPage
+							) {
+								return;
+							}
+							anomalyPageLockRef.current = true;
+							setAnomalyPageTransitionPending(true);
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
@@ -185,6 +212,11 @@ export function SafetyPage() {
 							});
 						}}
 						onPreviousPage={() => {
+							if (anomalyPageLockRef.current || anomalyPageChanging || filters.page <= 1) {
+								return;
+							}
+							anomalyPageLockRef.current = true;
+							setAnomalyPageTransitionPending(true);
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,

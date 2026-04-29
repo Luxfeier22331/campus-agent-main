@@ -537,7 +537,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/badcases?status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/badcases?window=24h&surface=public_chat_web&selectedTarget=rag-agent&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -577,7 +577,10 @@ export function registerOperatorQueryQualitySuite(): void {
 					cursor: null,
 					detectedBy: "runtime_monitor",
 					limit: null,
+					selectedTarget: "rag-agent",
 					status: "open",
+					surface: "public_chat_web",
+					window: "24h",
 				},
 				principal,
 			});
@@ -639,7 +642,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/eval-candidates?status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/eval-candidates?window=24h&surface=public_chat_web&selectedTarget=rag-agent&status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -682,7 +685,10 @@ export function registerOperatorQueryQualitySuite(): void {
 					cursor: null,
 					detectedBy: "runtime_monitor",
 					limit: null,
+					selectedTarget: "rag-agent",
 					status: "open",
+					surface: "public_chat_web",
+					window: "24h",
 				},
 				principal,
 			});

@@ -54,7 +54,8 @@ describe("protected panel official web chinese copy", () => {
 		expect(sitesListSource).toContain("PanelListErrorState");
 		expect(sitesListSource).toContain("PanelListActions");
 		expect(sitesListSource).toContain("PANEL_COPY.emptyState.officialWebSites");
-		expect(panelListActionsSource).toContain("label={PANEL_COPY.actions.export}");
+		expect(panelListActionsSource).toContain("label={PANEL_COPY.actions.refreshList}");
+		expect(panelListActionsSource).not.toContain("ExportButton");
 		expect(sitesListSource).toContain("header={<PanelDatagridHeader />}");
 		expect(panelDatagridHeaderSource).toContain("formatPanelSortLabel");
 		expect(panelListErrorSource).toContain("PANEL_COPY.errorState.listLoadFailed");

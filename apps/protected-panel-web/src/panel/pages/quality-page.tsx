@@ -1,6 +1,6 @@
 import { Alert, Box, Stack } from "@mui/material";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
@@ -29,6 +29,11 @@ export function QualityPage() {
 	useAuthenticated();
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
 	const [selectedBadcase, setSelectedBadcase] = useState<OperatorQualityBadcaseRecord | null>(null);
+	const badcasePageLockRef = useRef(false);
+	const evalCandidatePageLockRef = useRef(false);
+	const [badcasePageTransitionPending, setBadcasePageTransitionPending] = useState(false);
+	const [evalCandidatePageTransitionPending, setEvalCandidatePageTransitionPending] =
+		useState(false);
 	const [filters, setFilters] = useState<QualityFilterState>({
 		badcaseCauseClass: "",
 		badcaseDetectedBy: "",
@@ -102,13 +107,19 @@ export function QualityPage() {
 				detectedBy: normalizeFilterValue(deferredBadcaseDetectedBy),
 				page: filters.page,
 				perPage: filters.perPage,
+				selectedTarget: deferredSelectedTarget,
 				signal,
 				status: normalizeFilterValue(deferredBadcaseStatus),
+				surface: deferredSurface,
+				window: deferredWindow,
 			}),
 		queryKey: [
 			"protected-panel-quality-badcases",
 			filters.page,
 			filters.perPage,
+			deferredWindow,
+			deferredSurface,
+			deferredSelectedTarget,
 			deferredBadcaseStatus,
 			deferredBadcaseCauseClass,
 			deferredBadcaseDetectedBy,
@@ -123,13 +134,19 @@ export function QualityPage() {
 				detectedBy: normalizeFilterValue(deferredBadcaseDetectedBy),
 				page: filters.evalPage,
 				perPage: filters.perPage,
+				selectedTarget: deferredSelectedTarget,
 				signal,
 				status: normalizeFilterValue(deferredBadcaseStatus),
+				surface: deferredSurface,
+				window: deferredWindow,
 			}),
 		queryKey: [
 			"protected-panel-quality-eval-candidates",
 			filters.evalPage,
 			filters.perPage,
+			deferredWindow,
+			deferredSurface,
+			deferredSelectedTarget,
 			deferredBadcaseStatus,
 			deferredBadcaseCauseClass,
 			deferredBadcaseDetectedBy,
@@ -153,12 +170,32 @@ export function QualityPage() {
 			)
 		: null;
 
+	useEffect(() => {
+		if (!(badcasesQuery.isPending || badcasesQuery.isFetching)) {
+			badcasePageLockRef.current = false;
+			setBadcasePageTransitionPending(false);
+		}
+	}, [badcasesQuery.isPending, badcasesQuery.isFetching]);
+
+	useEffect(() => {
+		if (!(evalCandidatesQuery.isPending || evalCandidatesQuery.isFetching)) {
+			evalCandidatePageLockRef.current = false;
+			setEvalCandidatePageTransitionPending(false);
+		}
+	}, [evalCandidatesQuery.isPending, evalCandidatesQuery.isFetching]);
+
 	const summary = summaryQuery.data?.data ?? null;
 	const timeseries = timeseriesQuery.data?.data ?? null;
 	const badcases = badcasesQuery.data?.data ?? [];
 	const badcasePageInfo = badcasesQuery.data?.pageInfo;
 	const evalCandidates = evalCandidatesQuery.data?.data ?? [];
 	const evalCandidatePageInfo = evalCandidatesQuery.data?.pageInfo;
+	const badcasePageChanging =
+		badcasesQuery.isPending || badcasesQuery.isFetching || badcasePageTransitionPending;
+	const evalCandidatePageChanging =
+		evalCandidatesQuery.isPending ||
+		evalCandidatesQuery.isFetching ||
+		evalCandidatePageTransitionPending;
 	const trendSeries = timeseries ? buildQualityRuntimeTrendSeries(timeseries.series) : [];
 	const runtimeSummaryCards = summary ? buildRuntimeSummaryCards(summary) : [];
 	const sampledCards = summary ? buildSampledCards(summary) : [];
@@ -202,6 +239,8 @@ export function QualityPage() {
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
+									evalPage: 1,
+									page: 1,
 									selectedTarget: normalizeFilterValue(value),
 								}));
 							});
@@ -210,13 +249,15 @@ export function QualityPage() {
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
+									evalPage: 1,
+									page: 1,
 									surface: normalizeFilterValue(value),
 								}));
 							});
 						}}
 						onWindowChange={(value) => {
 							startTransition(() => {
-								setFilters((current) => ({ ...current, window: value }));
+								setFilters((current) => ({ ...current, evalPage: 1, page: 1, window: value }));
 							});
 						}}
 					/>
@@ -237,6 +278,7 @@ export function QualityPage() {
 						badcaseErrorMessage={badcaseErrorMessage}
 						badcases={badcases}
 						hasNextPage={Boolean(badcasePageInfo?.hasNextPage)}
+						isPageChanging={badcasePageChanging}
 						isPending={badcasesQuery.isPending}
 						onCauseClassChange={(value) => {
 							startTransition(() => {
@@ -259,6 +301,15 @@ export function QualityPage() {
 							});
 						}}
 						onNextPage={() => {
+							if (
+								badcasePageLockRef.current ||
+								badcasePageChanging ||
+								!badcasePageInfo?.hasNextPage
+							) {
+								return;
+							}
+							badcasePageLockRef.current = true;
+							setBadcasePageTransitionPending(true);
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
@@ -277,6 +328,11 @@ export function QualityPage() {
 							});
 						}}
 						onPreviousPage={() => {
+							if (badcasePageLockRef.current || badcasePageChanging || filters.page <= 1) {
+								return;
+							}
+							badcasePageLockRef.current = true;
+							setBadcasePageTransitionPending(true);
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
@@ -303,8 +359,18 @@ export function QualityPage() {
 						candidates={evalCandidates}
 						errorMessage={evalCandidatesErrorMessage}
 						hasNextPage={Boolean(evalCandidatePageInfo?.hasNextPage)}
+						isPageChanging={evalCandidatePageChanging}
 						isPending={evalCandidatesQuery.isPending}
 						onNextPage={() => {
+							if (
+								evalCandidatePageLockRef.current ||
+								evalCandidatePageChanging ||
+								!evalCandidatePageInfo?.hasNextPage
+							) {
+								return;
+							}
+							evalCandidatePageLockRef.current = true;
+							setEvalCandidatePageTransitionPending(true);
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,
@@ -313,6 +379,15 @@ export function QualityPage() {
 							});
 						}}
 						onPreviousPage={() => {
+							if (
+								evalCandidatePageLockRef.current ||
+								evalCandidatePageChanging ||
+								filters.evalPage <= 1
+							) {
+								return;
+							}
+							evalCandidatePageLockRef.current = true;
+							setEvalCandidatePageTransitionPending(true);
 							startTransition(() => {
 								setFilters((current) => ({
 									...current,

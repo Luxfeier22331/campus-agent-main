@@ -508,7 +508,10 @@ describe("operator query service aggregate summaries", () => {
 				cursor: " cursor_01HQ ",
 				detectedBy: " runtime_monitor ",
 				limit: 10,
+				selectedTarget: " rag-agent ",
 				status: " open ",
+				surface: " public_chat_web ",
+				window: " 24h ",
 			},
 			principal: createOperatorPrincipal(),
 		});
@@ -518,7 +521,10 @@ describe("operator query service aggregate summaries", () => {
 			cursor: "cursor_01HQ",
 			detectedBy: "runtime_monitor",
 			limit: 10,
+			selectedTarget: "rag-agent",
 			status: "open",
+			surface: "public_chat_web",
+			window: "24h",
 		});
 		expect(result.page.nextCursor).toBe("cursor_01HQ");
 	});
@@ -597,7 +603,10 @@ describe("operator query service aggregate summaries", () => {
 				cursor: null,
 				detectedBy: " runtime_monitor ",
 				limit: 10,
+				selectedTarget: " rag-agent ",
 				status: " open ",
+				surface: " public_chat_web ",
+				window: " 24h ",
 			},
 			principal: createOperatorPrincipal(),
 		});
@@ -607,7 +616,10 @@ describe("operator query service aggregate summaries", () => {
 			cursor: null,
 			detectedBy: "runtime_monitor",
 			limit: 10,
+			selectedTarget: "rag-agent",
 			status: "open",
+			surface: "public_chat_web",
+			window: "24h",
 		});
 		expect(result).toEqual({
 			candidates: [
