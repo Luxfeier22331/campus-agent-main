@@ -57,7 +57,16 @@ describe("protected panel official web chinese copy", () => {
     expect(sitesListSource).toContain("PANEL_COPY.emptyState.officialWebSites");
     expect(panelListActionsSource).toContain('label={PANEL_COPY.actions.export}');
     expect(sitesListSource).toContain('header={<PanelDatagridHeader />}');
-    expect(panelDatagridHeaderSource).toContain("formatPanelSortLabel");
+    expect(panelDatagridHeaderSource).not.toContain("TableSortLabel");
     expect(panelListErrorSource).toContain("PANEL_COPY.errorState.listLoadFailed");
+  });
+
+  it("uses explicit encoded show routes instead of react-admin raw id show links", () => {
+    expect(sitesListSource).not.toContain("ShowButton");
+    expect(sitesListSource).not.toContain('rowClick="show"');
+    expect(sitesListSource).toContain("buildOfficialWebSiteShowPath");
+    expect(runsListSource).not.toContain("ShowButton");
+    expect(runsListSource).not.toContain('rowClick="show"');
+    expect(runsListSource).toContain("buildOfficialWebRunShowPath");
   });
 });

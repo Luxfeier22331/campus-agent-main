@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import appSource from "../src/panel/app.tsx?raw";
 import layoutSource from "../src/panel/panel-layout.tsx?raw";
 import requestListSource from "../src/panel/requests/request-list.tsx?raw";
+import requestShowSource from "../src/panel/requests/request-show.tsx?raw";
 
 describe("protected panel shell chinese copy", () => {
   it("does not rely on react-admin default resource menu labels or default app bar actions", () => {
@@ -20,6 +21,19 @@ describe("protected panel shell chinese copy", () => {
     expect(requestListSource).toContain("PanelDatagridHeader");
     expect(requestListSource).toContain("PanelListErrorState");
     expect(requestListSource).toContain("empty={<RequestListEmpty />}");
+  });
+
+  it("uses explicit encoded show routes instead of react-admin raw id show links", () => {
+    expect(requestListSource).not.toContain("ShowButton");
+    expect(requestListSource).not.toContain('rowClick="show"');
+    expect(requestListSource).toContain("buildRequestShowPath");
+  });
+
+  it("keeps guarded external links isolated from the opener browsing context", () => {
+    expect(requestShowSource).not.toContain('rel="noreferrer"');
+    expect(requestShowSource).toContain('rel="noopener noreferrer"');
+    expect(requestShowSource).not.toContain("href={href}");
+    expect(requestShowSource).toContain("normalizeSafeExternalHref");
   });
 
   it("renders requests as a triage table instead of a projection aside layout", () => {

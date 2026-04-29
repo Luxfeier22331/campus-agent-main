@@ -505,9 +505,17 @@ async function validateProtectedApiRequest(
       issuer,
       audience,
     });
+    const operatorContext = mapOperatorContext(payload);
+    if (!operatorContext) {
+      return {
+        error: textResponse("Invalid Access JWT.", 401),
+        operatorContext: null,
+      };
+    }
+
     return {
       error: null,
-      operatorContext: mapOperatorContext(payload),
+      operatorContext,
     };
   } catch {
     return {
@@ -577,12 +585,19 @@ function protectionNotConfiguredResponse(missing: string[]): Response {
   });
 }
 
-function mapOperatorContext(payload: JWTPayload): OperatorContext {
-  const subject = String(payload.sub || "");
-  const email = typeof payload.email === "string" ? payload.email : "";
-  const displayName = typeof payload.name === "string" ? payload.name : null;
+function mapOperatorContext(payload: JWTPayload): OperatorContext | null {
+  const subject = typeof payload.sub === "string" ? payload.sub.trim() : "";
+  const email = typeof payload.email === "string" ? payload.email.trim() : "";
+  if (!(email || subject)) {
+    return null;
+  }
+
+  const displayName =
+    typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : null;
   const groups = Array.isArray(payload.groups)
-    ? payload.groups.filter((value): value is string => typeof value === "string" && value.length > 0)
+    ? payload.groups
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        .map((value) => value.trim())
     : [];
 
   return {

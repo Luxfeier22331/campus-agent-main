@@ -19,7 +19,15 @@ async function loadOverview(force = false): Promise<PanelOverviewRecord> {
     );
   }
 
-  return cachedOverviewPromise;
+  const currentPromise = cachedOverviewPromise;
+  try {
+    return await currentPromise;
+  } catch (error) {
+    if (cachedOverviewPromise === currentPromise) {
+      clearOverviewCache();
+    }
+    throw error;
+  }
 }
 
 function clearOverviewCache() {

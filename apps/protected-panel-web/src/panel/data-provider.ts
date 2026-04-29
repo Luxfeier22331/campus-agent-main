@@ -59,6 +59,10 @@ function unsupportedMethod(resource: string, method: string): never {
   });
 }
 
+function encodePathIdentifier(id: Identifier): string {
+  return encodeURIComponent(String(id));
+}
+
 function normalizeFilterValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -261,9 +265,12 @@ async function getOfficialWebRunDetail(
   id: Identifier,
   signal?: AbortSignal,
 ): Promise<{ data: OfficialWebRunRecord }> {
-  const payload = await fetchJson<RawOfficialWebRunDetailResponse>(`/api/official-web/runs/${id}`, {
-    signal,
-  });
+  const payload = await fetchJson<RawOfficialWebRunDetailResponse>(
+    `/api/official-web/runs/${encodePathIdentifier(id)}`,
+    {
+      signal,
+    },
+  );
 
   return {
     data: normalizeOfficialWebRunDetailRecord(payload),
@@ -296,9 +303,12 @@ async function getOfficialWebSiteDetail(
   id: Identifier,
   signal?: AbortSignal,
 ): Promise<{ data: OfficialWebSiteRecord }> {
-  const payload = await fetchJson<RawOfficialWebSiteDetailResponse>(`/api/official-web/sites/${id}`, {
-    signal,
-  });
+  const payload = await fetchJson<RawOfficialWebSiteDetailResponse>(
+    `/api/official-web/sites/${encodePathIdentifier(id)}`,
+    {
+      signal,
+    },
+  );
 
   return {
     data: normalizeOfficialWebSiteDetailRecord(payload),
@@ -309,9 +319,12 @@ async function getRequestDetail(
   id: Identifier,
   signal?: AbortSignal,
 ): Promise<{ data: RequestProjectionRecord }> {
-  const payload = await fetchJson<RawRequestDetailResponse>(`/api/requests/${id}`, {
-    signal,
-  });
+  const payload = await fetchJson<RawRequestDetailResponse>(
+    `/api/requests/${encodePathIdentifier(id)}`,
+    {
+      signal,
+    },
+  );
 
   return {
     data: normalizeRequestRecord(payload.request),
@@ -323,7 +336,7 @@ async function getRequestObservabilityDetail(
   signal?: AbortSignal,
 ): Promise<{ data: RequestObservabilityRecord }> {
   const payload = await fetchJson<RawRequestObservabilityRecord>(
-    `/api/requests/${requestId}/observability`,
+    `/api/requests/${encodePathIdentifier(requestId)}/observability`,
     {
       signal,
     },

@@ -1,14 +1,14 @@
-import { Alert, Card, CardContent, Stack, Typography } from "@mui/material";
+import { Alert, Button, Card, CardContent, Stack, Typography } from "@mui/material";
 import {
   Datagrid,
   DateField,
   FunctionField,
   List,
   SelectInput,
-  ShowButton,
   TextField,
   TextInput,
 } from "react-admin";
+import { Link as RouterLink } from "react-router-dom";
 
 import { PANEL_COPY } from "../panel-copy";
 import { PanelDatagridHeader } from "../panel-datagrid-header";
@@ -17,6 +17,7 @@ import { PanelListActions } from "../panel-list-actions";
 import { PanelPagination } from "../panel-pagination";
 import type { OfficialWebRunRecord } from "../types";
 import { formatOfficialWebRunIntentLabel } from "./official-web-formatters";
+import { buildOfficialWebRunShowPath } from "./official-web-routes";
 import {
   OfficialWebFailureSummary,
   OfficialWebIngestionStatusChip,
@@ -118,7 +119,6 @@ export function OfficialWebRunsListPage() {
         bulkActionButtons={false}
         empty={<OfficialWebRunsEmpty />}
         header={<PanelDatagridHeader />}
-        rowClick="show"
       >
         <TextField label="运行 ID" source="runId" />
         <TextField label="站点" source="siteId" />
@@ -142,7 +142,18 @@ export function OfficialWebRunsListPage() {
         />
         <DateField label="开始时间" locales="zh-CN" showTime source="startedAt" />
         <DateField label="结束时间" locales="zh-CN" showTime source="finishedAt" />
-        <ShowButton label={PANEL_COPY.view} />
+        <FunctionField
+          label={PANEL_COPY.view}
+          render={(record: OfficialWebRunRecord) => (
+            <Button
+              component={RouterLink}
+              size="small"
+              to={buildOfficialWebRunShowPath(record.runId)}
+            >
+              {PANEL_COPY.view}
+            </Button>
+          )}
+        />
       </Datagrid>
     </List>
   );

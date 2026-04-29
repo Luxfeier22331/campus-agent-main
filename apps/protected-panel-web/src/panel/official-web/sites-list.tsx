@@ -1,5 +1,6 @@
-import { Alert, Card, CardContent, Stack, Typography } from "@mui/material";
-import { Datagrid, DateField, FunctionField, List, ShowButton, TextField } from "react-admin";
+import { Alert, Button, Card, CardContent, Stack, Typography } from "@mui/material";
+import { Datagrid, DateField, FunctionField, List, TextField } from "react-admin";
+import { Link as RouterLink } from "react-router-dom";
 
 import { PANEL_COPY } from "../panel-copy";
 import { PanelDatagridHeader } from "../panel-datagrid-header";
@@ -7,6 +8,7 @@ import { PanelListErrorState } from "../panel-list-error";
 import { PanelListActions } from "../panel-list-actions";
 import { PanelPagination } from "../panel-pagination";
 import type { OfficialWebSiteRecord } from "../types";
+import { buildOfficialWebSiteShowPath } from "./official-web-routes";
 import {
   OfficialWebHostsSummary,
   OfficialWebIngestionStatusChip,
@@ -64,7 +66,6 @@ export function OfficialWebSitesListPage() {
         bulkActionButtons={false}
         empty={<OfficialWebSitesEmpty />}
         header={<PanelDatagridHeader />}
-        rowClick="show"
       >
         <TextField label="站点 ID" source="siteId" />
         <TextField label="显示名称" source="displayName" />
@@ -89,7 +90,18 @@ export function OfficialWebSitesListPage() {
         />
         <DateField label="最近成功" locales="zh-CN" showTime source="lastSuccessAt" />
         <DateField label="最近失败" locales="zh-CN" showTime source="lastFailureAt" />
-        <ShowButton label={PANEL_COPY.view} />
+        <FunctionField
+          label={PANEL_COPY.view}
+          render={(record: OfficialWebSiteRecord) => (
+            <Button
+              component={RouterLink}
+              size="small"
+              to={buildOfficialWebSiteShowPath(record.siteId)}
+            >
+              {PANEL_COPY.view}
+            </Button>
+          )}
+        />
       </Datagrid>
     </List>
   );

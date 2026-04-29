@@ -14,6 +14,7 @@ import { Show, useDataProvider, useRecordContext } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { PANEL_COPY, formatPanelBoolean, formatPanelMicrousd } from "../panel-copy";
+import { formatExternalHrefLabel, normalizeSafeExternalHref } from "../panel-safe-links";
 import type { RequestProjectionRecord } from "../types";
 import {
   formatAclDecisionLabel,
@@ -35,12 +36,13 @@ import {
 } from "./request-presenters";
 
 function linkValue(href: string | null, label: string) {
-  if (!href) {
-    return PANEL_COPY.notAvailable;
+  const safeHref = normalizeSafeExternalHref(href);
+  if (!safeHref) {
+    return formatExternalHrefLabel(href);
   }
 
   return (
-    <Link href={href} rel="noreferrer" target="_blank" underline="hover">
+    <Link href={safeHref} rel="noopener noreferrer" target="_blank" underline="hover">
       {label}
     </Link>
   );

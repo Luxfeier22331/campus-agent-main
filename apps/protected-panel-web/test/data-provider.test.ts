@@ -386,6 +386,69 @@ describe("protected panel data provider", () => {
     );
   });
 
+  it("encodes request path identifiers before calling protected detail seams", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        request: {
+          answerPreview: null,
+          completedAt: null,
+          conversationId: "conv_01HQ",
+          durationMs: null,
+          errorCode: null,
+          principalId: "user_01HQ",
+          principalLabel: "Jane Doe",
+          principalType: "campus_member",
+          projectedAt: "2026-03-28T08:00:02.000Z",
+          questionPreview: "路径编码测试",
+          requestId: "req/01?debug=true#frag",
+          requestedCapability: "knowledge",
+          requestedScope: null,
+          selectedTarget: "rag-specialist",
+          sourceDocIds: [],
+          startedAt: "2026-03-28T08:00:00.000Z",
+          status: "completed",
+          surface: "public_chat_web",
+          traceId: "trace_01HQ",
+        },
+      }),
+    );
+
+    await protectedPanelDataProvider.getOne("requests", {
+      id: "req/01?debug=true#frag",
+      meta: undefined,
+      signal: undefined,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/requests/req%2F01%3Fdebug%3Dtrue%23frag",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
+  it("encodes request observability path identifiers before calling protected seams", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(createJsonResponse({}));
+
+    await protectedPanelDataProvider.getRequestObservability({
+      requestId: "req/01?debug=true#frag",
+      signal: undefined,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/requests/req%2F01%3Fdebug%3Dtrue%23frag/observability",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
   it("maps official web run filters onto the protected same-site runtime seam", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createJsonResponse({
@@ -707,5 +770,99 @@ describe("protected panel data provider", () => {
         runIntent: "repair",
       },
     });
+  });
+
+  it("encodes official web detail path identifiers before calling protected seams", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          freshnessBacklog: {
+            deletedPages: [],
+            duePages: [],
+            failedFetchPages: [],
+            hotPages: [],
+          },
+          freshnessSummary: {
+            changedLast24h: 0,
+            deletedPages: 0,
+            duePages: 0,
+            failedFetchPages: 0,
+            hotPages: 0,
+            repairPages: 0,
+            totalPages: 0,
+          },
+          recentPageChanges: [],
+          recentRuns: [],
+          site: {
+            displayName: "Encoded Site",
+            hostRoots: ["www.muc.edu.cn"],
+            lastFailureAt: null,
+            lastSuccessAt: null,
+            latestCollectorVersion: null,
+            latestConfigVersion: null,
+            latestIngestionDispatchStatus: null,
+            latestRunId: null,
+            latestRunStatus: null,
+            projectedAt: "2026-03-29T08:17:33.000Z",
+            siteId: "site/01?debug=true#frag",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          pageChangeSummary: {},
+          pageChanges: [],
+          run: {
+            artifacts: [],
+            collectorVersion: null,
+            configVersion: null,
+            failureCount: 0,
+            finishedAt: null,
+            ingestionDispatchRef: null,
+            ingestionDispatchStatus: "queued",
+            lastHeartbeatAt: null,
+            projectedAt: "2026-03-29T08:17:33.000Z",
+            runId: "run/01?debug=true#frag",
+            runIntent: "baseline",
+            siteId: "site_01",
+            startedAt: "2026-03-29T08:00:01.000Z",
+            status: "accepted",
+            summary: null,
+          },
+        }),
+      );
+
+    await protectedPanelDataProvider.getOne("officialWebSites", {
+      id: "site/01?debug=true#frag",
+      meta: undefined,
+      signal: undefined,
+    });
+    await protectedPanelDataProvider.getOne("officialWebRuns", {
+      id: "run/01?debug=true#frag",
+      meta: undefined,
+      signal: undefined,
+    });
+
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      1,
+      "/api/official-web/sites/site%2F01%3Fdebug%3Dtrue%23frag",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "/api/official-web/runs/run%2F01%3Fdebug%3Dtrue%23frag",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
   });
 });

@@ -666,6 +666,60 @@ describe("protected panel web worker shell", () => {
     }
   });
 
+  it("rejects signed access assertions that do not carry a stable operator identity", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-overview-empty-identity.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ email: "   ", sub: "   " })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-operator-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/api/overview", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          APP_API: {
+            fetch: async () => new Response(null, { status: 204 }),
+          },
+          ACCESS_POLICY_AUD: "panel-operator-audience",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        },
+      );
+
+      expect(response.status).toBe(401);
+      await expect(response.text()).resolves.toBe("Invalid Access JWT.");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("accepts a valid CF_Authorization cookie as an equivalent signed access assertion", async () => {
     const originalFetch = globalThis.fetch;
     const accessTeamDomain = "https://team-overview-cookie.cloudflareaccess.com";

@@ -32,6 +32,44 @@ function createPanelError(status: number, code?: string) {
   };
 }
 
+function createOverviewResponse(operatorContext: {
+  display_name: string | null;
+  email: string | null;
+  operator_id: string;
+  subject: string;
+}): Response {
+  return new Response(
+    JSON.stringify({
+      app_name: "campus-agent-v2-protected-panel",
+      operator_context: {
+        groups: [],
+        principal_class: "human",
+        ...operatorContext,
+      },
+      panel_domains: {
+        audit: "blocked",
+        jobs: "blocked",
+        official_web: "ready",
+        operations: "deferred",
+        overview: "ready",
+        requests: "ready",
+      },
+      protected_hostname: "campus-panel-staging.ayafeed.com",
+      protection_envelope: "cloudflare-access",
+      runtime: "cloudflare-worker",
+      runtime_api_base_url: "https://app-api.internal",
+      status: "ok",
+      surface: "protected-panel-web",
+    }),
+    {
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+      },
+      status: 200,
+    },
+  );
+}
+
 describe("protected panel auth provider", () => {
   const originalWindow = globalThis.window;
 
@@ -113,5 +151,29 @@ describe("protected panel auth provider", () => {
       "https://campus-panel-staging.ayafeed.com/cdn-cgi/access/logout",
     );
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("does not poison the overview identity cache after a transient failed identity lookup", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("temporary network failure"))
+      .mockResolvedValueOnce(
+        createOverviewResponse({
+          display_name: "值班老师",
+          email: "ops@example.com",
+          operator_id: "ops@example.com",
+          subject: "operator-001",
+        }),
+      );
+
+    await expect(protectedPanelAuthProvider.getIdentity?.()).rejects.toThrow(
+      "temporary network failure",
+    );
+
+    await expect(protectedPanelAuthProvider.getIdentity?.()).resolves.toEqual({
+      fullName: "值班老师",
+      id: "ops@example.com",
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });

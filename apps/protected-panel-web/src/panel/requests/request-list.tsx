@@ -1,4 +1,4 @@
-import { Alert, Box, Card, CardContent, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Stack, Typography } from "@mui/material";
 import {
   DatagridConfigurable,
   DateField,
@@ -7,11 +7,11 @@ import {
   FunctionField,
   List,
   SelectInput,
-  ShowButton,
   TextField,
   TextInput,
   TopToolbar,
 } from "react-admin";
+import { Link as RouterLink } from "react-router-dom";
 
 import { PANEL_COPY } from "../panel-copy";
 import { PanelDatagridHeader } from "../panel-datagrid-header";
@@ -28,6 +28,7 @@ import {
   RequestStatusChip,
   RequestSurfaceLabel,
 } from "./request-presenters";
+import { buildRequestShowPath } from "./request-routes";
 
 export const REQUEST_STATUS_CHOICES = [
   { id: "accepted", name: PANEL_COPY.requestStatus.accepted },
@@ -181,7 +182,6 @@ export function RequestListPage() {
           header={<PanelDatagridHeader />}
           omit={["requestId", "traceId", "conversationId", "surface", "requestedCapability"]}
           preferenceKey={REQUEST_LIST_PREFERENCE_KEY}
-          rowClick="show"
         >
           <DateField
             label={PANEL_COPY.requestsList.columns.startedAt}
@@ -227,7 +227,18 @@ export function RequestListPage() {
             render={(record: RequestProjectionRecord) => formatDuration(record.durationMs)}
             source="durationMs"
           />
-          <ShowButton label={PANEL_COPY.view} />
+          <FunctionField
+            label={PANEL_COPY.view}
+            render={(record: RequestProjectionRecord) => (
+              <Button
+                component={RouterLink}
+                size="small"
+                to={buildRequestShowPath(record.requestId)}
+              >
+                {PANEL_COPY.view}
+              </Button>
+            )}
+          />
 
           <TextField label={PANEL_COPY.requestsList.columns.requestId} source="requestId" />
           <TextField label={PANEL_COPY.requestsList.columns.traceId} source="traceId" />

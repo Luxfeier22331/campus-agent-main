@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-11
-updated: 2026-04-12
+updated: 2026-04-29
 ---
 
 # Public Chat Web Donor Diff Classification
@@ -55,6 +55,11 @@ upstream donor 根目录存在但 vendor landing zone 不承接的 meta-only 路
 - `.vscode/extensions.json`
 - `.vscode/settings.json`
 
+generated donor path 中按上游框架约定忽略、且不进入 vendor diff baseline 的路径如下：
+
+- `next-env.d.ts`：Next.js typegen 生成文件，当前 vendor snapshot 不承接 Next runtime
+  typegen output
+
 ## Accepted Product Diffs
 
 这些路径仍然对 donor 有 diff，但它们承载的是产品边界或 accepted runtime behavior，不是 historical debt。
@@ -83,7 +88,6 @@ upstream donor 根目录存在但 vendor landing zone 不承接的 meta-only 路
 | `components/chat/document-preview.tsx` | `RefObject` 类型需要对齐当前 React/TS nullability |
 | `components/chat/sidebar-history.tsx` | pagination key 与 pathname 读取需要对齐当前 TS nullability |
 | `components/chat/toolbar.tsx` | toolbar ref / timeout typing 需要对齐当前 React/TS runtime |
-| `next-env.d.ts` | vendored donor tree 当前只保留 Next 类型兼容最小入口，不追随 donor dev-only route type path |
 
 ## Exact Compat Seam Owners
 
