@@ -141,6 +141,207 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	}
 }
 
+func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testing.T) {
+	response, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "campus-services-agent",
+			"status":      "completed",
+			"answer_text": "校园卡服务当前正常。",
+			"confidence":  "high",
+			"result": map[string]any{
+				"outcome":             "resolved_current",
+				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},
+			},
+			"agent_observability": map[string]any{
+				"selected_tool":    "service_status_lookup",
+				"tool_attempted":   true,
+				"tool_outcome":     "resolved_current",
+				"source_ref_count": float64(1),
+				"access_decision":  "allowed",
+				"safe_details": map[string]any{
+					"agent_plan": map[string]any{
+						"schema_version":        "agent-local-plan-v1",
+						"planner":               "deterministic_payload_router",
+						"selected_tool":         "service_status_lookup",
+						"payload_kind":          "service_status_lookup",
+						"tool_selection_reason": "typed_payload_allowed_tool",
+					},
+					"result_guardrail": map[string]any{
+						"schema_version":   "agent-result-guardrail-v1",
+						"outcome":          "source_backed",
+						"source_ref_count": float64(1),
+						"access_decision":  "allowed",
+					},
+				},
+			},
+		},
+		"trace-finalizer-tool-calls",
+		supervisorFinalizerContext{
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				ScopeGateDecision:     "allow",
+				PolicyGateDecision:    "allow",
+				ContextPreflightState: "not_follow_up",
+				RoutingNextAction:     "delegate",
+				PlanningOutcome:       "preplanned",
+				SelectedTarget:        "campus-services-agent",
+				SelectedTool:          "service_status_lookup",
+				RuntimeVersions: map[string]any{
+					"supervisor_api_runtime": "go-runtime-control-plane-v1",
+				},
+				PolicyArtifactVersions: map[string]any{
+					"intent_classifier": "go-runtime-policy-v2",
+				},
+			},
+			Handoff: &execution.RuntimeHandoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "service_status_lookup",
+				Payload:      map[string]any{"campus_scope": "haidian", "subject_query": "校园卡服务"},
+				AllowedTools: []string{"transport_schedule_lookup", "service_status_lookup"},
+			},
+			Branch:       "delegate",
+			SelectedTool: "service_status_lookup",
+		},
+	)
+	if err != nil {
+		t.Fatalf("finalize returned error: %v", err)
+	}
+	traceSummary := response["workflow_trace_summary"].(map[string]any)
+	selectedTools, ok := traceSummary["selected_tools"].([]string)
+	if !ok || len(selectedTools) != 1 || selectedTools[0] != "service_status_lookup" {
+		t.Fatalf("selected_tools = %#v, want actual service_status_lookup only", traceSummary["selected_tools"])
+	}
+	toolCalls, ok := traceSummary["tool_call_summaries"].([]map[string]any)
+	if !ok || len(toolCalls) != 1 {
+		t.Fatalf("tool_call_summaries = %#v, want one tool call", traceSummary["tool_call_summaries"])
+	}
+	toolCall := toolCalls[0]
+	if toolCall["tool_name"] != "service_status_lookup" {
+		t.Fatalf("tool_name = %v, want service_status_lookup", toolCall["tool_name"])
+	}
+	if toolCall["result_status"] != "completed" {
+		t.Fatalf("result_status = %v, want completed", toolCall["result_status"])
+	}
+	if toolCall["business_outcome"] != "resolved_current" {
+		t.Fatalf("business_outcome = %v, want resolved_current", toolCall["business_outcome"])
+	}
+	sourceIDs, ok := toolCall["source_ids"].([]string)
+	if !ok || len(sourceIDs) != 1 || sourceIDs[0] != "notice:muc_internal_portal:353903" {
+		t.Fatalf("source_ids = %#v, want notice source ref", toolCall["source_ids"])
+	}
+	argumentSummary, ok := toolCall["argument_summary"].(map[string]any)
+	if !ok || argumentSummary["campus_scope"] != "haidian" {
+		t.Fatalf("argument_summary = %#v, want safe handoff args", toolCall["argument_summary"])
+	}
+	traceSteps, ok := traceSummary["trace_steps"].([]map[string]any)
+	if !ok || len(traceSteps) < 4 {
+		t.Fatalf("trace_steps = %#v, want runtime/handoff/tool/finalization steps", traceSummary["trace_steps"])
+	}
+	if traceSteps[0]["span_kind"] != "runtime_policy" || traceSteps[0]["parent_step_id"] != "" {
+		t.Fatalf("runtime_policy step = %#v, want root runtime_policy span", traceSteps[0])
+	}
+	if traceSteps[2]["span_kind"] != "tool_call" ||
+		traceSteps[2]["parent_step_id"] != "handoff" ||
+		traceSteps[2]["result_status"] != "completed" ||
+		traceSteps[2]["retry_count"] != 0 {
+		t.Fatalf("tool_call step = %#v, want timeline tool span", traceSteps[2])
+	}
+	if traceSteps[3]["span_kind"] != "finalization" || traceSteps[3]["parent_step_id"] != "tool_call" {
+		t.Fatalf("finalization step = %#v, want finalization child of tool_call", traceSteps[3])
+	}
+	safeDetails, ok := toolCall["safe_details"].(map[string]any)
+	if !ok {
+		t.Fatalf("tool safe_details = %#v, want object", toolCall["safe_details"])
+	}
+	agentPlan, ok := safeDetails["agent_plan"].(map[string]any)
+	if !ok || agentPlan["schema_version"] != "agent-local-plan-v1" {
+		t.Fatalf("agent_plan = %#v, want versioned agent plan", safeDetails["agent_plan"])
+	}
+	resultGuardrail, ok := safeDetails["result_guardrail"].(map[string]any)
+	if !ok || resultGuardrail["outcome"] != "source_backed" {
+		t.Fatalf("result_guardrail = %#v, want source-backed result guardrail", safeDetails["result_guardrail"])
+	}
+	runtimeVersions, ok := traceSummary["runtime_versions"].(map[string]any)
+	if !ok || runtimeVersions["supervisor_api_runtime"] != "go-runtime-control-plane-v1" {
+		t.Fatalf("runtime_versions = %#v, want supervisor_api_runtime", traceSummary["runtime_versions"])
+	}
+	policyVersions, ok := traceSummary["policy_artifact_versions"].(map[string]any)
+	if !ok || policyVersions["intent_classifier"] != "go-runtime-policy-v2" {
+		t.Fatalf("policy_artifact_versions = %#v, want intent_classifier", traceSummary["policy_artifact_versions"])
+	}
+}
+
+func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing.T) {
+	context := finalizerContextFromExecutionRequest(
+		execution.AnswerExecutionRequest{
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				SelectedTool: "retrieval.query",
+				RuntimeVersions: map[string]any{
+					"bridge_contract": "supervisor_bridge_v6",
+				},
+				PolicyArtifactVersions: map[string]any{
+					"intent_case_set": "intent-case-set-v2",
+				},
+			},
+		},
+		"delegate",
+	)
+
+	if context.RuntimeVersions["bridge_contract"] != "supervisor_bridge_v6" {
+		t.Fatalf("runtime versions = %#v, want bridge contract", context.RuntimeVersions)
+	}
+	if context.PolicyVersions["intent_case_set"] != "intent-case-set-v2" {
+		t.Fatalf("policy versions = %#v, want intent case set", context.PolicyVersions)
+	}
+}
+
+func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t *testing.T) {
+	clarification := terminalSupervisorResponse(
+		map[string]any{
+			"selected_target": "campus-services-agent",
+			"status":          "needs_clarification",
+			"result": map[string]any{
+				"clarification_reason": "route_direction_required",
+			},
+		},
+		"trace-terminal-clarification",
+		supervisorFinalizerContext{
+			Branch: "terminal",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				PlanningOutcome:       "not_preplanned",
+				RoutingNextAction:     "clarify",
+				ContextPreflightState: "missing_context",
+			},
+		},
+	)
+	clarificationTrace := clarification["workflow_trace_summary"].(map[string]any)
+	if clarificationTrace["direct_vs_delegate_branch"] != "clarification" {
+		t.Fatalf("clarification branch = %v, want clarification", clarificationTrace["direct_vs_delegate_branch"])
+	}
+
+	failClose := terminalSupervisorResponse(
+		map[string]any{
+			"selected_target": "campus-services-agent",
+			"status":          "no_answer",
+			"result": map[string]any{
+				"fail_close_reason": "transactional_action_not_supported",
+			},
+		},
+		"trace-terminal-fail-close",
+		supervisorFinalizerContext{
+			Branch: "terminal",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				FailCloseReason:   "transactional_action_not_supported",
+				PlanningOutcome:   "not_preplanned",
+				RoutingNextAction: "rejected",
+			},
+		},
+	)
+	failCloseTrace := failClose["workflow_trace_summary"].(map[string]any)
+	if failCloseTrace["direct_vs_delegate_branch"] != "fail_close" {
+		t.Fatalf("fail-close branch = %v, want fail_close", failCloseTrace["direct_vs_delegate_branch"])
+	}
+}
+
 func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{

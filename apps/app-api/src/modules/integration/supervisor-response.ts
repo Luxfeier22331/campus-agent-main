@@ -1,5 +1,9 @@
 import { summarizeObservedSources } from "../source-trace";
 
+import {
+	SUPERVISOR_STATUSES,
+	type SupervisorExecutionResponseWire,
+} from "./generated/supervisor-execution-contract";
 import type {
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
@@ -34,6 +38,10 @@ function normalizeNullableNumber(value: unknown): number | null {
 
 function normalizeNullableString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value : null;
+}
+
+function isSupervisorStatus(value: unknown): value is SupervisorExecutionResponse["status"] {
+	return typeof value === "string" && (SUPERVISOR_STATUSES as readonly string[]).includes(value);
 }
 
 function normalizeRecordString(
@@ -268,11 +276,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 				return step ? [step] : [];
 			})
 		: [];
-	const toolCallSummariesValue = recordValue(
-		record,
-		"tool_call_summaries",
-		"toolCallSummaries",
-	);
+	const toolCallSummariesValue = recordValue(record, "tool_call_summaries", "toolCallSummaries");
 	const toolCallSummaries = Array.isArray(toolCallSummariesValue)
 		? toolCallSummariesValue.flatMap((item) => {
 				const summary = getRecord(item);
@@ -327,7 +331,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 }
 
 export function parseSupervisorExecutionResponsePayload(
-	parsed: Record<string, unknown> | null | undefined,
+	parsed: (Partial<SupervisorExecutionResponseWire> & Record<string, unknown>) | null | undefined,
 	fallbackTraceId: string,
 ): SupervisorExecutionResponse {
 	const workflowTraceSummary = parseWorkflowTraceSummary(
@@ -373,15 +377,7 @@ export function parseSupervisorExecutionResponsePayload(
 				: typeof parsed?.selectedTarget === "string"
 					? parsed.selectedTarget
 					: null,
-		status:
-			parsed?.status === "needs_clarification" ||
-			parsed?.status === "no_answer" ||
-			parsed?.status === "error" ||
-			parsed?.status === "approval_required" ||
-			parsed?.status === "rejected" ||
-			parsed?.status === "cancelled"
-				? parsed.status
-				: "completed",
+		status: isSupervisorStatus(parsed?.status) ? parsed.status : "completed",
 		traceId:
 			typeof parsed?.trace_id === "string"
 				? parsed.trace_id

@@ -2,6 +2,7 @@ import type { ExecutionActorContext, ExecutionAuthorizationContext } from "../au
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import type { VersionQuery } from "../version-query";
+import type { SupervisorStatus } from "./generated/supervisor-execution-contract";
 
 export interface RequestedScope {
 	corpus: string;
@@ -126,8 +127,8 @@ export interface SupervisorExecutionWorkflowTraceSummary {
 	selectedTarget: string | null;
 	selectedTools: string[];
 	toolArgumentSummary: Record<string, unknown>;
-	traceSteps: Record<string, unknown>[];
-	toolCallSummaries: Record<string, unknown>[];
+	traceSteps?: Record<string, unknown>[];
+	toolCallSummaries?: Record<string, unknown>[];
 }
 
 export interface SupervisorExecutionResponse {
@@ -141,14 +142,7 @@ export interface SupervisorExecutionResponse {
 	observability?: SupervisorExecutionObservability | null;
 	result: unknown;
 	selectedTarget: string | null;
-	status:
-		| "completed"
-		| "needs_clarification"
-		| "no_answer"
-		| "error"
-		| "approval_required"
-		| "rejected"
-		| "cancelled";
+	status: SupervisorStatus;
 	traceId: string;
 	workflowTraceSummary?: SupervisorExecutionWorkflowTraceSummary | null;
 }

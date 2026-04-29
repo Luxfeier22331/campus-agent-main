@@ -43,6 +43,7 @@
 		"mode": "current"
 	},
 	"runtime_decisions": {
+		"schema_version": "supervisor-runtime-decisions-v1",
 		"effective_capability": "knowledge",
 		"lane": "rag",
 		"scope_gate": {
@@ -68,6 +69,7 @@
 			"policy_version": "runtime-policy-v1"
 		},
 		"runtime_decision_summary": {
+			"schema_version": "runtime-decision-summary-v1",
 			"scope_gate_decision": "in_scope",
 			"policy_gate_decision": "delegate",
 			"context_preflight_state": "not_follow_up",

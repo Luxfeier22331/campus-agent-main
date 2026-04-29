@@ -7,6 +7,7 @@ from campus_contracts import (
     AgentRequest,
     SupervisorRequest,
 )
+from pydantic import ValidationError
 
 from campus_supervisor_agent_worker.bridge_actor_codecs import parse_actor_context
 from campus_supervisor_agent_worker.bridge_context_projection_codecs import (
@@ -27,6 +28,12 @@ from campus_supervisor_agent_worker.bridge_trace_codecs import (
     parse_trace_context,
     parse_version_query,
 )
+from campus_supervisor_agent_worker.generated.supervisor_execution_contract import (
+    BRIDGE_VERSION,
+    RESPONSE_CONTRACT,
+    RUNTIME_DECISIONS_SCHEMA_VERSION,
+    BridgeV6RequestWire,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +44,11 @@ class BridgeSupervisorEnvelope:
 
 
 def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSupervisorEnvelope:
+    try:
+        wire_payload = BridgeV6RequestWire.model_validate(payload).model_dump(mode="python")
+    except ValidationError as exc:
+        raise ValueError(_wire_validation_error(exc)) from exc
+    payload = wire_payload
     _require_bridge_version(payload.get("bridge_version"))
     _require_response_contract(payload.get("response_contract"))
     effective_capability = _parse_effective_capability(payload)
@@ -77,14 +89,14 @@ def parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuperv
 
 def _require_bridge_version(raw_version: object) -> None:
     bridge_version = require_string(raw_version, field_name="bridge_version")
-    if bridge_version != "supervisor_bridge_v6":
-        raise ValueError("bridge_version must be supervisor_bridge_v6")
+    if bridge_version != BRIDGE_VERSION:
+        raise ValueError(f"bridge_version must be {BRIDGE_VERSION}")
 
 
 def _require_response_contract(raw_contract: object) -> None:
     response_contract = require_string(raw_contract, field_name="response_contract")
-    if response_contract != "agent_response":
-        raise ValueError("response_contract must be agent_response")
+    if response_contract != RESPONSE_CONTRACT:
+        raise ValueError(f"response_contract must be {RESPONSE_CONTRACT}")
 
 
 def _parse_effective_capability(payload: dict[str, object]) -> str:
@@ -113,6 +125,14 @@ def _parse_runtime_decisions(
     request: SupervisorRequest,
 ) -> tuple[AgentRequest, dict[str, object]]:
     decisions = require_object(raw_decisions, field_name="runtime_decisions")
+    schema_version = require_string(
+        decisions.get("schema_version"),
+        field_name="runtime_decisions.schema_version",
+    )
+    if schema_version != RUNTIME_DECISIONS_SCHEMA_VERSION:
+        raise ValueError(
+            "runtime_decisions.schema_version must be " + RUNTIME_DECISIONS_SCHEMA_VERSION
+        )
     decision_capability = require_string(
         decisions.get("effective_capability"),
         field_name="runtime_decisions.effective_capability",
@@ -291,3 +311,12 @@ def _assert_agent_request_matches_supervisor_request(
         )
     if agent_request.context != request.context:
         raise ValueError("runtime_decisions.handoff.agent_request.context must match context")
+
+
+def _wire_validation_error(exc: ValidationError) -> str:
+    first_error = exc.errors()[0] if exc.errors() else {}
+    location = ".".join(str(part) for part in first_error.get("loc", ()) if str(part))
+    if not location:
+        location = "bridge_request"
+    message = str(first_error.get("msg") or "invalid bridge request")
+    return f"{location}: {message}"

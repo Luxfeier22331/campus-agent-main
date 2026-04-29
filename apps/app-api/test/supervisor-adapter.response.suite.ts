@@ -185,6 +185,38 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 								tool_argument_summary: {
 									collection: "student_rules",
 								},
+								trace_steps: [
+									{
+										outcome: "delegate",
+										parent_step_id: "",
+										span_kind: "runtime_policy",
+										step_id: "runtime_policy",
+									},
+									{
+										outcome: "completed",
+										parent_step_id: "handoff",
+										result_status: "completed",
+										retry_count: 0,
+										span_kind: "tool_call",
+										step_id: "tool_call",
+										tool_name: "retrieval.query",
+									},
+									{
+										outcome: "completed",
+										parent_step_id: "tool_call",
+										result_status: "completed",
+										span_kind: "finalization",
+										step_id: "finalization",
+									},
+								],
+								tool_call_summaries: [
+									{
+										business_outcome: "grounded_answer",
+										result_status: "completed",
+										source_ids: ["handbook:library-hours"],
+										tool_name: "retrieval.query",
+									},
+								],
 								guardrail_outcomes: {
 									scope_gate: "allow",
 								},
@@ -306,6 +338,38 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				toolArgumentSummary: {
 					collection: "student_rules",
 				},
+				toolCallSummaries: [
+					{
+						business_outcome: "grounded_answer",
+						result_status: "completed",
+						source_ids: ["handbook:library-hours"],
+						tool_name: "retrieval.query",
+					},
+				],
+				traceSteps: [
+					{
+						outcome: "delegate",
+						parent_step_id: "",
+						span_kind: "runtime_policy",
+						step_id: "runtime_policy",
+					},
+					{
+						outcome: "completed",
+						parent_step_id: "handoff",
+						result_status: "completed",
+						retry_count: 0,
+						span_kind: "tool_call",
+						step_id: "tool_call",
+						tool_name: "retrieval.query",
+					},
+					{
+						outcome: "completed",
+						parent_step_id: "tool_call",
+						result_status: "completed",
+						span_kind: "finalization",
+						step_id: "finalization",
+					},
+				],
 			},
 			result: {
 				evidence: {

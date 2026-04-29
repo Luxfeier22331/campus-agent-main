@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-25
+updated: 2026-04-29
 ---
 # App API Supervisor Execution Contract
 
@@ -31,6 +31,38 @@ updated: 2026-04-25
 - execution engine runtime 必须采用哪种 Python/HTTP 框架
 - Docker 镜像构建细节、容器编排平台与 repo-level staging hostname
 - public entry Worker 对 `apps/supervisor-api` 的现有 Cloudflare ingress contract
+
+## Machine-Readable Contract Source
+
+`app-api -> supervisor-api -> supervisor-agent-worker` 的 execution /
+bridge wrapper 以机器可读 schema 为 canonical source：
+
+- `docs/contracts/schemas/supervisor-execution.openapi.yaml`：OpenAPI 3.1.1 +
+  JSON Schema 2020-12，冻结 internal supervisor execution request / response、
+  bridge v6 envelope、runtime decisions summary 与 workflow trace summary 的 wire shape
+- `scripts/generate_supervisor_execution_contracts.py`：从上述 schema 生成三种 runtime
+  artifact
+- `apps/app-api/src/modules/integration/generated/supervisor-execution-contract.ts`：Worker
+  adapter 消费的 TS wire enum / interface
+- `apps/supervisor-api/internal/contracts/supervisor_execution_contract.go`：Go
+  execution runtime 消费的 bridge version、response contract 与 wire DTO
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/generated/supervisor_execution_contract.py`：
+  Python private semantic worker 消费的 Pydantic DTO
+
+生成物必须通过以下命令保持同步：
+
+```bash
+pnpm contracts:check
+```
+
+这条 check 已接入 `multi-agent-runtime-contract` eval gate。凡是修改 schema、bridge
+version、runtime decision schema version、status enum 或 terminal response shape，都必须先更新
+canonical schema，再重新生成 artifact。
+
+`packages/contracts/schemas/agent-handoff.v1.schema.json` 只冻结 supervisor -> agent
+handoff 的 `AgentRequest` / `AgentResponse`。它不承载 `runtime_decisions`、
+`supervisor_bridge_v6` 或具体 transport wrapper，避免把 execution runtime truth 泄漏进共享
+agent contract 包。
 
 ## 设计原则
 

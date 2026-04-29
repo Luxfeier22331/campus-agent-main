@@ -7,11 +7,14 @@ import (
 	"slices"
 	"strings"
 
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
 )
 
 const defaultPolicyProjectionVersion = "phase1-authorization-projection-v1"
+const RuntimeDecisionsSchemaVersion = contractsv1.RuntimeDecisionsSchemaVersion
+const RuntimeDecisionSummarySchemaVersion = contractsv1.RuntimeDecisionSummarySchemaVersion
 
 type HTTPError struct {
 	Status    int
@@ -33,29 +36,45 @@ type AnswerExecutionRequest struct {
 }
 
 type RuntimeDecisionSummary struct {
-	ScopeGateDecision     string
-	PolicyGateDecision    string
-	ContextPreflightState string
-	RoutingNextAction     string
-	PlanningOutcome       string
-	SelectedTarget        string
-	SelectedTool          string
-	TerminalOutcome       string
-	FailCloseReason       string
+	ScopeGateDecision      string
+	PolicyGateDecision     string
+	ContextPreflightState  string
+	RoutingNextAction      string
+	PlanningOutcome        string
+	SelectedTarget         string
+	SelectedTool           string
+	TerminalOutcome        string
+	FailCloseReason        string
+	RuntimeVersions        map[string]any
+	PolicyArtifactVersions map[string]any
 }
 
 func (s RuntimeDecisionSummary) Map() map[string]any {
 	return map[string]any{
-		"scope_gate_decision":     s.ScopeGateDecision,
-		"policy_gate_decision":    s.PolicyGateDecision,
-		"context_preflight_state": s.ContextPreflightState,
-		"routing_next_action":     s.RoutingNextAction,
-		"planning_outcome":        s.PlanningOutcome,
-		"selected_target":         s.SelectedTarget,
-		"selected_tool":           s.SelectedTool,
-		"terminal_outcome":        s.TerminalOutcome,
-		"fail_close_reason":       s.FailCloseReason,
+		"schema_version":           RuntimeDecisionSummarySchemaVersion,
+		"scope_gate_decision":      s.ScopeGateDecision,
+		"policy_gate_decision":     s.PolicyGateDecision,
+		"context_preflight_state":  s.ContextPreflightState,
+		"routing_next_action":      s.RoutingNextAction,
+		"planning_outcome":         s.PlanningOutcome,
+		"selected_target":          s.SelectedTarget,
+		"selected_tool":            s.SelectedTool,
+		"terminal_outcome":         s.TerminalOutcome,
+		"fail_close_reason":        s.FailCloseReason,
+		"runtime_versions":         cloneAnyMap(s.RuntimeVersions),
+		"policy_artifact_versions": cloneAnyMap(s.PolicyArtifactVersions),
 	}
+}
+
+func cloneAnyMap(source map[string]any) map[string]any {
+	if source == nil {
+		return map[string]any{}
+	}
+	clone := make(map[string]any, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
 }
 
 type RuntimeHandoff struct {
@@ -302,8 +321,8 @@ func ParseAnswerRequestWithIntentPolicy(
 	)
 
 	bridgePayload := map[string]any{
-		"bridge_version":       "supervisor_bridge_v6",
-		"response_contract":    "agent_response",
+		"bridge_version":       contractsv1.BridgeVersion,
+		"response_contract":    contractsv1.ResponseContract,
 		"user_goal":            userGoal,
 		"conversation_id":      conversationID,
 		"request_id":           requestID,

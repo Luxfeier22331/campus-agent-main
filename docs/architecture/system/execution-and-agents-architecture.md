@@ -109,6 +109,10 @@ Docker-side Go runtime control plane 长期负责：
   Python bridge hardcut 到 `supervisor_bridge_v6`，缺失 Go-owned
   `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
   Python worker 不再重复做 capability keyword inference
+- `app-api -> supervisor-api -> supervisor-agent-worker` 的 execution / bridge wrapper
+  由 `docs/contracts/schemas/supervisor-execution.openapi.yaml` 作为 OpenAPI 3.1.1
+  canonical schema，并生成 TS / Go / Python runtime artifact；`packages/contracts`
+  只承载 stable `AgentRequest` / `AgentResponse` handoff schema
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，
@@ -191,6 +195,9 @@ Python semantic orchestration 长期继续负责：
 固定边界：
 
 - Go runtime type 不进入 `packages/contracts`
+- execution wrapper schema 不进入 `packages/contracts`；只以
+  `docs/contracts/schemas/supervisor-execution.openapi.yaml` 及生成物约束跨语言 wire
+  shape
 - Go 不接管 `apps/app-api` 的 product-layer auth/session/conversation truth
 - Go 不接管 ingestion、OCR、chunking、index build 或 retrieval backend 细节
 - structured deterministic query service 和 opened direct answer path 可以迁 Go；

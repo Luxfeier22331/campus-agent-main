@@ -22,6 +22,7 @@ import {
 	buildRequestDiagnosticEntries,
 	buildRequestIntentEntries,
 	buildRequestReplayEntries,
+	buildRequestWorkflowTraceEntries,
 	formatAclDecisionLabel,
 	formatCapabilityLabel,
 	formatDuration,
@@ -192,6 +193,7 @@ function RequestShowContent() {
 	const auditSummary = observabilityRecord?.auditSummary ?? null;
 	const intentEntries = buildRequestIntentEntries(observability?.intent);
 	const replayEntries = buildRequestReplayEntries(observabilityRecord?.replay);
+	const workflowTraceEntries = buildRequestWorkflowTraceEntries(workflowTrace);
 
 	return (
 		<PanelPage>
@@ -538,6 +540,26 @@ function RequestShowContent() {
 											/>
 										</Stack>
 									</Box>
+									{workflowTraceEntries.length > 0 ? (
+										<Box
+											sx={{
+												display: "grid",
+												gap: 2,
+												gridTemplateColumns: {
+													md: "repeat(2, minmax(0, 1fr))",
+													xs: "1fr",
+												},
+											}}
+										>
+											{workflowTraceEntries.map((entry) => (
+												<RequestFieldRow
+													key={entry.label}
+													label={entry.label}
+													value={entry.value}
+												/>
+											))}
+										</Box>
+									) : null}
 								</Stack>
 							</CardContent>
 						</Card>
