@@ -273,4 +273,67 @@ export function registerDataProviderRequestsSuite() {
 			status: 400,
 		});
 	});
+
+	it("encodes request path identifiers before calling protected detail seams", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				request: {
+					answerPreview: null,
+					completedAt: null,
+					conversationId: "conv_01HQ",
+					durationMs: null,
+					errorCode: null,
+					principalId: "user_01HQ",
+					principalLabel: "Jane Doe",
+					principalType: "campus_member",
+					projectedAt: "2026-03-28T08:00:02.000Z",
+					questionPreview: "路径编码测试",
+					requestId: "req/01?debug=true#frag",
+					requestedCapability: "knowledge",
+					requestedScope: null,
+					selectedTarget: "rag-agent",
+					sourceDocIds: [],
+					startedAt: "2026-03-28T08:00:00.000Z",
+					status: "completed",
+					surface: "public_chat_web",
+					traceId: "trace_01HQ",
+				},
+			}),
+		);
+
+		await protectedPanelDataProvider.getOne("requests", {
+			id: "req/01?debug=true#frag",
+			meta: undefined,
+			signal: undefined,
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/requests/req%2F01%3Fdebug%3Dtrue%23frag",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("encodes request observability path identifiers before calling protected seams", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(createJsonResponse({}));
+
+		await protectedPanelDataProvider.getRequestObservability({
+			requestId: "req/01?debug=true#frag",
+			signal: undefined,
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/requests/req%2F01%3Fdebug%3Dtrue%23frag/observability",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
 }
