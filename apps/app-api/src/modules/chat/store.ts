@@ -5,9 +5,9 @@ import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runt
 import { conversations, messageFeedback, messages, sessionSlots } from "../../db/schema";
 import {
 	type ChatConversation,
-	type ChatMessageFeedback,
 	type ChatConversationSummary,
 	type ChatMessage,
+	type ChatMessageFeedback,
 	type ChatSessionSlot,
 	normalizeChatStructuredParts,
 } from "./model";
@@ -159,9 +159,7 @@ async function loadFeedbackTarget(input: {
 	const messageRows = await input.db
 		.select()
 		.from(messages)
-		.where(
-			and(eq(messages.id, input.messageId), eq(messages.conversationId, input.conversationId)),
-		)
+		.where(and(eq(messages.id, input.messageId), eq(messages.conversationId, input.conversationId)))
 		.limit(1);
 	const messageRow = messageRows[0];
 	if (

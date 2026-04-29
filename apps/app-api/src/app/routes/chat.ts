@@ -53,10 +53,13 @@ function readFeedbackVote(body: Record<string, unknown>): "helpful" | "unhelpful
 
 function readFeedbackReasonCodes(body: Record<string, unknown>): string[] | undefined {
 	if (!("reasonCodes" in body)) {
-		return undefined;
+		return;
 	}
 
-	if (!Array.isArray(body.reasonCodes) || body.reasonCodes.some((item) => typeof item !== "string")) {
+	if (
+		!Array.isArray(body.reasonCodes) ||
+		body.reasonCodes.some((item) => typeof item !== "string")
+	) {
 		throw new AppApiRouteError({
 			code: "invalid_request",
 			message: "reasonCodes must be an array of strings.",
