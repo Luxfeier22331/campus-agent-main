@@ -731,7 +731,9 @@ export function AuditPage() {
 								<Button
 									component={RouterLink}
 									size="small"
-									to={buildRequestShowPath(detailEvent?.requestId ?? selectedEvent?.requestId ?? "")}
+									to={buildRequestShowPath(
+										detailEvent?.requestId ?? selectedEvent?.requestId ?? "",
+									)}
 									variant="contained"
 								>
 									{PANEL_COPY.auditPage.timeline.viewRequest}

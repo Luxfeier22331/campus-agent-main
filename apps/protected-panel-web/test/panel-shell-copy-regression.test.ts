@@ -12,6 +12,7 @@ import qualityPageCardsSource from "../src/panel/pages/quality-page/cards.tsx?ra
 import qualityPageSource from "../src/panel/pages/quality-page.tsx?raw";
 import safetyPageCardsSource from "../src/panel/pages/safety-page/cards.tsx?raw";
 import safetyPageSource from "../src/panel/pages/safety-page.tsx?raw";
+import panelDatagridHeaderSource from "../src/panel/panel-datagrid-header.tsx?raw";
 import layoutSource from "../src/panel/panel-layout.tsx?raw";
 import panelListActionsSource from "../src/panel/panel-list-actions.tsx?raw";
 import requestListSource from "../src/panel/requests/request-list.tsx?raw";
@@ -45,10 +46,16 @@ describe("protected panel shell chinese copy", () => {
 		expect(layoutSource).not.toContain("void logout();");
 	});
 
-	it("wires requests list through explicit chinese sort and error scaffolding", () => {
+	it("wires requests list through explicit chinese headers and error scaffolding", () => {
 		expect(requestListSource).toContain("PanelDatagridHeader");
 		expect(requestListSource).toContain("PanelListErrorState");
 		expect(requestListSource).toContain("empty={<RequestListEmpty />}");
+	});
+
+	it("does not expose fake client-side sorting on cursor-backed read models", () => {
+		expect(panelDatagridHeaderSource).not.toContain("TableSortLabel");
+		expect(panelDatagridHeaderSource).not.toContain("setSort");
+		expect(panelDatagridHeaderSource).not.toContain("updateSort");
 	});
 
 	it("renders requests as a triage table instead of a projection aside layout", () => {

@@ -140,4 +140,3 @@ Forbidden:
 - `regulation` requires rule/document semantics and cannot open query-serving by default.
 - Entries with `invalid_capture` must not create searchable rows.
 - Entries with `needs_multimodal` cannot be target-ready until Phase 5 output is attached.
-

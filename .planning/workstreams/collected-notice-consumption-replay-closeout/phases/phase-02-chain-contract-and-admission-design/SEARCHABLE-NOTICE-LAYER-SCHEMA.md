@@ -80,4 +80,3 @@ It must not include raw HTML boilerplate, unbounded provider response JSON, or u
 - This layer does not replace `regulation`, `transport_schedule`, or `service_status`.
 - This layer does not open public serving by itself.
 - This layer does not infer target truth without consumer admission.
-

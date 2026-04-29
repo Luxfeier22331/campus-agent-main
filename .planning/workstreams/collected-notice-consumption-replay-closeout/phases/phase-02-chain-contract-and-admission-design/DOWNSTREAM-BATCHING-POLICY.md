@@ -87,4 +87,3 @@ Every rejected or deferred entry must include:
 - reason codes.
 - whether searchable still exists.
 - whether multimodal processing could change the decision.
-

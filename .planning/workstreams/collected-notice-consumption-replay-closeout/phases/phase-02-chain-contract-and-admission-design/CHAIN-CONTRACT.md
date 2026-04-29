@@ -128,4 +128,3 @@ Only notice-derived rows and smoke/stage/e2e/preview rows are reset. If the curr
 - `needs_multimodal` entries cannot be treated as target-ready until Phase 5 supplies normalized evidence.
 - `defer` entries stay searchable but do not enter typed downstream.
 - `invalid_capture` entries stay out of searchable/downstream and carry rejection reason codes.
-
