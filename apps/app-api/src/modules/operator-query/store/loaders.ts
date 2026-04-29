@@ -1,6 +1,11 @@
-import { and, desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 
-import { metricRollup, qualityGradeProjection, requestObservabilityFact } from "../../../db/schema";
+import {
+	messageFeedback,
+	metricRollup,
+	qualityGradeProjection,
+	requestObservabilityFact,
+} from "../../../db/schema";
 import type { NormalizedOperatorOverviewFilters } from "../service";
 import type { OperatorQueryRuntime } from "./runtime";
 import {
@@ -44,6 +49,18 @@ export async function loadQualityGradeRows(
 		);
 
 	return { bounds, rows };
+}
+
+export async function loadMessageFeedbackRowsByRequestIds(
+	runtime: OperatorQueryRuntime,
+	requestIds: string[],
+) {
+	if (requestIds.length === 0) {
+		return [];
+	}
+
+	const db = await runtime.getDb();
+	return db.select().from(messageFeedback).where(inArray(messageFeedback.requestId, requestIds));
 }
 
 export async function loadQualityRollupRows(

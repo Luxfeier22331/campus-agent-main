@@ -380,6 +380,51 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 							surface: "public_chat_web",
 							traceId: "trace_01",
 						},
+						{
+							candidateId: "eval_candidate:negative_feedback:feedback_01",
+							causeClass: "wrong_intent",
+							correlation: {
+								answerKind: "answer",
+								assistantMessageId: "msg_assistant_01",
+								citationPosture: "citation_missing",
+								conversationId: "conv_01",
+								intent: {
+									capability: "knowledge",
+									taskKind: "knowledge_lookup",
+								},
+							},
+							feedback: {
+								feedbackId: "feedback_01",
+								reasonCodes: ["wrong_intent"],
+								updatedAt: "2026-04-01T10:02:00.000Z",
+								vote: "unhelpful",
+							},
+							grade: null,
+							intake: {
+								createdAt: "2026-04-01T10:02:00.000Z",
+								source: "negative_feedback",
+								status: "pending_review",
+								suggestedEvalFamily: "intent",
+							},
+							links: {
+								issueFingerprint: null,
+								issueLink: null,
+								traceLink: null,
+							},
+							privacy: {
+								providerRawResponseIncluded: false,
+								rawAuthMaterialIncluded: false,
+								rawTranscriptIncluded: false,
+							},
+							requestId: "req_feedback_01",
+							review: {
+								suggestedLabels: ["wrong_intent"],
+							},
+							selectedTarget: "rag-agent",
+							summary: "Negative answer feedback for answer: wrong_intent.",
+							surface: "public_chat_web",
+							traceId: "trace_feedback_01",
+						},
 					],
 					page: {
 						nextCursor: "cursor_eval_02",
@@ -414,6 +459,19 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 					id: "eval_candidate:badcase_01",
 					intake: {
 						suggestedEvalFamily: "intent",
+					},
+				},
+				{
+					candidateId: "eval_candidate:negative_feedback:feedback_01",
+					feedback: {
+						reasonCodes: ["wrong_intent"],
+					},
+					id: "eval_candidate:negative_feedback:feedback_01",
+					intake: {
+						source: "negative_feedback",
+					},
+					review: {
+						suggestedLabels: ["wrong_intent"],
 					},
 				},
 			],

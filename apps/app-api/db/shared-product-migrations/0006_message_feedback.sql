@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS "chat"."message_feedback" (
     feedback_id text PRIMARY KEY NOT NULL,
     owner_user_id text NOT NULL,
-    conversation_id text NOT NULL REFERENCES "chat"."conversations"(id) ON DELETE CASCADE,
-    message_id text NOT NULL REFERENCES "chat"."messages"(id) ON DELETE CASCADE,
+    conversation_id text NOT NULL REFERENCES "chat"."conversations" (id) ON DELETE CASCADE,
+    message_id text NOT NULL REFERENCES "chat"."messages" (id) ON DELETE CASCADE,
     request_id text NOT NULL,
     vote text NOT NULL,
     reason_codes_json jsonb NOT NULL DEFAULT '[]'::jsonb,

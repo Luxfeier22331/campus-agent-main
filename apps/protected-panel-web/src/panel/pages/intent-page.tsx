@@ -14,14 +14,16 @@ import {
 	TextField,
 	Typography,
 } from "@mui/material";
-import { LineChart } from "@mui/x-charts/LineChart";
 import { useQueries } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
+import { PanelLineChart } from "../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../panel-copy";
+import { PanelPage } from "../panel-page";
+import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../panel-select";
 import {
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatSelectedTargetLabel,
@@ -275,7 +277,7 @@ export function IntentPage() {
 	return (
 		<>
 			<Title title={PANEL_COPY.menu.intent} />
-			<Box sx={{ p: { md: 3, xs: 2 } }}>
+			<PanelPage>
 				<Stack spacing={3}>
 					<Card sx={{ backgroundColor: "background.paper", borderRadius: 2 }} variant="outlined">
 						<CardContent sx={{ p: { md: 2.5, xs: 2 }, "&:last-child": { pb: { md: 2.5, xs: 2 } } }}>
@@ -303,6 +305,7 @@ export function IntentPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 140, xs: "100%" } }}
 										value={filters.window}
 									>
@@ -324,6 +327,7 @@ export function IntentPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.surface ?? ""}
 									>
@@ -345,6 +349,7 @@ export function IntentPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 220, xs: "100%" } }}
 										value={filters.selectedTarget ?? ""}
 									>
@@ -405,7 +410,7 @@ export function IntentPage() {
 					{timeseries ? (
 						<SectionCard title={PANEL_COPY.intentPage.trends.title}>
 							{trendSeries.length > 0 ? (
-								<LineChart
+								<PanelLineChart
 									dataset={trendSeries}
 									height={320}
 									margin={{ bottom: 42, left: 48, right: 24, top: 20 }}
@@ -475,7 +480,7 @@ export function IntentPage() {
 						</Box>
 					) : null}
 				</Stack>
-			</Box>
+			</PanelPage>
 		</>
 	);
 }

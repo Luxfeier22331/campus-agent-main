@@ -7,16 +7,16 @@ import { SparklesIcon } from "@/components/chat/icons";
 export default function AuthLayout(props: { children: ReactNode }) {
 	return (
 		<main className="flex min-h-dvh flex-col bg-muted/20">
-			<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-6 md:px-10 md:py-10">
+			<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 py-4 md:px-10 md:py-10">
 				<Link
-					className="flex w-fit items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+					className="-ml-2 inline-flex min-h-11 w-fit items-center gap-1.5 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
 					href="/"
 				>
 					<ArrowLeftIcon className="size-3.5" />
 					返回首页
 				</Link>
 
-				<div className="flex flex-1 items-center justify-center py-8 md:py-12">
+				<div className="flex flex-1 items-center justify-center py-6 md:py-12">
 					<div className="w-full max-w-[440px]">
 						<section className="rounded-[28px] border border-border/50 bg-background px-6 py-8 shadow-sm md:px-8 md:py-10">
 							<div className="mb-8 flex items-center gap-3">

@@ -14,6 +14,7 @@ export type {
 	SupervisorExecutionInput,
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
+	SupervisorExecutionWorkflowTraceSummary,
 	SupervisorReadinessProbeResult,
 } from "./supervisor";
 export {

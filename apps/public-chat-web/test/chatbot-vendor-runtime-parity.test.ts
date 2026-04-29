@@ -174,7 +174,8 @@ describe("chatbot vendor runtime parity", () => {
 		expect(vendorMessagesSource).toContain("setMessages");
 		expect(vendorMessagesSource).toContain("regenerate");
 		expect(vendorMessagesSource).toContain("useDataStream");
-		expect(vendorMessagesSource).toContain("vote");
+		expect(vendorMessagesSource).toContain("feedback");
+		expect(vendorMessagesSource).not.toContain("vote=");
 	});
 
 	it("keeps the donor message chrome, actions, and tool renderers", () => {
@@ -245,22 +246,25 @@ describe("chatbot vendor runtime parity", () => {
 		expect(compatUtilsSource).toContain('credentials: "same-origin"');
 	});
 
-	it("keeps hidden form controls nameable and addressable for browser accessibility checks", () => {
+	it("keeps hidden auth controls addressable while gating prompt attachments closed by default", () => {
 		expect(authTurnstileSource).toContain('id="captchaToken"');
 		expect(authTurnstileSource).toContain('name="captchaToken"');
 		expect(vendorMultimodalInputSource).not.toContain('id="chat-attachment-input"');
 		expect(vendorMultimodalInputSource).not.toContain('name="attachments"');
-		expect(vendorPromptInputSource).toContain('id="prompt-attachment-input"');
-		expect(vendorPromptInputSource).toContain('name="attachments"');
+		expect(vendorMultimodalInputSource).toContain("attachmentsEnabled={false}");
+		expect(vendorPromptInputSource).toContain("attachmentsEnabled?: boolean");
+		expect(vendorPromptInputSource).toContain("attachmentsEnabled = false");
+		expect(vendorPromptInputSource).toContain("attachmentsEnabled ? convertedFiles : []");
 	});
 
-	it("guards prompt draft persistence against repeat local-storage setter effects", () => {
-		expect(vendorMultimodalInputSource).toContain("hasHydratedInput");
-		expect(vendorMultimodalInputSource).toContain('const finalValue = localStorageInput || "";');
-		expect(vendorMultimodalInputSource).not.toContain(
-			"const finalValue = domValue || localStorageInput",
-		);
-		expect(vendorMultimodalInputSource).toContain("if (localStorageInput !== input)");
-		expect(vendorMultimodalInputSource).toContain("setLocalStorageInput(input)");
+	it("guards prompt draft persistence with tab-scoped session storage", () => {
+		expect(vendorMultimodalInputSource).toContain("isDraftHydrated");
+		expect(vendorMultimodalInputSource).toContain("campus-agent.public-chat.input.v1");
+		expect(vendorMultimodalInputSource).toContain("CHAT_INPUT_DRAFT_TTL_MS");
+		expect(vendorMultimodalInputSource).toContain("window.sessionStorage");
+		expect(vendorMultimodalInputSource).toContain("writePromptDraft(input)");
+		expect(vendorMultimodalInputSource).not.toContain("useLocalStorage");
+		expect(vendorMultimodalInputSource).not.toContain("localStorageInput");
+		expect(vendorMultimodalInputSource).not.toContain("setLocalStorageInput");
 	});
 });

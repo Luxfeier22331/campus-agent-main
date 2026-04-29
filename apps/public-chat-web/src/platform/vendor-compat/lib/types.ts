@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { AnswerFeedback } from "./db/schema";
 
 export type ArtifactKind = "code" | "image" | "sheet" | "text";
 
@@ -186,6 +187,7 @@ export type ChatTools = {
 type BaseChatMessage = UIMessage<MessageMetadata, CustomUIDataTypes, ChatTools>;
 
 export type ChatMessage = BaseChatMessage & {
+	feedback?: AnswerFeedback | null;
 	kind?: "answer" | "clarification" | "error" | "no_answer" | "user";
 	requestId?: string | null;
 	retryable?: boolean;

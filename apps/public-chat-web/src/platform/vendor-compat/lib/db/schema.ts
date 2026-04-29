@@ -26,10 +26,13 @@ export interface DBMessage {
 	role: string;
 }
 
-export interface Vote {
-	chatId?: string;
-	isUpvoted?: boolean;
+export interface AnswerFeedback {
+	createdAt?: string;
+	feedbackId?: string;
 	messageId: string;
+	reasonCodes: string[];
+	updatedAt?: string;
+	vote: "helpful" | "unhelpful";
 }
 
 export interface Document {

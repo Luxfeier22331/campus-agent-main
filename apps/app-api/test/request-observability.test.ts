@@ -275,6 +275,96 @@ describe("request observability", () => {
 		});
 	});
 
+	it("persists structured tool and workflow trace summaries from supervisor response", () => {
+		const fact = buildFinalizedRequestObservabilityFact({
+			completedAt: "2026-04-13T08:00:01.000Z",
+			conversationId: "conv_workflow_01HQ",
+			diagnostics: null,
+			durationMs: 640,
+			errorCode: null,
+			principal: createPrincipal(),
+			requestId: "req_workflow_01HQ",
+			requestedCapability: "campus_services",
+			requestedScope: null,
+			resolvedScope: null,
+			response: createResponse({
+				observability: {
+					aclAnomalyCode: null,
+					aclDecision: "allowed",
+					cachedInputTokens: null,
+					candidateCount: 1,
+					citationCount: 0,
+					citationExpected: false,
+					citationMissing: false,
+					estimatedCostMicrousd: null,
+					failClosed: false,
+					inputTokens: null,
+					modelName: null,
+					modelProvider: null,
+					outputTokens: null,
+					refusalClass: null,
+					retrievedSourceCount: 0,
+					retrievalAttempted: false,
+					scopeClass: "in_scope",
+					selectedTool: "transport_schedule_lookup",
+					semanticOutcome: "resolved_current",
+					toolBusinessOutcome: "resolved_current",
+					toolFailCloseReason: null,
+					toolHistoricalDowngradeReason: null,
+				},
+				selectedTarget: "campus-services-agent",
+				status: "completed",
+				workflowTraceSummary: {
+					contextResolution: {
+						state: "not_follow_up",
+					},
+					directVsDelegateBranch: "direct",
+					failCloseReason: null,
+					guardrailOutcomes: {
+						scope_gate: "allow",
+					},
+					handoff: {
+						payload_kind: "transport_schedule_lookup",
+						target: "campus-services-agent",
+					},
+					planningOutcome: "preplanned",
+					policyArtifactVersions: {
+						"intent-policy": "v1",
+					},
+					routingFrame: {
+						suggested_next_action: "delegate",
+					},
+					runtimeVersions: {
+						"supervisor-api": "test",
+					},
+					selectedTarget: "campus-services-agent",
+					selectedTools: ["transport_schedule_lookup"],
+					toolArgumentSummary: {
+						payload_kind: "transport_schedule_lookup",
+					},
+				},
+			}),
+			sourceDocIds: [],
+			startedAt: "2026-04-13T08:00:00.000Z",
+			status: "completed",
+			surface: "public_chat_web",
+			traceId: "trace_workflow_01HQ",
+		});
+
+		expect(fact).toMatchObject({
+			selectedTarget: "campus-services-agent",
+			selectedTool: "transport_schedule_lookup",
+			toolBusinessOutcome: "resolved_current",
+			toolFailCloseReason: null,
+			toolHistoricalDowngradeReason: null,
+			workflowTraceSummary: {
+				directVsDelegateBranch: "direct",
+				selectedTarget: "campus-services-agent",
+				selectedTools: ["transport_schedule_lookup"],
+			},
+		});
+	});
+
 	it("projects prompt metadata and prompt runtime state from supervisor observability", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-12T08:00:01.000Z",

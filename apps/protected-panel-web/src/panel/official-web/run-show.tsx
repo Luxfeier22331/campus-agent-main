@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Show, useRecordContext } from "react-admin";
 
 import { PANEL_COPY } from "../panel-copy";
+import { PanelPage } from "../panel-page";
 import type { OfficialWebRunRecord } from "../types";
 import {
 	formatOfficialWebChangeReasonLabel,
@@ -40,7 +41,7 @@ function OfficialWebRunShowContent() {
 	}
 
 	return (
-		<Box sx={{ p: 3 }}>
+		<PanelPage>
 			<Stack spacing={3}>
 				<Alert severity="info">
 					此运行详情来自 app-api
@@ -220,7 +221,7 @@ function OfficialWebRunShowContent() {
 					</Card>
 				</Box>
 			</Stack>
-		</Box>
+		</PanelPage>
 	);
 }
 

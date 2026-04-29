@@ -1,10 +1,11 @@
-import { Alert, Box, Stack } from "@mui/material";
+import { Alert, Stack } from "@mui/material";
 import { useQueries } from "@tanstack/react-query";
 import { startTransition, useDeferredValue, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { PANEL_COPY } from "../panel-copy";
+import { PanelPage } from "../panel-page";
 import type { OperatorOverviewWindow } from "../types";
 import { buildCostTrendSeries } from "./cost-domain";
 import { buildQualityTrendSeries, resolveOverviewGranularity } from "./overview-domain";
@@ -149,7 +150,7 @@ export function OverviewPage() {
 	return (
 		<>
 			<Title title={PANEL_COPY.menu.overview} />
-			<Box sx={{ p: { md: 3, xs: 2 } }}>
+			<PanelPage>
 				<Stack spacing={3}>
 					<OverviewHeaderSection
 						asOf={asOf}
@@ -177,7 +178,7 @@ export function OverviewPage() {
 						/>
 					) : null}
 				</Stack>
-			</Box>
+			</PanelPage>
 		</>
 	);
 }

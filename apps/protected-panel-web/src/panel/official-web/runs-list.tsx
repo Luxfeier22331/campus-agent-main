@@ -14,6 +14,7 @@ import { PANEL_COPY } from "../panel-copy";
 import { PanelDatagridHeader } from "../panel-datagrid-header";
 import { PanelListActions } from "../panel-list-actions";
 import { PanelListErrorState } from "../panel-list-error";
+import { PANEL_LIST_SX } from "../panel-page";
 import { PanelPagination } from "../panel-pagination";
 import { PanelResponsiveDatagrid } from "../panel-responsive-datagrid";
 import type { OfficialWebRunRecord } from "../types";
@@ -108,11 +109,12 @@ export function OfficialWebRunsListPage() {
 			pagination={<PanelPagination />}
 			perPage={20}
 			sort={{ field: "startedAt", order: "DESC" }}
+			sx={PANEL_LIST_SX}
 			title="官网采集运行"
 		>
 			<Stack spacing={2}>
 				<OfficialWebRunsContractNotice />
-				<PanelResponsiveDatagrid minWidth={1080}>
+				<PanelResponsiveDatagrid minWidth={1320}>
 					<Datagrid
 						bulkActionButtons={false}
 						empty={<OfficialWebRunsEmpty />}

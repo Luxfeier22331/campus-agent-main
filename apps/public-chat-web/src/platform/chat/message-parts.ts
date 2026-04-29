@@ -76,6 +76,7 @@ function mapStructuredPartsToUiParts(message: ShellMessage): ChatMessage["parts"
 
 export function mapShellMessageToChatMessage(message: ShellMessage): ChatMessage {
 	return {
+		...("feedback" in message ? { feedback: message.feedback ?? null } : {}),
 		id: message.id,
 		kind: message.kind,
 		metadata: {

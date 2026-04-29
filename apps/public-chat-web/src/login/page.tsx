@@ -57,14 +57,17 @@ export function LoginPage() {
 			<p className="text-sm text-muted-foreground">继续查看历史对话与提问记录</p>
 			<AuthForm action={handleSubmit} defaultEmail={email}>
 				<SubmitButton isSuccessful={isSuccessful}>登录</SubmitButton>
-				<p className="text-center text-[13px] text-muted-foreground">
-					还没有账号？
-					<Link className="text-foreground underline-offset-4 hover:underline" href="/register">
-						注册
-					</Link>{" "}
-					·{" "}
+				<p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-[13px] text-muted-foreground">
+					<span>还没有账号？</span>
 					<Link
-						className="text-foreground underline-offset-4 hover:underline"
+						className="inline-flex min-h-10 items-center rounded-md px-1 text-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
+						href="/register"
+					>
+						注册
+					</Link>
+					<span aria-hidden="true">·</span>
+					<Link
+						className="inline-flex min-h-10 items-center rounded-md px-1 text-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
 						href="/forgot-password"
 					>
 						忘记密码？

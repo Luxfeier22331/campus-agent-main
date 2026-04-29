@@ -164,8 +164,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 					override_source_refs: ["notice:muc_internal_portal:355650"],
 					related_notice_refs: ["notice:muc_internal_portal:355650"],
 					resolved_subject: "静园10号楼负一层女浴室",
-					status_note:
-						"静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行",
+					status_note: "静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行",
 					subject_query: "静园10号楼女浴室现在开放吗",
 				},
 			},

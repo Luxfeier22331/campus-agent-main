@@ -10,10 +10,11 @@ import {
 	TextField,
 	Typography,
 } from "@mui/material";
-import { LineChart } from "@mui/x-charts/LineChart";
 import type { ReactNode } from "react";
 
+import { PanelLineChart } from "../../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
+import { PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
 import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
 import type {
 	OperatorOverviewAlert,
@@ -33,12 +34,6 @@ import {
 	formatTrendBucketLabel,
 	renderDomainStatus,
 } from "./formatters";
-
-const OVERVIEW_NATIVE_SELECT_SLOT_PROPS = {
-	select: {
-		native: true,
-	},
-} as const;
 
 export function OverviewMetricCard(props: { detail: string; label: string; value: string }) {
 	return (
@@ -299,7 +294,7 @@ export function OverviewHeaderSection(props: {
 							onChange={(event) => props.onWindowChange(event.target.value)}
 							select
 							size="small"
-							slotProps={OVERVIEW_NATIVE_SELECT_SLOT_PROPS}
+							slotProps={PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 140, xs: "100%" } }}
 							value={props.filters.window}
 						>
@@ -315,7 +310,7 @@ export function OverviewHeaderSection(props: {
 							onChange={(event) => props.onSurfaceChange(event.target.value)}
 							select
 							size="small"
-							slotProps={OVERVIEW_NATIVE_SELECT_SLOT_PROPS}
+							slotProps={PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.surface ?? ""}
 						>
@@ -331,7 +326,7 @@ export function OverviewHeaderSection(props: {
 							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
 							select
 							size="small"
-							slotProps={OVERVIEW_NATIVE_SELECT_SLOT_PROPS}
+							slotProps={PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.selectedTarget ?? ""}
 						>
@@ -465,7 +460,7 @@ export function OverviewPrimaryContent(props: {
 					title={PANEL_COPY.overviewPage.trends.quality}
 				>
 					{props.qualitySeries.length > 0 ? (
-						<LineChart
+						<PanelLineChart
 							height={320}
 							margin={{ bottom: 32, left: 40, right: 24, top: 24 }}
 							series={[
@@ -509,7 +504,7 @@ export function OverviewPrimaryContent(props: {
 								<Typography color="text.secondary" variant="body2">
 									{PANEL_COPY.overviewPage.trends.costEstimate}
 								</Typography>
-								<LineChart
+								<PanelLineChart
 									height={180}
 									margin={{ bottom: 24, left: 56, right: 16, top: 12 }}
 									series={[
@@ -538,7 +533,7 @@ export function OverviewPrimaryContent(props: {
 								<Typography color="text.secondary" variant="body2">
 									{PANEL_COPY.overviewPage.trends.tokenUsage}
 								</Typography>
-								<LineChart
+								<PanelLineChart
 									height={180}
 									margin={{ bottom: 24, left: 56, right: 16, top: 12 }}
 									series={[

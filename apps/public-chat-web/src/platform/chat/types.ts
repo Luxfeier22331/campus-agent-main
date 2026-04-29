@@ -1,4 +1,4 @@
-import type { ChatMessageKind, ChatStructuredPart } from "./api-types";
+import type { ChatMessageFeedback, ChatMessageKind, ChatStructuredPart } from "./api-types";
 
 export interface ShellChatUser {
 	email: string | null;
@@ -22,6 +22,7 @@ export interface ShellConversationListItem {
 
 export interface ShellMessage {
 	createdAt: string;
+	feedback?: ChatMessageFeedback | null;
 	id: string;
 	kind: ChatMessageKind | "user";
 	requestId: string | null;

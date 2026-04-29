@@ -22,6 +22,7 @@ import { Link as RouterLink } from "react-router-dom";
 
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { normalizeSafeExternalHref } from "../../panel-safe-links";
+import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
 import {
 	formatPrincipalTypeLabel,
 	formatSelectedTargetLabel,
@@ -160,6 +161,7 @@ export function SafetyHeaderSection(props: {
 							}
 							select
 							size="small"
+							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 140, xs: "100%" } }}
 							value={props.filters.window}
 						>
@@ -174,6 +176,7 @@ export function SafetyHeaderSection(props: {
 							onChange={(event) => props.onSurfaceChange(event.target.value)}
 							select
 							size="small"
+							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.surface ?? ""}
 						>
@@ -188,6 +191,7 @@ export function SafetyHeaderSection(props: {
 							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
 							select
 							size="small"
+							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.selectedTarget ?? ""}
 						>
@@ -366,6 +370,7 @@ export function SafetyQueueSection(props: {
 					onChange={(event) => props.onSeverityChange(event.target.value)}
 					select
 					size="small"
+					slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 					sx={{ minWidth: 140 }}
 					value={props.queueFilters.severity}
 				>
@@ -380,6 +385,7 @@ export function SafetyQueueSection(props: {
 					onChange={(event) => props.onStatusChange(event.target.value)}
 					select
 					size="small"
+					slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 					sx={{ minWidth: 140 }}
 					value={props.queueFilters.status}
 				>
@@ -402,6 +408,7 @@ export function SafetyQueueSection(props: {
 					onChange={(event) => props.onPerPageChange(Number(event.target.value))}
 					select
 					size="small"
+					slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 					sx={{ minWidth: 140 }}
 					value={String(props.queueFilters.perPage)}
 				>

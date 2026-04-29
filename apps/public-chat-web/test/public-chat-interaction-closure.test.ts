@@ -3,13 +3,16 @@ import recoveryFormSource from "../src/login/recovery-form.tsx?raw";
 import turnstileSource from "../src/platform/auth/turnstile.tsx?raw";
 import activeChatSource from "../src/platform/chat/use-active-chat.tsx?raw";
 import authFormSource from "../src/platform/vendor-compat/components/chat/auth-form.tsx?raw";
+import promptInputSource from "../vendor/vercel-ai-chatbot/components/ai-elements/prompt-input.tsx?raw";
 import appSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import messageSource from "../vendor/vercel-ai-chatbot/components/chat/message.tsx?raw";
 import messageActionsSource from "../vendor/vercel-ai-chatbot/components/chat/message-actions.tsx?raw";
 import { submitEditedMessage } from "../vendor/vercel-ai-chatbot/components/chat/message-editor";
+import messagesSource from "../vendor/vercel-ai-chatbot/components/chat/messages.tsx?raw";
 import multimodalInputSource from "../vendor/vercel-ai-chatbot/components/chat/multimodal-input.tsx?raw";
 import shellSource from "../vendor/vercel-ai-chatbot/components/chat/shell.tsx?raw";
 import sidebarHistorySource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-history.tsx?raw";
+import sidebarHistoryItemSource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-history-item.tsx?raw";
 import slashCommandsSource from "../vendor/vercel-ai-chatbot/components/chat/slash-commands.tsx?raw";
 
 vi.mock("@/app/(chat)/actions", () => ({
@@ -20,13 +23,31 @@ describe("public chat interaction closure", () => {
 	it("does not expose model or attachment controls without product request support", () => {
 		expect(multimodalInputSource).not.toContain("/api/files/upload");
 		expect(multimodalInputSource).not.toContain("<AttachmentsButton");
+		expect(multimodalInputSource).not.toContain("PromptInputActionAddAttachments");
+		expect(multimodalInputSource).toContain("attachmentsEnabled={false}");
 		expect(multimodalInputSource).not.toContain("<ModelSelectorCompact");
 		expect(multimodalInputSource).not.toContain("搜索模型...");
 		expect(shellSource).not.toContain("onModelChange=");
+		expect(promptInputSource).toContain("attachmentsEnabled?: boolean");
+		expect(promptInputSource).toContain("attachmentsEnabled = false");
+		expect(promptInputSource).toContain("attachmentsEnabled ? convertedFiles : []");
 	});
 
 	it("keeps stop available while lifecycle stream is running", () => {
 		expect(multimodalInputSource).toContain('status === "submitted" || status === "streaming"');
+		expect(multimodalInputSource).toContain('aria-label="停止生成"');
+	});
+
+	it("exposes chat messages and request errors through persistent accessible regions", () => {
+		expect(messagesSource).toContain('role="log"');
+		expect(messagesSource).toContain('aria-live="polite"');
+		expect(messagesSource).toContain('aria-relevant="additions text"');
+		expect(messagesSource).toContain(
+			'aria-busy={status === "submitted" || status === "streaming"}',
+		);
+		expect(shellSource).toContain("threadError");
+		expect(shellSource).toContain('role="alert"');
+		expect(shellSource).toContain("当前请求失败");
 	});
 
 	it("re-sends the edited text instead of regenerating from stale messages", async () => {
@@ -112,12 +133,17 @@ describe("public chat interaction closure", () => {
 		expect(recoveryFormSource).toContain("resetToken");
 	});
 
-	it("keeps unsupported vote controls closed until app-api owns the vote surface", () => {
+	it("keeps donor vote closed while exposing app-api answer feedback controls", () => {
 		expect(messageActionsSource).not.toContain("/api/vote");
-		expect(messageActionsSource).not.toContain("ThumbUpIcon");
-		expect(messageActionsSource).not.toContain("ThumbDownIcon");
 		expect(messageActionsSource).not.toContain("message-upvote");
 		expect(messageActionsSource).not.toContain("message-downvote");
+		expect(messageActionsSource).not.toContain("@/lib/db/queries");
+		expect(messageActionsSource).toContain("setMessageFeedback");
+		expect(messageActionsSource).toContain("deleteMessageFeedback");
+		expect(messageActionsSource).toContain('data-testid="message-feedback-helpful"');
+		expect(messageActionsSource).toContain('data-testid="message-feedback-unhelpful"');
+		expect(messageActionsSource).toContain("wrong_intent");
+		expect(messageActionsSource).toContain("outdated_or_missing_source");
 	});
 
 	it("awaits checked app-api helpers before mutating destructive chat state", () => {
@@ -128,6 +154,23 @@ describe("public chat interaction closure", () => {
 		expect(appSidebarSource).not.toContain("fetch(");
 		expect(sidebarHistorySource).not.toContain("fetch(");
 		expect(multimodalInputSource).not.toContain("void fetch(");
+	});
+
+	it("uses dialogs for slash-command destructive actions and keeps prompt draft storage tab-scoped", () => {
+		expect(multimodalInputSource).toContain("pendingDestructiveCommand");
+		expect(multimodalInputSource).toContain("AlertDialogTitle");
+		expect(multimodalInputSource).toContain("删除这条对话？");
+		expect(multimodalInputSource).toContain("清空全部对话？");
+		expect(multimodalInputSource).not.toContain('toast("删除这条对话？"');
+		expect(multimodalInputSource).not.toContain('toast("清空全部对话？"');
+		expect(multimodalInputSource).not.toContain('useLocalStorage("input"');
+		expect(multimodalInputSource).toContain("campus-agent.public-chat.input.v1");
+		expect(multimodalInputSource).toContain("sessionStorage");
+	});
+
+	it("keeps history item memoization from hiding title or id updates", () => {
+		expect(sidebarHistoryItemSource).not.toContain("prevProps.isActive !== nextProps.isActive");
+		expect(sidebarHistoryItemSource).not.toContain("return true;");
 	});
 
 	it("limits slash commands to actions backed by the current public chat runtime", () => {

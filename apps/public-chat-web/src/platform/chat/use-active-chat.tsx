@@ -51,7 +51,6 @@ interface ActiveChatContextValue {
 	stop: UseChatHelpers<ChatMessage>["stop"];
 	threadError: string | null;
 	visibilityType: VisibilityType;
-	votes: undefined;
 }
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -327,7 +326,6 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 			},
 			threadError,
 			visibilityType: "private",
-			votes: undefined,
 		}),
 		[
 			conversationId,

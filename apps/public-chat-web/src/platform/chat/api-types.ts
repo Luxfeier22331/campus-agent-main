@@ -17,6 +17,25 @@ export interface SessionPrincipal {
 
 export type ChatMessageKind = "answer" | "clarification" | "no_answer" | "error";
 
+export type ChatMessageFeedbackVote = "helpful" | "unhelpful";
+
+export type ChatMessageFeedbackReasonCode =
+	| "wrong_intent"
+	| "not_enough_detail"
+	| "outdated_or_missing_source"
+	| "incorrect_answer"
+	| "unclear_or_hard_to_use"
+	| "other";
+
+export interface ChatMessageFeedback {
+	createdAt: string;
+	feedbackId: string;
+	messageId: string;
+	reasonCodes: ChatMessageFeedbackReasonCode[];
+	updatedAt: string;
+	vote: ChatMessageFeedbackVote;
+}
+
 export interface PointGeometry {
 	coordinates: [number, number];
 	type: "Point";
@@ -116,6 +135,7 @@ export interface ChatMessage {
 	role: "user" | "assistant";
 	kind: ChatMessageKind | null;
 	text: string;
+	feedback?: ChatMessageFeedback | null;
 	structuredParts?: ChatStructuredPart[];
 	createdAt: string;
 	requestId: string | null;

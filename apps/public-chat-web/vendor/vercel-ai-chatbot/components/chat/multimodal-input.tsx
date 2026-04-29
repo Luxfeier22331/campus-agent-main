@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
-import { useLocalStorage, useWindowSize } from "usehooks-ts";
+import { useWindowSize } from "usehooks-ts";
 import { deleteAllConversations, deleteConversation } from "@/app/(chat)/actions";
 import { getChatHistoryPaginationKey } from "@/components/chat/sidebar-history";
 import type { ChatMessage } from "@/lib/types";
@@ -28,6 +28,16 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "../ai-elements/prompt-input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { StopIcon } from "./icons";
 import {
@@ -37,6 +47,80 @@ import {
 } from "./slash-commands";
 import { SuggestedActions } from "./suggested-actions";
 import type { VisibilityType } from "./visibility-selector";
+
+const CHAT_INPUT_DRAFT_STORAGE_KEY = "campus-agent.public-chat.input.v1";
+const CHAT_INPUT_DRAFT_TTL_MS = 2 * 60 * 60 * 1000;
+const CHAT_INPUT_DRAFT_MAX_LENGTH = 4000;
+
+type PendingDestructiveCommand = "delete" | "purge";
+
+type StoredPromptDraft = {
+  input: string;
+  updatedAt: number;
+};
+
+function getDraftStorage(): Storage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readPromptDraft(): string {
+  const storage = getDraftStorage();
+  if (!storage) {
+    return "";
+  }
+
+  try {
+    const rawValue = storage.getItem(CHAT_INPUT_DRAFT_STORAGE_KEY);
+    if (!rawValue) {
+      return "";
+    }
+
+    const parsed = JSON.parse(rawValue) as Partial<StoredPromptDraft>;
+    if (typeof parsed.input !== "string" || typeof parsed.updatedAt !== "number") {
+      storage.removeItem(CHAT_INPUT_DRAFT_STORAGE_KEY);
+      return "";
+    }
+
+    if (Date.now() - parsed.updatedAt > CHAT_INPUT_DRAFT_TTL_MS) {
+      storage.removeItem(CHAT_INPUT_DRAFT_STORAGE_KEY);
+      return "";
+    }
+
+    return parsed.input.slice(0, CHAT_INPUT_DRAFT_MAX_LENGTH);
+  } catch {
+    storage.removeItem(CHAT_INPUT_DRAFT_STORAGE_KEY);
+    return "";
+  }
+}
+
+function writePromptDraft(input: string) {
+  const storage = getDraftStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    if (!input) {
+      storage.removeItem(CHAT_INPUT_DRAFT_STORAGE_KEY);
+      return;
+    }
+
+    const draft: StoredPromptDraft = {
+      input: input.slice(0, CHAT_INPUT_DRAFT_MAX_LENGTH),
+      updatedAt: Date.now(),
+    };
+    storage.setItem(CHAT_INPUT_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Best-effort draft persistence must never block chat input.
+  }
+}
 
 function PureMultimodalInput({
   chatId,
@@ -74,6 +158,13 @@ function PureMultimodalInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
   const hasAutoFocused = useRef(false);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState("");
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [isDraftHydrated, setIsDraftHydrated] = useState(false);
+  const [pendingDestructiveCommand, setPendingDestructiveCommand] =
+    useState<PendingDestructiveCommand | null>(null);
+
   useEffect(() => {
     if (!hasAutoFocused.current && width) {
       const timer = setTimeout(() => {
@@ -84,24 +175,25 @@ function PureMultimodalInput({
     }
   }, [width]);
 
-  const [localStorageInput, setLocalStorageInput] = useLocalStorage("input", "");
-  const hasHydratedInput = useRef(false);
-
   useEffect(() => {
-    if (hasHydratedInput.current) {
+    if (isDraftHydrated) {
       return;
     }
 
-    const finalValue = localStorageInput || "";
-    setInput(finalValue);
-    hasHydratedInput.current = true;
-  }, [localStorageInput, setInput]);
+    const draftInput = readPromptDraft();
+    if (draftInput) {
+      setInput((currentInput) => currentInput || draftInput);
+    }
+    setIsDraftHydrated(true);
+  }, [isDraftHydrated, setInput]);
 
   useEffect(() => {
-    if (localStorageInput !== input) {
-      setLocalStorageInput(input);
+    if (!isDraftHydrated) {
+      return;
     }
-  }, [input, localStorageInput, setLocalStorageInput]);
+
+    writePromptDraft(input);
+  }, [input, isDraftHydrated]);
 
   const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = event.target.value;
@@ -121,58 +213,59 @@ function PureMultimodalInput({
     setInput("");
     switch (cmd.action) {
       case "new":
+        writePromptDraft("");
         void router.push("/chat");
         break;
       case "delete":
-        toast("删除这条对话？", {
-          action: {
-            label: "删除",
-            onClick: async () => {
-              try {
-                await deleteConversation(chatId);
-                mutate(unstable_serialize(getChatHistoryPaginationKey));
-                await router.push("/chat");
-                toast.success("已删除对话");
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : "删除对话失败，请稍后重试。");
-              }
-            },
-          },
-        });
+        setPendingDestructiveCommand("delete");
         break;
       case "purge":
-        toast("清空全部对话？", {
-          action: {
-            label: "全部删除",
-            onClick: async () => {
-              try {
-                await deleteAllConversations();
-                mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
-                  revalidate: false,
-                });
-                await router.push("/chat");
-                toast.success("已清空全部对话");
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : "清空历史失败，请稍后重试。");
-              }
-            },
-          },
-        });
+        setPendingDestructiveCommand("purge");
         break;
       default:
         break;
     }
   };
 
-  const [slashOpen, setSlashOpen] = useState(false);
-  const [slashQuery, setSlashQuery] = useState("");
-  const [slashIndex, setSlashIndex] = useState(0);
+  const confirmDestructiveCommand = useCallback(async () => {
+    const command = pendingDestructiveCommand;
+    if (!command) {
+      return;
+    }
+
+    setPendingDestructiveCommand(null);
+
+    try {
+      if (command === "delete") {
+        await deleteConversation(chatId);
+        mutate(unstable_serialize(getChatHistoryPaginationKey));
+        void router.push("/chat");
+        toast.success("已删除对话");
+        return;
+      }
+
+      await deleteAllConversations();
+      mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
+        revalidate: false,
+      });
+      void router.push("/chat");
+      toast.success("已清空全部对话");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : command === "delete"
+            ? "删除对话失败，请稍后重试。"
+            : "清空历史失败，请稍后重试。",
+      );
+    }
+  }, [chatId, mutate, pendingDestructiveCommand, router]);
 
   const submitForm = useCallback(async () => {
     prepareConversationRoute?.(chatId);
     await router.push(`/chat/${chatId}`);
 
-    void sendMessage({
+    await sendMessage({
       role: "user",
       parts: [
         {
@@ -181,9 +274,6 @@ function PureMultimodalInput({
         },
       ],
     });
-
-    setLocalStorageInput("");
-    setInput("");
 
     if (width && width > 768) {
       textareaRef.current?.focus();
@@ -194,10 +284,15 @@ function PureMultimodalInput({
     prepareConversationRoute,
     router,
     sendMessage,
-    setInput,
-    setLocalStorageInput,
     width,
   ]);
+
+  const destructiveDialogTitle =
+    pendingDestructiveCommand === "purge" ? "清空全部对话？" : "删除这条对话？";
+  const destructiveDialogDescription =
+    pendingDestructiveCommand === "purge"
+      ? "此操作会删除当前账号下的全部公开聊天记录，删除后不能恢复。"
+      : "此操作会删除当前对话及其消息记录，删除后不能恢复。";
 
   return (
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
@@ -240,6 +335,7 @@ function PureMultimodalInput({
       </div>
 
       <PromptInput
+        attachmentsEnabled={false}
         className="[&>div]:rounded-2xl [&>div]:border [&>div]:border-border/30 [&>div]:bg-card/70 [&>div]:shadow-[var(--shadow-composer)] [&>div]:transition-shadow [&>div]:duration-300 [&>div]:focus-within:shadow-[var(--shadow-composer-focus)]"
         onSubmit={() => {
           if (input.startsWith("/")) {
@@ -312,6 +408,7 @@ function PureMultimodalInput({
             <StopButton setMessages={setMessages} stop={stop} />
           ) : (
             <PromptInputSubmit
+              aria-label="发送消息"
               className={cn(
                 "h-7 w-7 rounded-xl transition-all duration-200",
                 input.trim()
@@ -328,6 +425,33 @@ function PureMultimodalInput({
           )}
         </PromptInputFooter>
       </PromptInput>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDestructiveCommand(null);
+          }
+        }}
+        open={pendingDestructiveCommand !== null}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{destructiveDialogTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{destructiveDialogDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void confirmDestructiveCommand();
+              }}
+              variant="destructive"
+            >
+              {pendingDestructiveCommand === "purge" ? "全部删除" : "删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -364,6 +488,7 @@ function PureStopButton({
 }) {
   return (
     <Button
+      aria-label="停止生成"
       className="h-7 w-7 rounded-xl bg-foreground p-1 text-background transition-all duration-200 hover:opacity-85 active:scale-95 disabled:bg-muted disabled:text-muted-foreground/25 disabled:cursor-not-allowed"
       data-testid="stop-button"
       onClick={(event) => {
@@ -371,6 +496,7 @@ function PureStopButton({
         void stop();
         setMessages((messages) => messages);
       }}
+      type="button"
     >
       <StopIcon size={14} />
     </Button>

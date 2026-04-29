@@ -113,6 +113,21 @@ export interface SupervisorExecutionObservability {
 	toolHistoricalDowngradeReason?: string | null;
 }
 
+export interface SupervisorExecutionWorkflowTraceSummary {
+	contextResolution: Record<string, unknown>;
+	directVsDelegateBranch: string | null;
+	failCloseReason: string | null;
+	guardrailOutcomes: Record<string, unknown>;
+	handoff: Record<string, unknown>;
+	planningOutcome: string | null;
+	policyArtifactVersions: Record<string, unknown>;
+	routingFrame: Record<string, unknown>;
+	runtimeVersions: Record<string, unknown>;
+	selectedTarget: string | null;
+	selectedTools: string[];
+	toolArgumentSummary: Record<string, unknown>;
+}
+
 export interface SupervisorExecutionResponse {
 	answerText: string;
 	error: {
@@ -133,6 +148,7 @@ export interface SupervisorExecutionResponse {
 		| "rejected"
 		| "cancelled";
 	traceId: string;
+	workflowTraceSummary?: SupervisorExecutionWorkflowTraceSummary | null;
 }
 
 export interface SupervisorExecutionClient {

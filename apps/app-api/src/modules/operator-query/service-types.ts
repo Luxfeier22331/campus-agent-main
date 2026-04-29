@@ -1,4 +1,5 @@
 import type { ResolvedAppPrincipal } from "../auth";
+import type { SupervisorExecutionWorkflowTraceSummary } from "../integration/supervisor-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -179,6 +180,13 @@ export interface OperatorRequestObservabilityRecord {
 		aclAnomalyCode: string | null;
 		failClosed: boolean | null;
 		intent?: OperatorIntentObservabilitySummary;
+		tool?: {
+			businessOutcome: string | null;
+			failCloseReason: string | null;
+			historicalDowngradeReason: string | null;
+			selectedTool: string | null;
+		};
+		workflowTrace?: SupervisorExecutionWorkflowTraceSummary | null;
 		retrievalAdequacyVerdict: string | null;
 		retrievalAdequacyReason: string | null;
 		retrievalPlan?: RequestRetrievalPlanSummary | null;
@@ -395,6 +403,16 @@ export interface OperatorQualityTimeseriesResult {
 		noAnswerRate: number;
 		needsClarificationRate: number;
 		sampledGroundingPassRate: number | null;
+		feedbackEligibleAnswerCount: number;
+		feedbackCount: number;
+		feedbackCoverageRate: number;
+		feedbackHelpfulCount: number;
+		feedbackHelpfulRate: number;
+		feedbackUnhelpfulCount: number;
+		feedbackUnhelpfulRate: number;
+		feedbackNoAnswerEligibleCount: number;
+		feedbackNoAnswerUnhelpfulCount: number;
+		feedbackNoAnswerUnhelpfulRate: number;
 	}>;
 	asOf: string;
 }
@@ -523,13 +541,47 @@ export interface OperatorQualityEvalCandidateListResult {
 			score: number | null;
 			graderVersion: string;
 		} | null;
+		correlation?: {
+			conversationId: string;
+			assistantMessageId: string;
+			answerKind: string;
+			citationPosture: string;
+			intent: {
+				capability?: string | null;
+				taskKind?: string | null;
+				launchState?: string | null;
+				nextAction?: string | null;
+				scopeClass?: string | null;
+				classifierVersion?: string | null;
+			};
+		};
+		feedback?: {
+			feedbackId: string;
+			vote: "unhelpful";
+			reasonCodes: string[];
+			updatedAt: string;
+		};
 		links: {
 			traceLink: string | null;
 			issueLink: string | null;
 			issueFingerprint: string | null;
 		};
+		privacy?: {
+			rawTranscriptIncluded: false;
+			rawAuthMaterialIncluded: false;
+			providerRawResponseIncluded: false;
+		};
+		review?: {
+			suggestedLabels: Array<
+				| "false_positive"
+				| "false_negative"
+				| "wrong_intent"
+				| "stale_missing_evidence"
+				| "answer_style_issue"
+			>;
+		};
 		intake: {
-			source: "operator_badcase";
+			source: "operator_badcase" | "negative_feedback";
 			status: "pending_review";
 			suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
 			createdAt: string;
@@ -546,6 +598,21 @@ export interface OperatorQualitySummaryResult {
 		requestCount: number;
 		emptyRecallRate: MetricRatio;
 		citationMissRate: MetricRatio;
+		feedback: {
+			feedbackCount: number;
+			coverageRate: MetricRatio;
+			helpfulRate: MetricRatio;
+			unhelpfulRate: MetricRatio;
+			noAnswerUnhelpfulRate: MetricRatio;
+			distributions: {
+				surface: OperatorDistributionBucket[];
+				answerKind: OperatorDistributionBucket[];
+				capability: OperatorDistributionBucket[];
+				citationPosture: OperatorDistributionBucket[];
+				reasonCode: OperatorDistributionBucket[];
+				vote: OperatorDistributionBucket[];
+			};
+		};
 		refusalDistribution: {
 			noAnswer: number;
 			needsClarification: number;
@@ -673,6 +740,9 @@ export interface OperatorQueryStore {
 	listQualityBadcases(
 		filters: NormalizedOperatorQualityBadcaseListFilters,
 	): Promise<OperatorQualityBadcaseListResult>;
+	listQualityFeedbackEvalCandidates(
+		filters: NormalizedOperatorQualityBadcaseListFilters,
+	): Promise<OperatorQualityEvalCandidateListResult>;
 	listAudit(filters: NormalizedOperatorAuditListFilters): Promise<OperatorAuditListResult>;
 	list(filters: NormalizedOperatorRequestListFilters): Promise<OperatorQueryListResult>;
 }

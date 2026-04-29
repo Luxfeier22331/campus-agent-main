@@ -62,7 +62,7 @@ export function ChatbotShellRuntimeProvider(props: { children: ReactNode }) {
 			startTransition(() => {
 				setSession({
 					kind: "error",
-					message: error instanceof Error ? error.message : "Unable to load your session.",
+					message: error instanceof Error ? error.message : "暂时无法确认登录状态。",
 				});
 			});
 		}

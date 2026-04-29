@@ -18,12 +18,13 @@ import {
 	TextField,
 	Typography,
 } from "@mui/material";
-import { LineChart } from "@mui/x-charts/LineChart";
 import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
+import { PanelLineChart } from "../../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { normalizeSafeExternalHref } from "../../panel-safe-links";
+import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
 import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
 import { buildRequestShowPath } from "../../requests/request-routes";
 import type {
@@ -158,6 +159,7 @@ export function QualityHeaderSection(props: {
 							}
 							select
 							size="small"
+							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 140, xs: "100%" } }}
 							value={props.filters.window}
 						>
@@ -172,6 +174,7 @@ export function QualityHeaderSection(props: {
 							onChange={(event) => props.onSurfaceChange(event.target.value)}
 							select
 							size="small"
+							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.surface ?? ""}
 						>
@@ -186,6 +189,7 @@ export function QualityHeaderSection(props: {
 							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
 							select
 							size="small"
+							slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.selectedTarget ?? ""}
 						>
@@ -261,6 +265,9 @@ export function QualityInsightSections(props: {
 		bucketEnd: string;
 		citationMissRatePct: number | null;
 		emptyRecallRatePct: number | null;
+		feedbackCoverageRatePct: number | null;
+		feedbackHelpfulRatePct: number | null;
+		feedbackUnhelpfulRatePct: number | null;
 		needsClarificationRatePct: number | null;
 		noAnswerRatePct: number | null;
 		sampledGroundingPassRatePct: number | null;
@@ -285,7 +292,7 @@ export function QualityInsightSections(props: {
 					<Alert severity="error">{props.timeseriesErrorMessage}</Alert>
 				) : props.trendSeries.length > 0 ? (
 					<Stack spacing={3}>
-						<LineChart
+						<PanelLineChart
 							height={320}
 							margin={{ bottom: 32, left: 40, right: 24, top: 24 }}
 							series={[
@@ -309,6 +316,21 @@ export function QualityInsightSections(props: {
 									label: PANEL_COPY.qualityPage.qualitySeries.noAnswerRate,
 									showMark: false,
 								},
+								{
+									data: props.trendSeries.map((point) => point.feedbackCoverageRatePct),
+									label: PANEL_COPY.qualityPage.qualitySeries.feedbackCoverageRate,
+									showMark: false,
+								},
+								{
+									data: props.trendSeries.map((point) => point.feedbackHelpfulRatePct),
+									label: PANEL_COPY.qualityPage.qualitySeries.feedbackHelpfulRate,
+									showMark: false,
+								},
+								{
+									data: props.trendSeries.map((point) => point.feedbackUnhelpfulRatePct),
+									label: PANEL_COPY.qualityPage.qualitySeries.feedbackUnhelpfulRate,
+									showMark: false,
+								},
 							]}
 							xAxis={[
 								{
@@ -322,7 +344,7 @@ export function QualityInsightSections(props: {
 							<Typography color="text.secondary" variant="body2">
 								{PANEL_COPY.qualityPage.trends.sampledGroundingOnly}
 							</Typography>
-							<LineChart
+							<PanelLineChart
 								height={180}
 								margin={{ bottom: 24, left: 40, right: 16, top: 12 }}
 								series={[
@@ -429,6 +451,7 @@ export function QualityQueueSection(props: {
 					onChange={(event) => props.onStatusChange(event.target.value)}
 					select
 					size="small"
+					slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 					value={props.queueFilters.badcaseStatus}
 				>
 					{BADCASE_STATUS_OPTIONS.map((option) => (
@@ -454,6 +477,7 @@ export function QualityQueueSection(props: {
 					onChange={(event) => props.onPerPageChange(Number(event.target.value))}
 					select
 					size="small"
+					slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 					value={String(props.queueFilters.perPage)}
 				>
 					{QUALITY_PAGE_SIZE_OPTIONS.map((option) => (
@@ -577,6 +601,8 @@ export function QualityEvalCandidateSection(props: {
 								<TableCell>候选 ID</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.summary}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.causeClass}</TableCell>
+								<TableCell>来源</TableCell>
+								<TableCell>复核标签</TableCell>
 								<TableCell>建议评测族</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.surface}</TableCell>
 								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedTarget}</TableCell>
@@ -591,6 +617,14 @@ export function QualityEvalCandidateSection(props: {
 										<Typography variant="body2">{candidate.summary}</Typography>
 									</TableCell>
 									<TableCell>{formatQualityBadcaseCauseClass(candidate.causeClass)}</TableCell>
+									<TableCell>
+										{candidate.intake.source === "negative_feedback" ? "负反馈" : "Badcase"}
+									</TableCell>
+									<TableCell>
+										{candidate.review && candidate.review.suggestedLabels.length > 0
+											? candidate.review.suggestedLabels.join(", ")
+											: "待标注"}
+									</TableCell>
 									<TableCell>{candidate.intake.suggestedEvalFamily}</TableCell>
 									<TableCell>{formatSurfaceLabel(candidate.surface)}</TableCell>
 									<TableCell>{formatSelectedTargetLabel(candidate.selectedTarget)}</TableCell>

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import workerModuleSource from "../src/index/worker.ts?raw";
 import workerSource from "../src/index.ts?raw";
+import mainSource from "../src/main.tsx?raw";
 import appSource from "../src/panel/app.tsx?raw";
 import cursorSource from "../src/panel/data-provider/cursor.ts?raw";
+import officialWebRunsSource from "../src/panel/official-web/runs-list.tsx?raw";
+import officialWebSitesSource from "../src/panel/official-web/sites-list.tsx?raw";
 import auditPageSource from "../src/panel/pages/audit-page.tsx?raw";
 import costPageSource from "../src/panel/pages/cost-page.tsx?raw";
 import intentPageSource from "../src/panel/pages/intent-page.tsx?raw";
@@ -15,6 +18,8 @@ import safetyPageSource from "../src/panel/pages/safety-page.tsx?raw";
 import panelDatagridHeaderSource from "../src/panel/panel-datagrid-header.tsx?raw";
 import layoutSource from "../src/panel/panel-layout.tsx?raw";
 import panelListActionsSource from "../src/panel/panel-list-actions.tsx?raw";
+import panelResponsiveDatagridSource from "../src/panel/panel-responsive-datagrid.tsx?raw";
+import panelSelectSource from "../src/panel/panel-select.ts?raw";
 import requestListSource from "../src/panel/requests/request-list.tsx?raw";
 import requestShowSource from "../src/panel/requests/request-show.tsx?raw";
 
@@ -80,6 +85,7 @@ describe("protected panel shell chinese copy", () => {
 		expect(requestListSource).not.toContain("pagination={<PanelPagination />}");
 		expect(requestListSource).toContain("RequestListContent");
 		expect(requestListSource).toContain("<PanelPagination />");
+		expect(requestListSource).toContain('display: { md: "block", xs: "none" }');
 	});
 
 	it("keeps react-admin layout and request actions from clipping mobile content", () => {
@@ -88,8 +94,13 @@ describe("protected panel shell chinese copy", () => {
 		);
 		expect(layoutSource).toContain("minWidth: 0");
 		expect(requestListSource).toContain("PanelResponsiveDatagrid");
+		expect(requestListSource).toContain("minWidth={1520}");
 		expect(requestListSource).toContain('alignSelf: "stretch"');
 		expect(requestListSource).toContain('whiteSpace: "normal"');
+		expect(layoutSource).not.toContain("100vw");
+		expect(panelResponsiveDatagridSource).toContain('whiteSpace: "nowrap"');
+		expect(panelResponsiveDatagridSource).toContain("PANEL_COPY.table.horizontalScrollHint");
+		expect(panelResponsiveDatagridSource).toContain('overflowX: "auto"');
 	});
 
 	it("does not expose generic export on cursor-backed operator lists", () => {
@@ -99,6 +110,11 @@ describe("protected panel shell chinese copy", () => {
 		expect(panelListActionsSource).toContain("RefreshButton");
 	});
 
+	it("keeps official-web cursor tables wide enough to avoid unreadable wrapped identifiers", () => {
+		expect(officialWebSitesSource).toContain("minWidth={1380}");
+		expect(officialWebRunsSource).toContain("minWidth={1320}");
+	});
+
 	it("keeps cursor-backed request lists session-local and gives empty state a refresh action", () => {
 		expect(requestListSource).toContain("disableSyncWithLocation");
 		expect(requestListSource).toContain("useRefresh");
@@ -106,6 +122,8 @@ describe("protected panel shell chinese copy", () => {
 	});
 
 	it("reserves operator observability domains as explicit custom routes instead of fake resources", () => {
+		expect(mainSource).toContain("BrowserRouter");
+		expect(mainSource).toContain("<ProtectedPanelAdminApp />");
 		expect(appSource).toContain('path="/observability/overview"');
 		expect(appSource).toContain('path="/observability/quality"');
 		expect(appSource).toContain('path="/observability/safety"');
@@ -135,8 +153,19 @@ describe("protected panel shell chinese copy", () => {
 		expect(overviewPageCardsSource).toContain('name="window"');
 		expect(overviewPageCardsSource).toContain('name="surface"');
 		expect(overviewPageCardsSource).toContain('name="selectedTarget"');
-		expect(overviewPageCardsSource).toContain("native: true");
+		expect(overviewPageCardsSource).toContain("PANEL_NATIVE_SELECT_EMPTY_VALUE_SLOT_PROPS");
+		expect(panelSelectSource).toContain("displayEmpty: true");
+		expect(panelSelectSource).toContain("shrink: true");
+		expect(panelSelectSource).toContain("native: true");
 		expect(overviewPageCardsSource).toContain("<option");
+	});
+
+	it("keeps empty select values visible instead of overlapping labels with current values", () => {
+		expect(qualityPageCardsSource).toContain("PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS");
+		expect(safetyPageCardsSource).toContain("PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS");
+		expect(intentPageSource).toContain("PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS");
+		expect(costPageSource).toContain("PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS");
+		expect(auditPageSource).toContain("PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS");
 	});
 
 	it("cuts the quality route and nav over to a real quality domain page", () => {
@@ -221,6 +250,8 @@ describe("protected panel shell chinese copy", () => {
 		expect(layoutSource).toContain('to="/observability/audit"');
 		expect(auditPageSource).toContain("listOperatorAudit");
 		expect(auditPageSource).toContain("getOperatorAuditEvent");
+		expect(auditPageSource).toContain("AUDIT_TABLE_MIN_WIDTH");
+		expect(auditPageSource).toContain("AUDIT_TABLE_NOWRAP_CELL_SX");
 		expect(auditPageSource).toContain("Drawer");
 		expect(auditPageSource).not.toContain("fetch(");
 		expect(auditPageSource).not.toContain('getList("operatorAudit"');

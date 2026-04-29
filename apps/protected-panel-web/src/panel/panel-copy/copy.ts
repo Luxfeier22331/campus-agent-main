@@ -204,6 +204,10 @@ export const PANEL_COPY = {
 			citationPassRate: "引用通过率",
 			coverageRate: "覆盖率",
 			emptyRecallRate: "空召回率",
+			feedbackCoverageRate: "反馈覆盖率",
+			feedbackHelpfulRate: "有帮助率",
+			feedbackNoAnswerUnhelpfulRate: "无法回答负反馈率",
+			feedbackUnhelpfulRate: "无帮助率",
 			groundingPassRate: "Grounding 通过率",
 			intentPassRate: "意图通过率",
 			policyPassRate: "策略通过率",
@@ -225,6 +229,9 @@ export const PANEL_COPY = {
 		qualitySeries: {
 			citationMissRate: "引用缺失率",
 			emptyRecallRate: "空召回率",
+			feedbackCoverageRate: "反馈覆盖率",
+			feedbackHelpfulRate: "有帮助率",
+			feedbackUnhelpfulRate: "无帮助率",
 			needsClarificationRate: "需澄清率",
 			noAnswerRate: "无法回答率",
 			sampledGroundingPassRate: "Grounding 通过率",
@@ -491,6 +498,9 @@ export const PANEL_COPY = {
 		columnSettings: "列设置",
 		export: "导出",
 		refreshList: "刷新列表",
+	},
+	table: {
+		horizontalScrollHint: "横向滑动查看完整列。",
 	},
 	requestsList: {
 		title: "请求分诊台",

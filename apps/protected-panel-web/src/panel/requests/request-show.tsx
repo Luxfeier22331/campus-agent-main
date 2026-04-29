@@ -15,6 +15,7 @@ import { Show, useDataProvider, useRecordContext } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { formatPanelBoolean, formatPanelMicrousd, PANEL_COPY } from "../panel-copy";
+import { PanelPage } from "../panel-page";
 import { formatExternalHrefLabel, normalizeSafeExternalHref } from "../panel-safe-links";
 import type { RequestProjectionRecord } from "../types";
 import {
@@ -111,6 +112,16 @@ function RequestIntentSummary(props: {
 	);
 }
 
+function formatRecordSummary(record: Record<string, unknown> | null | undefined) {
+	if (!record || Object.keys(record).length === 0) {
+		return PANEL_COPY.none;
+	}
+	return Object.entries(record)
+		.filter(([, value]) => typeof value === "string" || typeof value === "number")
+		.map(([key, value]) => `${key}:${value}`)
+		.join(" · ");
+}
+
 function RequestShowContent() {
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
 	const record = useRecordContext<RequestProjectionRecord>();
@@ -175,13 +186,15 @@ function RequestShowContent() {
 
 	const diagnosticEntries = buildRequestDiagnosticEntries(record.diagnostics);
 	const observability = observabilityRecord?.observability ?? null;
+	const tool = observability?.tool ?? null;
+	const workflowTrace = observability?.workflowTrace ?? null;
 	const links = observabilityRecord?.links ?? null;
 	const auditSummary = observabilityRecord?.auditSummary ?? null;
 	const intentEntries = buildRequestIntentEntries(observability?.intent);
 	const replayEntries = buildRequestReplayEntries(observabilityRecord?.replay);
 
 	return (
-		<Box sx={{ p: 3 }}>
+		<PanelPage>
 			<Stack spacing={3}>
 				<Alert severity="info">
 					此视图展示 app-api 的请求投影快照。它被有意设计为读模型，而不是实时执行回放端点。
@@ -460,6 +473,76 @@ function RequestShowContent() {
 						</CardContent>
 					</Card>
 
+					{tool || workflowTrace ? (
+						<Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+							<CardContent>
+								<Stack spacing={2}>
+									<Typography variant="h6">编排观测</Typography>
+									<Divider />
+									<Box
+										sx={{
+											display: "grid",
+											gap: 2,
+											gridTemplateColumns: {
+												md: "repeat(3, minmax(0, 1fr))",
+												xs: "1fr",
+											},
+										}}
+									>
+										<Stack spacing={2}>
+											<RequestFieldRow
+												label="分支"
+												value={workflowTrace?.directVsDelegateBranch || PANEL_COPY.unknown}
+											/>
+											<RequestFieldRow
+												label="规划结果"
+												value={workflowTrace?.planningOutcome || PANEL_COPY.unknown}
+											/>
+											<RequestFieldRow
+												label="Trace 目标"
+												value={formatSelectedTargetLabel(workflowTrace?.selectedTarget ?? null)}
+											/>
+										</Stack>
+										<Stack spacing={2}>
+											<RequestFieldRow
+												label="Tool"
+												value={
+													tool?.selectedTool ||
+													workflowTrace?.selectedTools.join(", ") ||
+													PANEL_COPY.none
+												}
+											/>
+											<RequestFieldRow
+												label="Tool 结果"
+												value={tool?.businessOutcome || PANEL_COPY.unknown}
+											/>
+											<RequestFieldRow
+												label="Tool Fail Close"
+												value={
+													tool?.failCloseReason || workflowTrace?.failCloseReason || PANEL_COPY.none
+												}
+											/>
+										</Stack>
+										<Stack spacing={2}>
+											<RequestFieldRow
+												label="Guardrails"
+												value={formatRecordSummary(workflowTrace?.guardrailOutcomes)}
+											/>
+											<RequestFieldRow
+												label="上下文"
+												value={formatRecordSummary(workflowTrace?.contextResolution)}
+											/>
+											<RequestFieldRow
+												label="Handoff"
+												value={formatRecordSummary(workflowTrace?.handoff)}
+											/>
+										</Stack>
+									</Box>
+								</Stack>
+							</CardContent>
+						</Card>
+					) : null}
+
 					{replayEntries.length > 0 ? (
 						<Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
 							<CardContent>
@@ -510,7 +593,7 @@ function RequestShowContent() {
 					</Card>
 				</Box>
 			</Stack>
-		</Box>
+		</PanelPage>
 	);
 }
 

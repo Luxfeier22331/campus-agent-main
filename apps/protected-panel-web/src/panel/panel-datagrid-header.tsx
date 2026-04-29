@@ -26,9 +26,7 @@ function ProtectedPanelDatagridHeaderCell(props: { field: DatagridFieldLike }) {
 	);
 }
 
-export function PanelDatagridHeader(props: {
-	children?: ReactNode;
-}) {
+export function PanelDatagridHeader(props: { children?: ReactNode }) {
 	return (
 		<TableHead>
 			<TableRow>

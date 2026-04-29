@@ -167,6 +167,35 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 								tool_fail_close_reason: null,
 								tool_historical_downgrade_reason: null,
 							},
+							workflow_trace_summary: {
+								routing_frame: {
+									suggested_next_action: "delegate",
+								},
+								context_resolution: {
+									state: "not_follow_up",
+								},
+								planning_outcome: "preplanned",
+								direct_vs_delegate_branch: "delegate",
+								handoff: {
+									target: "rag-agent",
+									payload_kind: "retrieval.query",
+								},
+								selected_target: "rag-agent",
+								selected_tools: ["retrieval.query"],
+								tool_argument_summary: {
+									collection: "student_rules",
+								},
+								guardrail_outcomes: {
+									scope_gate: "allow",
+								},
+								fail_close_reason: null,
+								runtime_versions: {
+									"supervisor-api": "test",
+								},
+								policy_artifact_versions: {
+									"intent-policy": "v1",
+								},
+							},
 							result: {
 								evidence: {
 									sources: [{ doc_id: "handbook:library-hours" }],
@@ -249,11 +278,92 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				toolFailCloseReason: null,
 				toolHistoricalDowngradeReason: null,
 			},
+			workflowTraceSummary: {
+				contextResolution: {
+					state: "not_follow_up",
+				},
+				directVsDelegateBranch: "delegate",
+				failCloseReason: null,
+				guardrailOutcomes: {
+					scope_gate: "allow",
+				},
+				handoff: {
+					payload_kind: "retrieval.query",
+					target: "rag-agent",
+				},
+				planningOutcome: "preplanned",
+				policyArtifactVersions: {
+					"intent-policy": "v1",
+				},
+				routingFrame: {
+					suggested_next_action: "delegate",
+				},
+				runtimeVersions: {
+					"supervisor-api": "test",
+				},
+				selectedTarget: "rag-agent",
+				selectedTools: ["retrieval.query"],
+				toolArgumentSummary: {
+					collection: "student_rules",
+				},
+			},
 			result: {
 				evidence: {
 					sources: [{ doc_id: "handbook:library-hours" }],
 				},
 			},
+			selectedTarget: "rag-agent",
+			status: "completed",
+			traceId: "trace_01HQ",
+		});
+	});
+	it("drops workflow trace summaries containing raw camelCase debug keys", async () => {
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							answer_text: "图书馆开放到 22:00。",
+							error: null,
+							follow_up_question: "",
+							result: null,
+							selected_target: "rag-agent",
+							status: "completed",
+							trace_id: "trace_01HQ",
+							workflow_trace_summary: {
+								direct_vs_delegate_branch: "delegate",
+								selected_target: "rag-agent",
+								selected_tools: ["retrieval.query"],
+								tool_argument_summary: {
+									rawPrompt: "do not persist",
+								},
+							},
+						}),
+						{ status: 200 },
+					),
+				),
+			},
+		);
+
+		await expect(
+			client.execute({
+				actor: createActor(),
+				context: createContext(),
+				conversationId: "conv_01HQ",
+				requestId: "req_01HQ",
+				traceId: "trace_01HQ",
+				userGoal: "图书馆开放到几点？",
+			}),
+		).resolves.toEqual({
+			answerText: "图书馆开放到 22:00。",
+			error: null,
+			followUpQuestion: "",
+			observability: null,
+			result: null,
 			selectedTarget: "rag-agent",
 			status: "completed",
 			traceId: "trace_01HQ",

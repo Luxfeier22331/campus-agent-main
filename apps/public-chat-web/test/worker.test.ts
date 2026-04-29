@@ -24,6 +24,31 @@ const packageManifest = JSON.parse(packageManifestRaw) as {
 	scripts?: Record<string, string | undefined>;
 };
 
+const EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS = {
+	cspHasBaseUri: true,
+	cspHasChallengeFrame: true,
+	cspHasDefaultSrc: true,
+	cspHasFrameAncestors: true,
+	cspHasObjectSrc: true,
+	permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+	referrerPolicy: "strict-origin-when-cross-origin",
+	xContentTypeOptions: "nosniff",
+} as const;
+
+function readPublicChatSecurityHeaders(response: Response) {
+	const csp = response.headers.get("content-security-policy");
+	return {
+		cspHasBaseUri: csp?.includes("base-uri 'self'") ?? false,
+		cspHasChallengeFrame: csp?.includes("https://challenges.cloudflare.com") ?? false,
+		cspHasDefaultSrc: csp?.includes("default-src 'self'") ?? false,
+		cspHasFrameAncestors: csp?.includes("frame-ancestors 'none'") ?? false,
+		cspHasObjectSrc: csp?.includes("object-src 'none'") ?? false,
+		permissionsPolicy: response.headers.get("permissions-policy"),
+		referrerPolicy: response.headers.get("referrer-policy"),
+		xContentTypeOptions: response.headers.get("x-content-type-options"),
+	};
+}
+
 type CampusServicesTool =
 	| "contact_directory_lookup"
 	| "service_guide_lookup"
@@ -678,6 +703,7 @@ describe("public chat web worker shell", () => {
 
 		expect(health.status).toBe(200);
 		expect(health.headers.get("cache-control")).toBe("no-store");
+		expect(readPublicChatSecurityHeaders(health)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 		await expect(health.json()).resolves.toEqual({
 			status: "ok",
 			app_name: "campus-agent-public-chat-web",
@@ -687,6 +713,7 @@ describe("public chat web worker shell", () => {
 
 		expect(ready.status).toBe(200);
 		expect(ready.headers.get("cache-control")).toBe("no-store");
+		expect(readPublicChatSecurityHeaders(ready)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 		await expect(ready.json()).resolves.toEqual({
 			status: "ready",
 			app_api_base_url: "https://app-api.internal",
@@ -886,6 +913,7 @@ describe("public chat web worker shell", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 		const html = await response.text();
 		expect(html).toContain('<div id="root"></div>');
 		expect(html).toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
@@ -1058,6 +1086,7 @@ describe("public chat web worker shell", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 		expect(response.headers.get("x-request-id")).toBe("req_01HQ");
 		await expect(response.json()).resolves.toEqual({
 			answer: {
@@ -1079,6 +1108,67 @@ describe("public chat web worker shell", () => {
 			JSON.stringify({
 				conversationId: "conv_01HQ",
 				prompt: "图书馆开放到几点？",
+			}),
+		);
+	});
+
+	it("proxies answer feedback writes through the same-site app-api bridge", async () => {
+		let forwardedBody: string | null = null;
+		let forwardedUrl: string | null = null;
+
+		const response = await worker.fetch(
+			new Request(
+				"https://chat.example.com/api/chat/conversations/conv_01HQ/messages/msg_assistant_01HQ/feedback",
+				{
+					body: JSON.stringify({
+						reasonCodes: ["incorrect_answer"],
+						vote: "unhelpful",
+					}),
+					headers: {
+						cookie: "better-auth.session_token=test",
+						"content-type": "application/json",
+					},
+					method: "PUT",
+				},
+			),
+			{
+				APP_API: {
+					fetch: async (request: Request) => {
+						forwardedBody = await request.text();
+						forwardedUrl = request.url;
+
+						return new Response(
+							JSON.stringify({
+								feedback: {
+									createdAt: "2026-04-29T08:00:00.000Z",
+									feedbackId: "fb_01HQ",
+									messageId: "msg_assistant_01HQ",
+									reasonCodes: ["incorrect_answer"],
+									updatedAt: "2026-04-29T08:00:00.000Z",
+									vote: "unhelpful",
+								},
+							}),
+							{
+								headers: {
+									"content-type": "application/json; charset=utf-8",
+								},
+								status: 200,
+							},
+						);
+					},
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+			},
+		);
+
+		expect(response.status).toBe(200);
+		expect(forwardedUrl).toBe(
+			"https://app-api.internal/api/chat/conversations/conv_01HQ/messages/msg_assistant_01HQ/feedback",
+		);
+		expect(forwardedBody).toBe(
+			JSON.stringify({
+				reasonCodes: ["incorrect_answer"],
+				vote: "unhelpful",
 			}),
 		);
 	});
@@ -1210,6 +1300,9 @@ describe("public chat web worker shell", () => {
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get("cache-control")).toBe("no-store");
+			expect(readPublicChatSecurityHeaders(response)).toEqual(
+				EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS,
+			);
 			await expect(response.json()).resolves.toEqual({ proxied: true });
 			expect(forwardedUrl).toBe("https://app-api.internal/api/models");
 			expect(appApiFetch).toHaveBeenCalledTimes(1);

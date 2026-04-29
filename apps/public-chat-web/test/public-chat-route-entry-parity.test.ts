@@ -18,6 +18,8 @@ describe("public chat route entry parity", () => {
 		expect(appRouterSource).toContain('session.kind === "loading"');
 		expect(appRouterSource).toContain('session.kind === "unauthenticated"');
 		expect(appRouterSource).toContain('session.kind === "error"');
+		expect(appRouterSource).toContain("ChatRouteErrorFallback");
+		expect(appRouterSource).toContain("重新连接");
 		expect(appRouterSource).toContain("!session.principal.canChat");
 		expect(appRouterSource).toContain('<Navigate replace to="/login" />');
 	});

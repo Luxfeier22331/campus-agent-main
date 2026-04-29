@@ -3,8 +3,20 @@ import { summarizeObservedSources } from "../source-trace";
 import type {
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
+	SupervisorExecutionWorkflowTraceSummary,
 	SupervisorPromptTrace,
 } from "./supervisor-types";
+
+const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
+	"raw_prompt",
+	"raw_transcript",
+	"provider_raw_response",
+	"raw_response",
+	"jwt",
+	"cookie",
+	"auth_envelope",
+	"retrieval_backend_dump",
+];
 
 function getRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
@@ -40,6 +52,39 @@ function recordValue(
 	camelCaseKey: string,
 ): unknown {
 	return snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
+}
+
+function containsForbiddenWorkflowTraceKey(value: unknown): boolean {
+	if (Array.isArray(value)) {
+		return value.some((item) => containsForbiddenWorkflowTraceKey(item));
+	}
+	const record = getRecord(value);
+	if (!record) {
+		return false;
+	}
+	return Object.entries(record).some(([key, item]) => {
+		const normalizedKey = normalizeWorkflowTraceKeyToken(key);
+		return (
+			FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS.some((token) =>
+				normalizedKey.includes(normalizeWorkflowTraceKeyToken(token)),
+			) || containsForbiddenWorkflowTraceKey(item)
+		);
+	});
+}
+
+function normalizeWorkflowTraceKeyToken(value: string): string {
+	return value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeWorkflowRecord(value: unknown): Record<string, unknown> {
+	const record = getRecord(value);
+	if (!record || containsForbiddenWorkflowTraceKey(record)) {
+		return {};
+	}
+	return record;
 }
 
 function normalizeStringArrayRecord(
@@ -193,9 +238,7 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 		selectedTool: normalizeNullableString(record.selected_tool),
 		toolBusinessOutcome: normalizeNullableString(record.tool_business_outcome),
 		toolFailCloseReason: normalizeNullableString(record.tool_fail_close_reason),
-		toolHistoricalDowngradeReason: normalizeNullableString(
-			record.tool_historical_downgrade_reason,
-		),
+		toolHistoricalDowngradeReason: normalizeNullableString(record.tool_historical_downgrade_reason),
 		...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),
 		...(resolvedScopeCorpus ? { resolvedScopeCorpus } : {}),
 	};
@@ -207,10 +250,71 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 	return parsed;
 }
 
+function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowTraceSummary | null {
+	const record = getRecord(value);
+	if (!record || containsForbiddenWorkflowTraceKey(record)) {
+		return null;
+	}
+	const selectedToolsValue = recordValue(record, "selected_tools", "selectedTools");
+	const selectedTools = Array.isArray(selectedToolsValue)
+		? selectedToolsValue.filter(
+				(item): item is string => typeof item === "string" && item.trim().length > 0,
+			)
+		: [];
+	const parsed: SupervisorExecutionWorkflowTraceSummary = {
+		contextResolution: normalizeWorkflowRecord(
+			recordValue(record, "context_resolution", "contextResolution"),
+		),
+		directVsDelegateBranch: normalizeRecordString(
+			record,
+			"direct_vs_delegate_branch",
+			"directVsDelegateBranch",
+		),
+		failCloseReason: normalizeRecordString(record, "fail_close_reason", "failCloseReason"),
+		guardrailOutcomes: normalizeWorkflowRecord(
+			recordValue(record, "guardrail_outcomes", "guardrailOutcomes"),
+		),
+		handoff: normalizeWorkflowRecord(record.handoff),
+		planningOutcome: normalizeRecordString(record, "planning_outcome", "planningOutcome"),
+		policyArtifactVersions: normalizeWorkflowRecord(
+			recordValue(record, "policy_artifact_versions", "policyArtifactVersions"),
+		),
+		routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame", "routingFrame")),
+		runtimeVersions: normalizeWorkflowRecord(
+			recordValue(record, "runtime_versions", "runtimeVersions"),
+		),
+		selectedTarget: normalizeRecordString(record, "selected_target", "selectedTarget"),
+		selectedTools,
+		toolArgumentSummary: normalizeWorkflowRecord(
+			recordValue(record, "tool_argument_summary", "toolArgumentSummary"),
+		),
+	};
+
+	if (
+		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedTarget) &&
+		parsed.selectedTools.length === 0 &&
+		Object.values(parsed).every(
+			(item) =>
+				item === null ||
+				(Array.isArray(item) && item.length === 0) ||
+				(typeof item === "object" && item !== null && Object.keys(item).length === 0),
+		)
+	) {
+		return null;
+	}
+
+	return parsed;
+}
+
 export function parseSupervisorExecutionResponsePayload(
 	parsed: Record<string, unknown> | null | undefined,
 	fallbackTraceId: string,
 ): SupervisorExecutionResponse {
+	const workflowTraceSummary = parseWorkflowTraceSummary(
+		"workflow_trace_summary" in (parsed ?? {})
+			? parsed?.workflow_trace_summary
+			: parsed?.workflowTraceSummary,
+	);
 	return {
 		answerText:
 			typeof parsed?.answer_text === "string"
@@ -264,5 +368,6 @@ export function parseSupervisorExecutionResponsePayload(
 				: typeof parsed?.traceId === "string"
 					? parsed.traceId
 					: fallbackTraceId,
+		...(workflowTraceSummary ? { workflowTraceSummary } : {}),
 	};
 }

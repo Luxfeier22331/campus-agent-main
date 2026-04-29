@@ -14,19 +14,20 @@ import {
 	TextField,
 	Typography,
 } from "@mui/material";
-import { BarChart } from "@mui/x-charts/BarChart";
-import { LineChart } from "@mui/x-charts/LineChart";
 import { useQueries } from "@tanstack/react-query";
 import { type ReactNode, startTransition, useDeferredValue, useMemo, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
+import { PanelBarChart, PanelLineChart } from "../panel-chart";
 import {
 	formatPanelMicrousd,
 	formatPanelTimestamp,
 	PANEL_COPY,
 	translateRuntimeErrorMessage,
 } from "../panel-copy";
+import { PanelPage } from "../panel-page";
+import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../panel-select";
 import {
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatSelectedTargetLabel,
@@ -208,7 +209,7 @@ function DistributionSection(props: {
 		<SectionCard description={props.description} title={props.title}>
 			{props.entries.length > 0 ? (
 				<Stack spacing={2.5}>
-					<BarChart
+					<PanelBarChart
 						height={280}
 						margin={{ bottom: 36, left: 48, right: 24, top: 20 }}
 						series={[
@@ -350,7 +351,7 @@ export function CostPage() {
 	return (
 		<>
 			<Title title={PANEL_COPY.menu.cost} />
-			<Box sx={{ p: { md: 3, xs: 2 } }}>
+			<PanelPage>
 				<Stack spacing={3}>
 					<Card
 						sx={{
@@ -385,6 +386,7 @@ export function CostPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 140, xs: "100%" } }}
 										value={filters.window}
 									>
@@ -406,6 +408,7 @@ export function CostPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.surface ?? ""}
 									>
@@ -427,6 +430,7 @@ export function CostPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.selectedTarget ?? ""}
 									>
@@ -509,7 +513,7 @@ export function CostPage() {
 									<Typography color="text.secondary" variant="body2">
 										{PANEL_COPY.costPage.trends.costEstimate}
 									</Typography>
-									<LineChart
+									<PanelLineChart
 										height={180}
 										margin={{ bottom: 24, left: 56, right: 16, top: 12 }}
 										series={[
@@ -534,7 +538,7 @@ export function CostPage() {
 									<Typography color="text.secondary" variant="body2">
 										{PANEL_COPY.costPage.trends.tokenUsage}
 									</Typography>
-									<LineChart
+									<PanelLineChart
 										height={180}
 										margin={{ bottom: 24, left: 56, right: 16, top: 12 }}
 										series={[
@@ -587,7 +591,7 @@ export function CostPage() {
 						</Box>
 					</SectionCard>
 				</Stack>
-			</Box>
+			</PanelPage>
 		</>
 	);
 }

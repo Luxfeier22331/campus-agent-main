@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
 import { ProtectedPanelAdminApp } from "./panel/app";
 import { PANEL_COPY } from "./panel/panel-copy";
@@ -13,6 +14,8 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
 	<StrictMode>
-		<ProtectedPanelAdminApp />
+		<BrowserRouter>
+			<ProtectedPanelAdminApp />
+		</BrowserRouter>
 	</StrictMode>,
 );

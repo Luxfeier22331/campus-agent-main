@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Show, useRecordContext } from "react-admin";
 
 import { PANEL_COPY } from "../panel-copy";
+import { PanelPage } from "../panel-page";
 import type { OfficialWebFreshnessPageRecord, OfficialWebSiteRecord } from "../types";
 import {
 	formatOfficialWebCadenceClassLabel,
@@ -101,7 +102,7 @@ function OfficialWebSiteShowContent() {
 	}
 
 	return (
-		<Box sx={{ p: 3 }}>
+		<PanelPage>
 			<Stack spacing={3}>
 				<Alert severity="info">
 					此视图展示 app-api 维护的 official_web
@@ -308,7 +309,7 @@ function OfficialWebSiteShowContent() {
 					</Card>
 				</Box>
 			</Stack>
-		</Box>
+		</PanelPage>
 	);
 }
 

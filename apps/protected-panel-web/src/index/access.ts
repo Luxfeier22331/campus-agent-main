@@ -106,9 +106,8 @@ function mapOperatorContext(payload: JWTPayload): OperatorContext | null {
 	const displayName =
 		typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : null;
 	const groups = Array.isArray(payload.groups)
-		? payload.groups.filter(
-				(value): value is string => typeof value === "string" && value.trim().length > 0,
-			)
+		? payload.groups
+				.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
 				.map((value) => value.trim())
 		: [];
 

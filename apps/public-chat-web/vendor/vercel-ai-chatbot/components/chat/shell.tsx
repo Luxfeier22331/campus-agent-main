@@ -41,11 +41,11 @@ export function ChatShell() {
     visibilityType,
     isReadonly,
     isLoading,
-    votes,
     currentModelId,
     prepareConversationRoute,
     showCreditCardAlert,
     setShowCreditCardAlert,
+    threadError,
   } = useActiveChat();
 
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
@@ -98,44 +98,53 @@ export function ChatShell() {
               selectedModelId={currentModelId}
               setMessages={setMessages}
               status={status}
-              votes={votes}
             />
 
             <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
               {!isReadonly && (
-                <MultimodalInput
-                  chatId={chatId}
-                  editingMessage={editingMessage}
-                  input={input}
-                  isLoading={isLoading}
-                  messages={messages}
-                  onCancelEdit={() => {
-                    setEditingMessage(null);
-                    setInput("");
-                  }}
-                  selectedVisibilityType={visibilityType}
-                  prepareConversationRoute={prepareConversationRoute}
-                  sendMessage={
-                    editingMessage
-                      ? async () => {
-                          const msg = editingMessage;
-                          setEditingMessage(null);
-                          await submitEditedMessage({
-                            conversationId: chatId,
-                            message: msg,
-                            text: input,
-                            setMessages,
-                            sendMessage,
-                          });
-                          setInput("");
-                        }
-                      : sendMessage
-                  }
-                  setInput={setInput}
-                  setMessages={setMessages}
-                  status={status}
-                  stop={stop}
-                />
+                <div className="flex w-full flex-col gap-2">
+                  {threadError ? (
+                    <div
+                      className="rounded-xl border border-destructive/25 bg-destructive/5 px-3 py-2 text-[12px] leading-relaxed text-destructive"
+                      role="alert"
+                    >
+                      <div className="font-medium">当前请求失败，输入已保留，可修改后重试。</div>
+                      <div className="mt-1 text-destructive/80">{threadError}</div>
+                    </div>
+                  ) : null}
+                  <MultimodalInput
+                    chatId={chatId}
+                    editingMessage={editingMessage}
+                    input={input}
+                    isLoading={isLoading}
+                    messages={messages}
+                    onCancelEdit={() => {
+                      setEditingMessage(null);
+                      setInput("");
+                    }}
+                    selectedVisibilityType={visibilityType}
+                    prepareConversationRoute={prepareConversationRoute}
+                    sendMessage={
+                      editingMessage
+                        ? async () => {
+                            const msg = editingMessage;
+                            setEditingMessage(null);
+                            await submitEditedMessage({
+                              conversationId: chatId,
+                              message: msg,
+                              text: input,
+                              setMessages,
+                              sendMessage,
+                            });
+                          }
+                        : sendMessage
+                    }
+                    setInput={setInput}
+                    setMessages={setMessages}
+                    status={status}
+                    stop={stop}
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -157,7 +166,6 @@ export function ChatShell() {
           setMessages={setMessages}
           status={status}
           stop={stop}
-          votes={votes}
         />
       </div>
 

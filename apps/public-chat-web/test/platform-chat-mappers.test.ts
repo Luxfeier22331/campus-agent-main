@@ -5,6 +5,7 @@ import {
 	mapConversationDetail,
 	mapSessionPrincipal,
 } from "../src/platform/chat/mappers";
+import { mapShellMessageToChatMessage } from "../src/platform/chat/message-parts";
 
 describe("platform chat mappers", () => {
 	it("maps the app-api-backed session principal into shell session shape", () => {
@@ -89,6 +90,52 @@ describe("platform chat mappers", () => {
 			],
 			title: "民族班课程",
 			updatedAt: "2026-04-06T09:10:02.000Z",
+		});
+	});
+
+	it("preserves current-user assistant feedback through shell and UI message mapping", () => {
+		const conversation = mapConversationDetail({
+			createdAt: "2026-04-29T08:00:00.000Z",
+			id: "conv_01HQ",
+			messages: [
+				{
+					conversationId: "conv_01HQ",
+					createdAt: "2026-04-29T08:00:02.000Z",
+					feedback: {
+						createdAt: "2026-04-29T08:00:03.000Z",
+						feedbackId: "fb_01HQ",
+						messageId: "msg_assistant_01HQ",
+						reasonCodes: ["outdated_or_missing_source"],
+						updatedAt: "2026-04-29T08:00:03.000Z",
+						vote: "unhelpful",
+					},
+					id: "msg_assistant_01HQ",
+					kind: "answer",
+					requestId: "req_01HQ",
+					retryable: false,
+					role: "assistant",
+					text: "图书馆开放到 22:00。",
+				},
+			],
+			title: "图书馆开放时间",
+			updatedAt: "2026-04-29T08:00:03.000Z",
+		});
+
+		expect(conversation.messages[0]?.feedback).toEqual({
+			createdAt: "2026-04-29T08:00:03.000Z",
+			feedbackId: "fb_01HQ",
+			messageId: "msg_assistant_01HQ",
+			reasonCodes: ["outdated_or_missing_source"],
+			updatedAt: "2026-04-29T08:00:03.000Z",
+			vote: "unhelpful",
+		});
+		expect(mapShellMessageToChatMessage(conversation.messages[0]).feedback).toEqual({
+			createdAt: "2026-04-29T08:00:03.000Z",
+			feedbackId: "fb_01HQ",
+			messageId: "msg_assistant_01HQ",
+			reasonCodes: ["outdated_or_missing_source"],
+			updatedAt: "2026-04-29T08:00:03.000Z",
+			vote: "unhelpful",
 		});
 	});
 

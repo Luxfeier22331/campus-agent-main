@@ -8,7 +8,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
-
+import type { SupervisorExecutionWorkflowTraceSummary } from "../../modules/integration/supervisor-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -122,6 +122,7 @@ export const requestObservabilityFact = runtime.table(
 		resolvedScopeSummary: text("resolved_scope_summary"),
 		collection: text("collection"),
 		selectedTarget: text("selected_target"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
@@ -148,6 +149,12 @@ export const requestObservabilityFact = runtime.table(
 		aclDecision: text("acl_decision"),
 		aclAnomalyCode: text("acl_anomaly_code"),
 		failClosed: boolean("fail_closed"),
+		toolBusinessOutcome: text("tool_business_outcome"),
+		toolFailCloseReason: text("tool_fail_close_reason"),
+		toolHistoricalDowngradeReason: text("tool_historical_downgrade_reason"),
+		workflowTraceSummaryJson: jsonb(
+			"workflow_trace_summary_json",
+		).$type<SupervisorExecutionWorkflowTraceSummary | null>(),
 		intentCapability: text("intent_capability"),
 		intentTaskKind: text("intent_task_kind"),
 		intentLaunchState: text("intent_launch_state"),

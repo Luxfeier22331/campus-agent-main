@@ -7,7 +7,7 @@ import suggestedActionsSource from "../vendor/vercel-ai-chatbot/components/chat/
 describe("public chat composer navigation parity", () => {
 	it("pushes the repo chat route before first-turn submit instead of waiting for a server-owned redirect", () => {
 		const routePush = ["await router.push(`/chat/", "${", "chatId", "}`);"].join("");
-		const sendMessageCall = "void sendMessage({";
+		const sendMessageCall = "await sendMessage({";
 
 		expect(multimodalInputSource).toContain(routePush);
 		expect(multimodalInputSource).toContain(sendMessageCall);

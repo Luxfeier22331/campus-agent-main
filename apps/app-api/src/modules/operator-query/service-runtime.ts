@@ -12,6 +12,7 @@ import {
 import type {
 	NormalizedOperatorOverviewFilters,
 	OperatorQualityBadcaseListResult,
+	OperatorQualityEvalCandidateListResult,
 	OperatorQueryService,
 	OperatorQueryServiceDependencies,
 } from "./service-types";
@@ -63,6 +64,30 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 			traceId: badcase.traceId,
 		})),
 		page: badcases.page,
+	};
+}
+
+function emptyQualityEvalCandidates(): OperatorQualityEvalCandidateListResult {
+	return {
+		candidates: [],
+		page: {
+			nextCursor: null,
+		},
+	};
+}
+
+function mergeQualityEvalCandidates(
+	left: OperatorQualityEvalCandidateListResult,
+	right: OperatorQualityEvalCandidateListResult,
+	limit: number,
+): OperatorQualityEvalCandidateListResult {
+	return {
+		candidates: [...left.candidates, ...right.candidates]
+			.sort((a, b) => Date.parse(b.intake.createdAt) - Date.parse(a.intake.createdAt))
+			.slice(0, limit),
+		page: {
+			nextCursor: left.page.nextCursor ?? right.page.nextCursor,
+		},
 	};
 }
 
@@ -217,10 +242,29 @@ export function buildOperatorQueryService(
 
 		async listQualityEvalCandidates(input) {
 			ensureOperatorPrincipal(input.principal);
-			const badcases = await dependencies.store.listQualityBadcases(
-				normalizeQualityBadcaseListFilters(input.filters),
-			);
-			return toQualityEvalCandidates(badcases);
+			const filters = normalizeQualityBadcaseListFilters(input.filters);
+			const includeBadcases =
+				filters.detectedBy !== "negative_feedback" && filters.status !== "pending_review";
+			const includeFeedback =
+				(!filters.detectedBy || filters.detectedBy === "negative_feedback") &&
+				(!filters.status || filters.status === "pending_review");
+
+			if (includeBadcases && !includeFeedback) {
+				const badcases = await dependencies.store.listQualityBadcases(filters);
+				return toQualityEvalCandidates(badcases);
+			}
+			if (!includeBadcases && includeFeedback) {
+				return dependencies.store.listQualityFeedbackEvalCandidates(filters);
+			}
+			if (!(includeBadcases || includeFeedback)) {
+				return emptyQualityEvalCandidates();
+			}
+
+			const [badcases, feedbackCandidates] = await Promise.all([
+				dependencies.store.listQualityBadcases(filters).then(toQualityEvalCandidates),
+				dependencies.store.listQualityFeedbackEvalCandidates(filters),
+			]);
+			return mergeQualityEvalCandidates(badcases, feedbackCandidates, filters.limit);
 		},
 	};
 }

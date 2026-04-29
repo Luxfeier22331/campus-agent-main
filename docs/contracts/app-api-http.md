@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-27
+updated: 2026-04-29
 ---
 # App API HTTP Contract
 
@@ -588,6 +588,29 @@ Upsert 一个用户声明的 profile memory item。
 - target message 必须是 assistant message，且有 non-null `requestId`
 - 只删除当前用户自己的 latest feedback row
 - v1 使用 hard delete；撤回后不计入 feedback metrics
+
+### Answer Feedback Rollout Posture
+
+answer feedback 是 browser-facing product signal，但 durable truth 归 `app-api`
+所有。
+
+rollout 规则：
+
+- public-chat-web 可以关闭或隐藏 feedback UI；这只停止新的浏览器入口，不删除
+  已写入的 `chat.message_feedback`
+- feedback route 保持 session-principal admission，缺失登录态、cross-user
+  conversation、非 assistant message、`kind=error` 或无 `requestId` 都 fail closed
+- 关闭 UI 后，conversation detail 仍可以返回当前用户已有的 `feedback` state
+- operator quality summary / eval candidate export 可以继续读取既有 feedback，用于
+  质量分析和人工复核
+
+rollback 规则：
+
+- 回滚 public-chat-web UI 不回滚 `app-api` schema，不清空 feedback truth
+- 如需停止采集，优先关闭浏览器 UI 或 worker route proxy；不要删除
+  `chat.message_feedback`
+- 如发现 feedback 写入路径异常，先保持 route fail closed，再用 operator quality
+  read model 验证已写入记录是否仍可安全读取
 
 ### `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 

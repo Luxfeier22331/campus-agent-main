@@ -593,6 +593,48 @@ list endpoints 额外支持：
       "count": 12,
       "eligibleCount": 290
     },
+    "feedback": {
+      "feedbackCount": 82,
+      "coverageRate": {
+        "value": 0.0657,
+        "count": 82,
+        "eligibleCount": 1248
+      },
+      "helpfulRate": {
+        "value": 0.7561,
+        "count": 62,
+        "eligibleCount": 82
+      },
+      "unhelpfulRate": {
+        "value": 0.2439,
+        "count": 20,
+        "eligibleCount": 82
+      },
+      "noAnswerUnhelpfulRate": {
+        "value": 0.1311,
+        "count": 8,
+        "eligibleCount": 61
+      },
+      "distributions": {
+        "surface": [{ "value": "public_chat_web", "count": 82 }],
+        "answerKind": [
+          { "value": "answer", "count": 56 },
+          { "value": "no_answer", "count": 18 },
+          { "value": "clarification", "count": 8 }
+        ],
+        "capability": [{ "value": "knowledge", "count": 64 }],
+        "citationPosture": [
+          { "value": "citation_present", "count": 48 },
+          { "value": "citation_missing", "count": 8 },
+          { "value": "citation_not_expected", "count": 26 }
+        ],
+        "reasonCode": [{ "value": "wrong_intent", "count": 7 }],
+        "vote": [
+          { "value": "helpful", "count": 62 },
+          { "value": "unhelpful", "count": 20 }
+        ]
+      }
+    },
     "refusalDistribution": {
       "noAnswer": 61,
       "needsClarification": 48,
@@ -635,6 +677,18 @@ list endpoints 额外支持：
 规则：
 
 - `runtime` 与 `sampledGrades` 必须分块返回，不混成单一 truth
+- `runtime.feedback` 来自 `chat.message_feedback.request_id` 与
+  `runtime.request_observability_fact.request_id` 的 app-api owned join；时间窗、surface、
+  selected target、capability、principal、collection 与 model 过滤均以 request observability
+  fact 为准，不以 feedback `updatedAt` 重新定义窗口
+- `runtime.feedback.coverageRate.eligibleCount` 只统计可投票 assistant answer：`completed`、
+  `needs_clarification` 与 `no_answer`；`error`、`rejected`、`approval_required` 不进入分母
+- `runtime.feedback.helpfulRate` 与 `runtime.feedback.unhelpfulRate` 的分母是当前窗口内已收到
+  feedback 的 eligible answer 数
+- `runtime.feedback.noAnswerUnhelpfulRate` 的分母是当前窗口内 `status=no_answer` 的 eligible
+  answer 数
+- `runtime.feedback.distributions` 只基于已收到 feedback 且可 join 到 eligible answer 的记录；
+  reason code 缺失时允许返回 `unspecified`
 - sampled grading 缺失时，`sampledGrades` 允许为空块或 `null` 值，不得用 runtime 指标冒充 grader 结果
 - 当前已冻结的第一版 contract 返回 `sampledGrades: null`
 - forward contract 上，`sampledGrades` 的上游固定为 `operator.quality_grade_projection`
@@ -661,6 +715,16 @@ list endpoints 额外支持：
       "citationMissRate": 0.044,
       "noAnswerRate": 0.058,
       "needsClarificationRate": 0.019,
+      "feedbackEligibleAnswerCount": 52,
+      "feedbackCount": 4,
+      "feedbackCoverageRate": 0.0769,
+      "feedbackHelpfulCount": 3,
+      "feedbackHelpfulRate": 0.75,
+      "feedbackUnhelpfulCount": 1,
+      "feedbackUnhelpfulRate": 0.25,
+      "feedbackNoAnswerEligibleCount": 3,
+      "feedbackNoAnswerUnhelpfulCount": 1,
+      "feedbackNoAnswerUnhelpfulRate": 0.3333,
       "sampledGroundingPassRate": 0.9
     }
   ],
@@ -671,6 +735,8 @@ list endpoints 额外支持：
 规则：
 
 - timeseries bucket 只返回 app-owned aggregate，不内嵌 raw request rows
+- feedback timeseries 字段使用同 summary 相同的 eligible answer、feedback count、helpful /
+  unhelpful 与 no-answer-unhelpful 分母口径；它们随 bucket 展示 denominator 字段，避免前端推算
 - sampled grade 相关曲线允许出现 `null`，表示该 bucket 没有足够样本
 - 当前已冻结的第一版 contract 由 `operator.metric_rollup` 重建 `requestCount`、`emptyRecallRa
   te`、`citationMissRate`、`noAnswerRate`、`needsClarificationRate`
@@ -741,7 +807,8 @@ list endpoints 额外支持：
 
 ### `GET /api/operator/quality/eval-candidates`
 
-查询参数与 `quality/badcases` 相同：
+查询参数与 `quality/badcases` 相同，并允许用 `detectedBy=negative_feedback`
+只看用户负反馈候选：
 
 - `limit`
 - `cursor`
@@ -778,6 +845,55 @@ list endpoints 额外支持：
         "suggestedEvalFamily": "grounding",
         "createdAt": "2026-04-03T00:10:00.000Z"
       }
+    },
+    {
+      "candidateId": "eval_candidate:negative_feedback:feedback_01HQ",
+      "requestId": "req_01HQ",
+      "traceId": "trace_01HQ",
+      "surface": "public_chat_web",
+      "selectedTarget": "rag-agent",
+      "causeClass": "wrong_intent",
+      "summary": "Negative answer feedback for answer: wrong_intent.",
+      "grade": null,
+      "links": {
+        "traceLink": "https://sentry.example/organizations/campus/traces/trace_01HQ",
+        "issueLink": null,
+        "issueFingerprint": null
+      },
+      "correlation": {
+        "conversationId": "conv_01HQ",
+        "assistantMessageId": "msg_assistant_01HQ",
+        "answerKind": "answer",
+        "citationPosture": "citation_missing",
+        "intent": {
+          "capability": "knowledge",
+          "taskKind": "knowledge_lookup",
+          "launchState": "open",
+          "nextAction": "delegate",
+          "scopeClass": "in_scope",
+          "classifierVersion": "intent-classifier@2026-04-20"
+        }
+      },
+      "feedback": {
+        "feedbackId": "feedback_01HQ",
+        "vote": "unhelpful",
+        "reasonCodes": ["wrong_intent"],
+        "updatedAt": "2026-04-03T00:12:00.000Z"
+      },
+      "review": {
+        "suggestedLabels": ["wrong_intent"]
+      },
+      "privacy": {
+        "rawTranscriptIncluded": false,
+        "rawAuthMaterialIncluded": false,
+        "providerRawResponseIncluded": false
+      },
+      "intake": {
+        "source": "negative_feedback",
+        "status": "pending_review",
+        "suggestedEvalFamily": "intent",
+        "createdAt": "2026-04-03T00:12:00.000Z"
+      }
     }
   ],
   "page": {
@@ -790,10 +906,20 @@ list endpoints 额外支持：
 
 - 这是 app-api-owned badcase-to-eval intake export seam，不是 eval golden set
   admission API
-- `candidateId` 稳定派生自 `badcaseId`，便于后续 eval tooling 做幂等 intake
+- `candidateId` 对 badcase 稳定派生自 `badcaseId`；对 negative feedback 稳定派生自
+  `feedbackId`，便于后续 eval tooling 做幂等 intake
+- `intake.source` 当前允许 `operator_badcase` 或 `negative_feedback`
 - `suggestedEvalFamily` 只表达 app-api 基于 `causeClass` 的初始归类；eval review / golden set
   admission 仍由 eval layer 决定
 - `suggestedEvalFamily` 当前取值为 `citation`、`grounding`、`intent`、`policy` 或 `unknown`
+- negative feedback candidate 的 manual review label 当前允许：
+  `false_positive`、`false_negative`、`wrong_intent`、`stale_missing_evidence`、
+  `answer_style_issue`
+- negative feedback candidate 只返回 request/message correlation、intent summary、
+  citation/source posture、reason codes 与 trace backlink；不得返回 raw transcript、
+  raw auth material、provider raw response、raw prompt 或 retrieval payload
+- `packages/evals` 的 eval admission manifest 只能把这些 candidate 包装成
+  `pending_review`，不能直接把它们写成 golden truth
 - endpoint 不写入 eval truth，不生成 benchmark artifact，不创建 fix task
 
 ## Intent Governance Endpoints

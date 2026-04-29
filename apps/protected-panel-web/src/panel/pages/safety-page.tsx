@@ -1,10 +1,11 @@
-import { Alert, Box, Stack } from "@mui/material";
+import { Alert, Stack } from "@mui/material";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { PANEL_COPY } from "../panel-copy";
+import { PanelPage } from "../panel-page";
 import type { OperatorSafetyAnomalyRecord } from "../types";
 import {
 	buildSafetyDecisionCards,
@@ -133,7 +134,7 @@ export function SafetyPage() {
 	return (
 		<>
 			<Title title={PANEL_COPY.menu.safety} />
-			<Box sx={{ p: { md: 3, xs: 2 } }}>
+			<PanelPage>
 				<Stack spacing={3}>
 					<SafetyHeaderSection
 						asOf={summary?.asOf ?? null}
@@ -247,7 +248,7 @@ export function SafetyPage() {
 						queueFilters={filters}
 					/>
 				</Stack>
-			</Box>
+			</PanelPage>
 
 			<SafetyDetailDrawer
 				onClose={() => setSelectedAnomaly(null)}

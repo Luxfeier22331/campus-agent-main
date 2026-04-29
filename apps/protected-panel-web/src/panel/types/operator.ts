@@ -126,6 +126,21 @@ export interface RawOperatorQualitySummaryRecord {
 	runtime: {
 		citationMissRate: RawOperatorMetricRatio;
 		emptyRecallRate: RawOperatorMetricRatio;
+		feedback: {
+			coverageRate: RawOperatorMetricRatio;
+			distributions: {
+				answerKind: RawOperatorDistributionBucket[];
+				capability: RawOperatorDistributionBucket[];
+				citationPosture: RawOperatorDistributionBucket[];
+				reasonCode: RawOperatorDistributionBucket[];
+				surface: RawOperatorDistributionBucket[];
+				vote: RawOperatorDistributionBucket[];
+			};
+			feedbackCount: number;
+			helpfulRate: RawOperatorMetricRatio;
+			noAnswerUnhelpfulRate: RawOperatorMetricRatio;
+			unhelpfulRate: RawOperatorMetricRatio;
+		};
 		refusalDistribution: {
 			approvalRequired: number;
 			needsClarification: number;
@@ -152,6 +167,16 @@ export interface RawOperatorQualityTimeseriesBucket {
 	bucketStart: string;
 	citationMissRate: number;
 	emptyRecallRate: number;
+	feedbackCount: number;
+	feedbackCoverageRate: number;
+	feedbackEligibleAnswerCount: number;
+	feedbackHelpfulCount: number;
+	feedbackHelpfulRate: number;
+	feedbackNoAnswerEligibleCount: number;
+	feedbackNoAnswerUnhelpfulCount: number;
+	feedbackNoAnswerUnhelpfulRate: number;
+	feedbackUnhelpfulCount: number;
+	feedbackUnhelpfulRate: number;
 	needsClarificationRate: number;
 	noAnswerRate: number;
 	requestCount: number;
@@ -256,6 +281,26 @@ export interface RawOperatorQualityBadcaseListResponse {
 export interface RawOperatorQualityEvalCandidateRecord {
 	candidateId: string;
 	causeClass: string;
+	correlation?: {
+		answerKind: string;
+		assistantMessageId: string;
+		citationPosture: string;
+		conversationId: string;
+		intent: {
+			capability?: string | null;
+			classifierVersion?: string | null;
+			launchState?: string | null;
+			nextAction?: string | null;
+			scopeClass?: string | null;
+			taskKind?: string | null;
+		};
+	};
+	feedback?: {
+		feedbackId: string;
+		reasonCodes: string[];
+		updatedAt: string;
+		vote: "unhelpful";
+	};
 	grade: {
 		graderVersion: string;
 		result: string;
@@ -263,11 +308,25 @@ export interface RawOperatorQualityEvalCandidateRecord {
 	} | null;
 	intake: {
 		createdAt: string;
-		source: "operator_badcase";
+		source: "operator_badcase" | "negative_feedback";
 		status: "pending_review";
 		suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
 	};
 	links: RawOperatorTraceLinks;
+	privacy?: {
+		providerRawResponseIncluded: false;
+		rawAuthMaterialIncluded: false;
+		rawTranscriptIncluded: false;
+	};
+	review?: {
+		suggestedLabels: Array<
+			| "false_positive"
+			| "false_negative"
+			| "wrong_intent"
+			| "stale_missing_evidence"
+			| "answer_style_issue"
+		>;
+	};
 	requestId: string;
 	selectedTarget: string | null;
 	summary: string;

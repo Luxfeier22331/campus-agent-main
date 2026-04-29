@@ -176,6 +176,13 @@
       "when": 1777267894669,
       "tag": "0024_dazzling_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1777447811734,
+      "tag": "0025_workflow_trace_observability",
+      "breakpoints": true
     }
   ]
 }

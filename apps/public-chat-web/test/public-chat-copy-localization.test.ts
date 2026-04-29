@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import indexHtmlSource from "../index.html?raw";
+import loginPageSource from "../src/login/page.tsx?raw";
 import mainSource from "../src/main.tsx?raw";
+import runtimeSource from "../src/platform/chat/runtime.tsx?raw";
+import authLayoutSource from "../src/platform/vendor-compat/app/auth-layout.tsx?raw";
+import appRouterSource from "../src/routes/app-router.tsx?raw";
 import appSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import chatHeaderSource from "../vendor/vercel-ai-chatbot/components/chat/chat-header.tsx?raw";
+import messageSource from "../vendor/vercel-ai-chatbot/components/chat/message.tsx?raw";
 import multimodalInputSource from "../vendor/vercel-ai-chatbot/components/chat/multimodal-input.tsx?raw";
 import shellSource from "../vendor/vercel-ai-chatbot/components/chat/shell.tsx?raw";
 import sidebarHistorySource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-history.tsx?raw";
@@ -23,6 +28,10 @@ describe("public chat copy localization", () => {
 
 		expect(mainSource).toContain("正在载入校园助理");
 		expect(mainSource).not.toContain("Loading campus chat");
+		expect(appRouterSource).toContain("正在载入校园助理");
+		expect(appRouterSource).toContain("服务连接暂时不可用");
+		expect(appRouterSource).toContain("重新连接");
+		expect(runtimeSource).toContain("暂时无法确认登录状态");
 
 		expect(chatHeaderSource).toContain("切换侧边栏");
 		expect(chatHeaderSource).toContain("新建对话");
@@ -59,10 +68,19 @@ describe("public chat copy localization", () => {
 
 		expect(sidebarToggleSource).toContain("切换侧边栏");
 		expect(sidebarUiSource).toContain("切换侧边栏");
+		expect(sidebarUiSource).toContain("显示移动端侧边栏。");
+		expect(sidebarUiSource).not.toContain("Displays the mobile sidebar.");
 		expect(spinnerSource).toContain('aria-label="加载中"');
 		expect(submitButtonSource).toContain("正在提交");
 		expect(submitButtonSource).toContain("提交");
+		expect(submitButtonSource).toContain("min-h-11");
 		expect(submitButtonSource).not.toContain("Submit form");
+		expect(authLayoutSource).toContain("min-h-11");
+		expect(loginPageSource).toContain("min-h-10");
+		expect(messageSource).toContain("天气查询已取消");
+		expect(messageSource).toContain("创建文档失败");
+		expect(messageSource).not.toContain("Weather lookup was denied");
+		expect(messageSource).not.toContain("Error creating document");
 
 		expect(multimodalInputSource).toContain("删除这条对话？");
 		expect(multimodalInputSource).toContain("清空全部对话？");

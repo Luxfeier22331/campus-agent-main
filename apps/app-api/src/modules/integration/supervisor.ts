@@ -31,6 +31,7 @@ export type {
 	SupervisorExecutionInput,
 	SupervisorExecutionObservability,
 	SupervisorExecutionResponse,
+	SupervisorExecutionWorkflowTraceSummary,
 	SupervisorProfileMemoryItem,
 	SupervisorProfileMemorySummary,
 	SupervisorPromptTrace,

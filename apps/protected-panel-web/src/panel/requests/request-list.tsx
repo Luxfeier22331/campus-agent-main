@@ -17,6 +17,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { PANEL_COPY } from "../panel-copy";
 import { PanelDatagridHeader } from "../panel-datagrid-header";
 import { PanelListErrorState } from "../panel-list-error";
+import { PANEL_LIST_SX } from "../panel-page";
 import { PanelPagination } from "../panel-pagination";
 import { PanelResponsiveDatagrid } from "../panel-responsive-datagrid";
 import type { RequestProjectionRecord } from "../types";
@@ -77,12 +78,13 @@ function RequestListGuide() {
 	return (
 		<Alert severity="info" sx={{ alignItems: "flex-start" }}>
 			<Stack spacing={0.5}>
-				<Typography fontWeight={600} variant="subtitle2">
-					{PANEL_COPY.requestsList.title}
-				</Typography>
 				<Typography variant="body2">{PANEL_COPY.requestsList.intro}</Typography>
-				<Typography variant="body2">{PANEL_COPY.requestsList.paginationHint}</Typography>
-				<Typography variant="body2">{PANEL_COPY.requestsList.projectionLagHint}</Typography>
+				<Typography sx={{ display: { md: "block", xs: "none" } }} variant="body2">
+					{PANEL_COPY.requestsList.paginationHint}
+				</Typography>
+				<Typography sx={{ display: { md: "block", xs: "none" } }} variant="body2">
+					{PANEL_COPY.requestsList.projectionLagHint}
+				</Typography>
 			</Stack>
 		</Alert>
 	);
@@ -186,6 +188,7 @@ export function RequestListPage() {
 			pagination={false}
 			perPage={20}
 			sort={{ field: "startedAt", order: "DESC" }}
+			sx={PANEL_LIST_SX}
 			title={PANEL_COPY.menu.requests}
 		>
 			<RequestListContent />
@@ -197,7 +200,7 @@ function RequestListContent() {
 	return (
 		<Stack spacing={2}>
 			<RequestListGuide />
-			<PanelResponsiveDatagrid minWidth={1120}>
+			<PanelResponsiveDatagrid minWidth={1520}>
 				<DatagridConfigurable
 					bulkActionButtons={false}
 					empty={<RequestListEmpty />}

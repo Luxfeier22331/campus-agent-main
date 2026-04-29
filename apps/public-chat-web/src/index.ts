@@ -37,9 +37,18 @@ const AUTH_FORWARDED_HEADERS = [
 	"x-captcha-response",
 ] as const;
 
+const PUBLIC_CHAT_SECURITY_HEADERS = {
+	"content-security-policy":
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
+	"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+	"referrer-policy": "strict-origin-when-cross-origin",
+	"x-content-type-options": "nosniff",
+} as const;
+
 const JSON_HEADERS = {
 	"cache-control": "no-store",
 	"content-type": "application/json; charset=utf-8",
+	...PUBLIC_CHAT_SECURITY_HEADERS,
 } as const;
 
 const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
@@ -195,6 +204,22 @@ function jsonResponse(status: number, payload: Record<string, unknown>): Respons
 	});
 }
 
+function applyPublicChatSecurityHeaders(headers: Headers): Headers {
+	for (const [headerName, headerValue] of Object.entries(PUBLIC_CHAT_SECURITY_HEADERS)) {
+		headers.set(headerName, headerValue);
+	}
+
+	return headers;
+}
+
+function responseWithPublicChatSecurityHeaders(response: Response): Response {
+	return new Response(response.body, {
+		headers: applyPublicChatSecurityHeaders(new Headers(response.headers)),
+		status: response.status,
+		statusText: response.statusText,
+	});
+}
+
 function appApiUpstreamUnavailableResponse(): Response {
 	return jsonResponse(503, {
 		error: {
@@ -212,7 +237,7 @@ function redirectToCanonicalChatRoute(url: URL): Response {
 	const redirectUrl = new URL(url.toString());
 	redirectUrl.pathname = "/chat";
 
-	return Response.redirect(redirectUrl.toString(), 302);
+	return responseWithPublicChatSecurityHeaders(Response.redirect(redirectUrl.toString(), 302));
 }
 
 function getMissingRuntimeConfig(env: Env): string[] {
@@ -328,12 +353,13 @@ async function servePublicShell(request: Request, env: Env): Promise<Response> {
 	const response = await env.ASSETS.fetch(request);
 	const contentType = response.headers.get("content-type") ?? "";
 	if (!contentType.includes("text/html")) {
-		return response;
+		return responseWithPublicChatSecurityHeaders(response);
 	}
 
 	const html = await response.text();
 	const headers = new Headers(response.headers);
 	headers.set("cache-control", "no-store");
+	applyPublicChatSecurityHeaders(headers);
 	return new Response(injectAuthRuntimeConfig(html, env), {
 		headers,
 		status: response.status,
@@ -344,6 +370,7 @@ async function servePublicShell(request: Request, env: Env): Promise<Response> {
 function withNoStore(response: Response): Response {
 	const headers = new Headers(response.headers);
 	headers.set("cache-control", "no-store");
+	applyPublicChatSecurityHeaders(headers);
 
 	return new Response(response.body, {
 		headers,

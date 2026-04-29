@@ -69,6 +69,28 @@ export interface RequestIntentObservabilitySummary {
 	ambiguityReason?: string | null;
 }
 
+export interface RequestToolObservabilitySummary {
+	businessOutcome: string | null;
+	failCloseReason: string | null;
+	historicalDowngradeReason: string | null;
+	selectedTool: string | null;
+}
+
+export interface RequestWorkflowTraceSummary {
+	contextResolution?: Record<string, unknown>;
+	directVsDelegateBranch: string | null;
+	failCloseReason: string | null;
+	guardrailOutcomes?: Record<string, unknown>;
+	handoff?: Record<string, unknown>;
+	planningOutcome: string | null;
+	policyArtifactVersions?: Record<string, unknown>;
+	routingFrame?: Record<string, unknown>;
+	runtimeVersions?: Record<string, unknown>;
+	selectedTarget: string | null;
+	selectedTools: string[];
+	toolArgumentSummary?: Record<string, unknown>;
+}
+
 export interface RequestClaimSupportSummary {
 	supportedClaims: number;
 	totalClaims: number;
@@ -178,6 +200,8 @@ export interface RawRequestObservabilityRecord {
 		};
 		failClosed: boolean | null;
 		intent?: RequestIntentObservabilitySummary;
+		tool?: RequestToolObservabilitySummary;
+		workflowTrace?: RequestWorkflowTraceSummary | null;
 		inputTokens: number | null;
 		claimSupportSummary?: RequestClaimSupportSummary | null;
 		measuredAt: string | null;

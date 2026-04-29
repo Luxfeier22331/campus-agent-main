@@ -1,6 +1,8 @@
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
-import { Alert, Box, Card, CardContent, Stack, Typography } from "@mui/material";
+import { Alert, Card, CardContent, Stack, Typography } from "@mui/material";
 import { Title } from "react-admin";
+
+import { PanelPage } from "../panel-page";
 
 interface DelayedDomainPageProps {
 	domain: string;
@@ -11,7 +13,7 @@ export function DelayedDomainPage({ domain, reason }: DelayedDomainPageProps) {
 	return (
 		<>
 			<Title title={domain} />
-			<Box sx={{ p: 3 }}>
+			<PanelPage>
 				<Card>
 					<CardContent>
 						<Stack spacing={2}>
@@ -26,7 +28,7 @@ export function DelayedDomainPage({ domain, reason }: DelayedDomainPageProps) {
 						</Stack>
 					</CardContent>
 				</Card>
-			</Box>
+			</PanelPage>
 		</>
 	);
 }

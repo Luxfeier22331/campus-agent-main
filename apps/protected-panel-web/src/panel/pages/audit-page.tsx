@@ -33,7 +33,9 @@ import { Link as RouterLink } from "react-router-dom";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { formatPanelTimestamp, PANEL_COPY, translateRuntimeErrorMessage } from "../panel-copy";
+import { PanelPage } from "../panel-page";
 import { normalizeSafeExternalHref } from "../panel-safe-links";
+import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../panel-select";
 import {
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
@@ -81,6 +83,16 @@ const PRINCIPAL_TYPE_OPTIONS = [
 ];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const AUDIT_TABLE_MIN_WIDTH = 1180;
+const AUDIT_TABLE_NOWRAP_CELL_SX = {
+	whiteSpace: "nowrap",
+	verticalAlign: "top",
+} as const;
+const AUDIT_TABLE_SUMMARY_CELL_SX = {
+	minWidth: 320,
+	verticalAlign: "top",
+	whiteSpace: "normal",
+} as const;
 
 function normalizeFilterValue(value: string) {
 	return value.trim() ? value.trim() : null;
@@ -299,7 +311,7 @@ export function AuditPage() {
 	return (
 		<>
 			<Title title={PANEL_COPY.menu.audit} />
-			<Box sx={{ p: { md: 3, xs: 2 } }}>
+			<PanelPage>
 				<Stack spacing={3}>
 					<Card
 						sx={{
@@ -367,6 +379,7 @@ export function AuditPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.principalType}
 									>
@@ -389,6 +402,7 @@ export function AuditPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.surface ?? ""}
 									>
@@ -411,6 +425,7 @@ export function AuditPage() {
 										}}
 										select
 										size="small"
+										slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.selectedTarget ?? ""}
 									>
@@ -492,8 +507,17 @@ export function AuditPage() {
 							) : null}
 
 							{auditEvents.length > 0 ? (
-								<Box sx={{ overflowX: "auto" }}>
-									<Table size="small">
+								<Box sx={{ overflowX: "auto", pb: 1, width: "100%" }}>
+									<Table
+										size="small"
+										sx={{
+											minWidth: AUDIT_TABLE_MIN_WIDTH,
+											"& th": AUDIT_TABLE_NOWRAP_CELL_SX,
+											"& td": {
+												verticalAlign: "top",
+											},
+										}}
+									>
 										<TableHead>
 											<TableRow>
 												<TableCell>{PANEL_COPY.auditPage.columns.occurredAt}</TableCell>
@@ -510,16 +534,28 @@ export function AuditPage() {
 										<TableBody>
 											{auditEvents.map((event) => (
 												<TableRow hover key={event.auditEventId}>
-													<TableCell>{formatPanelTimestamp(event.occurredAt)}</TableCell>
-													<TableCell>{formatAuditEventType(event.eventType)}</TableCell>
-													<TableCell sx={{ minWidth: 280 }}>{event.summary}</TableCell>
-													<TableCell>{event.requestId}</TableCell>
-													<TableCell>{formatAuditStatus(event.status)}</TableCell>
-													<TableCell>{formatSurfaceLabel(event.surface)}</TableCell>
-													<TableCell>{formatPrincipalTypeLabel(event.principalType)}</TableCell>
-													<TableCell>{formatSelectedTargetLabel(event.selectedTarget)}</TableCell>
-													<TableCell>
-														<Stack direction="row" spacing={1}>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
+														{formatPanelTimestamp(event.occurredAt)}
+													</TableCell>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
+														{formatAuditEventType(event.eventType)}
+													</TableCell>
+													<TableCell sx={AUDIT_TABLE_SUMMARY_CELL_SX}>{event.summary}</TableCell>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>{event.requestId}</TableCell>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
+														{formatAuditStatus(event.status)}
+													</TableCell>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
+														{formatSurfaceLabel(event.surface)}
+													</TableCell>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
+														{formatPrincipalTypeLabel(event.principalType)}
+													</TableCell>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
+														{formatSelectedTargetLabel(event.selectedTarget)}
+													</TableCell>
+													<TableCell sx={AUDIT_TABLE_NOWRAP_CELL_SX}>
+														<Stack direction="row" spacing={1} sx={{ flexWrap: "nowrap" }}>
 															<Button
 																onClick={() => setSelectedEvent(event)}
 																size="small"
@@ -557,6 +593,7 @@ export function AuditPage() {
 									}}
 									select
 									size="small"
+									slotProps={PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS}
 									value={String(filters.perPage)}
 								>
 									{PAGE_SIZE_OPTIONS.map((option) => (
@@ -611,7 +648,7 @@ export function AuditPage() {
 						</Stack>
 					</SectionCard>
 				</Stack>
-			</Box>
+			</PanelPage>
 
 			<Drawer
 				anchor="right"

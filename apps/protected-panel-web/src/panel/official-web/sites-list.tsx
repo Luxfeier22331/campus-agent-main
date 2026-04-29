@@ -6,15 +6,16 @@ import { PANEL_COPY } from "../panel-copy";
 import { PanelDatagridHeader } from "../panel-datagrid-header";
 import { PanelListActions } from "../panel-list-actions";
 import { PanelListErrorState } from "../panel-list-error";
+import { PANEL_LIST_SX } from "../panel-page";
 import { PanelPagination } from "../panel-pagination";
 import { PanelResponsiveDatagrid } from "../panel-responsive-datagrid";
 import type { OfficialWebSiteRecord } from "../types";
-import { buildOfficialWebSiteShowPath } from "./official-web-routes";
 import {
 	OfficialWebHostsSummary,
 	OfficialWebIngestionStatusChip,
 	OfficialWebRunStatusChip,
 } from "./official-web-presenters";
+import { buildOfficialWebSiteShowPath } from "./official-web-routes";
 
 function OfficialWebSitesContractNotice() {
 	return (
@@ -56,11 +57,12 @@ export function OfficialWebSitesListPage() {
 			}
 			pagination={<PanelPagination />}
 			perPage={50}
+			sx={PANEL_LIST_SX}
 			title="官网站点"
 		>
 			<Stack spacing={2}>
 				<OfficialWebSitesContractNotice />
-				<PanelResponsiveDatagrid minWidth={980}>
+				<PanelResponsiveDatagrid minWidth={1380}>
 					<Datagrid
 						bulkActionButtons={false}
 						empty={<OfficialWebSitesEmpty />}

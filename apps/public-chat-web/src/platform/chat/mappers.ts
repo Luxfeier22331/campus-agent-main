@@ -40,6 +40,9 @@ export function mapChatMessage(message: ChatMessage): ShellMessage {
 
 	return {
 		createdAt: message.createdAt,
+		...(message.role === "assistant" && "feedback" in message
+			? { feedback: message.feedback ?? null }
+			: {}),
 		id: message.id,
 		kind: message.role === "user" ? "user" : (message.kind ?? "answer"),
 		requestId: message.requestId,

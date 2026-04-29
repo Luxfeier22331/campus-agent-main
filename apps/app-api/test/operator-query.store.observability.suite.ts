@@ -71,6 +71,19 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					intentScopeClass: "in_scope",
 					intentScopeReason: "structured_runtime_candidate_signal",
 					intentTaskKind: "knowledge_lookup",
+					selectedTool: "retrieval.query",
+					toolBusinessOutcome: "grounded_answer",
+					toolFailCloseReason: null,
+					toolHistoricalDowngradeReason: null,
+					workflowTraceSummaryJson: {
+						directVsDelegateBranch: "delegate",
+						planningOutcome: "preplanned",
+						selectedTarget: "rag-agent",
+						selectedTools: ["retrieval.query"],
+						toolArgumentSummary: {
+							collection: "curriculum_plan",
+						},
+					},
 					retrievedSourcesJson: [],
 					supportingSourcesJson: [],
 					citationCount: 0,
@@ -135,6 +148,18 @@ export function registerOperatorQueryStoreObservabilitySuite(
 			scopeClass: "in_scope",
 			scopeReason: "structured_runtime_candidate_signal",
 			taskKind: "knowledge_lookup",
+		});
+		expect(result?.observability.tool).toEqual({
+			businessOutcome: "grounded_answer",
+			failCloseReason: null,
+			historicalDowngradeReason: null,
+			selectedTool: "retrieval.query",
+		});
+		expect(result?.observability.workflowTrace).toMatchObject({
+			directVsDelegateBranch: "delegate",
+			planningOutcome: "preplanned",
+			selectedTarget: "rag-agent",
+			selectedTools: ["retrieval.query"],
 		});
 	});
 	it("returns replay-safe observability sections without raw prompt or raw evidence text", async () => {

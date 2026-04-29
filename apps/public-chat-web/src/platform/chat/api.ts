@@ -1,5 +1,8 @@
 import type {
 	ChatAnswerPayload,
+	ChatMessageFeedback,
+	ChatMessageFeedbackReasonCode,
+	ChatMessageFeedbackVote,
 	ConversationDetail,
 	ConversationSummary,
 	SessionPrincipal,
@@ -211,6 +214,38 @@ export async function deleteTrailingMessages(
 	await requestJson<void>({
 		method: "DELETE",
 		path: `/api/chat/conversations/${conversationId}/messages/${messageId}/trailing`,
+	});
+}
+
+export async function setMessageFeedback(input: {
+	conversationId: string;
+	messageId: string;
+	reasonCodes?: ChatMessageFeedbackReasonCode[];
+	vote: ChatMessageFeedbackVote;
+}): Promise<ChatMessageFeedback> {
+	const body = {
+		...(input.reasonCodes ? { reasonCodes: input.reasonCodes } : {}),
+		vote: input.vote,
+	};
+	const payload = await requestJson<{ feedback: ChatMessageFeedback }>({
+		body: JSON.stringify(body),
+		headers: {
+			"content-type": "application/json",
+		},
+		method: "PUT",
+		path: `/api/chat/conversations/${input.conversationId}/messages/${input.messageId}/feedback`,
+	});
+
+	return payload.feedback;
+}
+
+export async function deleteMessageFeedback(input: {
+	conversationId: string;
+	messageId: string;
+}): Promise<void> {
+	await requestJson<void>({
+		method: "DELETE",
+		path: `/api/chat/conversations/${input.conversationId}/messages/${input.messageId}/feedback`,
 	});
 }
 

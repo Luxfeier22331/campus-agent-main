@@ -5,10 +5,12 @@ import {
 	createDraftConversation,
 	deleteAllConversations,
 	deleteConversation,
+	deleteMessageFeedback,
 	deleteTrailingMessages,
 	getConversationDetail,
 	getSessionPrincipal,
 	listConversations,
+	setMessageFeedback,
 	submitChatRequest,
 	submitChatRequestStream,
 	UnauthorizedError,
@@ -281,6 +283,80 @@ describe("public chat app-api client", () => {
 
 		expect(fetchSpy).toHaveBeenCalledWith(
 			"/api/chat/conversations/conv_01HQ/messages/msg_01HQ/trailing",
+			expect.objectContaining({
+				method: "DELETE",
+			}),
+		);
+	});
+
+	it("submits and deletes answer feedback through app-api feedback routes", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						feedback: {
+							createdAt: "2026-04-29T08:00:00.000Z",
+							feedbackId: "fb_01HQ",
+							messageId: "msg_assistant_01HQ",
+							reasonCodes: ["wrong_intent"],
+							updatedAt: "2026-04-29T08:00:00.000Z",
+							vote: "unhelpful",
+						},
+					}),
+					{
+						headers: {
+							"content-type": "application/json; charset=utf-8",
+						},
+						status: 200,
+					},
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(null, {
+					status: 204,
+				}),
+			);
+
+		await expect(
+			setMessageFeedback({
+				conversationId: "conv_01HQ",
+				messageId: "msg_assistant_01HQ",
+				reasonCodes: ["wrong_intent"],
+				vote: "unhelpful",
+			}),
+		).resolves.toEqual({
+			createdAt: "2026-04-29T08:00:00.000Z",
+			feedbackId: "fb_01HQ",
+			messageId: "msg_assistant_01HQ",
+			reasonCodes: ["wrong_intent"],
+			updatedAt: "2026-04-29T08:00:00.000Z",
+			vote: "unhelpful",
+		});
+		await expect(
+			deleteMessageFeedback({
+				conversationId: "conv_01HQ",
+				messageId: "msg_assistant_01HQ",
+			}),
+		).resolves.toBeUndefined();
+
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			1,
+			"/api/chat/conversations/conv_01HQ/messages/msg_assistant_01HQ/feedback",
+			expect.objectContaining({
+				body: JSON.stringify({
+					reasonCodes: ["wrong_intent"],
+					vote: "unhelpful",
+				}),
+				headers: expect.objectContaining({
+					"content-type": "application/json",
+				}),
+				method: "PUT",
+			}),
+		);
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			2,
+			"/api/chat/conversations/conv_01HQ/messages/msg_assistant_01HQ/feedback",
 			expect.objectContaining({
 				method: "DELETE",
 			}),

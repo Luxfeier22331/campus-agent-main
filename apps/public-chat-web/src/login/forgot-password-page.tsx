@@ -69,9 +69,12 @@ export function ForgotPasswordPage() {
 					</p>
 				) : null}
 				<SubmitButton isSuccessful={false}>发送重置邮件</SubmitButton>
-				<p className="text-center text-[13px] text-muted-foreground">
-					想起密码了？
-					<Link className="text-foreground underline-offset-4 hover:underline" href="/login">
+				<p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-[13px] text-muted-foreground">
+					<span>想起密码了？</span>
+					<Link
+						className="inline-flex min-h-10 items-center rounded-md px-1 text-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
+						href="/login"
+					>
 						去登录
 					</Link>
 				</p>

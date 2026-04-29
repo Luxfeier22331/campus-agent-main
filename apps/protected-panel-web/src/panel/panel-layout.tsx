@@ -221,18 +221,30 @@ export function ProtectedPanelLayout({ children }: { children: ReactNode }) {
 				boxSizing: "border-box",
 				maxWidth: "100%",
 				minWidth: 0,
-				overflowX: "hidden",
 				width: "100%",
 				"& .RaLayout-appFrame, & .RaLayout-contentWithSidebar, & .RaLayout-content": {
+					boxSizing: "border-box",
 					maxWidth: "100%",
 					minWidth: 0,
-					overflowX: "hidden",
+					width: "100%",
 				},
 				"& .RaList-root, & .RaList-main, & .RaList-actions, & .RaList-content": {
+					maxWidth: "100%",
 					minWidth: 0,
 				},
 				"& .RaLayout-content": {
 					minWidth: 0,
+					overflowX: "clip",
+				},
+				"@media (max-width: 599.95px)": {
+					"& .RaLayout-content": {
+						flexBasis: "auto",
+						maxWidth: "100%",
+						width: "100%",
+					},
+					"& .RaLayout-contentWithSidebar": {
+						display: "block",
+					},
 				},
 			}}
 		>

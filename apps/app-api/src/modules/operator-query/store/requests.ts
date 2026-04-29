@@ -186,6 +186,18 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 			const scopeClass = fact?.scopeClass ?? diagnostics?.scopeClass ?? null;
 			const policyReason = fact?.policyReason ?? diagnostics?.policyReason ?? null;
 			const intent = toIntentObservabilitySummary(fact);
+			const tool =
+				fact?.selectedTool ||
+				fact?.toolBusinessOutcome ||
+				fact?.toolFailCloseReason ||
+				fact?.toolHistoricalDowngradeReason
+					? {
+							businessOutcome: fact?.toolBusinessOutcome ?? null,
+							failCloseReason: fact?.toolFailCloseReason ?? null,
+							historicalDowngradeReason: fact?.toolHistoricalDowngradeReason ?? null,
+							selectedTool: fact?.selectedTool ?? null,
+						}
+					: null;
 
 			return {
 				auditSummary: {
@@ -217,6 +229,10 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					},
 					failClosed: fact?.failClosed ?? null,
 					...(intent ? { intent } : {}),
+					...(tool ? { tool } : {}),
+					...(fact?.workflowTraceSummaryJson
+						? { workflowTrace: fact.workflowTraceSummaryJson }
+						: {}),
 					inputTokens: fact?.inputTokens ?? null,
 					measuredAt: fact ? fact.measuredAt.toISOString() : projection.projectedAt.toISOString(),
 					model: {

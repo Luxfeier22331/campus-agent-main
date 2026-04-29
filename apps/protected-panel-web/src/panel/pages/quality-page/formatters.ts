@@ -102,6 +102,26 @@ export function buildRuntimeSummaryCards(
 			label: PANEL_COPY.qualityPage.cards.citationMissRate,
 			value: formatMetricRate(record.runtime.citationMissRate),
 		},
+		{
+			detail: formatMetricEvidence(record.runtime.feedback.coverageRate),
+			label: PANEL_COPY.qualityPage.cards.feedbackCoverageRate,
+			value: formatMetricRate(record.runtime.feedback.coverageRate),
+		},
+		{
+			detail: formatMetricEvidence(record.runtime.feedback.helpfulRate),
+			label: PANEL_COPY.qualityPage.cards.feedbackHelpfulRate,
+			value: formatMetricRate(record.runtime.feedback.helpfulRate),
+		},
+		{
+			detail: formatMetricEvidence(record.runtime.feedback.unhelpfulRate),
+			label: PANEL_COPY.qualityPage.cards.feedbackUnhelpfulRate,
+			value: formatMetricRate(record.runtime.feedback.unhelpfulRate),
+		},
+		{
+			detail: formatMetricEvidence(record.runtime.feedback.noAnswerUnhelpfulRate),
+			label: PANEL_COPY.qualityPage.cards.feedbackNoAnswerUnhelpfulRate,
+			value: formatMetricRate(record.runtime.feedback.noAnswerUnhelpfulRate),
+		},
 	];
 }
 

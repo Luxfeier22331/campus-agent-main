@@ -65,9 +65,12 @@ export function RegisterPage() {
 			<p className="text-sm text-muted-foreground">使用校园邮箱创建账号</p>
 			<AuthForm action={handleSubmit} defaultEmail={email}>
 				<SubmitButton isSuccessful={isSuccessful}>注册</SubmitButton>
-				<p className="text-center text-[13px] text-muted-foreground">
-					已有账号？
-					<Link className="text-foreground underline-offset-4 hover:underline" href="/login">
+				<p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-[13px] text-muted-foreground">
+					<span>已有账号？</span>
+					<Link
+						className="inline-flex min-h-10 items-center rounded-md px-1 text-foreground underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
+						href="/login"
+					>
 						去登录
 					</Link>
 				</p>

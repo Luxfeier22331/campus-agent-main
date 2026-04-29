@@ -59,6 +59,9 @@ describe("protected panel official web chinese copy", () => {
 		expect(sitesListSource).toContain("header={<PanelDatagridHeader />}");
 		expect(panelDatagridHeaderSource).not.toContain("TableSortLabel");
 		expect(panelListErrorSource).toContain("PANEL_COPY.errorState.listLoadFailed");
+		expect(panelListActionsSource).toContain('justifyContent: "flex-end"');
+		expect(panelListActionsSource).toContain('display: { sm: "flex", xs: "none" }');
+		expect(panelListActionsSource).toContain("minHeight:");
 	});
 
 	it("uses explicit encoded show routes instead of react-admin raw id show links", () => {

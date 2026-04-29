@@ -318,12 +318,17 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		retrievedSourceCount: null,
 		retrievalAttempted: null,
 		selectedTarget: null,
+		selectedTool: null,
 		startedAt: input.startedAt,
 		status: "accepted",
 		surface: input.surface,
 		traceAvailable: Boolean(input.traceId),
 		traceId: input.traceId,
+		toolBusinessOutcome: null,
+		toolFailCloseReason: null,
+		toolHistoricalDowngradeReason: null,
 		updatedAt: input.startedAt,
+		workflowTraceSummary: null,
 	};
 }
 
@@ -461,12 +466,17 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		retrievedSourceCount,
 		retrievalAttempted,
 		selectedTarget: input.response.selectedTarget,
+		selectedTool: observability?.selectedTool ?? null,
 		startedAt: input.startedAt,
 		status: input.status,
 		surface: input.surface,
 		traceAvailable: Boolean(input.traceId),
 		traceId: input.traceId,
+		toolBusinessOutcome: observability?.toolBusinessOutcome ?? null,
+		toolFailCloseReason: observability?.toolFailCloseReason ?? null,
+		toolHistoricalDowngradeReason: observability?.toolHistoricalDowngradeReason ?? null,
 		updatedAt: input.completedAt,
+		workflowTraceSummary: input.response.workflowTraceSummary ?? null,
 	};
 }
 

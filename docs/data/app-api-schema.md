@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-27
+updated: 2026-04-29
 ---
 # App API Schema
 
@@ -231,8 +231,18 @@ updated: 2026-04-27
 - `DELETE` 撤回反馈时 hard delete；不保留 tombstone
 - 不保存 raw prompt、raw answer、provider response、retrieval payload 或 auth material
 - `request_id` 用于和 request observability / operator quality read model 关联
+- operator quality feedback aggregates 以 `runtime.request_observability_fact.started_at`
+  所在窗口为准，通过 `request_id` 关联 `chat.message_feedback`；feedback `updated_at`
+  只表示投票更新时间，不重新定义 operator quality 时间窗
+- `vote=unhelpful` 可以作为 operator quality eval candidate export 输入；export 只携带
+  `request_id`、`conversation_id`、`message_id`、reason code、typed intent summary 与受控
+  quality posture，不携带 raw transcript、raw auth material、provider raw response 或 retrieval
+  payload
 - feedback 不参与 authorization、serving surface、tool permission、memory projection 或
   supervisor admission
+- rollout / rollback 不改变表语义：关闭 public-chat-web UI 只停止新浏览器入口，不删除
+  `chat.message_feedback`；已写入 feedback 继续作为 app-api-owned quality signal
+  供 operator summary、timeseries 和 eval candidate export 读取
 
 ## `chat.session_slots`
 
@@ -857,6 +867,9 @@ updated: 2026-04-27
   时发生主键冲突
 - 当前已冻结的第一版 schema 仅冻结 `domain=quality` 的 rollup shape
 - `metrics_json` 只保存受控聚合贡献，不保存 raw request payload、raw sink blob 或 grader 原始结果
+- 当前 feedback quality summary / timeseries 直接由 app-api query service 用
+  `chat.message_feedback.request_id` join `runtime.request_observability_fact.request_id`
+  得到；它不是 raw sink query，也暂不写入 `operator.metric_rollup.metrics_json`
 
 ## `operator.quality_badcase_projection`
 

@@ -1,10 +1,11 @@
-import { Alert, Box, Stack } from "@mui/material";
+import { Alert, Stack } from "@mui/material";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { PANEL_COPY } from "../panel-copy";
+import { PanelPage } from "../panel-page";
 import type { OperatorQualityBadcaseRecord } from "../types";
 import { resolveOverviewGranularity } from "./overview-domain";
 import { buildQualityRuntimeTrendSeries, buildRefusalDistributionEntries } from "./quality-domain";
@@ -228,7 +229,7 @@ export function QualityPage() {
 	return (
 		<>
 			<Title title={PANEL_COPY.menu.quality} />
-			<Box sx={{ p: { md: 3, xs: 2 } }}>
+			<PanelPage>
 				<Stack spacing={3}>
 					<QualityHeaderSection
 						asOf={asOf}
@@ -399,7 +400,7 @@ export function QualityPage() {
 						queueFilters={filters}
 					/>
 				</Stack>
-			</Box>
+			</PanelPage>
 
 			<QualityDetailDrawer
 				onClose={() => setSelectedBadcase(null)}

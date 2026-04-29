@@ -1,16 +1,31 @@
 import { and, desc, eq, gte, inArray, lt, or, type SQL } from "drizzle-orm";
 
-import { qualityBadcaseProjection, qualityGradeProjection } from "../../../db/schema";
+import {
+	qualityBadcaseProjection,
+	qualityGradeProjection,
+	requestObservabilityFact,
+} from "../../../db/schema";
 import type {
 	NormalizedOperatorOverviewFilters,
 	NormalizedOperatorQualityBadcaseListFilters,
+	OperatorDistributionBucket,
 	OperatorQualityBadcaseListResult,
+	OperatorQualityEvalCandidateListResult,
 	OperatorQualitySummaryResult,
 	OperatorQualityTimeseriesResult,
 } from "../service";
 import { decodeQualityBadcaseCursor, encodeQualityBadcaseCursor } from "./cursors";
-import { loadObservabilityRows, loadQualityGradeRows, loadQualityRollupRows } from "./loaders";
-import type { OperatorQueryRuntime } from "./runtime";
+import {
+	loadMessageFeedbackRowsByRequestIds,
+	loadObservabilityRows,
+	loadQualityGradeRows,
+	loadQualityRollupRows,
+} from "./loaders";
+import type {
+	MessageFeedbackRow,
+	OperatorQueryRuntime,
+	RequestObservabilityFactRow,
+} from "./runtime";
 import {
 	buildGradeBucketMap,
 	buildResultWindow,
@@ -22,6 +37,295 @@ import {
 	toRatio,
 	toScore,
 } from "./shared";
+
+const FEEDBACK_ELIGIBLE_STATUSES = new Set(["completed", "needs_clarification", "no_answer"]);
+const NEGATIVE_FEEDBACK_DETECTED_BY = "negative_feedback";
+
+type QualityEvalCandidate = OperatorQualityEvalCandidateListResult["candidates"][number];
+type SuggestedReviewLabel = NonNullable<QualityEvalCandidate["review"]>["suggestedLabels"][number];
+
+function isFeedbackEligibleAnswer(row: Pick<RequestObservabilityFactRow, "status">): boolean {
+	return FEEDBACK_ELIGIBLE_STATUSES.has(row.status);
+}
+
+function toRate(count: number, eligibleCount: number): number {
+	return eligibleCount > 0 ? Number((count / eligibleCount).toFixed(4)) : 0;
+}
+
+function incrementBucket(map: Map<string, number>, value: string): void {
+	map.set(value, (map.get(value) ?? 0) + 1);
+}
+
+function toDistribution(map: Map<string, number>): OperatorDistributionBucket[] {
+	return [...map.entries()].map(([value, count]) => ({ count, value }));
+}
+
+function reasonCodesFor(row: Pick<MessageFeedbackRow, "reasonCodesJson">): string[] {
+	const reasonCodes = row.reasonCodesJson;
+	if (!Array.isArray(reasonCodes) || reasonCodes.length === 0) {
+		return ["unspecified"];
+	}
+
+	return reasonCodes.filter((reasonCode): reasonCode is string => typeof reasonCode === "string");
+}
+
+function latestFeedbackByRequestId(rows: MessageFeedbackRow[]): MessageFeedbackRow[] {
+	const latestByRequestId = new Map<string, MessageFeedbackRow>();
+
+	for (const row of rows) {
+		const current = latestByRequestId.get(row.requestId);
+		if (!current || row.updatedAt.valueOf() >= current.updatedAt.valueOf()) {
+			latestByRequestId.set(row.requestId, row);
+		}
+	}
+
+	return [...latestByRequestId.values()];
+}
+
+function answerKindFor(row: Pick<RequestObservabilityFactRow, "status">): string {
+	if (row.status === "completed") {
+		return "answer";
+	}
+	if (row.status === "needs_clarification") {
+		return "clarification";
+	}
+	return row.status;
+}
+
+function capabilityFor(
+	row: Pick<RequestObservabilityFactRow, "intentCapability" | "requestedCapability">,
+): string {
+	return row.intentCapability ?? row.requestedCapability ?? "unknown";
+}
+
+function citationPostureFor(
+	row: Pick<RequestObservabilityFactRow, "citationExpected" | "citationMissing">,
+): string {
+	if (row.citationExpected === true && row.citationMissing === true) {
+		return "citation_missing";
+	}
+	if (row.citationExpected === true) {
+		return "citation_present";
+	}
+	if (row.citationExpected === false) {
+		return "citation_not_expected";
+	}
+	return "unknown";
+}
+
+function buildFeedbackSummary(
+	rows: RequestObservabilityFactRow[],
+	feedbackRows: MessageFeedbackRow[],
+): OperatorQualitySummaryResult["runtime"]["feedback"] {
+	const eligibleRows = rows.filter(isFeedbackEligibleAnswer);
+	const eligibleByRequestId = new Map(eligibleRows.map((row) => [row.requestId, row]));
+	const feedbackEntries = latestFeedbackByRequestId(feedbackRows)
+		.map((feedback) => ({
+			feedback,
+			request: eligibleByRequestId.get(feedback.requestId) ?? null,
+		}))
+		.filter(
+			(entry): entry is { feedback: MessageFeedbackRow; request: RequestObservabilityFactRow } =>
+				entry.request !== null,
+		);
+	const helpfulCount = feedbackEntries.filter((entry) => entry.feedback.vote === "helpful").length;
+	const unhelpfulCount = feedbackEntries.filter(
+		(entry) => entry.feedback.vote === "unhelpful",
+	).length;
+	const noAnswerEligibleCount = eligibleRows.filter((row) => row.status === "no_answer").length;
+	const noAnswerUnhelpfulCount = feedbackEntries.filter(
+		(entry) => entry.request.status === "no_answer" && entry.feedback.vote === "unhelpful",
+	).length;
+
+	const surface = new Map<string, number>();
+	const answerKind = new Map<string, number>();
+	const capability = new Map<string, number>();
+	const citationPosture = new Map<string, number>();
+	const reasonCode = new Map<string, number>();
+	const vote = new Map<string, number>();
+
+	for (const entry of feedbackEntries) {
+		incrementBucket(surface, entry.request.surface);
+		incrementBucket(answerKind, answerKindFor(entry.request));
+		incrementBucket(capability, capabilityFor(entry.request));
+		incrementBucket(citationPosture, citationPostureFor(entry.request));
+		incrementBucket(vote, entry.feedback.vote);
+		for (const code of reasonCodesFor(entry.feedback)) {
+			incrementBucket(reasonCode, code);
+		}
+	}
+
+	return {
+		coverageRate: toRatio(feedbackEntries.length, eligibleRows.length),
+		distributions: {
+			answerKind: toDistribution(answerKind),
+			capability: toDistribution(capability),
+			citationPosture: toDistribution(citationPosture),
+			reasonCode: toDistribution(reasonCode),
+			surface: toDistribution(surface),
+			vote: toDistribution(vote),
+		},
+		feedbackCount: feedbackEntries.length,
+		helpfulRate: toRatio(helpfulCount, feedbackEntries.length),
+		noAnswerUnhelpfulRate: toRatio(noAnswerUnhelpfulCount, noAnswerEligibleCount),
+		unhelpfulRate: toRatio(unhelpfulCount, feedbackEntries.length),
+	};
+}
+
+function buildFeedbackMetricsByBucket(
+	rows: RequestObservabilityFactRow[],
+	feedbackRows: MessageFeedbackRow[],
+	granularity: OperatorQualityTimeseriesResult["window"]["granularity"],
+) {
+	const eligibleRows = rows.filter(isFeedbackEligibleAnswer);
+	const eligibleByRequestId = new Map(eligibleRows.map((row) => [row.requestId, row]));
+	const metricsByBucket = new Map<
+		string,
+		{
+			eligibleAnswerCount: number;
+			feedbackCount: number;
+			helpfulCount: number;
+			unhelpfulCount: number;
+			noAnswerEligibleCount: number;
+			noAnswerUnhelpfulCount: number;
+		}
+	>();
+	const ensureBucket = (bucketStart: string) => {
+		const current = metricsByBucket.get(bucketStart);
+		if (current) {
+			return current;
+		}
+		const next = {
+			eligibleAnswerCount: 0,
+			feedbackCount: 0,
+			helpfulCount: 0,
+			noAnswerEligibleCount: 0,
+			noAnswerUnhelpfulCount: 0,
+			unhelpfulCount: 0,
+		};
+		metricsByBucket.set(bucketStart, next);
+		return next;
+	};
+
+	for (const row of eligibleRows) {
+		const bucketStart = resolveBucketStart(row.startedAt.toISOString(), granularity).toISOString();
+		const metrics = ensureBucket(bucketStart);
+		metrics.eligibleAnswerCount += 1;
+		if (row.status === "no_answer") {
+			metrics.noAnswerEligibleCount += 1;
+		}
+	}
+
+	for (const feedback of latestFeedbackByRequestId(feedbackRows)) {
+		const request = eligibleByRequestId.get(feedback.requestId);
+		if (!request) {
+			continue;
+		}
+		const bucketStart = resolveBucketStart(
+			request.startedAt.toISOString(),
+			granularity,
+		).toISOString();
+		const metrics = ensureBucket(bucketStart);
+		metrics.feedbackCount += 1;
+		if (feedback.vote === "helpful") {
+			metrics.helpfulCount += 1;
+		}
+		if (feedback.vote === "unhelpful") {
+			metrics.unhelpfulCount += 1;
+			if (request.status === "no_answer") {
+				metrics.noAnswerUnhelpfulCount += 1;
+			}
+		}
+	}
+
+	return metricsByBucket;
+}
+
+function inferFeedbackReviewLabels(
+	reasonCodes: string[],
+	row: RequestObservabilityFactRow,
+): SuggestedReviewLabel[] {
+	const labels = new Set<SuggestedReviewLabel>();
+
+	for (const reasonCode of reasonCodes) {
+		if (reasonCode === "wrong_intent") {
+			labels.add("wrong_intent");
+		}
+		if (reasonCode === "outdated_or_missing_source") {
+			labels.add("stale_missing_evidence");
+		}
+		if (reasonCode === "incorrect_answer") {
+			labels.add("false_positive");
+		}
+		if (
+			reasonCode === "not_enough_detail" ||
+			reasonCode === "unclear_or_hard_to_use" ||
+			reasonCode === "other"
+		) {
+			labels.add("answer_style_issue");
+		}
+	}
+
+	if (row.status === "no_answer") {
+		labels.add("false_negative");
+	}
+
+	if (labels.size === 0) {
+		labels.add("answer_style_issue");
+	}
+
+	return [...labels];
+}
+
+function feedbackCauseClass(labels: SuggestedReviewLabel[]): string {
+	return labels[0] ?? "answer_style_issue";
+}
+
+function feedbackEvalFamily(
+	causeClass: string,
+): QualityEvalCandidate["intake"]["suggestedEvalFamily"] {
+	if (causeClass === "wrong_intent") {
+		return "intent";
+	}
+	if (causeClass === "stale_missing_evidence") {
+		return "citation";
+	}
+	if (causeClass === "false_positive" || causeClass === "false_negative") {
+		return "grounding";
+	}
+
+	return "unknown";
+}
+
+function compactIntent(
+	row: RequestObservabilityFactRow,
+): NonNullable<QualityEvalCandidate["correlation"]>["intent"] {
+	const intent: NonNullable<QualityEvalCandidate["correlation"]>["intent"] = {};
+	if (row.intentCapability) {
+		intent.capability = row.intentCapability;
+	}
+	if (row.intentTaskKind) {
+		intent.taskKind = row.intentTaskKind;
+	}
+	if (row.intentLaunchState) {
+		intent.launchState = row.intentLaunchState;
+	}
+	if (row.intentNextAction) {
+		intent.nextAction = row.intentNextAction;
+	}
+	if (row.intentScopeClass) {
+		intent.scopeClass = row.intentScopeClass;
+	}
+	if (row.intentClassifierVersion) {
+		intent.classifierVersion = row.intentClassifierVersion;
+	}
+	return intent;
+}
+
+function feedbackSummary(answerKind: string, reasonCodes: string[]): string {
+	const reasons = reasonCodes.length > 0 ? reasonCodes.join(", ") : "unspecified";
+	return `Negative answer feedback for ${answerKind}: ${reasons}.`;
+}
 
 export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 	return {
@@ -64,6 +368,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 								policyRows.length,
 							),
 						};
+			const feedbackRows = await loadMessageFeedbackRowsByRequestIds(runtime, [...requestIds]);
 
 			return {
 				asOf: bounds.to.toISOString(),
@@ -76,6 +381,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 						retrievalEligible.filter((row) => row.emptyRecall === true).length,
 						retrievalEligible.length,
 					),
+					feedback: buildFeedbackSummary(rows, feedbackRows),
 					refusalDistribution: {
 						approvalRequired: rows.filter((row) => row.status === "approval_required").length,
 						needsClarification: rows.filter((row) => row.status === "needs_clarification").length,
@@ -94,6 +400,16 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 			const { rows: groundingGrades } = await loadQualityGradeRows(runtime, filters, {
 				gradeDomain: "grounding",
 			});
+			const { rows: observabilityRows } = await loadObservabilityRows(runtime, filters);
+			const feedbackRows = await loadMessageFeedbackRowsByRequestIds(
+				runtime,
+				observabilityRows.map((row) => row.requestId),
+			);
+			const feedbackByBucket = buildFeedbackMetricsByBucket(
+				observabilityRows,
+				feedbackRows,
+				granularity,
+			);
 			const grouped = new Map<string, typeof rows>();
 			const groundingByBucket = new Map<string, typeof groundingGrades>();
 
@@ -140,6 +456,14 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 					);
 
 					const bucketEnd = bucketRows[0]?.bucketEnd ?? new Date(bucketStart);
+					const feedbackMetrics = feedbackByBucket.get(bucketStart) ?? {
+						eligibleAnswerCount: 0,
+						feedbackCount: 0,
+						helpfulCount: 0,
+						noAnswerEligibleCount: 0,
+						noAnswerUnhelpfulCount: 0,
+						unhelpfulCount: 0,
+					};
 					return {
 						bucketEnd: bucketEnd.toISOString(),
 						bucketStart,
@@ -159,6 +483,28 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 							metrics.requestCount > 0
 								? Number((metrics.noAnswerCount / metrics.requestCount).toFixed(4))
 								: 0,
+						feedbackCount: feedbackMetrics.feedbackCount,
+						feedbackCoverageRate: toRate(
+							feedbackMetrics.feedbackCount,
+							feedbackMetrics.eligibleAnswerCount,
+						),
+						feedbackEligibleAnswerCount: feedbackMetrics.eligibleAnswerCount,
+						feedbackHelpfulCount: feedbackMetrics.helpfulCount,
+						feedbackHelpfulRate: toRate(
+							feedbackMetrics.helpfulCount,
+							feedbackMetrics.feedbackCount,
+						),
+						feedbackNoAnswerEligibleCount: feedbackMetrics.noAnswerEligibleCount,
+						feedbackNoAnswerUnhelpfulCount: feedbackMetrics.noAnswerUnhelpfulCount,
+						feedbackNoAnswerUnhelpfulRate: toRate(
+							feedbackMetrics.noAnswerUnhelpfulCount,
+							feedbackMetrics.noAnswerEligibleCount,
+						),
+						feedbackUnhelpfulCount: feedbackMetrics.unhelpfulCount,
+						feedbackUnhelpfulRate: toRate(
+							feedbackMetrics.unhelpfulCount,
+							feedbackMetrics.feedbackCount,
+						),
 						requestCount: metrics.requestCount,
 						sampledGroundingPassRate: (() => {
 							const gradeRows = groundingByBucket.get(bucketStart) ?? [];
@@ -296,6 +642,128 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 						: null,
 				},
 			} satisfies OperatorQualityBadcaseListResult;
+		},
+
+		async listQualityFeedbackEvalCandidates(filters: NormalizedOperatorQualityBadcaseListFilters) {
+			if (
+				(filters.detectedBy && filters.detectedBy !== NEGATIVE_FEEDBACK_DETECTED_BY) ||
+				(filters.status && filters.status !== "pending_review")
+			) {
+				return {
+					candidates: [],
+					page: {
+						nextCursor: null,
+					},
+				} satisfies OperatorQualityEvalCandidateListResult;
+			}
+
+			const db = await runtime.getDb();
+			const conditions: SQL[] = [];
+			if (filters.window) {
+				const bounds = resolveWindowBounds(filters.window, runtime.now());
+				conditions.push(gte(requestObservabilityFact.startedAt, bounds.from));
+				conditions.push(lt(requestObservabilityFact.startedAt, bounds.to));
+			}
+			if (filters.surface) {
+				conditions.push(eq(requestObservabilityFact.surface, filters.surface));
+			}
+			if (filters.selectedTarget) {
+				conditions.push(eq(requestObservabilityFact.selectedTarget, filters.selectedTarget));
+			}
+
+			const observabilityQuery = db.select().from(requestObservabilityFact);
+			const observabilityRows =
+				conditions.length > 0
+					? await observabilityQuery.where(and(...conditions))
+					: await observabilityQuery;
+			const requestRowsById = new Map(
+				observabilityRows.filter(isFeedbackEligibleAnswer).map((row) => [row.requestId, row]),
+			);
+			const feedbackRows = await loadMessageFeedbackRowsByRequestIds(runtime, [
+				...requestRowsById.keys(),
+			]);
+			const candidates = latestFeedbackByRequestId(feedbackRows)
+				.filter((feedback) => feedback.vote === "unhelpful")
+				.map((feedback): QualityEvalCandidate | null => {
+					const requestRow = requestRowsById.get(feedback.requestId);
+					if (!requestRow) {
+						return null;
+					}
+					const reasonCodes = reasonCodesFor(feedback).filter((code) => code !== "unspecified");
+					const reviewLabels = inferFeedbackReviewLabels(reasonCodes, requestRow);
+					const causeClass = feedbackCauseClass(reviewLabels);
+					if (filters.causeClass && filters.causeClass !== causeClass) {
+						return null;
+					}
+					const answerKind = answerKindFor(requestRow);
+
+					return {
+						candidateId: `eval_candidate:negative_feedback:${feedback.feedbackId}`,
+						causeClass,
+						correlation: {
+							answerKind,
+							assistantMessageId: feedback.messageId,
+							citationPosture: citationPostureFor(requestRow),
+							conversationId: feedback.conversationId,
+							intent: compactIntent(requestRow),
+						},
+						feedback: {
+							feedbackId: feedback.feedbackId,
+							reasonCodes,
+							updatedAt: feedback.updatedAt.toISOString(),
+							vote: "unhelpful",
+						},
+						grade: null,
+						intake: {
+							createdAt: feedback.updatedAt.toISOString(),
+							source: NEGATIVE_FEEDBACK_DETECTED_BY,
+							status: "pending_review",
+							suggestedEvalFamily: feedbackEvalFamily(causeClass),
+						},
+						links: {
+							issueFingerprint: null,
+							issueLink: null,
+							traceLink: null,
+						},
+						privacy: {
+							providerRawResponseIncluded: false,
+							rawAuthMaterialIncluded: false,
+							rawTranscriptIncluded: false,
+						},
+						requestId: feedback.requestId,
+						review: {
+							suggestedLabels: reviewLabels,
+						},
+						selectedTarget: requestRow.selectedTarget ?? null,
+						summary: feedbackSummary(answerKind, reasonCodes),
+						surface: requestRow.surface,
+						traceId: requestRow.traceId,
+					};
+				})
+				.filter((candidate): candidate is QualityEvalCandidate => candidate !== null)
+				.sort((left, right) => {
+					const byTime = Date.parse(right.intake.createdAt) - Date.parse(left.intake.createdAt);
+					if (byTime !== 0) {
+						return byTime;
+					}
+					return right.candidateId.localeCompare(left.candidateId);
+				})
+				.slice(0, filters.limit);
+
+			const backlinksByRequestId = await loadTraceBacklinksByRequestIds(
+				db,
+				candidates.map((candidate) => candidate.requestId),
+			);
+
+			return {
+				candidates: candidates.map((candidate) => ({
+					...candidate,
+					links: toLinks(backlinksByRequestId.get(candidate.requestId)),
+				})),
+				page: {
+					nextCursor: null,
+				},
+			} satisfies OperatorQualityEvalCandidateListResult;
 		},
 	};
 }

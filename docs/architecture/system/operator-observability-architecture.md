@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-25
+updated: 2026-04-29
 ---
 # Operator Observability Architecture
 
@@ -185,8 +185,12 @@ runtime-internal package import 拼装它们。
 - intent governance 已经进入 operator-facing read model：request detail 保留 typed intent
   summary，`app-api` 另提供 intent summary / timeseries 聚合，用于 classifier、schema 与
   context-resolution drift 监控
+- answer quality feedback 已进入 `Quality` read model：`chat.message_feedback` 通过
+  `request_id` join `runtime.request_observability_fact`，生成 feedback coverage、
+  helpful / unhelpful rate、no-answer unhelpful overlap，以及 `negative_feedback`
+  eval candidate intake；它不是 panel-owned truth，也不反向改变 runtime routing
 
-当前尚未全部落成 merged truth 的，是更完整的 `Quality`、`Safety/Authz`、`Cost`、`Audit` operator
+当前尚未全部落成 merged truth 的，是更完整的 `Safety/Authz`、`Cost`、`Audit` operator
 product surface；这属于 rollout 进度问题，不是 ownership 未定。
 
 长期如果推进 full agentic retrieval，operator observability 还必须继续收口 planner / executor

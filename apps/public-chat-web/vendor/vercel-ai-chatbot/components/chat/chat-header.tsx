@@ -17,7 +17,7 @@ function PureChatHeader() {
     <header className="sticky top-0 flex h-14 items-center gap-2 bg-sidebar px-3">
       <Button
         aria-label="切换侧边栏"
-        className="md:hidden"
+        className="min-h-11 min-w-11 md:hidden"
         onClick={toggleSidebar}
         size="icon-sm"
         variant="ghost"
@@ -27,7 +27,7 @@ function PureChatHeader() {
 
       <Link
         aria-label="新建对话"
-        className="flex size-8 items-center justify-center rounded-lg md:hidden"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-lg md:hidden"
         href="/"
       >
         <PenSquareIcon className="size-4" />

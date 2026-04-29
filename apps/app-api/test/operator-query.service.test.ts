@@ -679,4 +679,85 @@ describe("operator query service aggregate summaries", () => {
 			},
 		});
 	});
+
+	it("exports negative feedback candidates through the quality eval candidate seam", async () => {
+		const store = {
+			getById: vi.fn(),
+			getObservabilityById: vi.fn(),
+			getOverview: vi.fn(),
+			getQualitySummary: vi.fn(),
+			getQualityTimeseries: vi.fn(),
+			getAuditById: vi.fn(),
+			getSafetySummary: vi.fn(),
+			getCostSummary: vi.fn(),
+			listQualityBadcases: vi.fn(),
+			listQualityFeedbackEvalCandidates: vi.fn().mockResolvedValue({
+				candidates: [
+					{
+						candidateId: "eval_candidate:negative_feedback:feedback_01",
+						causeClass: "wrong_intent",
+						feedback: {
+							feedbackId: "feedback_01",
+							reasonCodes: ["wrong_intent"],
+							updatedAt: "2026-03-28T08:11:00.000Z",
+							vote: "unhelpful",
+						},
+						grade: null,
+						intake: {
+							createdAt: "2026-03-28T08:11:00.000Z",
+							source: "negative_feedback",
+							status: "pending_review",
+							suggestedEvalFamily: "intent",
+						},
+						links: {
+							issueFingerprint: null,
+							issueLink: null,
+							traceLink: null,
+						},
+						requestId: "req_feedback_01",
+						selectedTarget: "rag-agent",
+						summary: "Negative answer feedback for answer: wrong_intent.",
+						surface: "public_chat_web",
+						traceId: "trace_feedback_01",
+					},
+				],
+				page: {
+					nextCursor: null,
+				},
+			}),
+			listAudit: vi.fn(),
+			list: vi.fn(),
+		};
+		const service = buildOperatorQueryService({
+			store: store as never,
+		});
+
+		const result = await service.listQualityEvalCandidates({
+			filters: {
+				causeClass: " wrong_intent ",
+				cursor: null,
+				detectedBy: " negative_feedback ",
+				limit: 10,
+				selectedTarget: " rag-agent ",
+				status: " pending_review ",
+				surface: " public_chat_web ",
+				window: " 24h ",
+			},
+			principal: createOperatorPrincipal(),
+		});
+
+		expect(store.listQualityBadcases).not.toHaveBeenCalled();
+		expect(store.listQualityFeedbackEvalCandidates).toHaveBeenCalledWith({
+			causeClass: "wrong_intent",
+			cursor: null,
+			detectedBy: "negative_feedback",
+			limit: 10,
+			selectedTarget: "rag-agent",
+			status: "pending_review",
+			surface: "public_chat_web",
+			window: "24h",
+		});
+		expect(result.candidates).toHaveLength(1);
+		expect(result.candidates[0]?.intake.source).toBe("negative_feedback");
+	});
 });
