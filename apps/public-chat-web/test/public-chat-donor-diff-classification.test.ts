@@ -6,6 +6,7 @@ import viteConfigSource from "../vite.config.ts?raw";
 import {
 	acceptedProductDiffPaths,
 	acceptedRuntimeCompatibilityDiffPaths,
+	donorComparisonIgnoredPaths,
 	exactCompatSeams,
 	expectedVendorDiffPaths,
 	historicalDebtDiffPaths,
@@ -37,18 +38,18 @@ function normalizeVendorKey(moduleKey: string): string {
 	return moduleKey.replace(/^\.\.\/vendor\/vercel-ai-chatbot\//, "");
 }
 
+const donorComparisonIgnoredPathSet = new Set<string>(donorComparisonIgnoredPaths);
+
 function collectDonorDiff() {
 	const donorFiles = new Map(
-		Object.entries(donorSourceModules).map(([moduleKey, source]) => [
-			normalizeDonorKey(moduleKey),
-			source,
-		]),
+		Object.entries(donorSourceModules)
+			.map(([moduleKey, source]) => [normalizeDonorKey(moduleKey), source] as const)
+			.filter(([relativePath]) => !donorComparisonIgnoredPathSet.has(relativePath)),
 	);
 	const vendorFiles = new Map(
-		Object.entries(vendorSourceModules).map(([moduleKey, source]) => [
-			normalizeVendorKey(moduleKey),
-			source,
-		]),
+		Object.entries(vendorSourceModules)
+			.map(([moduleKey, source]) => [normalizeVendorKey(moduleKey), source] as const)
+			.filter(([relativePath]) => !donorComparisonIgnoredPathSet.has(relativePath)),
 	);
 	const allPaths = [...new Set([...donorFiles.keys(), ...vendorFiles.keys()])].sort();
 	const onlyLeft: string[] = [];
@@ -102,6 +103,8 @@ describe("public chat donor diff classification", () => {
 
 		expect(acceptedProductDiffPaths.length).toBeGreaterThan(0);
 		expect(acceptedRuntimeCompatibilityDiffPaths.length).toBeGreaterThan(0);
+		expect(expectedVendorDiffPaths).not.toContain("next-env.d.ts");
+		expect(donorComparisonIgnoredPaths).toContain("next-env.d.ts");
 		expect(historicalDebtDiffPaths).toEqual([]);
 	});
 

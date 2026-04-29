@@ -4,6 +4,7 @@ export const donorComparisonIgnoredPaths = [
 	".github/workflows/playwright.yml",
 	".vscode/extensions.json",
 	".vscode/settings.json",
+	"next-env.d.ts",
 ] as const;
 
 export const acceptedProductDiffPaths = [
@@ -25,7 +26,6 @@ export const acceptedRuntimeCompatibilityDiffPaths = [
 	"components/chat/document-preview.tsx",
 	"components/chat/sidebar-history.tsx",
 	"components/chat/toolbar.tsx",
-	"next-env.d.ts",
 ] as const;
 
 export const historicalDebtDiffPaths: readonly string[] = [];
