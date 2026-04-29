@@ -10,7 +10,8 @@ updated: 2026-04-18
 
 这份 runbook 只描述一件事：
 
-- 当拿到新的 `SSO_TGC` 后，如何在认证窗口内先做 `file_release` 预检，再做 bounded export / full export
+- 当拿到新的 authenticated portal operator cookies 后，如何在认证窗口内先做
+  `file_release` 预检，再做 bounded export / full export
 
 它不替代：
 
@@ -39,7 +40,10 @@ updated: 2026-04-18
 
 ## 前置条件
 
-- 已有新的 `SSO_TGC`
+- 已有新的 authenticated portal operator cookies：
+  - `AUTHENTICATED_NOTICE_SSO_TGC`
+  - `AUTHENTICATED_NOTICE_JSESSIONID`
+  - `AUTHENTICATED_NOTICE_NGINX`
 - root `.env` 或 collector 环境中已配置必要对象存储凭据时，允许源文件 materialization
 - 当前从 repo root 执行命令
 
@@ -56,8 +60,11 @@ updated: 2026-04-18
 
 说明：
 
-- `SSO_TGC` 是 operator 需要主动更新的主字段
-- `JSESSIONID` / `nginx` 由 portal runtime 访问派生，不应作为主要人工维护输入
+- 当前 collector 的推荐 operator 输入是显式三 cookie：
+  - `AUTHENTICATED_NOTICE_SSO_TGC`
+  - `AUTHENTICATED_NOTICE_JSESSIONID`
+  - `AUTHENTICATED_NOTICE_NGINX`
+- `AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER` 仍可作为兼容输入，但不再是推荐主形态
 - 生产 job 应配置 collector lease URL；本地 smoke 可不配置 lease
 
 ## 执行顺序

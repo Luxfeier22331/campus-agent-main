@@ -955,14 +955,54 @@ Mainline worker inputs:
 
 Local `--bundle-path` / `--manifest-path` import is fixture/dev-only. Production
 and Docker-compatible examples must use `--run-id` or explicit object refs.
-After the object-native importer is implemented, bare local path invocation must
-fail closed unless an explicit fixture/dev guard is supplied.
+Bare local path invocation fails closed unless `--allow-local-fixture-import`
+is supplied.
+
+Notice run-ledger import:
+
+```bash
+uv run --all-packages campus-ingestion-import-authenticated-notice-export \
+  --run-id muc_internal_portal:notice:20260402T235919838Z \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn/page/11 \
+  --consumer-admission-manifest-path \
+  /etc/campus-agent/internal-notice-consumer-admission-manifest.json
+```
+
+Notice explicit object-ref import:
+
+```bash
+uv run --all-packages campus-ingestion-import-authenticated-notice-export \
+  --source-bucket campus-rag-source \
+  --bundle-object-key authenticated_notice/exports/run-1/notices-bundle.json \
+  --manifest-object-key authenticated_notice/exports/run-1/manifest.json \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn/page/11 \
+  --mode plan
+```
+
+File-release run-ledger import:
+
+```bash
+uv run --all-packages \
+  campus-ingestion-import-authenticated-notice-file-release-export \
+  --run-id muc_internal_portal:file_release:20260412T003300Z \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn/page/11 \
+  --mode plan
+```
 
 `file_release` import uses the same handoff posture. Only
 `released_file.storage_provider=object_store` rows with verified
 `bucket/object_key/sha256/byte_size` can enter
 `authenticated_documents/file_release_source`; `reference_only` rows remain
 capture evidence and do not enter document holding.
+
+`show_authenticated_document_holding_status --collection file_release_source`
+reports `holding_stage` for each file release:
+`captured_only`, `object_backed_source_ready`, `imported_holding`, or
+`downstream_admitted`. The last state is only an observed downstream admission
+signal; it does not open query-serving by default.
 
 Dry-run / plan mode must not write object store, registry, projection, read
 model, current pointer, or admission lifecycle state.

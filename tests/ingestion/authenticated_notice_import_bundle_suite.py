@@ -36,6 +36,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 )
             )
 
@@ -81,6 +82,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 )
             )
 
@@ -241,6 +243,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                     mode="admit_and_materialize",
                 ),
                 env=env,
@@ -320,6 +323,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 env=env,
                 object_store=object_store,

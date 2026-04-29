@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: active
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -19,11 +19,11 @@ service-status、regulation 作为 ingestion consumer compatibility matrix 纳�
 
 - [x] **Phase 1: Contract And Boundary Freeze** — 冻结 object-native handoff contract、run ledger read/write fields、worker import request shape，以及 `file_release` object-backed target posture。
 - [x] **Phase 2: Collector Object-Native Handoff** — collector 直接产出 verified source-bucket bundle/manifest/source bytes refs，success run 必须有可验证 object refs。
-- [ ] **Phase 3: Worker Object-Ref Import** — ingestion worker 支持 `run_id` / object refs 导入，local path 降为 fixture/dev-only，不再是主链路 handoff。
-- [ ] **Phase 4: Fail-Close Object And Dry-Run Gates** — object existence/hash/size gate、dry-run no-write gate、missing object no registry/projection write。
-- [ ] **Phase 5: File-Release Target Boundary** — 将 `file_release` 从 capture-only drift 收口为显式 object-backed authenticated document source，并保持 query-serving / semantic promotion 关闭。
-- [ ] **Phase 6: Notice Consumer Compatibility Matrix** — 验证 WeChat、service-status、regulation 三类 ingestion consumers 都只消费 object/source-truth/projection/admission truth，不回退 local bundle/raw scan。
-- [ ] **Phase 7: Live Repair And Acceptance** — 清理 stale locators，跑 Docker-compatible collector -> object store -> worker smoke，更新 workstream closeout evidence。
+- [x] **Phase 3: Worker Object-Ref Import** — ingestion worker 支持 `run_id` / object refs 导入，local path 降为 fixture/dev-only，不再是主链路 handoff。
+- [x] **Phase 4: Fail-Close Object And Dry-Run Gates** — object existence/hash/size gate、dry-run no-write gate、missing object no registry/projection write。
+- [x] **Phase 5: File-Release Target Boundary** — 将 `file_release` 从 capture-only drift 收口为显式 object-backed authenticated document source，并保持 query-serving / semantic promotion 关闭。
+- [x] **Phase 6: Notice Consumer Compatibility Matrix** — 验证 WeChat、service-status、regulation 三类 ingestion consumers 都只消费 object/source-truth/projection/admission truth，不回退 local bundle/raw scan。
+- [x] **Phase 7: Live Repair And Acceptance** — audit-only command、repair manifest contract、backup path 与 evidence 已落地；fresh notice / file_release collector run、run-id worker import smoke、55 条 historical `file_release_capture` recollection/import 与 refreshed object-locator audit 已完成，当前 `missing_object_count=0`。
 
 ## Phase 1: Contract And Boundary Freeze
 

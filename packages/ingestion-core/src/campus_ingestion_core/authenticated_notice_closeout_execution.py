@@ -722,6 +722,7 @@ def _request_from_run(run: CloseoutRun) -> AuthenticatedNoticeImportRequest:
         export_manifest_path=Path(run.manifest_path) if run.manifest_path else None,
         site_id=run.site_id,
         source_home_url=run.source_home_url,
+        allow_local_fixture_import=True,
         corpus=run.corpus,
         collection=run.collection,
         default_entitlement_groups=run.default_entitlement_groups,

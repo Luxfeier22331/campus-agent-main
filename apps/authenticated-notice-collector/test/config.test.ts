@@ -26,6 +26,8 @@ describe("authenticated notice collector config", () => {
 		).toBe(true);
 		expect(config.attachmentFetchStatusDatabaseUrl).toBeNull();
 		expect(config.attachmentFetchStatusDisabled).toBe(false);
+		expect(config.authJsessionId).toBeNull();
+		expect(config.authNginxCookie).toBeNull();
 		expect(config.collectionMode).toBe("incremental");
 		expect(config.collectorRunLedgerDatabaseUrl).toBeNull();
 		expect(config.collectorRunLedgerDisabled).toBe(false);
@@ -42,6 +44,8 @@ describe("authenticated notice collector config", () => {
 				"JSESSIONID=session-1; nginx=sticky-1; SSO_TGC=sso-token-1",
 			AUTHENTICATED_NOTICE_AUTH_CHECK_NOTICE_TYPE: "6",
 			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
+			AUTHENTICATED_NOTICE_JSESSIONID: "session-2",
+			AUTHENTICATED_NOTICE_NGINX: "sticky-2",
 			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/99#/",
 			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
 			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL:
@@ -68,6 +72,8 @@ describe("authenticated notice collector config", () => {
 		expect(config.authCookieHeader).toBe(
 			"JSESSIONID=session-1; nginx=sticky-1; SSO_TGC=sso-token-1",
 		);
+		expect(config.authJsessionId).toBe("session-2");
+		expect(config.authNginxCookie).toBe("sticky-2");
 		expect(config.authCheckNoticeType).toBe("6");
 		expect(config.authSsoTgcToken).toBe("sso-token");
 		expect(config.noticeTypeAllowlist).toEqual(["9982", "6"]);

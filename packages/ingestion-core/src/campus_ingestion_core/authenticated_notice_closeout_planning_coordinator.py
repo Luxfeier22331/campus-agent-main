@@ -656,6 +656,7 @@ class CloseoutPlanningCoordinator:
             export_manifest_path=None,
             site_id=site_id,
             source_home_url=source_home_url,
+            allow_local_fixture_import=True,
             corpus=corpus,
             collection=collection,
             visibility_scope=visibility_scope,

@@ -91,6 +91,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         ),
         site_id=args.site_id,
         source_home_url=args.source_home_url,
+        allow_local_fixture_import=True,
         corpus=args.corpus,
         collection=args.collection,
         default_entitlement_groups=(entitlement_groups or ("campus_members",)),

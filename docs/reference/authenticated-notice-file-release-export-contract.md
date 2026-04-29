@@ -64,6 +64,16 @@ updated: 2026-04-28
 - `file_release_source` 不自动进入 `regulations/*`、service-status、chatbot、panel 或
   query-serving
 
+holding status 的 operator posture 固定为：
+
+- `captured_only`：只保留 capture evidence，不能作为 import source
+- `object_backed_source_ready`：released original 已在 source bucket 中验证，可进入 worker
+  import
+- `imported_holding`：holding inventory、raw asset、document rows 与 source
+  objects 已对齐
+- `downstream_admitted`：已有后续 owner 显式 admission / read model 证据；
+  本 contract 不默认打开该状态
+
 ## 导出文件
 
 collector 可以在本地 operator work dir 下保留两类 export 文件副本：

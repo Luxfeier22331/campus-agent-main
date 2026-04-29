@@ -127,6 +127,16 @@ center 或 owner-specific downstream admission。
 旧的 `campus_notices/file_release_capture` 只能作为 historical capture / repair
 对象出现；它不是新的 cross-runtime handoff target，也不是长期 query-serving surface。
 
+`file_release_source` holding status 必须显式区分四种 operator posture：
+
+- `captured_only`：只有 historical capture evidence，缺少可验证 released source bytes
+- `object_backed_source_ready`：capture row 已具备可验证 source bucket object，但尚未导入
+  holding scope
+- `imported_holding`：`authenticated_documents/file_release_source` 的 inventory、
+  raw asset、document rows 与 source objects 已对齐
+- `downstream_admitted`：出现显式 downstream admission / read model 证据；这不是默认成功态，
+  需要由对应 owner 决策
+
 当前 collector-owned export shape、bundle/manifest 字段，以及 `reference_only` /
 `object_store_write` 的含义，固定记录在：
 

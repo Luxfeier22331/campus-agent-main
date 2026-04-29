@@ -97,6 +97,7 @@ def import_authenticated_common_download_export(
             attachment_blob_root=request.attachment_blob_root,
             site_id=request.site_id,
             source_home_url=request.source_home_url,
+            allow_local_fixture_import=True,
             corpus=request.corpus,
             collection=request.collection,
             default_entitlement_groups=request.default_entitlement_groups,

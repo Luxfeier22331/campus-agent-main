@@ -15,6 +15,10 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
     AuthenticatedNoticeAttachmentFetchStatusStore,
     build_attachment_fetch_status_records_from_bundle_records,
 )
+from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
+    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
+    resolve_authenticated_notice_collector_run_refs,
+)
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
@@ -33,6 +37,11 @@ from campus_ingestion_core.authenticated_notice_import_env import (
     _build_attachment_fetch_status_store_from_env_if_configured,
     _build_consumption_projection_store_from_env_if_configured,
     _build_read_model_store_from_env_if_configured,
+)
+from campus_ingestion_core.authenticated_notice_import_sources import (
+    AuthenticatedNoticeImportObjectRefs,
+    explicit_authenticated_notice_import_object_refs,
+    load_authenticated_notice_import_payload_from_object_refs,
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
     _load_json_payload,
@@ -128,10 +137,20 @@ _SUPPORTED_AUTHENTICATED_NOTICE_IMPORT_MODES = {
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeImportRequest:
-    bundle_path: Path
-    export_manifest_path: Path | None
-    site_id: str
-    source_home_url: str
+    bundle_path: Path | None = None
+    export_manifest_path: Path | None = None
+    site_id: str = ""
+    source_home_url: str = ""
+    run_id: str | None = None
+    source_bucket: str | None = None
+    bundle_object_key: str | None = None
+    manifest_object_key: str | None = None
+    bundle_content_sha256: str | None = None
+    bundle_byte_size: int | None = None
+    manifest_content_sha256: str | None = None
+    manifest_byte_size: int | None = None
+    allow_local_fixture_import: bool = False
+    collector_run_ledger_table: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE
     consumer_admission_manifest_path: Path | None = None
     attachment_blob_root: Path | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
@@ -146,7 +165,8 @@ class AuthenticatedNoticeImportRequest:
     source_truth_only: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "bundle_path", Path(self.bundle_path))
+        if self.bundle_path is not None:
+            object.__setattr__(self, "bundle_path", Path(self.bundle_path))
         if self.export_manifest_path is not None:
             object.__setattr__(self, "export_manifest_path", Path(self.export_manifest_path))
         if self.consumer_admission_manifest_path is not None:
@@ -163,11 +183,24 @@ class AuthenticatedNoticeImportRequest:
             tuple(group.strip() for group in self.default_entitlement_groups if group.strip()),
         )
         object.__setattr__(self, "mode", _normalize_import_mode(self.mode))
+        for field_name in (
+            "run_id",
+            "source_bucket",
+            "bundle_object_key",
+            "manifest_object_key",
+            "bundle_content_sha256",
+            "manifest_content_sha256",
+            "collector_run_ledger_table",
+        ):
+            value = getattr(self, field_name)
+            if isinstance(value, str):
+                object.__setattr__(self, field_name, value.strip() or None)
         assert_known_scope(self.corpus, self.collection)
         if not self.site_id.strip():
             raise ValueError("site_id is required")
         if not self.source_home_url.strip():
             raise ValueError("source_home_url is required")
+        _assert_authenticated_notice_import_source_shape(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,8 +263,11 @@ def load_authenticated_notice_export_manifest(
 def import_authenticated_notice_bundle(
     request: AuthenticatedNoticeImportRequest,
 ) -> AuthenticatedNoticeBundleImportResult:
-    export_manifest = load_authenticated_notice_export_manifest(request.export_manifest_path)
-    bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
+    export_manifest, bundle_payload = _load_authenticated_notice_import_payload(
+        request=request,
+        env=dict(os.environ),
+        object_store=None,
+    )
     return prepare_authenticated_notice_bundle_records(
         request=request,
         bundle_records=bundle_payload,
@@ -252,8 +288,11 @@ def import_authenticated_notice_export(
     read_model_store: InternalNoticeReadModelStore | None = None,
 ) -> dict[str, Any]:
     source = env if env is not None else dict(os.environ)
-    export_manifest = load_authenticated_notice_export_manifest(request.export_manifest_path)
-    bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
+    export_manifest, bundle_payload = _load_authenticated_notice_import_payload(
+        request=request,
+        env=source,
+        object_store=object_store,
+    )
     prepared = prepare_authenticated_notice_bundle_records(
         request=request,
         bundle_records=bundle_payload,
@@ -1046,6 +1085,108 @@ def _prepare_notice_import(
         source_artifact_keys=source_artifact_keys,
         document_import=document_import,
     )
+
+
+def _load_authenticated_notice_import_payload(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+    env: dict[str, str],
+    object_store: object | None,
+) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], ...]]:
+    object_refs = _authenticated_notice_import_object_refs_from_request(
+        request=request,
+        env=env,
+    )
+    if object_refs is not None:
+        loaded = load_authenticated_notice_import_payload_from_object_refs(
+            refs=object_refs,
+            env=env,
+            object_store=object_store,
+            bundle_label="authenticated notice bundle",
+            manifest_label="authenticated notice export manifest",
+        )
+        return loaded.export_manifest, loaded.bundle_records
+    return (
+        load_authenticated_notice_export_manifest(request.export_manifest_path),
+        load_authenticated_notice_bundle_payload(request.bundle_path),
+    )
+
+
+def _authenticated_notice_import_object_refs_from_request(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+    env: dict[str, str],
+) -> AuthenticatedNoticeImportObjectRefs | None:
+    if request.run_id:
+        resolved = resolve_authenticated_notice_collector_run_refs(
+            env=env,
+            run_id=request.run_id,
+            expected_source_surface="notice",
+            table_name=request.collector_run_ledger_table
+            or DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
+        )
+        return explicit_authenticated_notice_import_object_refs(
+            source_bucket=resolved.source_bucket,
+            bundle_object_key=resolved.bundle_object_key,
+            manifest_object_key=resolved.manifest_object_key,
+            bundle_content_sha256=resolved.bundle_content_sha256,
+            bundle_byte_size=resolved.bundle_byte_size,
+            manifest_content_sha256=resolved.manifest_content_sha256,
+            manifest_byte_size=resolved.manifest_byte_size,
+            run_id=resolved.run_id,
+        )
+    if request.source_bucket or request.bundle_object_key or request.manifest_object_key:
+        return explicit_authenticated_notice_import_object_refs(
+            source_bucket=request.source_bucket,
+            bundle_object_key=request.bundle_object_key,
+            manifest_object_key=request.manifest_object_key,
+            bundle_content_sha256=request.bundle_content_sha256,
+            bundle_byte_size=request.bundle_byte_size,
+            manifest_content_sha256=request.manifest_content_sha256,
+            manifest_byte_size=request.manifest_byte_size,
+        )
+    return None
+
+
+def _assert_authenticated_notice_import_source_shape(
+    request: AuthenticatedNoticeImportRequest,
+) -> None:
+    run_id_selected = request.run_id is not None
+    object_ref_selected = any(
+        value is not None
+        for value in (
+            request.source_bucket,
+            request.bundle_object_key,
+            request.manifest_object_key,
+        )
+    )
+    local_selected = request.bundle_path is not None or request.export_manifest_path is not None
+    selected_mode_count = sum((run_id_selected, object_ref_selected, local_selected))
+    if selected_mode_count != 1:
+        raise ValueError(
+            "authenticated notice import requires exactly one input mode: "
+            "run_id, object refs, or local fixture import"
+        )
+    if run_id_selected:
+        return
+    if object_ref_selected:
+        explicit_authenticated_notice_import_object_refs(
+            source_bucket=request.source_bucket,
+            bundle_object_key=request.bundle_object_key,
+            manifest_object_key=request.manifest_object_key,
+            bundle_content_sha256=request.bundle_content_sha256,
+            bundle_byte_size=request.bundle_byte_size,
+            manifest_content_sha256=request.manifest_content_sha256,
+            manifest_byte_size=request.manifest_byte_size,
+        )
+        return
+    if request.bundle_path is None:
+        raise ValueError("bundle_path is required for authenticated notice local fixture import")
+    if not request.allow_local_fixture_import:
+        raise ValueError(
+            "--allow-local-fixture-import / allow_local_fixture_import is required for "
+            "authenticated notice local fixture import"
+        )
 
 
 def _load_bundle_payload(path: Path) -> tuple[dict[str, Any], ...]:

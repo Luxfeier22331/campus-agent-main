@@ -20,6 +20,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 run_id="run-1",
                 max_concurrency=2,
@@ -104,6 +105,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 run_id="run-1",
                 max_concurrency=2,
@@ -186,6 +188,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 run_id="run-1",
                 max_concurrency=2,
@@ -211,10 +214,13 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     raise RuntimeError("copy batch crashed")
                 return original_copy_batch(*args, **kwargs)
 
-            with self.assertRaisesRegex(RuntimeError, "copy batch crashed"), patch.object(
-                service.promotion,
-                "_copy_document_batch",
-                side_effect=_crashing_copy_batch,
+            with (
+                self.assertRaisesRegex(RuntimeError, "copy batch crashed"),
+                patch.object(
+                    service.promotion,
+                    "_copy_document_batch",
+                    side_effect=_crashing_copy_batch,
+                ),
             ):
                 service.promote_run("run-1")
 
@@ -280,6 +286,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 run_id="run-1",
                 max_concurrency=2,
@@ -313,6 +320,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 run_id="run-1",
                 max_concurrency=2,
@@ -357,6 +365,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 run_id="run-1",
                 max_concurrency=2,
@@ -416,6 +425,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                 ),
                 run_id="run-1",
                 max_concurrency=2,

@@ -43,6 +43,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
         site_id=args.site_id,
         source_home_url=args.source_home_url,
+        allow_local_fixture_import=True,
         corpus=args.corpus,
         collection=args.collection,
         default_entitlement_groups=(entitlement_groups or ("campus_members",)),

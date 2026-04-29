@@ -76,12 +76,16 @@ cron / systemd / Kubernetes Job owns scheduling.
 
 Auth note:
 
-- current collector auth bootstrap should treat `SSO_TGC@.muc.edu.cn` as the
-  primary reusable login input
-- operator refresh can set `AUTHENTICATED_NOTICE_SSO_TGC` to either the raw
-  token value or a full `SSO_TGC=<value>; Path=/; Domain=.muc.edu.cn` cookie
-  fragment; `auth:check` seeds `runtime/auth/storageState.json` from that value
-  before attempting portal bootstrap
+- current collector auth bootstrap accepts an explicit three-cookie operator
+  set:
+  - `AUTHENTICATED_NOTICE_SSO_TGC`
+  - `AUTHENTICATED_NOTICE_JSESSIONID`
+  - `AUTHENTICATED_NOTICE_NGINX`
+- the collector seeds those cookies into `runtime/auth/storageState.json`
+  before attempting portal bootstrap and preserves them when headless bootstrap
+  refresh drops one of the operator-provided cookies
+- `AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER` remains supported as a compatibility
+  input when the operator already has a full `Cookie:` header fragment
 - collector now appends `muc.edu.cn`, `.muc.edu.cn`, `my.muc.edu.cn`,
   `ca.muc.edu.cn` into `NO_PROXY` / `no_proxy` at runtime so the portal path
   bypasses repo-local shell proxies by default
@@ -100,8 +104,8 @@ Auth note:
   window; if either step times out in headless mode, the collector falls back to
   the existing `storageState` cookies and lets the subsequent API request verify
   whether the session is still usable
-- operator refresh should therefore prefer updating `SSO_TGC`; `auth:check` is
-  responsible for verifying that the refreshed session can access both
+- `auth:check` is responsible for verifying that the refreshed session can
+  access both
   `/comsys-portal-notice-web/getNoticeByPage` and
   `/comsys-prompt-portlet-web/pageFile`
 - `auth:check` now returns one readiness summary for `notice` and one for

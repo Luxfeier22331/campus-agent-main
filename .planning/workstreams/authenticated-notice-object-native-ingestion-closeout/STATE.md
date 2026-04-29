@@ -2,7 +2,7 @@
 doc_type: state
 status: active
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -12,10 +12,13 @@ updated: 2026-04-28
 ## Current Position
 
 - status: `active`
-- current phase: `Phase 3`
-- current slice: worker object-ref import
-- last activity: 2026-04-28
-- last activity description: Phase 2 collector object-native handoff implemented; ready for worker object-ref import
+- current phase: `Phase 7`
+- current slice: live repair, historical recollection, and acceptance evidence closeout
+- last activity: 2026-04-29
+- last activity description: stale `storageState` override bug fixed, operator cookies revalidated,
+  55 historical `file_release_capture` rows backed up and recollected through live
+  collector->run_id->worker imports, and refreshed object-locator audit completed with
+  `missing_object_count=0`
 
 ## Why This Workstream Exists
 
@@ -54,14 +57,48 @@ updated: 2026-04-28
 - [x] Fail collector success handoff when required objects are missing or mismatched.
 - [x] Keep local export files as optional operator artifacts only.
 
+## Completed Phase 3 Tasks
+
+- [x] Add worker import request support for `--run-id`.
+- [x] Add explicit bundle/manifest object-ref import for notice export.
+- [x] Add explicit bundle/manifest object-ref import for file_release export.
+- [x] Add Python run-ledger reader for verified object-backed collector runs.
+- [x] Guard local `--bundle-path` / `--manifest-path` as fixture/dev-only.
+- [x] Add object-ref import tests and local-path fail-close tests.
+
+## Completed Phase 4 Tasks
+
+- [x] Add explicit missing-object fail-close coverage.
+- [x] Add object hash mismatch and size mismatch coverage.
+- [x] Prove plan/dry-run cannot write object store, registries, projections, or read models.
+- [x] Prove missing object failure leaves injected registries/projections/read models unwritten.
+- [x] Extend file_release released source object verification beyond bundle metadata.
+
+## Completed Phase 5 Tasks
+
+- [x] Keep `file_release_source` as object-backed authenticated document source.
+- [x] Require released source bytes object `bucket/object_key/sha256/byte_size`.
+- [x] Verify released source object before raw/document/inventory writes.
+- [x] Extend holding status with `captured_only`, `object_backed_source_ready`,
+  `imported_holding`, and `downstream_admitted` stages.
+- [x] Update architecture / contract / worker docs.
+
+## Completed Phase 6 Tasks
+
+- [x] Verify WeChat projection consumes explicit source-truth artifact refs and has dry-run no-write coverage.
+- [x] Verify service-status materializer consumes projection + consumer admission truth without raw bundle scan.
+- [x] Verify regulation document-site publish requires dry-run report before formal selected import.
+- [x] Add Phase 6 compatibility evidence artifacts.
+
 ## Current Phase Tasks
 
-- [ ] Add worker import request support for `--run-id`.
-- [ ] Add explicit bundle/manifest object-ref import for notice export.
-- [ ] Add explicit bundle/manifest object-ref import for file_release export.
-- [ ] Add Python run-ledger reader for verified object-backed collector runs.
-- [ ] Guard local `--bundle-path` / `--manifest-path` as fixture/dev-only.
-- [ ] Add object-ref import tests and local-path fail-close tests.
+- [x] Add audit-only authenticated notice object locator command.
+- [x] Add selected repair manifest / backup / docker handoff evidence paths.
+- [x] Run live object locator audit against PG + object store.
+- [x] Run Docker-compatible collector -> object store -> worker import smoke.
+- [x] Select and back up stale rows before any repair write.
+- [x] Recollect and materialize all historical `file_release_capture` rows selected for repair.
+- [x] Refresh object-locator audit and close the repair gap to zero.
 
 ## Known Non-Overlap
 
@@ -77,8 +114,7 @@ updated: 2026-04-28
 
 ## Blockers
 
-- None for planning.
-- Phase 7 live repair will require valid object store and database credentials.
+- none
 
 ## Verification
 
@@ -97,6 +133,60 @@ updated: 2026-04-28
     handoff cannot be completed.
   - local export files are disabled by default and only written when
     `AUTHENTICATED_NOTICE_WRITE_LOCAL_EXPORTS=true`.
+- Phase 3 worker object-ref import implemented:
+  - notice and file-release import requests accept `run_id` or explicit
+    source-bucket bundle/manifest object refs.
+  - Python run-ledger reader validates source surface, success status,
+    `verification_status=verified`, source bucket, hash, and byte size.
+  - object-ref loader reads bundle/manifest bytes from S3-compatible object
+    storage and validates optional hash/size fields.
+  - bare local bundle/manifest paths fail closed unless
+    `allow_local_fixture_import` / `--allow-local-fixture-import` is explicit.
+  - worker console script exposes
+    `campus-ingestion-import-authenticated-notice-export`.
+- Phase 4 fail-close gates implemented:
+  - object-ref bundle/manifest import reports `missing_bundle_object`,
+    `missing_manifest_object`, `checksum_mismatch`, and `size_mismatch`.
+  - `file_release_source` materialization verifies released source bytes before any write and
+    reports `missing_source_bytes`, `checksum_mismatch`, or `size_mismatch`.
+  - plan/dry-run tests prove injected object store, registries, projection, and read model remain
+    unwritten.
+- Phase 5 file-release target boundary implemented:
+  - holding status reports `holding_stage` and `holding_stage_counts`.
+  - `file_release_source` remains non-query-serving unless a downstream owner explicitly admits it.
+- Phase 6 consumer matrix implemented:
+  - WeChat, service-status, and regulation worker tests pass.
+  - acceptance artifacts are retained under
+    `evidence/phase-06-notice-consumer-compatibility-matrix/`.
+- Phase 7 audit and evidence scaffolding implemented:
+  - worker console script exposes
+    `campus-ingestion-audit-authenticated-notice-object-locators`.
+  - live evidence paths are retained under
+    `evidence/phase-07-live-repair-and-acceptance/`.
+  - fresh notice incremental collector run succeeded:
+    `muc_internal_portal:notice:20260428T181953007Z`
+    with `notices_collected=282`, `pages_fetched=15`, `detail_fetched=282`, and
+    `required_source_object_count=307`.
+  - fresh targeted file-release collector run succeeded:
+    `muc_internal_portal:file_release:20260428T182624439Z`
+    for `file_release_id=585` with `required_source_object_count=3`.
+  - run-id worker materialization succeeded for both fresh runs:
+    notice import wrote source-truth-only holdings for 282 notices without projection/read-model
+    rebuild; file-release import materialized `file_release_source` row `585` as
+    `imported_holding`.
+  - stale `storageState.json` auth override bug was fixed so fresh operator cookies now replace
+    stale stored `JSESSIONID/nginx/SSO_TGC` values before fallback request-context creation.
+  - backup artifact was written to
+    `evidence/phase-07-live-repair-and-acceptance/backup/file-release-capture-pre-recollect-20260429.json`
+    before repair writes.
+  - full historical repair batch succeeded for all remaining 55
+    `campus_notices/file_release_capture` ids; evidence is retained at
+    `evidence/phase-07-live-repair-and-acceptance/historical-file-release-recollect-batch-A.json`.
+  - refreshed object-locator audit after repair reports `3332` locators checked, `3332`
+    verified, `0` missing source byte objects, `0` checksum mismatches, `0` size mismatches,
+    and no audit writes.
+  - selected repair manifest now records the completed recollection set, the backup artifact, and
+    zero remaining repair candidates.
 
 ## Resume Notes
 

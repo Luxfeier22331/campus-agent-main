@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: planned
+status: completed
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -25,13 +25,13 @@ Repair current stale state and prove the target chain works without local filesy
    with row ids, object keys, proposed action, and rollback notes.
 5. Export selected rows to
    `evidence/phase-07-live-repair-and-acceptance/backup/` before any repair write.
-6. Clean stale `file_release_capture` rows or mark them as captured-not-imported according to the Phase 5 contract.
+6. Recollect selected stale `file_release_capture` rows through the live object-backed collector and run-id worker import path.
 7. Run collector in Docker-compatible mode with object-store write enabled.
 8. Run ingestion worker from `run_id` or object refs only.
 9. Produce
    `evidence/phase-07-live-repair-and-acceptance/docker-handoff-acceptance.json`
    with:
-   collector run id, object refs, verification counts, import result, dry-run no-write evidence, downstream untouched proof.
+   collector run id, object refs, verification counts, import result, historical repair batch result, dry-run no-write evidence, downstream untouched proof.
 10. Update `STATE.md` and `WORKSTREAMS.md` closeout status.
 
 ## Tests / Verification

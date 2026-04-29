@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-28
 ---
@@ -54,3 +54,13 @@ uv run --all-packages ruff format apps/ingestion-worker packages/ingestion-core 
 - Non-success or unverified ledger rows fail closed.
 - Bare local path invocation fails closed in tests.
 - Existing local fixture tests use the explicit fixture/dev guard and are not production handoff.
+
+## Completion Notes
+
+- Implemented notice and file-release request object-ref fields, `run_id`, and
+  local fixture/dev guard.
+- Added Python collector run-ledger resolver for verified object-backed runs.
+- Added object-store bundle/manifest byte loader with optional hash/size
+  verification.
+- Updated worker CLIs and README examples for run-ledger/object-ref import.
+- Added object-ref import, local-path rejection, and run-ledger validation tests.

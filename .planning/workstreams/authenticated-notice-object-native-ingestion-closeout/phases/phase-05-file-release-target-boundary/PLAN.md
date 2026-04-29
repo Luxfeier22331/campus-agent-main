@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: planned
+status: completed
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 <!-- markdownlint-disable MD013 -->

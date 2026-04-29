@@ -278,6 +278,157 @@ describe("authenticated notice collector portal bootstrap", () => {
 		await apiContext.dispose();
 	});
 
+	it("seeds stored auth from explicit portal cookies before bootstrap fallback", async () => {
+		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-explicit-cookies-"));
+		tempDirs.push(runtimeDir);
+		const calls: string[] = [];
+
+		const config = {
+			...buildConfig(runtimeDir),
+			authJsessionId: "seeded-session",
+			authNginxCookie: "seeded-upstream",
+			authSsoTgcToken: "seeded-ticket",
+		};
+		const apiContext = await createApiContextFromStorageState(config, {
+			createRequestContext: async (input) => {
+				const cookiesByName = new Map(
+					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
+				);
+				calls.push(`request.newContext:${cookiesByName.get("JSESSIONID")?.value ?? "missing"}`);
+				expect(cookiesByName.get("JSESSIONID")).toMatchObject({
+					domain: "portal.example.edu",
+					httpOnly: true,
+					name: "JSESSIONID",
+					path: "/",
+					secure: true,
+					value: "seeded-session",
+				});
+				expect(cookiesByName.get("nginx")).toMatchObject({
+					domain: "portal.example.edu",
+					httpOnly: true,
+					name: "nginx",
+					path: "/",
+					secure: true,
+					value: "seeded-upstream",
+				});
+				expect(cookiesByName.get("SSO_TGC")).toMatchObject({
+					domain: ".muc.edu.cn",
+					httpOnly: true,
+					name: "SSO_TGC",
+					path: "/",
+					secure: true,
+					value: "seeded-ticket",
+				});
+				return {
+					dispose: async () => undefined,
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				};
+			},
+			launchBrowser: async () => {
+				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
+			},
+		});
+
+		expect(calls).toEqual(["request.newContext:seeded-session"]);
+
+		await apiContext.dispose();
+	});
+
+	it("overrides stale stored operator cookies with fresh explicit portal cookies", async () => {
+		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-cookie-override-"));
+		tempDirs.push(runtimeDir);
+		const calls: string[] = [];
+
+		const config = {
+			...buildConfig(runtimeDir),
+			authJsessionId: "fresh-session",
+			authNginxCookie: "fresh-upstream",
+			authSsoTgcToken: "fresh-ticket",
+		};
+		fs.mkdirSync(path.dirname(config.authStorageStatePath), { recursive: true });
+		fs.writeFileSync(
+			config.authStorageStatePath,
+			JSON.stringify({
+				cookies: [
+					{
+						domain: "portal.example.edu",
+						expires: -1,
+						httpOnly: true,
+						name: "JSESSIONID",
+						path: "/",
+						sameSite: "Lax",
+						secure: false,
+						value: "stale-session",
+					},
+					{
+						domain: "portal.example.edu",
+						expires: -1,
+						httpOnly: false,
+						name: "nginx",
+						path: "/",
+						sameSite: "Lax",
+						secure: false,
+						value: "stale-upstream",
+					},
+					{
+						domain: ".muc.edu.cn",
+						expires: -1,
+						httpOnly: true,
+						name: "SSO_TGC",
+						path: "/",
+						sameSite: "Lax",
+						secure: true,
+						value: "stale-ticket",
+					},
+				],
+				origins: [],
+			}),
+			"utf-8",
+		);
+
+		const apiContext = await createApiContextFromStorageState(config, {
+			createRequestContext: async (input) => {
+				const cookiesByName = new Map(
+					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
+				);
+				calls.push(`request.newContext:${cookiesByName.get("JSESSIONID")?.value ?? "missing"}`);
+				expect(cookiesByName.get("JSESSIONID")).toMatchObject({
+					name: "JSESSIONID",
+					value: "fresh-session",
+				});
+				expect(cookiesByName.get("nginx")).toMatchObject({
+					name: "nginx",
+					value: "fresh-upstream",
+				});
+				expect(cookiesByName.get("SSO_TGC")).toMatchObject({
+					name: "SSO_TGC",
+					value: "fresh-ticket",
+				});
+				return {
+					dispose: async () => undefined,
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				};
+			},
+			launchBrowser: async () => {
+				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
+			},
+		});
+
+		expect(calls).toEqual(["request.newContext:fresh-session"]);
+
+		await apiContext.dispose();
+	});
+
 	it("seeds stored auth from a full cookie header before bootstrap fallback", async () => {
 		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-cookie-header-"));
 		tempDirs.push(runtimeDir);
@@ -333,6 +484,72 @@ describe("authenticated notice collector portal bootstrap", () => {
 		});
 
 		expect(calls).toEqual(["request.newContext:seeded-session"]);
+
+		await apiContext.dispose();
+	});
+
+	it("preserves explicit operator cookies when bootstrap storage state drops them", async () => {
+		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-cookie-merge-"));
+		tempDirs.push(runtimeDir);
+
+		const config = {
+			...buildConfig(runtimeDir),
+			authJsessionId: "seeded-session",
+			authNginxCookie: "seeded-upstream",
+			authSsoTgcToken: "seeded-ticket",
+		};
+		const apiContext = await createApiContextFromStorageState(config, {
+			createRequestContext: async (input) => {
+				const cookiesByName = new Map(
+					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
+				);
+				expect(cookiesByName.get("JSESSIONID")).toMatchObject({
+					name: "JSESSIONID",
+					value: "refreshed-session",
+				});
+				expect(cookiesByName.get("nginx")).toMatchObject({
+					name: "nginx",
+					value: "seeded-upstream",
+				});
+				expect(cookiesByName.get("SSO_TGC")).toMatchObject({
+					name: "SSO_TGC",
+					value: "seeded-ticket",
+				});
+				return {
+					dispose: async () => undefined,
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				};
+			},
+			launchBrowser: async () => ({
+				close: async () => undefined,
+				newContext: async () => ({
+					newPage: async () => ({
+						close: async () => undefined,
+						goto: async () => undefined,
+					}),
+					storageState: async () => ({
+						cookies: [
+							{
+								domain: "portal.example.edu",
+								expires: -1,
+								httpOnly: true,
+								name: "JSESSIONID",
+								path: "/",
+								sameSite: "Lax",
+								secure: false,
+								value: "refreshed-session",
+							},
+						],
+						origins: [],
+					}),
+				}),
+			}),
+		});
 
 		await apiContext.dispose();
 	});
@@ -396,6 +613,8 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 		authCheckNoticeType: "5",
 		authCheckPageSize: 3,
 		authCookieHeader: null,
+		authJsessionId: null,
+		authNginxCookie: null,
 		attachmentFetchStatusDatabaseUrl: null,
 		attachmentFetchStatusDisabled: false,
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),

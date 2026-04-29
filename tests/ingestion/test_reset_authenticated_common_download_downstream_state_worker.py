@@ -111,6 +111,7 @@ class ResetAuthenticatedCommonDownloadDownstreamStateTest(unittest.TestCase):
                     export_manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
                     corpus="campus_notices",
                     collection="internal_notice",
                     mode="admit_and_materialize",

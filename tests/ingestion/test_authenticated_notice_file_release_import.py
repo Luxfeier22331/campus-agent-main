@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -41,6 +42,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                 manifest_path=Path("/tmp/file-releases-manifest.json"),
                 site_id="muc_internal_portal",
                 source_home_url="https://portal.example.edu/",
+                allow_local_fixture_import=True,
                 corpus="campus_notices",
                 collection="internal_notice",
             )
@@ -48,12 +50,16 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
     def test_import_materializes_file_release_into_authenticated_documents_holding_scope(
         self,
     ) -> None:
+        source_bytes = b"%PDF-1.4\nfile release source\n"
+        source_sha256 = hashlib.sha256(source_bytes).hexdigest()
         bundle = (
             _bundle_record(
                 file_release_id=646,
                 filename="中央民族大学差旅费管理办法.pdf",
+                sha256=source_sha256,
             ),
         )
+        bundle[0]["released_file"]["byte_size"] = len(source_bytes)
         manifest = _export_manifest()
 
         with TemporaryDirectory() as temp_dir:
@@ -64,6 +70,13 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
             _write_json(manifest_path, manifest)
 
             object_store = _FakeObjectStore()
+            object_store.put_bytes(
+                bucket=str(bundle[0]["released_file"]["bucket"]),
+                key=str(bundle[0]["released_file"]["object_key"]),
+                data=source_bytes,
+                content_type="application/pdf",
+            )
+            object_store.uploads.clear()
             document_registry = InMemoryDocumentRegistry(
                 backing_path=root / "registry" / "documents.json"
             )
@@ -83,6 +96,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/",
+                    allow_local_fixture_import=True,
                     mode="admit_and_materialize",
                 ),
                 env=env,
@@ -112,6 +126,200 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
             any(key.endswith("/source-truth/file-release-manifest.json") for key in uploaded_keys)
         )
 
+    def test_import_materialize_rejects_missing_released_source_object_before_writes(
+        self,
+    ) -> None:
+        bundle = (
+            _bundle_record(
+                file_release_id=646,
+                filename="中央民族大学差旅费管理办法.pdf",
+            ),
+        )
+        manifest = _export_manifest()
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "file-releases-bundle.json"
+            manifest_path = root / "file-releases-manifest.json"
+            _write_json(bundle_path, list(bundle))
+            _write_json(manifest_path, manifest)
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry()
+            raw_asset_registry = InMemoryRawAssetRegistry()
+            inventory_store = InMemoryAuthenticatedNoticeFileReleaseInventoryStore()
+
+            with self.assertRaisesRegex(ValueError, "missing_source_bytes"):
+                import_authenticated_notice_file_release_export(
+                    request=AuthenticatedNoticeFileReleaseImportRequest(
+                        bundle_path=bundle_path,
+                        manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/",
+                        allow_local_fixture_import=True,
+                        mode="admit_and_materialize",
+                    ),
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    },
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    inventory_store=inventory_store,
+                )
+
+        self.assertEqual(object_store.uploads, [])
+        self.assertEqual(
+            document_registry.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+        self.assertEqual(
+            raw_asset_registry.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+        self.assertEqual(
+            inventory_store.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+
+    def test_import_materialize_rejects_released_source_checksum_mismatch_before_writes(
+        self,
+    ) -> None:
+        source_bytes = b"%PDF-1.4\nunexpected source\n"
+        bundle = (
+            _bundle_record(
+                file_release_id=646,
+                filename="中央民族大学差旅费管理办法.pdf",
+                sha256="0" * 64,
+            ),
+        )
+        bundle[0]["released_file"]["byte_size"] = len(source_bytes)
+        manifest = _export_manifest()
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "file-releases-bundle.json"
+            manifest_path = root / "file-releases-manifest.json"
+            _write_json(bundle_path, list(bundle))
+            _write_json(manifest_path, manifest)
+
+            object_store = _FakeObjectStore()
+            object_store.put_bytes(
+                bucket=str(bundle[0]["released_file"]["bucket"]),
+                key=str(bundle[0]["released_file"]["object_key"]),
+                data=source_bytes,
+                content_type="application/pdf",
+            )
+            object_store.uploads.clear()
+            document_registry = InMemoryDocumentRegistry()
+            raw_asset_registry = InMemoryRawAssetRegistry()
+            inventory_store = InMemoryAuthenticatedNoticeFileReleaseInventoryStore()
+
+            with self.assertRaisesRegex(ValueError, "checksum_mismatch"):
+                import_authenticated_notice_file_release_export(
+                    request=AuthenticatedNoticeFileReleaseImportRequest(
+                        bundle_path=bundle_path,
+                        manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/",
+                        allow_local_fixture_import=True,
+                        mode="admit_and_materialize",
+                    ),
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    },
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    inventory_store=inventory_store,
+                )
+
+        self.assertEqual(object_store.uploads, [])
+        self.assertEqual(
+            document_registry.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+        self.assertEqual(
+            raw_asset_registry.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+        self.assertEqual(
+            inventory_store.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+
+    def test_import_materialize_rejects_released_source_size_mismatch_before_writes(
+        self,
+    ) -> None:
+        source_bytes = b"%PDF-1.4\nfile release source\n"
+        bundle = (
+            _bundle_record(
+                file_release_id=646,
+                filename="中央民族大学差旅费管理办法.pdf",
+                sha256=hashlib.sha256(source_bytes).hexdigest(),
+            ),
+        )
+        bundle[0]["released_file"]["byte_size"] = len(source_bytes) + 1
+        manifest = _export_manifest()
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "file-releases-bundle.json"
+            manifest_path = root / "file-releases-manifest.json"
+            _write_json(bundle_path, list(bundle))
+            _write_json(manifest_path, manifest)
+
+            object_store = _FakeObjectStore()
+            object_store.put_bytes(
+                bucket=str(bundle[0]["released_file"]["bucket"]),
+                key=str(bundle[0]["released_file"]["object_key"]),
+                data=source_bytes,
+                content_type="application/pdf",
+            )
+            object_store.uploads.clear()
+            document_registry = InMemoryDocumentRegistry()
+            raw_asset_registry = InMemoryRawAssetRegistry()
+            inventory_store = InMemoryAuthenticatedNoticeFileReleaseInventoryStore()
+
+            with self.assertRaisesRegex(ValueError, "size_mismatch"):
+                import_authenticated_notice_file_release_export(
+                    request=AuthenticatedNoticeFileReleaseImportRequest(
+                        bundle_path=bundle_path,
+                        manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/",
+                        allow_local_fixture_import=True,
+                        mode="admit_and_materialize",
+                    ),
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    },
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    inventory_store=inventory_store,
+                )
+
+        self.assertEqual(object_store.uploads, [])
+        self.assertEqual(
+            document_registry.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+        self.assertEqual(
+            raw_asset_registry.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+        self.assertEqual(
+            inventory_store.list_by_scope("authenticated_documents", "file_release_source"),
+            (),
+        )
+
     def test_import_plan_auto_detects_full_scope_replace_from_manifest(self) -> None:
         bundle = (
             _bundle_record(
@@ -135,6 +343,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/",
+                    allow_local_fixture_import=True,
                     mode="plan",
                 )
             )
@@ -166,6 +375,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                     manifest_path=manifest_path,
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/",
+                    allow_local_fixture_import=True,
                     mode="plan",
                 )
             )
@@ -175,12 +385,16 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
         self.assertEqual(report["selected_file_release_ids"], [646])
 
     def test_import_uses_runtime_profile_cleaning_policy_for_holding_scope(self) -> None:
+        source_bytes = b"%PDF-1.4\nfile release source\n"
+        source_sha256 = hashlib.sha256(source_bytes).hexdigest()
         bundle = (
             _bundle_record(
                 file_release_id=646,
                 filename="中央民族大学差旅费管理办法.pdf",
+                sha256=source_sha256,
             ),
         )
+        bundle[0]["released_file"]["byte_size"] = len(source_bytes)
         manifest = _export_manifest()
 
         with TemporaryDirectory() as temp_dir:
@@ -191,6 +405,13 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
             _write_json(manifest_path, manifest)
 
             object_store = _FakeObjectStore()
+            object_store.put_bytes(
+                bucket=str(bundle[0]["released_file"]["bucket"]),
+                key=str(bundle[0]["released_file"]["object_key"]),
+                data=source_bytes,
+                content_type="application/pdf",
+            )
+            object_store.uploads.clear()
             document_registry = InMemoryDocumentRegistry(
                 backing_path=root / "registry" / "documents.json"
             )
@@ -217,6 +438,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                         manifest_path=manifest_path,
                         site_id="muc_internal_portal",
                         source_home_url="https://portal.example.edu/",
+                        allow_local_fixture_import=True,
                         mode="admit_and_materialize",
                     ),
                     env=env,
@@ -263,6 +485,7 @@ class AuthenticatedNoticeFileReleaseImportTest(unittest.TestCase):
                         manifest_path=manifest_path,
                         site_id="muc_internal_portal",
                         source_home_url="https://portal.example.edu/",
+                        allow_local_fixture_import=True,
                         mode="admit_and_materialize",
                     ),
                     env={

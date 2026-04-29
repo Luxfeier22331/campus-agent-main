@@ -100,11 +100,15 @@ export async function createApiContextFromStorageState(
 			const storageState = await browserContext.storageState({
 				path: config.authStorageStatePath,
 			});
+			const mergedStorageState = mergeSeededCookies(storageState, resolveSeedCookies(config), {
+				preferSeeded: false,
+			});
+			writeStoredAuthStorageState(config.authStorageStatePath, mergedStorageState);
 			return await (dependencies.createRequestContext ?? defaultCreateRequestContext)({
 				baseURL: config.portalBaseUrl,
 				extraHTTPHeaders: buildPortalApiHeaders(config),
 				...buildProxyOption(config),
-				storageState,
+				storageState: mergedStorageState,
 			});
 		} finally {
 			await page.close?.();
@@ -140,6 +144,14 @@ function readStoredAuthStorageState(storageStatePath: string): PortalStorageStat
 	return parsed;
 }
 
+function writeStoredAuthStorageState(
+	storageStatePath: string,
+	storageState: PortalStorageState,
+): void {
+	fs.mkdirSync(path.dirname(storageStatePath), { recursive: true });
+	fs.writeFileSync(storageStatePath, JSON.stringify(storageState, null, 2), "utf-8");
+}
+
 function seedStoredAuthFromConfig(config: CollectorConfig): void {
 	const seededCookies = resolveSeedCookies(config);
 	if (seededCookies.length === 0) {
@@ -151,47 +163,37 @@ function seedStoredAuthFromConfig(config: CollectorConfig): void {
 		storageState = readStoredAuthStorageState(config.authStorageStatePath);
 	}
 
-	storageState = {
-		cookies: [
-			...storageState.cookies.filter(
-				(cookie) => !seededCookies.some((seededCookie) => seededCookie.name === cookie.name),
-			),
-			...seededCookies,
-		],
-		origins: storageState.origins,
-	};
-
-	fs.mkdirSync(path.dirname(config.authStorageStatePath), { recursive: true });
-	fs.writeFileSync(config.authStorageStatePath, JSON.stringify(storageState, null, 2), "utf-8");
+	storageState = mergeSeededCookies(storageState, seededCookies, {
+		preferSeeded: true,
+	});
+	writeStoredAuthStorageState(config.authStorageStatePath, storageState);
 }
 
-function resolveSeedCookies(
-	config: CollectorConfig,
-): Array<PortalStorageState["cookies"][number]> {
+function resolveSeedCookies(config: CollectorConfig): PortalStorageState["cookies"][number][] {
 	if (config.authCookieHeader) {
 		return parsePortalCookieHeader(config);
 	}
-	const token = extractSsoTgcToken(config.authSsoTgcToken);
-	if (!token) {
-		return [];
+	const portalHost = new URL(config.portalBaseUrl).hostname;
+	const seededCookies: PortalStorageState["cookies"][number][] = [];
+	const sessionToken = validateCookieToken(
+		config.authJsessionId,
+		"AUTHENTICATED_NOTICE_JSESSIONID",
+	);
+	if (sessionToken) {
+		seededCookies.push(buildPortalCookie(portalHost, "JSESSIONID", sessionToken));
 	}
-	return [
-		{
-			domain: ".muc.edu.cn",
-			expires: -1,
-			httpOnly: true,
-			name: SSO_TGC_COOKIE_NAME,
-			path: "/",
-			sameSite: "Lax",
-			secure: true,
-			value: token,
-		},
-	];
+	const nginxToken = validateCookieToken(config.authNginxCookie, "AUTHENTICATED_NOTICE_NGINX");
+	if (nginxToken) {
+		seededCookies.push(buildPortalCookie(portalHost, "nginx", nginxToken));
+	}
+	const ssoToken = extractSsoTgcToken(config.authSsoTgcToken);
+	if (ssoToken) {
+		seededCookies.push(buildPortalCookie(".muc.edu.cn", SSO_TGC_COOKIE_NAME, ssoToken));
+	}
+	return seededCookies;
 }
 
-function parsePortalCookieHeader(
-	config: CollectorConfig,
-): Array<PortalStorageState["cookies"][number]> {
+function parsePortalCookieHeader(config: CollectorConfig): PortalStorageState["cookies"][number][] {
 	const cookieHeader = String(config.authCookieHeader ?? "").trim();
 	if (!cookieHeader) {
 		return [];
@@ -211,7 +213,7 @@ function parsePortalCookieHeader(
 		}
 		const name = token.slice(0, separator).trim();
 		const value = token.slice(separator + 1).trim();
-		if (!name || !value) {
+		if (!(name && value)) {
 			throw new Error(
 				"invalid AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER: expected cookie name=value pairs",
 			);
@@ -230,6 +232,57 @@ function parsePortalCookieHeader(
 	return [...cookiesByName.values()];
 }
 
+function buildPortalCookie(
+	domain: string,
+	name: string,
+	value: string,
+): PortalStorageState["cookies"][number] {
+	return {
+		domain,
+		expires: -1,
+		httpOnly: true,
+		name,
+		path: "/",
+		sameSite: "Lax",
+		secure: true,
+		value,
+	};
+}
+
+function mergeSeededCookies(
+	storageState: PortalStorageState,
+	seededCookies: PortalStorageState["cookies"][number][],
+	options: { preferSeeded: boolean },
+): PortalStorageState {
+	if (seededCookies.length === 0) {
+		return storageState;
+	}
+	const seededKeys = new Set(seededCookies.map(buildCookieIdentityKey));
+	const existingKeys = new Set(storageState.cookies.map(buildCookieIdentityKey));
+	return {
+		cookies: options.preferSeeded
+			? [
+					...seededCookies,
+					...storageState.cookies.filter(
+						(cookie) => !seededKeys.has(buildCookieIdentityKey(cookie)),
+					),
+				]
+			: [
+					...storageState.cookies,
+					...seededCookies.filter((cookie) => !existingKeys.has(buildCookieIdentityKey(cookie))),
+				],
+		origins: storageState.origins,
+	};
+}
+
+function buildCookieIdentityKey(cookie: PortalStorageState["cookies"][number]): string {
+	return [
+		cookie.name.trim().toLowerCase(),
+		cookie.domain.trim().toLowerCase(),
+		(cookie.path || "/").trim(),
+	].join("\u0000");
+}
+
 function extractSsoTgcToken(raw: string | null): string | null {
 	const normalized = raw?.trim();
 	if (!normalized) {
@@ -246,6 +299,27 @@ function extractSsoTgcToken(raw: string | null): string | null {
 	}
 
 	return validateSsoTgcToken(normalized);
+}
+
+function validateCookieToken(value: string | null, envName: string): string | null {
+	const normalized = value?.trim() ?? "";
+	if (!normalized) {
+		return null;
+	}
+	for (let index = 0; index < normalized.length; index += 1) {
+		const code = normalized.charCodeAt(index);
+		if (
+			code < 0x21 ||
+			code > 0x7e ||
+			code === 0x22 ||
+			code === 0x2c ||
+			code === 0x3b ||
+			code === 0x5c
+		) {
+			throw new Error(`invalid ${envName}: expected a raw cookie value`);
+		}
+	}
+	return normalized;
 }
 
 function validateSsoTgcToken(value: string): string | null {

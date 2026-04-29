@@ -594,6 +594,7 @@ def _run_import_summary(
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     request = AuthenticatedNoticeImportRequest(
         bundle_path=bundle_path,
+        allow_local_fixture_import=True,
         export_manifest_path=manifest_path,
         **request_kwargs,
     )

@@ -17,8 +17,22 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Import authenticated notice bootstrap exports")
-    parser.add_argument("--bundle-path", required=True)
+    parser.add_argument("--run-id")
+    parser.add_argument("--source-bucket")
+    parser.add_argument("--bundle-object-key")
+    parser.add_argument("--manifest-object-key")
+    parser.add_argument("--bundle-content-sha256")
+    parser.add_argument("--bundle-byte-size", type=int)
+    parser.add_argument("--manifest-content-sha256")
+    parser.add_argument("--manifest-byte-size", type=int)
+    parser.add_argument("--collector-run-ledger-table")
+    parser.add_argument("--bundle-path")
     parser.add_argument("--manifest-path")
+    parser.add_argument(
+        "--allow-local-fixture-import",
+        action="store_true",
+        help="Allow dev/test import from local bundle/manifest paths.",
+    )
     parser.add_argument("--consumer-admission-manifest-path")
     parser.add_argument("--attachment-blob-root")
     parser.add_argument("--site-id", required=True)
@@ -56,8 +70,18 @@ def main(argv: Sequence[str] | None = None) -> None:
         str(item).strip() for item in args.entitlement_group if str(item).strip()
     )
     request = AuthenticatedNoticeImportRequest(
-        bundle_path=Path(args.bundle_path),
+        run_id=args.run_id,
+        source_bucket=args.source_bucket,
+        bundle_object_key=args.bundle_object_key,
+        manifest_object_key=args.manifest_object_key,
+        bundle_content_sha256=args.bundle_content_sha256,
+        bundle_byte_size=args.bundle_byte_size,
+        manifest_content_sha256=args.manifest_content_sha256,
+        manifest_byte_size=args.manifest_byte_size,
+        collector_run_ledger_table=args.collector_run_ledger_table,
+        bundle_path=(Path(args.bundle_path) if args.bundle_path else None),
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
+        allow_local_fixture_import=args.allow_local_fixture_import,
         consumer_admission_manifest_path=(
             Path(args.consumer_admission_manifest_path)
             if args.consumer_admission_manifest_path

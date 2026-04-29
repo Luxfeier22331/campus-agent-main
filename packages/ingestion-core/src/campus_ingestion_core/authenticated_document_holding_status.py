@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
 from collections.abc import Sequence
@@ -13,6 +14,10 @@ from campus_ingestion_core.authenticated_common_download_import import (
 )
 from campus_ingestion_core.authenticated_notice_file_release_import import (
     DEFAULT_FILE_RELEASE_SOURCE_COLLECTION,
+)
+from campus_ingestion_core.authenticated_notice_file_release_inventory import (
+    DEFAULT_FILE_RELEASE_INVENTORY_COLLECTION,
+    DEFAULT_FILE_RELEASE_INVENTORY_CORPUS,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 
@@ -33,6 +38,7 @@ class AuthenticatedDocumentHoldingStatusRow:
     source_corpus: str
     source_collection: str
     reason_codes: tuple[str, ...]
+    holding_stage: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +56,7 @@ class AuthenticatedDocumentHoldingStatusReport:
     downstream_projection_count: int
     downstream_read_model_count: int
     reason_counts: dict[str, int]
+    holding_stage_counts: dict[str, int]
     rows: tuple[AuthenticatedDocumentHoldingStatusRow, ...]
 
 
@@ -99,6 +106,8 @@ def build_authenticated_document_holding_status_report(
             document_registry=document_registry,
             raw_asset_registry=raw_asset_registry,
             file_release_inventory_store=file_release_inventory_store,
+            projection_store=projection_store,
+            read_model_store=read_model_store,
             object_store=object_store,
             source_bucket=source_bucket,
         )
@@ -247,9 +256,11 @@ def _build_common_download_status_report(
                 source_corpus=source_corpus,
                 source_collection=source_collection,
                 reason_codes=tuple(dict.fromkeys(reasons)),
+                holding_stage="action_required" if reasons else "imported_holding",
             )
         )
 
+    stage_counts = Counter(row.holding_stage for row in rows)
     return AuthenticatedDocumentHoldingStatusReport(
         source_corpus=source_corpus,
         source_collection=source_collection,
@@ -264,6 +275,7 @@ def _build_common_download_status_report(
         downstream_projection_count=len(projection_rows),
         downstream_read_model_count=len(read_model_rows),
         reason_counts=dict(sorted(reason_counts.items())),
+        holding_stage_counts=dict(sorted(stage_counts.items())),
         rows=tuple(rows),
     )
 
@@ -276,10 +288,19 @@ def _build_file_release_status_report(
     document_registry: Any,
     raw_asset_registry: Any,
     file_release_inventory_store: Any,
+    projection_store: Any,
+    read_model_store: Any,
     object_store: HoldingStatusObjectStore,
     source_bucket: str,
 ) -> AuthenticatedDocumentHoldingStatusReport:
     normalized_file_release_ids = _normalize_int_ids(file_release_ids)
+    capture_inventory_rows = tuple(
+        file_release_inventory_store.list_by_scope(
+            DEFAULT_FILE_RELEASE_INVENTORY_CORPUS,
+            DEFAULT_FILE_RELEASE_INVENTORY_COLLECTION,
+            file_release_ids=normalized_file_release_ids,
+        )
+    )
     inventory_rows = tuple(
         file_release_inventory_store.list_by_scope(
             source_corpus,
@@ -299,31 +320,80 @@ def _build_file_release_status_report(
             normalized_file_release_ids,
         )
     )
-    unit_ids = normalized_file_release_ids or tuple(
-        str(row.file_release_id) for row in inventory_rows
+    projection_rows = tuple(
+        projection_store.list_by_scope(
+            source_corpus,
+            source_collection,
+            notice_ids=tuple(str(item) for item in normalized_file_release_ids),
+        )
+    )
+    read_model_rows = tuple(
+        read_model_store.list_by_scope(
+            source_corpus,
+            source_collection,
+            notice_ids=tuple(str(item) for item in normalized_file_release_ids),
+        )
+    )
+    unit_ids = normalized_file_release_ids or _normalize_text_ids(
+        tuple(str(row.file_release_id) for row in inventory_rows)
+        + tuple(str(row.file_release_id) for row in capture_inventory_rows)
+        + tuple(str(getattr(row, "source_notice_id", "") or "") for row in projection_rows)
+        + tuple(str(getattr(row, "source_notice_id", "") or "") for row in read_model_rows)
     )
     inventory_by_id = {str(row.file_release_id): row for row in inventory_rows}
+    capture_inventory_by_id = {str(row.file_release_id): row for row in capture_inventory_rows}
     documents_by_id = _group_documents_by_file_release_id(documents)
     raw_assets_by_id = _group_raw_assets_by_file_release_id(raw_assets)
+    projection_ids = {
+        str(getattr(row, "source_notice_id", "") or "").strip() for row in projection_rows
+    }
+    read_model_ids = {
+        str(getattr(row, "source_notice_id", "") or "").strip() for row in read_model_rows
+    }
 
     rows: list[AuthenticatedDocumentHoldingStatusRow] = []
     reason_counts = Counter()
     for unit_id in unit_ids:
         reasons: list[str] = []
         inventory_row = inventory_by_id.get(unit_id)
+        capture_inventory_row = capture_inventory_by_id.get(unit_id)
+        stage = "missing_holding"
         if inventory_row is None:
             reasons.append("missing_holding_inventory")
+            if capture_inventory_row is not None:
+                source_problem = _file_release_source_object_problem(
+                    row=capture_inventory_row,
+                    object_store=object_store,
+                )
+                if source_problem is None:
+                    stage = "object_backed_source_ready"
+                    reasons.append("not_imported_to_holding")
+                else:
+                    stage = "captured_only"
+                    reasons.append(source_problem)
         else:
+            stage = "imported_holding"
             if not documents_by_id.get(unit_id):
                 reasons.append("missing_document_registry")
             if not raw_assets_by_id.get(unit_id):
                 reasons.append("missing_raw_asset")
+            source_problem = _file_release_source_object_problem(
+                row=inventory_row,
+                object_store=object_store,
+            )
+            if source_problem is not None:
+                reasons.append(source_problem)
             if _missing_object_keys(
                 object_store=object_store,
                 bucket=source_bucket,
                 object_keys=_holding_file_release_source_keys(inventory_row),
             ):
                 reasons.append("missing_source_artifact")
+            if reasons:
+                stage = "import_incomplete"
+        if unit_id in projection_ids or unit_id in read_model_ids:
+            stage = "downstream_admitted"
+            reasons.append("downstream_admitted")
         reason_counts.update(reasons)
         rows.append(
             AuthenticatedDocumentHoldingStatusRow(
@@ -331,9 +401,11 @@ def _build_file_release_status_report(
                 source_corpus=source_corpus,
                 source_collection=source_collection,
                 reason_codes=tuple(dict.fromkeys(reasons)),
+                holding_stage=stage,
             )
         )
 
+    stage_counts = Counter(row.holding_stage for row in rows)
     return AuthenticatedDocumentHoldingStatusReport(
         source_corpus=source_corpus,
         source_collection=source_collection,
@@ -342,12 +414,13 @@ def _build_file_release_status_report(
         holding_inventory_count=len(inventory_rows),
         holding_document_count=len(documents),
         holding_raw_asset_count=len(raw_assets),
-        wrong_scope_inventory_count=0,
+        wrong_scope_inventory_count=len(capture_inventory_rows),
         wrong_scope_document_count=0,
         wrong_scope_raw_asset_count=0,
-        downstream_projection_count=0,
-        downstream_read_model_count=0,
+        downstream_projection_count=len(projection_rows),
+        downstream_read_model_count=len(read_model_rows),
         reason_counts=dict(sorted(reason_counts.items())),
+        holding_stage_counts=dict(sorted(stage_counts.items())),
         rows=tuple(rows),
     )
 
@@ -371,6 +444,7 @@ def _empty_authenticated_document_holding_status_report(
         downstream_projection_count=0,
         downstream_read_model_count=0,
         reason_counts={},
+        holding_stage_counts={},
         rows=(),
     )
 
@@ -414,6 +488,34 @@ def _holding_file_release_source_keys(row: Any) -> tuple[str, ...]:
     if not isinstance(source_artifact_keys, dict):
         return ()
     return tuple(str(item).strip() for item in source_artifact_keys.values() if str(item).strip())
+
+
+def _file_release_source_object_problem(
+    *,
+    row: Any,
+    object_store: HoldingStatusObjectStore,
+) -> str | None:
+    if str(getattr(row, "released_file_storage_provider", "") or "").strip() != "object_store":
+        return "captured_only_without_source_bytes"
+    bucket = str(getattr(row, "released_file_bucket", "") or "").strip()
+    object_key = str(getattr(row, "released_file_object_key", "") or "").strip()
+    expected_sha256 = str(getattr(row, "released_file_sha256", "") or "").strip()
+    expected_byte_size = getattr(row, "released_file_byte_size", None)
+    if not bucket or not object_key or not expected_sha256 or expected_byte_size is None:
+        return "captured_only_without_source_bytes"
+    try:
+        payload = object_store.get_bytes(bucket=bucket, key=object_key)
+    except Exception:
+        return "missing_source_bytes"
+    try:
+        byte_size = int(expected_byte_size)
+    except (TypeError, ValueError):
+        return "captured_only_without_source_bytes"
+    if len(payload) != byte_size:
+        return "size_mismatch"
+    if hashlib.sha256(payload).hexdigest() != expected_sha256:
+        return "checksum_mismatch"
+    return None
 
 
 def _inventory_row_matches_common_download(

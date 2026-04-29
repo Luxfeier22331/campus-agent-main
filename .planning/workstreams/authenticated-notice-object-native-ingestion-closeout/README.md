@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -27,9 +27,13 @@ updated: 2026-04-28
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 3`
-- current focus: worker object-ref import
-- implementation status: Phase 2 collector object-native handoff implemented and locally verified; next slice is ingestion worker `run_id` / object-ref import
+- current phase: `Phase 7`
+- current focus: Phase 7 live repair and acceptance closeout evidence
+- implementation status: Phase 4-6 implemented and locally verified; Phase 7 audit command,
+  selected repair manifest contract, backup evidence path, Docker handoff evidence, full
+  historical `file_release_capture` recollection, and refreshed object-locator audit are now
+  complete. The current source-bucket audit verifies `3332 / 3332` required authenticated-notice
+  objects with `missing_object_count=0`.
 
 ## Owned Scope
 

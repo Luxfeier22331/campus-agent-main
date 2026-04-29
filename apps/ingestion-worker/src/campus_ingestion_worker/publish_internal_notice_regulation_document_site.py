@@ -174,6 +174,7 @@ def publish_internal_notice_regulation_document_site(
             consumer_admission_manifest_path=admission_manifest_path,
             site_id=request.site_id,
             source_home_url=request.source_home_url,
+            allow_local_fixture_import=True,
             corpus=request.corpus,
             collection=request.collection,
             mode="admit_and_materialize",

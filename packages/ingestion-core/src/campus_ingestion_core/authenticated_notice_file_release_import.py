@@ -10,6 +10,10 @@ from typing import Any
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
+from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
+    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
+    resolve_authenticated_notice_collector_run_refs,
+)
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL,
     DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS,
@@ -21,6 +25,7 @@ from campus_ingestion_core.authenticated_notice_file_release_inventory import (
     build_authenticated_notice_file_release_inventory_store_from_env,
 )
 from campus_ingestion_core.authenticated_notice_file_release_owner_recovery import (
+    AuthenticatedNoticeFileReleaseExport,
     load_authenticated_notice_file_release_export,
 )
 from campus_ingestion_core.authenticated_notice_import import (
@@ -28,6 +33,12 @@ from campus_ingestion_core.authenticated_notice_import import (
     AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN,
 )
 from campus_ingestion_core.authenticated_notice_import_assets import _content_type_for_artifact
+from campus_ingestion_core.authenticated_notice_import_sources import (
+    AuthenticatedNoticeImportObjectRefs,
+    explicit_authenticated_notice_import_object_refs,
+    get_verified_authenticated_notice_object_bytes,
+    load_authenticated_notice_import_payload_from_object_refs,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 )
@@ -72,10 +83,20 @@ _SUPPORTED_FILE_RELEASE_IMPORT_MODES = {
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeFileReleaseImportRequest:
-    bundle_path: Path
-    manifest_path: Path
-    site_id: str
-    source_home_url: str
+    bundle_path: Path | None = None
+    manifest_path: Path | None = None
+    site_id: str = ""
+    source_home_url: str = ""
+    run_id: str | None = None
+    source_bucket: str | None = None
+    bundle_object_key: str | None = None
+    manifest_object_key: str | None = None
+    bundle_content_sha256: str | None = None
+    bundle_byte_size: int | None = None
+    manifest_content_sha256: str | None = None
+    manifest_byte_size: int | None = None
+    allow_local_fixture_import: bool = False
+    collector_run_ledger_table: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE
     corpus: str = DEFAULT_AUTHENTICATED_DOCUMENTS_CORPUS
     collection: str = DEFAULT_FILE_RELEASE_SOURCE_COLLECTION
     default_entitlement_groups: tuple[str, ...] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS
@@ -87,20 +108,35 @@ class AuthenticatedNoticeFileReleaseImportRequest:
     replace_scope: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "bundle_path", Path(self.bundle_path))
-        object.__setattr__(self, "manifest_path", Path(self.manifest_path))
+        if self.bundle_path is not None:
+            object.__setattr__(self, "bundle_path", Path(self.bundle_path))
+        if self.manifest_path is not None:
+            object.__setattr__(self, "manifest_path", Path(self.manifest_path))
         object.__setattr__(
             self,
             "default_entitlement_groups",
             tuple(group.strip() for group in self.default_entitlement_groups if group.strip()),
         )
         object.__setattr__(self, "mode", _normalize_import_mode(self.mode))
+        for field_name in (
+            "run_id",
+            "source_bucket",
+            "bundle_object_key",
+            "manifest_object_key",
+            "bundle_content_sha256",
+            "manifest_content_sha256",
+            "collector_run_ledger_table",
+        ):
+            value = getattr(self, field_name)
+            if isinstance(value, str):
+                object.__setattr__(self, field_name, value.strip() or None)
         assert_known_scope(self.corpus, self.collection)
         _assert_file_release_import_scope(self.corpus, self.collection)
         if not self.site_id.strip():
             raise ValueError("site_id is required")
         if not self.source_home_url.strip():
             raise ValueError("source_home_url is required")
+        _assert_file_release_import_source_shape(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,9 +161,10 @@ def import_authenticated_notice_file_release_export(
     inventory_store: AuthenticatedNoticeFileReleaseInventoryStore | None = None,
 ) -> dict[str, Any]:
     source = env if env is not None else dict(os.environ)
-    export = load_authenticated_notice_file_release_export(
-        bundle_path=request.bundle_path,
-        manifest_path=request.manifest_path,
+    export = _load_authenticated_notice_file_release_import_export(
+        request=request,
+        env=source,
+        object_store=object_store,
     )
     replace_scope = request.replace_scope or _manifest_declares_full_scope_replace(
         export.export_manifest
@@ -171,6 +208,7 @@ def import_authenticated_notice_file_release_export(
 
     object_store_settings = ObjectStoreSettings.from_env(source)
     writer = object_store or S3ObjectStoreWriter(object_store_settings)
+    _verify_file_release_released_source_objects(prepared=prepared, object_store=writer)
     registry = document_registry or build_document_registry_from_env(source)
     raw_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     runtime_inventory_store = (
@@ -242,6 +280,182 @@ def import_authenticated_notice_file_release_export(
     }
 
 
+def _load_authenticated_notice_file_release_import_export(
+    *,
+    request: AuthenticatedNoticeFileReleaseImportRequest,
+    env: dict[str, str],
+    object_store: object | None,
+) -> AuthenticatedNoticeFileReleaseExport:
+    object_refs = _file_release_import_object_refs_from_request(request=request, env=env)
+    if object_refs is not None:
+        loaded = load_authenticated_notice_import_payload_from_object_refs(
+            refs=object_refs,
+            env=env,
+            object_store=object_store,
+            bundle_label="authenticated notice file-release bundle",
+            manifest_label="authenticated notice file-release manifest",
+        )
+        _assert_file_release_manifest_schema(loaded.export_manifest)
+        return _file_release_export_from_payload(
+            bundle_records=loaded.bundle_records,
+            export_manifest=loaded.export_manifest,
+        )
+    return load_authenticated_notice_file_release_export(
+        bundle_path=request.bundle_path,
+        manifest_path=request.manifest_path,
+    )
+
+
+def _file_release_import_object_refs_from_request(
+    *,
+    request: AuthenticatedNoticeFileReleaseImportRequest,
+    env: dict[str, str],
+) -> AuthenticatedNoticeImportObjectRefs | None:
+    if request.run_id:
+        resolved = resolve_authenticated_notice_collector_run_refs(
+            env=env,
+            run_id=request.run_id,
+            expected_source_surface=FILE_RELEASE_SOURCE_SURFACE,
+            table_name=request.collector_run_ledger_table
+            or DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
+        )
+        return explicit_authenticated_notice_import_object_refs(
+            source_bucket=resolved.source_bucket,
+            bundle_object_key=resolved.bundle_object_key,
+            manifest_object_key=resolved.manifest_object_key,
+            bundle_content_sha256=resolved.bundle_content_sha256,
+            bundle_byte_size=resolved.bundle_byte_size,
+            manifest_content_sha256=resolved.manifest_content_sha256,
+            manifest_byte_size=resolved.manifest_byte_size,
+            run_id=resolved.run_id,
+        )
+    if request.source_bucket or request.bundle_object_key or request.manifest_object_key:
+        return explicit_authenticated_notice_import_object_refs(
+            source_bucket=request.source_bucket,
+            bundle_object_key=request.bundle_object_key,
+            manifest_object_key=request.manifest_object_key,
+            bundle_content_sha256=request.bundle_content_sha256,
+            bundle_byte_size=request.bundle_byte_size,
+            manifest_content_sha256=request.manifest_content_sha256,
+            manifest_byte_size=request.manifest_byte_size,
+        )
+    return None
+
+
+def _assert_file_release_import_source_shape(
+    request: AuthenticatedNoticeFileReleaseImportRequest,
+) -> None:
+    run_id_selected = request.run_id is not None
+    object_ref_selected = any(
+        value is not None
+        for value in (
+            request.source_bucket,
+            request.bundle_object_key,
+            request.manifest_object_key,
+        )
+    )
+    local_selected = request.bundle_path is not None or request.manifest_path is not None
+    selected_mode_count = sum((run_id_selected, object_ref_selected, local_selected))
+    if selected_mode_count != 1:
+        raise ValueError(
+            "authenticated notice file-release import requires exactly one input mode: "
+            "run_id, object refs, or local fixture import"
+        )
+    if run_id_selected:
+        return
+    if object_ref_selected:
+        explicit_authenticated_notice_import_object_refs(
+            source_bucket=request.source_bucket,
+            bundle_object_key=request.bundle_object_key,
+            manifest_object_key=request.manifest_object_key,
+            bundle_content_sha256=request.bundle_content_sha256,
+            bundle_byte_size=request.bundle_byte_size,
+            manifest_content_sha256=request.manifest_content_sha256,
+            manifest_byte_size=request.manifest_byte_size,
+        )
+        return
+    if request.bundle_path is None or request.manifest_path is None:
+        raise ValueError(
+            "bundle_path and manifest_path are required for authenticated notice "
+            "file-release local fixture import"
+        )
+    if not request.allow_local_fixture_import:
+        raise ValueError(
+            "--allow-local-fixture-import / allow_local_fixture_import is required for "
+            "authenticated notice "
+            "file-release local fixture import"
+        )
+
+
+def _file_release_export_from_payload(
+    *,
+    bundle_records: tuple[dict[str, Any], ...],
+    export_manifest: dict[str, Any],
+) -> AuthenticatedNoticeFileReleaseExport:
+    collector = _as_record(export_manifest.get("collector"))
+    return AuthenticatedNoticeFileReleaseExport(
+        bundle_records=bundle_records,
+        export_manifest=export_manifest,
+        export_scope=_optional_text(export_manifest.get("export_scope")),
+        site_id=_optional_text(export_manifest.get("site_id")),
+        source_home_url=_optional_text(export_manifest.get("source_home_url")),
+        collector_contract_version=_optional_text(collector.get("export_contract_version")),
+    )
+
+
+def _verify_file_release_released_source_objects(
+    *,
+    prepared: tuple[_PreparedFileReleaseImport, ...],
+    object_store: object,
+) -> None:
+    get_bytes = getattr(object_store, "get_bytes", None)
+    if not callable(get_bytes):
+        raise ValueError(
+            "object_store must support get_bytes before file_release_source materialization"
+        )
+    verified_refs: set[tuple[str, str, str, int]] = set()
+    for item in prepared:
+        entry = item.inventory_entry
+        bucket = _required_text(
+            entry.released_file_bucket,
+            "file_release source bytes bucket",
+        )
+        object_key = _required_text(
+            entry.released_file_object_key,
+            "file_release source bytes object_key",
+        )
+        source_sha256 = _required_text(
+            entry.released_file_sha256,
+            "file_release source bytes sha256",
+        )
+        source_byte_size = _required_non_negative_int(
+            entry.released_file_byte_size,
+            "file_release source bytes byte_size",
+        )
+        cache_key = (bucket, object_key, source_sha256, source_byte_size)
+        if cache_key in verified_refs:
+            continue
+        get_verified_authenticated_notice_object_bytes(
+            reader=object_store,  # type: ignore[arg-type]
+            bucket=bucket,
+            key=object_key,
+            expected_sha256=source_sha256,
+            expected_byte_size=source_byte_size,
+            label=f"file_release released source bytes {item.file_release_id}",
+            missing_reason_code="missing_source_bytes",
+        )
+        verified_refs.add(cache_key)
+
+
+def _assert_file_release_manifest_schema(export_manifest: dict[str, Any]) -> None:
+    schema_version = _optional_text(export_manifest.get("schema_version"))
+    if schema_version != "authenticated_notice_file_release_export_v1":
+        raise ValueError(
+            "file-release manifest schema_version must be "
+            "authenticated_notice_file_release_export_v1"
+        )
+
+
 def _prepare_file_release_import(
     *,
     request: AuthenticatedNoticeFileReleaseImportRequest,
@@ -256,9 +470,17 @@ def _prepare_file_release_import(
         released_file.get("object_key"),
         "file_release source bytes object_key",
     )
+    source_bucket = _required_text(
+        released_file.get("bucket"),
+        "file_release source bytes bucket",
+    )
     source_sha256 = _required_text(
         released_file.get("sha256"),
         "file_release source bytes sha256",
+    )
+    source_byte_size = _required_non_negative_int(
+        released_file.get("byte_size"),
+        "file_release source bytes byte_size",
     )
     storage_provider = _required_text(
         released_file.get("storage_provider"),
@@ -416,7 +638,7 @@ def _prepare_file_release_import(
         file_extension=_normalize_extension(
             _optional_text(released_file.get("original_filename")) or filename
         ),
-        byte_size=_optional_int(released_file.get("byte_size")),
+        byte_size=source_byte_size,
         ingestion_timestamp=utc_now(),
         import_source=request.import_source,
     )
@@ -438,10 +660,10 @@ def _prepare_file_release_import(
         file_type_name=_optional_text(file_release.get("file_type_name")),
         resolved_download_url=source_uri,
         released_file_storage_provider=storage_provider,
-        released_file_bucket=_optional_text(released_file.get("bucket")),
+        released_file_bucket=source_bucket,
         released_file_object_key=object_key,
         released_file_sha256=source_sha256,
-        released_file_byte_size=_optional_int(released_file.get("byte_size")),
+        released_file_byte_size=source_byte_size,
         released_file_ingest_status=_optional_text(released_file.get("ingest_status")),
         released_file_provenance_status=_optional_text(released_file.get("provenance_status")),
         updated_at=utc_now(),
@@ -834,6 +1056,13 @@ def _required_int(value: object, label: str) -> int:
     parsed = _optional_int(value)
     if parsed is None:
         raise ValueError(f"{label} is required")
+    return parsed
+
+
+def _required_non_negative_int(value: object, label: str) -> int:
+    parsed = _required_int(value, label)
+    if parsed < 0:
+        raise ValueError(f"{label} must be a non-negative integer")
     return parsed
 
 
