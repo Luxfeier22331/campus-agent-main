@@ -46,12 +46,14 @@ class PublicChatProductPathObservation:
     response_contract: dict[str, object] = field(default_factory=dict)
     operator_backflow: dict[str, object] = field(default_factory=dict)
     request_correlation: dict[str, object] = field(default_factory=dict)
+    workflow_trace_summary: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for field_name, payload in (
             ("response_contract", self.response_contract),
             ("operator_backflow", self.operator_backflow),
             ("request_correlation", self.request_correlation),
+            ("workflow_trace_summary", self.workflow_trace_summary),
         ):
             reject_forbidden_workflow_trace_keys(payload, field_name)
 
@@ -173,6 +175,7 @@ def _evaluate_case(
             observation.operator_backflow,
         )
     )
+    failures.extend(_workflow_trace_mismatch_reasons(case, observation))
     return PublicChatProductPathResult(
         case_id=case.case_id,
         passed=not failures,
@@ -218,6 +221,54 @@ def _subset_mismatch_reasons(
         for key, expected_value in expected.items()
         if actual.get(key) != expected_value
     ]
+
+
+def _workflow_trace_mismatch_reasons(
+    case: PublicChatProductPathCase,
+    observation: PublicChatProductPathObservation,
+) -> list[str]:
+    trace = observation.workflow_trace_summary
+    if not trace:
+        return []
+    failures: list[str] = []
+    trace_target = _normalized_trace_target(trace.get("selected_target"))
+    if trace_target != observation.selected_target:
+        failures.append(
+            "workflow_trace_summary.selected_target expected "
+            f"{observation.selected_target!r}, got {trace_target!r}"
+        )
+    branch = str(trace.get("direct_vs_delegate_branch") or "").strip()
+    expected_branches = _expected_trace_branches(case.expected.terminal_outcome)
+    if expected_branches and branch not in expected_branches:
+        failures.append(
+            "workflow_trace_summary.direct_vs_delegate_branch expected one of "
+            f"{sorted(expected_branches)!r}, got {branch!r}"
+        )
+    trace_fail_close_reason = str(trace.get("fail_close_reason") or "").strip()
+    if (
+        case.expected.fail_close_reason
+        and trace_fail_close_reason != case.expected.fail_close_reason
+    ):
+        failures.append(
+            "workflow_trace_summary.fail_close_reason expected "
+            f"{case.expected.fail_close_reason!r}, got {trace_fail_close_reason!r}"
+        )
+    return failures
+
+
+def _normalized_trace_target(value: object) -> str:
+    normalized = "" if value is None else str(value).strip()
+    return normalized or "none"
+
+
+def _expected_trace_branches(terminal_outcome: str) -> set[str]:
+    if terminal_outcome == "completed":
+        return {"delegate", "direct"}
+    if terminal_outcome == "clarification":
+        return {"clarification"}
+    if terminal_outcome == "fail_close":
+        return {"fail_close"}
+    return set()
 
 
 def _load_json(path: Path) -> dict[str, object]:

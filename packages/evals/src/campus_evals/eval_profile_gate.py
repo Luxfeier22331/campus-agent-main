@@ -30,6 +30,7 @@ from campus_evals.document_quality_eval import (
 )
 from campus_evals.eval_operations_governance import (
     EvalOperationsObservation,
+    EvalOperationsPolicy,
     evaluate_eval_operations_governance,
     load_eval_operations_profile_policy,
 )
@@ -285,6 +286,8 @@ def run_eval_operations_governance_profile_gate(
         if artifact_paths
         else _load_eval_operations_observations(observations_path)
     )
+    if artifact_paths:
+        policy = _filter_eval_operations_policy(policy, tuple(observations))
     report = evaluate_eval_operations_governance(policy, observations)
     return _write_profile_report(
         output_dir=output_dir,
@@ -310,21 +313,17 @@ def collect_public_chat_product_path_runtime_observations(
 ) -> dict[str, PublicChatProductPathObservation]:
     resolved_settings = settings or AppApiEvalClientSettings.from_env()
     api_client = AppApiEvalClient(settings=resolved_settings, client=client)
-    try:
-        observations: dict[str, PublicChatProductPathObservation] = {}
-        for case in case_set.cases:
-            execution = api_client.execute_chat_request(
-                case_id=case.case_id,
-                prompt=case.user_goal,
-            )
-            observations[case.case_id] = _public_chat_observation_from_execution(
-                case_id=case.case_id,
-                execution=execution,
-            )
-        return observations
-    finally:
-        if client is None:
-            pass
+    observations: dict[str, PublicChatProductPathObservation] = {}
+    for case in case_set.cases:
+        execution = api_client.execute_chat_request(
+            case_id=case.case_id,
+            prompt=case.user_goal,
+        )
+        observations[case.case_id] = _public_chat_observation_from_execution(
+            case_id=case.case_id,
+            execution=execution,
+        )
+    return observations
 
 
 def collect_tool_family_denominator_runtime_observations(
@@ -518,6 +517,11 @@ def _public_chat_observation_from_execution(
             "trace_backlink_present": bool(execution.request_correlation.trace_id),
         },
         request_correlation=asdict(execution.request_correlation),
+        workflow_trace_summary=(
+            asdict(response.workflow_trace_summary)
+            if response.workflow_trace_summary is not None
+            else {}
+        ),
     )
 
 
@@ -638,9 +642,18 @@ def derive_eval_operations_observations_from_artifacts(
     observations: dict[str, EvalOperationsObservation] = {}
     for path in artifact_paths:
         payload = _load_json(path)
-        profile_id = _required_string(payload.get("profile_id"), "profile_id")
+        profile_id = _artifact_profile_id(payload)
         summary = _mapping(payload.get("summary") or {}, "summary")
         results = _list_of_mappings(payload.get("sanitized_results") or [], "sanitized_results")
+        if not results and isinstance(payload.get("checks"), list):
+            results = tuple(
+                {
+                    "case_id": _required_string(check.get("check_id"), "check.check_id"),
+                    "passed": bool(check.get("passed")),
+                    "failure_class": "failed_check",
+                }
+                for check in _list_of_mappings(payload.get("checks"), "checks")
+            )
         failed_cases = tuple(
             _required_string(result.get("case_id"), "result.case_id")
             for result in results
@@ -657,7 +670,10 @@ def derive_eval_operations_observations_from_artifacts(
         observations[profile_id] = EvalOperationsObservation(
             profile_id=profile_id,
             gate_mode=gate_mode,
-            cases_run=_non_negative_int(summary.get("total"), "summary.total"),
+            cases_run=_non_negative_int(
+                summary.get("total") or summary.get("total_checks"),
+                "summary.total",
+            ),
             runtime_seconds=_non_negative_int(
                 summary.get("runtime_seconds") or 0,
                 "summary.runtime_seconds",
@@ -674,9 +690,56 @@ def derive_eval_operations_observations_from_artifacts(
             metrics_missing=_runtime_metrics_missing(summary),
             failed_cases=failed_cases,
             case_dispositions=case_dispositions,
-            version_summary=_mapping(payload.get("version_summary") or {}, "version_summary"),
+            version_summary=_artifact_version_summary(payload, profile_id),
         )
     return observations
+
+
+def _filter_eval_operations_policy(
+    policy: EvalOperationsPolicy,
+    profile_ids: tuple[str, ...],
+) -> EvalOperationsPolicy:
+    profile_id_set = set(profile_ids)
+    return EvalOperationsPolicy(
+        schema_version=policy.schema_version,
+        policy_id=policy.policy_id,
+        profiles={
+            profile_id: profile
+            for profile_id, profile in policy.profiles.items()
+            if profile_id in profile_id_set
+        },
+    )
+
+
+def _artifact_profile_id(payload: dict[str, object]) -> str:
+    raw_profile_id = str(payload.get("profile_id") or "").strip()
+    if raw_profile_id:
+        return raw_profile_id
+    gate_id = str(payload.get("gate_id") or "").strip()
+    if gate_id:
+        return gate_id
+    benchmark_type = str(payload.get("benchmark_type") or "").strip()
+    if benchmark_type:
+        return benchmark_type
+    return _required_string(payload.get("profile_id"), "profile_id")
+
+
+def _artifact_version_summary(
+    payload: dict[str, object],
+    profile_id: str,
+) -> dict[str, object]:
+    version_summary = _mapping(payload.get("version_summary") or {}, "version_summary")
+    if version_summary.get("case_set_version") and version_summary.get("policy_artifact"):
+        return version_summary
+    return {
+        **version_summary,
+        "case_set_version": version_summary.get("case_set_version") or profile_id,
+        "policy_artifact": version_summary.get("policy_artifact") or DEFAULT_POLICY_ARTIFACT,
+        "runtime_version": version_summary.get("runtime_version")
+        or version_summary.get("runner")
+        or payload.get("schema_version")
+        or "unknown",
+    }
 
 
 def public_chat_product_path_main(argv: Sequence[str] | None = None) -> int:
@@ -862,6 +925,10 @@ def _load_public_chat_observations(
             response_contract=_mapping(item.get("response_contract") or {}, "response_contract"),
             operator_backflow=_mapping(item.get("operator_backflow") or {}, "operator_backflow"),
             request_correlation=_request_correlation_mapping(item.get("request_correlation")),
+            workflow_trace_summary=_mapping(
+                item.get("workflow_trace_summary") or {},
+                "workflow_trace_summary",
+            ),
         )
         for item in _load_observation_items(path)
     }
@@ -1121,6 +1188,8 @@ def _string_tuple_or_empty(value: object) -> tuple[str, ...]:
 def _runtime_metrics_missing(summary: dict[str, object]) -> bool:
     if bool(summary.get("metrics_missing")):
         return True
+    if "total_checks" in summary:
+        return False
     required_fields = (
         "started_at",
         "finished_at",
@@ -1153,9 +1222,14 @@ __all__ = [
     "DEFAULT_REPORT_NAME",
     "DEFAULT_SCHEMA_VERSION",
     "EvalProfileGateReport",
+    "EvalRuntimeMetrics",
     "agentic_retrieval_plan_main",
     "authz_privacy_main",
+    "collect_agentic_retrieval_plan_runtime_observations",
+    "collect_authz_privacy_runtime_observations",
+    "collect_document_quality_runtime_observations",
     "collect_public_chat_product_path_runtime_observations",
+    "collect_tool_family_denominator_runtime_observations",
     "derive_eval_operations_observations_from_artifacts",
     "document_quality_main",
     "eval_operations_governance_main",

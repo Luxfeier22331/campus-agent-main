@@ -81,6 +81,12 @@ Phase 8-13 deterministic profile gates write `profile-report.json` with
 observability, but it is the canonical input for profile-specific release,
 scheduled and operations-governance checks.
 
+Admitted profile ids, deprecated aliases, runner kinds, default reruns and
+artifact kinds are owned by `campus_evals.profile_registry`. The repo-owned
+configuration audit is `uv run --all-packages python -m scripts.eval_gate audit`;
+it must cover the registry, GitHub Actions dispatch choices, operations policy,
+denominator registry and profile fixture smoke.
+
 Stable fields:
 
 - `profile_id`
@@ -90,16 +96,30 @@ Stable fields:
 - `summary.passed`
 - `summary.failed`
 - `summary.overall_passed`
+- `summary.started_at` / `summary.finished_at`
+- `summary.runtime_seconds`
+- `summary.retry_count`
+- `summary.provider_calls`
+- `summary.collector_version`
+- `summary.runtime_profile`
+- `summary.metrics_missing`
 - `version_summary.case_set_version`
 - `version_summary.policy_artifact`
 - `version_summary.runtime_version`
 - `version_summary.git_head`
 - `sanitized_results[].case_id`
 - `sanitized_results[].passed`
+- `sanitized_results[].request_correlation` when runtime collection can safely
+  correlate the case to app-api request / trace truth
 
 The artifact must not contain raw prompt, raw transcript, provider raw
 response, auth material, restricted payload, cookies, JWTs, bearer tokens or
 token-bearing URL values.
+
+Profile reports remain separate from formal `run-XX-case-results.json`.
+Operator backflow for profile reports must use the explicit `publish-profile`
+path, which publishes only correlated `sanitized_results` and skips
+uncorrelated cases with a reason.
 
 ### Case Results
 
@@ -136,6 +156,8 @@ token-bearing URL values.
 - `selected_target`
 - `selected_tools`
 - `tool_argument_summary`
+- `trace_steps`
+- `tool_call_summaries`
 - `guardrail_outcomes`
 - `fail_close_reason`
 - `runtime_versions`
@@ -149,6 +171,10 @@ token-bearing URL values.
 - `guardrail_correctness`
 - `fail_close_correctness`
 - `trace_projection_completeness`
+- `tool_order_correctness`
+- `tool_result_status_correctness`
+- `fail_close_provenance`
+- `evidence_source_selection`
 
 固定规则：
 
@@ -257,6 +283,10 @@ operator publish 只允许从 accepted artifact 进入。
 - `restricted_authz_privacy`
 - `agentic_retrieval_plan`
 - `eval_operations_governance`
+- `tool_routing_product_path`
+- `public_chat_entry_e2e`
+- `answer_quality_contract`
+- `multi_agent_runtime_contract`
 
 后续新 corpus 只有在：
 

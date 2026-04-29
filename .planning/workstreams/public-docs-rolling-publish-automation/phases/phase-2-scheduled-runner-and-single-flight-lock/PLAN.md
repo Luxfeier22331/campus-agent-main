@@ -9,10 +9,10 @@ updated: 2026-04-29
 
 ## Goal
 
-Add a scheduled-check runner for `apps/public-docs` that can be called by CI or a
-controlled operator runner. It must respect the accepted Shanghai schedule, acquire
-a single-flight lock before checking, append the Phase 1 ledger record, and clean
-up stale locks.
+Add a scheduled-check runner for `apps/public-docs` that can be called by CI or
+a controlled operator runner. It must respect the accepted Shanghai schedule,
+acquire a single-flight lock before checking, append the Phase 1 ledger record,
+and clean up stale locks.
 
 Phase 2 still must not build, smoke, deploy, rollback or call Wrangler.
 
@@ -20,7 +20,7 @@ Phase 2 still must not build, smoke, deploy, rollback or call Wrangler.
 
 - Expose the schedule contract:
   - Shanghai windows: `00:00 / 06:00 / 12:00 / 18:00`
-  - UTC cron: `0 4,10,16,22 * * *`
+  - Controlled runner UTC cron: `7 4,10,16,22 * * *`
 - Support `force` mode for manual operator dry-run.
 - Return `not_due` outside schedule window without touching manifest or lock.
 - Acquire an atomic file lock before manifest check.
@@ -55,7 +55,7 @@ Phase 2 still must not build, smoke, deploy, rollback or call Wrangler.
    - CLI args tolerate pnpm `--` separator
 
 4. Update runbook and workstream docs.
-   - Explain CI should call the scheduled runner at UTC `0 4,10,16,22 * * *`.
+   - Explain CI should call the scheduled runner at UTC `7 4,10,16,22 * * *`.
    - Explain Phase 2 does not deploy.
    - Explain lock/ledger default paths.
 

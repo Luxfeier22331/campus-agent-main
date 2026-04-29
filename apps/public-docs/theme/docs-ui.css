@@ -311,17 +311,6 @@ main.rp-doc-layout__doc-container {
 	transform: translateY(-50%) rotate(45deg);
 }
 
-.rspress-doc.docs-reader-layout-landing > ul:not([class]) a {
-	color: var(--docs-accent-strong);
-	font-weight: 720;
-	text-decoration: none;
-	text-underline-offset: 0.18em;
-}
-
-.rspress-doc.docs-reader-layout-landing > ul:not([class]) a:hover {
-	text-decoration: underline;
-}
-
 .rspress-doc .gated-collection-list {
 	display: grid;
 	gap: 0.55rem;
@@ -345,6 +334,17 @@ main.rp-doc-layout__doc-container {
 	color: var(--docs-accent-strong);
 	text-decoration: underline;
 	text-underline-offset: 0.18em;
+}
+
+.rspress-doc.docs-reader-layout-landing > ul:not([class]) a {
+	color: var(--docs-accent-strong);
+	font-weight: 720;
+	text-decoration: none;
+	text-underline-offset: 0.18em;
+}
+
+.rspress-doc.docs-reader-layout-landing > ul:not([class]) a:hover {
+	text-decoration: underline;
 }
 
 .rspress-doc .gated-collection-empty {
@@ -769,10 +769,6 @@ main.rp-doc-layout__doc-container {
 
 .rspress-doc .document-meta-details[open] {
 	z-index: 30;
-}
-
-.rspress-doc .document-meta-details:not([open]) dl {
-	display: none;
 }
 
 .rspress-doc .document-meta-details dl {
@@ -1464,4 +1460,8 @@ main.rp-doc-layout__doc-container {
 	.rspress-doc .rp-table-scroll-container::before {
 		font-size: 0.7rem;
 	}
+}
+
+.rspress-doc .document-meta-details:not([open]) dl {
+	display: none;
 }

@@ -29,7 +29,14 @@ observation-backed profiles 接入 `scripts.eval_gate`，补齐统一 `eval_prof
 artifact、artifact-derived operations observation、值级 redaction 与 scaffold denominator
 扩展；随后新增 `multi-agent-product-path` deterministic gate，并把 workflow trace /
 tool-family / public-chat product-path denominator 扩展到当前 multi-agent 产品路径；5B 仍等待
-domain 数据补全。
+domain 数据补全。最新补全将 runtime profile collection 收口到统一 `AppApiEvalClient`，
+`profile-report.json` 增加真实 runtime metrics / `metrics_missing` 语义与 safe
+`request_correlation`，新增 `publish-profile` backflow，扩展 workflow trace gate 到 tool
+order / result status / fail-close provenance / evidence source selection，并将
+`multi-agent-runtime-contract` 作为正式命名、`multi-agent-product-path` 作为 deprecated alias。
+本轮继续补齐 profile registry / audit、tool routing、public chat entry E2E 与
+answer-quality contract profiles，使 eval release gate 的 registry、workflow dispatch、
+operations policy 与 fixture smoke 可被统一审计。
 
 ## Current Slice
 
@@ -118,8 +125,9 @@ domain 数据补全。
   - operations observation 可从 Phase 8-12 `profile-report.json` artifact 派生
 - `Multi-Agent Product Path Gate`
   - completed as deterministic closure gate
-  - profile 已接入 `scripts.eval_gate accept --profile multi-agent-product-path`
-  - gate artifact 固定为 `multi-agent-product-path-gate.json`
+  - profile 已接入 `scripts.eval_gate accept --profile multi-agent-runtime-contract`
+  - `multi-agent-product-path` 仅保留为 deprecated alias
+  - gate artifact 固定为 `multi-agent-runtime-contract-gate.json`
   - 当前 deterministic denominator：
     - workflow trace：10 条 case，覆盖 direct structured、campus-services、notice、knowledge
       delegate、ambiguous follow-up、fail-close 与 no-result
@@ -165,7 +173,8 @@ domain 数据补全。
   - `uv run --all-packages python -m unittest tests.evals.agentic_retrieval_plan_eval_suite tests.evals.eval_operations_governance_suite tests.evals.case_governance_suite`
   - `uv run --all-packages python -m unittest tests.evals.test_eval_profile_gate tests.evals.test_eval_artifact_redaction`
   - `uv run --all-packages python -m unittest tests.evals.test_workflow_trace_gate tests.evals.test_tool_family_denominator tests.evals.test_public_chat_product_path_eval tests.evals.test_multi_agent_product_path_gate`
-  - `uv run --all-packages python -m scripts.eval_gate accept --profile multi-agent-product-path --output-dir .tmp/evals/multi-agent-product-path-smoke --json`
+  - `uv run --all-packages python -m scripts.eval_gate accept --profile multi-agent-runtime-contract --output-dir .tmp/evals/multi-agent-runtime-contract-smoke --json`
+  - `uv run --all-packages python -m scripts.eval_gate audit --json`
 - JS/TS seam verification:
   - `pnpm --dir apps/app-api test:node -- test/chat-requests.route.test.ts`
 - planning/docs consistency:

@@ -5,7 +5,7 @@ import json
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from scripts.eval_gate import collect_eval_gate_status, main, run_eval_acceptance
 
@@ -128,6 +128,23 @@ class EvalGateTest(unittest.TestCase):
             ],
         )
 
+    def test_run_eval_acceptance_rejects_collect_runtime_for_observation_only_profile(
+        self,
+    ) -> None:
+        runner = Mock(return_value=0)
+
+        with (
+            patch("scripts.eval_gate._resolve_profile_runner", return_value=runner),
+            self.assertRaisesRegex(ValueError, "does not support runtime collection"),
+        ):
+            run_eval_acceptance(
+                profile="tool-routing-product-path",
+                output_dir=Path("/tmp/eval-artifacts"),
+                collect_runtime=True,
+            )
+
+        runner.assert_not_called()
+
     def test_observation_profiles_do_not_support_operator_publish_dry_run(self) -> None:
         with (
             patch("scripts.eval_gate._resolve_profile_runner", return_value=lambda _: 0),
@@ -145,9 +162,12 @@ class EvalGateTest(unittest.TestCase):
         profiles = (
             "public-chat-product-path",
             "tool-family-denominator",
+            "tool-routing-product-path",
             "document-quality",
             "authz-privacy",
             "agentic-retrieval-plan",
+            "public-chat-entry-e2e",
+            "answer-quality-contract",
             "eval-operations-governance",
             "quality-calibration",
         )
@@ -177,7 +197,7 @@ class EvalGateTest(unittest.TestCase):
 
         self.assertEqual(
             seen_profiles,
-            ["multi-agent-runtime-contract", "multi-agent-product-path"],
+            ["multi-agent-runtime-contract", "multi-agent-runtime-contract"],
         )
 
     def test_main_publish_defaults_to_dry_run_json_output(self) -> None:

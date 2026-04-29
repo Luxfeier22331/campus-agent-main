@@ -6,6 +6,9 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from campus_ingestion_core.collected_notice_classification import (
+    classification_target_candidates,
+)
 from campus_ingestion_core.collected_notice_multimodal_readiness_shared import (
     MULTIMODAL_CANDIDATE_SCHEMA_VERSION,
     mapping_rows,
@@ -159,6 +162,7 @@ def _media_candidate(
         "skip_reason": skip_reason,
         "reason_codes": list(dict.fromkeys(reason_codes)),
         "target_hints": target_hints,
+        "classification": dict(unit.get("classification") or {}),
         "source_object_ref": object_ref,
         "attachment_ref": _attachment_projection(attachment),
         "attempt_ledger": _attempt_ledger(
@@ -210,6 +214,7 @@ def _source_body_repair_candidate(unit: Mapping[str, Any]) -> dict[str, Any]:
         "skip_reason": "",
         "reason_codes": reason_codes,
         "target_hints": _target_hints(unit),
+        "classification": dict(unit.get("classification") or {}),
         "source_object_ref": None,
         "attachment_ref": None,
         "attempt_ledger": _attempt_ledger(
@@ -380,8 +385,16 @@ def _priority(
     target_hints: Sequence[str],
 ) -> str:
     text = f"{unit.get('title') or ''}\n{unit.get('search_text') or ''}"
-    if _HIGH_VALUE_TARGETS.intersection(target_hints):
+    classification = unit.get("classification")
+    target_signals = (
+        classification_target_candidates(unit)
+        if isinstance(classification, Mapping)
+        else target_hints
+    )
+    if _HIGH_VALUE_TARGETS.intersection(target_signals):
         return "high"
+    if isinstance(classification, Mapping):
+        return "normal"
     if any(keyword in text for keyword in _HIGH_VALUE_KEYWORDS):
         return "high"
     if media_kind == "source_body":

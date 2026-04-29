@@ -25,6 +25,14 @@ def _bridge_request_payload(
         "effective_capability": "knowledge",
         "lane": "rag",
         "trace": {"trace_id": trace_id},
+        "actor": {
+            "user_id": "student@example.edu",
+            "principal_id": "principal-001",
+            "principal_type": "student",
+            "roles": ["student"],
+            "cohort": "2023",
+            "major": "philosophy",
+        },
         "context": {
             "actor": {
                 "user_id": "student@example.edu",
@@ -77,6 +85,7 @@ def _bridge_request_payload(
         "requested_capability": "knowledge",
         "version_query": {"mode": "current"},
         "runtime_decisions": {
+            "schema_version": "supervisor-runtime-decisions-v1",
             "effective_capability": "knowledge",
             "lane": "rag",
             "scope_gate": {
@@ -100,6 +109,7 @@ def _bridge_request_payload(
             },
             "tool_policy": {"policy_version": "runtime-policy-v1"},
             "runtime_decision_summary": {
+                "schema_version": "runtime-decision-summary-v1",
                 "scope_gate_decision": "in_scope",
                 "policy_gate_decision": "delegate",
                 "context_preflight_state": "not_follow_up",

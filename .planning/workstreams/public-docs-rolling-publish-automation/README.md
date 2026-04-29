@@ -14,10 +14,13 @@ updated: 2026-04-29
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 2 needs plan`
-- current focus: Phase 1 已完成 manifest check CLI、release ledger、dry-run verdict、
-  validation gates、测试与 runbook wiring；下一步规划 scheduled runner 与 single-flight lock。
+- status: `completed`
+- current phase: `complete`
+- current focus: Phase 1-3 已完成 manifest check、release ledger、scheduled runner、
+  single-flight lock 与 build / smoke / deploy pipeline integration；Phase 4 已完成
+  failure handling、retry policy、manual rollback command 与 rollback ledger 记录；Phase 5
+  已完成 optional deploy-hook nudger；Phase 6 已完成 production acceptance harness、operator
+  runbook 和 evidence 收口。
 
 ## Scope Boundary
 
@@ -35,7 +38,7 @@ updated: 2026-04-29
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
-- current plan: `./phases/phase-1-manifest-check-and-release-ledger/PLAN.md`
+- current plan: `./phases/phase-6-production-acceptance-and-operator-runbook/PLAN.md`
 
 ## External Basis
 

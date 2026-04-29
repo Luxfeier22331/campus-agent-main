@@ -13,6 +13,9 @@ from campus_ingestion_core.authenticated_notice_routing_sampling import (
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
 )
+from campus_ingestion_core.collected_notice_classification import (
+    resolve_collected_notice_target_candidates,
+)
 from campus_ingestion_core.internal_notice_consumption_projection_models import (
     InternalNoticeConsumptionProjectionObjectStore,
 )
@@ -53,7 +56,15 @@ def routes_to_service_status_candidate(
     fallback_service_detector,
 ) -> bool:
     if routing_sample is not None:
-        return routing_sample.suggested_consumption_route == "service_status_candidate"
+        if routing_sample.suggested_consumption_route != "service_status_candidate":
+            return False
+        return bool(
+            resolve_collected_notice_target_candidates(
+                notice_family=routing_sample.notice_family,
+                primary_route=routing_sample.suggested_consumption_route,
+                title=_inventory_title(inventory_entry, fallback=routing_sample.notice_title),
+            )
+        )
     return bool(fallback_service_detector(inventory_entry))
 
 
@@ -79,15 +90,26 @@ def resolve_service_status_candidate_kind(
     routing_sample: AuthenticatedNoticeRoutingSample | None,
 ) -> str:
     family = routing_sample.notice_family if routing_sample is not None else ""
-    if family == "transport_commute_status":
+    route = routing_sample.suggested_consumption_route if routing_sample is not None else ""
+    targets = resolve_collected_notice_target_candidates(
+        notice_family=family,
+        primary_route=route or "service_status_candidate",
+        title=title_compact,
+    )
+    if "transport_schedule" in targets:
         return "transport_schedule"
-    if family == "facility_transport_classroom_status" and any(
-        keyword in title_compact for keyword in ("班车", "校车", "通勤车", "接驳车", "乘车点")
-    ):
-        return "transport_schedule"
-    if any(keyword in title_compact for keyword in ("班车", "校车", "通勤车", "接驳车")):
-        return "transport_schedule"
-    return "service_status"
+    if "service_status" in targets:
+        return "service_status"
+    return "notice_level_query"
+
+
+def _inventory_title(
+    entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+    *,
+    fallback: str,
+) -> str:
+    parent_snapshot = dict(entry.parent_snapshot or {})
+    return str(parent_snapshot.get("notice_title") or fallback or "").strip()
 
 
 def routing_metadata(

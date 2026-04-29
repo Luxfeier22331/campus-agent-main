@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -24,16 +24,18 @@ updated: 2026-04-29
 - [x] **Phase 4.7: Historical Captured Inventory Synthetic Enqueue** — 把已采集库存通过 synthetic enqueue plan 进入统一 ingest queue，不绕过 worker 直导。
 - [x] **Phase 4.8: Queue Consumer Reimport Path** — 让 ingestion worker 从 queue 消费 object refs，重用 source-truth / holding / searchable reimport path。
 - [x] **Phase 5: Multimodal OCR Consumption Readiness** — 统一 notice 侧多模态消费 ledger / attempt / normalized-output contract，把图片、PDF、附件类通知纳入 OCR/多模态 pending/done/failed 状态，并让结果进入 searchable text preview。
-- [ ] **Phase 6: Batched Downstream Replay** — 先完成 `transport_schedule` 单条 notice no-write pilot 与 target batch dry-run，再补 baseline-aware transport policy；随后对 `regulation`、`service_status` 显式 admission 子集分批 dry-run / stage / consistency check。
+- [x] **Phase 6: Batched Downstream Replay** — 已完成 `transport_schedule` 单条 notice pilot、target batch dry-run、baseline-aware transport policy、regulation no-write materialization，以及 `service_status` 显式 replay；service-status 当前 3 个候选均未进入 stage，阻塞原因已记录。
 - [x] **Phase 6.1: Transport Baseline-Aware Admission Policy** — 在 baseline 文件到位前，已补 transport admission 的 baseline / temporal / overlay / OCR priority 字段，防止历史图片通知盲目 OCR 或盲目 stage。
-- [x] **Phase 6R.1: Regulation Candidate Audit And Admission** — 基于 queue-backed searchable layer 生成 regulation 候选全集 audit 与 no-write admission manifest；已在 Phase 6R.1b owner-text recovery 后重跑，当前 `106` 个 regulation-like source 中 `82` 个等待 multimodal/OCR，`16` 个 manual review，`8` 个 downstream admitted。
+- [x] **Phase 6R.1: Regulation Candidate Audit And Admission** — 基于 queue-backed searchable layer 生成 regulation 候选全集 audit 与 no-write admission manifest；已被 Phase 6R.5 target hardening 重跑，当前 `42` 个 regulation source 全部来自 `file_release`，`32` 个等待 multimodal/OCR，`2` 个 manual review，`8` 个 downstream admitted。
 - [x] **Phase 6R.1a: Regulation Owner Text Recovery Mini-Batch** — 基于 Phase 6R.1 `needs_multimodal` 与 Phase 5 multimodal inventory 生成 no-write owner-text recovery mini-batch；`39` 个 file_release regulation entries 中 `37` 个有可恢复 PDF/Office attempts，首批选择 `10` 个，`2` 个 gap，未执行 provider 或写入。
 - [x] **Phase 6R.1b: Regulation Owner Text Recovery Execution** — 对 Phase 6R.1a 首批 `10` 个 file_release PDF attempts 显式执行 `--execute`；MinerU 产出 `10/10` owner text ready，写入 provider response、plain text、layout elements 与 searchable merge input refs，DB 写入保持关闭。
 - [x] **Phase 6R.2: Regulation Promotion Dry-Run And Gated Materialization** — 复用刷新后的 Phase 6R.1 admission manifest，对 `8` 个 downstream-admitted regulation candidates 生成 `institutional_rules` / `scoped_rules` target preview，停在 offline preparation；consistency verdict 为 `passed`，未写 DB/object store/release/query-serving。
 - [x] **Phase 6R.3: Regulation Normalization Quality Gate** — 已补齐规章制度 canonical text 归一化质量门禁，8 个 downstream-admitted preview docs 全部通过 quality gate；`594` wrapper residue 已移除，生成 before/after dry-run evidence，仍保持 no-write、offline preparation。
-- [ ] **Phase 6.2: Official Transport Baseline Ingest And Overlay Reclassification** — 等 `2026-03-01` 官方车次表到位后，将其作为 current baseline 基底，并重算 notice-derived delta / temporary overlay / historical search-only 分类。
-- [ ] **Phase 6.3: Schedule Image OCR Mini Batch** — 只对 baseline-aware policy 判定为 current/recent/delta-relevant 的 schedule 图片执行 OCR/multimodal mini batch，并用输出重跑 transport dry-run。
-- [ ] **Phase 7: Acceptance And Closeout** — 验证全量可检索、未 admission 不进 downstream、已 admission 可回链，并完成 evidence 与 workstream closeout。
+- [x] **Phase 6R.4: Classification Precision Repair** — 修复 collected notice 分类边界：Phase 4 searchable unit 现在携带 taxonomy-backed `classification`，Phase 5 多模态 high priority 不再继承弱关键词，Phase 6R regulation admission 不再接收普通 notice-surface false positives；分类 audit verdict 为 `passed`。
+- [x] **Phase 6R.5: Target Classification Hardening** — 修复 Phase 6R.4 后发现的 target-level 漂移：`transport_schedule` 从 `12` 收紧到 `4`，`service_status` 从 `6` 收紧到 `3`，`regulation` 扩展到 `42` 个 file-release owner docs；target hardening audit verdict 为 `passed`。
+- [x] **Phase 6.2: Official Transport Baseline Ingest And Overlay Reclassification** — 已用用户提供的 baseline 图片执行 MinerU no-write OCR，解析出 `32` 条 official baseline canonical rows；reference date 记录为 `2026-03-01`，实际车次 effective date 为 `2026-03-20`，transport batch 已基于 baseline source 覆盖关系重分类。
+- [x] **Phase 6.3: Schedule Image OCR Mini Batch** — 已对 baseline-aware eligible overlays 执行 no-write OCR mini batch；`355867` 两张 schedule table 图片产出 `32` 条 transport rows，`355867` 第三张与 `355881` 图片因低置信停在 review，未进入 downstream stage。
+- [x] **Phase 7: Acceptance And Closeout** — 已生成 `acceptance-summary.json` 与 source-to-queue-to-search-to-downstream trace；closeout verdict 为 `passed_with_deferred_items`。
 
 ## Phase 1: Current-State Audit And Reset Manifest
 
@@ -255,10 +257,13 @@ verdict 为 `passed`。Execute mode 需要显式 writer 成功后才会 complete
 
 **Goal:** 只让已设计好的目标进入 typed downstream，且每类目标分批 replay。
 
-**Current slice:** `transport_schedule` target batch 已生成 no-write admission /
-replay / stage / consistency / trace evidence；下一步先进入 Phase 6.1
-baseline-aware transport admission policy。`regulation` 与 `service_status`
-batch 暂不开始。
+**Status:** completed on 2026-04-29.
+
+**Result:** target replay has evidence for `transport_schedule`, `regulation`,
+and `service_status`. `service_status` produced no stage candidates in this
+closeout because current candidates are either pending multimodal or missing
+extractable status-window semantics; these blockers are explicit and all sources
+remain searchable.
 
 **Target batches:**
 
@@ -319,10 +324,12 @@ batch 暂不开始。
 **Status:** completed on 2026-04-29. Evidence is under
 `evidence/phase-06-r1-regulation-candidate-audit-and-admission/`.
 
-**Result:** `106` candidates were classified from all `338` queue-backed
-historical jobs: `92` `needs_multimodal`, `14` `manual_review`, `0`
-`downstream_admitted`. The zero-admission outcome is intentional: no current
-source has canonical regulation owner text ready for materialization.
+**Result:** initial broad keyword evidence was superseded by Phase 6R.5. The
+current no-write admission manifest contains `42` regulation candidates from all
+`338` searchable units: `32` `needs_multimodal`, `2` `manual_review`, `1`
+`institutional_rules_candidate`, and `7` `scoped_rules_candidate`. `notice`
+surface false positives are now `0`; all current regulation candidates are
+`file_release` sources.
 
 **Deliverables:**
 
@@ -488,15 +495,86 @@ wrapper residue in target canonical markdown.
 - No DB write, object-store write, release publish, embedding, Qdrant write, or
   query-serving opening.
 
-## Phase 6.2: Official Transport Baseline Ingest And Overlay Reclassification
+## Phase 6R.4: Classification Precision Repair
 
-**Goal:** 将用户提供的 `2026-03-01` 官方车次表作为 transport schedule current
-baseline 基底，并基于该 baseline 重算 notice-derived overlays。
+**Goal:** 修复 collected notice 分类层把弱关键词 `target_hints` 当成
+downstream admission 证据的问题，防止普通通知误入 `regulation`、
+`service_status` 或 high-value multimodal 队列。
+
+**Status:** completed on 2026-04-29. Evidence is under
+`evidence/phase-06-r4-classification-precision-repair/`.
+
+**Result:** Phase 4 searchable preview now includes taxonomy-backed
+`classification`. This phase was superseded by Phase 6R.5 for target-level
+hardening after review found over-broad `transport_schedule` and
+`service_status` target projection.
 
 **Deliverables:**
 
-- official baseline source-truth / projection dry-run evidence.
-- baseline release candidate with `effective_from=2026-03-01`.
+- `classification-precision-audit-report.json`
+- refreshed Phase 4 searchable/reimport evidence with `classification`
+- refreshed Phase 5 multimodal candidate evidence
+- refreshed Phase 6R.1 regulation admission/audit/trace evidence
+- refreshed Phase 6R.3 regulation materialization quality evidence
+
+**Checks:**
+
+- ordinary notice citations of `《...办法》` do not enter regulation admission.
+- event, competition, procurement, recruitment, roster, and application notices
+  remain searchable but do not become regulation candidates.
+- weak keyword hints do not make multimodal candidates high priority when
+  taxonomy classification has no typed target.
+- regulation admission remains no-write and query-serving stays closed.
+
+## Phase 6R.5: Target Classification Hardening
+
+**Goal:** 修复 Phase 6R.4 后发现的 target-level 分类缺口，让
+`transport_schedule`、`service_status` 和 file-release `regulation` target
+候选可以安全驱动后续 downstream admission。
+
+**Status:** completed on 2026-04-29. Evidence is under
+`evidence/phase-06-r5-target-classification-hardening/`.
+
+**Result:** target hardening audit verdict is `passed`. Current strong target
+counts are `42` `regulation`, `4` `transport_schedule`, and `3`
+`service_status`. Phase 5 multimodal priority is now `49` high / `406` normal.
+Phase 6R regulation admission now has `42` entries, all from `file_release`,
+with `0` notice-surface regulation entries.
+
+**Deliverables:**
+
+- `target-classification-hardening-audit-report.json`
+- refreshed Phase 4 searchable/reimport evidence
+- refreshed Phase 5 multimodal candidate evidence
+- refreshed Phase 6R.1 regulation admission/audit/trace evidence
+- refreshed Phase 6R.3 regulation materialization quality evidence
+
+**Checks:**
+
+- only shuttle/commute schedule notices become `transport_schedule`.
+- procurement and construction/bid/result notices do not become
+  `service_status`.
+- stable file-release owner documents become `regulation` taxonomy targets.
+- regulation admission remains no-write and query-serving stays closed.
+
+## Phase 6.2: Official Transport Baseline Ingest And Overlay Reclassification
+
+**Goal:** 将用户提供的官方车次表作为 transport schedule current baseline
+基底，并基于该 baseline 重算 notice-derived overlays。
+
+**Status:** completed on 2026-04-29. Evidence is under
+`evidence/phase-06-2-official-transport-baseline-ingest-and-overlay-reclassification/`.
+
+**Result:** baseline OCR / canonical preview is no-write and passed consistency.
+The source was recorded as a local probe, not long-term source truth. The
+operator reference date is `2026-03-01`; the OCR-visible table title says
+`新增班次3月20日起执行`, so the canonical schedule effective date is
+`2026-03-20`.
+
+**Deliverables:**
+
+- official baseline OCR probe and canonical projection dry-run evidence.
+- baseline release candidate with `effective_from=2026-03-20`.
 - reclassified transport notice report:
   - `baseline_delta_candidate`
   - `temporary_overlay`
@@ -504,6 +582,18 @@ baseline 基底，并基于该 baseline 重算 notice-derived overlays。
   - `historical_search_only`
   - `manual_review`
 - refreshed transport batch admission evidence.
+
+**Current Counts:**
+
+- official baseline canonical rows: `32`
+- official baseline route count: `2`
+- official baseline projection validation issues: `0`
+- transport notice batch entries: `4`
+- downstream admitted notice overlays: `1`
+- search-only / covered-by-baseline notices: `1`
+- needs multimodal overlays eligible for Phase 6.3 OCR: `2`
+- OCR execute now: `2`
+- current promotion enabled: `false`
 
 **Checks:**
 
@@ -538,13 +628,19 @@ schedule 图片执行 OCR/multimodal mini batch，然后重跑 transport dry-run
 
 **Goal:** 固化首期结果，证明当前已采集内容被干净、可追溯、可重复地消费。
 
+**Status:** completed on 2026-04-29. Evidence is under
+`evidence/phase-07-acceptance-and-closeout/`.
+
+**Result:** closeout verdict is `passed_with_deferred_items`: all `338` valid
+captured notices are represented in searchable preview, queue-backed replay
+projected `338` jobs with `0` failed, regulation remains no-write offline
+preparation, transport schedule respects baseline/OCR gates, and service-status
+deferred items are reasoned without current promotion.
+
 **Deliverables:**
 
-- `end-to-end-acceptance.json`
-- `searchable-sample-smoke.json`
-- `downstream-target-sample-smoke.json`
-- `source-to-search-to-downstream-trace.json`
-- `WORKSTREAM-CLOSEOUT.md`
+- `acceptance-summary.json`
+- `source-to-queue-to-search-to-downstream-trace.json`
 
 **Checks:**
 

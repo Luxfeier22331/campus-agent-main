@@ -1,6 +1,7 @@
 package execution
 
 import (
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredplanning"
 )
@@ -50,8 +51,14 @@ func runtimeDecisions(
 		ContextPreflightState: policyDecision.ContextPreflight.State,
 		RoutingNextAction:     policyDecision.RoutingFrame.SuggestedNextAction,
 		PlanningOutcome:       "not_preplanned",
+		RuntimeVersions:       runtimeVersionSummary(),
+		PolicyArtifactVersions: policyArtifactVersionSummary(
+			intentPolicy,
+			policyAvailable,
+		),
 	}
 	decisions := map[string]any{
+		"schema_version":       RuntimeDecisionsSchemaVersion,
 		"effective_capability": effectiveCapability,
 		"lane":                 lane,
 		"scope_gate":           policyDecision.ScopeGate.Map(),
@@ -124,6 +131,34 @@ func runtimeDecisions(
 	}
 	decisions["runtime_decision_summary"] = summary.Map()
 	return decisions, summary, nil, terminal
+}
+
+func runtimeVersionSummary() map[string]any {
+	return map[string]any{
+		"supervisor_api_runtime": "go-runtime-control-plane-v1",
+		"bridge_contract":        contractsv1.BridgeVersion,
+		"response_contract":      contractsv1.ResponseContract,
+		"workflow_trace_summary": contractsv1.WorkflowTraceSummaryVersion,
+	}
+}
+
+func policyArtifactVersionSummary(
+	policy runtimepolicy.IntentPolicyArtifact,
+	available bool,
+) map[string]any {
+	summary := map[string]any{
+		"runtime_policy":    runtimepolicy.PolicyVersion,
+		"intent_classifier": runtimepolicy.ClassifierVersion,
+		"intent_schema":     runtimepolicy.IntentSchema,
+	}
+	if !available {
+		summary["intent_policy_artifact"] = "unavailable"
+		summary["intent_case_set"] = "unavailable"
+		return summary
+	}
+	summary["intent_policy_artifact"] = policy.SchemaVersion
+	summary["intent_case_set"] = policy.CaseSetVersion
+	return summary
 }
 
 func agentRequestProjection(

@@ -1,0 +1,33 @@
+{
+	"selected_target": null,
+	"status": "cancelled",
+	"answer_text": "",
+	"follow_up_question": "",
+	"confidence": "low",
+	"result": null,
+	"error": {
+		"code": "execution_cancelled",
+		"message": "Execution was cancelled by the user.",
+		"retryable": false
+	},
+	"observability": {
+		"semantic_outcome": "cancelled"
+	},
+	"workflow_trace_summary": {
+		"routing_frame": {},
+		"context_resolution": {},
+		"planning_outcome": "cancelled",
+		"direct_vs_delegate_branch": "terminal",
+		"handoff": {},
+		"selected_target": null,
+		"selected_tools": [],
+		"tool_argument_summary": {},
+		"guardrail_outcomes": {},
+		"fail_close_reason": "execution_cancelled",
+		"runtime_versions": {
+			"workflow_trace_summary_version": "workflow-trace-summary-v1"
+		},
+		"policy_artifact_versions": {}
+	},
+	"trace_id": "trace-contract-cancelled"
+}

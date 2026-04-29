@@ -11,7 +11,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 		SupervisorTransportError,
 	} = ctx;
 
-	it("ignores legacy target fallback and only trusts selected_target", async () => {
+	it("rejects legacy target fallback fields on the supervisor execution wire", async () => {
 		const client = createSupervisorExecutionClient(
 			{
 				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
@@ -22,6 +22,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 					new Response(
 						JSON.stringify({
 							answer_text: "图书馆开放到 22:00。",
+							confidence: "high",
 							error: null,
 							follow_up_question: "",
 							result: null,
@@ -44,15 +45,10 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				traceId: "trace_01HQ",
 				userGoal: "图书馆开放到几点？",
 			}),
-		).resolves.toEqual({
-			answerText: "图书馆开放到 22:00。",
-			error: null,
-			followUpQuestion: "",
-			observability: null,
-			result: null,
-			selectedTarget: null,
-			status: "completed",
-			traceId: "trace_01HQ",
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
 		});
 	});
 	it("preserves approval_required without forcing an agent target", async () => {
@@ -66,6 +62,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 					new Response(
 						JSON.stringify({
 							answer_text: "该请求涉及需要人工确认的操作，必须先经过审批。",
+							confidence: "low",
 							error: null,
 							follow_up_question: "",
 							result: null,
@@ -110,6 +107,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 					new Response(
 						JSON.stringify({
 							answer_text: "图书馆开放到 22:00。",
+							confidence: "high",
 							error: null,
 							follow_up_question: "",
 							observability: {
@@ -185,6 +183,38 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 								tool_argument_summary: {
 									collection: "student_rules",
 								},
+								trace_steps: [
+									{
+										outcome: "delegate",
+										parent_step_id: "",
+										span_kind: "runtime_policy",
+										step_id: "runtime_policy",
+									},
+									{
+										outcome: "completed",
+										parent_step_id: "handoff",
+										result_status: "completed",
+										retry_count: 0,
+										span_kind: "tool_call",
+										step_id: "tool_call",
+										tool_name: "retrieval.query",
+									},
+									{
+										outcome: "completed",
+										parent_step_id: "tool_call",
+										result_status: "completed",
+										span_kind: "finalization",
+										step_id: "finalization",
+									},
+								],
+								tool_call_summaries: [
+									{
+										business_outcome: "grounded_answer",
+										result_status: "completed",
+										source_ids: ["handbook:library-hours"],
+										tool_name: "retrieval.query",
+									},
+								],
 								guardrail_outcomes: {
 									scope_gate: "allow",
 								},
@@ -303,11 +333,41 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				},
 				selectedTarget: "rag-agent",
 				selectedTools: ["retrieval.query"],
-				traceSteps: [],
-				toolCallSummaries: [],
 				toolArgumentSummary: {
 					collection: "student_rules",
 				},
+				toolCallSummaries: [
+					{
+						business_outcome: "grounded_answer",
+						result_status: "completed",
+						source_ids: ["handbook:library-hours"],
+						tool_name: "retrieval.query",
+					},
+				],
+				traceSteps: [
+					{
+						outcome: "delegate",
+						parent_step_id: "",
+						span_kind: "runtime_policy",
+						step_id: "runtime_policy",
+					},
+					{
+						outcome: "completed",
+						parent_step_id: "handoff",
+						result_status: "completed",
+						retry_count: 0,
+						span_kind: "tool_call",
+						step_id: "tool_call",
+						tool_name: "retrieval.query",
+					},
+					{
+						outcome: "completed",
+						parent_step_id: "tool_call",
+						result_status: "completed",
+						span_kind: "finalization",
+						step_id: "finalization",
+					},
+				],
 			},
 			result: {
 				evidence: {
@@ -330,6 +390,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 					new Response(
 						JSON.stringify({
 							answer_text: "图书馆开放到 22:00。",
+							confidence: "high",
 							error: null,
 							follow_up_question: "",
 							result: null,
@@ -377,6 +438,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 				JSON.stringify({
 					answer_text:
 						"根据培养方案和课程教学计划，习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)；当前还不能稳定确认开课学院。",
+					confidence: "high",
 					error: null,
 					follow_up_question: "",
 					result: {
@@ -458,6 +520,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 					new Response(
 						JSON.stringify({
 							answer_text: "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
+							confidence: "high",
 							error: null,
 							follow_up_question: "",
 							result: {
@@ -561,6 +624,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 			new Response(
 				JSON.stringify({
 					answer_text: "民族学本科人才培养方案总学分要求以培养方案正文为准。",
+					confidence: "high",
 					error: null,
 					follow_up_question: "",
 					observability: {

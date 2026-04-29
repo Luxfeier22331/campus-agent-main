@@ -4,10 +4,12 @@ from campus_evals import DimensionResult
 from campus_evals.workflow_trace_gate import (
     WORKFLOW_TRACE_GATE_CASES_PATH,
     WorkflowTraceCase,
+    WorkflowTraceCaseSet,
     WorkflowTraceExpectation,
     attach_workflow_trace_gate,
     evaluate_workflow_trace_case,
     load_workflow_trace_cases,
+    validate_workflow_trace_case_set,
 )
 
 from tests.evals.formal_benchmark_test_support import (
@@ -44,8 +46,28 @@ def _trace_summary(**overrides):
         "guardrail_outcomes": {"visibility": "public", "auth": "not_required"},
         "fail_close_reason": "",
         "trace_steps": (
-            {"step_id": "route", "outcome": "direct"},
-            {"step_id": "call_tool", "tool_name": "transport_schedule_lookup"},
+            {
+                "step_id": "runtime_policy",
+                "span_kind": "runtime_policy",
+                "parent_step_id": "",
+                "outcome": "direct",
+            },
+            {
+                "step_id": "tool_call",
+                "span_kind": "tool_call",
+                "parent_step_id": "runtime_policy",
+                "tool_name": "transport_schedule_lookup",
+                "outcome": "completed",
+                "result_status": "completed",
+                "retry_count": 0,
+            },
+            {
+                "step_id": "finalization",
+                "span_kind": "finalization",
+                "parent_step_id": "tool_call",
+                "outcome": "completed",
+                "result_status": "completed",
+            },
         ),
         "tool_call_summaries": (
             {
@@ -117,6 +139,7 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
 
     def test_fixture_covers_multi_agent_product_path_denominator(self) -> None:
         case_set = load_workflow_trace_cases()
+        validate_workflow_trace_case_set(case_set)
         case_ids = {case.case_id for case in case_set.cases}
 
         self.assertTrue(
@@ -136,6 +159,30 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
         branches = {case.expectation.direct_vs_delegate_branch for case in case_set.cases}
         self.assertTrue({"direct", "delegate", "clarification", "fail_close"}.issubset(branches))
         self.assertTrue(any(case.expectation.fail_close_expected for case in case_set.cases))
+
+    def test_validation_requires_tool_call_summaries_for_selected_tools(self) -> None:
+        case_set = WorkflowTraceCaseSet(
+            schema_version=1,
+            case_family="workflow_trace_gate.v1",
+            cases=(
+                WorkflowTraceCase(
+                    case_id="workflow-missing-tool-call-summary",
+                    family="workflow_trace",
+                    description="selected tool without projected call summary",
+                    expectation=WorkflowTraceExpectation(
+                        direct_vs_delegate_branch="direct",
+                        selected_target="campus-services-agent",
+                        selected_tools=("service_status_lookup",),
+                        handoff={"target": "campus-services-agent"},
+                        tool_argument_summary={"payload_kind": "service_status_lookup"},
+                        fail_close_expected=False,
+                    ),
+                ),
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "tool_call_summaries"):
+            validate_workflow_trace_case_set(case_set)
 
     def test_fixture_rejects_raw_trace_payload_keys(self) -> None:
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
@@ -249,6 +296,28 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
 
         self.assertFalse(results.trace_projection_completeness.passed)
         self.assertIn("workflow_trace_summary", results.trace_projection_completeness.reason)
+
+    def test_fails_trace_projection_completeness_when_selected_tools_lack_call_summaries(
+        self,
+    ) -> None:
+        results = evaluate_workflow_trace_case(
+            _workflow_case(),
+            _trace_summary(tool_call_summaries=()),
+        )
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn("tool_call_summaries", results.trace_projection_completeness.reason)
+
+    def test_fails_trace_projection_completeness_when_steps_lack_timeline_fields(
+        self,
+    ) -> None:
+        results = evaluate_workflow_trace_case(
+            _workflow_case(),
+            _trace_summary(trace_steps=({"step_id": "runtime_policy", "outcome": "delegate"},)),
+        )
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn("trace_steps.timeline_fields", results.trace_projection_completeness.reason)
 
 
 class WorkflowTraceGateFormalBenchmarkTest(unittest.TestCase):

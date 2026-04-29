@@ -179,6 +179,8 @@ class PreviewCollectedNoticeDownstreamPilotWorkerTests(unittest.TestCase):
                         str(output_dir),
                         "--transport-baseline-effective-date",
                         "2026-03-01",
+                        "--transport-baseline-source-notice-id",
+                        "355122",
                     ]
                 )
 
@@ -186,6 +188,10 @@ class PreviewCollectedNoticeDownstreamPilotWorkerTests(unittest.TestCase):
             self.assertEqual(
                 build_preview.call_args.kwargs["transport_baseline_effective_date"],
                 "2026-03-01",
+            )
+            self.assertEqual(
+                build_preview.call_args.kwargs["transport_baseline_source_notice_ids"],
+                ("355122",),
             )
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["selection_mode"], "batch")

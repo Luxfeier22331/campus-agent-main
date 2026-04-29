@@ -147,6 +147,40 @@ def validate_workflow_trace_case_set(case_set: WorkflowTraceCaseSet) -> None:
         raise ValueError("workflow trace case_id must not be empty")
     if len(set(case_ids)) != len(case_ids):
         raise ValueError("workflow trace case_id must be unique")
+    for case in case_set.cases:
+        _validate_workflow_trace_expectation(case)
+
+
+def _validate_workflow_trace_expectation(case: WorkflowTraceCase) -> None:
+    selected_tools = tuple(tool for tool in case.expectation.selected_tools if tool.strip())
+    if not selected_tools:
+        return
+    if not case.expectation.tool_call_summaries:
+        raise ValueError(
+            f"{case.case_id} expectation.tool_call_summaries is required "
+            "when selected_tools is not empty"
+        )
+    tool_names = []
+    for index, item in enumerate(case.expectation.tool_call_summaries):
+        tool_name = str(item.get("tool_name") or item.get("tool") or "").strip()
+        if not tool_name:
+            raise ValueError(
+                f"{case.case_id} expectation.tool_call_summaries[{index}].tool_name "
+                "must not be empty"
+            )
+        result_status = str(item.get("result_status") or item.get("status") or "").strip()
+        if not result_status:
+            raise ValueError(
+                f"{case.case_id} expectation.tool_call_summaries[{index}].result_status "
+                "must not be empty"
+            )
+        tool_names.append(tool_name)
+    missing_tools = [tool for tool in selected_tools if tool not in tool_names]
+    if missing_tools:
+        raise ValueError(
+            f"{case.case_id} expectation.tool_call_summaries missing selected tools: "
+            + ", ".join(missing_tools)
+        )
 
 
 def attach_workflow_trace_gate(
@@ -366,9 +400,50 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         and summary.direct_vs_delegate_branch != "clarification"
     ):
         missing.append("selected_tools")
+    if summary.selected_tools and not summary.tool_call_summaries:
+        missing.append("tool_call_summaries")
     if not summary.planning_outcome:
         missing.append("planning_outcome")
+    if not summary.trace_steps:
+        missing.append("trace_steps")
+    elif _trace_steps_lack_timeline_fields(summary.trace_steps):
+        missing.append("trace_steps.timeline_fields")
     return DimensionResult(
         passed=not missing,
         reason="" if not missing else "missing workflow trace fields: " + ", ".join(missing),
     )
+
+
+def _trace_steps_lack_timeline_fields(trace_steps: tuple[dict[str, object], ...]) -> bool:
+    for step in trace_steps:
+        if not isinstance(step, dict):
+            return True
+        step_id = _trace_step_string(step, "step_id", "stepId")
+        span_kind = _trace_step_string(step, "span_kind", "spanKind")
+        if not step_id or not span_kind:
+            return True
+        if not _trace_step_has_key(step, "parent_step_id", "parentStepId"):
+            return True
+        if not (
+            _trace_step_string(step, "outcome")
+            or _trace_step_string(step, "result_status", "resultStatus", "status")
+        ):
+            return True
+        if span_kind == "tool_call" or step_id == "tool_call":
+            if not _trace_step_string(step, "result_status", "resultStatus", "status"):
+                return True
+            if not _trace_step_has_key(step, "retry_count", "retryCount"):
+                return True
+    return False
+
+
+def _trace_step_string(step: dict[str, object], *keys: str) -> str:
+    for key in keys:
+        value = step.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _trace_step_has_key(step: dict[str, object], *keys: str) -> bool:
+    return any(key in step for key in keys)

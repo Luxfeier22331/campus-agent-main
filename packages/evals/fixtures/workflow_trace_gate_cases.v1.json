@@ -18,6 +18,17 @@
 					"payload_kind": "service_status_lookup",
 					"service_key": "campus_card"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "service_status_lookup",
+						"result_status": "completed",
+						"argument_summary": {
+							"payload_kind": "service_status_lookup",
+							"service_key": "campus_card"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},
@@ -40,6 +51,18 @@
 					"service_key": "transport_commute",
 					"time_scope": "current"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "transport_schedule_lookup",
+						"result_status": "completed",
+						"argument_summary": {
+							"payload_kind": "transport_schedule_lookup",
+							"service_key": "transport_commute",
+							"time_scope": "current"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},
@@ -61,6 +84,17 @@
 					"payload_kind": "service_guide_lookup",
 					"guide_key": "medical_reimbursement"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "service_guide_lookup",
+						"result_status": "completed",
+						"argument_summary": {
+							"payload_kind": "service_guide_lookup",
+							"guide_key": "medical_reimbursement"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},
@@ -82,6 +116,17 @@
 					"payload_kind": "campus_notice_discover",
 					"query_kind": "title_url_card"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "campus_notice_discover",
+						"result_status": "completed",
+						"argument_summary": {
+							"payload_kind": "campus_notice_discover",
+							"query_kind": "title_url_card"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},
@@ -103,6 +148,17 @@
 					"payload_kind": "campus_notice_get",
 					"source_family": "public_notice_detail"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "campus_notice_get",
+						"result_status": "completed",
+						"argument_summary": {
+							"payload_kind": "campus_notice_get",
+							"source_family": "public_notice_detail"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},
@@ -123,6 +179,16 @@
 				"tool_argument_summary": {
 					"collection": "student_rules"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "retrieval.query",
+						"result_status": "completed",
+						"argument_summary": {
+							"collection": "student_rules"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},
@@ -143,6 +209,16 @@
 				"tool_argument_summary": {
 					"collection": "curriculum_plan"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "retrieval.query",
+						"result_status": "completed",
+						"argument_summary": {
+							"collection": "curriculum_plan"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},
@@ -208,6 +284,18 @@
 					"payload_kind": "service_guide_lookup",
 					"result_status": "not_found"
 				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "service_guide_lookup",
+						"result_status": "no_answer",
+						"business_outcome": "not_found",
+						"argument_summary": {
+							"payload_kind": "service_guide_lookup",
+							"result_status": "not_found"
+						},
+						"source_ids": []
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "allow"
 				},

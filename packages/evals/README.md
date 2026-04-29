@@ -104,7 +104,8 @@ Evaluation helpers for campus-agent v2.
   `packages/evals/fixtures/workflow_trace_gate_cases.v1.json` 与
   `campus_evals.workflow_trace_gate`；它按 case expectation 确定性评估
   direct/delegate/clarification/fail-close branch、handoff target、selected tool、tool
-  argument summary、guardrail outcome 与 trace projection completeness，并通过
+  argument summary、tool call order、tool result status、fail-close provenance、evidence/source
+  selection、guardrail outcome 与 trace projection completeness，并通过
   `attach_workflow_trace_gate(...)` 把 verdict 写入 formal benchmark 的
   `orchestration_case_results`
 - public chat product-path eval 固定在
@@ -112,6 +113,20 @@ Evaluation helpers for campus-agent v2.
   `campus_evals.public_chat_product_path_eval`；它只评估 sanitized request / trace
   correlation、selected target、terminal outcome、response contract 与 operator backflow
   summary，不保存 raw transcript 或 provider raw response
+- public chat entry E2E eval 固定在
+  `packages/evals/fixtures/public_chat_entry_cases.v1.json` 与
+  `campus_evals.public_chat_entry_e2e`；它只验证 public chat 入口 request path、
+  request / trace correlation、terminal outcome 与 response card/source contract，不把
+  browser transcript 或 provider raw response 写入 artifact
+- tool-routing product-path eval 固定在
+  `packages/evals/fixtures/tool_routing_cases.v1.json` 与
+  `campus_evals.tool_routing_product_path`；它用自然语言 user goal 评估 selected tool、
+  terminal outcome、argument summary 与 response contract，和 tool-family denominator
+  的读模型/工具结果覆盖保持分离
+- answer-quality contract eval 固定在
+  `packages/evals/fixtures/answer_quality_cases.v1.json` 与
+  `campus_evals.answer_quality_contract`；它作为 answer contract 的确定性外壳，检查
+  required facts、forbidden claims 与 title/source URL，不替代后续 domain golden dataset
 - campus-services / notice tool-family denominator 固定在
   `packages/evals/fixtures/tool_family_denominators.v1.json` 与
   `campus_evals.tool_family_denominator`；它覆盖 `service_status_lookup`、
@@ -141,9 +156,18 @@ Evaluation helpers for campus-agent v2.
 - Phase 8-13 的 observation-backed deterministic profiles 已统一接入
   `campus_evals.eval_profile_gate` 与 `scripts.eval_gate`。这些 profile 输出
   `eval_profile_gate.v1` 的 `profile-report.json`，必须包含 `profile_id`、
-  `case_family`、`summary`、`version_summary` 与 `sanitized_results`，并且只保存
-  sanitized observation，不保存 raw prompt、provider raw response、auth material、
-  restricted payload 或带 token/cookie 的 URL 值。
+  `case_family`、`summary`、`version_summary` 与 `sanitized_results`。runtime
+  collection mode 必须写入真实 `started_at`、`finished_at`、`runtime_seconds`、
+  `retry_count`、`provider_calls`、`collector_version` 与 `runtime_profile`；如果 artifact
+  缺这些指标，必须显式标记 `metrics_missing=true`，并由 operations governance fail。profile
+  report 可以在 `sanitized_results[].request_correlation` 保存 request / trace / sampled_at
+  / safe backlink，用于后续 `publish-profile` 回流；仍然不得保存 raw prompt、provider raw
+  response、auth material、restricted payload 或带 token/cookie 的 URL 值。
+- `quality-calibration` 是 report-only profile，入口为：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile quality-calibration
+  --observations-path <observations.json>`；它只汇总 public chat usefulness、OCR semantic
+  quality 与 agentic plan quality 的 calibration 观察和 pending review candidates，不参与
+  deterministic pass/fail canonical truth。
 - `service_guide_lookup` release gate 是确定性组合 gate，入口为：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   service-guide-lookup`；
@@ -164,17 +188,32 @@ Evaluation helpers for campus-agent v2.
   `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`
   与 `contact_directory_lookup` 是 opened tools，`service_process_lookup`
   明确记录为 `keep_closed`。
-- `multi-agent-product-path` gate 是 supervisor-led multi-agent 产品路径的确定性组合
-  gate，入口为：`uv run --all-packages python -m scripts.eval_gate accept --profile
-  multi-agent-product-path`；它组合 workflow trace eval、tool-family denominator、
-  public-chat product-path eval，以及 supervisor-api / app-api / panel targeted test
+- `multi-agent-runtime-contract` gate 是 supervisor-led multi-agent runtime contract
+  的确定性组合 gate，入口为：`uv run --all-packages python -m scripts.eval_gate
+  accept --profile multi-agent-runtime-contract`；它组合 workflow trace eval、
+  tool-family denominator、public-chat product-path eval、supervisor execution
+  schema/generated artifact 同步检查，以及 supervisor-api / app-api / panel targeted test
   lanes。该 gate 不启动本地 live process，不运行 Docker smoke，不修改 serving
-  admission，不引入 Agents SDK，也不产生 operator observability live case-results
-  publish dry-run artifact。
-- `multi-agent-product-path` denominator 当前覆盖 10 条 workflow trace case、28 条
+  admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
+  dry-run artifact。`multi-agent-product-path` 暂保留为 deprecated alias；真实产品路径 E2E 使用
+  `public-chat-product-path --collect-runtime` 和后续 public chat acceptance lane。
+- `multi-agent-runtime-contract` 额外固定 cross-language supervisor execution fixture
+  matrix：`tests/fixtures/supervisor_execution_contract/` 的 valid / invalid 样本必须同时被
+  Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
+  验证 `snake_case` strict wire、bridge version、enum、extra-field rejection、
+  cancel / timeout / bridge unavailable terminal semantics。
+- public-chat product-path eval 会 replay `workflow_trace_summary`，检查 selected target、
+  direct/delegate/clarification/fail-close branch 与 fail-close reason 是否和产品路径 observation
+  一致；panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
+  provider / prompt key 做非暴露断言。
+- `multi-agent-runtime-contract` denominator 当前覆盖 10 条 workflow trace case、28 条
   tool-family case 与 10 条 public-chat product-path case。知识类 student_rules /
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
   可直接调用的 flat tool。
+- eval profile registry 固定在 `campus_evals.profile_registry`。`scripts.eval_gate audit`
+  会校验 registry runner、GitHub Actions dispatch choices、operations policy、denominator
+  registry、tool-family fixture coverage 与 profile fixture smoke；新增 profile 时必须同步这些
+  surface。
 
 ## Orchestration / Workflow Trace Eval Gap
 
@@ -234,7 +273,8 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   contact-directory-lookup --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
-  multi-agent-product-path --json`
+  multi-agent-runtime-contract --json`
+- `uv run --all-packages python -m scripts.eval_gate audit --json`
 - `uv run --all-packages python -m unittest
   tests.evals.public_chat_product_path_eval_suite
   tests.evals.tool_family_denominator_suite
@@ -262,6 +302,12 @@ observation-backed profile gate CLI：
   agentic-retrieval-plan --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   eval-operations-governance --artifact-path <profile-report.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  tool-routing-product-path --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  public-chat-entry-e2e --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  answer-quality-contract --observations-path <observations.json> --json`
 
 retrieval benchmark CLI：
 

@@ -21,6 +21,8 @@
 		"web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
 		"web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
 		"web:typecheck": "turbo run typecheck",
+		"contracts:generate": "uv run --all-packages python -m scripts.generate_supervisor_execution_contracts",
+		"contracts:check": "uv run --all-packages python -m scripts.generate_supervisor_execution_contracts --check",
 		"eval:intent": "uv run --all-packages python -m scripts.intent_gate",
 		"eval:intent:release": "uv run --all-packages python -m scripts.intent_release_gate",
 		"eval:service-guide:release": "uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup --json",

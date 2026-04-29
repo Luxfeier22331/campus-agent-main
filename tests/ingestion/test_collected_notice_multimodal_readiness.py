@@ -224,6 +224,44 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         self.assertEqual(preview.gap_report["missing_processable_media_count"], 1)
         self.assertEqual(preview.gap_report["high_value_skip_violation_count"], 0)
 
+    def test_weak_regulation_hint_does_not_make_regular_notice_high_priority(self) -> None:
+        unit = _unit(
+            notice_id="354925",
+            title="关于办理2025年度个人所得税综合所得年度汇算的通知",
+            attachments=[
+                _attachment(
+                    attachment_ref_id="attachment-0001",
+                    filename="操作指引.png",
+                    mime_type="image/png",
+                    role="inline_image",
+                )
+            ],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["regulation"],
+            body_text="根据《个人所得税综合所得汇算清缴管理办法》有关要求办理。",
+        )
+        unit["classification"] = {
+            "notice_family": "other",
+            "primary_route": "no_adoption",
+            "processing_policy": "skip",
+            "target_candidates": [],
+            "evidence_strength": "none",
+            "routing_reason_codes": ["no_classifier_route"],
+        }
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        candidate = preview.candidate_inventory["candidates"][0]
+        self.assertEqual(candidate["priority"], "normal")
+        self.assertEqual(candidate["target_hints"], ["regulation"])
+        self.assertEqual(candidate["classification"]["primary_route"], "no_adoption")
+
     def test_outputs_mapping_attempt_plan_and_searchable_merge_preview(self) -> None:
         unit = _unit(
             notice_id="355867",

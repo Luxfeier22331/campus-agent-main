@@ -10,6 +10,7 @@ export function registerSupervisorAdapterRequestSuite(ctx: SupervisorAdapterSuit
 			new Response(
 				JSON.stringify({
 					answer_text: "图书馆开放到 22:00。",
+					confidence: "high",
 					error: null,
 					follow_up_question: "",
 					result: {

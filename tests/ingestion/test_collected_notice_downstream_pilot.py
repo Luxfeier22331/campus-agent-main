@@ -19,6 +19,7 @@ def _pilot_unit(
     target_hints: list[str] | None = None,
     body_text: str | None = None,
     body_excerpt: str = "本周六（4月11日）临时增加一趟6：40的学生班次。",
+    search_text: str | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": "collected_notice_searchable_unit.v1",
@@ -70,7 +71,8 @@ def _pilot_unit(
         "body_excerpt": body_excerpt,
         "attachment_refs": [],
         "multimodal_status": multimodal_status,
-        "search_text": "关于本周六临时增加学生班车班次的通知\n本周六（4月11日）6：40",
+        "search_text": search_text
+        or "关于本周六临时增加学生班车班次的通知\n本周六（4月11日）6：40",
         "visibility_level": "restricted",
         "entitlement_groups": ["campus_members"],
         "admission_batch_id": "phase-04-dry-run-searchable-preview",
@@ -242,6 +244,11 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
                 "为方便我校师生两校区通勤，3月20日（本周五）起，"
                 "对两校区学生通勤班车增加2个班次。具体见下表："
             ),
+            body_excerpt=(
+                "为方便我校师生两校区通勤，3月20日（本周五）起，"
+                "对两校区学生通勤班车增加2个班次。具体见下表："
+            ),
+            search_text="关于两校区学生通勤班车增加班次的通知\n3月20日起增加2个班次",
         )
 
         preview = build_transport_schedule_batch_preview(
@@ -262,6 +269,43 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
         self.assertFalse(entry["current_eligible"])
         self.assertIn("post_baseline_delta_candidate", entry["baseline_gate_reason_codes"])
 
+    def test_transport_schedule_policy_marks_official_baseline_covered_source(self) -> None:
+        unit = _pilot_unit(
+            source_notice_id="355122",
+            title="关于两校区学生通勤班车增加班次的通知",
+            published_at="2026-03-18 11:12",
+            multimodal_status="pending",
+            body_text=(
+                "为方便我校师生两校区通勤，3月20日（本周五）起，"
+                "对两校区学生通勤班车增加2个班次。具体见下表："
+            ),
+            body_excerpt=(
+                "为方便我校师生两校区通勤，3月20日（本周五）起，"
+                "对两校区学生通勤班车增加2个班次。具体见下表："
+            ),
+            search_text="关于两校区学生通勤班车增加班次的通知\n3月20日起增加2个班次",
+        )
+
+        preview = build_transport_schedule_batch_preview(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [{"unit_id": unit["unit_id"], "status": "pending"}]
+            },
+            generated_at="2026-04-29T00:00:00+08:00",
+            transport_baseline_effective_date="2026-03-01",
+            transport_baseline_source_notice_ids=("355122",),
+        )
+
+        entry = preview.admission_manifest["entries"][0]
+        self.assertEqual(entry["consumption_class"], "search_only")
+        self.assertIsNone(entry["target"])
+        self.assertEqual(entry["baseline_status"], "available")
+        self.assertEqual(entry["temporal_relation"], "baseline_source")
+        self.assertEqual(entry["overlay_kind"], "covered_by_official_baseline")
+        self.assertEqual(entry["ocr_priority"], "search_only")
+        self.assertIn("official_baseline_source_covered", entry["baseline_gate_reason_codes"])
+        self.assertEqual(preview.stage_report["stage_candidate_count"], 0)
+
     def test_transport_schedule_policy_marks_active_temporary_overlay(self) -> None:
         unit = _pilot_unit(
             source_notice_id="355867",
@@ -278,6 +322,48 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
             },
             generated_at="2026-04-29T00:00:00+08:00",
             transport_baseline_effective_date="2026-03-01",
+        )
+
+        entry = preview.admission_manifest["entries"][0]
+        self.assertEqual(entry["temporal_relation"], "active_or_future_window")
+        self.assertEqual(entry["overlay_kind"], "temporary_overlay")
+        self.assertEqual(entry["ocr_priority"], "execute_now")
+        self.assertIn("temporary_window_detected", entry["baseline_gate_reason_codes"])
+
+    def test_transport_schedule_policy_marks_one_off_weekend_overlay(self) -> None:
+        preview = build_transport_schedule_batch_preview(
+            searchable_notice_preview={"units": [_pilot_unit()]},
+            multimodal_candidate_inventory={"candidates": []},
+            generated_at="2026-04-29T00:00:00+08:00",
+            transport_baseline_effective_date="2026-03-20",
+        )
+
+        entry = preview.admission_manifest["entries"][0]
+        self.assertEqual(entry["temporal_relation"], "expired_temporary_window")
+        self.assertEqual(entry["overlay_kind"], "temporary_overlay")
+        self.assertEqual(entry["ocr_priority"], "search_only")
+        self.assertIn("temporary_window_detected", entry["baseline_gate_reason_codes"])
+
+    def test_transport_schedule_policy_prefers_temporary_window_over_reservation_start(
+        self,
+    ) -> None:
+        unit = _pilot_unit(
+            source_notice_id="355881",
+            title="关于开通丰台校区社会实践专车的通知",
+            published_at="2026-04-25 16:26",
+            multimodal_status="pending",
+            body_text=(
+                "4月28日（周二）至4月30日（周四）临时开通社会实践专车。4月26日9：00起开放预约。"
+            ),
+        )
+
+        preview = build_transport_schedule_batch_preview(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [{"unit_id": unit["unit_id"], "status": "pending"}]
+            },
+            generated_at="2026-04-29T00:00:00+08:00",
+            transport_baseline_effective_date="2026-03-20",
         )
 
         entry = preview.admission_manifest["entries"][0]

@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -29,8 +29,7 @@ updated: 2026-04-29
 - 正文包含可结构化的路线、时间与服务日期：`丰台校区 -> 海淀校区`、`06:40`、`2026-04-11`。
 
 本 slice 先验证 `source -> searchable unit -> target admission -> stage candidate`
-的回链和 no-write 语义，再扩到 `transport_schedule` target batch。当前不代表
-Phase 6 的 regulation / service_status 批量 admission 已完成。
+的回链和 no-write 语义，再扩到 `transport_schedule` target batch。
 
 Phase 6 后续已拆分：
 
@@ -74,6 +73,22 @@ Batch result:
 - needs multimodal: `3`
 - stage candidate count: `1`
 - consistency verdict: `passed`
+- write enabled: `false`
+- current promotion enabled: `false`
+
+Service status batch evidence:
+
+`.planning/workstreams/collected-notice-consumption-replay-closeout/evidence/phase-06-batched-downstream-replay/batch-service-status/`
+
+Batch result:
+
+- target candidate count: `3`
+- downstream admitted: `0`
+- needs multimodal: `2`
+- deferred / rejected: `3`
+- stage candidate count: `0`
+- consistency verdict: `blocked`
+- accepted closeout posture: explicit replay completed, blockers reasoned and searchable retained
 - write enabled: `false`
 - current promotion enabled: `false`
 

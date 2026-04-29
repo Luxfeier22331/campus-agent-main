@@ -108,6 +108,25 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(response.agent_observability.source_ref_count, 1)
         self.assertEqual(response.agent_observability.access_decision, "allowed")
         self.assertEqual(
+            response.agent_observability.safe_details["agent_plan"],
+            {
+                "schema_version": "agent-local-plan-v1",
+                "planner": "deterministic_payload_router",
+                "selected_tool": "campus_notice_discover",
+                "payload_kind": "campus_notice_discover",
+                "tool_selection_reason": "typed_payload_allowed_tool",
+            },
+        )
+        self.assertEqual(
+            response.agent_observability.safe_details["result_guardrail"],
+            {
+                "schema_version": "agent-result-guardrail-v1",
+                "outcome": "source_backed",
+                "source_ref_count": 1,
+                "access_decision": "allowed",
+            },
+        )
+        self.assertEqual(
             query_service.last_discover_query,
             NoticeDiscoverQuery(
                 payload=CampusNoticeDiscoverPayload(

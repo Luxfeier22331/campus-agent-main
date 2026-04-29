@@ -104,4 +104,43 @@ export function registerSupervisorAdapterErrorsSuite(ctx: SupervisorAdapterSuite
 			status: 502,
 		});
 	});
+	it("raises supervisor_invalid_response when the upstream body violates canonical wire shape", async () => {
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							answerText: "camelCase is not supervisor execution wire.",
+							error: null,
+							followUpQuestion: "",
+							result: null,
+							selectedTarget: "rag-agent",
+							status: "completed",
+							traceId: "trace_invalid_wire",
+						}),
+						{ status: 200 },
+					),
+				),
+			},
+		);
+
+		await expect(
+			client.execute({
+				actor: createActor(),
+				context: createContext(),
+				conversationId: "conv_01HQ",
+				requestId: "req_01HQ",
+				traceId: "trace_01HQ",
+				userGoal: "图书馆开放到几点？",
+			}),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
+		});
+	});
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildRequestIntentEntries,
 	buildRequestReplayEntries,
+	buildRequestWorkflowTraceEntries,
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
 	formatIntentLaunchStateLabel,
@@ -102,6 +103,144 @@ describe("request intent formatters", () => {
 
 	it("omits intent rows when an old observability record has no intent summary", () => {
 		expect(buildRequestIntentEntries(undefined)).toEqual([]);
+	});
+});
+
+describe("request workflow trace formatters", () => {
+	it("builds operator-facing rows from tool call summaries and version provenance", () => {
+		expect(
+			buildRequestWorkflowTraceEntries({
+				contextResolution: { state: "not_follow_up" },
+				directVsDelegateBranch: "direct",
+				failCloseReason: null,
+				guardrailOutcomes: { scope_gate: "allow" },
+				handoff: {
+					allowed_tools: ["transport_schedule_lookup", "service_status_lookup"],
+					target: "campus-services-agent",
+				},
+				planningOutcome: "preplanned",
+				policyArtifactVersions: {
+					intent_classifier: "go-runtime-policy-v2",
+					intent_schema: "intent-schema-1.0.0",
+				},
+				routingFrame: { suggested_next_action: "delegate" },
+				runtimeVersions: {
+					bridge_contract: "supervisor_bridge_v6",
+					supervisor_api_runtime: "go-runtime-control-plane-v1",
+				},
+				selectedTarget: "campus-services-agent",
+				selectedTools: ["service_status_lookup"],
+				toolArgumentSummary: {
+					safe_details: {
+						agent_plan: {
+							planner: "deterministic_payload_router",
+							selected_tool: "service_status_lookup",
+							tool_selection_reason: "typed_payload_allowed_tool",
+						},
+						result_guardrail: {
+							access_decision: "allowed",
+							outcome: "source_backed",
+							source_ref_count: 1,
+						},
+					},
+					subject_query: "校园卡服务",
+				},
+				toolCallSummaries: [
+					{
+						business_outcome: "resolved_current",
+						result_status: "completed",
+						source_ids: ["notice:muc_internal_portal:353903"],
+						tool_name: "service_status_lookup",
+					},
+				],
+				traceSteps: [
+					{
+						outcome: "delegate",
+						parent_step_id: "",
+						span_kind: "runtime_policy",
+						step_id: "runtime_policy",
+					},
+					{
+						outcome: "completed",
+						parent_step_id: "tool_call",
+						result_status: "completed",
+						span_kind: "finalization",
+						step_id: "finalization",
+					},
+				],
+			}),
+		).toEqual([
+			{ label: "工具序列", value: "service_status_lookup" },
+			{ label: "工具调用", value: "service_status_lookup:completed/resolved_current" },
+			{
+				label: "工具计划",
+				value: "service_status_lookup:deterministic_payload_router/typed_payload_allowed_tool",
+			},
+			{
+				label: "结果护栏",
+				value: "source_backed/source_refs=1/access=allowed",
+			},
+			{ label: "来源证据", value: "notice:muc_internal_portal:353903" },
+			{ label: "Fail Close 来源", value: "无" },
+			{
+				label: "Trace 步骤",
+				value: "runtime_policy(runtime_policy):delegate · finalization(finalization):completed",
+			},
+			{
+				label: "Runtime 版本",
+				value:
+					"bridge_contract=supervisor_bridge_v6 · supervisor_api_runtime=go-runtime-control-plane-v1",
+			},
+			{
+				label: "Policy 版本",
+				value: "intent_classifier=go-runtime-policy-v2 · intent_schema=intent-schema-1.0.0",
+			},
+		]);
+	});
+
+	it("keeps workflow trace rows compatible with old records", () => {
+		expect(buildRequestWorkflowTraceEntries(undefined)).toEqual([]);
+	});
+
+	it("does not expose raw supervisor bridge or provider payload keys", () => {
+		const rows = buildRequestWorkflowTraceEntries({
+			contextResolution: {},
+			directVsDelegateBranch: "delegate",
+			failCloseReason: null,
+			guardrailOutcomes: {},
+			handoff: {},
+			planningOutcome: "preplanned",
+			policyArtifactVersions: {
+				intent_policy: "intent-policy.v1",
+				provider_raw_response: "secret-provider-response",
+			},
+			routingFrame: {},
+			runtimeVersions: {
+				bridge_contract: "supervisor_bridge_v6",
+				supervisor_bridge_v6_raw_payload: "secret-bridge-payload",
+			},
+			selectedTarget: "rag-agent",
+			selectedTools: ["retrieval.query"],
+			toolArgumentSummary: {
+				safe_details: {
+					agent_plan: {
+						planner: "deterministic_payload_router",
+						selected_tool: "retrieval.query",
+						tool_selection_reason: "typed_payload_allowed_tool",
+					},
+					raw_prompt: "secret-prompt",
+				},
+			},
+			toolCallSummaries: [],
+			traceSteps: [],
+		});
+
+		const rendered = JSON.stringify(rows);
+		expect(rendered).toContain("bridge_contract=supervisor_bridge_v6");
+		expect(rendered).toContain("intent_policy=intent-policy.v1");
+		expect(rendered).not.toContain("secret-bridge-payload");
+		expect(rendered).not.toContain("secret-provider-response");
+		expect(rendered).not.toContain("secret-prompt");
 	});
 });
 

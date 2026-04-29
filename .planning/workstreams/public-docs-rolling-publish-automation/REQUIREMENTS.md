@@ -13,7 +13,8 @@ updated: 2026-04-29
 北京时间每天 `00:00 / 06:00 / 12:00 / 18:00` 检查 manifest；如果 manifest
 相对最后成功发布版本发生变化，则执行 build、smoke、deploy 与 ledger 记录；如果无变化，则明确跳过。
 
-对应 UTC cron 表达为 `0 4,10,16,22 * * *`。
+controlled runner 使用 UTC cron `7 4,10,16,22 * * *` 触发，落在上述北京时间窗口后的
+7 分钟内。
 
 ## In Scope
 
