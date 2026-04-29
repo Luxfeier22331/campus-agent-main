@@ -1,97 +1,97 @@
 {
-  "schema_version": "official_web_projection_declarations.v1",
-  "site_id": "muc_public",
-  "projection_policy_version": "muc_public_projections_v1",
-  "declarations": [
-    {
-      "declaration_id": "muc_public_article_detail_v1",
-      "page_family": "article_detail",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "content_document",
-      "document_kind": "article",
-      "action": "emit_document"
-    },
-    {
-      "declaration_id": "muc_public_listing_page_v1",
-      "page_family": "listing_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "navigation_document",
-      "document_kind": "listing",
-      "action": "emit_document"
-    },
-    {
-      "declaration_id": "muc_public_directory_page_v1",
-      "page_family": "directory_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "directory_document",
-      "document_kind": "directory",
-      "action": "emit_document"
-    },
-    {
-      "declaration_id": "muc_public_sitemap_navigation_review_v1",
-      "page_family": "sitemap_navigation_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "sitemap_review",
-      "document_kind": "listing",
-      "action": "manual_review"
-    },
-    {
-      "declaration_id": "muc_public_data_table_review_v1",
-      "page_family": "data_table_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "table_review",
-      "document_kind": "generic",
-      "action": "manual_review"
-    },
-    {
-      "declaration_id": "muc_public_gallery_review_v1",
-      "page_family": "gallery_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "gallery_review",
-      "document_kind": "generic",
-      "action": "manual_review"
-    },
-    {
-      "declaration_id": "muc_public_contact_widget_review_v1",
-      "page_family": "contact_widget_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "contact_review",
-      "document_kind": "directory",
-      "action": "manual_review"
-    },
-    {
-      "declaration_id": "muc_public_generic_content_page_v1",
-      "page_family": "generic_content_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "generic_content_document",
-      "document_kind": "generic",
-      "action": "emit_document"
-    },
-    {
-      "declaration_id": "muc_public_dynamic_shell_review_v1",
-      "page_family": "dynamic_shell_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "shell_review",
-      "document_kind": "shell",
-      "action": "manual_review"
-    },
-    {
-      "declaration_id": "muc_public_structural_shell_review_v1",
-      "page_family": "structural_shell_page",
-      "target_corpus": "official_web",
-      "target_collection": "muc_public_pages",
-      "projection_family": "shell_review",
-      "document_kind": "shell",
-      "action": "manual_review"
-    }
-  ]
+	"schema_version": "official_web_projection_declarations.v1",
+	"site_id": "muc_public",
+	"projection_policy_version": "muc_public_projections_v1",
+	"declarations": [
+		{
+			"declaration_id": "muc_public_article_detail_v1",
+			"page_family": "article_detail",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "content_document",
+			"document_kind": "article",
+			"action": "emit_document"
+		},
+		{
+			"declaration_id": "muc_public_listing_page_v1",
+			"page_family": "listing_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "navigation_document",
+			"document_kind": "listing",
+			"action": "emit_document"
+		},
+		{
+			"declaration_id": "muc_public_directory_page_v1",
+			"page_family": "directory_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "directory_document",
+			"document_kind": "directory",
+			"action": "emit_document"
+		},
+		{
+			"declaration_id": "muc_public_sitemap_navigation_review_v1",
+			"page_family": "sitemap_navigation_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "sitemap_review",
+			"document_kind": "listing",
+			"action": "manual_review"
+		},
+		{
+			"declaration_id": "muc_public_data_table_review_v1",
+			"page_family": "data_table_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "table_review",
+			"document_kind": "generic",
+			"action": "manual_review"
+		},
+		{
+			"declaration_id": "muc_public_gallery_review_v1",
+			"page_family": "gallery_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "gallery_review",
+			"document_kind": "generic",
+			"action": "manual_review"
+		},
+		{
+			"declaration_id": "muc_public_contact_widget_review_v1",
+			"page_family": "contact_widget_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "contact_review",
+			"document_kind": "directory",
+			"action": "manual_review"
+		},
+		{
+			"declaration_id": "muc_public_generic_content_page_v1",
+			"page_family": "generic_content_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "generic_content_document",
+			"document_kind": "generic",
+			"action": "emit_document"
+		},
+		{
+			"declaration_id": "muc_public_dynamic_shell_review_v1",
+			"page_family": "dynamic_shell_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "shell_review",
+			"document_kind": "shell",
+			"action": "manual_review"
+		},
+		{
+			"declaration_id": "muc_public_structural_shell_review_v1",
+			"page_family": "structural_shell_page",
+			"target_corpus": "official_web",
+			"target_collection": "muc_public_pages",
+			"projection_family": "shell_review",
+			"document_kind": "shell",
+			"action": "manual_review"
+		}
+	]
 }

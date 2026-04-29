@@ -187,7 +187,9 @@ class DoctorEnvTest(unittest.TestCase):
 
             self.assertFalse(status["overall_ready"])
             self.assertFalse(status["settings"]["required"]["agent_worker_base_url"]["present"])
-            self.assertFalse(status["settings"]["required"]["agent_worker_shared_secret"]["present"])
+            self.assertFalse(
+                status["settings"]["required"]["agent_worker_shared_secret"]["present"]
+            )
 
     def test_collect_env_doctor_status_supervisor_api_enforces_execution_audit_when_enabled(
         self,

@@ -67,7 +67,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("condition: service_healthy", compose)
         self.assertIn("restart: unless-stopped", compose)
         self.assertIn("no-new-privileges:true", compose)
-        self.assertIn("max-size: \"10m\"", compose)
+        self.assertIn('max-size: "10m"', compose)
         self.assertIn("x-supervisor-bridge-auth", compose)
 
         self.assertIn('"SUPERVISOR_API_DOCKER_GOPROXY"', script)

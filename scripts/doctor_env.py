@@ -580,8 +580,7 @@ def _collect_surface_conditions(
         "required": execution_audit_enabled,
         "ready": len(audit_missing) == 0,
         "error": (
-            "execution audit enabled but missing "
-            + " / ".join(audit_missing)
+            "execution audit enabled but missing " + " / ".join(audit_missing)
             if audit_missing
             else None
         ),
@@ -590,7 +589,9 @@ def _collect_surface_conditions(
     opened_capabilities = _read_capability_set(
         env.get("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
     )
-    structured_runtime_required = bool(opened_capabilities.intersection({"campus_services", "notice"}))
+    structured_runtime_required = bool(
+        opened_capabilities.intersection({"campus_services", "notice"})
+    )
     structured_missing: list[str] = []
     if structured_runtime_required:
         if not _setting_present(optional_settings, "structured_query_shared_secret"):
@@ -602,8 +603,7 @@ def _collect_surface_conditions(
         "opened_capabilities": sorted(opened_capabilities),
         "ready": len(structured_missing) == 0,
         "error": (
-            "structured runtime opened but missing "
-            + " / ".join(structured_missing)
+            "structured runtime opened but missing " + " / ".join(structured_missing)
             if structured_missing
             else None
         ),
@@ -611,13 +611,18 @@ def _collect_surface_conditions(
 
     notice_capability_open = "notice" in opened_capabilities
     notice_missing: list[str] = []
-    notice_read_model_present = _setting_present(
-        optional_settings,
-        "internal_notice_read_model_database_url",
-    ) or shared_postgres_present
+    notice_read_model_present = (
+        _setting_present(
+            optional_settings,
+            "internal_notice_read_model_database_url",
+        )
+        or shared_postgres_present
+    )
     if notice_capability_open:
         if not notice_read_model_present:
-            notice_missing.append("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL")
+            notice_missing.append(
+                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
+            )
         if not _setting_present(optional_settings, "notice_object_store_endpoint"):
             notice_missing.append("OBJECT_STORE_ENDPOINT")
         if not _setting_present(optional_settings, "notice_object_store_access_key"):

@@ -277,7 +277,9 @@ def handle_stop(payload: dict[str, object]) -> dict[str, object] | None:
     run_id = os.environ.get("CAMPUS_WORKSTREAM_RUN_ID")
     result_path: Path | None = None
     if repo_root is not None and isinstance(run_id, str) and run_id:
-        result_path = Path(os.environ.get("CAMPUS_WORKSTREAM_RESULT_PATH") or result_file_path(repo_root, run_id))
+        result_path = Path(
+            os.environ.get("CAMPUS_WORKSTREAM_RESULT_PATH") or result_file_path(repo_root, run_id)
+        )
 
     resolution = resolve_terminal_result(
         result_artifact_path=result_path,
@@ -290,7 +292,9 @@ def handle_stop(payload: dict[str, object]) -> dict[str, object] | None:
             "result_normalized",
             {
                 "notes": resolution["normalization_notes"],
-                "normalized_result": normalized.get("result") if isinstance(normalized, dict) else None,
+                "normalized_result": normalized.get("result")
+                if isinstance(normalized, dict)
+                else None,
                 "source": source,
             },
         )
