@@ -3,10 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
 
-from campus_shared import get_repo_env_bootstrap_state, load_repo_env, reset_repo_env_bootstrap_state
+from campus_shared import (
+    get_repo_env_bootstrap_state,
+    load_repo_env,
+    reset_repo_env_bootstrap_state,
+)
 from campus_shared.provider_config import (
     EMBEDDING_API_KEY_PRECEDENCE,
     LLM_API_KEY_PRECEDENCE,
@@ -14,8 +18,8 @@ from campus_shared.provider_config import (
     resolve_embedding_provider_config,
     resolve_llm_provider_config,
 )
-from scripts.env_sync import parse_env_file
 
+from scripts.env_sync import parse_env_file
 
 _SURFACE_SPECS = {
     "evals": {
@@ -61,11 +65,83 @@ _SURFACE_SPECS = {
                 "DOCUMENT_REGISTRY_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_URL",
             ),
+            "legacy_office_conversion_base_url": ("LEGACY_OFFICE_CONVERSION_BASE_URL",),
+            "legacy_office_conversion_internal_shared_secret": (
+                "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET",
+            ),
         },
         "optional_settings": {
             "object_store_bucket_source": ("OBJECT_STORE_BUCKET_SOURCE",),
             "object_store_bucket_derived": ("OBJECT_STORE_BUCKET_DERIVED",),
             "ocr_model": ("OCR_MODEL",),
+            "legacy_office_conversion_timeout_seconds": (
+                "LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS",
+            ),
+        },
+        "files": {},
+    },
+    "internal-notice-consumption": {
+        "providers": {},
+        "required_settings": {
+            "projection_database_url": (
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+                "DOCUMENT_REGISTRY_DATABASE_URL",
+            ),
+            "read_model_database_url": (
+                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
+            "admission_database_url": (
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
+            "attempt_database_url": (
+                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
+            "multimodal_api_key": (
+                "INTERNAL_NOTICE_MULTIMODAL_API_KEY",
+                "PROMPT_RUNTIME_API_KEY",
+                "LLM_API_KEY",
+            ),
+            "multimodal_model": (
+                "INTERNAL_NOTICE_MULTIMODAL_MODEL",
+                "PROMPT_RUNTIME_MODEL",
+            ),
+        },
+        "optional_settings": {
+            "projection_operator_database_url": (
+                "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
+            ),
+            "admission_operator_database_url": (
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
+            ),
+            "attempt_operator_database_url": (
+                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
+                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
+            ),
+            "multimodal_base_url": (
+                "INTERNAL_NOTICE_MULTIMODAL_BASE_URL",
+                "PROMPT_RUNTIME_BASE_URL",
+                "LLM_BASE_URL",
+            ),
+            "multimodal_max_output_tokens": (
+                "INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS",
+                "PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
+            ),
         },
         "files": {},
     },
@@ -90,15 +166,21 @@ _SURFACE_SPECS = {
             "supervisor_model": ("AGNO_SUPERVISOR_MODEL",),
         },
         "optional_settings": {
-            "document_registry_database_url": ("DOCUMENT_REGISTRY_DATABASE_URL", "CAMPUS_SHARED_POSTGRES_URL"),
+            "document_registry_database_url": (
+                "DOCUMENT_REGISTRY_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
         },
         "files": {
             "apps/app-api/.env": {
                 "required_keys": (
                     "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
+                    "APP_API_OPERATOR_DATABASE_URL",
+                ),
+                "optional_keys": (
+                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH",
                     "APP_API_MANAGEMENT_DATABASE_URL",
                 ),
-                "optional_keys": ("CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH",),
             },
             "apps/app-api/.dev.vars": {
                 "required_keys": (
@@ -130,8 +212,70 @@ _SURFACE_SPECS = {
                 "surface_name": "supervisor.api",
             },
         },
-        "required_settings": {},
-        "optional_settings": {},
+        "required_settings": {
+            "supervisor_prompt_model": ("SUPERVISOR_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+            "agent_prompt_model": ("AGENT_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+            "agent_worker_base_url": ("SUPERVISOR_AGENT_WORKER_BASE_URL",),
+            "agent_worker_shared_secret": ("SUPERVISOR_AGENT_WORKER_SHARED_SECRET",),
+        },
+        "optional_settings": {
+            "prompt_runtime_transport": ("PROMPT_RUNTIME_TRANSPORT",),
+            "prompt_runtime_base_url": ("PROMPT_RUNTIME_BASE_URL", "LLM_BASE_URL"),
+            "prompt_runtime_connect_timeout_seconds": ("PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",),
+            "prompt_runtime_read_timeout_seconds": ("PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",),
+            "prompt_runtime_write_timeout_seconds": ("PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",),
+            "prompt_runtime_pool_timeout_seconds": ("PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",),
+            "prompt_runtime_max_connections": ("PROMPT_RUNTIME_MAX_CONNECTIONS",),
+            "prompt_runtime_max_keepalive_connections": (
+                "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
+            ),
+            "prompt_runtime_keepalive_expiry_seconds": ("PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",),
+            "audit_log_path": ("AUDIT_LOG_PATH",),
+            "audit_queue_capacity": ("AUDIT_QUEUE_CAPACITY",),
+            "agent_worker_threads": ("SUPERVISOR_AGENT_WORKER_THREADS",),
+            "agent_worker_timeout_ms": ("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",),
+            "agent_worker_cancel_timeout_ms": ("SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS",),
+            "transport_max_concurrent_answers": ("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",),
+            "transport_queue_capacity": ("SUPERVISOR_API_QUEUE_CAPACITY",),
+            "transport_queue_timeout_ms": ("SUPERVISOR_API_QUEUE_TIMEOUT_MS",),
+            "request_timeout_ms": ("SUPERVISOR_API_REQUEST_TIMEOUT_MS",),
+            "request_body_limit_bytes": ("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES",),
+            "shutdown_grace_ms": ("SUPERVISOR_API_SHUTDOWN_GRACE_MS",),
+            "bridge_breaker_failure_threshold": (
+                "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD",
+            ),
+            "bridge_breaker_open_ms": ("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS",),
+            "lane_rag_max_concurrent": ("SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT",),
+            "lane_navigation_max_concurrent": ("SUPERVISOR_API_LANE_NAVIGATION_MAX_CONCURRENT",),
+            "lane_campus_services_max_concurrent": (
+                "SUPERVISOR_API_LANE_CAMPUS_SERVICES_MAX_CONCURRENT",
+            ),
+            "lane_notice_max_concurrent": ("SUPERVISOR_API_LANE_NOTICE_MAX_CONCURRENT",),
+            "metrics_bearer_token": ("SUPERVISOR_API_METRICS_BEARER_TOKEN",),
+            "otel_enabled": ("SUPERVISOR_API_OTEL_ENABLED",),
+            "otel_exporter_otlp_endpoint": ("SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT",),
+            "otel_sample_ratio": ("SUPERVISOR_API_OTEL_SAMPLE_RATIO",),
+            "execution_audit_enabled": ("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED",),
+            "execution_audit_url": ("SUPERVISOR_API_EXECUTION_AUDIT_URL",),
+            "execution_audit_shared_secret": ("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",),
+            "execution_audit_batch_size": ("SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE",),
+            "execution_audit_spool_dir": ("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR",),
+            "structured_query_base_url": ("SUPERVISOR_STRUCTURED_QUERY_BASE_URL",),
+            "structured_query_shared_secret": ("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",),
+            "structured_query_timeout_ms": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",),
+            "structured_query_timeout_seconds": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",),
+            "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),
+            "internal_notice_read_model_table": ("INTERNAL_NOTICE_READ_MODEL_TABLE",),
+            "notice_object_store_endpoint": ("OBJECT_STORE_ENDPOINT",),
+            "notice_object_store_access_key": (
+                "OBJECT_STORE_DERIVED_ACCESS_KEY",
+                "OBJECT_STORE_ACCESS_KEY",
+            ),
+            "notice_object_store_secret_key": (
+                "OBJECT_STORE_DERIVED_SECRET_KEY",
+                "OBJECT_STORE_SECRET_KEY",
+            ),
+        },
         "files": {},
     },
     "worker-staging": {
@@ -143,7 +287,10 @@ _SURFACE_SPECS = {
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_management_database_url": ("STAGING_APP_API_MANAGEMENT_DATABASE_URL",),
+            "staging_app_api_operator_database_url": (
+                "STAGING_APP_API_OPERATOR_DATABASE_URL",
+                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
+            ),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},
@@ -155,7 +302,10 @@ _SURFACE_SPECS = {
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_management_database_url": ("STAGING_APP_API_MANAGEMENT_DATABASE_URL",),
+            "staging_app_api_operator_database_url": (
+                "STAGING_APP_API_OPERATOR_DATABASE_URL",
+                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
+            ),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},
@@ -182,7 +332,12 @@ _SURFACE_SPECS = {
 }
 
 
-def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, object]:
+def _collect_env_doctor_status(
+    *,
+    repo_root: Path,
+    surface: str,
+    check_postgres_connectivity: bool,
+) -> dict[str, object]:
     normalized_surface = surface.strip().lower()
     if normalized_surface not in _SURFACE_SPECS:
         raise ValueError(
@@ -228,10 +383,35 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
             )
             for relative_path, file_spec in spec["files"].items()
         }
+        postgres = {
+            "shared": _collect_shared_postgres_status(
+                original_env=original_env,
+                current_env=current_env,
+                bootstrap_state=bootstrap_state,
+                check_connectivity=check_postgres_connectivity,
+            ),
+        }
+        conditions = _collect_surface_conditions(
+            surface=normalized_surface,
+            env=current_env,
+            settings={
+                "required": required_settings,
+                "optional": optional_settings,
+            },
+            postgres=postgres,
+        )
 
-        overall_ready = all(status["present"] for status in providers.values()) and all(
-            status["present"] for status in required_settings.values()
-        ) and all(status["ready"] for status in files.values())
+        postgres_ready = _postgres_diagnostics_ready(
+            postgres=postgres,
+            check_connectivity=check_postgres_connectivity,
+        )
+        overall_ready = (
+            all(status["present"] for status in providers.values())
+            and all(status["present"] for status in required_settings.values())
+            and all(status["ready"] for status in files.values())
+            and postgres_ready
+            and all(condition["ready"] for condition in conditions.values())
+        )
         return {
             "surface": normalized_surface,
             "overall_ready": overall_ready,
@@ -247,10 +427,16 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
                     if bootstrap_state is not None and bootstrap_state.loaded_path is not None
                     else None
                 ),
-                "file_found": bool(bootstrap_state.file_found) if bootstrap_state is not None else False,
-                "loaded_keys": list(bootstrap_state.loaded_keys) if bootstrap_state is not None else [],
+                "file_found": bool(bootstrap_state.file_found)
+                if bootstrap_state is not None
+                else False,
+                "loaded_keys": list(bootstrap_state.loaded_keys)
+                if bootstrap_state is not None
+                else [],
                 "skipped_existing_keys": (
-                    list(bootstrap_state.skipped_existing_keys) if bootstrap_state is not None else []
+                    list(bootstrap_state.skipped_existing_keys)
+                    if bootstrap_state is not None
+                    else []
                 ),
             },
             "providers": providers,
@@ -258,12 +444,233 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
                 "required": required_settings,
                 "optional": optional_settings,
             },
+            "conditions": conditions,
+            "postgres": postgres,
             "files": files,
         }
     finally:
         os.environ.clear()
         os.environ.update(original_env)
         reset_repo_env_bootstrap_state()
+
+
+def collect_env_doctor_status(
+    *,
+    repo_root: Path,
+    surface: str,
+    check_postgres_connectivity: bool = False,
+) -> dict[str, object]:
+    return _collect_env_doctor_status(
+        repo_root=repo_root,
+        surface=surface,
+        check_postgres_connectivity=check_postgres_connectivity,
+    )
+
+
+def _collect_shared_postgres_status(
+    *,
+    original_env: dict[str, str],
+    current_env: dict[str, str],
+    bootstrap_state: object,
+    check_connectivity: bool,
+) -> dict[str, object]:
+    key = "CAMPUS_SHARED_POSTGRES_URL"
+    shell_exported = bool(original_env.get(key, "").strip())
+    present = bool(current_env.get(key, "").strip())
+    loaded_keys = set(getattr(bootstrap_state, "loaded_keys", ()) or ())
+    skipped_existing_keys = set(getattr(bootstrap_state, "skipped_existing_keys", ()) or ())
+    repo_env_loaded = key in loaded_keys
+    repo_env_skipped_existing = key in skipped_existing_keys
+    source = "missing"
+    if present and shell_exported:
+        source = "shell_env"
+    elif present and repo_env_loaded:
+        source = "repo_env"
+    elif present:
+        source = "process_env_after_bootstrap"
+
+    connectivity = {
+        "checked": bool(check_connectivity),
+        "ok": None,
+        "error": None,
+        "error_class": None,
+    }
+    if check_connectivity:
+        database_url = current_env.get(key, "").strip()
+        connectivity = (
+            _probe_postgres_connectivity(database_url)
+            if database_url
+            else {
+                "checked": True,
+                "ok": False,
+                "error": f"{key} is not present after repo env bootstrap",
+                "error_class": "MissingDatabaseURL",
+            }
+        )
+
+    return {
+        "present": present,
+        "checked_keys": [key],
+        "resolved_key": key if present else None,
+        "shell_exported": shell_exported,
+        "repo_env_loaded": repo_env_loaded,
+        "repo_env_skipped_existing": repo_env_skipped_existing,
+        "source": source,
+        "connectivity": connectivity,
+    }
+
+
+def _probe_postgres_connectivity(database_url: str) -> dict[str, object]:
+    try:
+        import psycopg
+    except ImportError as exc:  # pragma: no cover
+        return {
+            "checked": True,
+            "ok": False,
+            "error": str(exc),
+            "error_class": exc.__class__.__name__,
+        }
+    try:
+        with (
+            psycopg.connect(database_url, autocommit=True, connect_timeout=3) as conn,
+            conn.cursor() as cursor,
+        ):
+            cursor.execute("select 1")
+            cursor.fetchone()
+    except Exception as exc:  # pragma: no cover - exercised by local doctor, not unit tests.
+        return {
+            "checked": True,
+            "ok": False,
+            "error": str(exc),
+            "error_class": exc.__class__.__name__,
+        }
+    return {
+        "checked": True,
+        "ok": True,
+        "error": None,
+        "error_class": None,
+    }
+
+
+def _collect_surface_conditions(
+    *,
+    surface: str,
+    env: dict[str, str],
+    settings: dict[str, dict[str, dict[str, object]]],
+    postgres: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    if surface != "supervisor-api":
+        return {}
+
+    conditions: dict[str, dict[str, object]] = {}
+    optional_settings = settings.get("optional", {})
+    shared_postgres_status = postgres.get("shared")
+    shared_postgres_present = bool(
+        isinstance(shared_postgres_status, dict) and shared_postgres_status.get("present")
+    )
+
+    execution_audit_enabled = _read_bool_env(env, "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED")
+    audit_missing: list[str] = []
+    if execution_audit_enabled:
+        if not _setting_present(optional_settings, "execution_audit_url"):
+            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_URL")
+        if not _setting_present(optional_settings, "execution_audit_shared_secret"):
+            audit_missing.append("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET")
+    conditions["execution_audit_contract"] = {
+        "required": execution_audit_enabled,
+        "ready": len(audit_missing) == 0,
+        "error": (
+            "execution audit enabled but missing " + " / ".join(audit_missing)
+            if audit_missing
+            else None
+        ),
+    }
+
+    opened_capabilities = _read_capability_set(
+        env.get("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
+    )
+    structured_runtime_required = bool(
+        opened_capabilities.intersection({"campus_services", "notice"})
+    )
+    structured_missing: list[str] = []
+    if structured_runtime_required:
+        if not _setting_present(optional_settings, "structured_query_shared_secret"):
+            structured_missing.append("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")
+        if not shared_postgres_present:
+            structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
+    conditions["structured_runtime_contract"] = {
+        "required": structured_runtime_required,
+        "opened_capabilities": sorted(opened_capabilities),
+        "ready": len(structured_missing) == 0,
+        "error": (
+            "structured runtime opened but missing " + " / ".join(structured_missing)
+            if structured_missing
+            else None
+        ),
+    }
+
+    notice_capability_open = "notice" in opened_capabilities
+    notice_missing: list[str] = []
+    notice_read_model_present = (
+        _setting_present(
+            optional_settings,
+            "internal_notice_read_model_database_url",
+        )
+        or shared_postgres_present
+    )
+    if notice_capability_open:
+        if not notice_read_model_present:
+            notice_missing.append(
+                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
+            )
+        if not _setting_present(optional_settings, "notice_object_store_endpoint"):
+            notice_missing.append("OBJECT_STORE_ENDPOINT")
+        if not _setting_present(optional_settings, "notice_object_store_access_key"):
+            notice_missing.append("OBJECT_STORE_DERIVED_ACCESS_KEY or OBJECT_STORE_ACCESS_KEY")
+        if not _setting_present(optional_settings, "notice_object_store_secret_key"):
+            notice_missing.append("OBJECT_STORE_DERIVED_SECRET_KEY or OBJECT_STORE_SECRET_KEY")
+    conditions["notice_runtime_contract"] = {
+        "required": notice_capability_open,
+        "ready": len(notice_missing) == 0,
+        "error": (
+            "notice capability opened but missing " + " / ".join(notice_missing)
+            if notice_missing
+            else None
+        ),
+    }
+
+    return conditions
+
+
+def _setting_present(
+    settings: dict[str, dict[str, object]],
+    setting_name: str,
+) -> bool:
+    setting = settings.get(setting_name)
+    return bool(isinstance(setting, dict) and setting.get("present"))
+
+
+def _read_bool_env(env: dict[str, str], key: str) -> bool:
+    value = env.get(key, "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _read_capability_set(raw_value: str) -> set[str]:
+    return {value.strip() for value in raw_value.split(",") if value.strip()}
+
+
+def _postgres_diagnostics_ready(
+    *,
+    postgres: dict[str, object],
+    check_connectivity: bool,
+) -> bool:
+    if not check_connectivity:
+        return True
+    shared = postgres.get("shared")
+    if not isinstance(shared, dict):
+        return False
+    connectivity = shared.get("connectivity")
+    return isinstance(connectivity, dict) and connectivity.get("ok") is True
 
 
 def _collect_provider_status(
@@ -409,6 +816,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print the status report as JSON.",
     )
+    parser.add_argument(
+        "--check-postgres-connectivity",
+        action="store_true",
+        help=(
+            "Connect to CAMPUS_SHARED_POSTGRES_URL after repo env bootstrap and include the "
+            "result in readiness."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -418,16 +833,24 @@ def _print_text_report(status: dict[str, object]) -> None:
     bootstrap = status["bootstrap"]
     print(f"bootstrap.file_found={bootstrap['file_found']}")
     print(f"bootstrap.loaded_path={bootstrap['loaded_path']}")
+    postgres = status["postgres"]["shared"]
+    print(f"postgres.shared.present={postgres['present']} resolved_key={postgres['resolved_key']}")
+    print(f"postgres.shared.shell_exported={postgres['shell_exported']}")
+    print(f"postgres.shared.repo_env_loaded={postgres['repo_env_loaded']}")
+    print(f"postgres.shared.source={postgres['source']}")
+    connectivity = postgres["connectivity"]
+    print(f"postgres.shared.connectivity.checked={connectivity['checked']} ok={connectivity['ok']}")
+    if connectivity["error"]:
+        print(
+            "postgres.shared.connectivity.error="
+            f"{connectivity['error_class']}: {connectivity['error']}"
+        )
     for provider_name, provider_status in status["providers"].items():
         print(
             f"provider.{provider_name}.present={provider_status['present']} "
             f"resolved_key={provider_status['resolved_key']}"
         )
-        print(
-            "provider."
-            f"{provider_name}.checked_keys="
-            + ",".join(provider_status["checked_keys"])
-        )
+        print(f"provider.{provider_name}.checked_keys=" + ",".join(provider_status["checked_keys"]))
         if provider_status["error"]:
             print(f"provider.{provider_name}.error={provider_status['error']}")
     settings = status["settings"]
@@ -439,20 +862,19 @@ def _print_text_report(status: dict[str, object]) -> None:
             )
             if setting_status["error"] and setting_status["required"]:
                 print(f"setting.{setting_name}.error={setting_status['error']}")
+    for condition_name, condition_status in status.get("conditions", {}).items():
+        print(
+            f"condition.{condition_name}.required={condition_status['required']} "
+            f"ready={condition_status['ready']}"
+        )
+        if condition_status.get("error"):
+            print(f"condition.{condition_name}.error={condition_status['error']}")
     for relative_path, file_status in status["files"].items():
         print(f"file.{relative_path}.ready={file_status['ready']}")
         print(f"file.{relative_path}.file_found={file_status['file_found']}")
-        print(
-            "file."
-            f"{relative_path}.required_keys="
-            + ",".join(file_status["required_keys"])
-        )
+        print(f"file.{relative_path}.required_keys=" + ",".join(file_status["required_keys"]))
         if file_status["missing_keys"]:
-            print(
-                "file."
-                f"{relative_path}.missing_keys="
-                + ",".join(file_status["missing_keys"])
-            )
+            print(f"file.{relative_path}.missing_keys=" + ",".join(file_status["missing_keys"]))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -460,6 +882,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     status = collect_env_doctor_status(
         repo_root=args.repo_root.resolve(),
         surface=args.surface,
+        check_postgres_connectivity=args.check_postgres_connectivity,
     )
     if args.json:
         print(json.dumps(status, ensure_ascii=False, indent=2, sort_keys=True))

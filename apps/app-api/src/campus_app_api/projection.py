@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import (
-    ActorContext,
-    AuthorizedRetrievalFilter,
-    AuthorizationProjection,
-    ContextProjection,
     DEFAULT_POLICY_PROJECTION_VERSION,
+    ActorContext,
+    AuthorizationProjection,
+    AuthorizedRetrievalFilter,
+    ContextProjection,
     MemorySourceType,
     MemoryVisibility,
     ProfileMemoryItem,
@@ -56,7 +56,9 @@ class AuthorizedRetrievalFilterInput:
 
     def __post_init__(self) -> None:
         visibility_level = self.visibility_level.strip() or "public"
-        policy_projection_version = self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+        policy_projection_version = (
+            self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+        )
 
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
@@ -147,7 +149,8 @@ def _build_authorization_projection(
     principal_id = authorization.principal_id or identity.principal_id or identity.user_id
     return AuthorizationProjection(
         principal_id=principal_id,
-        projection_source=authorization.projection_source or _default_projection_source(identity.principal_type),
+        projection_source=authorization.projection_source
+        or _default_projection_source(identity.principal_type),
         entitlement_snapshot_id=authorization.entitlement_snapshot_id,
         entitlement_groups=authorization.entitlement_groups,
         visibility_scope=authorization.visibility_scope,

@@ -3,11 +3,10 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
-
 
 worker = importlib.import_module(
     "campus_ingestion_worker.audit_authenticated_notice_source_attachment_keys"
@@ -28,7 +27,10 @@ class AuditAuthenticatedNoticeSourceAttachmentKeysWorkerCliTest(unittest.TestCas
                     self_key = key
                     if self_bucket != "campus-rag-source":
                         raise AssertionError(f"unexpected bucket: {self_bucket}")
-                    if self_key == "authenticated_notice_portal/355282/2026/sha256/abc/source-truth/attachment-refs.jsonl":
+                    if (
+                        self_key
+                        == "authenticated_notice_portal/355282/2026/sha256/abc/source-truth/attachment-refs.jsonl"
+                    ):
                         return (
                             json.dumps(
                                 {
@@ -57,7 +59,7 @@ class AuditAuthenticatedNoticeSourceAttachmentKeysWorkerCliTest(unittest.TestCas
                         "authenticated_notice_portal/355282/2026/sha256/abc/source-truth/attachment-refs.jsonl",
                     )
 
-            fake_entry = type(
+            type(
                 "FakeEntry",
                 (),
                 {
@@ -109,9 +111,9 @@ class AuditAuthenticatedNoticeSourceAttachmentKeysWorkerCliTest(unittest.TestCas
 
             referenced_rows = [
                 json.loads(line)
-                for line in (output_dir / "referenced-legacy-keys.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "referenced-legacy-keys.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             self.assertEqual(len(referenced_rows), 1)
@@ -127,9 +129,9 @@ class AuditAuthenticatedNoticeSourceAttachmentKeysWorkerCliTest(unittest.TestCas
 
             unreferenced_rows = [
                 json.loads(line)
-                for line in (output_dir / "unreferenced-legacy-keys.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "unreferenced-legacy-keys.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             self.assertEqual(

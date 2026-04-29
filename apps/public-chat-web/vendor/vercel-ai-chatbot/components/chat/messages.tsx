@@ -2,7 +2,6 @@ import type { UseChatHelpers } from "@ai-sdk/react";
 import { ArrowDownIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useMessages } from "@/hooks/use-messages";
-import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useDataStream } from "./data-stream-provider";
@@ -13,7 +12,6 @@ type MessagesProps = {
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
   chatId: string;
   status: UseChatHelpers<ChatMessage>["status"];
-  votes: Vote[] | undefined;
   messages: ChatMessage[];
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
@@ -28,7 +26,6 @@ function PureMessages({
   addToolApprovalResponse,
   chatId,
   status,
-  votes,
   messages,
   setMessages,
   regenerate,
@@ -67,11 +64,16 @@ function PureMessages({
         </div>
       )}
       <div
+        aria-busy={status === "submitted" || status === "streaming"}
+        aria-label="对话消息"
+        aria-live="polite"
+        aria-relevant="additions text"
         className={cn(
           "absolute inset-0 touch-pan-y overflow-y-auto",
           messages.length > 0 ? "bg-background" : "bg-transparent"
         )}
         ref={messagesContainerRef}
+        role="log"
         style={isArtifactVisible ? { scrollbarWidth: "none" } : undefined}
       >
         <div className="mx-auto flex min-h-full min-w-0 max-w-4xl flex-col gap-5 px-2 py-6 md:gap-7 md:px-4">
@@ -91,11 +93,7 @@ function PureMessages({
                 hasSentMessage && index === messages.length - 1
               }
               setMessages={setMessages}
-              vote={
-                votes
-                  ? votes.find((vote) => vote.messageId === message.id)
-                  : undefined
-              }
+              feedback={message.feedback ?? null}
             />
           ))}
 
@@ -111,8 +109,8 @@ function PureMessages({
       </div>
 
       <button
-        aria-label="Scroll to bottom"
-        className={`absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center rounded-full border border-border/50 bg-card/90 px-3.5 shadow-[var(--shadow-float)] backdrop-blur-lg transition-all duration-200 h-7 text-[10px] ${
+        aria-label="滚动到底部"
+        className={`absolute bottom-4 left-1/2 z-10 flex min-h-11 min-w-11 -translate-x-1/2 items-center justify-center rounded-full border border-border/50 bg-card/90 px-3 shadow-[var(--shadow-float)] backdrop-blur-lg transition-all duration-200 text-[10px] md:min-h-9 md:min-w-9 ${
           isAtBottom
             ? "pointer-events-none scale-90 opacity-0"
             : "pointer-events-auto scale-100 opacity-100"

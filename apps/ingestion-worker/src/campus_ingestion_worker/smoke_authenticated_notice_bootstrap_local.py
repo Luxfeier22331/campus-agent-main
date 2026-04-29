@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
 )
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
+)
 from campus_ingestion_core.in_memory_registries import (
     InMemoryDocumentRegistry,
     InMemoryRawAssetRegistry,
 )
-from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
-)
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.smoke_authenticated_notice_bootstrap import (
     build_smoke_summary,
@@ -84,13 +86,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     request = AuthenticatedNoticeImportRequest(
         bundle_path=Path(args.bundle_path),
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
-        attachment_blob_root=(Path(args.attachment_blob_root) if args.attachment_blob_root else None),
+        attachment_blob_root=(
+            Path(args.attachment_blob_root) if args.attachment_blob_root else None
+        ),
         site_id=args.site_id,
         source_home_url=args.source_home_url,
+        allow_local_fixture_import=True,
         corpus=args.corpus,
         collection=args.collection,
         default_entitlement_groups=(entitlement_groups or ("campus_members",)),
         visibility_scope=args.visibility_scope,
+        mode="admit_and_materialize",
     )
     output_root = Path(args.local_output_dir)
     object_store = LocalFilesystemObjectStore(output_root / "object-store")

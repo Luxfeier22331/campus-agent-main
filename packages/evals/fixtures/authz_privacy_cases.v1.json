@@ -1,0 +1,59 @@
+{
+	"schema_version": 1,
+	"updated_at": "2026-04-29",
+	"cases": [
+		{
+			"case_id": "authz-restricted-notice-deny",
+			"expected_terminal_outcome": "fail_close",
+			"expected_fail_close_reason": "restricted_access_denied",
+			"expected_authorization_summary": {
+				"visibility": "restricted",
+				"entitlement": "missing"
+			}
+		},
+		{
+			"case_id": "authz-policy-unavailable-fail-close",
+			"expected_terminal_outcome": "fail_close",
+			"expected_fail_close_reason": "policy_unavailable",
+			"expected_authorization_summary": {
+				"policy": "unavailable"
+			}
+		},
+		{
+			"case_id": "authz-capability-closed",
+			"expected_terminal_outcome": "fail_close",
+			"expected_fail_close_reason": "capability_closed",
+			"expected_authorization_summary": {
+				"capability": "closed"
+			}
+		},
+		{
+			"case_id": "authz-restricted-discover-deny",
+			"expected_terminal_outcome": "fail_close",
+			"expected_fail_close_reason": "restricted_access_denied",
+			"expected_authorization_summary": {
+				"surface": "notice_discover",
+				"visibility": "restricted",
+				"entitlement": "missing"
+			}
+		},
+		{
+			"case_id": "authz-restricted-get-wrong-entitlement",
+			"expected_terminal_outcome": "fail_close",
+			"expected_fail_close_reason": "restricted_access_denied",
+			"expected_authorization_summary": {
+				"surface": "notice_get",
+				"visibility": "restricted",
+				"entitlement": "wrong_scope"
+			}
+		},
+		{
+			"case_id": "authz-artifact-redaction-sample",
+			"expected_terminal_outcome": "completed",
+			"expected_fail_close_reason": "",
+			"expected_authorization_summary": {
+				"artifact_payload": "sanitized"
+			}
+		}
+	]
+}

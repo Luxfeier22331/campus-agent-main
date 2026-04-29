@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.in_memory_registries import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
+from campus_ingestion_core.in_memory_registries import (
+    InMemoryDocumentRegistry,
+    InMemoryRawAssetRegistry,
+)
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
@@ -118,10 +122,7 @@ def _build_local_snapshot_runtime(
     inventory_payload = json.loads(Path(source_truth_inventory_json).read_text(encoding="utf-8"))
     rows = inventory_payload.values() if isinstance(inventory_payload, dict) else inventory_payload
     inventory_store.upsert_many(
-        tuple(
-            AuthenticatedNoticeSourceTruthInventoryEntry.from_dict(dict(row))
-            for row in rows
-        )
+        tuple(AuthenticatedNoticeSourceTruthInventoryEntry.from_dict(dict(row)) for row in rows)
     )
     object_store = LocalFilesystemObjectStore(Path(object_store_root))
     return {
@@ -133,9 +134,9 @@ def _build_local_snapshot_runtime(
 
 
 __all__ = [
+    "InternalNoticeRegulationPromotionRequest",
     "InternalNoticeScopedRuleMaterializationReport",
     "LocalFilesystemObjectStore",
-    "InternalNoticeRegulationPromotionRequest",
     "build_parser",
     "main",
     "materialize_scoped_rules_from_internal_notice_scope",

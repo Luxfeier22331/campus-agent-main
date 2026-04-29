@@ -1,0 +1,45 @@
+{
+  "admission_run_id": "service-status-live-355650-20260428",
+  "collection": "internal_notice",
+  "corpus": "campus_notices",
+  "created_at": "2026-04-28T02:42:34.932310+00:00",
+  "decision_counts": {
+    "admit": 1,
+    "campus_services/service_status_candidate": 1,
+    "candidate_for_typed_materialization": 1
+  },
+  "decision_records": [
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 1,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "facility_transport_classroom_status",
+      "notice_id": "355650",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:355650",
+      "raw_version_id": "sha256:bundle:355650",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355650",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    }
+  ],
+  "policy_version": "internal_notice_consumer_admission_policy.v1",
+  "schema_version": "internal_notice_consumer_admission_manifest.v1",
+  "scope_write_mode": "upsert_selected",
+  "selected_notice_ids": [
+    "355650"
+  ],
+  "selection_path": ".planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-07-live-admission-loop/live-355650-facility-trial/selected-bundle.json",
+  "selection_sha256": "88b871f9fccaf1873725872744a8a2375fc067673385886186d6cdd3996f2ed3",
+  "selection_source": "selected_live_service_status_bundle",
+  "source_channel": "authenticated_notice_portal"
+}

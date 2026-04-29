@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
@@ -33,12 +35,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    entitlement_groups = tuple(str(item).strip() for item in args.entitlement_group if str(item).strip())
+    entitlement_groups = tuple(
+        str(item).strip() for item in args.entitlement_group if str(item).strip()
+    )
     request = AuthenticatedNoticeImportRequest(
         bundle_path=Path(args.bundle_path),
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
         site_id=args.site_id,
         source_home_url=args.source_home_url,
+        allow_local_fixture_import=True,
         corpus=args.corpus,
         collection=args.collection,
         default_entitlement_groups=(entitlement_groups or ("campus_members",)),
@@ -49,7 +54,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         result=result,
         expected_notice_count=args.expect_notice_count,
         execution={
-            "summary_generated_at": datetime.now(timezone.utc).isoformat(),
+            "summary_generated_at": datetime.now(UTC).isoformat(),
             "bundle_path": str(request.bundle_path),
             "manifest_path": (
                 str(request.export_manifest_path)

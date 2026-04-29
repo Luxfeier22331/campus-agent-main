@@ -5,7 +5,6 @@ status: accepted
 created: 2026-03-28
 updated: 2026-03-30
 ---
-
 # ADR-0013 App API Worker Runtime
 
 ## 状态
@@ -36,10 +35,12 @@ Accepted on 2026-03-28.
 后续长期形态固定采用：
 
 1. `apps/app-api` 的 runtime 冻结为 Cloudflare Worker。
-2. `apps/app-api` 默认保持 internal-only，不作为浏览器直连 public backend 暴露。
-3. `apps/public-chat-web` 与 `apps/protected-panel-web` 通过内部 Worker runtime seam 调用 `apps/app-api`。
-4. `apps/app-api` 继续以模块化单体承接 auth/session/conversation、chat ingress、request ledger/projection input 与 operator query。
-5. `apps/app-api` 内部继续保持 command/query 分离，不能退化为另一个 orchestrator。
+1. `apps/app-api` 默认保持 internal-only，不作为浏览器直连 public backend 暴露。
+1. `apps/public-chat-web` 与 `apps/protected-panel-web` 通过内部 Worker runtime seam
+   调用 `apps/app-api`。
+1. `apps/app-api` 继续以模块化单体承接 auth/session/conversation、chat ingress、request
+   ledger/projection input 与 operator query。
+1. `apps/app-api` 内部继续保持 command/query 分离，不能退化为另一个 orchestrator。
 
 ## 约束
 
@@ -57,7 +58,8 @@ Accepted on 2026-03-28.
 
 - 需要一份单独的 canonical architecture doc 描述 `app-api` 的 Worker runtime 与内部边界
 - repo 入口文档与 planning 入口需要把 `app-api runtime = Worker` 作为 accepted truth
-- legacy standalone public chat app 与 `apps/protected-internal-panel` 应被表述为历史实现参考或 migration source，而不是 forward backend truth
+- legacy standalone public chat app 与 `apps/protected-internal-panel`
+  应被表述为历史实现参考或 migration source，而不是 forward backend truth
 
 ## Complements
 

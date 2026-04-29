@@ -1,0 +1,42 @@
+{
+  "schema_version": "internal_notice_manual_review_taxonomy_v1",
+  "generated_at": "2026-04-11",
+  "source_report": ".tmp/internal-notice-promotion-manifests/run14-policy-regulation-expanded-v5-local-smoke/document-reports.jsonl",
+  "target_corpus": "regulations",
+  "target_collection": "institutional_regulations",
+  "taxonomy": [
+    {
+      "taxonomy_id": "seasonal_or_interim_operations",
+      "current_action": "manual_review_required",
+      "promotion_allowed_now": false,
+      "reason": "Texts are operational, temporary, campus-specific, or explicitly interim rather than stable institution-wide regulations.",
+      "future_collection_hint": "institutional_operations_guides",
+      "notice_ids": [
+        "191176",
+        "191177",
+        "191705"
+      ]
+    },
+    {
+      "taxonomy_id": "annual_or_program_specific_admissions",
+      "current_action": "manual_review_required",
+      "promotion_allowed_now": false,
+      "reason": "Texts are year-scoped or program-scoped admissions rules and should not enter the long-term institutional regulations corpus.",
+      "future_collection_hint": "admissions_program_rules",
+      "notice_ids": [
+        "186957",
+        "186977",
+        "187004",
+        "196411",
+        "351907",
+        "353963",
+        "354006"
+      ]
+    }
+  ],
+  "notes": [
+    "This taxonomy is a forward triage aid only; it does not change the current action for any notice.",
+    "A future collection hint is not an approval to create that collection now.",
+    "Wrapper notices are intentionally excluded because they are in the hold bucket, not the manual-review bucket."
+  ]
+}

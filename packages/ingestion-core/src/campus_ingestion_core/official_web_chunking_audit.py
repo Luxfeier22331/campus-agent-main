@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
+import re
 from collections import Counter
 from dataclasses import dataclass
-import json
 from pathlib import Path
-import re
 from statistics import median
+
 from campus_ingestion_core.chunking import (
     _dedupe_context_section_path,
     _normalize_context_text,
@@ -14,7 +15,6 @@ from campus_ingestion_core.chunking import (
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
-
 
 OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION = "official_web_projection_chunking_audit.v1"
 _SHORT_CHUNK_TOKEN_THRESHOLD = 60
@@ -35,6 +35,10 @@ _TERMINAL_BOILERPLATE_PREFIXES = (
 )
 _SOURCE_ATTRIBUTION_PATTERN = re.compile(r"^[（(]?\s*来源[:：]\s*[^（）()]+[)）]?$")
 _OFFICIAL_WEB_HEADER_LINE_PREFIXES = ("标题：", "章节：", "文号：")
+_BRACKETED_FACT_LABEL_PATTERN = re.compile(r"^【[^】\n]{1,16}】$")
+_LABELED_FACT_LINE_PATTERN = re.compile(r"^[^：:\n]{1,16}[:：]\s*\S.+$")
+_NUMBERED_NOTICE_LINE_PATTERN = re.compile(r"^\d+[.．、]\s*[^：:\n]{1,32}[:：]\s*\S.+$")
+_URL_ONLY_LINE_PATTERN = re.compile(r"^https?://\S+$", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +113,9 @@ def audit_official_web_projection_chunking(
     )
 
 
-def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChunkingAuditDocumentReport:
+def _audit_document(
+    raw_document: dict[str, object],
+) -> OfficialWebProjectionChunkingAuditDocumentReport:
     document_id = _require_text(raw_document.get("document_id"), "document_id")
     version_id = _require_text(raw_document.get("version_id"), "version_id")
     title = _require_text(raw_document.get("title"), "title")
@@ -122,7 +128,9 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
     page_family = _require_text(raw_document.get("page_family"), "page_family")
     raw_asset_id = _require_text(raw_document.get("raw_asset_id"), "raw_asset_id")
     raw_version_id = _require_text(raw_document.get("raw_version_id"), "raw_version_id")
-    units_path = Path(_require_text(raw_document.get("document_units_path"), "document_units_path")).resolve()
+    units_path = Path(
+        _require_text(raw_document.get("document_units_path"), "document_units_path")
+    ).resolve()
     rows = _read_jsonl(units_path)
     if not rows:
         raise ValueError(f"projection document {document_id} produced no document units")
@@ -158,10 +166,7 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
         structured_jsonl_bytes=units_path.read_bytes(),
     )
     token_counts = [estimate_token_count(chunk.text) for chunk in chunks]
-    section_paths = {
-        tuple(_require_section_path(row))
-        for row in rows
-    }
+    section_paths = {tuple(_require_section_path(row)) for row in rows}
     short_chunk_count = sum(1 for count in token_counts if count <= _SHORT_CHUNK_TOKEN_THRESHOLD)
     stacked_short_label_examples = [
         {
@@ -169,8 +174,16 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
             "unit_index": index,
             "text": text,
         }
-        for index, text in enumerate((_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1)
-        if _looks_like_stacked_short_label_lines(text)
+        for index, row in enumerate(rows, start=1)
+        for text in [_require_text(row.get("clean_text"), "clean_text")]
+        for content_role in [_resolve_content_role(row)]
+        if _looks_like_stacked_short_label_lines(
+            text,
+            page_family=page_family,
+            content_role=content_role,
+            title=title,
+            section_path=_require_section_path(row),
+        )
     ]
     ellipsis_examples = [
         {
@@ -178,7 +191,9 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
             "unit_index": index,
             "text": text,
         }
-        for index, text in enumerate((_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1)
+        for index, text in enumerate(
+            (_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1
+        )
         if _contains_ellipsis_truncation(text)
     ]
     headline_only_examples = [
@@ -187,7 +202,9 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
             "unit_index": index,
             "text": text,
         }
-        for index, text in enumerate((_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1)
+        for index, text in enumerate(
+            (_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1
+        )
         if _looks_like_headline_only_fragment(text)
     ]
     teaser_cluster_examples = [
@@ -196,10 +213,14 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
             "unit_index": index,
             "text": text,
         }
-        for index, text in enumerate((_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1)
+        for index, text in enumerate(
+            (_require_text(row.get("clean_text"), "clean_text") for row in rows), start=1
+        )
         if page_family == "listing_page" and _looks_like_listing_teaser_cluster(text)
     ]
-    listing_context_pollution_example = _find_listing_context_pollution(rows) if page_family == "listing_page" else None
+    listing_context_pollution_example = (
+        _find_listing_context_pollution(rows) if page_family == "listing_page" else None
+    )
     row_id_mismatch_examples = [
         {
             "issue_code": "row_id_mismatch_after_cleaning",
@@ -211,7 +232,8 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
         for index, row in enumerate(rows, start=1)
         for text in [_require_text(row.get("clean_text"), "clean_text")]
         for row_ids in [_require_row_ids(row)]
-        if page_family == "listing_page" and _looks_like_row_id_mismatch_after_cleaning(text, row_ids)
+        if page_family == "listing_page"
+        and _looks_like_row_id_mismatch_after_cleaning(text, row_ids)
     ]
     article_section_over_aggregation_examples = [
         {
@@ -240,7 +262,8 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
             "text": chunk.text,
         }
         for chunk in chunks
-        if page_family == "article_detail" and _looks_like_source_only_chunk(chunk.text, chunk.metadata)
+        if page_family == "article_detail"
+        and _looks_like_source_only_chunk(chunk.text, chunk.metadata)
     ]
     terminal_boilerplate_chunk_examples = [
         {
@@ -249,7 +272,8 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
             "text": chunk.text,
         }
         for chunk in chunks
-        if page_family == "article_detail" and _looks_like_terminal_boilerplate_chunk(chunk.text, chunk.metadata)
+        if page_family == "article_detail"
+        and _looks_like_terminal_boilerplate_chunk(chunk.text, chunk.metadata)
     ]
     header_context_drift_examples = [
         {
@@ -269,7 +293,11 @@ def _audit_document(raw_document: dict[str, object]) -> OfficialWebProjectionChu
 
     issue_codes: list[str] = []
     examples: list[dict[str, object]] = []
-    if page_family == "generic_content_page" and len(rows) >= _COLLAPSED_SECTION_PATH_MIN_UNITS and len(section_paths) == 1:
+    if (
+        page_family == "generic_content_page"
+        and len(rows) >= _COLLAPSED_SECTION_PATH_MIN_UNITS
+        and len(section_paths) == 1
+    ):
         issue_codes.append("collapsed_section_path")
         examples.append(
             {
@@ -341,15 +369,119 @@ def _build_token_summary(token_counts: list[int]) -> dict[str, int | float]:
 
 def _contains_ellipsis_truncation(text: str) -> bool:
     normalized = text.strip()
-    return "..." in normalized or "…" in normalized
+    if "..." in normalized:
+        return True
+    for match in re.finditer(r"…+", normalized):
+        ellipsis = match.group(0)
+        suffix = normalized[match.end() :].strip()
+        if len(ellipsis) == 1:
+            return True
+        if not suffix:
+            return True
+    return False
 
 
-def _looks_like_stacked_short_label_lines(text: str) -> bool:
+def _looks_like_stacked_short_label_lines(
+    text: str,
+    *,
+    page_family: str,
+    content_role: str,
+    title: str,
+    section_path: tuple[str, ...],
+) -> bool:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if len(lines) < 3:
         return False
+    if content_role in {
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+        "attachment_reference",
+        "terminal_signature",
+    }:
+        return False
+    if content_role == "directory_reference" and _looks_like_directory_reference_stack(
+        lines,
+        title=title,
+        section_path=section_path,
+    ):
+        return False
+    if _looks_like_meaningful_fact_label_stack(
+        lines,
+        title=title,
+        section_path=section_path,
+    ):
+        return False
+    if page_family == "article_detail" and _has_substantive_article_line(lines):
+        return False
+    if _looks_like_source_link_or_signature_stack(lines):
+        return False
     short_line_count = sum(1 for line in lines if len(line) <= _SHORT_LABEL_MAX_CHARS)
     return short_line_count >= 2
+
+
+def _looks_like_meaningful_fact_label_stack(
+    lines: list[str],
+    *,
+    title: str,
+    section_path: tuple[str, ...],
+) -> bool:
+    normalized_lines = [" ".join(line.split()).strip() for line in lines if line.strip()]
+    if len(normalized_lines) < 2:
+        return False
+    labels = {_normalize_text(title)}
+    labels.update(_normalize_text(item) for item in section_path)
+    labels.discard("")
+    content_lines = [
+        line for line in normalized_lines if _normalize_text(line) not in labels
+    ] or normalized_lines
+    labeled_fact_count = sum(
+        1 for line in content_lines if _LABELED_FACT_LINE_PATTERN.match(line) is not None
+    )
+    bracket_label_count = sum(
+        1 for line in content_lines if _BRACKETED_FACT_LABEL_PATTERN.match(line) is not None
+    )
+    value_count = len(content_lines) - labeled_fact_count - bracket_label_count
+    if labeled_fact_count >= 2 and labeled_fact_count == len(content_lines):
+        return True
+    return bracket_label_count >= 1 and value_count >= 1
+
+
+def _looks_like_directory_reference_stack(
+    lines: list[str],
+    *,
+    title: str,
+    section_path: tuple[str, ...],
+) -> bool:
+    labels = {_normalize_text(title)}
+    labels.update(_normalize_text(item) for item in section_path)
+    labels.discard("")
+    if any(_normalize_text(line) in labels for line in lines):
+        return False
+    if not all(_looks_like_directory_reference_line(line) for line in lines):
+        return False
+    short_line_count = sum(1 for line in lines if len(line) <= _SHORT_LABEL_MAX_CHARS)
+    return short_line_count >= 2
+
+
+def _looks_like_directory_reference_line(text: str) -> bool:
+    normalized = _normalize_text(text)
+    if not normalized:
+        return False
+    if len(normalized) > 32:
+        return False
+    return not any(punctuation in normalized for punctuation in {"。", "！", "？", "；", ";"})
+
+
+def _has_substantive_article_line(lines: list[str]) -> bool:
+    return any(
+        len(line) > 32 or any(punctuation in line for punctuation in {"。", "！", "？", "；"})
+        for line in lines
+    )
+
+
+def _looks_like_source_link_or_signature_stack(lines: list[str]) -> bool:
+    return any(line.startswith(("http://", "https://")) for line in lines)
 
 
 def _looks_like_headline_only_fragment(text: str) -> bool:
@@ -363,9 +495,7 @@ def _looks_like_headline_only_fragment(text: str) -> bool:
     if any(punctuation in normalized for punctuation in {"。", "！", "？", "；", ";"}):
         return False
     comma_count = normalized.count("，") + normalized.count(",")
-    if comma_count >= 2:
-        return False
-    return True
+    return comma_count < 2
 
 
 def _looks_like_listing_teaser_cluster(text: str) -> bool:
@@ -378,7 +508,9 @@ def _looks_like_listing_teaser_cluster(text: str) -> bool:
             continue
         if not _looks_like_listing_series_anchor(lines[start_index - 1]):
             continue
-        teaser_like_count = sum(1 for line in trailing_lines if _looks_like_listing_teaser_line(line))
+        teaser_like_count = sum(
+            1 for line in trailing_lines if _looks_like_listing_teaser_line(line)
+        )
         if teaser_like_count >= 2:
             return True
     return False
@@ -397,16 +529,13 @@ def _looks_like_listing_teaser_line(text: str) -> bool:
         return False
     if normalized[:1].isdigit() and "张" in normalized[:6]:
         return True
-    if " | " in normalized:
-        return True
-    return False
+    return " | " in normalized
 
 
 def _find_listing_context_pollution(rows: list[dict[str, object]]) -> dict[str, object] | None:
     leaf_counts: Counter[str] = Counter()
     clean_texts = {
-        _normalize_text(_require_text(row.get("clean_text"), "clean_text"))
-        for row in rows
+        _normalize_text(_require_text(row.get("clean_text"), "clean_text")) for row in rows
     }
     for row in rows:
         section_path = _require_section_path(row)
@@ -432,9 +561,7 @@ def _looks_like_listing_context_pollution_leaf(text: str) -> bool:
     normalized = _normalize_text(text)
     if len(normalized) <= _LISTING_CONTEXT_POLLUTION_MIN_CHARS:
         return False
-    if any(punctuation in normalized for punctuation in {"。", "！", "？", "；"}):
-        return False
-    return True
+    return not any(punctuation in normalized for punctuation in {"。", "！", "？", "；"})
 
 
 def _looks_like_row_id_mismatch_after_cleaning(text: str, row_ids: tuple[str, ...]) -> bool:
@@ -450,15 +577,32 @@ def _looks_like_article_section_over_aggregation(
     *,
     content_role: str,
 ) -> bool:
-    if content_role == "notice_fact":
+    if content_role in {
+        "notice_fact",
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+        "attachment_reference",
+        "terminal_signature",
+    }:
         return False
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     content_lines = _trim_terminal_boilerplate_lines(lines)
     if len(content_lines) < _ARTICLE_SECTION_OVER_AGGREGATION_MIN_LINES:
         return False
-    if len(row_ids) < len(content_lines):
+    if _looks_like_numbered_notice_instruction_unit(content_lines):
         return False
-    return True
+    return len(row_ids) >= len(content_lines)
+
+
+def _looks_like_numbered_notice_instruction_unit(lines: list[str]) -> bool:
+    numbered_count = sum(
+        1 for line in lines if _NUMBERED_NOTICE_LINE_PATTERN.match(line) is not None
+    )
+    url_only_count = sum(1 for line in lines if _URL_ONLY_LINE_PATTERN.match(line) is not None)
+    if numbered_count < 2:
+        return False
+    return numbered_count + url_only_count >= len(lines) - 1
 
 
 def _trim_terminal_boilerplate_lines(lines: list[str]) -> list[str]:
@@ -488,7 +632,9 @@ def _is_terminal_boilerplate_line(text: str) -> bool:
 
 def _looks_like_source_only_chunk(text: str, metadata: dict[str, object]) -> bool:
     lines = _extract_chunk_content_lines(text=text, metadata=metadata)
-    return bool(lines) and all(_SOURCE_ATTRIBUTION_PATTERN.match(line) is not None for line in lines)
+    return bool(lines) and all(
+        _SOURCE_ATTRIBUTION_PATTERN.match(line) is not None for line in lines
+    )
 
 
 def _looks_like_terminal_boilerplate_chunk(text: str, metadata: dict[str, object]) -> bool:
@@ -527,9 +673,7 @@ def _looks_like_header_context_drift(
         return True
     if not first_line.startswith("标题："):
         return True
-    if effective_section_path and "章节：" not in first_line:
-        return True
-    return False
+    return bool(effective_section_path and "章节：" not in first_line)
 
 
 def _resolve_content_role(row: dict[str, object]) -> str:
@@ -549,7 +693,9 @@ def _extract_chunk_content_lines(*, text: str, metadata: dict[str, object]) -> t
     else:
         while lines and lines[0].startswith(_OFFICIAL_WEB_HEADER_LINE_PREFIXES):
             lines.pop(0)
-    return tuple(line for line in lines if line and not line.startswith(_OFFICIAL_WEB_HEADER_LINE_PREFIXES))
+    return tuple(
+        line for line in lines if line and not line.startswith(_OFFICIAL_WEB_HEADER_LINE_PREFIXES)
+    )
 
 
 def _require_section_path(row: dict[str, object]) -> tuple[str, ...]:

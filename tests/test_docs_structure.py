@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPO_ROOT / "docs"
@@ -25,6 +24,11 @@ DECISION_STATUSES = {"accepted", "deprecated", "proposed", "superseded"}
 PLAN_STATUSES = {"active", "completed", "deferred", "historical", "superseded"}
 ACTIVE_ONLY_STATUSES = {"active"}
 HISTORICAL_REFERENCE_STATUSES = {"active", "historical"}
+PLAN_ARCHIVE_STATUSES = {
+    "completed": {"completed"},
+    "historical": {"historical"},
+    "superseded": {"superseded"},
+}
 
 
 def _read_front_matter(path: Path) -> dict[str, str]:
@@ -68,7 +72,10 @@ class DocsStructureTest(unittest.TestCase):
                     self.assertIn(front_matter.get("status"), ACTIVE_ONLY_STATUSES, path)
                     continue
 
-                self.assertEqual(front_matter.get("doc_type"), expected_doc_type, path)
+                if directory_name == "environment":
+                    self.assertIn(front_matter.get("doc_type"), {"index", "reference"}, path)
+                else:
+                    self.assertEqual(front_matter.get("doc_type"), expected_doc_type, path)
                 if directory_name == "decisions":
                     self.assertIn(front_matter.get("status"), DECISION_STATUSES, path)
                 elif directory_name == "plans":
@@ -82,13 +89,61 @@ class DocsStructureTest(unittest.TestCase):
         docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
         completed_plans = []
 
-        for path in sorted((DOCS_ROOT / "plans").glob("*.md")):
+        for path in sorted((DOCS_ROOT / "plans" / "archive" / "completed").glob("*.md")):
+            if path.name == "README.md":
+                continue
             front_matter = _read_front_matter(path)
             if front_matter.get("status") == "completed":
                 completed_plans.append(path.name)
                 self.assertNotIn(path.name, docs_index)
 
         self.assertNotEqual(completed_plans, [])
+
+    def test_archive_subdirectories_use_expected_statuses(self) -> None:
+        plans_archive = DOCS_ROOT / "plans" / "archive"
+        self.assertTrue(plans_archive.is_dir())
+        for category, expected_statuses in PLAN_ARCHIVE_STATUSES.items():
+            directory = plans_archive / category
+            self.assertTrue(directory.is_dir(), directory)
+            for path in sorted(directory.glob("*.md")):
+                front_matter = _read_front_matter(path)
+                if path.name == "README.md":
+                    self.assertEqual(front_matter.get("doc_type"), "index", path)
+                    self.assertIn(front_matter.get("status"), ACTIVE_ONLY_STATUSES, path)
+                    continue
+                self.assertEqual(front_matter.get("doc_type"), "plan", path)
+                self.assertIn(front_matter.get("status"), expected_statuses, path)
+
+        for root in (DOCS_ROOT / "reference" / "archive", DOCS_ROOT / "runbooks" / "archive"):
+            self.assertTrue(root.is_dir(), root)
+            for path in sorted(root.rglob("*.md")):
+                front_matter = _read_front_matter(path)
+                if path.name == "README.md":
+                    self.assertEqual(front_matter.get("doc_type"), "index", path)
+                    self.assertIn(front_matter.get("status"), ACTIVE_ONLY_STATUSES, path)
+                    continue
+                expected_doc_type = "reference" if "reference" in path.parts else "runbook"
+                self.assertEqual(front_matter.get("doc_type"), expected_doc_type, path)
+                self.assertIn(front_matter.get("status"), {"historical"}, path)
+
+    def test_root_plans_namespace_keeps_only_current_forward_entries(self) -> None:
+        for path in sorted((DOCS_ROOT / "plans").glob("*.md")):
+            if path.name == "README.md":
+                continue
+            front_matter = _read_front_matter(path)
+            self.assertIn(front_matter.get("status"), {"active", "deferred"}, path)
+
+    def test_reference_and_runbook_root_namespaces_are_active_only(self) -> None:
+        for directory_name, expected_doc_type in {
+            "reference": "reference",
+            "runbooks": "runbook",
+        }.items():
+            for path in sorted((DOCS_ROOT / directory_name).glob("*.md")):
+                if path.name == "README.md":
+                    continue
+                front_matter = _read_front_matter(path)
+                self.assertEqual(front_matter.get("doc_type"), expected_doc_type, path)
+                self.assertIn(front_matter.get("status"), {"active"}, path)
 
     def test_decisions_include_decision_id(self) -> None:
         for path in sorted((DOCS_ROOT / "decisions").glob("*.md")):
@@ -124,6 +179,28 @@ class DocsStructureTest(unittest.TestCase):
         self.assertIn("environment/README.md", docs_index)
         self.assertIn("domains/README.md", docs_index)
 
+    def test_contracts_index_lists_eval_ingress_contract(self) -> None:
+        contracts_index = (DOCS_ROOT / "contracts" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("app-api-eval-benchmark-http.md", contracts_index)
+
+    def test_reference_index_lists_eval_benchmark_artifact_contract(self) -> None:
+        reference_index = (DOCS_ROOT / "reference" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("eval-benchmark-artifact-contract.md", reference_index)
+
+    def test_testing_reference_matches_current_repo_lint_semantics(self) -> None:
+        verification_reference = (
+            DOCS_ROOT / "reference" / "testing-and-verification-lanes.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("pnpm coverage:lint", verification_reference)
+        self.assertIn("pnpm html:lint", verification_reference)
+        self.assertIn("tracked +", verification_reference)
+        self.assertIn("untracked 文件", verification_reference)
+        self.assertIn("PowerShell 继续保留为 supplemental lane", verification_reference)
+        self.assertIn("不并入默认 `pnpm lint`", verification_reference)
+
     def test_decision_ids_are_unique(self) -> None:
         decision_ids: dict[str, Path] = {}
 
@@ -133,11 +210,13 @@ class DocsStructureTest(unittest.TestCase):
             front_matter = _read_front_matter(path)
             decision_id = front_matter.get("decision_id")
             self.assertIsNotNone(decision_id, path)
-            self.assertNotIn(decision_id, decision_ids, f"{path} duplicates {decision_ids.get(decision_id)}")
+            self.assertNotIn(
+                decision_id, decision_ids, f"{path} duplicates {decision_ids.get(decision_id)}"
+            )
             decision_ids[decision_id] = path
 
     def test_historical_roadmap_does_not_assert_current_runtime_truth(self) -> None:
-        roadmap = (PLANNING_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+        roadmap = (PLANNING_ROOT / "legacy-flat" / "ROADMAP.md").read_text(encoding="utf-8")
 
         self.assertNotIn("Current roadmap truth still centers", roadmap)
         self.assertNotIn("Current serving truth is profile-driven", roadmap)

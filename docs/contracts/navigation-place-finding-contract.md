@@ -2,9 +2,8 @@
 doc_type: contract
 status: active
 created: 2026-04-11
-updated: 2026-04-14
+updated: 2026-04-26
 ---
-
 # Navigation Place Finding Contract
 
 ## 文档边界
@@ -14,7 +13,8 @@ updated: 2026-04-14
 它覆盖：
 
 - `packages/contracts` 里的 shared place-finding types
-- `packages/supervisor-core -> packages/navigation-specialist` 的 capability / target 语义
+- `apps/supervisor-agent-worker -> packages/navigation-agent` 的 capability / target
+  语义
 - `apps/app-api` 对 assistant structured parts 的归一化边界
 - `apps/public-chat-web` 对地点卡片的消费形态
 
@@ -27,21 +27,23 @@ updated: 2026-04-14
 
 ## 当前 rollout 状态
 
-- 当前产品路径暂不支持校内导航；supervisor 已对 `place_lookup` fail-close
-- 本文保留的是 repo-owned contract truth，不代表当前浏览器产品面已经开放
+- Go `apps/supervisor-api` 当前拥有 `place_lookup` admission / framing，并可在
+  direct runtime 中使用 repo-owned `place_catalog` 回答地点查询
+- 本文保留的是 repo-owned contract truth，不代表当前浏览器地图产品面已经开放
+- 地图 UI、route planning 与更完整的 `place_card` product consumption 等到地图产品上线后再开放
 - `place_card` / map consumption 已转入地图实际上线后的 backlog
 
 ## Capability And Routing
 
 - `RequestedCapability` 首发新增 `place_lookup`
-- `SpecialistTarget` 首发新增 `navigation-specialist`
-- `supervisor-core` 把用户地点问句 framing 成 `PlaceLookupPayload(query_text=...)`
-- 当前 `place_lookup` request 不接受 `availability_target_id`
+- `AgentTarget` 首发新增 `navigation-agent`
+- Go `apps/supervisor-api` 把用户地点问句 framing 成
+  `PlaceLookupPayload(query_text=...)`
 - 当前 `place_lookup` request 不接受 `requested_scope`
 
 原因：
 
-- 第一期开的是 repo-owned `place_catalog` internal spatial truth
+- 第一阶段只保留 repo-owned `place_catalog` internal spatial truth
 - 它不是默认公开 query-serving surface
 - `app-api` 不应伪造 collection scope 再把导航退回成 retrieval query
 
@@ -110,7 +112,7 @@ updated: 2026-04-14
 
 用途：
 
-- `navigation-specialist` 的首发 place-finding 输入
+- `navigation-agent` 的首发 place-finding 输入
 
 ### `PlaceLookupResult`
 
@@ -129,7 +131,7 @@ updated: 2026-04-14
 
 ## Terminal Semantics
 
-当前 `navigation-specialist` 继续遵循 repo 已冻结的 supervisor terminal semantics：
+当前 `navigation-agent` 继续遵循 repo 已冻结的 supervisor terminal semantics：
 
 - `completed`
 - `needs_clarification`
@@ -150,7 +152,8 @@ updated: 2026-04-14
 当前说明：
 
 - 这份 normalization shape 继续保留为 future navigation rollout contract
-- 但在当前产品路径里，supervisor 不会把 `place_lookup` 委派到 `navigation-specialist`
+- 当前 Go direct runtime 可以完成地点目录查询，但尚未打开 browser map /
+  `place_card` consumption
 - 因此 `place_card` 当前不是浏览器已开放能力
 
 当前 assistant structured part 固定为：
@@ -224,9 +227,9 @@ updated: 2026-04-14
 
 ## Related Docs
 
-- `docs/architecture/navigation-and-wayfinding-architecture.md`
+- `docs/architecture/domains/navigation/architecture.md`
 - `docs/domains/navigation.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/data/campus-navigation-place-catalog.md`

@@ -1,11 +1,101 @@
 [
-  {
-    "type": "5",
-    "name": "办公通知",
-    "enabled": true,
-    "incrementalPages": 3,
-    "incrementalPageSize": 20,
-    "backfillPages": 108,
-    "backfillPageSize": 20
-  }
+	{
+		"type": "5",
+		"name": "办公通知",
+		"enabled": true,
+		"incrementalPages": 3,
+		"incrementalPageSize": 20,
+		"backfillPages": 108,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "6",
+		"name": "教学通知",
+		"enabled": true,
+		"incrementalPages": 2,
+		"incrementalPageSize": 20,
+		"backfillPages": 90,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "8",
+		"name": "科研通知",
+		"enabled": true,
+		"incrementalPages": 2,
+		"incrementalPageSize": 20,
+		"backfillPages": 90,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "10",
+		"name": "就业信息",
+		"enabled": false,
+		"incrementalPages": 1,
+		"incrementalPageSize": 20,
+		"backfillPages": 30,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "11",
+		"name": "公示公告",
+		"enabled": true,
+		"incrementalPages": 2,
+		"incrementalPageSize": 20,
+		"backfillPages": 90,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "32",
+		"name": "学工通知",
+		"enabled": true,
+		"incrementalPages": 2,
+		"incrementalPageSize": 20,
+		"backfillPages": 90,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "36",
+		"name": "活动报道",
+		"enabled": false,
+		"incrementalPages": 1,
+		"incrementalPageSize": 20,
+		"backfillPages": 30,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "9978",
+		"name": "会议纪要",
+		"enabled": false,
+		"incrementalPages": 1,
+		"incrementalPageSize": 20,
+		"backfillPages": 30,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "9979",
+		"name": "民大要情",
+		"enabled": false,
+		"incrementalPages": 1,
+		"incrementalPageSize": 20,
+		"backfillPages": 30,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "9980",
+		"name": "学术信息",
+		"enabled": true,
+		"incrementalPages": 2,
+		"incrementalPageSize": 20,
+		"backfillPages": 60,
+		"backfillPageSize": 20
+	},
+	{
+		"type": "9982",
+		"name": "常用下载",
+		"enabled": true,
+		"incrementalPages": 2,
+		"incrementalPageSize": 20,
+		"backfillPages": 60,
+		"backfillPageSize": 20
+	}
 ]

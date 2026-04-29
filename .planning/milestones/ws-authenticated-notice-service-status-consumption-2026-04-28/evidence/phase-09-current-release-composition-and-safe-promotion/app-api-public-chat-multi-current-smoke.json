@@ -1,0 +1,110 @@
+{
+  "assertions": {
+    "allCasesPass": true
+  },
+  "results": [
+    {
+      "assertions": {
+        "appApiCompleted": true,
+        "containsExpectedSnippet": true,
+        "hidesInternalPortalName": true,
+        "hidesOpenEndedSentinelYear": true,
+        "hidesRawNoticeLocator": true,
+        "hidesReleaseId": true,
+        "sourceTraceContainsNotice": true,
+        "supervisorCompleted": true,
+        "supervisorResolvedCurrent": true
+      },
+      "name": "bathroom",
+      "prompt": "静园10号楼女浴室现在开放吗",
+      "supervisorSummary": {
+        "observedStatus": "limited_service",
+        "relatedNoticeRefs": [
+          "notice:muc_internal_portal:355650"
+        ],
+        "resolvedSubject": "静园10号楼负一层女浴室",
+        "selectedTarget": "campus-services-agent",
+        "selectedTool": "service_status_lookup",
+        "status": "completed",
+        "toolBusinessOutcome": "resolved_current"
+      },
+      "visiblePayload": {
+        "answerResult": {
+          "kind": "answer",
+          "requestId": "req_0001",
+          "text": "静园10号楼负一层女浴室：当前状态：有限开放。 有效时间：4月16日 00:00 起。 提示：静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行。（来源：校内通知）",
+          "traceId": "trace_0001"
+        },
+        "assistantMessage": {
+          "kind": "answer",
+          "structuredParts": [
+            {
+              "type": "campus_service_trace_cards",
+              "traceCards": [
+                {
+                  "title": "相关通知",
+                  "refs": [
+                    "校内通知 #355650"
+                  ]
+                }
+              ]
+            }
+          ],
+          "text": "静园10号楼负一层女浴室：当前状态：有限开放。 有效时间：4月16日 00:00 起。 提示：静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行。（来源：校内通知）"
+        }
+      }
+    },
+    {
+      "assertions": {
+        "appApiCompleted": true,
+        "containsExpectedSnippet": true,
+        "hidesInternalPortalName": true,
+        "hidesOpenEndedSentinelYear": true,
+        "hidesRawNoticeLocator": true,
+        "hidesReleaseId": true,
+        "sourceTraceContainsNotice": true,
+        "supervisorCompleted": true,
+        "supervisorResolvedCurrent": true
+      },
+      "name": "hospital_dermatology",
+      "prompt": "丰台校区校医院皮肤科门诊现在开放吗",
+      "supervisorSummary": {
+        "observedStatus": "limited_service",
+        "relatedNoticeRefs": [
+          "notice:muc_internal_portal:354845"
+        ],
+        "resolvedSubject": "校医院",
+        "selectedTarget": "campus-services-agent",
+        "selectedTool": "service_status_lookup",
+        "status": "completed",
+        "toolBusinessOutcome": "resolved_current"
+      },
+      "visiblePayload": {
+        "answerResult": {
+          "kind": "answer",
+          "requestId": "req_0001",
+          "text": "校医院：当前状态：有限开放。 有效时间：3月6日 00:00 起。 提示：为进一步满足丰台校区师生皮肤病诊疗、皮肤健康护理等就医需求，提升校园医疗服务能力，经研究决定，丰台校区校医院自2026年3月6日起正式增开皮肤科门诊，现将有关事宜通知如下： 一、服务对象：丰台校区在校学生、教职工。（来源：校内通知）",
+          "traceId": "trace_0001"
+        },
+        "assistantMessage": {
+          "kind": "answer",
+          "structuredParts": [
+            {
+              "type": "campus_service_trace_cards",
+              "traceCards": [
+                {
+                  "title": "相关通知",
+                  "refs": [
+                    "校内通知 #354845"
+                  ]
+                }
+              ]
+            }
+          ],
+          "text": "校医院：当前状态：有限开放。 有效时间：3月6日 00:00 起。 提示：为进一步满足丰台校区师生皮肤病诊疗、皮肤健康护理等就医需求，提升校园医疗服务能力，经研究决定，丰台校区校医院自2026年3月6日起正式增开皮肤科门诊，现将有关事宜通知如下： 一、服务对象：丰台校区在校学生、教职工。（来源：校内通知）"
+        }
+      }
+    }
+  ],
+  "schema_version": "campus_app_api_public_chat_service_status_multi_current_smoke.v1"
+}

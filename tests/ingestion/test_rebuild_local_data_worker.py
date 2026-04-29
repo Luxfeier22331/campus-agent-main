@@ -18,7 +18,9 @@ class RebuildLocalDataWorkerCliTest(unittest.TestCase):
             patch("campus_ingestion_worker.rebuild_local_data.rebuild_local_data") as rebuild,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            rebuild.return_value = LocalDataRebuildReport(import_context={"k": "v"}, import_result={"status": "ok"})
+            rebuild.return_value = LocalDataRebuildReport(
+                import_context={"k": "v"}, import_result={"status": "ok"}
+            )
             rebuild_worker.main(
                 [
                     "--mode",
@@ -26,7 +28,7 @@ class RebuildLocalDataWorkerCliTest(unittest.TestCase):
                     "--corpus",
                     "regulations",
                     "--collection",
-                    "student_handbook",
+                    "student_rules",
                     "--raw-version-id",
                     "sha256:test-001",
                     "--index-qdrant",
@@ -36,7 +38,7 @@ class RebuildLocalDataWorkerCliTest(unittest.TestCase):
         request = rebuild.call_args.kwargs["request"]
         self.assertEqual(request.import_mode, "provider_response_replay")
         self.assertEqual(request.corpus, "regulations")
-        self.assertEqual(request.collection, "student_handbook")
+        self.assertEqual(request.collection, "student_rules")
         self.assertEqual(request.raw_version_id, "sha256:test-001")
         self.assertTrue(request.index_qdrant)
         payload = json.loads(stdout.getvalue())

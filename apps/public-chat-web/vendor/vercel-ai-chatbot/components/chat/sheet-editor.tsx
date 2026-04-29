@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { parse, unparse } from "papaparse";
 import { memo, useEffect, useMemo, useState } from "react";
 import DataGrid, { textEditor } from "react-data-grid";
@@ -20,8 +19,6 @@ const MIN_ROWS = 50;
 const MIN_COLS = 26;
 
 const PureSpreadsheetEditor = ({ content, saveContent }: SheetEditorProps) => {
-  const { resolvedTheme } = useTheme();
-
   const parseData = useMemo(() => {
     if (!content) {
       return new Array(MIN_ROWS).fill(new Array(MIN_COLS).fill(""));
@@ -109,7 +106,7 @@ const PureSpreadsheetEditor = ({ content, saveContent }: SheetEditorProps) => {
 
   return (
     <DataGrid
-      className={resolvedTheme === "dark" ? "rdg-dark" : "rdg-light"}
+      className="rdg-light"
       columns={columns}
       defaultColumnOptions={{
         resizable: true,

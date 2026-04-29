@@ -1,0 +1,22 @@
+services:
+  legacy-office-conversion:
+    build:
+      context: ../..
+      dockerfile: apps/legacy-office-conversion-service/Dockerfile
+      target: runtime
+    ports:
+      - "127.0.0.1:8091:8091"
+    environment:
+      LIBREOFFICE_SERVICE_BIND: "0.0.0.0:8091"
+      LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET: "${LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET:-change-me}"
+      LIBREOFFICE_SERVICE_TASK_TIMEOUT_MS: "${LIBREOFFICE_SERVICE_TASK_TIMEOUT_MS:-120000}"
+      LIBREOFFICE_SERVICE_QUEUE_TIMEOUT_MS: "${LIBREOFFICE_SERVICE_QUEUE_TIMEOUT_MS:-150000}"
+      LIBREOFFICE_SERVICE_MAX_TASKS_PER_PROCESS: "${LIBREOFFICE_SERVICE_MAX_TASKS_PER_PROCESS:-200}"
+      LIBREOFFICE_SERVICE_WORKDIR: "${LIBREOFFICE_SERVICE_WORKDIR:-/tmp/legacy-office-conversion}"
+      LIBREOFFICE_HOME: "${LIBREOFFICE_HOME:-}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8091/readyz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

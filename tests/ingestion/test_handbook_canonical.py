@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import unicodedata
+import unittest
 from itertools import count
 from pathlib import Path
-import unittest
-import unicodedata
 
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document
 from campus_ingestion_core.handbook_provider_normalize import normalize_handbook_provider_result
@@ -14,7 +14,9 @@ FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbo
 SOURCE_ROW_SEQUENCE = count(1)
 
 
-def _manifest_document(title: str, *, page_start: int = 20, page_end: int = 21) -> SplitManifestDocument:
+def _manifest_document(
+    title: str, *, page_start: int = 20, page_end: int = 21
+) -> SplitManifestDocument:
     return SplitManifestDocument(
         document_id="manifest:placeholder",
         title=title,
@@ -25,12 +27,14 @@ def _manifest_document(title: str, *, page_start: int = 20, page_end: int = 21) 
     )
 
 
-def _source_row(page: int, row_type: str, text: str, *, block_role: str | None = None) -> dict[str, object]:
+def _source_row(
+    page: int, row_type: str, text: str, *, block_role: str | None = None
+) -> dict[str, object]:
     sequence = next(SOURCE_ROW_SEQUENCE)
     return {
         "schema_version": "student_handbook_layout_elements_v3",
         "corpus": "regulations",
-        "collection": "student_handbook",
+        "collection": "student_rules",
         "source_artifact_id": "asset:student-handbook",
         "source_pdf": "学生手册_2018.pdf",
         "page_start": page,
@@ -80,7 +84,9 @@ def _normalize_title(value: str) -> str:
 
 
 def _normalize_body(value: str) -> str:
-    normalized = unicodedata.normalize("NFKC", value.replace("\r\n", "\n").replace("\r", "\n")).strip()
+    normalized = unicodedata.normalize(
+        "NFKC", value.replace("\r\n", "\n").replace("\r", "\n")
+    ).strip()
     lines = [" ".join(line.split()).strip() for line in normalized.split("\n")]
     return "\n".join(line for line in lines if line)
 
@@ -114,7 +120,9 @@ class HandbookCanonicalTest(unittest.TestCase):
         title = "中央民族大学优秀本科毕业生评选办法"
         result = cleanup_handbook_document(
             structured_rows=[
-                _source_row(20, "heading", "  中央民族大学优秀本科毕业生评选办法  ", block_role="title"),
+                _source_row(
+                    20, "heading", "  中央民族大学优秀本科毕业生评选办法  ", block_role="title"
+                ),
                 _source_row(20, "paragraph", "第一条   为做好评选工作"),
                 _source_row(21, "paragraph", "第二条  评选过程坚持公开公平公正"),
             ],
@@ -122,21 +130,21 @@ class HandbookCanonicalTest(unittest.TestCase):
             source_doc="学生手册_2018.pdf",
         )
 
-        canonical_body = (
-            "### 第一条\n"
-            "为做好评选工作\n\n"
-            "### 第二条\n"
-            "评选过程坚持公开公平公正"
+        canonical_body = "### 第一条\n为做好评选工作\n\n### 第二条\n评选过程坚持公开公平公正"
+        expected = (
+            "v1:"
+            + hashlib.sha1(
+                f"{_normalize_title(title)}\n\n{_normalize_body(canonical_body)}".encode()
+            ).hexdigest()
         )
-        expected = "v1:" + hashlib.sha1(
-            f"{_normalize_title(title)}\n\n{_normalize_body(canonical_body)}".encode("utf-8")
-        ).hexdigest()
         self.assertEqual(result.version_id, expected)
 
     def test_cleanup_metadata_only_keeps_stable_handbook_fields(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
-                _source_row(20, "heading", "中央民族大学优秀本科毕业生评选办法", block_role="title"),
+                _source_row(
+                    20, "heading", "中央民族大学优秀本科毕业生评选办法", block_role="title"
+                ),
                 _source_row(20, "paragraph", "民大校发〔2018〕329号"),
                 _source_row(20, "paragraph", "第一条 为做好评选工作"),
             ],
@@ -156,7 +164,24 @@ class HandbookCanonicalTest(unittest.TestCase):
             },
         )
         self.assertIn("corpus: regulations", result.canonical_markdown)
-        self.assertIn("collection: student_handbook", result.canonical_markdown)
+        self.assertIn("collection: student_rules", result.canonical_markdown)
+
+    def test_cleanup_publishes_readable_chinese_punctuation_in_canonical_markdown(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(20, "heading", "中央民族大学测试办法", block_role="title"),
+                _source_row(20, "paragraph", "(一)学院(系)负责审核,并提交材料。"),
+                _source_row(
+                    20, "paragraph", "备注:网址 https://example.edu/a?b=1, doc_id:handbook:test"
+                ),
+            ],
+            manifest_document=_manifest_document("中央民族大学测试办法"),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertIn("（一）学院（系）负责审核，并提交材料。", result.canonical_markdown)
+        self.assertIn("备注：网址 https://example.edu/a?b=1", result.canonical_markdown)
+        self.assertIn("doc_id:handbook:test", result.canonical_markdown)
 
     def test_cleanup_normalizes_square_bracket_policy_doc_no(self) -> None:
         result = cleanup_handbook_document(
@@ -172,7 +197,9 @@ class HandbookCanonicalTest(unittest.TestCase):
         self.assertEqual(result.metadata["policy_doc_no"], "民大校发[2017]304号")
         self.assertIn("policy_doc_no: '民大校发[2017]304号'", result.canonical_markdown)
 
-    def test_cleanup_keeps_policy_doc_no_and_front_matter_text_in_canonical_body_order(self) -> None:
+    def test_cleanup_keeps_policy_doc_no_and_front_matter_text_in_canonical_body_order(
+        self,
+    ) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
                 _source_row(20, "heading", "中央民族大学本科学生学籍管理办法", block_role="title"),
@@ -195,12 +222,16 @@ class HandbookCanonicalTest(unittest.TestCase):
     def test_fixture_update_keeps_title_hash_identity(self) -> None:
         stable = cleanup_handbook_document(
             structured_rows=_load_fixture_rows("provider-result-stable.jsonl"),
-            manifest_document=_manifest_document("中央民族大学奖学金评定办法", page_start=1, page_end=1),
+            manifest_document=_manifest_document(
+                "中央民族大学奖学金评定办法", page_start=1, page_end=1
+            ),
             source_doc="学生手册_2018.pdf",
         )
         updated = cleanup_handbook_document(
             structured_rows=_load_fixture_rows("provider-result-updated.jsonl"),
-            manifest_document=_manifest_document("中央民族大学奖学金评定办法", page_start=1, page_end=1),
+            manifest_document=_manifest_document(
+                "中央民族大学奖学金评定办法", page_start=1, page_end=1
+            ),
             source_doc="学生手册_2018.pdf",
         )
 

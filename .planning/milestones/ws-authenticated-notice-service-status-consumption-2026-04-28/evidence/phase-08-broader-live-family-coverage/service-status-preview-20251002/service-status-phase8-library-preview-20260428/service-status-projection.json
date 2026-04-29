@@ -1,0 +1,30 @@
+{
+  "schema_version": "campus_services_projection_bundle.v1",
+  "service_status_records": [
+    {
+      "subject_id": "library:fengtai",
+      "display_name": "丰台校区图书馆",
+      "service_family": "library",
+      "aliases": [
+        "图书馆",
+        "丰台校区图书馆",
+        "关于图书馆2025年国庆节、中秋节放假及工作安排的通知"
+      ],
+      "campus_scope": "fengtai",
+      "observed_status": "limited_service",
+      "effective_from": "2025-10-01T00:00:00+08:00",
+      "effective_until": "2025-10-09T00:00:00+08:00",
+      "affected_scope": "图书馆",
+      "severity": "medium",
+      "override_source_refs": [
+        "notice:muc_internal_portal:352345"
+      ],
+      "related_notice_refs": [
+        "notice:muc_internal_portal:352345"
+      ],
+      "status_note": "放假期间，海淀校区图书馆所有自习空间正常开放，各借阅室关闭",
+      "extraction_status": "ready"
+    }
+  ],
+  "service_status_rejected_sources": []
+}

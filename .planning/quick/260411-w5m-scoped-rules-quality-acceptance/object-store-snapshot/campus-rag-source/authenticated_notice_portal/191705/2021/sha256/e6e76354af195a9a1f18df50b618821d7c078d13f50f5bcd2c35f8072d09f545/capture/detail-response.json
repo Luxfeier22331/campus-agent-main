@@ -1,0 +1,45 @@
+{
+  "notice": {
+    "notice_id": 191705,
+    "notice_title": "重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+    "organization_name": "校医院（疾病防控办公室）",
+    "organization_id": "00059",
+    "notice_release_time": "2021-09-10 16:32",
+    "notice_create_time": "2021-09-10 15:32",
+    "notice_first_time": "2021-09-10 15:32",
+    "notice_content": "<p style=\"text-align:center\"><strong><span style=\"font-size:24px;font-family:宋体\">中央民族大学丰台校区就医管理办法（暂行）</span></strong></p><p style=\"text-align:center\"><span style=\"font-size:21px;font-family:宋体\">&nbsp;</span></p><p style=\"text-indent:43px\"><span style=\"font-size:21px;font-family:宋体\">为全力做好丰台校区医疗服务保障，切实解决师生就医问题，经学校研究决定：</span></p><p><span style=\"font-size:21px;font-family:宋体\">1</span><span style=\"font-size:21px;font-family:宋体\">、增加中国航天科工集团七三一医院为丰台校区合同医院。</span></p><p><span style=\"font-size:21px;font-family:宋体\">2</span><span style=\"font-size:21px;font-family:宋体\">、为保证就医需求，目前在丰台校区内暂设立临时医疗点。</span></p><p><span style=\"font-size:21px;font-family:宋体\">3</span><span style=\"font-size:21px;font-family:宋体\">、在丰台校区校医院正式运营前，增设丰台区王佐镇社区卫生服务中心为临时就医点，校医院正式运营后取消。</span></p><p><span style=\"font-size:21px;font-family:宋体\">4</span><span style=\"font-size:21px;font-family:宋体\">、丰台校区学生，门诊首诊须在丰台校区医务室，经医师转诊后到指定上级医院就诊。急诊可以就近选择相关医院（限医保定点医院），只限当日当次量（急诊不需要转诊）。</span></p><p><span style=\"font-size:21px;font-family:宋体\">5</span><span style=\"font-size:21px;font-family:宋体\">、长期固定在丰台校区居住和工作的职工，可直接前往上述二家医院就诊。急诊可以就近选择相关医院（限医保定点医院），只限当日当次量。</span></p><p><span style=\"font-size:21px;font-family:宋体\">6</span><span style=\"font-size:21px;font-family:宋体\">、全校师生均可在两校区校医院就诊、取药，因为是联网管理，不能重复开药。</span></p><p><span style=\"font-size:21px;font-family:宋体\">7</span><span style=\"font-size:21px;font-family:宋体\">、择期住院须先到丰台校区临时医疗点转诊至相关医院；急诊住院可就近选择相关医院（限医保定点医院）。</span></p><p><span style=\"font-size:21px;font-family:宋体\">&nbsp;</span></p><p><span style=\"font-size:21px;font-family:宋体\">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </span><span style=\"font-size:21px;font-family:宋体\">中央民族大学医院</span></p><p><span style=\"font-size:21px;font-family:宋体\">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 2021</span><span style=\"font-size:21px;font-family:宋体\">年9月10日</span></p><p><br/></p>",
+    "notice_link": null,
+    "notice_source": 0,
+    "notice_link_state": 0,
+    "notice_state": 1,
+    "notice_stick": 0,
+    "notice_receive_name": "【中央民族大学】、【在职事业编】、【博士后】、【离退休人员】、【返聘人员】",
+    "notice_receive": "[{'r_id':68850,'id':'1','checked':false,'name':'中央民族大学','type':1,'state':1},{'r_id':1257,'id':'事业编','checked':false,'name':'在职事业编','type':4},{'r_id':61545,'id':'博士后','checked':false,'name':'博士后','type':4},{'r_id':25209,'id':'离退休人员','checked':false,'name':'离退休人员','type':4},{'r_id':92873,'id':'返聘人员','checked':false,'name':'返聘人员','type':4}]",
+    "cat_state": 0,
+    "cat_state1": 0,
+    "first_seen_at": "2026-04-02T23:52:02.321Z",
+    "last_seen_at": "2026-04-02T23:52:02.321Z",
+    "last_run_id": 14,
+    "enrich_status": "no_links",
+    "enrich_attempted_at": "2026-04-02T23:52:02.321Z",
+    "enrich_link_count": 0,
+    "enrich_error_message": null,
+    "enrich_failure_kind": null,
+    "enrich_retry_after": null,
+    "enrich_failure_count": 0,
+    "updated_at": "2026-04-02T23:52:02.321Z",
+    "categories": [
+      {
+        "notice_id": 191705,
+        "notice_type": "5",
+        "notice_type_name": "办公通知",
+        "category_first_seen_at": "2026-04-02T23:52:02.321Z",
+        "category_last_seen_at": "2026-04-02T23:52:02.321Z",
+        "category_last_run_id": 14
+      }
+    ]
+  },
+  "links": [],
+  "notice_attachments": [],
+  "attachments": []
+}

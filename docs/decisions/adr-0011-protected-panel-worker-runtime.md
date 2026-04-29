@@ -5,10 +5,10 @@ status: accepted
 created: 2026-03-27
 updated: 2026-03-28
 ---
-
 # ADR-0011 Protected Panel Worker Runtime 决策
 
-适用范围：`apps/protected-panel-web` 的正式 runtime 宿主、UI shell 方向与长期 operator control plane 形态
+适用范围：`apps/protected-panel-web` 的正式 runtime 宿主、UI shell 方向与长期 operator control
+plane 形态
 
 ## 背景
 
@@ -18,7 +18,8 @@ protected panel 已经被长期文档冻结为：
 - non-public by default / fail-closed
 - controlled operator access，而不是终端用户账户产品
 - `runtime APIs only`
-- forward product topology 已收口为 `protected-panel-web -> app-api -> operator query`
+- forward product topology 已收口为 `protected-panel-web -> app-api -> operator
+  query`
 
 在上述边界已经冻结后，panel 仍需正式收口两个长期问题：
 
@@ -48,7 +49,7 @@ protected panel 已经被长期文档冻结为：
 
 原因：
 
-- `apps/supervisor-api`、ingestion、specialist 与其他 app boundary 仍有各自 runtime shape
+- `apps/supervisor-api`、ingestion、agent 与其他 app boundary 仍有各自 runtime shape
 - panel runtime freeze 不应反向扩大成仓库级单一 runtime 承诺
 
 ## 决策 3：UI shell 优先采用开源 admin framework 改造
@@ -114,7 +115,8 @@ panel 长期功能域固定为：
 原因：
 
 - panel 的长期能力图谱不等于第一波交付范围
-- 当前更重要的是先证明 protected Worker shell、operator admission、panel BFF 与最小 read-only visibility
+- 当前更重要的是先证明 protected Worker shell、operator admission、panel BFF 与最小 read-only
+  visibility
 
 ## 明确不做
 
@@ -131,7 +133,8 @@ panel 长期功能域固定为：
 直接结果：
 
 - `apps/protected-panel-web` 后续实现应以 Worker shell 为目标
-- panel 文档、README 与 implementation handoff 应围绕 Worker origin、Access assertion validation 和 panel BFF 收口
+- panel 文档、README 与 implementation handoff 应围绕 Worker origin、Access assertion
+  validation 和 panel BFF 收口
 - panel 功能规划应优先围绕五个能力域展开，而不是扩张成通用业务后台
 
 明确不做：
@@ -144,7 +147,8 @@ panel 长期功能域固定为：
 结论：
 
 - Worker origin 的 panel BFF 推荐采用 `Hono`
-- `Hono` 是 Worker 路由、中间件、assertion validation 与 panel-facing API aggregation 的首选方向
+- `Hono` 是 Worker 路由、中间件、assertion validation 与 panel-facing API aggregation
+  的首选方向
 
 原因：
 
@@ -154,7 +158,7 @@ panel 长期功能域固定为：
 
 ## 相关文档
 
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`

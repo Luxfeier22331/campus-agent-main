@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
 import re
-from typing import Protocol
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
-from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.artifacts import CANONICAL_MARKDOWN_FILENAME, DOCUMENT_UNITS_FILENAME
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
-    build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
@@ -23,18 +19,39 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.internal_notice_regulation_promotion import (
-    InternalNoticeRegulationCandidateArtifactDocument,
-    InternalNoticeRegulationPromotionDocumentReport,
-    InternalNoticeRegulationPromotionRequest,
-    build_internal_notice_regulation_candidate_artifact_manifest,
-    build_internal_notice_regulation_promotion_manifest,
+from campus_ingestion_core.internal_notice_consumption_projection import (
+    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    NoticeConsumptionProjectionStore,
+    build_notice_consumption_projection_store_from_env,
+    list_existing_internal_notice_consumption_projection_entries,
+)
+from campus_ingestion_core.internal_notice_regulation_materialization_candidates import (
+    CandidateAggregation as _CandidateAggregation,
+)
+from campus_ingestion_core.internal_notice_regulation_materialization_candidates import (
+    InstitutionalRegulationMaterializationObjectStore,
+)
+from campus_ingestion_core.internal_notice_regulation_materialization_candidates import (
+    build_projection_ready_aggregations as _build_projection_ready_aggregations,
 )
 from campus_ingestion_core.internal_notice_regulation_projection import (
     InternalNoticeRegulationProjectionContext,
-    build_institutional_regulation_document_id as _build_institutional_regulation_document_id,
-    build_institutional_regulation_version_id as _build_institutional_regulation_version_id,
     build_internal_notice_regulation_projected_document,
+)
+from campus_ingestion_core.internal_notice_regulation_projection import (
+    build_institutional_regulation_document_id as _build_institutional_regulation_document_id,
+)
+from campus_ingestion_core.internal_notice_regulation_projection import (
+    build_institutional_regulation_version_id as _build_institutional_regulation_version_id,
+)
+from campus_ingestion_core.internal_notice_regulation_promotion import (
+    InternalNoticeRegulationCandidateArtifactDocument,
+    InternalNoticeRegulationPromotionRequest,
+)
+from campus_ingestion_core.internal_notice_target_materialization_refresh import (
+    replace_selected_target_scope_preserving_unselected,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import build_raw_asset_key
@@ -46,26 +63,12 @@ from campus_ingestion_core.registry import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
-
-_TARGET_SCOPE = ("regulations", "institutional_regulations")
+_TARGET_SCOPE = ("regulations", "institutional_rules")
 _TARGET_SOURCE_FILENAME = "internal-notice-regulation-promotion-manifest.json"
 _TARGET_IMPORT_SOURCE = "internal_notice_regulation_materialization"
 _TARGET_PARSER_VERSION = "internal_notice_regulation_materialization_v1"
 _SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice"
 _DATE_YEAR_RE = re.compile(r"(19|20)\d{2}")
-
-
-class InstitutionalRegulationMaterializationObjectStore(Protocol):
-    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
-
-    def put_bytes(
-        self,
-        *,
-        bucket: str,
-        key: str,
-        data: bytes,
-        content_type: str,
-    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,14 +83,6 @@ class InstitutionalRegulationMaterializationReport:
     raw_version_id: str
 
 
-@dataclass(frozen=True, slots=True)
-class _CandidateAggregation:
-    primary_report: InternalNoticeRegulationPromotionDocumentReport
-    primary_candidate: InternalNoticeRegulationCandidateArtifactDocument
-    source_record: DocumentRegistryRecord
-    duplicate_reports: tuple[InternalNoticeRegulationPromotionDocumentReport, ...]
-
-
 def materialize_institutional_regulations_from_internal_notice_scope(
     *,
     request: InternalNoticeRegulationPromotionRequest | None = None,
@@ -96,37 +91,56 @@ def materialize_institutional_regulations_from_internal_notice_scope(
     registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
+    consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
 ) -> InstitutionalRegulationMaterializationReport:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
     runtime_object_store = object_store or S3ObjectStoreWriter(ObjectStoreSettings.from_env(source))
     runtime_registry = registry or build_document_registry_from_env(source)
     runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
-    runtime_inventory = (
-        source_truth_inventory_store
-        or build_authenticated_notice_source_truth_inventory_store_from_env(source)
-    )
+    if consumption_projection_store is not None:
+        runtime_consumption_projection_store = consumption_projection_store
+    else:
+        runtime_consumption_projection_store = build_notice_consumption_projection_store_from_env(
+            source
+        )
     object_store_settings = ObjectStoreSettings.from_env(source)
-
-    promotion_report = build_internal_notice_regulation_promotion_manifest(
+    selected_request = bool(runtime_request.notice_ids or runtime_request.document_ids)
+    projection_entries = list_existing_internal_notice_consumption_projection_entries(
+        runtime_consumption_projection_store,
         request=runtime_request,
-        env=source,
-        registry=runtime_registry,
-        source_truth_inventory_store=runtime_inventory,
-        object_store=runtime_object_store,
     )
-    _candidate_manifest, candidate_documents = build_internal_notice_regulation_candidate_artifact_manifest(
-        request=runtime_request,
-        env=source,
-        registry=runtime_registry,
-        source_truth_inventory_store=runtime_inventory,
-        object_store=runtime_object_store,
+    ready_projection_entries = tuple(
+        entry
+        for entry in projection_entries
+        if entry.target_surface == NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES
+        and entry.primary_role == NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY
+        and entry.consumption_status == NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
+        and (entry.source_document_id or entry.source_notice_document_id)
     )
-
-    if not candidate_documents:
-        runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
+    source_record_by_lineage = _index_latest_scope_records(
+        runtime_registry.list_by_scope(runtime_request.corpus, runtime_request.collection)
+    )
+    aggregations = _build_projection_ready_aggregations(
+        projection_entries=ready_projection_entries,
+        source_record_by_lineage=source_record_by_lineage,
+        object_store=runtime_object_store,
+        bucket_derived=object_store_settings.bucket_derived,
+    )
+    if not aggregations:
+        if selected_request:
+            replace_selected_target_scope_preserving_unselected(
+                registry=runtime_registry,
+                object_store=runtime_object_store,
+                bucket_derived=object_store_settings.bucket_derived,
+                target_scope=_TARGET_SCOPE,
+                selected_notice_ids=runtime_request.notice_ids,
+                selected_document_ids=runtime_request.document_ids,
+            )
+        else:
+            runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
         return InstitutionalRegulationMaterializationReport(
-            promotion_candidate_count=promotion_report.candidate_count,
+            promotion_candidate_count=0,
             materialized_document_count=0,
             created_document_ids=(),
             updated_document_ids=(),
@@ -136,40 +150,6 @@ def materialize_institutional_regulations_from_internal_notice_scope(
             raw_version_id="",
         )
 
-    source_record_by_lineage = _index_latest_scope_records(
-        runtime_registry.list_by_scope(runtime_request.corpus, runtime_request.collection)
-    )
-    report_by_document_id = {
-        report.document_id: report
-        for report in promotion_report.documents
-    }
-    duplicate_reports_by_primary = _group_duplicate_reports(promotion_report.documents)
-    aggregations: list[_CandidateAggregation] = []
-    for candidate_document in candidate_documents:
-        primary_report = report_by_document_id.get(candidate_document.source_document_id)
-        if primary_report is None:
-            raise ValueError(
-                f"candidate source report missing: {candidate_document.source_document_id}"
-            )
-        source_record = source_record_by_lineage.get(
-            (candidate_document.source_document_id, candidate_document.revision_track)
-        )
-        if source_record is None:
-            raise ValueError(
-                f"candidate source registry record missing: {candidate_document.source_document_id}"
-            )
-        aggregations.append(
-            _CandidateAggregation(
-                primary_report=primary_report,
-                primary_candidate=candidate_document,
-                source_record=source_record,
-                duplicate_reports=duplicate_reports_by_primary.get(
-                    candidate_document.source_document_id,
-                    (),
-                ),
-            )
-        )
-
     raw_asset_record = _build_materialization_raw_asset_record(aggregations=aggregations)
     runtime_raw_asset_registry.upsert(raw_asset_record)
     documents = build_institutional_regulation_scope_refresh_documents(
@@ -177,6 +157,9 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         aggregations=aggregations,
         object_store=runtime_object_store,
         bucket_derived=object_store_settings.bucket_derived,
+    )
+    materialized_document_ids = tuple(
+        str(document.metadata["document_id"]) for document in documents
     )
     stats = collect_import_document_stats(
         documents=documents,
@@ -189,9 +172,14 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         cleaning_policy_version=load_runtime_profile(*_TARGET_SCOPE).cleaning_policy_version,
         default_visibility_scope=None,
         scope_refresh=_TARGET_SCOPE,
+        scope_refresh_preserve_existing=_build_selected_scope_preserve_predicate(
+            materialized_document_ids
+        )
+        if selected_request
+        else None,
     )
     return InstitutionalRegulationMaterializationReport(
-        promotion_candidate_count=promotion_report.candidate_count,
+        promotion_candidate_count=len(aggregations),
         materialized_document_count=len(documents),
         created_document_ids=stats.created_document_ids,
         updated_document_ids=stats.updated_document_ids,
@@ -246,7 +234,10 @@ def build_institutional_regulation_scope_refresh_documents(
                             parent_document_id
                             for parent_document_id in (
                                 aggregation.primary_candidate.source_parent_document_id,
-                                *(report.source_parent_document_id for report in aggregation.duplicate_reports),
+                                *(
+                                    report.source_parent_document_id
+                                    for report in aggregation.duplicate_reports
+                                ),
                             )
                             if parent_document_id
                         }
@@ -258,7 +249,10 @@ def build_institutional_regulation_scope_refresh_documents(
                             attachment_ref_id
                             for attachment_ref_id in (
                                 aggregation.primary_candidate.source_attachment_ref_id,
-                                *(report.source_attachment_ref_id for report in aggregation.duplicate_reports),
+                                *(
+                                    report.source_attachment_ref_id
+                                    for report in aggregation.duplicate_reports
+                                ),
                             )
                             if attachment_ref_id
                         }
@@ -270,7 +264,10 @@ def build_institutional_regulation_scope_refresh_documents(
                             attachment_sha256
                             for attachment_sha256 in (
                                 aggregation.primary_candidate.source_attachment_sha256,
-                                *(report.source_attachment_sha256 for report in aggregation.duplicate_reports),
+                                *(
+                                    report.source_attachment_sha256
+                                    for report in aggregation.duplicate_reports
+                                ),
                             )
                             if attachment_sha256
                         }
@@ -290,9 +287,10 @@ def build_institutional_regulation_scope_refresh_documents(
                 source_filename=raw_asset_record.source_filename,
             ),
         )
+        materialized_title = _resolve_materialized_regulation_title(aggregation.primary_candidate)
         loaded_metadata = load_metadata_from_bytes(projected_document.document_units_bytes)
         loaded_metadata.update(projected_document.metadata)
-        loaded_metadata["title"] = projected_document.title
+        loaded_metadata["title"] = materialized_title
         apply_authorization_projection_metadata(
             loaded_metadata,
             entitlement_groups=aggregation.source_record.entitlement_groups,
@@ -310,7 +308,7 @@ def build_institutional_regulation_scope_refresh_documents(
                 import_source=_TARGET_IMPORT_SOURCE,
                 revision_track=aggregation.primary_candidate.revision_track,
                 source_channel="manual_curated",
-                is_current=aggregation.source_record.is_current,
+                is_current=True,
                 corpus=corpus,
                 collection=collection,
                 visibility_scope=aggregation.source_record.visibility_scope,
@@ -321,7 +319,7 @@ def build_institutional_regulation_scope_refresh_documents(
                 raw_version_id=raw_asset_record.raw_version_id,
                 provider_response_object_key=None,
                 additional_processed_object_keys=(),
-                title=projected_document.title,
+                title=materialized_title,
                 year=_infer_year_label(aggregation.primary_candidate),
             )
         )
@@ -333,7 +331,7 @@ def build_institutional_regulation_document_id(
     regulation_title_normalized: str,
     regulation_work_title: str | None = None,
     issuing_org: str,
-    semantic_scope: str = "regulations/institutional_regulations",
+    semantic_scope: str = "regulations/institutional_rules",
 ) -> str:
     return _build_institutional_regulation_document_id(
         regulation_title_normalized=regulation_title_normalized,
@@ -341,6 +339,14 @@ def build_institutional_regulation_document_id(
         issuing_org=issuing_org,
         semantic_scope=semantic_scope,
     )
+
+
+def _resolve_materialized_regulation_title(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str:
+    return (
+        candidate_document.regulation_work_title or candidate_document.regulation_title_normalized
+    ).strip()
 
 
 def build_institutional_regulation_version_id(
@@ -400,227 +406,9 @@ def _build_materialization_raw_asset_record(
             source_channel="manual_curated",
             year=year,
         ),
-        ingestion_timestamp=datetime.now(timezone.utc).isoformat(),
+        ingestion_timestamp=datetime.now(UTC).isoformat(),
         import_source=_TARGET_IMPORT_SOURCE,
     )
-
-
-def _build_projection_metadata(
-    *,
-    aggregation: _CandidateAggregation,
-    title: str,
-    semantic_content_hash: str,
-    source_page_start: int | None,
-    source_page_end: int | None,
-) -> dict[str, object]:
-    duplicate_reports = aggregation.duplicate_reports
-    source_notice_ids = _aggregate_notice_ids(aggregation)
-    source_document_ids = tuple(
-        sorted(
-            {
-                aggregation.primary_candidate.source_document_id,
-                *(report.document_id for report in duplicate_reports),
-            }
-        )
-    )
-    source_parent_document_ids = tuple(
-        sorted(
-            {
-                parent_document_id
-                for parent_document_id in (
-                    aggregation.primary_candidate.source_parent_document_id,
-                    *(report.source_parent_document_id for report in duplicate_reports),
-                )
-                if parent_document_id
-            }
-        )
-    )
-    source_attachment_ref_ids = tuple(
-        sorted(
-            {
-                attachment_ref_id
-                for attachment_ref_id in (
-                    aggregation.primary_candidate.source_attachment_ref_id,
-                    *(report.source_attachment_ref_id for report in duplicate_reports),
-                )
-                if attachment_ref_id
-            }
-        )
-    )
-    source_attachment_sha256s = tuple(
-        sorted(
-            {
-                attachment_sha256
-                for attachment_sha256 in (
-                    aggregation.primary_candidate.source_attachment_sha256,
-                    *(report.source_attachment_sha256 for report in duplicate_reports),
-                )
-                if attachment_sha256
-            }
-        )
-    )
-    duplicate_source_document_ids = tuple(
-        sorted(report.document_id for report in duplicate_reports)
-    )
-    published_date = _normalize_published_date(aggregation.primary_candidate.source_notice_release_time)
-    metadata: dict[str, object] = {
-        "title": title,
-        "semantic_content_hash": semantic_content_hash,
-        "content_kind": "institutional_regulation",
-        "content_role": aggregation.primary_candidate.promotion_class,
-        "semantic_owner_kind": aggregation.primary_candidate.semantic_owner_kind,
-        "is_answer_bearing": True,
-        "projection_name": "internal_notice_regulation_promotion",
-        "derived_from": "internal_notice_canonical_document",
-        "derived_from_document_id": aggregation.primary_candidate.source_document_id,
-        "derived_from_document_ids": list(source_document_ids),
-        "derived_from_raw_asset_id": aggregation.source_record.raw_asset.raw_asset_id
-        if aggregation.source_record.raw_asset is not None
-        else None,
-        "derived_from_raw_version_id": aggregation.source_record.raw_asset.raw_version_id
-        if aggregation.source_record.raw_asset is not None
-        else None,
-        "parent_document_id": aggregation.primary_candidate.source_parent_document_id,
-        "promotion_class": aggregation.primary_candidate.promotion_class,
-        "promotion_source_collection": "campus_notices/internal_notice",
-        "source_notice_ids": list(source_notice_ids),
-        "source_document_ids": list(source_document_ids),
-        "source_parent_document_id": aggregation.primary_candidate.source_parent_document_id,
-        "source_parent_document_ids": list(source_parent_document_ids),
-        "source_attachment_ref_id": aggregation.primary_candidate.source_attachment_ref_id,
-        "source_attachment_ref_ids": list(source_attachment_ref_ids),
-        "source_attachment_sha256": aggregation.primary_candidate.source_attachment_sha256,
-        "source_attachment_sha256s": list(source_attachment_sha256s),
-        "source_notice_release_time": aggregation.primary_candidate.source_notice_release_time,
-        "regulation_title_normalized": aggregation.primary_candidate.regulation_title_normalized,
-        "issuing_org": aggregation.primary_candidate.issuing_org,
-        "effective_date": aggregation.primary_candidate.effective_date,
-        "revision_signal": aggregation.primary_candidate.revision_signal,
-        "duplicate_source_document_ids": list(duplicate_source_document_ids),
-        "quality_gates_passed": list(aggregation.primary_candidate.quality_gates_passed),
-        "promotion_reasons": list(aggregation.primary_candidate.reasons),
-        "source_page_start": source_page_start,
-        "source_page_end": source_page_end,
-        "published_date": published_date,
-    }
-    return {key: value for key, value in metadata.items() if value is not None}
-
-
-def _serialize_projection_rows(
-    *,
-    document_id: str,
-    version_id: str,
-    title: str,
-    body: str,
-    metadata: dict[str, object],
-    source_url: str,
-    source_pdf: str,
-    entitlement_groups: tuple[str, ...],
-    visibility_scope: str | None,
-    visibility_level: str,
-    page_start: int | None,
-    page_end: int | None,
-) -> bytes:
-    section_path = [title]
-    rows: list[dict[str, object]] = []
-    root_unit_id = f"{document_id}:root"
-    rows.append(
-        _build_row(
-            document_id=document_id,
-            version_id=version_id,
-            row_id=f"{document_id}:row-0001",
-            row_type="heading",
-            clean_text=title,
-            metadata={
-                **metadata,
-                "title": title,
-                "detail_label": "标题",
-                "section_path": list(section_path),
-                "content_role": "regulation_title",
-            },
-            source_url=source_url,
-            source_pdf=source_pdf,
-            entitlement_groups=entitlement_groups,
-            visibility_scope=visibility_scope,
-            visibility_level=visibility_level,
-            page_start=page_start,
-            page_end=page_end,
-            unit_type="institutional_regulation_heading",
-            root_unit_id=root_unit_id,
-        )
-    )
-    for index, block in enumerate(_split_markdown_blocks(body), start=2):
-        block_text = block["text"]
-        if not block_text:
-            continue
-        if block["row_type"] == "heading":
-            section_path = [title, _strip_heading(block_text)]
-        rows.append(
-            _build_row(
-                document_id=document_id,
-                version_id=version_id,
-                row_id=f"{document_id}:row-{index:04d}",
-                row_type=str(block["row_type"]),
-                clean_text=block_text,
-                metadata={
-                    **metadata,
-                    "title": title,
-                    "detail_label": "正文",
-                    "section_path": list(section_path),
-                    "content_role": "regulation_body",
-                },
-                source_url=source_url,
-                source_pdf=source_pdf,
-                entitlement_groups=entitlement_groups,
-                visibility_scope=visibility_scope,
-                visibility_level=visibility_level,
-                page_start=page_start,
-                page_end=page_end,
-                unit_type="institutional_regulation_block",
-                root_unit_id=root_unit_id,
-            )
-        )
-    return "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows).encode("utf-8")
-
-
-def _build_row(
-    *,
-    document_id: str,
-    version_id: str,
-    row_id: str,
-    row_type: str,
-    clean_text: str,
-    metadata: dict[str, object],
-    source_url: str,
-    source_pdf: str,
-    entitlement_groups: tuple[str, ...],
-    visibility_scope: str | None,
-    visibility_level: str,
-    page_start: int | None,
-    page_end: int | None,
-    unit_type: str,
-    root_unit_id: str,
-) -> dict[str, object]:
-    return {
-        "doc_id": document_id,
-        "version_id": version_id,
-        "chunk_id": row_id,
-        "row_id": row_id,
-        "row_type": row_type,
-        "clean_text": clean_text,
-        "source_pdf": source_pdf,
-        "source_url": source_url,
-        "source": {"id": source_url},
-        "page_start": page_start,
-        "page_end": page_end,
-        "entitlement_groups": list(entitlement_groups),
-        "visibility_scope": visibility_scope,
-        "visibility_level": visibility_level,
-        "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
-        "unit_type": unit_type,
-        "root_unit_id": root_unit_id,
-        "metadata": metadata,
-    }
 
 
 def _index_latest_scope_records(
@@ -639,20 +427,6 @@ def _record_sort_key(record: DocumentRegistryRecord) -> tuple[object, ...]:
     return (1 if record.is_current else 0, record.ingestion_timestamp, record.version_id)
 
 
-def _group_duplicate_reports(
-    reports: Sequence[InternalNoticeRegulationPromotionDocumentReport],
-) -> dict[str, tuple[InternalNoticeRegulationPromotionDocumentReport, ...]]:
-    grouped: dict[str, list[InternalNoticeRegulationPromotionDocumentReport]] = {}
-    for report in reports:
-        if not report.duplicate_primary_document_id:
-            continue
-        grouped.setdefault(report.duplicate_primary_document_id, []).append(report)
-    return {
-        document_id: tuple(sorted(items, key=lambda item: item.document_id))
-        for document_id, items in grouped.items()
-    }
-
-
 def _aggregate_notice_ids(aggregation: _CandidateAggregation) -> tuple[str, ...]:
     return tuple(
         sorted(
@@ -664,35 +438,11 @@ def _aggregate_notice_ids(aggregation: _CandidateAggregation) -> tuple[str, ...]
     )
 
 
-def _build_semantic_content_hash(
-    candidate: InternalNoticeRegulationCandidateArtifactDocument,
-) -> str:
-    return hashlib.sha256(
-        _render_canonical_markdown(candidate).encode("utf-8")
-    ).hexdigest()
-
-
-def _render_canonical_markdown(
-    candidate: InternalNoticeRegulationCandidateArtifactDocument,
-) -> str:
-    body = candidate.promotion_body.strip()
-    title = candidate.regulation_title_normalized.strip()
-    return f"# {title}\n\n{body}\n"
-
-
-def _split_markdown_blocks(body: str) -> tuple[dict[str, str], ...]:
-    blocks: list[dict[str, str]] = []
-    for raw_block in body.split("\n\n"):
-        cleaned = raw_block.strip()
-        if not cleaned:
-            continue
-        row_type = "heading" if cleaned.startswith("#") else "paragraph"
-        blocks.append({"row_type": row_type, "text": cleaned})
-    return tuple(blocks)
-
-
-def _strip_heading(text: str) -> str:
-    return _HEADING_RE.sub("", text.strip())
+def _build_selected_scope_preserve_predicate(
+    materialized_document_ids: Sequence[str],
+) -> Callable[[DocumentRegistryRecord], bool]:
+    materialized_document_id_set = set(materialized_document_ids)
+    return lambda record: record.document_id not in materialized_document_id_set
 
 
 def _load_source_page_bounds(
@@ -728,23 +478,6 @@ def _load_source_page_bounds(
     )
 
 
-def _normalize_published_date(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", normalized):
-        return normalized
-    match = re.match(r"(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日", normalized)
-    if match is None:
-        return normalized
-    return (
-        f"{int(match.group('year')):04d}-{int(match.group('month')):02d}-"
-        f"{int(match.group('day')):02d}"
-    )
-
-
 def _infer_year_label(candidate: InternalNoticeRegulationCandidateArtifactDocument) -> str | None:
     for value in (candidate.effective_date, candidate.source_notice_release_time):
         if value is None:
@@ -753,14 +486,6 @@ def _infer_year_label(candidate: InternalNoticeRegulationCandidateArtifactDocume
         if match is not None:
             return match.group(0)
     return None
-
-
-def _slugify_identifier(value: str) -> str:
-    normalized = value.strip().lower()
-    slug = "".join(ch if ch.isalnum() else "-" for ch in normalized).strip("-")
-    while "--" in slug:
-        slug = slug.replace("--", "-")
-    return slug or "document"
 
 
 def _read_embedding_model_name(env: Mapping[str, str]) -> str:

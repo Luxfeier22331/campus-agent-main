@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 import os
+from dataclasses import asdict
 from pathlib import Path
 
 from campus_ingestion_core import (
@@ -12,6 +12,7 @@ from campus_ingestion_core import (
     scan_student_handbook_chunking,
     validate_student_handbook_chunking,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
@@ -53,7 +54,7 @@ def main() -> None:
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 
-__all__ = ["StudentHandbookChunkingValidationReport", "validate_student_handbook_chunking", "main"]
+__all__ = ["StudentHandbookChunkingValidationReport", "main", "validate_student_handbook_chunking"]
 
 
 if __name__ == "__main__":

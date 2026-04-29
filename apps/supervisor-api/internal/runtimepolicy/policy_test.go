@@ -1,0 +1,748 @@
+package runtimepolicy
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	if policy.PolicyVersion != PolicyVersion {
+		t.Fatalf("policy_version = %q, want %q", policy.PolicyVersion, PolicyVersion)
+	}
+	if policy.ClassifierVersion != ClassifierVersion {
+		t.Fatalf("classifier_version = %q, want %q", policy.ClassifierVersion, ClassifierVersion)
+	}
+	if policy.IntentSchemaVersion != IntentSchema {
+		t.Fatalf("intent_schema_version = %q, want %q", policy.IntentSchemaVersion, IntentSchema)
+	}
+	if ClassifierVersion != "go-runtime-policy-v2" {
+		t.Fatalf("classifier version constant = %q, want go-runtime-policy-v2", ClassifierVersion)
+	}
+	if len(policy.SignalGroups["campus_scope"]) == 0 {
+		t.Fatal("campus_scope signal group must not be empty")
+	}
+	for _, group := range []string{
+		"structured_place_lookup_action",
+		"structured_place_entity",
+		"structured_place_location_noun",
+		"structured_non_spatial_where_action",
+		"notice_get_reference",
+		"transport_intent_first_departure",
+		"transport_intent_snapshot_metadata",
+		"transport_intent_timetable",
+		"transport_intent_last_departure",
+		"transport_intent_departure_list",
+		"transport_intent_service_window",
+		"transport_route_metro_shuttle",
+		"transport_route_intercampus_commute",
+		"structured_transport_boarding_status",
+		"transport_route_to_fengtai",
+		"transport_route_to_haidian",
+		"temporal_today",
+		"temporal_tomorrow",
+		"temporal_daypart_morning",
+		"temporal_daypart_afternoon",
+		"temporal_daypart_evening",
+		"campus_scope_haidian",
+		"campus_scope_fengtai",
+		"service_guide_focus_required_materials",
+		"service_guide_focus_entry",
+		"service_guide_focus_office_hours",
+		"service_guide_focus_contact",
+		"service_guide_focus_eligibility",
+		"service_guide_focus_full_guide",
+		"structured_contact_directory",
+		"structured_contact_directory_action",
+		"contact_directory_focus_phone",
+		"contact_directory_focus_email",
+		"contact_directory_focus_location",
+		"contact_directory_focus_office_hours",
+		"contact_directory_focus_contact_person",
+	} {
+		if len(policy.SignalGroups[group]) == 0 {
+			t.Fatalf("policy-backed signal group %q must not be empty", group)
+		}
+	}
+}
+
+func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+	policy.SignalGroups["structured_notice"] = []string{"校内要闻"}
+	policy.SignalGroups["structured_transport"] = []string{"摆渡车"}
+	policy.SignalGroups["structured_place_lookup_action"] = []string{"藏在哪里"}
+	policy.SignalGroups["structured_place_entity"] = []string{"北楼"}
+
+	tests := []struct {
+		name string
+		goal string
+		want string
+	}{
+		{name: "custom notice signal", goal: "查一下校内要闻", want: "notice"},
+		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
+		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
+		{name: "contact directory signal", goal: "招生办电话是多少", want: "campus_services"},
+		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "campus_services"},
+		{name: "bathroom service status signal", goal: "静园10号楼女浴室现在开放吗", want: "campus_services"},
+		{name: "transport boarding point status signal", goal: "摆渡车在哪里上车", want: "campus_services"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolution := ResolveCapability(CapabilityResolutionRequest{
+				UserGoal: tt.goal,
+			}, policy)
+			if resolution.EffectiveCapability != tt.want {
+				t.Fatalf("capability = %q, want %q", resolution.EffectiveCapability, tt.want)
+			}
+			if resolution.Source != "inferred" {
+				t.Fatalf("source = %q, want inferred", resolution.Source)
+			}
+		})
+	}
+}
+
+func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
+	defaultPath := resolveIntentPolicyPath("")
+	raw, err := os.ReadFile(defaultPath)
+	if err != nil {
+		t.Fatalf("read default intent policy: %v", err)
+	}
+	policyPath := filepath.Join(t.TempDir(), "intent-policy.v1.json")
+	envPolicy := strings.Replace(
+		string(raw),
+		`"case_set_version": "intent-case-set-v2"`,
+		`"case_set_version": "env-intent-case-set-v2"`,
+		1,
+	)
+	if err := os.WriteFile(policyPath, []byte(envPolicy), 0o600); err != nil {
+		t.Fatalf("write env intent policy: %v", err)
+	}
+	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", policyPath)
+
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load env intent policy: %v", err)
+	}
+	if policy.CaseSetVersion != "env-intent-case-set-v2" {
+		t.Fatalf("case_set_version = %q, want env-intent-case-set-v2", policy.CaseSetVersion)
+	}
+}
+
+func TestIntentPolicyArtifactValidateRequiresContactDirectorySignalGroups(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	for _, group := range []string{
+		"structured_contact_directory",
+		"structured_contact_directory_action",
+		"contact_directory_focus_phone",
+		"contact_directory_focus_email",
+		"contact_directory_focus_location",
+		"contact_directory_focus_office_hours",
+		"contact_directory_focus_contact_person",
+	} {
+		t.Run(group, func(t *testing.T) {
+			mutated := policy
+			mutated.SignalGroups = cloneSignalGroups(policy.SignalGroups)
+			delete(mutated.SignalGroups, group)
+
+			err := mutated.Validate()
+			if err == nil {
+				t.Fatalf("expected missing %s to fail validation", group)
+			}
+			if !strings.Contains(err.Error(), group) {
+				t.Fatalf("validation error = %v, want mention %s", err, group)
+			}
+		})
+	}
+}
+
+func TestIntentPolicyArtifactFailsClosedWhenMissing(t *testing.T) {
+	_, err := LoadIntentPolicy(filepath.Join(t.TempDir(), "missing-intent-policy.json"))
+	if err == nil {
+		t.Fatal("expected missing intent policy artifact to fail")
+	}
+}
+
+func TestEvaluateRuntimePolicyUsesExplicitIntentPolicyArtifact(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+	policy.SignalGroups["campus_scope"] = []string{"测试校内信号"}
+	policy.SignalGroups["external_institution"] = []string{"外校信号"}
+	raw, err := json.Marshal(policy)
+	if err != nil {
+		t.Fatalf("marshal policy fixture: %v", err)
+	}
+	policyPath := filepath.Join(t.TempDir(), "intent-policy.v1.json")
+	if err := os.WriteFile(policyPath, raw, 0o600); err != nil {
+		t.Fatalf("write policy fixture: %v", err)
+	}
+
+	policy, err = LoadIntentPolicy(policyPath)
+	if err != nil {
+		t.Fatalf("load policy fixture: %v", err)
+	}
+	decision := EvaluateWithPolicy(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "测试校内信号怎么处理",
+	}, policy)
+
+	if decision.RoutingFrame.SuggestedNextAction != "delegate" {
+		t.Fatalf("action = %q, want delegate", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.ScopeGate.MatchedSignal != "测试校内信号" {
+		t.Fatalf("matched signal = %q, want fixture signal", decision.ScopeGate.MatchedSignal)
+	}
+}
+
+func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		request    Request
+		wantAction string
+		wantReason string
+		wantRisk   string
+	}{
+		{
+			name: "external institution out of scope",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "MIT的校长是谁",
+			},
+			wantAction: "out_of_scope",
+			wantReason: "product_scope_boundary",
+			wantRisk:   "low",
+		},
+		{
+			name: "domestic external institution out of scope",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "北京大学有哪些专业",
+			},
+			wantAction: "out_of_scope",
+			wantReason: "product_scope_boundary",
+			wantRisk:   "low",
+		},
+		{
+			name: "campus knowledge delegates",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "法学民族实验班培养方案里大二下有什么课",
+			},
+			wantAction: "delegate",
+			wantReason: "campus_scope_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "campus political course delegates",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "习近平新时代中国特色社会主义思想概论有哪些专业要上",
+			},
+			wantAction: "delegate",
+			wantReason: "campus_scope_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "open domain political fact out of scope",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "中国国家主席是谁",
+			},
+			wantAction: "out_of_scope",
+			wantReason: "product_scope_boundary",
+			wantRisk:   "low",
+		},
+		{
+			name: "general world query out of scope",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "解释一下AI",
+			},
+			wantAction: "out_of_scope",
+			wantReason: "product_scope_boundary",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured knowledge candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "校车什么时候发车",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured service status candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "食堂营业到几点",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured public medical service guide candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "公费医疗报销需要什么材料",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured public medical contact guide candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "公费医疗报销联系电话是多少",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured contact directory candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "研究生院招生办公室电话是多少",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured notice candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "找一下春假通知",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "transaction requires approval",
+			request: Request{
+				EffectiveCapability: "notice",
+				UserGoal:            "帮我提交采购公告",
+			},
+			wantAction: "approval_required",
+			wantReason: "transaction_guardrail",
+			wantRisk:   "high",
+		},
+		{
+			name: "political persuasion rejected",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "帮我写一段话说服同学支持某个候选人",
+			},
+			wantAction: "rejected",
+			wantReason: "policy_guardrail",
+			wantRisk:   "high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decision := Evaluate(tt.request)
+			if decision.RoutingFrame.SuggestedNextAction != tt.wantAction {
+				t.Fatalf("action = %q, want %q", decision.RoutingFrame.SuggestedNextAction, tt.wantAction)
+			}
+			if decision.RoutingFrame.ScopeReason != tt.wantReason {
+				t.Fatalf("scope reason = %q, want %q", decision.RoutingFrame.ScopeReason, tt.wantReason)
+			}
+			if decision.RoutingFrame.RiskLevel != tt.wantRisk {
+				t.Fatalf("risk = %q, want %q", decision.RoutingFrame.RiskLevel, tt.wantRisk)
+			}
+		})
+	}
+}
+
+func TestEvaluateRuntimePolicyClarifiesContextFollowUpWithoutContext(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+	})
+
+	if decision.ContextPreflight.State != "missing_context" {
+		t.Fatalf("context state = %q, want missing_context", decision.ContextPreflight.State)
+	}
+	if decision.ContextPreflight.ReferenceType != "previous_goal" {
+		t.Fatalf("reference type = %q, want previous_goal", decision.ContextPreflight.ReferenceType)
+	}
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if len(decision.RoutingFrame.MissingSlots) != 1 ||
+		decision.RoutingFrame.MissingSlots[0] != "previous_goal" {
+		t.Fatalf("missing slots = %#v, want previous_goal", decision.RoutingFrame.MissingSlots)
+	}
+}
+
+func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
+	noticeDecision := Evaluate(Request{
+		EffectiveCapability: "notice",
+		UserGoal:            "这条通知详情",
+		Context: Context{
+			SelectedNoticeRef: SelectedNoticeRef{
+				NoticeID:     "notice:2026-spring-break",
+				SourceFamily: "internal_notice_restricted",
+				Title:        "2026年春假安排通知",
+			},
+		},
+	})
+	if noticeDecision.ContextPreflight.State != "resolved" {
+		t.Fatalf("notice context state = %q, want resolved", noticeDecision.ContextPreflight.State)
+	}
+	if noticeDecision.ContextPreflight.ResolvedSlots["notice_id"] != "notice:2026-spring-break" {
+		t.Fatalf("notice resolved slots = %#v", noticeDecision.ContextPreflight.ResolvedSlots)
+	}
+
+	curriculumDecision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "那大二下呢",
+		Context: Context{
+			SessionSlots: []SessionSlot{
+				{Name: "curriculum_program", Value: "计算机科学与技术", Confirmed: true},
+			},
+		},
+	})
+	if curriculumDecision.ContextPreflight.State != "resolved" {
+		t.Fatalf("curriculum context state = %q, want resolved", curriculumDecision.ContextPreflight.State)
+	}
+	if curriculumDecision.ContextPreflight.ResolvedSlots["curriculum_semester"] != "大二下" {
+		t.Fatalf("curriculum resolved slots = %#v", curriculumDecision.ContextPreflight.ResolvedSlots)
+	}
+
+	previousGoalDecision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+		Context: Context{
+			ProfileMemory: []ProfileMemoryItem{
+				{Key: "recent_goal", Value: "处分申诉", Visibility: "user_visible"},
+			},
+		},
+	})
+	if previousGoalDecision.ContextPreflight.State != "resolved" {
+		t.Fatalf("previous goal context state = %q, want resolved", previousGoalDecision.ContextPreflight.State)
+	}
+	if previousGoalDecision.ContextPreflight.ReferenceType != "previous_goal" {
+		t.Fatalf(
+			"previous goal reference type = %q, want previous_goal",
+			previousGoalDecision.ContextPreflight.ReferenceType,
+		)
+	}
+	if previousGoalDecision.ContextPreflight.ResolvedSlots["previous_goal"] != "处分申诉" {
+		t.Fatalf("previous goal resolved slots = %#v", previousGoalDecision.ContextPreflight.ResolvedSlots)
+	}
+}
+
+func TestEvaluateRuntimePolicyIgnoresUnconfirmedSessionSlots(t *testing.T) {
+	curriculumDecision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "那大二下呢",
+		Context: Context{
+			SessionSlots: []SessionSlot{
+				{Name: "curriculum_program", Value: "计算机科学与技术", Confirmed: false},
+			},
+		},
+	})
+	if curriculumDecision.ContextPreflight.State == "resolved" {
+		t.Fatalf("curriculum context state = resolved, want unresolved")
+	}
+	if curriculumDecision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", curriculumDecision.RoutingFrame.SuggestedNextAction)
+	}
+
+	previousGoalDecision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+		Context: Context{
+			SessionSlots: []SessionSlot{
+				{Name: "recent_goal", Value: "处分申诉", Confirmed: false},
+			},
+		},
+	})
+	if previousGoalDecision.ContextPreflight.State == "resolved" {
+		t.Fatalf("previous goal context state = resolved, want unresolved")
+	}
+	if previousGoalDecision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", previousGoalDecision.RoutingFrame.SuggestedNextAction)
+	}
+}
+
+func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+		Context: Context{
+			SessionSlots: []SessionSlot{
+				{Name: "policy_topic", Value: "奖学金", Confirmed: true},
+				{Name: "policy_topic", Value: "转专业", Confirmed: true},
+			},
+		},
+	})
+
+	if decision.ContextPreflight.State != "ambiguous" {
+		t.Fatalf("context state = %q, want ambiguous", decision.ContextPreflight.State)
+	}
+	if decision.ContextPreflight.ReferenceType != "previous_goal" {
+		t.Fatalf("reference type = %q, want previous_goal", decision.ContextPreflight.ReferenceType)
+	}
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.AmbiguityReason == "" {
+		t.Fatal("ambiguity reason must be populated")
+	}
+}
+
+func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "campus_services",
+		UserGoal:            "校园卡余额怎么查",
+	})
+
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.ScopeReason != "structured_subtype_missing" {
+		t.Fatalf("scope reason = %q, want structured_subtype_missing", decision.RoutingFrame.ScopeReason)
+	}
+	if len(decision.RoutingFrame.MissingSlots) != 1 ||
+		decision.RoutingFrame.MissingSlots[0] != "campus_service_task" {
+		t.Fatalf("missing slots = %#v, want campus_service_task", decision.RoutingFrame.MissingSlots)
+	}
+}
+
+func TestEvaluateRuntimePolicyDelegatesCampusServiceGuideSubtype(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "campus_services",
+		UserGoal:            "宿舍入住怎么办理",
+	})
+
+	if decision.RoutingFrame.SuggestedNextAction != "delegate" {
+		t.Fatalf("next action = %q, want delegate", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.ScopeReason != "explicit_requested_capability" {
+		t.Fatalf("scope reason = %q, want explicit_requested_capability", decision.RoutingFrame.ScopeReason)
+	}
+}
+
+func TestEvaluateRuntimePolicyFailsClosedPlaceLookupUntilNavigationRollout(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "place_lookup",
+		UserGoal:            "海淀图书馆在哪里",
+	})
+
+	if decision.PolicyGate.Decision != "out_of_scope" {
+		t.Fatalf("policy decision = %q, want out_of_scope", decision.PolicyGate.Decision)
+	}
+	if decision.RoutingFrame.SuggestedNextAction != "out_of_scope" {
+		t.Fatalf("next action = %q, want out_of_scope", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.ScopeClass != "out_of_scope" {
+		t.Fatalf("scope class = %q, want out_of_scope", decision.RoutingFrame.ScopeClass)
+	}
+	if len(decision.RoutingFrame.DomainCandidates) != 1 ||
+		decision.RoutingFrame.DomainCandidates[0] != "out_of_scope" {
+		t.Fatalf("domain candidates = %#v, want out_of_scope", decision.RoutingFrame.DomainCandidates)
+	}
+	if decision.RoutingFrame.PolicyReason != "navigation_temporarily_unsupported" {
+		t.Fatalf(
+			"policy reason = %q, want navigation_temporarily_unsupported",
+			decision.RoutingFrame.PolicyReason,
+		)
+	}
+}
+
+func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
+	allowed := AllowedToolsForPayloadKind("notice-agent", "campus_notice_get")
+	if len(allowed) != 1 || allowed[0] != "campus_notice_get" {
+		t.Fatalf("allowed = %#v, want campus_notice_get", allowed)
+	}
+	if AllowedToolsForPayloadKind("notice-agent", "service_status_lookup") != nil {
+		t.Fatal("notice-agent must not allow service_status_lookup")
+	}
+	serviceGuideAllowed := AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup")
+	if len(serviceGuideAllowed) != 1 || serviceGuideAllowed[0] != "service_guide_lookup" {
+		t.Fatalf("service guide allowed = %#v, want service_guide_lookup", serviceGuideAllowed)
+	}
+	contactAllowed := AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup")
+	if len(contactAllowed) != 1 || contactAllowed[0] != "contact_directory_lookup" {
+		t.Fatalf("contact allowed = %#v, want contact_directory_lookup", contactAllowed)
+	}
+	if AllowedToolsForPayloadKind("navigation-agent", "place_lookup") != nil {
+		t.Fatal("navigation-agent must not allow place_lookup before map rollout")
+	}
+}
+
+func TestQueryServingScopePolicyMatchesDefaultRuntimeProfile(t *testing.T) {
+	tests := []struct {
+		name       string
+		corpus     string
+		collection string
+		want       bool
+	}{
+		{
+			name:       "student rules allowed",
+			corpus:     "regulations",
+			collection: "student_rules",
+			want:       true,
+		},
+		{
+			name:       "curriculum plan allowed",
+			corpus:     "curriculum",
+			collection: "curriculum_plan",
+			want:       true,
+		},
+		{
+			name:       "official web stable reference allowed",
+			corpus:     "official_web",
+			collection: "stable_reference",
+			want:       true,
+		},
+		{
+			name:       "official web fresh news rejected",
+			corpus:     "official_web",
+			collection: "fresh_news",
+			want:       false,
+		},
+		{
+			name:       "official web news archive rejected",
+			corpus:     "official_web",
+			collection: "news_archive",
+			want:       false,
+		},
+		{
+			name:       "campus service catalog rejected",
+			corpus:     "campus_services",
+			collection: "service_catalog",
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			allowed, err := QueryScopeAllowed(tt.corpus, tt.collection, "")
+			if err != nil {
+				t.Fatalf("query scope allowed: %v", err)
+			}
+			if allowed != tt.want {
+				t.Fatalf("allowed = %v, want %v", allowed, tt.want)
+			}
+		})
+	}
+}
+
+func TestQueryServingScopePolicyFailsClosedWhenDefaultPolicyIsMissing(t *testing.T) {
+	originalWorkingDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(originalWorkingDir); chdirErr != nil {
+			t.Fatalf("restore working dir: %v", chdirErr)
+		}
+	})
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("chdir temp dir: %v", err)
+	}
+
+	allowed, err := QueryScopeAllowed("regulations", "student_rules", "")
+	if err == nil {
+		t.Fatal("expected missing query-serving scope policy to fail")
+	}
+	if allowed {
+		t.Fatal("scope must not be allowed when policy file is missing")
+	}
+}
+
+func TestQueryServingScopePolicyReadsExplicitPolicyFile(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	if err := os.WriteFile(
+		policyPath,
+		[]byte(`{"policy_version":"query-serving-scopes-v1","scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write policy fixture: %v", err)
+	}
+
+	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
+	if err != nil {
+		t.Fatalf("query scope allowed: %v", err)
+	}
+	if !allowed {
+		t.Fatal("expected explicit policy scope to be allowed")
+	}
+}
+
+func TestQueryServingScopePolicyRejectsMissingPolicyVersion(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	if err := os.WriteFile(
+		policyPath,
+		[]byte(`{"scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write policy fixture: %v", err)
+	}
+
+	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
+	if err == nil {
+		t.Fatal("expected missing policy_version to fail")
+	}
+	if allowed {
+		t.Fatal("scope must not be allowed when policy_version is missing")
+	}
+	if !strings.Contains(err.Error(), "policy_version") {
+		t.Fatalf("error = %v, want policy_version failure", err)
+	}
+}
+
+func TestQueryServingScopePolicyRejectsMismatchedPolicyVersion(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
+	if err := os.WriteFile(
+		policyPath,
+		[]byte(`{"policy_version":"query-serving-scopes-v999","scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write policy fixture: %v", err)
+	}
+
+	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
+	if err == nil {
+		t.Fatal("expected mismatched policy_version to fail")
+	}
+	if allowed {
+		t.Fatal("scope must not be allowed when policy_version mismatches")
+	}
+	if !strings.Contains(err.Error(), "policy_version") {
+		t.Fatalf("error = %v, want policy_version failure", err)
+	}
+}
+
+func cloneSignalGroups(source map[string][]string) map[string][]string {
+	cloned := make(map[string][]string, len(source))
+	for key, values := range source {
+		cloned[key] = append([]string(nil), values...)
+	}
+	return cloned
+}

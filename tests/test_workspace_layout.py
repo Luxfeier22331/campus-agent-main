@@ -1,10 +1,8 @@
-import tests
+import unittest
 from importlib import import_module
 from pathlib import Path
-import unittest
 
-from campus_contracts import KnowledgeScope, RagRequestPayload, SpecialistRequest
-
+from campus_contracts import AgentRequest, KnowledgeScope, RagRequestPayload
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,16 +14,15 @@ EXPECTED_WORKSPACES = {
     "apps/protected-panel-web",
     "apps/public-chat-web",
     "apps/supervisor-api",
-    "packages/availability-specialist",
+    "apps/supervisor-agent-worker",
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
-    "packages/navigation-specialist",
+    "packages/navigation-agent",
     "packages/official-web-core",
-    "packages/rag-specialist",
+    "packages/rag-agent",
     "packages/retrieval-core",
     "packages/shared",
-    "packages/supervisor-core",
 }
 
 
@@ -34,14 +31,17 @@ class WorkspaceLayoutTest(unittest.TestCase):
         missing = [path for path in EXPECTED_WORKSPACES if not (ROOT / path).exists()]
         self.assertEqual(missing, [])
 
-    def test_contract_surface_exposes_generic_specialist_request(self) -> None:
-        request = SpecialistRequest(
-            target="rag-specialist",
+    def test_standalone_supervisor_core_package_is_retired(self) -> None:
+        self.assertFalse((ROOT / "packages/supervisor-core").exists())
+
+    def test_contract_surface_exposes_generic_agent_request(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 )
             ),
         )
@@ -51,20 +51,29 @@ class WorkspaceLayoutTest(unittest.TestCase):
             RagRequestPayload(
                 scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 )
             ),
         )
 
-    def test_supervisor_api_exposes_stable_runtime_routes(self) -> None:
-        supervisor_api = import_module("campus_supervisor_api")
+    def test_supervisor_agent_worker_exposes_private_bridge_routes(self) -> None:
+        supervisor_agent_worker = import_module("campus_supervisor_agent_worker")
+        worker_settings = import_module("campus_supervisor_agent_worker.settings")
 
-        app = supervisor_api.create_app()
+        self.assertFalse(hasattr(supervisor_agent_worker, "create_app"))
+        self.assertTrue(hasattr(supervisor_agent_worker, "create_bridge_app"))
+
+        app = supervisor_agent_worker.create_bridge_app(settings=worker_settings.ApiSettings())
 
         self.assertEqual(app.name, "campus-agent-v2")
         self.assertEqual(
             {route.path for route in app.routes},
-            {"/api/v1/answer", "/healthz", "/readyz"},
+            {
+                "/internal/bridge/execution/cancel",
+                "/internal/bridge/supervisor/answer",
+                "/internal/bridge/healthz",
+                "/internal/bridge/readyz",
+            },
         )
         self.assertEqual(app.runtime.provider, "")
 

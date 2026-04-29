@@ -1,0 +1,38 @@
+{
+  "schema_version": "authenticated_notice_manifest_v1",
+  "source_channel": "authenticated_notice_portal",
+  "site_id": "muc_internal_portal",
+  "notice_id": "191177",
+  "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:191177",
+  "raw_version_id": "sha256:cfde5d7dbbd21902102462eb6ec5c595b05ecc43e25d5e2dcfd3da9e377b4a8e",
+  "captured_at": "2026-04-09T19:30:29.385954+00:00",
+  "list_observed_at": "2026-04-02T23:57:28.881Z",
+  "detail_observed_at": "2026-04-02T23:57:28.881Z",
+  "fetcher_name": "authenticated_notice_bundle_import",
+  "fetcher_version": "authenticated_notice_legacy_bootstrap_normalized_v1",
+  "collector_version": "legacy_authenticated_notice_export_v3",
+  "credentials_mode": "authenticated",
+  "notice_title_raw": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+  "notice_title_normalized": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+  "organization_name": "生命与环境科学学院",
+  "organization_id": "11043",
+  "notice_release_time": "2021-07-12 16:46",
+  "notice_create_time": "2021-07-12 16:46",
+  "notice_first_time": "2021-07-12 16:46",
+  "notice_source": 0,
+  "notice_link_state": 0,
+  "notice_state": 1,
+  "notice_stick": 0,
+  "notice_type_ids": [
+    "32"
+  ],
+  "notice_type_names": [
+    "学工通知"
+  ],
+  "source_notice_link": "campusnotice://muc_internal_portal/notice/191177",
+  "source_home_url": "https://my.muc.edu.cn",
+  "body_html_hash": "adf89a06fef1e90575aeac49e63a3bf1899fb323a5cb6396ecedc9e13360f8f7",
+  "block_count": 11,
+  "link_count": 0,
+  "attachment_ref_count": 0
+}

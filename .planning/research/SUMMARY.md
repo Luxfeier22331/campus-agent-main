@@ -1,17 +1,17 @@
 # Project Research Summary
 
 **Project:** Campus Agent
-**Domain:** Supervisor-led multi-agent campus QA assistant proving the student_handbook agentic RAG path with disciplined expansion toward `curriculum_plan`
+**Domain:** Supervisor-led multi-agent campus QA assistant proving the student_rules agentic RAG path with disciplined expansion toward `curriculum_plan`
 **Researched:** 2026-03-23
 **Confidence:** MEDIUM
 
 ## Executive Summary
 
-Campus Agent is an architecture-first effort: this research snapshot originally assumed a handbook-only live query domain, but the current repo has since promoted query-serving scope into collection runtime profiles and now serves both `student_handbook` and `curriculum_plan` by configuration. The enduring goal remains to prove that the supervisor→rag-specialist→retrieval runway can replace the legacy campusRAG flat tool without leaking retrieval, ACL, or storage details back into the orchestrator.
+Campus Agent is an architecture-first effort: this research snapshot originally assumed a handbook-only live query domain, but the current repo has since promoted query-serving scope into collection runtime profiles and now serves both `student_rules` and `curriculum_plan` by configuration. The enduring goal remains to prove that the supervisor→rag-specialist→retrieval runway can replace the legacy campusRAG flat tool without leaking retrieval, ACL, or storage details back into the orchestrator.
 
 The recommended implementation stack centers on the OpenAI Responses API plus Retrieval API tooling, the Agent Builder/Agents SDK for typed workflows, and GPT-5.2 for reasoning, with trace grading and eval dashboards layered on top. This keeps retrieval and specialist responsibilities inside their packages, reserves supervisor-core for policy/routing/audit, and gives the runtime boundary in `apps/supervisor-api` a clean contract to work with.
 
-The primary research risk is scope creep and observability gaps: expanding beyond student_handbook, skipping guardrails/tracing, or neglecting retrieval QA makes the new architecture hard to govern. Mitigations are explicit Phase 1 boundaries, enforced contracts, ACL/tracing instrumentation from day one, and eval-driven retrieval monitoring before any release.
+The primary research risk is scope creep and observability gaps: expanding beyond student_rules, skipping guardrails/tracing, or neglecting retrieval QA makes the new architecture hard to govern. Mitigations are explicit Phase 1 boundaries, enforced contracts, ACL/tracing instrumentation from day one, and eval-driven retrieval monitoring before any release.
 
 ## Key Findings
 
@@ -21,16 +21,16 @@ Responding to research, the stack should pair the Responses API (for multi-agent
 
 **Core technologies:**
 - OpenAI Responses API (2026) — orchestrates supervisor → specialist handoffs with structured trace IDs and tool guards.
-- OpenAI Retrieval API + File Search tool — returns cited student_handbook snippets while hiding retrieval details behind the specialist contract.
+- OpenAI Retrieval API + File Search tool — returns cited student_rules snippets while hiding retrieval details behind the specialist contract.
 - OpenAI Agent Builder / Agents SDK — composes the supervisor, rag-specialist, and guardrail nodes as typed workflow exports consumed by `apps/supervisor-api`.
 - GPT-5.2 (`gpt-5.2`, `gpt-5.2-chat-latest`) — the reasoning model that understands citations, tool calls, and structured instructions in regulated workflows.
 
 ### Expected Features
 
-Table-stakes for Phase 1 are cited, verifiable student_handbook answers, role-based identity/ACL gating for students/staff/prospects, and comprehensive observability (traces, audit logs, escalation hooks). Support for multi-channel scheduling and a structured ingestion pipeline that keeps curriculum_plan ready are also expected from campus assistant scenarios.
+Table-stakes for Phase 1 are cited, verifiable student_rules answers, role-based identity/ACL gating for students/staff/prospects, and comprehensive observability (traces, audit logs, escalation hooks). Support for multi-channel scheduling and a structured ingestion pipeline that keeps curriculum_plan ready are also expected from campus assistant scenarios.
 
 **Must have (table stakes):**
-- Cited, verifiable student_handbook answers — users expect auditable responses backed by ingestion metadata.
+- Cited, verifiable student_rules answers — users expect auditable responses backed by ingestion metadata.
 - Role-based identity/ACL gating plus audit traces — protects FERPA/GDPR requirements and builds campus trust.
 
 **Should have (competitive):**
@@ -60,7 +60,7 @@ The architecture layers runtime, orchestration, and data-plane boundaries: `apps
 
 ### Phase 1: Student Handbook Stabilization
 **Rationale:** Proven architecture and governance come from focusing on a single corpus and enforcing the supervisor→rag-specialist contract before any additional complexity.
-**Delivers:** End-to-end student_handbook ingestion/chunking, ACL-aware supervisor routing, audit/tracing hooks, and citations plus eval gating for every answer.
+**Delivers:** End-to-end student_rules ingestion/chunking, ACL-aware supervisor routing, audit/tracing hooks, and citations plus eval gating for every answer.
 **Addresses:** Table-stakes (cited answers, ACL gating, observability) and the Phase 1 MVP checklist.
 **Avoids:** Scope creep into curriculum_plan query-serving and early retrieval tangles (Pitfalls 1 and 3).
 
@@ -99,13 +99,13 @@ The architecture layers runtime, orchestration, and data-plane boundaries: `apps
 
 ### Gaps to Address
 - **Identity gating enforcement:** Need concrete ACL schemas and runtime checks for students/staff/prospects before finalizing contracts.
-- **Retrieval QA metrics:** Define precise precision/recall targets for student_handbook and how Evals dashboards will gate releases.
+- **Retrieval QA metrics:** Define precise precision/recall targets for student_rules and how Evals dashboards will gate releases.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `docs/architecture/long-term-architecture.md` — architecture guardrails, boundaries, and contracts.
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md` — Phase 1 scope, ingestion/data-plane expectations, and storage semantics.
+- `docs/architecture/target-architecture.md` — architecture guardrails, boundaries, and contracts.
+- `docs/architecture/system/data-plane-architecture.md` — Phase 1 scope, ingestion/data-plane expectations, and storage semantics.
 
 ### Secondary (MEDIUM confidence)
 - `.planning/PROJECT.md` — project mission, phase requirements, active constraints, and goals.

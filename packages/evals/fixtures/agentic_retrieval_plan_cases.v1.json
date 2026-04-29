@@ -1,0 +1,99 @@
+{
+	"schema_version": 1,
+	"case_family": "agentic_retrieval_plan.v1",
+	"updated_at": "2026-04-29",
+	"cases": [
+		{
+			"case_id": "agentic-current-policy-freshness-branch",
+			"user_goal": "现在校园卡丢了怎么办",
+			"split": "release_gate",
+			"expected": {
+				"decomposition": ["campus_card", "current_policy"],
+				"step_plan": ["resolve_scope", "query_current_index", "select_supporting_evidence"],
+				"freshness_branch": "current",
+				"live_branch_outcome": "not_required",
+				"fail_close_reason": "",
+				"supporting_evidence_ids": ["service_guide:campus_card:current"],
+				"final_answer_status": "completed"
+			}
+		},
+		{
+			"case_id": "agentic-historical-version-branch",
+			"user_goal": "2021 年的采购管理办法和现行版本有什么区别",
+			"split": "regression_locked",
+			"expected": {
+				"decomposition": ["procurement_policy", "historical_version", "current_version"],
+				"step_plan": [
+					"resolve_versions",
+					"query_historical_index",
+					"query_current_index",
+					"compare_evidence"
+				],
+				"freshness_branch": "compare",
+				"live_branch_outcome": "not_required",
+				"fail_close_reason": "",
+				"supporting_evidence_ids": [
+					"institutional_rules:procurement:2021",
+					"institutional_rules:procurement:current"
+				],
+				"final_answer_status": "completed"
+			}
+		},
+		{
+			"case_id": "agentic-as-of-branch",
+			"user_goal": "2024 年 9 月时学生公寓管理规则是什么",
+			"split": "regression_locked",
+			"expected": {
+				"decomposition": ["student_rules", "as_of:2024-09"],
+				"step_plan": ["resolve_as_of_date", "query_versioned_index", "select_supporting_evidence"],
+				"freshness_branch": "as_of",
+				"live_branch_outcome": "not_required",
+				"fail_close_reason": "",
+				"supporting_evidence_ids": ["student_rules:dormitory:2024-09"],
+				"final_answer_status": "completed"
+			}
+		},
+		{
+			"case_id": "agentic-live-branch-fail-close",
+			"user_goal": "今天官网最新新闻里有没有临时停运通知",
+			"split": "error_gate",
+			"expected": {
+				"decomposition": ["official_web", "fresh_news", "temporary_service_status"],
+				"step_plan": ["resolve_live_source", "attempt_live_fetch", "fail_close_on_unavailable"],
+				"freshness_branch": "freshness_live",
+				"live_branch_outcome": "fail_close",
+				"fail_close_reason": "live_source_unavailable",
+				"supporting_evidence_ids": ["policy:official_web_live_fail_close"],
+				"final_answer_status": "fail_close"
+			}
+		},
+		{
+			"case_id": "agentic-ambiguous-query-clarification",
+			"user_goal": "现在那个通知还能用吗",
+			"split": "exploratory",
+			"expected": {
+				"decomposition": ["ambiguous_notice_reference"],
+				"step_plan": ["detect_ambiguous_reference", "ask_clarifying_question"],
+				"freshness_branch": "clarification_required",
+				"live_branch_outcome": "not_required",
+				"fail_close_reason": "",
+				"supporting_evidence_ids": ["policy:clarification_required"],
+				"final_answer_status": "clarification"
+			}
+		},
+		{
+			"case_id": "agentic-unsupported-source-fail-close",
+			"user_goal": "帮我查一个未接入系统的外部平台最新通知",
+			"split": "error_gate",
+			"expected": {
+				"decomposition": ["unsupported_external_source"],
+				"step_plan": ["detect_unsupported_source", "fail_close_without_live_fetch"],
+				"freshness_branch": "unsupported_source",
+				"live_branch_outcome": "fail_close",
+				"fail_close_reason": "unsupported_source",
+				"supporting_evidence_ids": ["policy:unsupported_source_fail_close"],
+				"final_answer_status": "fail_close"
+			}
+		}
+	]
+}

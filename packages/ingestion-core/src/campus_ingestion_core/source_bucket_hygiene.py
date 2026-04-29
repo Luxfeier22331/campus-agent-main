@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 from campus_ingestion_core.object_store import (
@@ -12,7 +12,6 @@ from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
-
 
 ALLOWED_SOURCE_BUCKET_ROOT_PREFIXES = (
     "authenticated_notice_portal",
@@ -66,6 +65,7 @@ class SourceBucketHygieneAuditRequest:
 class SourceBucketPrefixCleanupRequest:
     prefix: str
     output_dir: Path
+    dry_run: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "prefix", _normalize_prefix(self.prefix))
@@ -150,21 +150,32 @@ def cleanup_source_bucket_prefix(
     output_dir.mkdir(parents=True, exist_ok=True)
     deleted_path = output_dir / "deleted-objects.jsonl"
     already_absent_path = output_dir / "already-absent-objects.jsonl"
+    dry_run_path = output_dir / "dry-run-objects.jsonl"
     summary_path = output_dir / "summary.json"
 
     deleted_rows: list[dict[str, Any]] = []
     already_absent_rows: list[dict[str, Any]] = []
+    dry_run_rows: list[dict[str, Any]] = []
     total = len(candidate_keys)
     for completed, object_key in enumerate(candidate_keys, start=1):
-        result = _cleanup_object_key(
-            bucket=settings.bucket_source,
-            object_key=object_key,
-            object_store=runtime_object_store,
-        )
+        if request.dry_run:
+            result = {
+                "status": "dry_run",
+                "bucket": settings.bucket_source,
+                "object_key": object_key,
+            }
+        else:
+            result = _cleanup_object_key(
+                bucket=settings.bucket_source,
+                object_key=object_key,
+                object_store=runtime_object_store,
+            )
         if result["status"] == "deleted":
             deleted_rows.append(result)
         elif result["status"] == "already_absent":
             already_absent_rows.append(result)
+        elif result["status"] == "dry_run":
+            dry_run_rows.append(result)
         else:  # pragma: no cover
             raise ValueError(f"unsupported cleanup result status: {result['status']}")
         if completed == total or completed % 100 == 0:
@@ -177,28 +188,36 @@ def cleanup_source_bucket_prefix(
                 file=log_output,
             )
 
-    remaining_keys = runtime_object_store.list_keys(bucket=settings.bucket_source, prefix=request.prefix)
-    if remaining_keys:
-        raise ValueError(
-            f"{request.prefix} still has {len(remaining_keys)} objects after cleanup"
+    if not request.dry_run:
+        remaining_keys = runtime_object_store.list_keys(
+            bucket=settings.bucket_source, prefix=request.prefix
         )
+        if remaining_keys:
+            raise ValueError(
+                f"{request.prefix} still has {len(remaining_keys)} objects after cleanup"
+            )
 
     deleted_rows_sorted = sorted(deleted_rows, key=lambda row: str(row["object_key"]))
     already_absent_rows_sorted = sorted(
         already_absent_rows,
         key=lambda row: str(row["object_key"]),
     )
+    dry_run_rows_sorted = sorted(dry_run_rows, key=lambda row: str(row["object_key"]))
     _write_jsonl(deleted_path, deleted_rows_sorted)
     _write_jsonl(already_absent_path, already_absent_rows_sorted)
+    _write_jsonl(dry_run_path, dry_run_rows_sorted)
     summary = {
         "prefix": request.prefix,
         "root_prefix": root_prefix,
         "allowed_root_prefixes": list(ALLOWED_SOURCE_BUCKET_ROOT_PREFIXES),
+        "dry_run": request.dry_run,
         "candidate_count": len(candidate_keys),
         "deleted_count": len(deleted_rows_sorted),
         "already_absent_count": len(already_absent_rows_sorted),
+        "dry_run_count": len(dry_run_rows_sorted),
         "deleted_inventory_path": str(deleted_path),
         "already_absent_inventory_path": str(already_absent_path),
+        "dry_run_inventory_path": str(dry_run_path),
         "output_dir": str(output_dir),
     }
     summary_path.write_text(

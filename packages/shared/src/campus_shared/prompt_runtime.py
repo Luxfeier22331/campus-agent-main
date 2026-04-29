@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import re
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
+from threading import Lock
 from typing import Literal, Protocol, TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
-
 from campus_contracts import PromptTrace
-
+from pydantic import BaseModel, ValidationError
 
 _PROMPT_VERSION_RE = re.compile(r"_(v\d+)$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -30,6 +28,9 @@ DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS = 30.0
 DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS = 10.0
 DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS = 3.0
+DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS = 32
+DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS = 16
+DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS = 30.0
 
 
 PromptRuntimeTransport = Literal["responses"]
@@ -84,6 +85,12 @@ class NormalizedProviderGroundingSupport:
             raise ValueError("claim_text must not be empty")
 
 
+@dataclass(frozen=True, slots=True)
+class StructuredOutputExecutionResult[StructuredOutputResultT: BaseModel]:
+    output: StructuredOutputResultT
+    provider_grounding_supports: tuple[NormalizedProviderGroundingSupport, ...] = ()
+
+
 def classify_prompt_runtime_failure(
     error: PromptRuntimeValidationError,
 ) -> tuple[str, str]:
@@ -113,6 +120,9 @@ class PromptRuntimeHTTPSettings:
     read_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS
     write_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS
     pool_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS
+    max_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS
+    max_keepalive_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS
+    keepalive_expiry_seconds: float = DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS
 
     def __post_init__(self) -> None:
         if self.connect_timeout_seconds <= 0:
@@ -123,6 +133,14 @@ class PromptRuntimeHTTPSettings:
             raise ValueError("write_timeout_seconds must be greater than zero")
         if self.pool_timeout_seconds <= 0:
             raise ValueError("pool_timeout_seconds must be greater than zero")
+        if self.max_connections <= 0:
+            raise ValueError("max_connections must be greater than zero")
+        if self.max_keepalive_connections < 0:
+            raise ValueError("max_keepalive_connections must not be negative")
+        if self.max_keepalive_connections > self.max_connections:
+            raise ValueError("max_keepalive_connections must not exceed max_connections")
+        if self.keepalive_expiry_seconds <= 0:
+            raise ValueError("keepalive_expiry_seconds must be greater than zero")
 
     def to_httpx_timeout(self) -> httpx.Timeout:
         return httpx.Timeout(
@@ -132,6 +150,13 @@ class PromptRuntimeHTTPSettings:
             pool=self.pool_timeout_seconds,
         )
 
+    def to_httpx_limits(self) -> httpx.Limits:
+        return httpx.Limits(
+            max_connections=self.max_connections,
+            max_keepalive_connections=self.max_keepalive_connections,
+            keepalive_expiry=self.keepalive_expiry_seconds,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class PromptRuntimeProviderConfig:
@@ -139,6 +164,7 @@ class PromptRuntimeProviderConfig:
     api_key: str
     base_url: str = DEFAULT_PROMPT_RUNTIME_BASE_URL
     transport: PromptRuntimeTransport = "responses"
+    supports_safety_identifier: bool = True
     reasoning_effort: str | None = None
     max_output_tokens: int | None = None
     http_settings: PromptRuntimeHTTPSettings = PromptRuntimeHTTPSettings()
@@ -156,6 +182,17 @@ class PromptRuntimeProviderConfig:
             raise ValueError("max_output_tokens must be greater than zero")
 
 
+def build_prompt_runtime_http_client(
+    provider_config: PromptRuntimeProviderConfig,
+) -> httpx.Client:
+    return httpx.Client(
+        base_url=provider_config.base_url.rstrip("/"),
+        timeout=provider_config.http_settings.to_httpx_timeout(),
+        limits=provider_config.http_settings.to_httpx_limits(),
+        trust_env=False,
+    )
+
+
 class ResponsesStructuredOutputExecutor:
     def __init__(
         self,
@@ -165,33 +202,57 @@ class ResponsesStructuredOutputExecutor:
     ) -> None:
         self._provider_config = provider_config
         self._http_client = http_client
+        self._owns_http_client = http_client is None
+        self._http_client_lock = Lock()
 
     def execute(
         self,
         stack: PromptStackLike,
         *,
         response_model: type[StructuredOutputModel],
+        safety_identifier: str | None = None,
     ) -> StructuredOutputModel:
+        return self.execute_with_metadata(
+            stack,
+            response_model=response_model,
+            safety_identifier=safety_identifier,
+        ).output
+
+    def execute_with_metadata(
+        self,
+        stack: PromptStackLike,
+        *,
+        response_model: type[StructuredOutputModel],
+        safety_identifier: str | None = None,
+    ) -> StructuredOutputExecutionResult[StructuredOutputModel]:
         if stack.model_provider != self._provider_config.provider:
             raise PromptRuntimeValidationError(
                 prompt_id=stack.prompt_id,
-                reason=(
-                    "stack model_provider mismatch: "
-                    f"{stack.model_provider or '<empty>'}"
-                ),
+                reason=(f"stack model_provider mismatch: {stack.model_provider or '<empty>'}"),
             )
         if not stack.model_name.strip():
             raise PromptRuntimeValidationError(
                 prompt_id=stack.prompt_id,
                 reason="stack model_name must be non-empty",
             )
-        payload = _build_responses_structured_payload(
-            model=stack.model_name,
-            messages=stack.messages,
-            response_model=response_model,
-            reasoning_effort=self._provider_config.reasoning_effort,
-            max_output_tokens=self._provider_config.max_output_tokens,
-        )
+        try:
+            payload = _build_responses_structured_payload(
+                model=stack.model_name,
+                messages=stack.messages,
+                response_model=response_model,
+                reasoning_effort=self._provider_config.reasoning_effort,
+                max_output_tokens=self._provider_config.max_output_tokens,
+                safety_identifier=(
+                    _normalize_optional_safety_identifier(safety_identifier)
+                    if self._provider_config.supports_safety_identifier
+                    else None
+                ),
+            )
+        except ValueError as exc:
+            raise PromptRuntimeValidationError(
+                prompt_id=stack.prompt_id,
+                reason=str(exc),
+            ) from exc
         try:
             response_json = _decode_json_response(
                 self._get_http_client().post(
@@ -216,7 +277,7 @@ class ResponsesStructuredOutputExecutor:
                 reason=f"provider_refusal: {refusal_text}",
             )
         try:
-            return _extract_structured_output_model(
+            parsed_output = _extract_structured_output_model(
                 response_json,
                 response_model=response_model,
             )
@@ -225,14 +286,23 @@ class ResponsesStructuredOutputExecutor:
                 prompt_id=stack.prompt_id,
                 reason=f"structured_output_parse_failed: {exc}",
             ) from exc
+        return StructuredOutputExecutionResult(
+            output=parsed_output,
+            provider_grounding_supports=normalize_provider_grounding_supports(response_json),
+        )
 
     def _get_http_client(self) -> httpx.Client:
         if self._http_client is not None:
             return self._http_client
-        return httpx.Client(
-            base_url=self._provider_config.base_url.rstrip("/"),
-            trust_env=False,
-        )
+        with self._http_client_lock:
+            if self._http_client is None:
+                self._http_client = build_prompt_runtime_http_client(self._provider_config)
+            return self._http_client
+
+    def close(self) -> None:
+        if not self._owns_http_client or self._http_client is None:
+            return
+        self._http_client.close()
 
 
 def validate_prompt_packet_contract(
@@ -254,8 +324,7 @@ def validate_prompt_packet_contract(
         raise PromptRuntimeValidationError(
             prompt_id=spec.prompt_id,
             reason=(
-                "packet output_schema_name mismatch: "
-                f"{packet.task.output_schema_name or '<empty>'}"
+                f"packet output_schema_name mismatch: {packet.task.output_schema_name or '<empty>'}"
             ),
         )
 
@@ -285,17 +354,13 @@ def validate_prompt_trace_contract(
         raise PromptRuntimeValidationError(
             prompt_id=spec.prompt_id,
             reason=(
-                "trace variables_schema_version mismatch: "
-                f"{prompt_trace.variables_schema_version}"
+                f"trace variables_schema_version mismatch: {prompt_trace.variables_schema_version}"
             ),
         )
     if prompt_trace.output_schema_version != spec.output_schema_version:
         raise PromptRuntimeValidationError(
             prompt_id=spec.prompt_id,
-            reason=(
-                "trace output_schema_version mismatch: "
-                f"{prompt_trace.output_schema_version}"
-            ),
+            reason=(f"trace output_schema_version mismatch: {prompt_trace.output_schema_version}"),
         )
     if prompt_trace.template_sha256 != spec.template_sha256:
         raise PromptRuntimeValidationError(
@@ -456,15 +521,9 @@ def _first_non_empty_string(record: dict[str, object], *keys: str) -> str:
 
 def _normalize_prompt_payload(value: object) -> object:
     if is_dataclass(value):
-        return {
-            key: _normalize_prompt_payload(item)
-            for key, item in asdict(value).items()
-        }
+        return {key: _normalize_prompt_payload(item) for key, item in asdict(value).items()}
     if isinstance(value, dict):
-        return {
-            str(key): _normalize_prompt_payload(item)
-            for key, item in value.items()
-        }
+        return {str(key): _normalize_prompt_payload(item) for key, item in value.items()}
     if isinstance(value, tuple):
         return [_normalize_prompt_payload(item) for item in value]
     if isinstance(value, list):
@@ -500,6 +559,7 @@ def _build_responses_structured_payload(
     response_model: type[BaseModel],
     reasoning_effort: str | None,
     max_output_tokens: int | None,
+    safety_identifier: str | None,
 ) -> dict[str, object]:
     schema = _close_json_schema_objects(response_model.model_json_schema())
     payload: dict[str, object] = {
@@ -526,15 +586,25 @@ def _build_responses_structured_payload(
         payload["reasoning"] = {"effort": reasoning_effort}
     if max_output_tokens is not None:
         payload["max_output_tokens"] = max_output_tokens
+    if safety_identifier is not None:
+        payload["safety_identifier"] = safety_identifier
     return payload
+
+
+def _normalize_optional_safety_identifier(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if not _SHA256_RE.fullmatch(normalized):
+        raise ValueError("safety_identifier must be a 64-character lowercase hex string")
+    return normalized
 
 
 def _close_json_schema_objects(schema: object) -> object:
     if isinstance(schema, dict):
-        normalized = {
-            key: _close_json_schema_objects(value)
-            for key, value in schema.items()
-        }
+        normalized = {key: _close_json_schema_objects(value) for key, value in schema.items()}
         if normalized.get("type") == "object" and "additionalProperties" not in normalized:
             normalized["additionalProperties"] = False
         return normalized
@@ -593,11 +663,11 @@ def _extract_refusal_text(payload: dict[str, object]) -> str | None:
     return None
 
 
-def _extract_structured_output_model(
+def _extract_structured_output_model[StructuredOutputResultT: BaseModel](
     payload: dict[str, object],
     *,
-    response_model: type[StructuredOutputModel],
-) -> StructuredOutputModel:
+    response_model: type[StructuredOutputResultT],
+) -> StructuredOutputResultT:
     output_parsed = payload.get("output_parsed")
     if output_parsed is not None:
         try:
@@ -638,18 +708,19 @@ def _extract_output_text(payload: dict[str, object]) -> str:
 
 __all__ = [
     "DEFAULT_PROMPT_RUNTIME_BASE_URL",
-    "NormalizedProviderGroundingSupport",
-    "PromptRuntimeValidationError",
-    "PromptRuntimeHTTPSettings",
-    "PromptRuntimeProviderConfig",
-    "PromptSpecLike",
-    "PromptPacketLike",
-    "PromptStackLike",
-    "PromptRuntimeTransport",
-    "PromptTaskLike",
-    "ResponsesStructuredOutputExecutor",
     "REPO_GLOBAL_DEVELOPER_INVARIANTS_ID",
     "REPO_GLOBAL_DEVELOPER_INVARIANTS_VERSION",
+    "NormalizedProviderGroundingSupport",
+    "PromptPacketLike",
+    "PromptRuntimeHTTPSettings",
+    "PromptRuntimeProviderConfig",
+    "PromptRuntimeTransport",
+    "PromptRuntimeValidationError",
+    "PromptSpecLike",
+    "PromptStackLike",
+    "PromptTaskLike",
+    "ResponsesStructuredOutputExecutor",
+    "StructuredOutputExecutionResult",
     "build_prompt_trace",
     "get_repo_global_developer_invariants_text",
     "normalize_provider_grounding_supports",

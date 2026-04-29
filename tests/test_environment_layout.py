@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_COMMAND_ENV_EXAMPLES = {
     "compare-online-ocr.env.example",
+    "legacy-office-conversion-service.env.example",
     "official-web-handoff-consumer.env.example",
     "official-web-handoff-receiver.env.example",
     "process-raw-ingestion-job.env.example",
     "rebuild-local-data.env.example",
     "release-registry-scope.env.example",
+    "supervisor-runtime.env.example",
 }
 HISTORICAL_COMMAND_ENV_EXAMPLES = {
     "migrate-student-handbook.env.example",
@@ -33,7 +34,9 @@ class EnvironmentLayoutTest(unittest.TestCase):
     def test_docs_reference_active_and_historical_env_surfaces(self) -> None:
         docs_environment = (ROOT / "docs" / "environment" / "README.md").read_text(encoding="utf-8")
         root_env = (ROOT / ".env.example").read_text(encoding="utf-8")
-        ingestion_readme = (ROOT / "apps" / "ingestion-worker" / "README.md").read_text(encoding="utf-8")
+        ingestion_readme = (ROOT / "apps" / "ingestion-worker" / "README.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("env/commands/*.env.example", docs_environment)
         self.assertIn("env/commands/historical/*.env.example", docs_environment)

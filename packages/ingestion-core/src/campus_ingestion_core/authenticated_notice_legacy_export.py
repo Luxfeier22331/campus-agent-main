@@ -1,23 +1,21 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_truth import (
     AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 )
 
-
 AUTHENTICATED_NOTICE_LEGACY_NORMALIZED_SCHEMA = (
     "authenticated_notice_legacy_bootstrap_normalized_v1"
 )
 AUTHENTICATED_NOTICE_LEGACY_COLLECTOR_RUNTIME_SHELL = "legacy_external_collector"
-AUTHENTICATED_NOTICE_LEGACY_EXPORT_CONTRACT_VERSION = (
-    "legacy_authenticated_notice_export_v3"
-)
+AUTHENTICATED_NOTICE_LEGACY_EXPORT_CONTRACT_VERSION = "legacy_authenticated_notice_export_v3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,9 +38,7 @@ def normalize_authenticated_notice_legacy_export(
     exported_at: str | None = None,
 ) -> AuthenticatedNoticeLegacyNormalizationResult:
     normalized_ids = tuple(
-        dict.fromkeys(
-            str(item).strip() for item in selected_notice_ids if str(item).strip()
-        )
+        dict.fromkeys(str(item).strip() for item in selected_notice_ids if str(item).strip())
     )
     selected_set = set(normalized_ids)
     normalized_records = tuple(
@@ -55,7 +51,7 @@ def normalize_authenticated_notice_legacy_export(
     missing_notice_ids = tuple(
         notice_id for notice_id in normalized_ids if notice_id not in found_ids
     )
-    exported_timestamp = exported_at or datetime.now(timezone.utc).isoformat()
+    exported_timestamp = exported_at or datetime.now(UTC).isoformat()
     normalized_manifest = build_authenticated_notice_legacy_normalized_manifest(
         legacy_manifest=legacy_manifest,
         site_id=site_id,
@@ -93,11 +89,7 @@ def build_authenticated_notice_legacy_normalized_manifest(
     legacy_run = dict(legacy.get("run") or {})
     legacy_counts = dict(legacy.get("counts") or {})
     filtered_notice_type_ids = tuple(
-        dict.fromkeys(
-            str(item).strip()
-            for item in selected_notice_type_ids
-            if str(item).strip()
-        )
+        dict.fromkeys(str(item).strip() for item in selected_notice_type_ids if str(item).strip())
     )
     selected_notice_type_policy = [
         dict(item)
@@ -133,9 +125,7 @@ def build_authenticated_notice_legacy_normalized_manifest(
             "mode": "legacy_normalized_selection",
             "status": "success",
             "started_at": str(
-                legacy_run.get("started_at")
-                or legacy.get("exported_at")
-                or exported_at
+                legacy_run.get("started_at") or legacy.get("exported_at") or exported_at
             ),
             "finished_at": exported_at,
             "pages_fetched": int(legacy_run.get("pages_fetched") or 0),
@@ -163,22 +153,14 @@ def build_authenticated_notice_legacy_normalized_manifest(
 def load_authenticated_notice_selection_notice_ids(path: Path) -> tuple[str, ...]:
     raw = Path(path).read_text(encoding="utf-8")
     if path.suffix.lower() != ".json":
-        return tuple(
-            dict.fromkeys(
-                line.strip() for line in raw.splitlines() if line.strip()
-            )
-        )
+        return tuple(dict.fromkeys(line.strip() for line in raw.splitlines() if line.strip()))
     payload = json.loads(raw)
     if isinstance(payload, list):
-        return tuple(
-            dict.fromkeys(str(item).strip() for item in payload if str(item).strip())
-        )
+        return tuple(dict.fromkeys(str(item).strip() for item in payload if str(item).strip()))
     if isinstance(payload, dict):
         direct = payload.get("selected_notice_ids")
         if isinstance(direct, list):
-            return tuple(
-                dict.fromkeys(str(item).strip() for item in direct if str(item).strip())
-            )
+            return tuple(dict.fromkeys(str(item).strip() for item in direct if str(item).strip()))
         notices = payload.get("notices")
         if isinstance(notices, list):
             return tuple(

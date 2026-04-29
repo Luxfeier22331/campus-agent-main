@@ -2,21 +2,20 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core.authenticated_notice_closeout import (
     AuthenticatedNoticeCloseoutService,
     CloseoutPlanner,
 )
 from campus_ingestion_core.authenticated_notice_import import AuthenticatedNoticeImportRequest
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Plan an authenticated notice async closeout run"
-    )
+    parser = argparse.ArgumentParser(description="Plan an authenticated notice async closeout run")
     parser.add_argument("--bundle-path", required=True)
     parser.add_argument("--manifest-path")
     parser.add_argument("--site-id", required=True)
@@ -56,6 +55,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
             site_id=args.site_id,
             source_home_url=args.source_home_url,
+            allow_local_fixture_import=True,
             corpus=args.corpus,
             collection=args.collection,
             default_entitlement_groups=(entitlement_groups or ("campus_members",)),

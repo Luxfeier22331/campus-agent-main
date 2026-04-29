@@ -1,0 +1,13 @@
+{
+	"corpus": "regulations",
+	"collection": "student_rules",
+	"canonical_profile_version": "student_rules_canonical_v1",
+	"doc_id_strategy": "title_hash",
+	"version_id_strategy": "canonical_body_hash",
+	"primary_input": "provider_result_jsonl",
+	"structured_source": "structured_full_jsonl",
+	"notes": [
+		"Freeze handbook identity at document-level cleanup, not at provider normalization.",
+		"Canonical metadata is derived after split-manifest projection and cleanup."
+	]
+}

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-27
 ---
 
 # Runbooks
@@ -13,34 +13,43 @@ updated: 2026-04-12
 ## Core Deploy / Smoke / Release
 
 - `staging-worker-deploy-runbook.md`
+- `document-reader-publish-and-docs-deploy-runbook.md`
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
 - `index-release-runbook.md`
 
+## Collaboration / Workstream Claims
+
+- `workstream-harness-workflow.md`
+- `workstream-claim-workflow.md`
+- `public-product-path-safety-ops-runbook.md`
+
 ## Environment-Specific Smoke / Evidence
 
-- `dev-backed-supervisor-staging-smoke-runbook.md`
+- `supervisor-api-staging-operations.md`
+- `supervisor-api-staging-smoke-runbook.md`
+- `supervisor-api-server-handoff.md`
 - `worker-observability-smoke-runbook.md`
-- `public-chat-staging-smoke-artifact-template.md`
-- `worker-observability-smoke-artifact-template.md`
+- `templates/public-chat-staging-smoke-artifact-template.md`
+- `templates/worker-observability-smoke-artifact-template.md`
 
 ## Local Infra / Recovery
 
 - `local-postgres-dev-recovery-runbook.md`
+- `supervisor-api-local-runtime-smoke.md`
 - `qdrant-cloud-backup-and-restore-runbook.md`
 - `provider-secret-governance.md`
+- `legacy-office-conversion-runtime.md`
 
 ## Authenticated Notice / Internal Notice
 
+- `ingestion-worker-on-demand-batch-runbook.md`
 - `authenticated-notice-file-release-auth-window-runbook.md`
 - `authenticated-notice-bootstrap-smoke-runbook.md`
 - `authenticated-notice-source-truth-replay-runbook.md`
 - `authenticated-notice-async-staged-closeout-runbook.md`
 - `internal-notice-policy-regulation-promotion-runbook.md`
-
-## Pilot / specialized runbooks
-
-- `authenticated-notice-source-truth-replay-pilot-runbook.md`
+- `internal-notice-regulation-target-quality-acceptance-runbook.md`
 
 ## Official Web
 
@@ -53,7 +62,12 @@ updated: 2026-04-12
 - `student-handbook-hybrid-rebuild-checklist.md`
 - `curriculum-plan-hybrid-rebuild-checklist.md`
 
-## Historical / Comparison Runbooks
+## Eval / Acceptance automation
 
-- `authenticated-notice-historical-donor-intake-runbook.md`
-- `authenticated-notice-historical-backfill-closeout-runbook.md`
+- `eval-release-gate-automation.md`
+- `eval-operations-governance.md`
+
+## Historical / Comparison Archive
+
+- `archive/README.md`
+  - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace

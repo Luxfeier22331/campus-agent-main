@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
-from typing import Sequence
+from collections.abc import Sequence
+from dataclasses import asdict
 
 from campus_ingestion_core import prepare_registry_scope_chunks
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

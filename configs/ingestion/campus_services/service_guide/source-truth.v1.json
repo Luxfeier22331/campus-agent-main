@@ -1,0 +1,40 @@
+{
+	"schema_version": "campus_services_service_guide_source_truth_manifest.v1",
+	"target_corpus": "campus_services",
+	"target_collection": "service_guide",
+	"upstream_corpus": "regulations",
+	"upstream_collection": "student_rules",
+	"release_id_prefix": "service-guide-handbook",
+	"effective_from": "2018-09-01T00:00:00+08:00",
+	"effective_until": "2099-12-31T23:59:59+08:00",
+	"expected_ready_records": 15,
+	"curated_flow_graphs": [
+		{
+			"path": "../../regulations/student_rules/curated-flow-graphs/central-minzu-student-dormitory-management-workflow.v1.json",
+			"projection_name": "handbook_navigation_service_catalog",
+			"description": "学生公寓管理工作流程，来源为学生手册第 252-255 页。"
+		}
+	],
+	"curated_service_guides": [
+		{
+			"path": "../../regulations/student_rules/curated-service-guides/central-minzu-student-public-medical.v1.json",
+			"projection_name": "handbook_student_public_medical_service_guide",
+			"description": "学生公费医疗资格、就医、报销与不予报销范围，来源为学生手册第 259-260 页。"
+		},
+		{
+			"path": "../../regulations/student_rules/curated-service-guides/central-minzu-student-affairs-services.v1.json",
+			"projection_name": "handbook_student_affairs_service_guide",
+			"description": "学生证补办与学生申诉办理指南，来源为学生手册第 133-137 页与第 163-165 页。"
+		},
+		{
+			"path": "../../regulations/student_rules/curated-service-guides/central-minzu-student-financial-aid-services.v1.json",
+			"projection_name": "handbook_student_financial_aid_service_guide",
+			"description": "临时困难补助、国家助学贷款与勤工助学岗位聘用指南，来源为学生手册第 217-246 页。"
+		},
+		{
+			"path": "curated-service-guides/central-minzu-campus-card-official-web.v1.json",
+			"projection_name": "official_web_campus_card_service_guide",
+			"description": "校园卡挂失、补卡、线下地点、电话与余额领取说明，来源为信息化建设管理处学生校园卡服务页与迎新站一卡通页。"
+		}
+	]
+}

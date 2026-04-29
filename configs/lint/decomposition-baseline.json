@@ -1,0 +1,149 @@
+{
+	"threshold": 800,
+	"admitted": {
+		"apps/app-api/src/modules/operator-query/service-types.ts": {
+			"max_lines": 819
+		},
+		"apps/app-api/src/modules/runtime-command/service/normalize.ts": {
+			"max_lines": 1717
+		},
+		"apps/app-api/test/chat-command.service.core.structured.suite.ts": {
+			"max_lines": 946
+		},
+		"apps/app-api/test/chat-command.service.observability.suite.ts": {
+			"max_lines": 813
+		},
+		"apps/authenticated-notice-collector/src/bootstrap-export-core.ts": {
+			"max_lines": 833
+		},
+		"apps/authenticated-notice-collector/src/file-release-export-core.ts": {
+			"max_lines": 836
+		},
+		"apps/authenticated-notice-collector/test/bootstrap-export.collection.attachments.suite.ts": {
+			"max_lines": 911
+		},
+		"apps/authenticated-notice-collector/test/file-release-export.test.ts": {
+			"max_lines": 825
+		},
+		"apps/ingestion-worker/src/campus_ingestion_worker/build_transport_schedule_projection.py": {
+			"max_lines": 878
+		},
+		"apps/ingestion-worker/src/campus_ingestion_worker/official_web_university_collection.py": {
+			"max_lines": 1188
+		},
+		"apps/ingestion-worker/src/campus_ingestion_worker/on_demand_batch_runner.py": {
+			"max_lines": 820
+		},
+		"apps/protected-panel-web/src/panel/pages/audit-page.tsx": {
+			"max_lines": 805
+		},
+		"apps/protected-panel-web/src/panel/pages/quality-page/cards.tsx": {
+			"max_lines": 811
+		},
+		"apps/public-chat-web/test/worker.test.ts": {
+			"max_lines": 1799
+		},
+		"apps/supervisor-api/internal/structuredquery/notice_test.go": {
+			"max_lines": 808
+		},
+		"apps/supervisor-api/internal/structuredquery/runtime_fixtures_test.go": {
+			"max_lines": 866
+		},
+		"apps/supervisor-api/internal/structuredquery/runtime_test.go": {
+			"max_lines": 893
+		},
+		"apps/wechat-official-account-collector/src/capture.ts": {
+			"max_lines": 803
+		},
+		"packages/contracts/src/campus_contracts/models_tools.py": {
+			"max_lines": 893
+		},
+		"packages/evals/src/campus_evals/app_api_chat_runtime_decoding.py": {
+			"max_lines": 843
+		},
+		"packages/evals/src/campus_evals/eval_profile_gate.py": {
+			"max_lines": 1170
+		},
+		"packages/evals/src/campus_evals/intent_scenarios.py": {
+			"max_lines": 817
+		},
+		"packages/evals/src/campus_evals/operator_observability.py": {
+			"max_lines": 832
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_file_release_import.py": {
+			"max_lines": 1085
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py": {
+			"max_lines": 1223
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections_engine.py": {
+			"max_lines": 903
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/collected_notice_downstream_pilot.py": {
+			"max_lines": 895
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/collected_notice_regulation_admission.py": {
+			"max_lines": 1086
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/collected_notice_reimport_preview.py": {
+			"max_lines": 1378
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/internal_notice_schedule_image_ocr.py": {
+			"max_lines": 1861
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/notice_derived_service_status_materialization.py": {
+			"max_lines": 1007
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/notice_derived_transport_schedule_materialization.py": {
+			"max_lines": 1135
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/raw_ingestion_online_ocr.py": {
+			"max_lines": 826
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/structured_projection_postgres.py": {
+			"max_lines": 1028
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/transport_schedule_projection.py": {
+			"max_lines": 808
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/wechat_public_notice_multimodal.py": {
+			"max_lines": 1931
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/wechat_public_notice_projection.py": {
+			"max_lines": 1510
+		},
+		"packages/wechat-official-account-core/src/index.ts": {
+			"max_lines": 902
+		},
+		"scripts/doctor_env.py": {
+			"max_lines": 895
+		},
+		"tests/agent/test_campus_services_agent.py": {
+			"max_lines": 1022
+		},
+		"tests/ingestion/authenticated_notice_import_export_suite.py": {
+			"max_lines": 1037
+		},
+		"tests/ingestion/official_web_projection_article_units_suite.py": {
+			"max_lines": 801
+		},
+		"tests/ingestion/official_web_projection_directory_and_hash_suite.py": {
+			"max_lines": 988
+		},
+		"tests/ingestion/test_build_transport_schedule_projection_worker.py": {
+			"max_lines": 1058
+		},
+		"tests/ingestion/test_internal_notice_multimodal_processing.py": {
+			"max_lines": 826
+		},
+		"tests/ingestion/test_internal_notice_schedule_image_ocr.py": {
+			"max_lines": 1054
+		},
+		"tests/ingestion/test_notice_derived_transport_schedule_materialization.py": {
+			"max_lines": 1362
+		},
+		"tests/ingestion/test_wechat_public_notice_projection.py": {
+			"max_lines": 872
+		}
+	}
+}

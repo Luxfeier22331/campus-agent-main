@@ -1,0 +1,13 @@
+{
+	"corpus": "authenticated_documents",
+	"collection": "common_download_source",
+	"canonical_profile_version": "authenticated_documents_common_download_source_v1",
+	"doc_id_strategy": "authenticated_notice_document_id",
+	"version_id_strategy": "raw_version_id",
+	"primary_input": "authenticated_notice_source_truth",
+	"structured_source": "document_units_jsonl",
+	"notes": [
+		"This scope preserves authenticated notice source-truth for common-download holding only.",
+		"It does not publish query-serving semantics or notice-consumption projections."
+	]
+}

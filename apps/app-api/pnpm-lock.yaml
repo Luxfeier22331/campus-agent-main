@@ -11,6 +11,9 @@ importers:
       '@hono/zod-openapi':
         specifier: ^0.19.10
         version: 0.19.10(hono@4.12.9)(zod@4.3.6)
+      '@sentry/cloudflare':
+        specifier: ^10.46.0
+        version: 10.49.0(@cloudflare/workers-types@4.20260317.1)
       better-auth:
         specifier: ^1.5.6
         version: 1.5.6(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@4.20260317.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.14)(pg@8.20.0))(pg@8.20.0)(vitest@4.1.2(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(vite@8.0.3(@types/node@24.12.0)(esbuild@0.27.3)(tsx@4.21.0)(yaml@2.8.3)))
@@ -940,6 +943,19 @@ packages:
 
   '@rolldown/pluginutils@1.0.0-rc.12':
     resolution: {integrity: sha512-HHMwmarRKvoFsJorqYlFeFRzXZqCt2ETQlEDOb9aqssrnVBB1/+xgTGtuTrIk5vzLNX1MjMtTf7W9z3tsSbrxw==}
+
+  '@sentry/cloudflare@10.49.0':
+    resolution: {integrity: sha512-kHNIwJ6SX39R5TRoW/Bf25rgrBwXBbD44fEK9+hkJ3IdGBLktXG2+T7mNGjpvR98TWxQDhcvs8WLfFw/SsDGrA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@cloudflare/workers-types': ^4.x
+    peerDependenciesMeta:
+      '@cloudflare/workers-types':
+        optional: true
+
+  '@sentry/core@10.49.0':
+    resolution: {integrity: sha512-UaFeum3LUM1mB0d67jvKnqId1yWQjyqmaDV6kWngG03x+jqXb08tJdGpSoxjXZe13jFBbiBL/wKDDYIK7rCK4g==}
+    engines: {node: '>=18'}
 
   '@sindresorhus/is@7.2.0':
     resolution: {integrity: sha512-P1Cz1dWaFfR4IR+U13mqqiGsLFf1KbayybWwdd2vfctdV6hDpUkgCY0nKOLLTMSoRd/jJNjtbqzf13K8DCCXQw==}
@@ -2185,6 +2201,15 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.0-rc.12': {}
+
+  '@sentry/cloudflare@10.49.0(@cloudflare/workers-types@4.20260317.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@sentry/core': 10.49.0
+    optionalDependencies:
+      '@cloudflare/workers-types': 4.20260317.1
+
+  '@sentry/core@10.49.0': {}
 
   '@sindresorhus/is@7.2.0': {}
 

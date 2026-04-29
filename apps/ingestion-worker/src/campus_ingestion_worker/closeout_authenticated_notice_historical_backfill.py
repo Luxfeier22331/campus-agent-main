@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import sys
 import threading
 import time
-from typing import Any, Callable, Sequence, TypeVar
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
@@ -21,14 +22,13 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.smoke_authenticated_notice_bootstrap import build_smoke_summary
-
 
 DEFAULT_CLOSEOUT_CHECKPOINT_SIZES = (240, 1000, 3000)
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
 SAMPLE_LIMIT = 20
-_T = TypeVar("_T")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -103,7 +103,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     checkpoint_runs: list[dict[str, Any]] = []
-    closeout_started_at = datetime.now(timezone.utc).isoformat()
+    closeout_started_at = datetime.now(UTC).isoformat()
     for checkpoint_size in checkpoint_sizes:
         checkpoint_runs.append(
             run_closeout_checkpoint(
@@ -187,11 +187,7 @@ def resolve_checkpoint_sizes(
     if total_count <= 0:
         raise ValueError("total_count must be positive")
     source = requested_sizes or DEFAULT_CLOSEOUT_CHECKPOINT_SIZES
-    sizes = {
-        int(size)
-        for size in source
-        if int(size) > 0 and int(size) < total_count
-    }
+    sizes = {int(size) for size in source if int(size) > 0 and int(size) < total_count}
     sizes.add(total_count)
     return tuple(sorted(sizes))
 
@@ -208,13 +204,14 @@ def build_frozen_input(
     manifest_counts = export_manifest.get("counts") if isinstance(export_manifest, dict) else None
     manifest_run = export_manifest.get("run") if isinstance(export_manifest, dict) else None
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "bundle_path": str(bundle_path),
         "manifest_path": str(manifest_path) if manifest_path is not None else None,
         "bundle_notice_count": bundle_notice_count,
         "manifest_schema_version": (
             str(export_manifest.get("schema_version"))
-            if isinstance(export_manifest, dict) and export_manifest.get("schema_version") is not None
+            if isinstance(export_manifest, dict)
+            and export_manifest.get("schema_version") is not None
             else None
         ),
         "manifest_export_scope": (
@@ -397,21 +394,21 @@ def run_full_rerun(
 
 def emit_runtime_log(*, event: str, **fields: object) -> None:
     payload = {
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "event": event,
         **fields,
     }
     print(json.dumps(payload, ensure_ascii=False), file=sys.stderr, flush=True)
 
 
-def run_with_heartbeat(
+def run_with_heartbeat[T](
     *,
-    operation: Callable[[], _T],
+    operation: Callable[[], T],
     logger: Callable[..., None],
     heartbeat_event: str,
     heartbeat_interval_seconds: float,
     heartbeat_fields: dict[str, object],
-) -> _T:
+) -> T:
     if heartbeat_interval_seconds <= 0:
         return operation()
 
@@ -534,9 +531,7 @@ def build_closeout_summary(
     closeout_started_at: str,
 ) -> dict[str, Any]:
     checkpoint_failures = [
-        run["checkpoint_size"]
-        for run in checkpoint_runs
-        if not bool(run["summary"].get("ok"))
+        run["checkpoint_size"] for run in checkpoint_runs if not bool(run["summary"].get("ok"))
     ]
     final_rerun_ok = final_rerun is None or bool(final_rerun["summary"].get("ok"))
     ok = (
@@ -551,7 +546,7 @@ def build_closeout_summary(
     )
     return {
         "ok": ok,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "closeout_started_at": closeout_started_at,
         "frozen_input": frozen_input,
         "checkpoints": [
@@ -599,6 +594,7 @@ def _run_import_summary(
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     request = AuthenticatedNoticeImportRequest(
         bundle_path=bundle_path,
+        allow_local_fixture_import=True,
         export_manifest_path=manifest_path,
         **request_kwargs,
     )
@@ -609,7 +605,7 @@ def _run_import_summary(
         result=result,
         expected_notice_count=expected_notice_count,
         execution={
-            "summary_generated_at": datetime.now(timezone.utc).isoformat(),
+            "summary_generated_at": datetime.now(UTC).isoformat(),
             "bundle_path": str(request.bundle_path),
             "manifest_path": (
                 str(request.export_manifest_path)
@@ -699,9 +695,9 @@ __all__ = [
     "emit_runtime_log",
     "main",
     "resolve_checkpoint_sizes",
-    "run_with_heartbeat",
     "run_closeout_checkpoint",
     "run_full_rerun",
+    "run_with_heartbeat",
 ]
 
 

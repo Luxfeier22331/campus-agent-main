@@ -1,0 +1,190 @@
+{
+  "admission_run_id": "service-status-current-release-composition-20260428T122000",
+  "collection": "internal_notice",
+  "corpus": "campus_notices",
+  "created_at": "2026-04-28T12:20:00+08:00",
+  "decision_counts": {
+    "admit": 7,
+    "campus_services/service_status_candidate": 7,
+    "candidate_for_typed_materialization": 7
+  },
+  "decision_records": [
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate",
+        "phase9_current_release_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 0,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "it_platform_service_status",
+      "notice_id": "247726",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:247726",
+      "raw_version_id": "sha256:phase9-current-release-composition:247726",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "247726",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    },
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate",
+        "phase9_current_release_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 0,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "library_service_status",
+      "notice_id": "352345",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:352345",
+      "raw_version_id": "sha256:phase9-current-release-composition:352345",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "352345",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    },
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate",
+        "phase9_current_release_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 0,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "facility_service_status",
+      "notice_id": "354502",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:354502",
+      "raw_version_id": "sha256:phase9-current-release-composition:354502",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "354502",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    },
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate",
+        "phase9_current_release_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 0,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "service_status_override",
+      "notice_id": "354575",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:354575",
+      "raw_version_id": "sha256:phase9-current-release-composition:354575",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "354575",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    },
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate",
+        "phase9_current_release_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 0,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "it_platform_service_status",
+      "notice_id": "354674",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:354674",
+      "raw_version_id": "sha256:phase9-current-release-composition:354674",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "354674",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    },
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate",
+        "phase9_current_release_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 0,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "service_status_override",
+      "notice_id": "354845",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:354845",
+      "raw_version_id": "sha256:phase9-current-release-composition:354845",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "354845",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    },
+    {
+      "admission_decision": "admit",
+      "admission_reason_codes": [
+        "service_status_candidate",
+        "phase9_current_release_candidate"
+      ],
+      "attachment_document_count": 0,
+      "attachment_ref_count": 0,
+      "body_quality": "body_present",
+      "consumption_status": "candidate_for_typed_materialization",
+      "notice_family": "facility_transport_classroom_status",
+      "notice_id": "355650",
+      "owner_expectation_count": 0,
+      "pending_multimodal_attachment_count": 0,
+      "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:355650",
+      "raw_version_id": "sha256:phase9-current-release-composition:355650",
+      "reference_only_attachment_ref_count": 0,
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355650",
+      "suggested_consumption_route": "service_status_candidate",
+      "target_surface": "campus_services/service_status_candidate",
+      "unsupported_binary_count": 0
+    }
+  ],
+  "policy_version": "internal_notice_consumer_admission_policy.v1",
+  "schema_version": "internal_notice_consumer_admission_manifest.v1",
+  "scope_write_mode": "replace_scope",
+  "selected_notice_ids": [
+    "247726",
+    "352345",
+    "354502",
+    "354575",
+    "354674",
+    "354845",
+    "355650"
+  ],
+  "selection_path": ".planning/workstreams/authenticated-notice-service-status-consumption/evidence/phase-09-current-release-composition-and-safe-promotion/current-candidate-audit.json",
+  "selection_sha256": "3209c5819f8e4382103afecfbc57ce6b6f267bf6d2a7f0f09beeff8df18378d7",
+  "selection_source": "current_candidate_audit",
+  "source_channel": "authenticated_notice_portal"
+}

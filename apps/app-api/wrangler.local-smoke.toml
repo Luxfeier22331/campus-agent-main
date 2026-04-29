@@ -8,9 +8,24 @@ preview_urls = false
 [triggers]
 crons = ["*/1 * * * *"]
 
+[secrets]
+required = [
+  "BETTER_AUTH_SECRET",
+  "AUTH_TURNSTILE_SECRET_KEY",
+  "RESEND_API_KEY",
+  "AUTH_RESET_EMAIL_FROM",
+  "SUPERVISOR_API_SHARED_SECRET",
+  "APP_API_INTERNAL_SHARED_SECRET",
+]
+
 [vars]
+APP_API_ENVIRONMENT = "development"
 PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:5173"
-SUPERVISOR_API_BASE_URL = "http://127.0.0.1:8081"
+APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
+APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.com"
+APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
+SUPERVISOR_API_BASE_URL = "http://127.0.0.1:18080"
+SUPERVISOR_API_TIMEOUT_MS = "15000"
 
 [[hyperdrive]]
 binding = "APP_API_DB"

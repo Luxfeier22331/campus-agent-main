@@ -4,7 +4,6 @@ status: active
 created: 2026-04-02
 updated: 2026-04-12
 ---
-
 # Provider Secret Governance
 
 ## Purpose
@@ -97,50 +96,49 @@ repo root `.env` 只用于本地工作区开发。
 ### Add or update secrets
 
 1. 确认目标环境是 `dev`、`staging` 还是 `prod`
-2. 确认此次下发的是 shared provider 还是 eval-only override
-3. 在对应 deploy secret store 中写入所需键
-4. 不要把真实值写回 repo-tracked `.env.example`、README 或 runbook
+1. 确认此次下发的是 shared provider 还是 eval-only override
+1. 在对应 deploy secret store 中写入所需键
+1. 不要把真实值写回 repo-tracked `.env.example`、README 或 runbook
 
 ### Verify local environment
 
 本地只验证当前工作区：
 
 1. 确认 `.env` 在当前工作区
-2. 运行：
-   `uv run --all-packages python -m scripts.doctor_env evals --json`
-3. 检查：
+1. 运行： `uv run --all-packages python -m scripts.doctor_env evals --json`
+1. 检查：
    - `bootstrap.file_found=true`
    - `bootstrap.loaded_path` 指向当前工作区 `.env`
    - provider `checked_keys` 顺序符合预期
    - `resolved_key` 符合当前期望
-4. 不要通过打印 raw env value 来做验证
+1. 不要通过打印 raw env value 来做验证
 
 ### Verify deploy environment
 
-1. 先运行：
-   `uv run --all-packages python -m scripts.check_worker_secret_presence --env staging --json`
-2. 确认输出里每个 Worker app 都是 `ready=true`，且没有 `missing_secrets`
-3. 再通过受控 smoke / acceptance 入口验证 provider 可用
-4. 只记录：
+1. 先运行： `uv run --all-packages python -m scripts.check_worker_secret_presence
+   --env staging --json`
+1. 确认输出里每个 Worker app 都是 `ready=true`，且没有 `missing_secrets`
+1. 再通过受控 smoke / acceptance 入口验证 provider 可用
+1. 只记录：
    - secret 是否存在
    - 命中了哪类 key owner
    - 请求是否成功
-5. 不要在日志、截图、artifact 中记录 raw key
+1. 不要在日志、截图、artifact 中记录 raw key
 
 ## Rotate Procedure
 
 1. 在 provider 平台创建新 key
-2. 写入目标环境 secret store
-3. 重新部署或重启需要加载新 secret 的运行面
-4. 执行对应 smoke / acceptance / doctor 检查
-5. 确认新 key 工作正常后撤销旧 key
+1. 写入目标环境 secret store
+1. 重新部署或重启需要加载新 secret 的运行面
+1. 执行对应 smoke / acceptance / doctor 检查
+1. 确认新 key 工作正常后撤销旧 key
 
 如果是泄露应急：
 
 1. 先创建并切换新 key
-2. 立即 revoke 旧 key
-3. 复核近期日志、artifact、截图与共享记录
-4. 如有必要，追加预算/调用审计
+1. 立即 revoke 旧 key
+1. 复核近期日志、artifact、截图与共享记录
+1. 如有必要，追加预算/调用审计
 
 ## Do Not
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
+from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
@@ -60,7 +61,8 @@ class InMemoryDocumentRegistry:
                 (
                     record
                     for record in self._records.values()
-                    if record.corpus == corpus and (collection is None or record.collection == collection)
+                    if record.corpus == corpus
+                    and (collection is None or record.collection == collection)
                 ),
                 key=lambda record: (record.document_id, record.revision_track, record.version_id),
             )
@@ -98,6 +100,25 @@ class InMemoryDocumentRegistry:
             return ()
         return (max(records, key=lambda record: record.ingestion_timestamp),)
 
+    def list_versions(
+        self,
+        document_id: str,
+        revision_track: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        records = [
+            record
+            for record in self._records.values()
+            if record.document_id == document_id
+            and (revision_track is None or record.revision_track == revision_track)
+        ]
+        return tuple(
+            sorted(
+                records,
+                key=lambda record: datetime.fromisoformat(record.ingestion_timestamp),
+                reverse=True,
+            )
+        )
+
     def current_version(
         self,
         document_id: str,
@@ -108,7 +129,9 @@ class InMemoryDocumentRegistry:
             return None
         current_records = [record for record in records if record.is_current]
         for revision_track in preferred_revision_tracks:
-            matching = [record for record in current_records if record.revision_track == revision_track]
+            matching = [
+                record for record in current_records if record.revision_track == revision_track
+            ]
             if matching:
                 return max(matching, key=lambda record: record.ingestion_timestamp)
         if current_records:
@@ -217,7 +240,8 @@ class InMemoryRawAssetRegistry:
                 (
                     record
                     for record in self._records.values()
-                    if record.corpus == corpus and (collection is None or record.collection == collection)
+                    if record.corpus == corpus
+                    and (collection is None or record.collection == collection)
                 ),
                 key=lambda record: (record.raw_asset_id, record.raw_version_id),
             )

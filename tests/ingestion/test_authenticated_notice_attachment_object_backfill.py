@@ -4,15 +4,16 @@ import hashlib
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_attachment_object_backfill import (
     AuthenticatedNoticeAttachmentObjectBackfillRequest,
     backfill_authenticated_notice_attachment_objects,
 )
+
 from tests.ingestion.test_authenticated_notice_import import (
     _FakeObjectStore,
     _sample_notice_bundle,
@@ -40,16 +41,13 @@ def _bundle_with_attachment_payload(
     bundle = _sample_notice_bundle()
     sha256 = hashlib.sha256(attachment_bytes).hexdigest()
     object_key = f"{sha256[:2]}/{sha256}/{filename}"
-    canonical_key = (
-        f"authenticated_notice_portal/attachment-{sha256[:12]}/2026/sha256/{sha256}/capture/{filename}"
-    )
+    canonical_key = f"authenticated_notice_portal/attachment-{sha256[:12]}/2026/sha256/{sha256}/capture/{filename}"
     bundle[0]["attachments"][0]["byte_size"] = len(attachment_bytes)
     bundle[0]["attachments"][0]["sha256"] = sha256
     bundle[0]["attachments"][0]["object_key"] = object_key
     bundle[0]["attachments"][0]["original_filename"] = filename
     bundle[0]["attachments"][0]["local_path"] = (
-        "D:\\docs\\muc\\muc-notice-collector\\runtime\\blob-store\\"
-        + object_key.replace("/", "\\")
+        "D:\\docs\\muc\\muc-notice-collector\\runtime\\blob-store\\" + object_key.replace("/", "\\")
     )
     return bundle, object_key, canonical_key
 
@@ -88,7 +86,9 @@ class AuthenticatedNoticeAttachmentObjectBackfillTest(unittest.TestCase):
             attachment_bytes,
         )
 
-    def test_backfill_fast_fails_when_existing_object_content_mismatches_expected_sha256(self) -> None:
+    def test_backfill_fast_fails_when_existing_object_content_mismatches_expected_sha256(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             blob_root = root / "blob-store"

@@ -4,7 +4,6 @@ status: active
 created: 2026-04-04
 updated: 2026-04-12
 ---
-
 # Authenticated Notice Async Staged Closeout Runbook
 
 ## 文档边界
@@ -14,25 +13,22 @@ updated: 2026-04-12
 它不替代：
 
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
-- `docs/runbooks/authenticated-notice-historical-backfill-closeout-runbook.md` 的 legacy cumulative-prefix closeout 说明
 - live collector / control-plane runbook
 
-## Historical Evidence Pointer
-
-完整 historical closeout 的实跑指标固定记录在：
-
-- `docs/reference/authenticated-notice-historical-closeout-evidence.md`
-
-这份 runbook 只维护可重复执行的流程，不维护某一轮 run 的实时 checkpoint。
+这份 runbook 只维护可重复执行的流程，不维护某一轮 run 的实时 checkpoint，也不复写已经退出默认路径的 cumulative-prefix
+closeout 旧流程。
 
 ## Canonical CLI
 
 ### 1. 规划 staged run
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.plan_authenticated_notice_closeout \
-  --bundle-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json \
-  --manifest-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/export-manifest-20260403-run-14.json \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.plan_authenticated_notice_closeout
+  --bundle-path \
+    /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json
+  --manifest-path \
+    /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/export-manifest-20260403-run-14.json
   --site-id muc_internal_portal \
   --source-home-url https://my.muc.edu.cn \
   --run-id run-14-async \
@@ -47,7 +43,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.plan_
 ### 2. 启动一个或多个 worker
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.run_authenticated_notice_closeout_worker
   --run-id run-14-async \
   --worker-id worker-a
 ```
@@ -57,7 +54,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_a
 如果要在同一台机器上一次性拉起多个本地 worker，也可以使用：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.run_authenticated_notice_closeout_worker
   --run-id run-14-async \
   --parallel-workers 8 \
   --worker-id-prefix worker
@@ -72,14 +70,16 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_a
 ### 3. 查询 run 状态
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.show_authenticated_notice_closeout \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.show_authenticated_notice_closeout
   --run-id run-14-async
 ```
 
 ### 4. 持续观察 run 状态
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.watch_authenticated_notice_closeout \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.watch_authenticated_notice_closeout
   --run-id run-14-async \
   --interval 2
 ```
@@ -87,7 +87,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.watch
 ### 5. promotion 到 canonical scope
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promote_authenticated_notice_closeout \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.promote_authenticated_notice_closeout
   --run-id run-14-async
 ```
 
@@ -95,8 +96,12 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 
 - `OBJECT_STORE_*` 已配置
 - `DOCUMENT_REGISTRY_DATABASE_URL` / `RAW_ASSET_REGISTRY_DATABASE_URL` 已配置
-- offline operator shell 必须显式提供 management direct DSN：`AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL` 或 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
-- 当共享库由 Supabase 承载时，management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；helper 不再在 `prefer_management=True` 时回退到 `CAMPUS_SHARED_POSTGRES_URL`
+- offline operator shell 必须显式提供 operator lane
+  DSN：`AUTHENTICATED_NOTICE_CLOSEOUT_OPERATOR_DATABASE_URL` 或
+  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+- legacy `AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL` /
+  `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仍作为兼容别名接受，但当前默认语义已经收口为同一条 IPv4
+  session-pooler `:5432` operator lane
 - 目标 collection 是 `campus_notices/internal_notice`
 - collection posture 是 `restricted + offline_preparation`
 
@@ -131,7 +136,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 - `capture/*`、`provider/*`、`source-truth/*` 仍直接写 canonical source object key
 - worker 读取自己的 `batches/<batch>/input.json` 并只 prepare 当前 batch
 - final `documents/internal_notice/...` 只在 promote 时写入
-- promoter 会把 progress truth 持续写回 `milestones/promoting.json` 与 `promotions/promotion-0001/progress.json`
+- promoter 会把 progress truth 持续写回 `milestones/promoting.json` 与
+  `promotions/promotion-0001/progress.json`
 - promoter 的 copy 进度按 promotion batch 落盘；重启后会跳过 `done` batch，只重试未完成 batch
 
 ## 数据库布局
@@ -149,7 +155,8 @@ closeout staging schema 固定为：
 - `ingestion_closeout.closeout_promotions`
 - `ingestion_closeout.closeout_promotion_batches`
 
-这些表负责 progress / lease / manifest / staged digest / promotion truth，不负责最终 query-serving registry。
+这些表负责 progress / lease / manifest / staged digest / promotion truth，不负责最终
+query-serving registry。
 
 ## 通过标准
 
@@ -204,26 +211,27 @@ promotion 执行中，`show` / `watch` 至少应能读到：
 这类 run 的 canonical 修复路径固定为：
 
 1. 不新建 delta run，不重跑已完成 batch
-2. 读取当前 run 的 shard plan 与 `batches/<batch>/input.json`
-3. 只补回缺失的 batch rows
-4. 将 run 从错误的 `verified` / `running` 结果重开为可继续执行状态
-5. 只续跑缺失 batch
-6. 以完整 frozen plan 重新 verification
-7. verification 通过后只 promote 一次
+1. 读取当前 run 的 shard plan 与 `batches/<batch>/input.json`
+1. 只补回缺失的 batch rows
+1. 将 run 从错误的 `verified` / `running` 结果重开为可继续执行状态
+1. 只续跑缺失 batch
+1. 以完整 frozen plan 重新 verification
+1. verification 通过后只 promote 一次
 
 如果失败原因不是 partial batch rows，而是已经完成的 batch 里存在 stale stage rows，例如：
 
 - `closeout_notice_stage` 缺少当前 verifier 需要的 `attachment_outcomes`
-- source projection rules 已更新，旧 batch stage 里还残留已经不再属于 expected scope 的 child document rows
+- source projection rules 已更新，旧 batch stage 里还残留已经不再属于 expected scope 的 child
+  document rows
 
 则 canonical repair 语义调整为：
 
 1. 仍然只修同一个 run
-2. 识别受影响的 completed batch
-3. 先清掉这些 batch 对应的 notice/raw/document stage rows
-4. 再把这些 completed batch 重开为 `pending`
-5. 只重跑这些 stale completed batch
-6. 重新 verification 后再继续单次 promote
+1. 识别受影响的 completed batch
+1. 先清掉这些 batch 对应的 notice/raw/document stage rows
+1. 再把这些 completed batch 重开为 `pending`
+1. 只重跑这些 stale completed batch
+1. 重新 verification 后再继续单次 promote
 
 禁止：
 
@@ -252,4 +260,5 @@ planner 必须满足以下不变量：
 - 旧 cumulative-prefix run 已经启动，且需要继续观察同一执行
 - 需要与 legacy checkpoint evidence 做对照
 
-canonical 前向路径已经切换到 `plan -> worker(s) -> verify -> promote` 的 async staged closeout；不要再把旧 runner 当作默认 closeout 方案。
+canonical 前向路径已经切换到 `plan -> worker(s) -> verify -> promote` 的 async staged
+closeout；不要再把旧 runner 当作默认 closeout 方案。

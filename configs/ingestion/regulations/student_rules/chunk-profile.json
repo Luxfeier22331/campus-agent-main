@@ -1,0 +1,12 @@
+{
+	"corpus": "regulations",
+	"collection": "student_rules",
+	"chunk_profile_version": "student_rules_semantic_v3",
+	"structured_input": "document_units_jsonl",
+	"notes": [
+		"Chunk only document-level document-units.jsonl rows after handbook cleanup.",
+		"Keep article_body, policy_page, table, and table_row as the fixed phase-1 unit set.",
+		"Budget against final contextualized chunk text instead of raw display_text.",
+		"Use Qwen3-Embedding-4B tokenizer as the budgeting source of truth."
+	]
+}

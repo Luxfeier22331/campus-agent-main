@@ -1,0 +1,38 @@
+{
+  "schema_version": "authenticated_notice_manifest_v1",
+  "source_channel": "authenticated_notice_portal",
+  "site_id": "muc_internal_portal",
+  "notice_id": "177880",
+  "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:177880",
+  "raw_version_id": "sha256:e1cfbdb56b34f883d58476b71c965e467651925fb640013078990c21d90bf6d3",
+  "captured_at": "2026-04-09T19:30:29.385954+00:00",
+  "list_observed_at": "2026-04-02T23:57:52.158Z",
+  "detail_observed_at": "2026-04-02T23:57:52.158Z",
+  "fetcher_name": "authenticated_notice_bundle_import",
+  "fetcher_version": "authenticated_notice_legacy_bootstrap_normalized_v1",
+  "collector_version": "legacy_authenticated_notice_export_v3",
+  "credentials_mode": "authenticated",
+  "notice_title_raw": "关于印发实施《中央民族大学学生申诉管理办法》的通知",
+  "notice_title_normalized": "关于印发实施《中央民族大学学生申诉管理办法》的通知",
+  "organization_name": "党委保卫部、保卫处",
+  "organization_id": "00007",
+  "notice_release_time": "2020-01-07 14:42",
+  "notice_create_time": "2020-01-07 10:01",
+  "notice_first_time": "2020-01-07 10:01",
+  "notice_source": 0,
+  "notice_link_state": 0,
+  "notice_state": 1,
+  "notice_stick": 0,
+  "notice_type_ids": [
+    "32"
+  ],
+  "notice_type_names": [
+    "学工通知"
+  ],
+  "source_notice_link": "campusnotice://muc_internal_portal/notice/177880",
+  "source_home_url": "https://my.muc.edu.cn",
+  "body_html_hash": "fae8345bc67f213b6461a1ec0b03b97eb6906ae09e8be26a65248d3f399862f2",
+  "block_count": 6,
+  "link_count": 0,
+  "attachment_ref_count": 0
+}

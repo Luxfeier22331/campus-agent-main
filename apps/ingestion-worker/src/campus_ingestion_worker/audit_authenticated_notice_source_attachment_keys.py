@@ -2,18 +2,19 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import re
-from typing import Any, Sequence
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
 
-from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.authenticated_notice_source_truth import (
     build_authenticated_notice_attachment_capture_key,
 )
+from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.object_store import parse_source_object_key
 from campus_ingestion_core.settings import ObjectStoreSettings
-from campus_ingestion_worker.env_bootstrap import load_worker_env
 
+from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 LEGACY_ATTACHMENT_OBJECT_KEY_RE = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{64}/[^/]+$")
 
@@ -117,11 +118,11 @@ def audit_authenticated_notice_source_attachment_keys(
                 )
 
     all_source_keys = object_store.list_keys(bucket=object_store_settings.bucket_source, prefix="")
-    all_legacy_keys = sorted(key for key in all_source_keys if _is_legacy_attachment_object_key(key))
+    all_legacy_keys = sorted(
+        key for key in all_source_keys if _is_legacy_attachment_object_key(key)
+    )
     unreferenced_rows = [
-        {"legacy_object_key": key}
-        for key in all_legacy_keys
-        if key not in referenced_keys
+        {"legacy_object_key": key} for key in all_legacy_keys if key not in referenced_keys
     ]
 
     output_dir.mkdir(parents=True, exist_ok=True)

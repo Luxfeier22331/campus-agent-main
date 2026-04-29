@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
 import hashlib
 import json
 import os
-from pathlib import Path
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
@@ -299,7 +299,7 @@ def _process_candidate(
             raise ValueError(
                 f"{candidate.canonical_object_key} byte_size mismatch after copy: "
                 f"source={source_byte_size}, target={target_byte_size}"
-            )
+            ) from None
         return _candidate_result(
             candidate=candidate,
             status="copied",

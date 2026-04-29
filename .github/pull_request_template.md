@@ -1,6 +1,6 @@
-## Summary
+# Pull Request
 
-- 
+## Summary
 
 ## Scope
 
@@ -21,5 +21,3 @@
 ```
 
 ## Risks / Open Questions
-
-- 

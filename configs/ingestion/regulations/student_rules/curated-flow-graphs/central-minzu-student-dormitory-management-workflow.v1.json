@@ -1,0 +1,226 @@
+{
+	"schemaVersion": "handbook_curated_service_flow_graph.v1",
+	"projectionName": "handbook_navigation_service_catalog",
+	"targetDocumentId": "campus_services:service_catalog:student-dorm-workflows",
+	"sourceDocumentId": "handbook:student_rules:2018",
+	"documentData": {
+		"title": "中央民族大学学生公寓管理工作流程",
+		"sourceHandbookSection": "中央民族大学公寓及公费医疗管理规定",
+		"sourcePageStart": 252,
+		"sourcePageEnd": 255,
+		"manualReviewRequired": false,
+		"extractionStatus": "ready",
+		"pageFindings": [
+			{
+				"sourcePage": 253,
+				"pageHeading": "中央民族大学学生公寓管理工作流程",
+				"flows": [
+					{
+						"flowHeading": "公寓楼新生办理入住手续流程",
+						"audienceScope": "新生",
+						"steps": [
+							{
+								"stepId": "p253-f1-s1",
+								"stepText": "持通知书到院系注册，领取校园一卡通，获知住宿楼号及房间。",
+								"nextStepIds": ["p253-f1-s2"]
+							},
+							{
+								"stepId": "p253-f1-s2",
+								"stepText": "到指定公寓楼报到，出示入学通知书。",
+								"nextStepIds": ["p253-f1-s3"]
+							},
+							{
+								"stepId": "p253-f1-s3",
+								"stepText": "楼长分配宿舍钥匙或由前台服务员办理门卡。",
+								"nextStepIds": ["p253-f1-s4"]
+							},
+							{
+								"stepId": "p253-f1-s4",
+								"stepText": "签订住宿协议书，办理住宿档案。",
+								"nextStepIds": ["p253-f1-s5"]
+							},
+							{
+								"stepId": "p253-f1-s5",
+								"stepText": "学生按指定房间入住。",
+								"nextStepIds": ["p253-f1-s6"]
+							},
+							{
+								"stepId": "p253-f1-s6",
+								"stepText": "如需购买卧具，向楼管咨询，到指定地点购买。",
+								"nextStepIds": []
+							}
+						],
+						"manualReviewNotes": []
+					},
+					{
+						"flowHeading": "公寓楼毕业生办理离校手续流程",
+						"audienceScope": "毕业生",
+						"steps": [
+							{
+								"stepId": "p253-f2-s1",
+								"stepText": "到楼长办公室。",
+								"nextStepIds": ["p253-f2-s2"]
+							},
+							{
+								"stepId": "p253-f2-s2",
+								"stepText": "出示《毕业生离校通知单》。",
+								"nextStepIds": ["p253-f2-s3"]
+							},
+							{
+								"stepId": "p253-f2-s3",
+								"stepText": "楼长检查宿舍设备完好情况。",
+								"nextStepIds": ["p253-f2-s4"]
+							},
+							{
+								"stepId": "p253-f2-s4",
+								"stepText": "学生退钥匙，并在《毕业生离校通知单》上签字盖章。",
+								"nextStepIds": ["p253-f2-s5"]
+							},
+							{
+								"stepId": "p253-f2-s5",
+								"stepText": "毕业生到公寓部办公室盖章。",
+								"nextStepIds": ["p253-f2-s6"]
+							},
+							{
+								"stepId": "p253-f2-s6",
+								"stepText": "毕业生在规定时限文明离校。",
+								"nextStepIds": []
+							}
+						],
+						"manualReviewNotes": []
+					}
+				]
+			},
+			{
+				"sourcePage": 254,
+				"pageHeading": "三、计划内住宿学生申请不住宿流程",
+				"flows": [
+					{
+						"flowHeading": "本科生申请不住宿流程",
+						"audienceScope": "本科生",
+						"steps": [
+							{
+								"stepId": "p254-f1-s1",
+								"stepText": "写好不住宿申请，写明原因和不住宿的期限。",
+								"nextStepIds": ["p254-f1-s2"]
+							},
+							{
+								"stepId": "p254-f1-s2",
+								"stepText": "到本院系签字盖章。",
+								"nextStepIds": ["p254-f1-s3"]
+							},
+							{
+								"stepId": "p254-f1-s3",
+								"stepText": "由学生处批准，并签字盖章。",
+								"nextStepIds": ["p254-f1-s4"]
+							},
+							{
+								"stepId": "p254-f1-s4",
+								"stepText": "到公寓部签字盖章。",
+								"nextStepIds": ["p254-f1-s5"]
+							},
+							{
+								"stepId": "p254-f1-s5",
+								"stepText": "将申请交到校财务处。",
+								"nextStepIds": []
+							}
+						],
+						"manualReviewNotes": []
+					},
+					{
+						"flowHeading": "研究生申请不住宿流程",
+						"audienceScope": "研究生",
+						"steps": [
+							{
+								"stepId": "p254-f2-s1",
+								"stepText": "写好不住宿申请，注明期限。",
+								"nextStepIds": ["p254-f2-s2"]
+							},
+							{
+								"stepId": "p254-f2-s2",
+								"stepText": "到公寓部签字盖章。",
+								"nextStepIds": ["p254-f2-s3"]
+							},
+							{
+								"stepId": "p254-f2-s3",
+								"stepText": "将申请交到校财务处。",
+								"nextStepIds": []
+							}
+						],
+						"manualReviewNotes": []
+					}
+				]
+			},
+			{
+				"sourcePage": 255,
+				"pageHeading": "四、住宿中途申请办理退宿流程",
+				"flows": [
+					{
+						"flowHeading": "本科生特殊情况申请办理退宿手续",
+						"audienceScope": "本科生",
+						"steps": [
+							{
+								"stepId": "p255-f1-s1",
+								"stepText": "写好退宿申请，注明不住宿的期限。",
+								"nextStepIds": ["p255-f1-s2"]
+							},
+							{
+								"stepId": "p255-f1-s2",
+								"stepText": "到本院系签字盖章。",
+								"nextStepIds": ["p255-f1-s3"]
+							},
+							{
+								"stepId": "p255-f1-s3",
+								"stepText": "由学生处批准，并签字盖章。",
+								"nextStepIds": ["p255-f1-s4"]
+							},
+							{
+								"stepId": "p255-f1-s4",
+								"stepText": "楼长检查房间，学生退还公物，注销门卡，楼长签字。",
+								"nextStepIds": ["p255-f1-s5"]
+							},
+							{
+								"stepId": "p255-f1-s5",
+								"stepText": "将申请交到校财务处。",
+								"nextStepIds": []
+							}
+						],
+						"manualReviewNotes": []
+					},
+					{
+						"flowHeading": "研究生申请办理退宿手续",
+						"audienceScope": "研究生",
+						"steps": [
+							{
+								"stepId": "p255-f2-s1",
+								"stepText": "写好退宿申请，写明原因和不住宿的期限。",
+								"nextStepIds": ["p255-f2-s2"]
+							},
+							{
+								"stepId": "p255-f2-s2",
+								"stepText": "到本院系签字盖章。",
+								"nextStepIds": ["p255-f2-s3"]
+							},
+							{
+								"stepId": "p255-f2-s3",
+								"stepText": "楼长检查房间，学生退还公物，注销门卡，楼长签字。",
+								"nextStepIds": ["p255-f2-s4"]
+							},
+							{
+								"stepId": "p255-f2-s4",
+								"stepText": "到公寓部签字盖章。",
+								"nextStepIds": ["p255-f2-s5"]
+							},
+							{
+								"stepId": "p255-f2-s5",
+								"stepText": "将申请交到校财务处。",
+								"nextStepIds": []
+							}
+						],
+						"manualReviewNotes": []
+					}
+				]
+			}
+		]
+	}
+}

@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-import json
 from pathlib import Path
-from typing import Callable
 
 from campus_shared import load_repo_env
-from campus_evals.handbook_benchmark import (
-    collect_repairable_handbook_benchmark_targets,
-    repair_handbook_formal_benchmark,
-    run_handbook_formal_benchmark,
+
+from campus_evals.formal_benchmark import (
+    collect_repairable_benchmark_targets,
+    repair_formal_benchmark,
+    run_formal_benchmark,
 )
 from campus_evals.models import GoldenCase
 from campus_evals.operator_observability import publish_case_results_artifact
 from campus_evals.runner import Executor, SupplementalAdapter
 from campus_evals.settings import SupplementalHTTPSettings
-
 
 CasesFactory = Callable[[], tuple[GoldenCase, ...]]
 SupplementalAdaptersFactory = Callable[[], tuple[SupplementalAdapter, ...]]
@@ -35,10 +35,15 @@ class BenchmarkProfile:
     cases_factory: CasesFactory
     executor_factory: Callable[[], Executor]
     supplemental_adapters_factory: SupplementalAdaptersFactory
-    http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
+    http_settings: SupplementalHTTPSettings = field(default_factory=SupplementalHTTPSettings)
+    case_workers: int = 1
     pass_policy_path_to_core: bool = True
     pass_benchmark_type_to_core: bool = True
     pass_repair_benchmark_type_to_core: bool = True
+
+    def __post_init__(self) -> None:
+        if self.case_workers <= 0:
+            raise ValueError("case_workers must be greater than zero")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,28 +78,50 @@ def build_parser_for_profile(profile: BenchmarkProfile) -> argparse.ArgumentPars
     parser = argparse.ArgumentParser(description=profile.description)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help=f"Run a fresh {profile.profile_id} live benchmark.")
-    run_parser.add_argument("--reruns", type=int, default=3, help="Number of reruns for the live benchmark.")
-    run_parser.add_argument("--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path.")
-    run_parser.add_argument("--verbose", action="store_true", help="Print high-signal supplemental runtime events.")
+    run_parser = subparsers.add_parser(
+        "run", help=f"Run a fresh {profile.profile_id} live benchmark."
+    )
+    run_parser.add_argument(
+        "--reruns", type=int, default=3, help="Number of reruns for the live benchmark."
+    )
+    run_parser.add_argument(
+        "--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path."
+    )
+    run_parser.add_argument(
+        "--verbose", action="store_true", help="Print high-signal supplemental runtime events."
+    )
     run_parser.add_argument("--log-jsonl", help="Optional runtime event JSONL path for this run.")
 
     repair_parser = subparsers.add_parser(
         "repair",
         help="Repair transient infra failures from an existing benchmark dir.",
     )
-    repair_parser.add_argument("--benchmark-dir", required=True, help="Path to an existing benchmark artifact directory.")
-    repair_parser.add_argument("--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path.")
-    repair_parser.add_argument("--verbose", action="store_true", help="Print high-signal supplemental runtime events.")
-    repair_parser.add_argument("--log-jsonl", help="Optional runtime event JSONL path for this repair run.")
+    repair_parser.add_argument(
+        "--benchmark-dir", required=True, help="Path to an existing benchmark artifact directory."
+    )
+    repair_parser.add_argument(
+        "--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path."
+    )
+    repair_parser.add_argument(
+        "--verbose", action="store_true", help="Print high-signal supplemental runtime events."
+    )
+    repair_parser.add_argument(
+        "--log-jsonl", help="Optional runtime event JSONL path for this repair run."
+    )
 
     accept_parser = subparsers.add_parser(
         "accept",
         help="Run acceptance flow: live run, repair transient failures when needed, then write final summary.",
     )
-    accept_parser.add_argument("--reruns", type=int, default=3, help="Number of reruns for the initial live benchmark.")
-    accept_parser.add_argument("--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path.")
-    accept_parser.add_argument("--verbose", action="store_true", help="Print high-signal supplemental runtime events.")
+    accept_parser.add_argument(
+        "--reruns", type=int, default=3, help="Number of reruns for the initial live benchmark."
+    )
+    accept_parser.add_argument(
+        "--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path."
+    )
+    accept_parser.add_argument(
+        "--verbose", action="store_true", help="Print high-signal supplemental runtime events."
+    )
     accept_parser.add_argument(
         "--log-jsonl",
         help="Optional runtime event JSONL base path. Accept mode derives separate run/repair event logs from it.",
@@ -140,13 +167,14 @@ def run_live_benchmark_profile(
     verbose: bool = False,
     runtime_events_path: str | Path | None = None,
 ) -> dict[str, object]:
-    resolved_run_benchmark_fn = run_benchmark_fn or run_handbook_formal_benchmark
+    resolved_run_benchmark_fn = run_benchmark_fn or run_formal_benchmark
     kwargs: dict[str, object] = {
         "cases": profile.cases_factory(),
         "executor": profile.executor_factory(),
         "supplemental_adapters": profile.supplemental_adapters_factory(),
         "output_dir": Path(output_dir),
         "reruns": reruns,
+        "case_workers": profile.case_workers,
     }
     if profile.pass_policy_path_to_core:
         kwargs["policy_path"] = profile.policy_path
@@ -168,13 +196,14 @@ def repair_live_benchmark_profile(
     verbose: bool = False,
     runtime_events_path: str | Path | None = None,
 ) -> dict[str, object]:
-    resolved_repair_benchmark_fn = repair_benchmark_fn or repair_handbook_formal_benchmark
+    resolved_repair_benchmark_fn = repair_benchmark_fn or repair_formal_benchmark
     kwargs: dict[str, object] = {
         "cases": profile.cases_factory(),
         "executor": profile.executor_factory(),
         "supplemental_adapters": profile.supplemental_adapters_factory(),
         "benchmark_dir": Path(benchmark_dir),
         "output_dir": Path(output_dir),
+        "case_workers": profile.case_workers,
     }
     if profile.pass_policy_path_to_core:
         kwargs["policy_path"] = profile.policy_path
@@ -217,7 +246,7 @@ def accept_live_benchmark_profile(
     if verbose:
         print("[accept] stage=run status=completed")
 
-    repair_targets = collect_repairable_handbook_benchmark_targets(initial_run_dir)
+    repair_targets = collect_repairable_benchmark_targets(initial_run_dir)
     selected_target_count = len(repair_targets)
     final_source_summary = initial_summary
     resolved_repair_dir: Path | None = None
@@ -268,14 +297,20 @@ def accept_live_benchmark_profile(
         "initial_run_dir": str(initial_run_dir),
         "repair_run_dir": str(resolved_repair_dir) if resolved_repair_dir is not None else None,
         "deterministic_verdict": _deterministic_verdict(final_source_summary),
-        "supplemental_verdict": str(dict(final_source_summary.get("gate_report") or {}).get("overall_verdict") or "warn"),
+        "supplemental_verdict": str(
+            dict(final_source_summary.get("gate_report") or {}).get("overall_verdict") or "warn"
+        ),
         "final_overall_verdict": _final_overall_verdict(final_source_summary),
         "initial_gate_report": dict(initial_summary.get("gate_report") or {}),
         "final_gate_report": dict(final_source_summary.get("gate_report") or {}),
         "repair": {
             "selected_target_count": selected_target_count,
-            "applied_target_count": int(dict(final_source_summary.get("repair") or {}).get("applied_target_count") or 0),
-            "remaining_transient_failures": _count_remaining_transient_failures(final_source_summary),
+            "applied_target_count": int(
+                dict(final_source_summary.get("repair") or {}).get("applied_target_count") or 0
+            ),
+            "remaining_transient_failures": _count_remaining_transient_failures(
+                final_source_summary
+            ),
         },
         "provider_runtime": dict(final_source_summary.get("supplemental_runtime") or {}),
         "runtime_observability": _build_accept_runtime_observability(
@@ -331,7 +366,11 @@ def main_for_profile(
     resolved_accept_benchmark_fn = accept_benchmark_fn or accept_live_benchmark_profile
 
     if args.command == "run":
-        output_dir = Path(args.output_dir) if args.output_dir else output_dir_builder(prefix=profile.run_prefix)
+        output_dir = (
+            Path(args.output_dir)
+            if args.output_dir
+            else output_dir_builder(prefix=profile.run_prefix)
+        )
         run_live_benchmark_profile(
             profile=profile,
             reruns=args.reruns,
@@ -366,7 +405,11 @@ def main_for_profile(
         print(output_dir)
         return 0
 
-    output_dir = Path(args.output_dir) if args.output_dir else output_dir_builder(prefix=profile.repair_prefix)
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else output_dir_builder(prefix=profile.repair_prefix)
+    )
     repair_live_benchmark_profile(
         profile=profile,
         benchmark_dir=Path(args.benchmark_dir),
@@ -430,9 +473,13 @@ def _build_operator_observability_publish_config(
     grade_source = str(getattr(args, "publish_grade_source", "") or "").strip()
     grader_version = str(getattr(args, "publish_grader_version", "") or "").strip()
     if not grade_source:
-        parser.error("--publish-grade-source is required when --publish-operator-observability is set")
+        parser.error(
+            "--publish-grade-source is required when --publish-operator-observability is set"
+        )
     if not grader_version:
-        parser.error("--publish-grader-version is required when --publish-operator-observability is set")
+        parser.error(
+            "--publish-grader-version is required when --publish-operator-observability is set"
+        )
     request_correlations = getattr(args, "publish_request_correlations", None)
     return OperatorObservabilityPublishConfig(
         grade_source=grade_source,
@@ -458,7 +505,9 @@ def _parse_metric_domain_overrides(
             continue
         metric_key, separator, domain = normalized.partition("=")
         if separator != "=" or not metric_key.strip() or not domain.strip():
-            message = "publish metric domain override must use adapter.metric=grounding|citation|policy"
+            message = (
+                "publish metric domain override must use adapter.metric=grounding|citation|policy"
+            )
             if parser is not None:
                 parser.error(message)
             raise ValueError(message)
@@ -506,7 +555,9 @@ def _build_accept_runtime_observability(
     initial_runtime = dict(initial_summary.get("runtime_observability") or {})
     final_runtime = dict(final_source_summary.get("runtime_observability") or {})
     return {
-        "run_events_path": str(run_events_path) if run_events_path is not None else initial_runtime.get("events_path"),
+        "run_events_path": str(run_events_path)
+        if run_events_path is not None
+        else initial_runtime.get("events_path"),
         "repair_events_path": (
             str(repair_events_path)
             if repair_events_path is not None
@@ -516,14 +567,10 @@ def _build_accept_runtime_observability(
         ),
         "run_session_id": initial_runtime.get("session_id"),
         "repair_session_id": (
-            final_runtime.get("session_id")
-            if final_runtime != initial_runtime
-            else None
+            final_runtime.get("session_id") if final_runtime != initial_runtime else None
         ),
         "run_provider_summary_path": initial_runtime.get("provider_summary_path"),
         "repair_provider_summary_path": (
-            final_runtime.get("provider_summary_path")
-            if final_runtime != initial_runtime
-            else None
+            final_runtime.get("provider_summary_path") if final_runtime != initial_runtime else None
         ),
     }

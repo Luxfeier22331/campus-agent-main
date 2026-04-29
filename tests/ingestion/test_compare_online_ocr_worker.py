@@ -13,7 +13,9 @@ class CompareOnlineOcrWorkerCliTest(unittest.TestCase):
     def test_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.compare_online_ocr.load_worker_env"),
-            patch("campus_ingestion_worker.compare_online_ocr.compare_online_ocr") as compare_online_ocr,
+            patch(
+                "campus_ingestion_worker.compare_online_ocr.compare_online_ocr"
+            ) as compare_online_ocr,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             compare_online_ocr.return_value = compare_worker.OnlineOcrCompareReport(

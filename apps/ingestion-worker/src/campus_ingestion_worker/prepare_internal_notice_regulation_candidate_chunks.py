@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core.internal_notice_regulation_candidate_chunk_prep import (
     load_internal_notice_regulation_candidate_documents,
@@ -17,7 +17,7 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare local-only regulations/institutional_regulations chunk artifacts "
+            "Prepare local-only regulations/institutional_rules chunk artifacts "
             "from internal_notice promotion candidate exports"
         )
     )
@@ -34,8 +34,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         Path(args.candidate_documents_jsonl)
     )
     if args.candidate_ids:
-        selected_ids = {candidate_id.strip() for candidate_id in args.candidate_ids if candidate_id.strip()}
-        documents = tuple(document for document in documents if document.candidate_id in selected_ids)
+        selected_ids = {
+            candidate_id.strip() for candidate_id in args.candidate_ids if candidate_id.strip()
+        }
+        documents = tuple(
+            document for document in documents if document.candidate_id in selected_ids
+        )
     report = prepare_internal_notice_regulation_candidate_chunks(
         documents=documents,
         output_dir=Path(args.output_dir),

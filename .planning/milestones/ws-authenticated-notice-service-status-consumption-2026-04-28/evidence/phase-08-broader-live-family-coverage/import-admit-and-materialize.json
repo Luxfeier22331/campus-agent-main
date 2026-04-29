@@ -1,0 +1,59 @@
+{
+  "mode": "admit_and_materialize",
+  "source_truth_only": false,
+  "write_enabled": true,
+  "notice_count": 6,
+  "created_document_ids": [
+    "notice:muc_internal_portal:354845",
+    "notice:muc_internal_portal:354674",
+    "notice:muc_internal_portal:354575",
+    "notice:muc_internal_portal:354502",
+    "notice:muc_internal_portal:247726",
+    "notice:muc_internal_portal:352345"
+  ],
+  "updated_document_ids": [],
+  "skipped_document_ids": [],
+  "raw_uploaded_count": 6,
+  "raw_reused_count": 0,
+  "scope_write_mode": "upsert_selected",
+  "selected_notice_ids": [
+    "354845",
+    "354674",
+    "354575",
+    "354502",
+    "247726",
+    "352345"
+  ],
+  "admission_report": {
+    "notice_count": 6,
+    "selected_notice_count": 6,
+    "selected_notice_ids": [
+      "354845",
+      "354674",
+      "354575",
+      "354502",
+      "247726",
+      "352345"
+    ],
+    "scope_write_mode": "upsert_selected",
+    "replace_scope": false,
+    "attachment_ref_count": 0,
+    "reference_only_attachment_ref_count": 0,
+    "notices_with_attachments": 0,
+    "empty_body_notice_count": 0,
+    "consumer_admission_manifest_supplied": true
+  },
+  "write_plan": {
+    "raw_asset_registry_rows": 6,
+    "document_registry_parent_rows": 6,
+    "source_truth_inventory_rows": 6,
+    "source_artifact_object_count": 54,
+    "derived_document_object_count": 12,
+    "attachment_fetch_status_rows": 0,
+    "consumption_projection_rebuild": false,
+    "internal_notice_read_model_rebuild": false,
+    "consumer_admission_manifest_supplied": true
+  },
+  "errors": [],
+  "attachment_fetch_status_record_count": 0
+}

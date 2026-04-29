@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import importlib
 import io
 import json
+import unittest
+from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
 )
-
 
 worker = importlib.import_module(
     "campus_ingestion_worker.prepare_internal_notice_regulation_candidate_chunks"
@@ -33,7 +32,7 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         document_nature="institutional_regulation",
         semantic_owner_kind="attachment_document",
         target_corpus="regulations",
-        target_collection="institutional_regulations",
+        target_collection="institutional_rules",
         regulation_title_normalized="中央民族大学实验室安全管理规定",
         issuing_org="中央民族大学",
         effective_date="2021年2月28日",

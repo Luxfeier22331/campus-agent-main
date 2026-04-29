@@ -3,10 +3,10 @@ from __future__ import annotations
 import importlib
 import io
 import json
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import time
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 worker = importlib.import_module(
@@ -17,7 +17,9 @@ worker = importlib.import_module(
 class CloseoutAuthenticatedNoticeHistoricalBackfillWorkerCliTest(unittest.TestCase):
     def test_resolve_checkpoint_sizes_adds_full_and_dedupes(self) -> None:
         self.assertEqual(
-            worker.resolve_checkpoint_sizes(total_count=6694, requested_sizes=(240, 240, 1000, 9000)),
+            worker.resolve_checkpoint_sizes(
+                total_count=6694, requested_sizes=(240, 240, 1000, 9000)
+            ),
             (240, 1000, 6694),
         )
 
@@ -167,7 +169,9 @@ class CloseoutAuthenticatedNoticeHistoricalBackfillWorkerCliTest(unittest.TestCa
                 )
 
             self.assertEqual(run_import.call_count, 3)
-            frozen_input = json.loads((output_dir / "frozen-input.json").read_text(encoding="utf-8"))
+            frozen_input = json.loads(
+                (output_dir / "frozen-input.json").read_text(encoding="utf-8")
+            )
             checkpoint_summary = json.loads(
                 (output_dir / "checkpoint-0002" / "summary.json").read_text(encoding="utf-8")
             )
@@ -190,7 +194,9 @@ class CloseoutAuthenticatedNoticeHistoricalBackfillWorkerCliTest(unittest.TestCa
             self.assertEqual(closeout_summary["reconciliation"]["missing_document_id_count"], 0)
             self.assertEqual(closeout_summary["reconciliation"]["missing_raw_asset_id_count"], 0)
             self.assertEqual(closeout_summary["reconciliation"]["unexpected_raw_asset_id_count"], 1)
-            self.assertFalse(closeout_summary["reconciliation"]["raw_asset_scope_exact_match_required"])
+            self.assertFalse(
+                closeout_summary["reconciliation"]["raw_asset_scope_exact_match_required"]
+            )
             payload = json.loads(stdout.getvalue())
             self.assertTrue(payload["ok"])
             runtime_logs = stderr.getvalue()

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.check_worker_observability_env import collect_worker_observability_status
 

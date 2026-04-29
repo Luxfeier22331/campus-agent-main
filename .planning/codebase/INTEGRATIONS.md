@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-31
+**Analysis Date:** 2026-04-26
 
 ## APIs & External Services
 
@@ -41,21 +41,27 @@
 ## Authentication & Identity
 
 **Supervisor API bearer auth**
-- Implementation: `apps/supervisor-api/src/campus_supervisor_api/auth.py` enforces `API_AUTH_MODE=bearer` (default).
+- Implementation: Go `apps/supervisor-api/internal/httpapi/auth.go` enforces internal
+  caller auth for the execution service.
   - Credentials: `API_BEARER_TOKEN` must match the `Authorization: bearer` header; bearer mode projects the configured default actor (`API_DEFAULT_ACTOR_ID`, `API_DEFAULT_ACTOR_GROUPS`, `API_DEFAULT_ACTOR_ROLES`, `API_DEFAULT_CAMPUS_SCOPE`) instead of trusting caller-supplied actor headers.
   - Sessions are stateless per request, and actor metadata is mapped into the `ActorContext` model from `packages/contracts`.
 
-**Trusted worker auth**
-- Implementation: `API_AUTH_MODE=trusted-worker` requires `x-worker-origin-auth` plus a forwarded `cf-access-jwt-assertion`; `map_actor_context` derives user/group/role claims from the configured trusted JWT claim names and falls back to worker defaults only when claims are absent.
+**Trusted execution caller auth**
+- Implementation: `apps/app-api` owns product identity/session projection, while Go
+  `apps/supervisor-api` verifies the internal execution caller and consumes the typed
+  actor/context projection.
 
-**AgentOS runtime metadata**
-- The supervisor records model hints in `AgentOSRuntime` (`apps/supervisor-api/src/campus_supervisor_api/app.py`), and the runtime expects Agno models to be supplied via `AGNO_SUPERVISOR_MODEL` and `AGNO_SPECIALIST_MODEL`. The repo does not yet invoke an Agno API from here, but the metadata fields keep longer-term deployments consistent with AgentOS conventions.
+**Prompt runtime metadata**
+- Go `apps/supervisor-api` owns deterministic prompt admission summary, while Python
+  `apps/supervisor-agent-worker` and `packages/rag-agent` own provider-backed prompt
+  executor construction.
 
 ## Monitoring & Observability
 
 **Tracing/logging**
 - All tracing toggles are environment-driven: `TRACE_ENABLED`/`TRACE_EXPORTER` are listed in `.env.example`, and the API defaults to console logging (`TRACE_EXPORTER=console`).
-- Audit logs are written to `./var/log/audit.log` by default via `apps/supervisor-api/src/campus_supervisor_api/settings.py`.
+- Execution audit/metrics/readiness are owned by Go `apps/supervisor-api`; deployment
+  sink configuration is environment-specific.
 
 **Error tracking / analytics**
 - Third-party telemetry is now declared in the Worker product surfaces:
@@ -67,8 +73,9 @@
 ## CI/CD & Deployment
 
 **Hosting:**
-- No hosted platform is codified; the repo intentionally keeps runtime choices open (`docs/architecture/long-term-architecture.md` emphasizes boundary-first design).
-- Local runs are expected through the `uv` workspace entrypoints (for example `uv run --all-packages campus-supervisor-api-dev`), with `apps/supervisor-api` acting purely as a transport shim.
+- No hosted platform is codified; the repo intentionally keeps runtime choices open (`docs/architecture/target-architecture.md` emphasizes boundary-first design).
+- Local Python package commands use `uv`; Go `apps/supervisor-api` runs through its Go
+  module / repo wrapper commands when exercising the execution service.
 
 **CI Pipeline:**
 - Tests and verification are executed via `uv run --all-packages python -m unittest discover -s tests -t .` (documented in `README.md`). There is no GitHub Action, Terraform, or other pipeline defined inside the repo.
@@ -76,7 +83,10 @@
 ## Environment Configuration
 
 **Development:**
-- Required env vars (all spelled out in `.env.example`): `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_API_KEY`, `DOCUMENT_REGISTRY_DATABASE_URL`, `QDRANT_URL`, `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY`, `CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`.
+- Required env vars are split by runtime: Go supervisor execution/auth/prompt admission,
+  Python prompt provider/executor, retrieval/embedding, object storage, ingestion/OCR,
+  and app-api Worker product settings. See app-local env examples and runbooks rather
+  than treating one Python supervisor env block as canonical.
 - Secrets are expected in the environment (no checked-in `.env`), so local developers typically copy `.env.example` and fill values before running `uv sync` + ingestion/retrieval commands.
 - Current retrieval/index defaults are `EMBEDDING_PROVIDER=gitee`, `EMBEDDING_MODEL=Qwen3-Embedding-4B`, `EMBEDDING_DIMENSIONS=2560`, plus Qdrant native sparse settings (`SPARSE_PROVIDER=qdrant`, `SPARSE_MODEL=qdrant/bm25`, `SPARSE_TOKENIZER=multilingual`, `SPARSE_LANGUAGE=none`).
 - Mock embedding/sparse helpers still exist for unit tests and isolated local pipelines, but they are not the runtime baseline recorded in `.env.example`.
@@ -89,7 +99,9 @@
 ## Webhooks & Callbacks
 
 **Incoming:**
-- None beyond the standard HTTP routes defined in `apps/supervisor-api/src/campus_supervisor_api/api.py` (`/api/v1/answer`, `/healthz`, `/readyz`); no webhook signatures or event handlers are registered.
+- None beyond the standard HTTP routes defined in Go `apps/supervisor-api`
+  (`/api/v1/answer`, `/api/v1/answer/stream`, `/healthz`, `/readyz`, `/metrics`, and
+  cancellation); no webhook signatures or event handlers are registered.
 
 **Outgoing:**
 - No background webhook calls are defined. All external communication happens (1) via the OCR provider, (2) via embedding/Qdrant services, and (3) through the ingestion worker uploading to MinIO or writing to Postgres.

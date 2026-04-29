@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-05
 updated: 2026-04-05
 ---
-
 # ADR-0028 Campus Navigation Basemap And Provider Strategy
 
 ## 状态
@@ -16,7 +15,7 @@ Accepted on 2026-04-05.
 
 `ADR-0027` 已经冻结了以下长期边界：
 
-- 导航是独立 specialist family
+- 导航是独立 agent family
 - 校园空间真相属于 repo-owned institutional knowledge 子域
 - 瓦片地图只是 runtime presentation concern
 - 外部地图 provider 只允许作为 adapter 参与
@@ -69,7 +68,8 @@ Accepted on 2026-04-05.
 
 - 校内路径规划默认走自有图谱
 - 周边关键地点只接入对当前产品有价值的受控连接边
-- provider route response 只能作为 coverage 外 fallback，不反向升级为 canonical campus route truth
+- provider route response 只能作为 coverage 外 fallback，不反向升级为 canonical campus route
+  truth
 
 ### 决策 3：不把高德作为默认基础依赖
 
@@ -99,7 +99,7 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - 优先评估天地图这类低成本、合规导向的底图能力
 - 底图只承载浏览、定位辅助与 route overlay，不承载校园真相
-- 如果后续需要切换底图 provider，不应改动导航 contract 和 specialist truth model
+- 如果后续需要切换底图 provider，不应改动导航 contract 和 agent truth model
 
 明确不做：
 
@@ -114,7 +114,8 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - route polyline、waypoint、summary、warning 由产品 contract 提供
 - 前端 renderer 可以是 provider-neutral map renderer，也可以在局部适配某个底图 SDK
-- renderer 与底图切换不应反向改变 `app-api`、`supervisor` 或 `navigation-specialist` 的 shared contract
+- renderer 与底图切换不应反向改变 `app-api`、`supervisor` 或 `navigation-agent` 的 shared
+  contract
 
 ### 决策 7：首个前向交付 slice 固定为地点寻找，而不是路线规划
 
@@ -152,8 +153,10 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - 后续实施应先建设 `place_catalog` 与周边关键地点受控数据，再按需要补齐 `route_graph`
 - 后续产品实现应采用 `chat-first, map-enhanced, full-map-optional`，但地图层继续保持底图弱依赖
-- 后续技术选型应把“中国区底图合规”和“商业 provider 成本”视为独立约束，而不是把任一 provider 反向提升为 architecture truth
-- 是否保留高德、是否引入天地图、是否未来自托管 OSM-derived tiles，都属于 adapter/runtime 取舍，不改变 `ADR-0027` 已冻结的长期边界
+- 后续技术选型应把“中国区底图合规”和“商业 provider 成本”视为独立约束，而不是把任一 provider 反向提升为 architecture
+  truth
+- 是否保留高德、是否引入天地图、是否未来自托管 OSM-derived tiles，都属于 adapter/runtime 取舍，不改变 `ADR-0027`
+  已冻结的长期边界
 
 ## Deferred Triggers
 
@@ -166,16 +169,19 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 ## External References
 
-- 自然资源部办公厅、工业和信息化部办公厅《关于规范移动互联网应用程序中登载使用地图行为的通知》: `https://www.gov.cn/zhengce/zhengceku/202405/content_6950568.htm`
-- 天地图应用开发许可申请说明: `https://lbs.tianditu.gov.cn/authorization/authorization.html`
-- 天地图地图服务简介: `https://lbs.tianditu.gov.cn/server/MapService.html`
-- OSMF Tile Usage Policy: `https://operations.osmfoundation.org/policies/tiles/`
-- OSMF Nominatim Usage Policy: `https://operations.osmfoundation.org/policies/nominatim/`
+- 自然资源部办公厅、工业和信息化部办公厅《关于规范移动互联网应用程序中登载使用地图行为的通知》:
+  `<https://www.gov.cn/zhengce/zhengceku/202405/content_6950568.htm`>
+- 天地图应用开发许可申请说明:
+  `<https://lbs.tianditu.gov.cn/authorization/authorization.html`>
+- 天地图地图服务简介: `<https://lbs.tianditu.gov.cn/server/MapService.html`>
+- OSMF Tile Usage Policy:
+  `<https://operations.osmfoundation.org/policies/tiles/`>
+- OSMF Nominatim Usage Policy:
+  `<https://operations.osmfoundation.org/policies/nominatim/`>
 
 ## Related Docs
 
-- `docs/architecture/navigation-and-wayfinding-architecture.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
-- `docs/plans/campus-place-finding-foundation.md`
-- `docs/architecture/data-plane-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/domains/navigation/architecture.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`

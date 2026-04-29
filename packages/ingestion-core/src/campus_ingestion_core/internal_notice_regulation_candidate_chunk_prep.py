@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections import Counter
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import json
+from collections import Counter
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.internal_notice_regulation_projection import (
@@ -17,8 +18,7 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 
-
-_TARGET_SCOPE = ("regulations", "institutional_regulations")
+_TARGET_SCOPE = ("regulations", "institutional_rules")
 _PARSER_VERSION = "internal_notice_regulation_projection_preview_v1"
 _IMPORT_SOURCE = "internal_notice_regulation_candidate_chunk_prep"
 _SCHEMA_VERSION = "internal_notice_regulation_candidate_chunk_prep_v1"
@@ -189,7 +189,7 @@ def build_internal_notice_regulation_candidate_chunk_prep_manifest(
 ) -> InternalNoticeRegulationCandidateChunkPrepManifest:
     return InternalNoticeRegulationCandidateChunkPrepManifest(
         schema_version=_SCHEMA_VERSION,
-        prepared_at=datetime.now(timezone.utc).isoformat(),
+        prepared_at=datetime.now(UTC).isoformat(),
         target_corpus=_TARGET_SCOPE[0],
         target_collection=_TARGET_SCOPE[1],
         prepared_candidate_count=len(prepared_documents),
@@ -359,7 +359,7 @@ def _build_projection_record(
         visibility_scope=candidate_document.visibility_scope,
         visibility_level=candidate_document.visibility_level,
         status="active",
-        ingestion_timestamp=datetime.now(timezone.utc).isoformat(),
+        ingestion_timestamp=datetime.now(UTC).isoformat(),
         parser_version=_PARSER_VERSION,
         embedding_model=candidate_document.embedding_model,
         source_channel="manual_curated",
@@ -440,7 +440,8 @@ def _build_document_report(
     if front_matter_leak_chunk_count:
         issues.append("front_matter_leak")
     passed = not any(
-        issue in {
+        issue
+        in {
             "no_chunks_emitted",
             "missing_title_chunk",
             "missing_contextualization",
@@ -480,7 +481,9 @@ def _load_jsonl_rows(payload: bytes) -> list[dict[str, Any]]:
     return [json.loads(line) for line in payload.decode("utf-8").splitlines() if line.strip()]
 
 
-def _candidate_document_from_dict(payload: dict[str, Any]) -> InternalNoticeRegulationCandidateArtifactDocument:
+def _candidate_document_from_dict(
+    payload: dict[str, Any],
+) -> InternalNoticeRegulationCandidateArtifactDocument:
     data = dict(payload)
     for field_name in (
         "entitlement_groups",
@@ -510,7 +513,10 @@ def _is_missing_metadata_field(value: object) -> bool:
 
 def _slugify_path_component(value: str) -> str:
     normalized = value.strip()
-    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-") or "candidate"
+    return (
+        "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-")
+        or "candidate"
+    )
 
 
 __all__ = [

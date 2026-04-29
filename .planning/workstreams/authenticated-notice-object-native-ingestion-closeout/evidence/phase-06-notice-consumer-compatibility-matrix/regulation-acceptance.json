@@ -1,0 +1,33 @@
+{
+  "schema_version": "authenticated_notice_consumer_compatibility_acceptance.v1",
+  "generated_at": "2026-04-29T00:00:00+08:00",
+  "consumer": "internal_notice_regulation_document_site",
+  "source_truth": {
+    "accepted_input": "explicit_selected_notice_import_after_dry_run_report",
+    "selected_notice_ids": [
+      "187233"
+    ],
+    "local_bundle_usage": "fixture_only_for_worker_test",
+    "formal_source_truth_import_write_enabled": true,
+    "query_serving_opened": false,
+    "rag_release_opened": false
+  },
+  "dry_run_no_write": {
+    "covered_by": "tests.ingestion.test_publish_internal_notice_regulation_document_site_worker.PublishInternalNoticeRegulationDocumentSiteWorkerTest.test_publish_requires_dry_run_then_imports_selected_regulation_into_docs_manifest",
+    "requires_dry_run_report": true,
+    "dry_run_report_schema": "internal_notice_regulation_document_site_dry_run.v1"
+  },
+  "object_source_truth_health": {
+    "inventory_scope": "campus_notices/internal_notice",
+    "target_docs_scopes": [
+      "regulations/institutional_rules",
+      "regulations/scoped_rules"
+    ],
+    "selected_source_refs_are_rebuilt_into_source_truth_inventory": true
+  },
+  "verification": {
+    "command": "uv run --all-packages python -m unittest tests.ingestion.test_project_wechat_public_notices_worker tests.ingestion.test_build_service_status_projection_worker tests.ingestion.test_publish_internal_notice_regulation_document_site_worker -q",
+    "exit_code": 0,
+    "result": "15 tests OK"
+  }
+}

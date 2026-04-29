@@ -2,20 +2,6 @@ from __future__ import annotations
 
 import unittest
 
-from campus_contracts import (
-    ActorContext,
-    AuthorizedRetrievalFilter,
-    AuthorizationProjection,
-    ContextProjection,
-    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
-    CURRICULUM_PROGRAM_SLOT_NAME,
-    CURRICULUM_SEMESTER_SLOT_NAME,
-    CurriculumFollowUpSlots,
-    ProfileMemoryItem,
-    ProfileMemorySummary,
-    SessionSlot,
-    SessionSummary,
-)
 from campus_app_api import (
     AuthorizationInput,
     AuthorizedRetrievalFilterInput,
@@ -24,10 +10,26 @@ from campus_app_api import (
     VerifiedIdentityInput,
     build_context_projection,
 )
+from campus_contracts import (
+    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+    CURRICULUM_PROGRAM_SLOT_NAME,
+    CURRICULUM_SEMESTER_SLOT_NAME,
+    ActorContext,
+    AuthorizationProjection,
+    AuthorizedRetrievalFilter,
+    ContextProjection,
+    CurriculumFollowUpSlots,
+    ProfileMemoryItem,
+    ProfileMemorySummary,
+    SessionSlot,
+    SessionSummary,
+)
 
 
 class AppApiProjectionTest(unittest.TestCase):
-    def test_build_context_projection_maps_verified_identity_profile_and_session_layers(self) -> None:
+    def test_build_context_projection_maps_verified_identity_profile_and_session_layers(
+        self,
+    ) -> None:
         projection = build_context_projection(
             identity=VerifiedIdentityInput(
                 user_id="student-001",
@@ -114,7 +116,9 @@ class AppApiProjectionTest(unittest.TestCase):
                     ),
                 ),
                 session=SessionSummary(
-                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    confirmed_slots=(
+                        SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
+                    ),
                     turn_count=4,
                 ),
             ),
@@ -162,7 +166,9 @@ class AppApiProjectionTest(unittest.TestCase):
             ),
         )
 
-    def test_build_context_projection_keeps_verified_identity_separate_from_explicit_authorization_input(self) -> None:
+    def test_build_context_projection_keeps_verified_identity_separate_from_explicit_authorization_input(
+        self,
+    ) -> None:
         projection = build_context_projection(
             identity=VerifiedIdentityInput(
                 user_id="student-001",
@@ -237,7 +243,9 @@ class AppApiProjectionTest(unittest.TestCase):
         self.assertEqual(
             projection.session,
             SessionSummary(
-                confirmed_slots=(SessionSlot(name="resolved_topic", value="奖学金", confirmed=True),),
+                confirmed_slots=(
+                    SessionSlot(name="resolved_topic", value="奖学金", confirmed=True),
+                ),
                 turn_count=2,
             ),
         )
@@ -246,9 +254,15 @@ class AppApiProjectionTest(unittest.TestCase):
         projection = build_context_projection(
             identity=VerifiedIdentityInput(user_id="student-001", principal_id="principal-001"),
             session_slots=(
-                SessionSlotRecord(name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True),
-                SessionSlotRecord(name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True),
-                SessionSlotRecord(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True),
+                SessionSlotRecord(
+                    name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True
+                ),
+                SessionSlotRecord(
+                    name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True
+                ),
+                SessionSlotRecord(
+                    name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True
+                ),
             ),
             turn_count=5,
         )
@@ -262,7 +276,9 @@ class AppApiProjectionTest(unittest.TestCase):
             ),
         )
 
-    def test_build_context_projection_does_not_let_memory_or_session_rewrite_authorization(self) -> None:
+    def test_build_context_projection_does_not_let_memory_or_session_rewrite_authorization(
+        self,
+    ) -> None:
         projection = build_context_projection(
             identity=VerifiedIdentityInput(
                 user_id="student-001",
@@ -295,9 +311,7 @@ class AppApiProjectionTest(unittest.TestCase):
                     visibility="user_visible",
                 ),
             ),
-            session_slots=(
-                SessionSlotRecord(name="campus_scope", value="south", confirmed=True),
-            ),
+            session_slots=(SessionSlotRecord(name="campus_scope", value="south", confirmed=True),),
         )
 
         self.assertEqual(projection.authorization.entitlement_groups, ("students",))
@@ -318,7 +332,9 @@ class AppApiProjectionTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             VerifiedIdentityInput(user_id="student-001", campus_scope="north")
 
-    def test_build_context_projection_does_not_backfill_custom_retrieval_filter_fields(self) -> None:
+    def test_build_context_projection_does_not_backfill_custom_retrieval_filter_fields(
+        self,
+    ) -> None:
         projection = build_context_projection(
             identity=VerifiedIdentityInput(
                 user_id="student-001",

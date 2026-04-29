@@ -10,7 +10,6 @@ from scripts.env_sync import (
     resolve_source_env_path,
 )
 
-
 OBSERVABILITY_TARGETS = {
     "apps/app-api/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN_API",
@@ -32,6 +31,7 @@ REQUIRED_SOURCE_KEYS = (
     "SENTRY_DSN_PANEL",
 )
 
+
 def sync_worker_observability_env(
     repo_root: Path,
     source_env_path: Path | None = None,
@@ -43,9 +43,7 @@ def sync_worker_observability_env(
     source_values = parse_env_file(source_path)
     missing = [key for key in REQUIRED_SOURCE_KEYS if not source_values.get(key)]
     if missing:
-        raise ValueError(
-            "Missing required observability keys in source env: " + ", ".join(missing)
-        )
+        raise ValueError("Missing required observability keys in source env: " + ", ".join(missing))
 
     written_paths: list[Path] = []
     for relative_target, mapping in OBSERVABILITY_TARGETS.items():

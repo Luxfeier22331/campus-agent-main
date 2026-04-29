@@ -8,18 +8,131 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "html5lib>=1.1",
+  "pre-commit>=4.2.0",
   "pytest>=8.0.0",
+  "ruff>=0.15.11",
+  "sqlfluff>=3.4.2",
+  "yamllint>=1.37.1",
 ]
 
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
 
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+force-exclude = true
+extend-exclude = [
+  ".planning",
+  ".tmp",
+  ".worktrees",
+  "apps/public-chat-web/vendor",
+  "apps/app-api/drizzle/meta",
+]
+
+[tool.ruff.lint]
+select = [
+  "E4",
+  "E7",
+  "E9",
+  "F",
+  "I",
+  "W",
+  "B017",
+  "B006",
+  "B007",
+  "B008",
+  "B012",
+  "B013",
+  "B014",
+  "B016",
+  "B011",
+  "B015",
+  "B018",
+  "B019",
+  "B020",
+  "B021",
+  "B022",
+  "B023",
+  "B024",
+  "B028",
+  "B031",
+  "B032",
+  "B039",
+  "C408",
+  "C409",
+  "C405",
+  "C416",
+  "C420",
+  "SIM108",
+  "SIM114",
+  "SIM117",
+  "SIM102",
+  "SIM103",
+  "SIM105",
+  "SIM113",
+  "SIM118",
+  "SIM210",
+  "SIM401",
+  "B009",
+  "B010",
+  "B904",
+  "B905",
+  "RET504",
+  "PIE808",
+  "PIE810",
+  "RUF046",
+  "RUF005",
+  "RUF007",
+  "RUF009",
+  "RUF010",
+  "RUF022",
+  "RUF034",
+  "RUF100",
+  "UP006",
+  "UP031",
+  "UP007",
+  "UP012",
+  "UP017",
+  "UP033",
+  "UP034",
+  "UP035",
+  "UP037",
+  "UP040",
+  "UP042",
+  "UP045",
+  "UP046",
+  "UP047",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*/test_*.py" = ["F403"]
+"tests/api/*_suite.py" = ["F403", "F405"]
+"tests/api/*_support.py" = ["F401", "F403", "F405", "I001"]
+"tests/contracts/*_suite.py" = ["F403", "F405"]
+"tests/evals/*_suite.py" = ["F403"]
+"tests/ingestion/*_suite.py" = ["F403", "F405"]
+"tests/ingestion/*_support.py" = ["F401", "F403", "F405", "I001"]
+"tests/ingestion/*_test_support.py" = ["E402", "F401", "F403", "F405", "I001"]
+"tests/retrieval/*_suite.py" = ["F403"]
+"tests/agent/*_suite.py" = ["F403"]
+
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["apps/*", "packages/*"]
+members = [
+  "apps/app-api",
+  "apps/authenticated-notice-collector",
+  "apps/ingestion-worker",
+  "apps/legacy-office-conversion-service",
+  "apps/official-web-collector",
+  "apps/public-chat-web",
+  "apps/supervisor-agent-worker",
+  "packages/*",
+]
 
 [build-system]
 requires = ["hatchling>=1.24.0"]

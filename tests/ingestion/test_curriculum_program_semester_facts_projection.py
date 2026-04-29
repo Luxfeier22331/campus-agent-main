@@ -25,7 +25,9 @@ def _document_row(document: object) -> dict[str, object]:
 
 
 class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
-    def test_build_scope_refresh_documents_supports_canonical_materialization_without_source_artifact_keys(self) -> None:
+    def test_build_scope_refresh_documents_supports_canonical_materialization_without_source_artifact_keys(
+        self,
+    ) -> None:
         documents = build_curriculum_program_semester_facts_scope_refresh_documents(
             raw_asset_record=RawAssetRecord(
                 raw_asset_id="asset:curriculum-plan-master-pdf",
@@ -130,7 +132,10 @@ class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual([document.collection for document in documents], ["program_semester_facts", "program_semester_facts"])
+        self.assertEqual(
+            [document.collection for document in documents],
+            ["program_semester_facts", "program_semester_facts"],
+        )
         self.assertEqual(
             [document.title for document in documents],
             [
@@ -140,14 +145,20 @@ class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
         )
 
         first_row = _document_row(documents[1])
-        self.assertEqual(first_row["metadata"]["source_doc_id"], "curriculum:法学（民族实验班）本科人才培养方案")
+        self.assertEqual(
+            first_row["metadata"]["source_doc_id"], "curriculum:法学（民族实验班）本科人才培养方案"
+        )
         self.assertEqual(first_row["metadata"]["semester_label"], "第四学期")
-        self.assertEqual(first_row["metadata"]["course_titles"], ["侵权责任法", "公司法", "翻译学导论"])
+        self.assertEqual(
+            first_row["metadata"]["course_titles"], ["侵权责任法", "公司法", "翻译学导论"]
+        )
         self.assertEqual(first_row["metadata"]["content_role"], "semester_course_list")
         self.assertTrue(first_row["metadata"]["is_answer_bearing"])
         self.assertIn("第四学期有侵权责任法、公司法、翻译学导论", first_row["clean_text"])
 
-    def test_build_scope_refresh_documents_supports_numeric_semester_distribution_columns(self) -> None:
+    def test_build_scope_refresh_documents_supports_numeric_semester_distribution_columns(
+        self,
+    ) -> None:
         documents = build_curriculum_program_semester_facts_scope_refresh_documents(
             raw_asset_record=RawAssetRecord(
                 raw_asset_id="asset:curriculum-plan-master-pdf",
@@ -216,7 +227,9 @@ class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
             ["民族学人类学经典导读"],
         )
 
-    def test_build_scope_refresh_documents_preserves_blank_leading_cells_in_html_table_rows(self) -> None:
+    def test_build_scope_refresh_documents_preserves_blank_leading_cells_in_html_table_rows(
+        self,
+    ) -> None:
         documents = build_curriculum_program_semester_facts_scope_refresh_documents(
             raw_asset_record=RawAssetRecord(
                 raw_asset_id="asset:history-strong-base",
@@ -273,7 +286,9 @@ class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
             ["大学英语(四)", "中华民族共同体概论"],
         )
 
-    def test_build_scope_refresh_documents_uses_table_cells_grid_for_sparse_curriculum_tables(self) -> None:
+    def test_build_scope_refresh_documents_uses_table_cells_grid_for_sparse_curriculum_tables(
+        self,
+    ) -> None:
         documents = build_curriculum_program_semester_facts_scope_refresh_documents(
             raw_asset_record=RawAssetRecord(
                 raw_asset_id="asset:history-strong-base",

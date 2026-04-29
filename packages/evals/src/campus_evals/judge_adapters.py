@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
-from typing import Callable
+from collections.abc import Callable
+from pathlib import Path
 
 import httpx
+from campus_contracts import AgentResponse, RagResultPayload, SupervisorResponse
 from langchain_core.prompt_values import StringPromptValue
 
-from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.ragas_adapter import (
     RagasSupplementalAdapter,
@@ -16,6 +16,7 @@ from campus_evals.ragas_adapter import (
     build_ragas_scorer,
 )
 from campus_evals.runtime_observability import bind_runtime_event_context
+from campus_evals.settings import JudgeLLMSettings, RagasSettings
 from campus_evals.supplemental_http import (
     OpenAICompatibleChatCompletionsLLM,
     OpenAICompatibleResponsesLLM,
@@ -23,8 +24,6 @@ from campus_evals.supplemental_http import (
     get_provider_circuit_breaker,
     get_request_pacer,
 )
-from campus_evals.settings import JudgeLLMSettings, RagasSettings
-
 
 JudgeFn = Callable[[str], dict[str, object]]
 DEFAULT_STUDENT_HANDBOOK_JUDGE_RUBRICS_PATH = (
@@ -58,8 +57,10 @@ class RubricJudgeAdapter:
     def metric_names(self) -> tuple[str, ...]:
         return (self.metric_name,)
 
-    def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
-        response = _require_specialist_response(execution)
+    def evaluate(
+        self, case: GoldenCase, execution: ExecutionResult
+    ) -> tuple[SupplementalResult, ...]:
+        response = _require_agent_response(execution)
         if case.expected_status not in self._applicable_statuses:
             return (
                 _build_not_applicable_result(
@@ -87,7 +88,9 @@ class RubricJudgeAdapter:
             response=response,
         )
         try:
-            with bind_runtime_event_context(adapter_id=self.adapter_id, metric_name=self.metric_name):
+            with bind_runtime_event_context(
+                adapter_id=self.adapter_id, metric_name=self.metric_name
+            ):
                 judged = self._judge_fn(prompt)
         except Exception as exc:
             return (
@@ -158,10 +161,13 @@ def build_handbook_ragas_adapter(
             metric_names=resolved_metric_names,
         )
         if resolved_preflight is None:
-            resolved_preflight = lambda: {
-                "llm": llm.preflight_sync(),
-                "embeddings": embeddings.preflight_sync(),
-            }
+
+            def resolved_preflight():
+                return {
+                    "llm": llm.preflight_sync(),
+                    "embeddings": embeddings.preflight_sync(),
+                }
+
     return HandbookRagasAdapter(
         scorer=resolved_scorer,
         metric_names=resolved_metric_names,
@@ -224,8 +230,13 @@ def build_default_handbook_supplemental_adapters_from_env(
     *,
     metric_names: tuple[str, ...] | None = None,
     http_settings=None,
+    faithfulness_nli_batch_size: int = 4,
 ) -> tuple[object, ...]:
-    ragas_settings = RagasSettings.from_env(env, http_settings=http_settings)
+    ragas_settings = RagasSettings.from_env(
+        env,
+        http_settings=http_settings,
+        faithfulness_nli_batch_size=faithfulness_nli_batch_size,
+    )
     judge_settings = JudgeLLMSettings.from_env(env, http_settings=http_settings)
     _, judge_fn, judge_preflight = _build_json_judge_runtime(judge_settings)
     return (
@@ -248,28 +259,30 @@ def _build_json_judge_runtime(
     settings: JudgeLLMSettings,
     *,
     sync_client: httpx.Client | None = None,
-) -> tuple[OpenAICompatibleResponsesLLM | OpenAICompatibleChatCompletionsLLM, JudgeFn, Callable[[], object]]:
+) -> tuple[
+    OpenAICompatibleResponsesLLM | OpenAICompatibleChatCompletionsLLM, JudgeFn, Callable[[], object]
+]:
     base_url = settings.llm_base_url or "https://api.openai.com/v1"
-    llm_kwargs = dict(
-        base_url=base_url,
-        api_key=settings.llm_api_key,
-        model=settings.llm_model,
-        http_settings=settings.http_settings,
-        reasoning_effort=settings.reasoning_effort,
-        text_verbosity=settings.text_verbosity,
-        max_output_tokens=settings.max_output_tokens,
-        request_pacer=get_request_pacer(
+    llm_kwargs = {
+        "base_url": base_url,
+        "api_key": settings.llm_api_key,
+        "model": settings.llm_model,
+        "http_settings": settings.http_settings,
+        "reasoning_effort": settings.reasoning_effort,
+        "text_verbosity": settings.text_verbosity,
+        "max_output_tokens": settings.max_output_tokens,
+        "request_pacer": get_request_pacer(
             base_url=base_url,
             api_key=settings.llm_api_key,
             min_interval_seconds=settings.http_settings.request_min_interval_seconds,
         ),
-        circuit_breaker=get_provider_circuit_breaker(
+        "circuit_breaker": get_provider_circuit_breaker(
             base_url=base_url,
             api_key=settings.llm_api_key,
             settings=settings.http_settings,
         ),
-        sync_client=sync_client,
-    )
+        "sync_client": sync_client,
+    }
     if settings.llm_transport == "chat_completions":
         llm = OpenAICompatibleChatCompletionsLLM(**llm_kwargs)
     else:
@@ -282,7 +295,10 @@ def _build_json_judge_runtime(
 
     preflight = getattr(llm, "preflight_sync", None)
     if not callable(preflight):
-        preflight = lambda: {"status": "not_supported"}
+
+        def preflight():
+            return {"status": "not_supported"}
+
     return llm, _judge, preflight
 
 
@@ -290,7 +306,7 @@ def _build_rubric_prompt(
     *,
     rubric: dict[str, object],
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
 ) -> str:
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     sources = tuple(evidence.sources) if evidence is not None else ()
@@ -333,7 +349,7 @@ def _coerce_judge_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
     judged: dict[str, object],
 ) -> SupplementalResult:
     if not isinstance(judged, dict):
@@ -368,7 +384,7 @@ def _build_not_applicable_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
     rationale: str,
 ) -> SupplementalResult:
     return SupplementalResult(
@@ -389,7 +405,7 @@ def _build_failed_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
     rationale: str,
     score: float | None,
     metadata: dict[str, object] | None = None,
@@ -422,12 +438,12 @@ def _runtime_failure_metadata(exc: Exception) -> dict[str, object]:
     return metadata
 
 
-def _require_specialist_response(
+def _require_agent_response(
     execution: ExecutionResult,
-) -> SpecialistResponse | SupervisorResponse:
+) -> AgentResponse | SupervisorResponse:
     response = execution.response
-    if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
-        raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
+    if not isinstance(response, (AgentResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be AgentResponse or SupervisorResponse")
     return response
 
 

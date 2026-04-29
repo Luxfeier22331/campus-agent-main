@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import re
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 from campus_ingestion_core.settings import ObjectStoreSettings
-
 
 LEGACY_ATTACHMENT_OBJECT_KEY_RE = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{64}/[^/]+$")
 
@@ -37,6 +36,7 @@ class AuthenticatedNoticeAttachmentKeyCleanupS3ObjectStore:
 class AuthenticatedNoticeAttachmentKeyCleanupRequest:
     unreferenced_inventory_path: Path
     output_dir: Path
+    dry_run: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -66,21 +66,32 @@ def cleanup_authenticated_notice_source_attachment_keys(
     output_dir.mkdir(parents=True, exist_ok=True)
     deleted_path = output_dir / "deleted-objects.jsonl"
     already_absent_path = output_dir / "already-absent-objects.jsonl"
+    dry_run_path = output_dir / "dry-run-objects.jsonl"
     summary_path = output_dir / "summary.json"
 
     deleted_rows: list[dict[str, Any]] = []
     already_absent_rows: list[dict[str, Any]] = []
+    dry_run_rows: list[dict[str, Any]] = []
     total = len(candidates)
     for completed, legacy_object_key in enumerate(candidates, start=1):
-        result = _cleanup_candidate(
-            bucket=settings.bucket_source,
-            legacy_object_key=legacy_object_key,
-            object_store=runtime_object_store,
-        )
+        if request.dry_run:
+            result = {
+                "status": "dry_run",
+                "bucket": settings.bucket_source,
+                "legacy_object_key": legacy_object_key,
+            }
+        else:
+            result = _cleanup_candidate(
+                bucket=settings.bucket_source,
+                legacy_object_key=legacy_object_key,
+                object_store=runtime_object_store,
+            )
         if result["status"] == "deleted":
             deleted_rows.append(result)
         elif result["status"] == "already_absent":
             already_absent_rows.append(result)
+        elif result["status"] == "dry_run":
+            dry_run_rows.append(result)
         else:  # pragma: no cover
             raise ValueError(f"unsupported cleanup result status: {result['status']}")
         if completed == total or completed % 100 == 0:
@@ -101,17 +112,25 @@ def cleanup_authenticated_notice_source_attachment_keys(
         already_absent_rows,
         key=lambda row: str(row["legacy_object_key"]),
     )
+    dry_run_rows_sorted = sorted(
+        dry_run_rows,
+        key=lambda row: str(row["legacy_object_key"]),
+    )
     _write_jsonl(deleted_path, deleted_rows_sorted)
     _write_jsonl(already_absent_path, already_absent_rows_sorted)
+    _write_jsonl(dry_run_path, dry_run_rows_sorted)
     summary = {
         "unreferenced_inventory_path": str(request.unreferenced_inventory_path),
         "output_dir": str(output_dir),
+        "dry_run": request.dry_run,
         "inventory_row_count": inventory_row_count,
         "candidate_count": len(candidates),
         "deleted_count": len(deleted_rows_sorted),
         "already_absent_count": len(already_absent_rows_sorted),
+        "dry_run_count": len(dry_run_rows_sorted),
         "deleted_inventory_path": str(deleted_path),
         "already_absent_inventory_path": str(already_absent_path),
+        "dry_run_inventory_path": str(dry_run_path),
     }
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
@@ -131,9 +150,7 @@ def _load_candidates(path: Path) -> tuple[tuple[str, ...], int]:
             label="legacy_object_key",
         )
         if not _is_legacy_attachment_object_key(legacy_object_key):
-            raise ValueError(
-                f"{legacy_object_key} must be a legacy attachment object key"
-            )
+            raise ValueError(f"{legacy_object_key} must be a legacy attachment object key")
         if legacy_object_key in seen:
             continue
         seen.add(legacy_object_key)
@@ -245,8 +262,8 @@ def _is_missing_object_error(exc: Exception) -> bool:
 
 
 __all__ = [
+    "LEGACY_ATTACHMENT_OBJECT_KEY_RE",
     "AuthenticatedNoticeAttachmentKeyCleanupRequest",
     "AuthenticatedNoticeAttachmentKeyCleanupS3ObjectStore",
-    "LEGACY_ATTACHMENT_OBJECT_KEY_RE",
     "cleanup_authenticated_notice_source_attachment_keys",
 ]

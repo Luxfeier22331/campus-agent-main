@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
-from dataclasses import asdict, dataclass
 import hashlib
 import json
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -28,24 +28,27 @@ from campus_ingestion_core.authenticated_notice_closeout_verification import (
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     AuthenticatedNoticePreparedImport,
-    _materialize_document_import_for_persistence,
     prepare_authenticated_notice_bundle_records,
 )
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.object_store import (
-    build_document_artifact_key,
-    build_operations_artifact_key,
-    is_source_object_key,
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
 )
-from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
     AuthenticatedNoticeSourceTruthReplayRequest,
     build_authenticated_notice_source_truth_replay_documents,
 )
-from campus_ingestion_core.authenticated_notice_source_projections import (
-    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+from campus_ingestion_core.campusrag_ingestion_artifacts import (
+    build_document_processed_object_keys,
+    resolve_document_artifact_keys,
+    serialize_document_import_stub,
 )
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.object_store import (
+    build_operations_artifact_key,
+    is_source_object_key,
+)
+from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -231,11 +234,15 @@ class CloseoutExecutionCoordinator:
         if str(payload.get("run_id")) != run.run_id:
             raise ValueError(f"batch input run mismatch for {batch.batch_id}")
         input_kind = str(payload.get("input_kind") or run.input_kind or DEFAULT_CLOSEOUT_INPUT_KIND)
-        prepared_bundle = prepare_authenticated_notice_bundle_records(
-            request=_request_from_run(run),
-            bundle_records=tuple(payload.get("bundle_records") or ()),
-            export_manifest=self.artifacts.load_export_manifest(run),
-        ) if input_kind == DEFAULT_CLOSEOUT_INPUT_KIND else None
+        prepared_bundle = (
+            prepare_authenticated_notice_bundle_records(
+                request=_request_from_run(run),
+                bundle_records=tuple(payload.get("bundle_records") or ()),
+                export_manifest=self.artifacts.load_export_manifest(run),
+            )
+            if input_kind == DEFAULT_CLOSEOUT_INPUT_KIND
+            else None
+        )
         cleaning_policy_version = load_runtime_profile(
             run.corpus,
             run.collection,
@@ -317,10 +324,7 @@ class CloseoutExecutionCoordinator:
         cleaning_policy_version: str,
     ) -> _PreparedNoticeStage:
         async with notice_semaphore:
-            translated_document = _materialize_document_import_for_persistence(
-                prepared.document_import,
-                prepared.source_artifact_keys,
-            )
+            translated_document = prepared.document_import
             await asyncio.gather(
                 *[
                     asyncio.create_task(
@@ -416,9 +420,13 @@ class CloseoutExecutionCoordinator:
                 },
                 raw_record=dict(parent_snapshot["raw_record"]),
                 source_artifact_keys={
-                    "notice_manifest": str(parent_snapshot["notice_manifest_key"]),
-                    "content_blocks": str(parent_snapshot["content_blocks_key"]),
-                    "attachment_refs": str(parent_snapshot["attachment_refs_key"]),
+                    "source-truth/notice-manifest.json": str(
+                        parent_snapshot["notice_manifest_key"]
+                    ),
+                    "source-truth/content-blocks.jsonl": str(parent_snapshot["content_blocks_key"]),
+                    "source-truth/attachment-refs.jsonl": str(
+                        parent_snapshot["attachment_refs_key"]
+                    ),
                 },
                 artifact_keys=artifact_keys,
                 documents=documents,
@@ -539,26 +547,25 @@ class CloseoutExecutionCoordinator:
             filename="document-units.jsonl",
             segments=("staging", "batches", batch_key_segment, "documents", document_slug),
         )
-        final_document_units_key = build_document_artifact_key(
-            corpus=request.corpus,
-            collection=request.collection,
+        staged_object_keys = {"document_units": staged_document_units_key}
+        resolved_artifact_keys = resolve_document_artifact_keys(
+            document=translated_document,
             document_id=document_id,
-            revision_track=translated_document.revision_track,
             version_id=version_id,
-            filename="document-units.jsonl",
             title=translated_document.title,
             year=translated_document.year,
+            corpus=request.corpus,
+            collection=request.collection,
         )
-        staged_object_keys = {"document_units": staged_document_units_key}
-        final_object_keys = {"document_units": final_document_units_key}
+        final_object_keys = {"document_units": resolved_artifact_keys.document_units_key}
         staged_object_metadata = {
             "document_units": {
                 "sha256": content_hash,
                 "content_length": len(translated_document.document_units_bytes),
             }
         }
-        provider_response_object_key = translated_document.provider_response_object_key
-        layout_elements_object_key = translated_document.layout_elements_object_key
+        provider_response_object_key = resolved_artifact_keys.provider_response_key
+        layout_elements_object_key = resolved_artifact_keys.layout_elements_key
         upload_tasks = [
             asyncio.create_task(
                 self.artifacts.put_bytes_limited(
@@ -578,20 +585,7 @@ class CloseoutExecutionCoordinator:
                 raise ValueError(
                     f"closeout staging does not accept source-level provider response writes: {document_id}"
                 )
-            if provider_response_object_key is None:
-                provider_response_object_key = build_document_artifact_key(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    document_id=document_id,
-                    revision_track=translated_document.revision_track,
-                    version_id=version_id,
-                    filename=PROVIDER_RESPONSE_FILENAME,
-                    title=translated_document.title,
-                    year=translated_document.year,
-                )
-            provider_hash = hashlib.sha256(
-                translated_document.provider_response_bytes
-            ).hexdigest()
+            provider_hash = hashlib.sha256(translated_document.provider_response_bytes).hexdigest()
             staged_provider_key = build_operations_artifact_key(
                 corpus=request.corpus,
                 operation=DEFAULT_CLOSEOUT_OPERATION,
@@ -624,17 +618,6 @@ class CloseoutExecutionCoordinator:
                 raise ValueError(
                     f"closeout staging does not accept source-level layout elements writes: {document_id}"
                 )
-            if layout_elements_object_key is None:
-                layout_elements_object_key = build_document_artifact_key(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    document_id=document_id,
-                    revision_track=translated_document.revision_track,
-                    version_id=version_id,
-                    filename=LAYOUT_ELEMENTS_FILENAME,
-                    title=translated_document.title,
-                    year=translated_document.year,
-                )
             layout_elements_hash = hashlib.sha256(
                 translated_document.layout_elements_bytes
             ).hexdigest()
@@ -663,27 +646,15 @@ class CloseoutExecutionCoordinator:
                     )
                 )
             )
-        final_markdown_key = None
+        final_markdown_key = resolved_artifact_keys.canonical_markdown_key
         if translated_document.canonical_markdown_bytes is not None:
-            markdown_hash = hashlib.sha256(
-                translated_document.canonical_markdown_bytes
-            ).hexdigest()
+            markdown_hash = hashlib.sha256(translated_document.canonical_markdown_bytes).hexdigest()
             staged_markdown_key = build_operations_artifact_key(
                 corpus=request.corpus,
                 operation=DEFAULT_CLOSEOUT_OPERATION,
                 run_id=run_id,
                 filename="canonical.md",
                 segments=("staging", "batches", batch_key_segment, "documents", document_slug),
-            )
-            final_markdown_key = build_document_artifact_key(
-                corpus=request.corpus,
-                collection=request.collection,
-                document_id=document_id,
-                revision_track=translated_document.revision_track,
-                version_id=version_id,
-                filename="canonical.md",
-                title=translated_document.title,
-                year=translated_document.year,
             )
             staged_object_keys["canonical_markdown"] = staged_markdown_key
             final_object_keys["canonical_markdown"] = final_markdown_key
@@ -705,48 +676,29 @@ class CloseoutExecutionCoordinator:
             )
         await asyncio.gather(*upload_tasks)
 
-        processed_object_keys = tuple(
-            dict.fromkeys(
-                key
-                for key in (
-                    provider_response_object_key,
-                    layout_elements_object_key,
-                    final_markdown_key,
-                    final_document_units_key,
-                    *translated_document.additional_processed_object_keys,
-                )
-                if key is not None
-            )
+        processed_object_keys = build_document_processed_object_keys(
+            document_units_key=resolved_artifact_keys.document_units_key,
+            provider_response_key=provider_response_object_key,
+            layout_elements_key=layout_elements_object_key,
+            canonical_markdown_key=final_markdown_key,
+            additional_keys=translated_document.additional_processed_object_keys,
         )
-        return _PreparedDocumentStage(
-            document={
+        document_payload = serialize_document_import_stub(translated_document)
+        document_payload.update(
+            {
                 "document_id": document_id,
                 "revision_track": translated_document.revision_track,
                 "version_id": version_id,
-                "source_label": translated_document.source_label,
-                "metadata": dict(translated_document.metadata),
-                "import_source": translated_document.import_source,
-                "source_channel": translated_document.source_channel,
-                "is_current": translated_document.is_current,
-                "corpus": translated_document.corpus,
-                "collection": translated_document.collection,
-                "visibility_scope": translated_document.visibility_scope,
-                "status": translated_document.status,
-                "raw_source_uri": translated_document.raw_source_uri,
-                "raw_asset_id": translated_document.raw_asset_id,
-                "raw_version_id": translated_document.raw_version_id,
                 "provider_response_object_key": provider_response_object_key,
                 "layout_elements_object_key": layout_elements_object_key,
-                "additional_processed_object_keys": list(
-                    translated_document.additional_processed_object_keys
-                ),
                 "processed_object_keys": list(processed_object_keys),
-                "title": translated_document.title,
-                "year": translated_document.year,
                 "parser_version": request.parser_version,
                 "embedding_model": request.embedding_model,
                 "cleaning_policy_version": cleaning_policy_version,
-            },
+            }
+        )
+        return _PreparedDocumentStage(
+            document=document_payload,
             staged_object_keys=staged_object_keys,
             final_object_keys=final_object_keys,
             content_hash=content_hash,
@@ -770,6 +722,7 @@ def _request_from_run(run: CloseoutRun) -> AuthenticatedNoticeImportRequest:
         export_manifest_path=Path(run.manifest_path) if run.manifest_path else None,
         site_id=run.site_id,
         source_home_url=run.source_home_url,
+        allow_local_fixture_import=True,
         corpus=run.corpus,
         collection=run.collection,
         default_entitlement_groups=run.default_entitlement_groups,
@@ -787,9 +740,7 @@ def _source_truth_request_from_run(
         corpus=run.corpus,
         collection=run.collection,
         source_projections_path=(
-            Path(run.source_projections_path)
-            if run.source_projections_path
-            else None
+            Path(run.source_projections_path) if run.source_projections_path else None
         ),
         default_visibility_scope=run.visibility_scope,
     )

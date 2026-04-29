@@ -4,7 +4,6 @@ status: active
 created: 2026-03-31
 updated: 2026-04-12
 ---
-
 # Official Web Source-Truth Projection Replay
 
 ## 文档边界
@@ -24,11 +23,13 @@ updated: 2026-04-12
 - 进入 chunk/index/retrieval gate
 - 直接把任何 `official_web/*` collection 打开成默认 query-serving surface
 
-如果当前目标是继续验证 `official_web/muc_public_pages` 的 retrieval / answer 质量，应在 replay + validator + chunk audit + import + release 之后，转到：
+如果当前目标是继续验证 `official_web/muc_public_pages` 的 retrieval / answer 质量，应在 replay +
+validator + chunk audit + import + release 之后，转到：
 
 - retrieval：`campus_evals.retrieval_live_benchmark`
 - answer path：`campus_evals.official_web_live_benchmark`
-- current truth / future news handoff：`docs/reference/official-web-fresh-news-surface-handoff.md`
+- current truth / future news
+  handoff：`docs/reference/official-web-fresh-news-surface-handoff.md`
 
 ## 适用边界
 
@@ -42,10 +43,9 @@ updated: 2026-04-12
 
 projection replay 固定服务两类输入批次：
 
-- stable regression gate
-  固定 5-host 回归批次；用于证明 extractor、QC 和 replay 仍然稳定
-- low-budget expansion batch
-  面向 stable gate 外、但已 allowlisted 的 host；用于证明新增 host 已经通过 source-truth + replay 基线
+- stable regression gate 固定 5-host 回归批次；用于证明 extractor、QC 和 replay 仍然稳定
+- low-budget expansion batch 面向 stable gate 外、但已 allowlisted 的 host；用于证明新增 host
+  已经通过 source-truth + replay 基线
 
 它不负责判定：
 
@@ -62,8 +62,7 @@ projection replay 固定服务两类输入批次：
 ## 稳定回归批次
 
 `muc_public` 的 `site.json` / `hosts.json` / `seeds.json` 已经覆盖多于 5 个公开 host。
-这里保留的 5-host 只是稳定 replay / regression gate，不代表唯一允许进入
-source-truth 的 host 范围：
+这里保留的 5-host 只是稳定 replay / regression gate，不代表唯一允许进入 source-truth 的 host 范围：
 
 - `www.muc.edu.cn`
 - `news.muc.edu.cn`
@@ -71,21 +70,18 @@ source-truth 的 host 范围：
 - `xiaoyou.muc.edu.cn`
 - `lib.muc.edu.cn`
 
-如需对已启用的新增 host 做扩面验证，只要该 batch 的 source-truth QC 通过，且 batch 中出现的
-`pageFamily` 全部落在当前 declaration 范围内，就可以沿用同一套 replay/validator。
+如需对已启用的新增 host 做扩面验证，只要该 batch 的 source-truth QC 通过，且 batch 中出现的 `pageFamily`
+全部落在当前 declaration 范围内，就可以沿用同一套 replay/validator。
 
 `2026-04-02` 的 Batch A 提供了一次扩面验证示例：
 
 - `law.muc.edu.cn`
 - `history.muc.edu.cn`
 
-参考记录：
-
-- [official-web-muc-public-batch-a-law-history-audit-20260402.md](/home/reptilian/code/campus-agent/docs/reference/official-web-muc-public-batch-a-law-history-audit-20260402.md)
-
 repo-tracked declaration 入口：
 
-- [projection-declarations.json](/home/reptilian/code/campus-agent/configs/sources/official_web/muc_public/projection-declarations.json)
+- [projection-declarations.json](/home/reptilian/code/campus-agent/configs/sourc
+  es/official_web/muc_public/projection-declarations.json)
 
 当前已接受的第一波 declaration：
 
@@ -108,13 +104,19 @@ bridge scope 仍只作为 projection declaration / mixed replay truth：
 
 补充约束：
 
-- replay 输出的 `listing_page` / 部分 `generic_content_page` 可用于本地 canonical / chunk audit
-- homepage / portal-style `directory_page` 也只允许留在 staged audit truth，不得进入 promoted current truth
+- replay 输出的 `listing_page` / 部分 `generic_content_page` 可用于本地 canonical / chunk
+  audit
+- homepage / portal-style `directory_page` 也只允许留在 staged audit truth，不得进入
+  promoted current truth
 - 但 handoff consumer 默认只把这批产物标记为 `staged`
-- 只有显式 promote，且 coverage/chunk-audit/release gate 全部通过，才允许它们进入 registry current truth
-- `muc_public_pages` 的 promoted/released truth 只接受高信号正文页；listing / generic 噪音由 promote/release gate fail-close
-- cleaning / chunking 的 page-family 规则以 `docs/policies/official-web-cleaning-and-chunking-policy.md` 为准
-- 如果 inventory triage 已把某页标记为 `future_fresh_news_surface`，它只能继续作为 current-truth regression/local-validation seed，而不能被当成 stable-reference gate 的待升格页面
+- 只有显式 promote，且 coverage/chunk-audit/release gate 全部通过，才允许它们进入 registry current
+  truth
+- `muc_public_pages` 的 promoted/released truth 只接受高信号正文页；listing / generic 噪音由
+  promote/release gate fail-close
+- cleaning / chunking 的 page-family 规则以
+  `docs/policies/official-web-cleaning-and-chunking-policy.md` 为准
+- 如果 inventory triage 已把某页标记为 `future_fresh_news_surface`，它只能继续作为 current-truth
+  regression/local-validation seed，而不能被当成 stable-reference gate 的待升格页面
 
 ## 执行顺序
 
@@ -127,48 +129,48 @@ bridge scope 仍只作为 projection declaration / mixed replay truth：
 1. 先确认 source-truth QC gate 已通过。
 
 ```bash
-pnpm --dir apps/official-web-collector validate -- --output-dir /tmp/official-web-qc-batch-a --json
+pnpm --dir apps/official-web-collector validate -- --output-dir \
+  /tmp/official-web-qc-batch-a --json
 pnpm --dir apps/official-web-collector qc-report -- \
   --output-dir /tmp/official-web-qc-batch-a \
   --json
 ```
 
-2. 运行 local projection replay。
+1. 运行 local projection replay。
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.project_official_web_source_truth \
+uv run --all-packages python -m \
+  campus_ingestion_worker.project_official_web_source_truth
   --output-dir /tmp/official-web-qc-batch-a \
   --projection-output-dir /tmp/official-web-qc-batch-a-projection
 ```
 
-3. 运行 projection validator。
+1. 运行 projection validator。
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.validate_official_web_projection \
+uv run --all-packages python -m \
+  campus_ingestion_worker.validate_official_web_projection
   --projection-output-dir /tmp/official-web-qc-batch-a-projection
 ```
 
-4. 在 import / release 之前，先做本地 cleaning + chunking 审计。
+1. 在 import / release 之前，先做本地 cleaning + chunking 审计。
 
 ```bash
 uv run --all-packages campus-ingestion-audit-official-web-projection-chunking \
   --projection-output-dir /tmp/official-web-qc-batch-a-projection
 ```
 
-这一步只审计本地 `canonical.md` / `document-units.jsonl -> chunk` 质量，不写 registry truth，也不写 Qdrant。
+这一步只审计本地 `canonical.md` / `document-units.jsonl -> chunk` 质量，不写 registry
+truth，也不写 Qdrant。
 
 当前这层 audit 重点拦截两类常见 listing 噪音：
 
-- portal/tab 样式短标签残留
-  例如新闻首页或频道页正文区里的 `教学科研 / 校园经纬 / 全球合作`
-- 被截断的 teaser / summary 行
-  例如以 `...` 或 `…` 结尾的摘要残片
-- 尾部 teaser/card 聚合簇
-  例如专题入口后面拼接的 `24张...`、`媒体名 | 标题` 一类 teaser 行
-- 首页/门户 listing 被单条 headline 污染成统一 section path
-  例如整页 chunk context 都带着某一条头条新闻标题
-- 清洗后 `row_ids` 仍保留已删掉的 short-label / teaser 行
-  例如 `clean_text` 只剩 1-2 条有效标题，但 `row_ids` 还挂着 4-5 个来源行
+- portal/tab 样式短标签残留 例如新闻首页或频道页正文区里的 `教学科研 / 校园经纬 / 全球合作`
+- 被截断的 teaser / summary 行 例如以 `...` 或 `…` 结尾的摘要残片
+- 尾部 teaser/card 聚合簇 例如专题入口后面拼接的 `24张...`、`媒体名 | 标题` 一类 teaser 行
+- 首页/门户 listing 被单条 headline 污染成统一 section path 例如整页 chunk context 都带着某一条头条新闻标题
+- 清洗后 `row_ids` 仍保留已删掉的 short-label / teaser 行 例如 `clean_text` 只剩 1-2 条有效标题，但
+  `row_ids` 还挂着 4-5 个来源行
 
 除此之外，批次收口还要显式区分：
 
@@ -187,10 +189,11 @@ uv run --all-packages campus-ingestion-audit-official-web-projection-chunking \
 - `retain_inventory_only`
   - 保留在 current truth，但不进入当前 gate，也不进入 future fresh-news seed set
 - `future_fresh_news_surface`
-  - 保留在 current truth，只服务 regression / local validation / future fresh-news handoff
+  - 保留在 current truth，只服务 regression / local validation / future fresh-news
+    handoff
   - 具体 seed set 以 `docs/reference/official-web-fresh-news-surface-handoff.md` 为准
 
-5. 按批次类型完成收口。
+1. 按批次类型完成收口。
 
 - stable regression gate
   - 记录这轮 replay / validator 已通过
@@ -198,14 +201,15 @@ uv run --all-packages campus-ingestion-audit-official-web-projection-chunking \
 - low-budget expansion batch
   - 补一份 repo-tracked reference note，写清 host、budget、family counts、抽样结论
   - 明确该 host 只是 validated expansion batch result，不自动进入 `scheduler-policy.json`
-  - 如果这轮还要验证 import / handoff，再回到
-    [official-web-collector-smoke-and-audit.md](./official-web-collector-smoke-and-audit.md)
-    第 2 节继续执行 `drain-projection` 与本地 handoff consumer；否则默认到 projection validator 为止
+  - 如果这轮还要验证 import / handoff，再回到 [official-web-collector-smoke-and-audit.md](./
+    official-web-collector-smoke-and-audit.md) 第 2 节继续执行 `drain-projection` 与本地
+    handoff consumer；否则默认到 projection validator 为止
 
-6. 如果该批次要继续做 `muc_public_pages` 本地质量闭环，再执行：
+1. 如果该批次要继续做 `muc_public_pages` 本地质量闭环，再执行：
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.official_web_projection_import \
+uv run --all-packages python -m \
+  campus_ingestion_worker.official_web_projection_import
   --projection-output-dir /tmp/official-web-qc-batch-a-projection \
   --replay-input-dir /tmp/official-web-qc-batch-a \
   --work-dir /tmp/official-web-qc-batch-a-import \
@@ -219,7 +223,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   --no-publish-alias
 
 uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
-  --qrels packages/evals/fixtures/official_web_muc_public_pages_retrieval_qrels.json \
+  --qrels \
+    packages/evals/fixtures/official_web_muc_public_pages_retrieval_qrels.json
   --output /tmp/official-web-live-retrieval.json \
   --force-enable-retrieval \
   --qdrant-collection-name <physical-collection> \
@@ -231,10 +236,12 @@ uv run --all-packages python -m campus_evals.official_web_live_benchmark run \
   --output-dir /tmp/official-web-live-gate
 ```
 
-7. 如果当前 batch 要继续做首条 `stable_reference` bootstrap 闭环，则改为执行 routed scope import / release：
+1. 如果当前 batch 要继续做首条 `stable_reference` bootstrap 闭环，则改为执行 routed scope import /
+   release：
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.official_web_projection_import \
+uv run --all-packages python -m \
+  campus_ingestion_worker.official_web_projection_import
   --projection-output-dir /tmp/official-web-qc-batch-a-projection \
   --replay-input-dir /tmp/official-web-qc-batch-a \
   --work-dir /tmp/official-web-qc-batch-a-import-stable-reference \
@@ -248,7 +255,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   --no-publish-alias
 
 uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
-  --qrels packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json \
+  --qrels \
+    packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json
   --output /tmp/official-web-stable-reference-live-retrieval.json \
   --force-enable-retrieval \
   --qdrant-collection-name <physical-collection> \
@@ -270,13 +278,24 @@ uv run --all-packages python -m campus_ingestion_worker.scope_alias \
 补充约束：
 
 - `release_registry_scope` 默认使用 `--no-publish-alias`，避免误把本地验证结果发布成 serving alias
-- `official_web_live_benchmark` 只允许显式传入 physical collection 名称；它会临时 monkeypatch runtime profile 做本地验证，但不会改写 repo-tracked `offline_preparation` truth
-- `official_web_projection_import --require-promotable` 现在只会导入 `promotable` 子集；`audit_only` 文档会被跳过，并回写到 import report 的 skipped 列表
-- 当前 `muc_public_pages` 的 low-value recruitment / procurement / public-notice `article_detail` 页面虽然能 replay 出 canonical document，但仍必须留在 staged audit truth，不参与 promote / release
-- `stable_reference` bootstrap import 只消费 routed `target_collection=stable_reference` 文档，不允许顺手把 mixed bridge 页一起刷进这次 release
-- `stable_reference` bootstrap release 在本地验证阶段默认仍先 `--no-publish-alias`；若 retrieval/live gate 已通过，再用 `campus_ingestion_worker.scope_alias` 单独执行 alias publish，避免把“生成 physical collection”和“切 serving alias”混成一步
-- `stable_reference` retrieval/live-gate baseline 现在使用独立的 split manifest、retrieval qrels 与 `--official-web-scope stable_reference` deterministic live profile，不再复用 mixed `muc_public_pages` live gate
-- `fresh_news` 当前也已有独立的 split manifest、retrieval qrels 与 `--official-web-scope fresh_news` seed live profile；但 runtime truth 仍保持 `offline_preparation`，不得把本地 seed 验证写成 query-open 结论
+- `official_web_live_benchmark` 只允许显式传入 physical collection 名称；它会临时 monkeypatch
+  runtime profile 做本地验证，但不会改写 repo-tracked `offline_preparation` truth
+- `official_web_projection_import --require-promotable` 现在只会导入 `promotable`
+  子集；`audit_only` 文档会被跳过，并回写到 import report 的 skipped 列表
+- 当前 `muc_public_pages` 的 low-value recruitment / procurement / public-notice
+  `article_detail` 页面虽然能 replay 出 canonical document，但仍必须留在 staged audit
+  truth，不参与 promote / release
+- `stable_reference` bootstrap import 只消费 routed
+  `target_collection=stable_reference` 文档，不允许顺手把 mixed bridge 页一起刷进这次 release
+- `stable_reference` bootstrap release 在本地验证阶段默认仍先 `--no-publish-alias`；若
+  retrieval/live gate 已通过，再用 `campus_ingestion_worker.scope_alias` 单独执行 alias
+  publish，避免把“生成 physical collection”和“切 serving alias”混成一步
+- `stable_reference` retrieval/live-gate baseline 现在使用独立的 split
+  manifest、retrieval qrels 与 `--official-web-scope stable_reference`
+  deterministic live profile，不再复用 mixed `muc_public_pages` live gate
+- `fresh_news` 当前也已有独立的 split manifest、retrieval qrels 与 `--official-web-scope
+  fresh_news` seed live profile；但 runtime truth 仍保持 `offline_preparation`，不得把本地
+  seed 验证写成 query-open 结论
 
 ## 输出形态
 
@@ -288,7 +307,8 @@ projection replay 当前会写出：
 
 这一步的 contract 是：
 
-- replay 只读取 `source-truth-bundle.json`、`page-manifest.json`、`content-blocks.jsonl`
+- replay 只读取
+  `source-truth-bundle.json`、`page-manifest.json`、`content-blocks.jsonl`
 - 不返回 raw HTML 重做 source extraction
 - shell family 不自动落正文文档
 
@@ -304,17 +324,12 @@ projection replay 当前会写出：
 
 ## 人工抽样重点
 
-- `article_detail`
-  正文标题、正文段落和来源 URL 是否保留
-- `listing_page`
-  列表项是否作为 listing/navigation 文档保留下来，而不是被吞成空文档
-  portal/tab 短标签、摘要截断行、聚合 quick-link 行、尾部 teaser cluster 是否已被清掉
-  这类文档即使清洗通过，也默认只应作为 audit material，而不是 release truth
-- `directory_page`
-  联系方式、机构名、电话号码等是否还在
-  是否已经形成单实体/单联系方式组语义，而不是整页名单堆积
-- shell 页
-  是否仍然只落在 `manual_review`，没有被误投成正文文档
+- `article_detail` 正文标题、正文段落和来源 URL 是否保留
+- `listing_page` 列表项是否作为 listing/navigation 文档保留下来，而不是被吞成空文档 portal/tab
+  短标签、摘要截断行、聚合 quick-link 行、尾部 teaser cluster 是否已被清掉 这类文档即使清洗通过，也默认只应作为 audit
+  material，而不是 release truth
+- `directory_page` 联系方式、机构名、电话号码等是否还在 是否已经形成单实体/单联系方式组语义，而不是整页名单堆积
+- shell 页 是否仍然只落在 `manual_review`，没有被误投成正文文档
 
 ## 当前阶段禁止事项
 

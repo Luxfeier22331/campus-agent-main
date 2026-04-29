@@ -4,31 +4,31 @@ status: active
 created: 2026-03-29
 updated: 2026-03-30
 ---
-
 # App API Official Web Run Lifecycle
 
 ## 文档边界
 
-这份文档冻结 `official_web` crawl run 在 `apps/app-api` control plane 内的生命周期、状态流转、幂等规则与 ingestion handoff 语义。
+这份文档冻结 `official_web` crawl run 在 `apps/app-api` control plane 内的生命周期、状态流转、幂等规则与
+ingestion handoff 语义。
 
 它补充但不替代以下文档：
 
-- control-plane 架构：`docs/architecture/official-web-architecture.md`
+- control-plane 架构：`docs/architecture/domains/official-web/architecture.md`
 - HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - logical schema：`docs/data/app-api-official-web-schema.md`
-- source-channel 总边界：`docs/architecture/official-web-architecture.md`
+- source-channel 总边界：`docs/architecture/domains/official-web/architecture.md`
 
 ## Lifecycle Conclusion
 
 长期 run lifecycle 固定为：
 
 1. collector start admission
-2. `app-api` durable 写入 crawl-run accepted fact
-3. collector 上传 object-storage artifacts 并发送 heartbeat
-4. collector finalize，`app-api` durable 写入 terminal state 与 artifact refs
-5. `app-api` 发出 ingestion handoff event
-6. ingestion worker 消费 handoff event 并开始 offline execution
-7. operator 只通过 app-owned projections 查看 site/run/detail
+1. `app-api` durable 写入 crawl-run accepted fact
+1. collector 上传 object-storage artifacts 并发送 heartbeat
+1. collector finalize，`app-api` durable 写入 terminal state 与 artifact refs
+1. `app-api` 发出 ingestion handoff event
+1. ingestion worker 消费 handoff event 并开始 offline execution
+1. operator 只通过 app-owned projections 查看 site/run/detail
 
 这里冻结的重点是：
 
@@ -62,9 +62,11 @@ updated: 2026-03-30
 补充约束：
 
 - crawl status 与 ingestion status 必须分开建模
-- `completed` / `completed_with_errors` 只表示 crawl finalize 成功，不表示 chunk/index 已完成
+- `completed` / `completed_with_errors` 只表示 crawl finalize 成功，不表示 chunk/index
+  已完成
 - ingestion execution 当前允许 `pending -> running -> staged -> promoted/failed`
-- `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 仍未被显式 promote
+- `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth
+  仍未被显式 promote
 
 ## Command-Side Sequence
 
@@ -124,23 +126,21 @@ collector 调用 finalize 时，`app-api` 至少写入：
 
 terminal finalize 规则：
 
-- `completed`
-  只在 run-level summary 无失败时允许
-- `completed_with_errors`
-  有 artifacts 且存在 URL/host/parser failures 时允许
-- `failed`
-  crawl 中止、run 失效或 terminal summary 无法收口时允许
-- `pageObservations`
-  是 finalize commit 的一部分，`app-api` 会同步推进 `page_freshness` 与 `page_observations` durable truth
-- `fetch_failed`
-  只更新 freshness truth、operator summary 与 repair backlog；不单独触发 ingestion handoff page change
+- `completed` 只在 run-level summary 无失败时允许
+- `completed_with_errors` 有 artifacts 且存在 URL/host/parser failures 时允许
+- `failed` crawl 中止、run 失效或 terminal summary 无法收口时允许
+- `pageObservations` 是 finalize commit 的一部分，`app-api` 会同步推进 `page_freshness` 与
+  `page_observations` durable truth
+- `fetch_failed` 只更新 freshness truth、operator summary 与 repair backlog；不单独触发
+  ingestion handoff page change
 
 ### Step 5: Ingestion Handoff
 
 handoff 规则固定为：
 
 - 只能在 terminal finalize commit 之后触发
-- outbox/queue payload 只携带 ingestion 所需的 run identity、site identity 与 artifact refs
+- outbox/queue payload 只携带 ingestion 所需的 run identity、site identity 与 artifact
+  refs
 - `pageChanges` 只包含 `new / changed / deleted`
 - `not_modified` 与 `fetch_failed` 只保留在 page-change summary 与 freshness truth 中
 - ingestion worker 消费 handoff 时再去对象存储读取 artifact 内容
@@ -173,19 +173,15 @@ handoff 规则固定为：
 
 重放规则：
 
-- payload fingerprint 相同
-  返回既有 `runId`
-- payload fingerprint 不同
-  返回 `409 idempotency_conflict`
+- payload fingerprint 相同 返回既有 `runId`
+- payload fingerprint 不同 返回 `409 idempotency_conflict`
 
 ### Finalize Idempotency
 
 同一 `runId` 的 finalize：
 
-- terminal payload 相同
-  返回既有 terminal state
-- terminal payload 冲突
-  返回 `409 run_already_finalized`
+- terminal payload 相同 返回既有 terminal state
+- terminal payload 冲突 返回 `409 run_already_finalized`
 
 ### Heartbeat Ordering
 
@@ -208,12 +204,9 @@ handoff 规则固定为：
 
 这里必须区分三类失败：
 
-- pre-accept failure
-  没有 durable run truth
-- crawl terminal failure
-  有 run truth，但 run 以 `failed` 收口
-- downstream ingestion failure
-  crawl 已完成，但 handoff 之后的 ingestion 执行失败
+- pre-accept failure 没有 durable run truth
+- crawl terminal failure 有 run truth，但 run 以 `failed` 收口
+- downstream ingestion failure crawl 已完成，但 handoff 之后的 ingestion 执行失败
 
 operator query surface 需要能把这三类边界分清，而不是折叠成一个“失败”标签。
 

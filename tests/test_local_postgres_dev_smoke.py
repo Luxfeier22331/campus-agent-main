@@ -3,10 +3,10 @@ from __future__ import annotations
 import io
 import json
 import subprocess
+import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.local_postgres_dev_smoke import (
     execute_local_postgres_smoke,
@@ -182,7 +182,10 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                         ),
                         stderr="",
                     )
-                if "campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory" in argv:
+                if (
+                    "campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory"
+                    in argv
+                ):
                     return subprocess.CompletedProcess(
                         argv,
                         0,
@@ -196,7 +199,11 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                         ),
                         stderr="",
                     )
-                if "campus_ingestion_worker.validate_internal_notice_chunking" in argv and "--closeout-run-id" not in argv and "--preparation-run-id" not in argv:
+                if (
+                    "campus_ingestion_worker.validate_internal_notice_chunking" in argv
+                    and "--closeout-run-id" not in argv
+                    and "--preparation-run-id" not in argv
+                ):
                     return subprocess.CompletedProcess(
                         argv,
                         0,
@@ -255,7 +262,10 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                         ),
                         stderr="",
                     )
-                if "campus_ingestion_worker.validate_internal_notice_chunking" in argv and "--closeout-run-id" in argv:
+                if (
+                    "campus_ingestion_worker.validate_internal_notice_chunking" in argv
+                    and "--closeout-run-id" in argv
+                ):
                     return subprocess.CompletedProcess(
                         argv,
                         0,
@@ -283,7 +293,10 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                         ),
                         stderr="",
                     )
-                if "campus_ingestion_worker.validate_internal_notice_chunking" in argv and "--preparation-run-id" in argv:
+                if (
+                    "campus_ingestion_worker.validate_internal_notice_chunking" in argv
+                    and "--preparation-run-id" in argv
+                ):
                     return subprocess.CompletedProcess(
                         argv,
                         0,

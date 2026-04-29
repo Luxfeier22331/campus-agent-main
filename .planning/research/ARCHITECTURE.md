@@ -209,11 +209,11 @@ State lives in the document registry, raw asset registry, and chunk/index layers
 
 ## Sources
 
-- OpenAI, “A practical guide to building AI agents” (accessed 2026-03-23).  
-- Microsoft Azure Architecture Center, “AI agent design patterns” (accessed 2026-03-23).  
-- `docs/architecture/long-term-architecture.md` (2026-03-22).  
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md` (2026-03-22).
+- OpenAI, “A practical guide to building AI agents” (accessed 2026-03-23).
+- Microsoft Azure Architecture Center, “AI agent design patterns” (accessed 2026-03-23).
+- `docs/architecture/target-architecture.md` (2026-03-22).
+- `docs/architecture/system/data-plane-architecture.md` (2026-03-22).
 
 ---
-*Architecture research for: supervisor-led multi-agent campus QA system*  
+*Architecture research for: supervisor-led multi-agent campus QA system*
 *Researched: 2026-03-23*

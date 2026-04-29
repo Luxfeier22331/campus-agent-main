@@ -18,13 +18,13 @@
 
 **Warning signs:** Pull requests that introduce vector-store or chunking code in packages/supervisor-core, supervisor responses that incorporate retrieval metadata without calling rag-specialist, or log streams that do not attribute steps to a named specialist.
 
-**Phase to address:** Phase 1 (before the first student_handbook QA release).
+**Phase to address:** Phase 1 (before the first student_rules QA release).
 
 ---
 
 ### Pitfall 2: Visibility and audit gaps around ACL and tracing
 
-**What goes wrong:** Without a tracing/audit layer that carries identity + ACL decisions through the supervisor-specialist handoff, it becomes impossible to prove that every query respected the identity-based filters or to debug why a specialist returned the wrong snippet. This violates the security constraint that requests must be bounded to student_handbook and that ACL decisions are replayable.
+**What goes wrong:** Without a tracing/audit layer that carries identity + ACL decisions through the supervisor-specialist handoff, it becomes impossible to prove that every query respected the identity-based filters or to debug why a specialist returned the wrong snippet. This violates the security constraint that requests must be bounded to student_rules and that ACL decisions are replayable.
 
 **Why it happens:** The new multi-agent architecture is orchestrated through several packages, so teams may delay wiring observability until after core functionality works. Guardrail hooks and trace events are seen as “extra work,” resulting in partial instrumentation or no traceability at all.
 
@@ -46,7 +46,7 @@
 
 **Warning signs:** New ingestion tickets requesting curriculum_plan query routing, or supervisor changes that allow selecting a new specialist ID via config without a verified eval pass.
 
-**Phase to address:** Phase 1 (because scope creep frustrates the required student_handbook proof-of-value).
+**Phase to address:** Phase 1 (because scope creep frustrates the required student_rules proof-of-value).
 
 ---
 
@@ -76,7 +76,7 @@
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Vector store connectors (MinIO, Agno) | Upload chunked data without preserving corpus boundaries or metadata, then serve all corpora through the same specialist | Enforce corpus tags in metadata, keep `student_handbook` and `curriculum_plan` indexes separate, and tie them to the correct ACL policies |
+| Vector store connectors (MinIO, Agno) | Upload chunked data without preserving corpus boundaries or metadata, then serve all corpora through the same specialist | Enforce corpus tags in metadata, keep `student_rules` and `curriculum_plan` indexes separate, and tie them to the correct ACL policies |
 | Trace/Audit pipeline | Assume logs in `apps/supervisor-api` are sufficient even though specialists run in separate packages | Pipe supervisor IDs, user identity, ACL decisions, and retrieval trace IDs through every specialist and emit them in a structured audit trail |
 | Retrieval QA tooling (eval dashboard) | Rely on manual spot checks when returning QA answers | Automate eval runs with the Evals API, logging retrieval precision/recall per specialist, and gating merges when degradation occurs |
 
@@ -84,7 +84,7 @@
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Full-corpus retrieval per request (no caching) | Request latency spiking as dataset grows | Cache the most-frequent queries and the student_handbook embeddings; reuse in-memory vector indexes for the Phase 1 corpus | When student_handbook, even alone, exceeds a few thousand chunks and each request runs multiple dense searches |
+| Full-corpus retrieval per request (no caching) | Request latency spiking as dataset grows | Cache the most-frequent queries and the student_rules embeddings; reuse in-memory vector indexes for the Phase 1 corpus | When student_rules, even alone, exceeds a few thousand chunks and each request runs multiple dense searches |
 | Per-user reranking with expensive LLM calls | Throughput drops and costs balloon | Use lightweight rerankers (e.g., logistic scoring) before calling a reasoning model, and only escalate to LLM reranks when ACL or eval metrics demand it | When concurrent user load reaches the expected Phase 1 peak (>200 req/min) |
 | Tight loop between retrieval, specialist, and supervisor without backoff | Errors cascade, and retry storms appear | Add timeouts, retry limits, and exponential backoff in the supervisor-specialist handoff, and surface failures in audit logging | When downstream services (vector store, ACL service) degrade temporarily |
 
@@ -106,7 +106,7 @@
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Ingestion pipeline:** student_handbook and curriculum_plan ingestion jobs exist but ensure deduplication, chunking, and metadata tagging are validated for each corpus.
+- [ ] **Ingestion pipeline:** student_rules and curriculum_plan ingestion jobs exist but ensure deduplication, chunking, and metadata tagging are validated for each corpus.
 - [ ] **Contracts:** supervisor-specialist contracts are defined in `packages/contracts` and enforced; no package is bypassing those schemas.
 - [ ] **ACL/tracing:** every request has identity, authorization, and trace IDs logged before and after jumping to a specialist.
 - [ ] **Retrieval QA:** retrieval precision/recall metrics are included in automated eval runs and the dashboard warns on degradation.
@@ -127,7 +127,7 @@
 | Reverting to flat RAG | Phase 1 | Code review ensures supervisor never embeds retrieval calls; smoke tests confirm only one specialist is invoked.
 | Missing ACL/tracing visibility | Phase 1 | Audit logs demonstrate identity/ACL propagation and trace coverage for every QA request.
 | Scope creep to additional corpora | Phase 1+ | Architecture review confirms every newly exposed scope has explicit runtime-policy and release-gate evidence.
-| Retrieval QA blind spot | Phase 1 | Continuous eval dashboard shows precision/recall goals met for student_handbook queries.
+| Retrieval QA blind spot | Phase 1 | Continuous eval dashboard shows precision/recall goals met for student_rules queries.
 
 ## Sources
 

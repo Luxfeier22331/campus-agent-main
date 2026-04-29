@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
-from typing import Sequence
+from collections.abc import Sequence
+from dataclasses import asdict
 
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     CurriculumProgramSemesterFactsMaterializationReport,
 )
-from campus_ingestion_core.local_rebuild import rematerialize_curriculum_program_semester_facts_from_local_rebuild
+from campus_ingestion_core.local_rebuild import (
+    rematerialize_curriculum_program_semester_facts_from_local_rebuild,
+)
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

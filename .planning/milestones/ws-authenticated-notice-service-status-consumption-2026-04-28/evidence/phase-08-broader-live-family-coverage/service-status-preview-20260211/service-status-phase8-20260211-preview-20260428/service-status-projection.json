@@ -1,0 +1,78 @@
+{
+  "schema_version": "campus_services_projection_bundle.v1",
+  "service_status_records": [
+    {
+      "subject_id": "it-platform:information-portal",
+      "display_name": "信息门户",
+      "service_family": "it_platform",
+      "aliases": [
+        "信息门户",
+        "网上办事大厅",
+        "关于信息门户升级维护的通知"
+      ],
+      "campus_scope": "",
+      "observed_status": "temporarily_closed",
+      "effective_from": "2026-02-11T20:00:00+08:00",
+      "effective_until": "2026-02-12T07:00:00+08:00",
+      "affected_scope": "线上服务",
+      "severity": "high",
+      "override_source_refs": [
+        "notice:muc_internal_portal:354674"
+      ],
+      "related_notice_refs": [
+        "notice:muc_internal_portal:354674"
+      ],
+      "status_note": "为提升系统性能，我处计划于2026年2月11日20:00—2月12日07:00对信息门户进行升级维护，期间系统将暂停访问",
+      "extraction_status": "ready"
+    },
+    {
+      "subject_id": "service-counter:campus-hospital",
+      "display_name": "校医院",
+      "service_family": "service_counter",
+      "aliases": [
+        "校医院",
+        "校园医院",
+        "2026年校医院寒假值班安排"
+      ],
+      "campus_scope": "",
+      "observed_status": "limited_service",
+      "effective_from": "2026-01-22T00:00:00+08:00",
+      "effective_until": "2026-02-27T00:00:00+08:00",
+      "affected_scope": "线下办理",
+      "severity": "medium",
+      "override_source_refs": [
+        "notice:muc_internal_portal:354575"
+      ],
+      "related_notice_refs": [
+        "notice:muc_internal_portal:354575"
+      ],
+      "status_note": "根据学校2026年寒假放假时间安排，2026年1月22日--2月26日为寒假时间，现将校医院2026年寒假期间值班安排通知如下： 海淀校区： 一、门诊时间：8：00--11：30 14：00--17：00 二、科室开诊及停诊情况 1.全科门诊、药房、收费挂号室寒假工作日期间正常开诊",
+      "extraction_status": "ready"
+    },
+    {
+      "subject_id": "service-counter:comprehensive-service-hall",
+      "display_name": "综合服务大厅",
+      "service_family": "service_counter",
+      "aliases": [
+        "综合服务大厅",
+        "一站式服务中心",
+        "关于海淀校区寒假期间学生浴室、吹风机室、学生食堂、教工餐厅、体育场馆及后勤综合服务大厅调整开放时间的通知"
+      ],
+      "campus_scope": "",
+      "observed_status": "limited_service",
+      "effective_from": "2026-01-22T09:00:00+08:00",
+      "effective_until": "2026-02-27T00:00:00+08:00",
+      "affected_scope": "线下办理",
+      "severity": "medium",
+      "override_source_refs": [
+        "notice:muc_internal_portal:354502"
+      ],
+      "related_notice_refs": [
+        "notice:muc_internal_portal:354502"
+      ],
+      "status_note": "综合服务大厅 1、服务日期（每周一、每周四） 1月：22日、26日、29日 2月：2日、5日、9日、12日、26日 2、服务时间：9:00－11:00 温馨提示： （1）大厅非对外时间，家属区住户可通过“民大家属区电费”公众号随时微信自助购电",
+      "extraction_status": "ready"
+    }
+  ],
+  "service_status_rejected_sources": []
+}

@@ -1,0 +1,1440 @@
+{
+  "buckets": {
+    "already_staged": [
+      "355881",
+      "355512",
+      "355122",
+      "354889"
+    ],
+    "auto_stage_candidate": [
+      "354578",
+      "354533",
+      "354505",
+      "352218",
+      "351030",
+      "350030",
+      "349494",
+      "348880",
+      "348483",
+      "247970",
+      "247734",
+      "245395",
+      "203935"
+    ],
+    "blocked": [],
+    "guide_adjacent_split": [
+      "354777",
+      "352325",
+      "351696",
+      "348457",
+      "348272",
+      "248186",
+      "245271",
+      "244214",
+      "233383",
+      "228282",
+      "202713",
+      "196321",
+      "192180",
+      "192087"
+    ],
+    "manual_review": [
+      "354270",
+      "353901",
+      "245272"
+    ],
+    "operational_only": [
+      "354271",
+      "353903",
+      "351862",
+      "237479"
+    ],
+    "restage_needed": [
+      "355867"
+    ]
+  },
+  "generated_at": "2026-04-28T12:50:00+08:00",
+  "inputs": {
+    "ledger_path": ".planning/workstreams/notice-consumption-layer/SCHEDULE-NOTICE-CONSUMPTION-LEDGER-2026-04-28.md",
+    "ocr_summary_path": ".planning/workstreams/notice-consumption-layer/ocr-dry-run/schedule-images-2026-04-28-parser-v3/_summary.normalized.json",
+    "router_report_path": ".planning/workstreams/notice-consumption-layer/ocr-dry-run/schedule-router-2026-04-28/_router-dry-run.json",
+    "selection_path": ".planning/workstreams/notice-consumption-layer/SCHEDULE-BATCH-READONLY-SELECTION-2026-04-28.md"
+  },
+  "items": [
+    {
+      "attachment_count": 1,
+      "bucket": "already_staged",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "staged selected release",
+      "has_guide_adjacent_fields": true,
+      "image_count": 1,
+      "notice_id": "355881",
+      "ocr": {
+        "classification_counts": {
+          "low_confidence": 1
+        },
+        "confidence_counts": {
+          "low": 1
+        },
+        "extractable_schedule_table_count": 0,
+        "image_count": 1,
+        "low_confidence_count": 2,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "后勤保障处（后勤集团）、后勤保障处直属党支部",
+      "reason_codes": [
+        "guide_adjacent_fields_present",
+        "low_confidence_ocr",
+        "already_staged_selected_release"
+      ],
+      "release_time": "2026-04-25 16:26",
+      "router": {
+        "action_counts": {
+          "body_schedule": 1
+        },
+        "body_schedule_count": 1,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于开通丰台校区社会实践专车的通知"
+    },
+    {
+      "attachment_count": 3,
+      "bucket": "restage_needed",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "staged selected release",
+      "has_guide_adjacent_fields": false,
+      "image_count": 3,
+      "notice_id": "355867",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 3
+        },
+        "confidence_counts": {
+          "medium": 3
+        },
+        "extractable_schedule_table_count": 3,
+        "image_count": 3,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "explicit_restage_required"
+      ],
+      "release_time": "2026-04-25 13:11",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 3
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 3,
+        "needs_review_count": 0,
+        "route_count": 3,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "already_staged",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "staged selected release",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "355512",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "already_staged_selected_release"
+      ],
+      "release_time": "2026-04-10 12:09",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于本周六临时增加学生班车班次的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "already_staged",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "staged selected release",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "355122",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "already_staged_selected_release"
+      ],
+      "release_time": "2026-03-18 11:12",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于两校区学生通勤班车增加班次的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "already_staged",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "staged selected release",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "354889",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "already_staged_selected_release"
+      ],
+      "release_time": "2026-03-05 16:50",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于两校区教师通勤班车班次优化调整的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 1,
+      "notice_id": "354777",
+      "ocr": {
+        "classification_counts": {
+          "mixed_schedule_and_guide": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 0,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 1
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present",
+        "mixed_schedule_and_guide_ocr"
+      ],
+      "release_time": "2026-02-27 08:06",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于近期丰台校区周末地铁接驳车运营安排的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "354578",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2026-01-21 19:50",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于寒假期间两校区通勤班车班次调整的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "354533",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2026-01-17 18:24",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于寒假期间两校区通勤班车运营安排的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "354505",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2026-01-15 09:58",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于近期地铁接驳车运营安排的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "operational_only",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "354271",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "open_ended_suspension_notice"
+      ],
+      "release_time": "2025-12-30 17:46",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于本学期暂停周五18:00由丰台校区发往五棵松地铁站接驳车的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "manual_review",
+      "candidate_kind": "schedule_review_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "354270",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "schedule_review_candidate"
+      ],
+      "release_time": "2025-12-30 10:01",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于两校区通勤班车新增班次的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "operational_only",
+      "candidate_kind": "operational_notice_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "353903",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "operational_notice_candidate"
+      ],
+      "release_time": "2025-12-11 16:02",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于更改通勤班车丰台校区乘车点的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "manual_review",
+      "candidate_kind": "schedule_review_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "353901",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "schedule_review_candidate"
+      ],
+      "release_time": "2025-12-11 15:40",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于两校区通勤班车新增班次的通知"
+    },
+    {
+      "attachment_count": 3,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 3,
+      "notice_id": "352325",
+      "ocr": {
+        "classification_counts": {
+          "low_confidence": 1,
+          "mixed_schedule_and_guide": 2
+        },
+        "confidence_counts": {
+          "low": 1,
+          "medium": 2
+        },
+        "extractable_schedule_table_count": 0,
+        "image_count": 3,
+        "low_confidence_count": 2,
+        "mixed_schedule_and_guide_count": 2
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present",
+        "low_confidence_ocr",
+        "mixed_schedule_and_guide_ocr",
+        "router_visual_or_guide_image"
+      ],
+      "release_time": "2025-09-25 17:06",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 2,
+          "visual_or_guide": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 2,
+        "needs_review_count": 0,
+        "route_count": 3,
+        "visual_or_guide_count": 1
+      },
+      "title": "关于丰台校区地铁接驳车优化调整的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "352218",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2025-09-19 20:41",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于两校区师生通勤班车运营时间的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "operational_only",
+      "candidate_kind": "operational_notice_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "351862",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "operational_notice_candidate"
+      ],
+      "release_time": "2025-09-04 20:30",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于本周末临时更改地铁接驳车校内乘车点的通知"
+    },
+    {
+      "attachment_count": 3,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 3,
+      "notice_id": "351696",
+      "ocr": {
+        "classification_counts": {
+          "mixed_schedule_and_guide": 3
+        },
+        "confidence_counts": {
+          "medium": 3
+        },
+        "extractable_schedule_table_count": 0,
+        "image_count": 3,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 3
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present",
+        "mixed_schedule_and_guide_ocr"
+      ],
+      "release_time": "2025-08-28 16:54",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 3
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 3,
+        "needs_review_count": 0,
+        "route_count": 3,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于本学期两校区通勤班车及地铁接驳车恢复运营的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "351030",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2025-07-08 09:28",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于暑假期间师生通勤班车、地铁接驳车运营调整的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "350030",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2025-07-03 18:08",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于通勤班车每周增加临时班次的通知"
+    },
+    {
+      "attachment_count": 4,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 4,
+      "notice_id": "349494",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 4
+        },
+        "confidence_counts": {
+          "medium": 4
+        },
+        "extractable_schedule_table_count": 4,
+        "image_count": 4,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2025-04-24 22:16",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 4
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 4,
+        "needs_review_count": 0,
+        "route_count": 4,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于近期两校区通勤班车及地铁接驳车安排的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "348880",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2025-03-28 17:00",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于两校区师生通勤班车运营时间的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "348483",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2025-03-07 12:00",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于两校区师生通勤班车优化调整的通知"
+    },
+    {
+      "attachment_count": 6,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 6,
+      "notice_id": "348457",
+      "ocr": {
+        "classification_counts": {
+          "low_confidence": 5,
+          "mixed_schedule_and_guide": 1
+        },
+        "confidence_counts": {
+          "low": 5,
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 0,
+        "image_count": 6,
+        "low_confidence_count": 10,
+        "mixed_schedule_and_guide_count": 1
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present",
+        "low_confidence_ocr",
+        "mixed_schedule_and_guide_ocr",
+        "router_visual_or_guide_image"
+      ],
+      "release_time": "2025-03-07 08:30",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1,
+          "visual_or_guide": 5
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 6,
+        "visual_or_guide_count": 5
+      },
+      "title": "关于丰台校区地铁接驳车优化调整的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 1,
+      "notice_id": "348272",
+      "ocr": {
+        "classification_counts": {
+          "mixed_schedule_and_guide": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 0,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 1
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present",
+        "mixed_schedule_and_guide_ocr"
+      ],
+      "release_time": "2025-02-25 17:00",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于通勤班车、地铁接驳车相关调整的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 1,
+      "notice_id": "248186",
+      "ocr": {
+        "classification_counts": {
+          "mixed_schedule_and_guide": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 0,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 1
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present",
+        "mixed_schedule_and_guide_ocr"
+      ],
+      "release_time": "2025-02-18 17:35",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于2025年春季学期两校区通勤班车及地铁接驳车安排的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "247970",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2025-01-11 21:50",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于近期通勤班车、地铁接驳车运营时间调整的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "247734",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2024-12-29 10:38",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于增加两校区学生通勤班车班次的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "245395",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2024-09-05 15:39",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于本周六丰台校区地铁接驳车暂停运营的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "manual_review",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "245272",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "non_image_attachment_requires_pdf_processing"
+      ],
+      "release_time": "2024-08-30 08:48",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于2024年秋季学期两校区学生通勤班车运营的通知"
+    },
+    {
+      "attachment_count": 1,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "245271",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2024-08-29 20:47",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于丰台校区2024年秋季学期周末及节假日地铁接驳车运营的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "244214",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2024-06-07 17:08",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于通勤班车周末及法定节假日增加班次的通知"
+    },
+    {
+      "attachment_count": 3,
+      "bucket": "operational_only",
+      "candidate_kind": "operational_notice_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 1,
+      "notice_id": "237479",
+      "ocr": {
+        "classification_counts": {
+          "extractable_schedule_table": 1
+        },
+        "confidence_counts": {
+          "medium": 1
+        },
+        "extractable_schedule_table_count": 1,
+        "image_count": 1,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "operational_notice_candidate"
+      ],
+      "release_time": "2023-11-11 15:55",
+      "router": {
+        "action_counts": {
+          "image_schedule_table": 1
+        },
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 1,
+        "needs_review_count": 0,
+        "route_count": 1,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于优化两校区学生通勤班车方案的通知（试行）"
+    },
+    {
+      "attachment_count": 2,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "233383",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2023-09-15 22:21",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于丰台校区2023年秋季学期周末及节假日地铁接驳车安排的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "228282",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2023-02-23 14:58",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于丰台校区2023年春季学期周末及节假日地铁接驳车运营的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "auto_stage_candidate",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": false,
+      "image_count": 0,
+      "notice_id": "203935",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "passes_no_write_preview_gate"
+      ],
+      "release_time": "2022-10-27 10:25",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于中央民族大学丰台校区周末地铁接驳车运营时间调整的通知"
+    },
+    {
+      "attachment_count": 2,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "202713",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2022-09-22 14:35",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于丰台校区2022年秋季学期周末及节假日地铁接驳车运营的通知"
+    },
+    {
+      "attachment_count": 0,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "196321",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2022-02-27 10:28",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于2022年2月28日～3月20日期间丰台校区—海淀校区通勤班车安排的通知"
+    },
+    {
+      "attachment_count": 2,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "192180",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2021-09-29 10:08",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于丰台校区与篱笆房地铁站接驳车试运营的通知"
+    },
+    {
+      "attachment_count": 2,
+      "bucket": "guide_adjacent_split",
+      "candidate_kind": "schedule_or_overlay_candidate",
+      "consumption_state": "pending independent evaluation",
+      "has_guide_adjacent_fields": true,
+      "image_count": 0,
+      "notice_id": "192087",
+      "ocr": {
+        "classification_counts": {},
+        "confidence_counts": {},
+        "extractable_schedule_table_count": 0,
+        "image_count": 0,
+        "low_confidence_count": 0,
+        "mixed_schedule_and_guide_count": 0
+      },
+      "organization": "丰台校区管理委员会",
+      "reason_codes": [
+        "guide_adjacent_fields_present"
+      ],
+      "release_time": "2021-09-25 16:15",
+      "router": {
+        "action_counts": {},
+        "body_schedule_count": 0,
+        "image_schedule_table_count": 0,
+        "needs_review_count": 0,
+        "route_count": 0,
+        "visual_or_guide_count": 0
+      },
+      "title": "关于丰台校区与篱笆房地铁站接驳车试运营的通知"
+    }
+  ],
+  "remote_write_status": "not_written_pg_or_object_storage",
+  "run_id": "schedule-batch-preview-gate-20260428T125000",
+  "schema_version": "schedule_batch_preview_gate.v1",
+  "summary": {
+    "already_staged_count": 4,
+    "auto_stage_candidate_count": 13,
+    "blocked_count": 0,
+    "bucket_counts": {
+      "already_staged": 4,
+      "auto_stage_candidate": 13,
+      "blocked": 0,
+      "guide_adjacent_split": 14,
+      "manual_review": 3,
+      "operational_only": 4,
+      "restage_needed": 1
+    },
+    "candidate_count": 39,
+    "guide_adjacent_split_count": 14,
+    "manual_review_count": 3,
+    "operational_only_count": 4,
+    "restage_needed_count": 1
+  }
+}

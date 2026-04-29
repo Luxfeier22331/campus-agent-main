@@ -1,14 +1,21 @@
 export {
-  buildOperatorObservabilityCommandService,
-  type OperatorObservabilityCommandService,
-  type OperatorObservabilityCommandServiceDependencies,
-  type OperatorQualityGradesPayload,
-  type OperatorTraceBacklinksPayload,
+	buildOperatorObservabilityCommandService,
+	type OperatorExecutionAuditEventsPayload,
+	type OperatorObservabilityCommandService,
+	type OperatorObservabilityCommandServiceDependencies,
+	type OperatorQualityGradesPayload,
+	type OperatorTraceBacklinksPayload,
 } from "./service";
 export {
-  createPgOperatorObservabilityCommandStore,
-  type OperatorObservabilityCommandStore,
-  type QualityGradeProjectionWrite,
-  type StoredRequestObservabilitySeed,
-  type TraceBacklinkProjectionWrite,
+	createPgOperatorObservabilityCommandStore,
+	type ExecutionAuditEventWrite,
+	type OperatorObservabilityCommandStore,
+	type QualityGradeProjectionWrite,
+	type StoredRequestObservabilitySeed,
+	type TraceBacklinkProjectionWrite,
 } from "./store";
+export {
+	buildOperatorTraceBacklinkRecorder,
+	type OperatorTraceBacklinkRecorder,
+	type OperatorTraceBacklinkRecordInput,
+} from "./trace-backlink-recorder";

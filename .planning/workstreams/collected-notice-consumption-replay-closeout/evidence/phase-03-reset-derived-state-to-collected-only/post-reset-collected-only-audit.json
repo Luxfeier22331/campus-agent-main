@@ -1,0 +1,182 @@
+{
+  "baseline": "captured_but_not_imported",
+  "execute_report_id": "collected-notice-reset-execute-20260429T023722Z",
+  "generated_at": "2026-04-29T02:37:49Z",
+  "generated_by": "campus_ingestion_worker.reset_collected_notice_consumption_state",
+  "mode": "post_reset_audit",
+  "nonzero_remaining_reset_scope_rows": [],
+  "phase": "phase-03-reset-derived-state-to-collected-only",
+  "preserved_counts": {
+    "collector_run_ledger": 76,
+    "source_bucket_object_delete_count": 0
+  },
+  "release_sets": {
+    "service_guide_current_release_id": "service-guide-campus-card-20260427T110000",
+    "service_guide_deleted_release_ids": [],
+    "service_guide_stable_release_ids": [
+      "service-guide-campus-card-20260427T110000"
+    ],
+    "service_status_deleted_release_ids": [],
+    "transport_schedule_deleted_release_ids": []
+  },
+  "remaining_reset_scope_rows": [
+    {
+      "action": "delete_rows",
+      "name": "authenticated_notice_source_truth_inventory",
+      "reason": "clear imported source-truth rows back to captured-only baseline",
+      "row_count": 0,
+      "table": "ingestion_projection.authenticated_notice_source_truth_inventory"
+    },
+    {
+      "action": "delete_rows",
+      "name": "authenticated_notice_file_release_inventory",
+      "reason": "clear imported file-release source-truth rows back to captured-only baseline",
+      "row_count": 0,
+      "table": "ingestion_projection.authenticated_notice_file_release_inventory"
+    },
+    {
+      "action": "delete_rows",
+      "name": "document_registry_import_rows",
+      "reason": "clear document holding rows produced by authenticated notice/file-release imports",
+      "row_count": 0,
+      "table": "ingestion_registry.document_registry_records"
+    },
+    {
+      "action": "delete_rows",
+      "name": "raw_asset_registry_import_rows",
+      "reason": "clear raw asset registry rows produced by authenticated notice/file-release imports",
+      "row_count": 0,
+      "table": "ingestion_registry.raw_asset_registry_records"
+    },
+    {
+      "action": "delete_rows",
+      "name": "notice_consumption_projection",
+      "reason": "clear old notice consumption projection state",
+      "row_count": 0,
+      "table": "ingestion_projection.notice_consumption_projection"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_read_model",
+      "reason": "clear old searchable/read-model state before Phase 4 replay",
+      "row_count": 0,
+      "table": "ingestion_projection.internal_notice_read_model"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_consumption_admission",
+      "reason": "clear old admission batches before new manifest replay",
+      "row_count": 0,
+      "table": "ingestion_projection.internal_notice_consumption_admission"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_consumption_admission_event",
+      "reason": "clear old admission events before new manifest replay",
+      "row_count": 0,
+      "table": "ingestion_projection.internal_notice_consumption_admission_event"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_multimodal_attempt",
+      "reason": "clear old multimodal attempt state before unified Phase 5 ledger",
+      "row_count": 0,
+      "table": "ingestion_projection.internal_notice_multimodal_attempt"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_schedule_image_ocr_attempt",
+      "reason": "clear old schedule OCR attempt state before unified Phase 5 ledger",
+      "row_count": 0,
+      "table": "ingestion_projection.internal_notice_schedule_image_ocr_attempt"
+    },
+    {
+      "action": "delete_rows",
+      "name": "wechat_public_notice_multimodal_attempt",
+      "reason": "clear old WeChat multimodal attempt state before unified Phase 5 ledger",
+      "row_count": 0,
+      "table": "ingestion_projection.wechat_public_notice_multimodal_attempt"
+    },
+    {
+      "action": "delete_rows",
+      "name": "service_status_notice_derived_read_model",
+      "reason": "clear notice-derived service_status read model rows",
+      "row_count": 0,
+      "table": "ingestion_projection.service_status_read_model"
+    },
+    {
+      "action": "delete_rows",
+      "name": "service_guide_non_stable_read_model",
+      "reason": "clear notice-derived/smoke/stage/mixed service_guide rows while preserving stable releases",
+      "row_count": 0,
+      "table": "ingestion_projection.service_guide_read_model"
+    },
+    {
+      "action": "delete_rows",
+      "name": "transport_notice_derived_transport_release_notices",
+      "reason": "clear notice-derived transport schedule replay state",
+      "row_count": 0,
+      "table": "ingestion_projection.transport_release_notices"
+    },
+    {
+      "action": "delete_rows",
+      "name": "transport_notice_derived_transport_operational_notices",
+      "reason": "clear notice-derived transport schedule replay state",
+      "row_count": 0,
+      "table": "ingestion_projection.transport_operational_notices"
+    },
+    {
+      "action": "delete_rows",
+      "name": "transport_notice_derived_transport_routes",
+      "reason": "clear notice-derived transport schedule replay state",
+      "row_count": 0,
+      "table": "ingestion_projection.transport_routes"
+    },
+    {
+      "action": "delete_rows",
+      "name": "transport_notice_derived_transport_schedule_snapshots",
+      "reason": "clear notice-derived transport schedule replay state",
+      "row_count": 0,
+      "table": "ingestion_projection.transport_schedule_snapshots"
+    },
+    {
+      "action": "delete_rows",
+      "name": "transport_notice_derived_transport_scheduled_departures",
+      "reason": "clear notice-derived transport schedule replay state",
+      "row_count": 0,
+      "table": "ingestion_projection.transport_scheduled_departures"
+    },
+    {
+      "action": "delete_rows",
+      "name": "transport_notice_derived_transport_service_exceptions",
+      "reason": "clear notice-derived transport schedule replay state",
+      "row_count": 0,
+      "table": "ingestion_projection.transport_service_exceptions"
+    },
+    {
+      "action": "delete_rows",
+      "name": "transport_notice_derived_transport_rejected_sources",
+      "reason": "clear notice-derived transport schedule replay state",
+      "row_count": 0,
+      "table": "ingestion_projection.transport_rejected_sources"
+    },
+    {
+      "action": "delete_rows",
+      "name": "structured_projection_current_notice_derived_targets",
+      "reason": "clear old current pointers for replayed notice-derived targets",
+      "row_count": 0,
+      "table": "ingestion_projection.structured_projection_current"
+    },
+    {
+      "action": "delete_rows",
+      "name": "structured_projection_releases_notice_derived_targets",
+      "reason": "clear old structured projection release records for reset scope",
+      "row_count": 0,
+      "table": "ingestion_projection.structured_projection_releases"
+    }
+  ],
+  "report_id": "collected-notice-reset-audit-20260429T023749Z",
+  "schema_version": "collected_notice_reset_audit.v1",
+  "service_guide_current_release_id": "service-guide-campus-card-20260427T110000",
+  "verdict": "passed"
+}

@@ -5,7 +5,6 @@ status: accepted
 created: 2026-03-28
 updated: 2026-03-29
 ---
-
 # ADR-0012 Shared App API And Worker Web Surfaces
 
 ## 状态
@@ -16,7 +15,8 @@ Accepted on 2026-03-28.
 
 此前仓库已经先后冻结了两条方向：
 
-- legacy standalone public chat app 作为独立 full-stack app boundary，拥有 auth/session/conversation
+- legacy standalone public chat app 作为独立 full-stack app boundary，拥有
+  auth/session/conversation
 - `apps/operator-query-api` 作为独立 operator query backend
 
 这会把 public chat 与 protected panel 继续分裂成两套产品后端。
@@ -32,10 +32,12 @@ Accepted on 2026-03-28.
 后续长期形态固定采用：
 
 1. `apps/public-chat-web` 作为 public chat 的 Worker 前端。
-2. `apps/protected-panel-web` 作为 protected panel 的 Worker 前端。
-3. `apps/app-api` 作为 shared application/control-plane backend。
-4. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger / projection input、审计入口、指标记录与 operator query。
-5. `apps/supervisor-api` 退为 execution engine，不再承担产品层 auth/session/conversation 或 panel 查询 API。
+1. `apps/protected-panel-web` 作为 protected panel 的 Worker 前端。
+1. `apps/app-api` 作为 shared application/control-plane backend。
+1. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger /
+   projection input、审计入口、指标记录与 operator query。
+1. `apps/supervisor-api` 退为 execution engine，不再承担产品层 auth/session/conversation 或
+   panel 查询 API。
 
 ## 边界约束
 
@@ -64,4 +66,6 @@ Accepted on 2026-03-28.
 - the former standalone public-chat auth/storage split-backend direction
 - the former standalone public-chat frontend-host split-backend direction
 - the former operator-query-api/request-projection split-backend direction
-- the earlier `operator-query-api` split-backend direction; forward request-projection ownership is now recorded in `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- the earlier `operator-query-api` split-backend direction; forward
+  request-projection ownership is now recorded in `docs/decisions/adr-0016-app-a
+  pi-request-projection-and-panel-query-ownership.md`

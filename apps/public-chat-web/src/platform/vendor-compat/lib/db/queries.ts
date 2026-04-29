@@ -1,11 +1,10 @@
+import { getDocumentSuggestions } from "@platform/artifacts/suggestions";
 import type { Suggestion } from "@/lib/db/schema";
 
-import { getDocumentSuggestions } from "@platform/artifacts/suggestions";
-
 export async function getSuggestionsByDocumentId({
-  documentId,
+	documentId,
 }: {
-  documentId: string;
+	documentId: string;
 }): Promise<Suggestion[]> {
-  return getDocumentSuggestions(documentId);
+	return getDocumentSuggestions(documentId);
 }

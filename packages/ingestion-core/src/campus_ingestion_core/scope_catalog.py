@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-
 DEFAULT_QDRANT_DENSE_VECTOR_NAME = "dense"
 DEFAULT_QDRANT_SPARSE_VECTOR_NAME = "sparse"
 
@@ -86,7 +85,9 @@ def assert_known_corpus(corpus: str, *, config_root: Path | None = None) -> str:
     return normalized
 
 
-def assert_known_scope(corpus: str, collection: str, *, config_root: Path | None = None) -> CollectionScope:
+def assert_known_scope(
+    corpus: str, collection: str, *, config_root: Path | None = None
+) -> CollectionScope:
     root = Path(config_root) if config_root is not None else default_config_root()
     normalized_corpus = assert_known_corpus(corpus, config_root=root)
     normalized_collection = collection.strip()

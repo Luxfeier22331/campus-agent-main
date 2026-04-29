@@ -1,0 +1,346 @@
+import { buildExpectedTableSpecs } from "./adopt-shared-database-context.mjs";
+import {
+	classifySharedDatabaseState,
+	cloneInventory,
+	validateInventoryAgainstExpectedTables,
+} from "./adopt-shared-database-inventory.mjs";
+import {
+	ALTER_TABLE_ADD_COLUMN_RE,
+	ALTER_TABLE_CONSTRAINT_RE,
+	ALTER_TABLE_DROP_COLUMN_RE,
+	CREATE_INDEX_RE,
+	CREATE_SCHEMA_RE,
+	CREATE_TABLE_RE,
+	compareIndexSpec,
+	DROP_INDEX_RE,
+	qualifyTable,
+} from "./adopt-shared-database-shared.mjs";
+
+export function parseMigrationStatement(statement) {
+	const trimmed = statement.trim();
+	let match = trimmed.match(CREATE_SCHEMA_RE);
+	if (match) {
+		return {
+			existsKey: match[1],
+			kind: "schema",
+			schema: match[1],
+			statement: trimmed,
+		};
+	}
+	match = trimmed.match(CREATE_TABLE_RE);
+	if (match) {
+		return {
+			existsKey: qualifyTable(match[1], match[2]),
+			kind: "table",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(ALTER_TABLE_ADD_COLUMN_RE);
+	if (match) {
+		return {
+			column: match[3],
+			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
+			kind: "column",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(ALTER_TABLE_DROP_COLUMN_RE);
+	if (match) {
+		return {
+			column: match[3],
+			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
+			kind: "drop_column",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(ALTER_TABLE_CONSTRAINT_RE);
+	if (match) {
+		return {
+			constraint: match[3],
+			existsKey: `${qualifyTable(match[1], match[2])}#${match[3]}`,
+			kind: "constraint",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(CREATE_INDEX_RE);
+	if (match) {
+		return {
+			existsKey: `${qualifyTable(match[2], match[3])}@${match[1]}`,
+			index: match[1],
+			kind: "index",
+			schema: match[2],
+			statement: trimmed,
+			table: match[3],
+		};
+	}
+	match = trimmed.match(DROP_INDEX_RE);
+	if (match) {
+		return {
+			existsKey: `${match[1]}@${match[2]}`,
+			index: match[2],
+			kind: "drop_index",
+			schema: match[1],
+			statement: trimmed,
+		};
+	}
+	throw new Error(`Unsupported migration statement shape: ${trimmed}`);
+}
+
+function findInventoryIndex(inventory, target) {
+	if (target.kind === "index") {
+		const table = inventory.tables.get(qualifyTable(target.schema, target.table));
+		const index = table?.indexes.get(target.index);
+		return table && index ? { index, table } : null;
+	}
+
+	for (const table of inventory.tables.values()) {
+		if (table.schema !== target.schema) {
+			continue;
+		}
+		const index = table.indexes.get(target.index);
+		if (index) {
+			return { index, table };
+		}
+	}
+
+	return null;
+}
+
+function findExpectedIndex(expectedTablesForMigration, target) {
+	if (target.kind === "index") {
+		return (
+			expectedTablesForMigration
+				.get(qualifyTable(target.schema, target.table))
+				?.indexes.get(target.index) ?? null
+		);
+	}
+
+	for (const table of expectedTablesForMigration.values()) {
+		if (table.schema !== target.schema) {
+			continue;
+		}
+		const index = table.indexes.get(target.index);
+		if (index) {
+			return index;
+		}
+	}
+
+	return null;
+}
+
+function targetExists(inventory, target) {
+	if (target.kind === "schema") {
+		return inventory.schemas.has(target.schema);
+	}
+	if (target.kind === "drop_index") {
+		return [...inventory.tables.values()].some(
+			(table) => table.schema === target.schema && table.indexes.has(target.index),
+		);
+	}
+	const qualifiedName = qualifyTable(target.schema, target.table);
+	const table = inventory.tables.get(qualifiedName);
+	if (target.kind === "table") {
+		return table !== undefined;
+	}
+	if (!table) {
+		return false;
+	}
+	if (target.kind === "column") {
+		return table.columns.has(target.column);
+	}
+	if (target.kind === "drop_column") {
+		return !table.columns.has(target.column);
+	}
+	if (target.kind === "constraint") {
+		return table.constraints.has(target.constraint);
+	}
+	if (target.kind === "index") {
+		return table.indexes.has(target.index);
+	}
+	return false;
+}
+
+function latestSnapshotKeepsIndex(expectedLatestTables, target) {
+	if (target.kind !== "index") {
+		return true;
+	}
+	return (
+		expectedLatestTables
+			.get(qualifyTable(target.schema, target.table))
+			?.indexes.has(target.index) ?? false
+	);
+}
+
+function shouldApplyStatement(inventory, target, expectedTablesForMigration, expectedLatestTables) {
+	if (target.kind === "drop_index") {
+		const actualIndex = findInventoryIndex(inventory, target);
+		if (!actualIndex) {
+			return false;
+		}
+		const expectedIndex = findExpectedIndex(expectedTablesForMigration, target);
+		if (!expectedIndex) {
+			return true;
+		}
+		return !compareIndexSpec(actualIndex.index, expectedIndex);
+	}
+	if (target.kind === "index") {
+		if (
+			!(latestSnapshotKeepsIndex(expectedLatestTables, target) || targetExists(inventory, target))
+		) {
+			return false;
+		}
+		return !targetExists(inventory, target);
+	}
+	return !targetExists(inventory, target);
+}
+
+function buildSimulatedTable(spec) {
+	return {
+		columns: new Map(
+			[...spec.columns.entries()].map(([columnName, column]) => [columnName, { ...column }]),
+		),
+		constraints: new Set(),
+		indexes: new Map(),
+		schema: spec.schema,
+		table: spec.table,
+	};
+}
+
+function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
+	if (target.kind === "schema") {
+		inventory.schemas.add(target.schema);
+		return;
+	}
+
+	if (target.kind === "drop_index") {
+		for (const table of inventory.tables.values()) {
+			if (table.schema === target.schema) {
+				table.indexes.delete(target.index);
+			}
+		}
+		return;
+	}
+
+	const qualifiedName = qualifyTable(target.schema, target.table);
+	if (target.kind === "table") {
+		const expectedTable = expectedTablesForMigration.get(qualifiedName);
+		if (!expectedTable) {
+			throw new Error(`Missing expected table spec for ${qualifiedName} during adoption planning`);
+		}
+		inventory.schemas.add(target.schema);
+		inventory.tables.set(qualifiedName, buildSimulatedTable(expectedTable));
+		return;
+	}
+
+	const table = inventory.tables.get(qualifiedName);
+	if (!table) {
+		throw new Error(`Missing simulated table ${qualifiedName} during adoption planning`);
+	}
+
+	if (target.kind === "column") {
+		const expectedColumn = expectedTablesForMigration
+			.get(qualifiedName)
+			?.columns.get(target.column);
+		if (!expectedColumn) {
+			throw new Error(
+				`Missing expected column ${qualifiedName}.${target.column} during adoption planning`,
+			);
+		}
+		table.columns.set(target.column, { ...expectedColumn });
+		return;
+	}
+
+	if (target.kind === "drop_column") {
+		table.columns.delete(target.column);
+		return;
+	}
+
+	if (target.kind === "constraint") {
+		table.constraints.add(target.constraint);
+		return;
+	}
+
+	if (target.kind === "index") {
+		const expectedIndex = expectedTablesForMigration.get(qualifiedName)?.indexes.get(target.index);
+		if (!expectedIndex) {
+			throw new Error(
+				`Missing expected index ${qualifiedName}@${target.index} during adoption planning`,
+			);
+		}
+		table.indexes.set(target.index, {
+			...expectedIndex,
+			columns: [...expectedIndex.columns],
+		});
+	}
+}
+
+export function buildAdoptionPlan({ inventory, migrationContext }) {
+	const snapshot0000 = migrationContext.snapshots.get(migrationContext.journal.entries[0].tag);
+	if (!snapshot0000) {
+		throw new Error("Missing baseline drizzle snapshot for shared-db adoption");
+	}
+	const expectedLatestTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
+	const state = classifySharedDatabaseState({
+		inventory,
+		snapshot0000,
+		snapshotLatest: migrationContext.latestSnapshot,
+	});
+	const statements = [];
+	const plannedInventory = cloneInventory(inventory);
+	const expectedTablesByMigrationTag = new Map(
+		migrationContext.migrations.map((migration) => {
+			const snapshot = migrationContext.snapshots.get(migration.tag);
+			if (!snapshot) {
+				throw new Error(`Missing drizzle snapshot for migration ${migration.tag}`);
+			}
+			return [migration.tag, buildExpectedTableSpecs(snapshot)];
+		}),
+	);
+	for (const migration of migrationContext.migrations) {
+		const expectedTablesForMigration = expectedTablesByMigrationTag.get(migration.tag);
+		if (!expectedTablesForMigration) {
+			throw new Error(`Missing expected table specs for migration ${migration.tag}`);
+		}
+		for (const statement of migration.statements) {
+			const target = parseMigrationStatement(statement);
+			if (
+				shouldApplyStatement(
+					plannedInventory,
+					target,
+					expectedTablesForMigration,
+					expectedLatestTables,
+				)
+			) {
+				statements.push({
+					migrationTag: migration.tag,
+					statement,
+					target,
+				});
+				applyTargetToInventory(plannedInventory, target, expectedTablesForMigration);
+			}
+		}
+	}
+	const plannedTargetKeys = new Set(statements.map((item) => item.target.existsKey));
+	const mismatches = validateInventoryAgainstExpectedTables(
+		plannedInventory,
+		expectedLatestTables,
+		plannedTargetKeys,
+	);
+	const journalRowsToInsert = migrationContext.migrations.filter(
+		(migration) => !inventory.journalRows.some((row) => row.hash === migration.hash),
+	);
+	return {
+		journalRowsToInsert,
+		mismatches,
+		state,
+		statements,
+	};
+}

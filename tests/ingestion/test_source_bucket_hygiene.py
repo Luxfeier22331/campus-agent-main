@@ -3,9 +3,9 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from tests.ingestion.test_authenticated_notice_import import _FakeObjectStore
@@ -103,16 +103,16 @@ class SourceBucketHygieneTest(unittest.TestCase):
 
             unexpected_prefixes = [
                 json.loads(line)
-                for line in (output_dir / "unexpected-root-prefixes.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "unexpected-root-prefixes.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             unexpected_keys = [
                 json.loads(line)
-                for line in (output_dir / "unexpected-keys.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "unexpected-keys.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -164,9 +164,9 @@ class SourceBucketHygieneTest(unittest.TestCase):
 
             deleted_rows = [
                 json.loads(line)
-                for line in (output_dir / "deleted-objects.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "deleted-objects.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -179,9 +179,7 @@ class SourceBucketHygieneTest(unittest.TestCase):
         )
         self.assertEqual(
             object_store.list_keys(bucket="campus-rag-source", prefix="official_pdf/"),
-            (
-                "official_pdf/student-handbook/2018/sha256/test/capture/学生手册_2018.pdf",
-            ),
+            ("official_pdf/student-handbook/2018/sha256/test/capture/学生手册_2018.pdf",),
         )
         self.assertEqual(
             [row["object_key"] for row in deleted_rows],
@@ -245,7 +243,9 @@ class SourceBucketHygieneTest(unittest.TestCase):
                 ),
                 patch("sys.stdout", new_callable=io.StringIO) as stdout,
             ):
-                cleanup_worker.main(["--prefix", "debug/", "--output-dir", str(output_dir)])
+                cleanup_worker.main(
+                    ["--prefix", "debug/", "--output-dir", str(output_dir), "--yes"]
+                )
 
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["prefix"], "debug/")

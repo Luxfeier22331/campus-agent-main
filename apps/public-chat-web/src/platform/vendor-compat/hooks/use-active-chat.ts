@@ -1,4 +1,4 @@
 export {
-  ActiveChatProvider,
-  useActiveChat,
+	ActiveChatProvider,
+	useActiveChat,
 } from "@platform/chat/use-active-chat";

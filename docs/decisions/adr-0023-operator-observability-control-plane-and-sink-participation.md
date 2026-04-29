@@ -5,18 +5,20 @@ status: accepted
 created: 2026-04-02
 updated: 2026-04-03
 ---
-
 # ADR-0023 Operator Observability Control Plane And Sink Participation
 
-适用范围：protected panel 的 operator-facing observability / audit / quality / safety / cost domain ownership，以及 `Sentry`、`Axiom`、grading / eval tooling 的长期参与边界
+适用范围：protected panel 的 operator-facing observability / audit / quality / safety
+/ cost domain ownership，以及 `Sentry`、`Axiom`、grading / eval tooling 的长期参与边界
 
 ## 背景
 
 当前仓库已经具备以下事实：
 
 - `apps/protected-panel-web` 已冻结为 `runtime APIs only` 的 protected Worker shell
-- `apps/app-api` 已拥有 `runtime.request_execution`、`runtime.projection_outbox` 与 `operator.request_projection`
-- `ADR-0010` 已冻结 observability stack：`OTel-first`、`Sentry` 负责错误/trace、`Axiom` 负责高吞吐结构化事件
+- `apps/app-api` 已拥有 `runtime.request_execution`、`runtime.projection_outbox` 与
+  `operator.request_projection`
+- `ADR-0010` 已冻结 observability stack：`OTel-first`、`Sentry` 负责错误/trace、`Axiom`
+  负责高吞吐结构化事件
 - `ADR-0016` 已冻结 panel `Requests` 不得直接读取 audit log 或 telemetry sink
 
 但仓库仍缺一条更完整的长期规则：
@@ -36,14 +38,17 @@ updated: 2026-04-03
 
 结论：
 
-- operator-facing observability / audit / quality / safety / cost read model 的第一 owner 固定为 `apps/app-api`
+- operator-facing observability / audit / quality / safety / cost read model 的第一
+  owner 固定为 `apps/app-api`
 - `protected-panel-web` 继续只消费这些 runtime-owned APIs
 - `apps/supervisor-api` 不承担 operator observability query backend
 
 原因：
 
-- `apps/app-api` 已拥有 request identity、principal、conversation correlation、request execution truth 与 operator projection 入口
-- observability control plane 仍属于 shared application/control-plane concern，而不是 execution engine concern
+- `apps/app-api` 已拥有 request identity、principal、conversation correlation、request
+  execution truth 与 operator projection 入口
+- observability control plane 仍属于 shared application/control-plane concern，而不是
+  execution engine concern
 
 ## 决策 2：panel 的 observability 域固定为 curated control-plane domains，而不是 raw sink explorer
 
@@ -69,8 +74,10 @@ updated: 2026-04-03
 
 结论：
 
-- `Sentry`、`Axiom`、raw audit log、trace dump、OpenAI trace store 都不是 panel canonical read model
-- 如果 operator-facing surface 需要消费某类 sink-derived truth，必须先经过 app-owned projection / aggregate seam
+- `Sentry`、`Axiom`、raw audit log、trace dump、OpenAI trace store 都不是 panel
+  canonical read model
+- 如果 operator-facing surface 需要消费某类 sink-derived truth，必须先经过 app-owned
+  projection / aggregate seam
 
 原因：
 
@@ -111,12 +118,14 @@ updated: 2026-04-03
 - 这类信号天然更适合高吞吐结构化事件分析产品
 - 但 operator-facing control plane 仍需要 app-owned aggregate/read model 收口
 
-## 决策 6：quality monitoring 固定拆成 online runtime monitoring、sampled grading、release-gate eval 三条线
+## 决策 6：quality monitoring 固定拆成三条线
 
 结论：
 
-- online runtime monitoring 负责 latency、failure、empty recall、citation coverage、refusal distribution、ACL anomaly、token / cost
-- sampled grading 负责 grounding、citation correctness、clarification / refusal appropriateness、policy conformance
+- online runtime monitoring 负责 latency、failure、empty recall、citation
+  coverage、refusal distribution、ACL anomaly、token / cost
+- sampled grading 负责 grounding、citation correctness、clarification / refusal
+  appropriateness、policy conformance
 - release-gate eval 负责 benchmark / replay / regression hard gate
 - 三条线不得静默混成同一套 truth
 
@@ -155,7 +164,8 @@ updated: 2026-04-03
   - `model_name`
   - `release`
   - `environment`
-- `request_id` 不作为长期 searchable tag；它与下列高基数字段一起进入 request context / span attributes：
+- `request_id` 不作为长期 searchable tag；它与下列高基数字段一起进入 request context / span
+  attributes：
   - `request_id`
   - `conversation_id`
   - `entitlement_snapshot_id`
@@ -219,10 +229,12 @@ updated: 2026-04-03
 
 结论：
 
-- request-scoped observability facts 长期放入独立的 app-owned runtime fact family，接受命名为 `runtime.request_observability_fact`
+- request-scoped observability facts 长期放入独立的 app-owned runtime fact family，接受命名为
+  `runtime.request_observability_fact`
 - `runtime.request_execution` 继续只承担 command-side durable request truth
 - `operator.request_projection` 继续只承担 panel `Requests` list/detail truth
-- `runtime.request_observability_fact` 作为 `metric_rollup`、request observability detail、sampled grade join 与 cost reconciliation join 的输入层
+- `runtime.request_observability_fact` 作为 `metric_rollup`、request observability
+  detail、sampled grade join 与 cost reconciliation join 的输入层
 
 原因：
 
@@ -254,14 +266,16 @@ updated: 2026-04-03
 
 原因：
 
-- request observability 需要与 command truth 保持同一 request identity，但不应回退成“从 sink 事后反推”
+- request observability 需要与 command truth 保持同一 request identity，但不应回退成“从 sink
+  事后反推”
 - sampled grading 与 provider cost reconciliation 的到达时机更晚，也不适合回写 command truth
 
 ## 后果
 
 直接结果：
 
-- 需要新增 app-owned operator observability read-model family，例如 audit projection、metric rollup、quality grade projection
+- 需要新增 app-owned operator observability read-model family，例如 audit
+  projection、metric rollup、quality grade projection
 - 需要新增 app-owned runtime fact family，例如 `request_observability_fact`
 - 需要为 `Quality` / `Safety/Authz` / `Cost` / `Audit` 增加 operator runtime APIs
 - panel 后续扩展必须沿着这些 app-owned APIs 做，而不是 panel BFF 自己向 sink 查询
@@ -275,17 +289,18 @@ updated: 2026-04-03
 - 不把 sampled grading / release-gate eval / runtime aggregate 混成一张表
 - 不让 vendor-specific sink schema 反向定义 `packages/contracts`
 
-当前状态说明：
+实施说明：
 
 - 本 ADR 只冻结 accepted direction
 - 它不表示 operator observability control plane 已经在代码中完整实现
 
 ## 相关文档
 
-- `docs/architecture/operator-observability-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+  md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/data/app-api-schema.md`

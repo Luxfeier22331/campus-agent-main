@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import os
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import urlsplit
 
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
@@ -12,30 +12,34 @@ from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
     AuthenticatedNoticeProjectedNotice,
-    DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
-    DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_PARSER_VERSION,
     _AuthenticatedNoticeParentSourceTruth,
-    _project_parent_source_truth,
     _load_json_payload,
     _load_jsonl_rows,
+    _project_parent_source_truth,
+    _resolve_authenticated_notice_ocr_runtime,
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
+from campus_ingestion_core.authenticated_notice_source_projections_engine import (
+    _build_ocr_provider_response_cache,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    HIGH_RISK_NOTICE_LABELS,
     AuthenticatedNoticeSourceTruthInventoryEntry,
     AuthenticatedNoticeSourceTruthInventoryStore,
-    HIGH_RISK_NOTICE_LABELS,
     _aggregate_notice_risk_counts,
     build_authenticated_notice_source_truth_inventory_entries,
+    document_record_from_authenticated_notice_source_truth_parent_snapshot,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.settings import ObjectStoreSettings
-
 
 SOURCE_TRUTH_REPLAY_INPUT_KIND = "source_truth_replay"
 
@@ -58,15 +62,7 @@ class AuthenticatedNoticeSourceTruthReplayRequest:
         object.__setattr__(
             self,
             "notice_ids",
-            tuple(
-                sorted(
-                    {
-                        str(item).strip()
-                        for item in self.notice_ids
-                        if str(item).strip()
-                    }
-                )
-            ),
+            tuple(sorted({str(item).strip() for item in self.notice_ids if str(item).strip()})),
         )
         assert_known_scope(self.corpus, self.collection)
 
@@ -143,8 +139,9 @@ def build_authenticated_notice_source_truth_replay_documents(
     ocr_client: OnlineOcrClient | None = None,
 ) -> AuthenticatedNoticeProjectedNotice:
     source = env if env is not None else dict(os.environ)
-    config_path = request.source_projections_path or read_authenticated_notice_source_projections_config_path(
-        source
+    config_path = (
+        request.source_projections_path
+        or read_authenticated_notice_source_projections_config_path(source)
     )
     config = load_authenticated_notice_source_projections_config(config_path)
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
@@ -153,57 +150,194 @@ def build_authenticated_notice_source_truth_replay_documents(
         object_store=object_store,
         object_store_settings=object_store_settings,
     )
-    ocr_provider_response_cache: dict[str, bytes] = {}
+    ocr_provider_response_cache = _build_ocr_provider_response_cache(env=source)
+    runtime_ocr = (
+        _resolve_authenticated_notice_ocr_runtime(env=source, ocr_client=ocr_client)
+        if ocr_client is not None
+        else None
+    )
     projected_notice, _runtime_ocr_client = _project_parent_source_truth(
         parent_source_truth=parent_source_truth,
         config=config,
         object_store=object_store,
         object_store_settings=object_store_settings,
         runtime_profile=runtime_profile,
-        ocr_client=ocr_client,
+        ocr_runtime=runtime_ocr,
         ocr_provider_response_cache=ocr_provider_response_cache,
         env=source,
     )
     return projected_notice
 
 
-def _document_record_from_snapshot(
-    payload: dict[str, Any],
+def build_authenticated_notice_source_truth_replay_inventory_payload(
     *,
-    processed_object_keys: tuple[str, ...],
-) -> DocumentRegistryRecord:
-    return DocumentRegistryRecord(
-        document_id=str(payload["document_id"]),
-        revision_track=str(payload["revision_track"]),
-        version_id=str(payload["version_id"]),
-        source_uri=str(payload["source_uri"]),
-        content_hash=str(payload["content_hash"]),
-        corpus=str(payload["corpus"]),
-        collection=str(payload["collection"]),
-        cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
-        entitlement_groups=tuple(str(item) for item in payload.get("entitlement_groups") or ()),
-        visibility_scope=payload.get("visibility_scope"),
-        visibility_level=str(payload.get("visibility_level") or ""),
-        policy_projection_version=str(payload.get("policy_projection_version") or ""),
-        status=str(payload.get("status") or "active"),
-        ingestion_timestamp=str(payload.get("ingestion_timestamp") or ""),
-        parser_version=str(payload.get("parser_version") or ""),
-        embedding_model=str(payload.get("embedding_model") or ""),
-        source_channel=str(payload.get("source_channel") or ""),
-        is_current=bool(payload.get("is_current", False)),
-        effective_date=payload.get("effective_date"),
-        published_date=payload.get("published_date"),
-        supersedes_version_id=payload.get("supersedes_version_id"),
-        provenance_status=str(payload.get("provenance_status") or ""),
-        raw_asset=None,
-        source_observations=(),
-        document_units_object_key=payload.get("document_units_object_key"),
-        provider_response_object_key=payload.get("provider_response_object_key"),
-        layout_elements_object_key=payload.get("layout_elements_object_key"),
-        canonical_markdown_object_key=payload.get("canonical_markdown_object_key"),
-        processed_object_keys=processed_object_keys,
-        import_source=str(payload.get("import_source") or ""),
+    run_id: str,
+    inventory: AuthenticatedNoticeSourceTruthReplayInventory,
+) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+        "selected_notice_ids": list(inventory.selected_notice_ids),
+        "notice_risk_counts": dict(inventory.notice_risk_counts),
+        "high_risk_notice_count": inventory.high_risk_notice_count,
+        "site_id": inventory.site_id,
+        "source_home_url": inventory.source_home_url,
+        "embedding_model": inventory.embedding_model,
+        "expected_notice_count": inventory.expected_notice_count,
+        "expected_document_count": inventory.expected_document_count,
+        "expected_attachment_document_count": inventory.expected_attachment_document_count,
+        "expected_ocr_candidate_count": inventory.expected_ocr_candidate_count,
+        "expected_raw_asset_count": inventory.expected_raw_asset_count,
+        "parents": [dict(parent) for parent in inventory.parents],
+    }
+
+
+def load_authenticated_notice_source_truth_replay_inventory_from_payload(
+    payload: Mapping[str, Any],
+    *,
+    expected_run_id: str | None = None,
+) -> AuthenticatedNoticeSourceTruthReplayInventory:
+    raw = dict(payload)
+    run_id = str(raw.get("run_id") or "").strip()
+    if expected_run_id is not None and run_id != expected_run_id:
+        raise ValueError(f"source-truth replay frozen inventory run mismatch: {expected_run_id}")
+    input_kind = str(raw.get("input_kind") or SOURCE_TRUTH_REPLAY_INPUT_KIND).strip()
+    if input_kind != SOURCE_TRUTH_REPLAY_INPUT_KIND:
+        raise ValueError(
+            "source-truth replay frozen inventory payload must use input_kind "
+            f"{SOURCE_TRUTH_REPLAY_INPUT_KIND}: {input_kind}"
+        )
+    parents = tuple(
+        sorted(
+            (dict(item) for item in raw.get("parents") or ()),
+            key=lambda item: str(item["notice_id"]),
+        )
     )
+    expected_scope = build_authenticated_notice_source_truth_replay_expected_scope(parents)
+    selected_notice_ids = tuple(
+        sorted(
+            str(item).strip()
+            for item in (
+                raw.get("selected_notice_ids") or [str(parent["notice_id"]) for parent in parents]
+            )
+            if str(item).strip()
+        )
+    )
+    if not selected_notice_ids and parents:
+        selected_notice_ids = tuple(sorted(str(parent["notice_id"]) for parent in parents))
+    notice_risk_counts = {
+        str(label): int(count)
+        for label, count in dict(raw.get("notice_risk_counts") or {}).items()
+        if str(label).strip()
+    }
+    if not notice_risk_counts:
+        notice_risk_counts = _aggregate_notice_risk_counts(
+            str(parent.get("notice_risk_label") or "")
+            for parent in parents
+            if str(parent.get("notice_risk_label") or "").strip()
+        )
+    return AuthenticatedNoticeSourceTruthReplayInventory(
+        site_id=str(raw.get("site_id") or ""),
+        source_home_url=str(raw.get("source_home_url") or ""),
+        embedding_model=str(raw.get("embedding_model") or ""),
+        selected_notice_ids=selected_notice_ids,
+        notice_risk_counts=notice_risk_counts,
+        high_risk_notice_count=int(
+            raw.get("high_risk_notice_count")
+            or sum(
+                count
+                for label, count in notice_risk_counts.items()
+                if label in HIGH_RISK_NOTICE_LABELS
+            )
+        ),
+        expected_notice_count=int(
+            raw.get("expected_notice_count") or len(expected_scope["notice_ids"])
+        ),
+        expected_document_count=int(
+            raw.get("expected_document_count") or len(expected_scope["document_ids"])
+        ),
+        expected_attachment_document_count=int(
+            raw.get("expected_attachment_document_count")
+            or expected_scope["attachment_document_count"]
+        ),
+        expected_ocr_candidate_count=int(
+            raw.get("expected_ocr_candidate_count") or expected_scope["ocr_candidate_count"]
+        ),
+        expected_raw_asset_count=int(
+            raw.get("expected_raw_asset_count") or len(expected_scope["raw_asset_ids"])
+        ),
+        parents=parents,
+    )
+
+
+def build_authenticated_notice_source_truth_replay_batch_input_payload(
+    *,
+    run_id: str,
+    batch_id: int,
+    shard_id: int,
+    notice_ids: Sequence[str],
+    parent_by_notice_id: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    ordered_notice_ids = [str(item) for item in notice_ids]
+    return {
+        "run_id": run_id,
+        "batch_id": batch_id,
+        "shard_id": shard_id,
+        "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+        "notice_ids": ordered_notice_ids,
+        "source_truth_parents": [
+            dict(parent_by_notice_id[notice_id]) for notice_id in ordered_notice_ids
+        ],
+    }
+
+
+def build_authenticated_notice_source_truth_replay_expected_scope(
+    parents: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    expected_notice_ids: set[str] = set()
+    expected_document_ids: set[str] = set()
+    expected_raw_asset_ids: set[str] = set()
+    parent_document_ids_by_notice: dict[str, str] = {}
+    attachment_document_count = 0
+    ocr_candidate_count = 0
+    multimodal_processing_required_count = 0
+    attachment_projection_plans: dict[tuple[str, str], dict[str, Any]] = {}
+    for parent in parents:
+        notice_id = str(parent["notice_id"])
+        expected_notice_ids.add(notice_id)
+        parent_document_id = str(parent["document_id"])
+        expected_document_ids.add(parent_document_id)
+        parent_document_ids_by_notice[notice_id] = parent_document_id
+        raw_record = dict(parent.get("raw_record") or {})
+        raw_asset_id = str(raw_record.get("raw_asset_id") or "").strip()
+        if raw_asset_id:
+            expected_raw_asset_ids.add(raw_asset_id)
+        for plan in _attachment_projection_plans_from_parent(parent):
+            attachment_projection_plans[(notice_id, str(plan["attachment_ref_id"]))] = plan
+            materialization_policy = str(plan["materialization_policy"])
+            if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT:
+                attachment_document_count += 1
+                expected_document_ids.add(str(plan["document_id"]))
+            elif (
+                materialization_policy
+                == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
+            ):
+                ocr_candidate_count += 1
+            elif (
+                materialization_policy
+                == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
+            ):
+                multimodal_processing_required_count += 1
+    return {
+        "notice_ids": expected_notice_ids,
+        "document_ids": expected_document_ids,
+        "raw_asset_ids": expected_raw_asset_ids,
+        "parent_document_ids_by_notice": parent_document_ids_by_notice,
+        "attachment_document_count": attachment_document_count,
+        "ocr_candidate_count": ocr_candidate_count,
+        "multimodal_processing_required_count": multimodal_processing_required_count,
+        "attachment_projection_plans": attachment_projection_plans,
+    }
 
 
 def _load_parent_source_truth_from_snapshot(
@@ -212,17 +346,10 @@ def _load_parent_source_truth_from_snapshot(
     object_store: AuthenticatedNoticeSourceTruthReplayObjectStore,
     object_store_settings: ObjectStoreSettings,
 ) -> _AuthenticatedNoticeParentSourceTruth:
-    source_artifact_keys = tuple(str(item) for item in parent_snapshot.get("source_artifact_keys") or ())
-    record_payload = dict(parent_snapshot["record"])
-    processed_object_keys = tuple(
-        str(item).strip()
-        for item in record_payload.get("processed_object_keys") or ()
-        if str(item).strip()
-    ) or source_artifact_keys
-    record = _document_record_from_snapshot(
-        record_payload,
-        processed_object_keys=processed_object_keys,
+    source_artifact_keys = tuple(
+        str(item) for item in parent_snapshot.get("source_artifact_keys") or ()
     )
+    record = document_record_from_authenticated_notice_source_truth_parent_snapshot(parent_snapshot)
     notice_manifest_key = str(parent_snapshot["notice_manifest_key"])
     content_blocks_key = str(parent_snapshot["content_blocks_key"])
     attachment_refs_key = str(parent_snapshot["attachment_refs_key"])
@@ -255,6 +382,42 @@ def _load_parent_source_truth_from_snapshot(
         attachment_refs_key=attachment_refs_key,
     )
 
+
+def _attachment_projection_plans_from_parent(
+    parent: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    plans = tuple(dict(item) for item in parent.get("attachment_projection_plans") or ())
+    if plans:
+        return plans
+    fallback: list[dict[str, Any]] = []
+    for item in tuple(parent.get("expected_attachment_documents") or ()):
+        payload = dict(item)
+        classification = str(payload.get("classification") or "")
+        materialization_policy = str(payload.get("materialization_policy") or "")
+        if not materialization_policy:
+            if classification == "ocr_required":
+                materialization_policy = (
+                    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
+                )
+            elif classification == "multimodal_processing_required":
+                materialization_policy = (
+                    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
+                )
+            else:
+                materialization_policy = AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
+        plan = {
+            "attachment_ref_id": str(payload["attachment_ref_id"]),
+            "classification": classification,
+            "document_id": str(payload["document_id"]),
+            "materialization_policy": materialization_policy,
+        }
+        review_reason = str(payload.get("review_reason") or "").strip()
+        if review_reason:
+            plan["review_reason"] = review_reason
+        fallback.append(plan)
+    return tuple(fallback)
+
+
 def _inventory_from_entries(
     entries: Sequence[AuthenticatedNoticeSourceTruthInventoryEntry],
     *,
@@ -267,17 +430,15 @@ def _inventory_from_entries(
         )
     site_ids = {entry.site_id for entry in entries if entry.site_id.strip()}
     if len(site_ids) != 1:
-        raise ValueError(f"authenticated notice source replay requires a single site_id, got {sorted(site_ids)}")
-    source_home_urls = {
-        entry.source_home_url for entry in entries if entry.source_home_url.strip()
-    }
+        raise ValueError(
+            f"authenticated notice source replay requires a single site_id, got {sorted(site_ids)}"
+        )
+    source_home_urls = {entry.source_home_url for entry in entries if entry.source_home_url.strip()}
     if len(source_home_urls) != 1:
         raise ValueError(
             "authenticated notice source replay requires a single non-empty source_home_url"
         )
-    embedding_models = {
-        entry.embedding_model for entry in entries if entry.embedding_model.strip()
-    }
+    embedding_models = {entry.embedding_model for entry in entries if entry.embedding_model.strip()}
     if len(embedding_models) != 1:
         raise ValueError(
             "authenticated notice source replay requires a single non-empty embedding_model"
@@ -292,9 +453,7 @@ def _inventory_from_entries(
         site_id=next(iter(site_ids)),
         source_home_url=next(iter(source_home_urls)),
         embedding_model=next(iter(embedding_models)),
-        selected_notice_ids=tuple(
-            sorted(str(item["notice_id"]) for item in ordered_parents)
-        ),
+        selected_notice_ids=tuple(sorted(str(item["notice_id"]) for item in ordered_parents)),
         notice_risk_counts=_aggregate_notice_risk_counts(
             entry.notice_risk_label for entry in entries
         ),
@@ -315,10 +474,14 @@ def _inventory_from_entries(
 
 
 __all__ = [
+    "SOURCE_TRUTH_REPLAY_INPUT_KIND",
     "AuthenticatedNoticeSourceTruthReplayInventory",
     "AuthenticatedNoticeSourceTruthReplayRequest",
-    "SOURCE_TRUTH_REPLAY_INPUT_KIND",
+    "build_authenticated_notice_source_truth_replay_batch_input_payload",
     "build_authenticated_notice_source_truth_replay_documents",
+    "build_authenticated_notice_source_truth_replay_expected_scope",
+    "build_authenticated_notice_source_truth_replay_inventory_payload",
     "load_authenticated_notice_source_truth_replay_inventory",
+    "load_authenticated_notice_source_truth_replay_inventory_from_payload",
     "load_authenticated_notice_source_truth_replay_inventory_from_store",
 ]

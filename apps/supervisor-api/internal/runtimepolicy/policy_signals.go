@@ -1,0 +1,202 @@
+package runtimepolicy
+
+import "strings"
+
+func evaluatePolicyReason(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if isTargetedPoliticalPersuasion(normalizedGoal, policy) {
+		return "political_persuasion"
+	}
+	return ""
+}
+
+func isHighRiskTransactionAction(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	for _, prefix := range policy.Signals("delegated_action_prefix") {
+		if !strings.Contains(normalizedGoal, NormalizeGoal(prefix)) {
+			continue
+		}
+		if containsAny(normalizedGoal, policy.Signals("high_risk_transaction_action")) {
+			return true
+		}
+	}
+	return false
+}
+
+func isTargetedPoliticalPersuasion(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	if !containsAny(normalizedGoal, policy.Signals("political_topic")) {
+		return false
+	}
+	hasInfluence := containsAny(normalizedGoal, policy.Signals("political_influence_action"))
+	hasAudience := containsAny(normalizedGoal, policy.Signals("political_target_audience"))
+	hasPosition := containsAny(normalizedGoal, policy.Signals("political_position"))
+	hasWriting := containsAny(normalizedGoal, policy.Signals("political_message_writing"))
+	if hasInfluence && (hasAudience || hasPosition) {
+		return true
+	}
+	return hasWriting && hasInfluence
+}
+
+func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if signal := firstMatch(normalizedGoal, policy.Signals("structured_transport")); signal != "" {
+		return signal
+	}
+	if signal := matchStructuredContactDirectoryCandidate(normalizedGoal, policy); signal != "" {
+		return signal
+	}
+	if signal := firstMatch(normalizedGoal, policy.Signals("structured_notice")); signal != "" {
+		return signal
+	}
+	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
+	if serviceSubject == "" {
+		return matchStructuredServiceGuideCandidate(normalizedGoal, policy)
+	}
+	if !containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
+		if matchStructuredServiceGuideCandidate(normalizedGoal, policy) != "" {
+			return serviceSubject
+		}
+		return ""
+	}
+	return serviceSubject
+}
+
+func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	if firstMatch(normalizedGoal, policy.Signals("structured_transport")) != "" {
+		return true
+	}
+	if matchStructuredContactDirectoryCandidate(normalizedGoal, policy) != "" {
+		return true
+	}
+	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
+	if serviceSubject == "" {
+		return matchStructuredServiceGuideCandidate(normalizedGoal, policy) != ""
+	}
+	return containsAny(normalizedGoal, policy.Signals("structured_service_status")) ||
+		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
+}
+
+func matchStructuredServiceGuideCandidate(
+	normalizedGoal string,
+	policy IntentPolicyArtifact,
+) string {
+	serviceGuideSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_guide_subject"))
+	if serviceGuideSubject == "" {
+		return ""
+	}
+	if !containsAny(normalizedGoal, policy.Signals("structured_service_guide_action")) {
+		return ""
+	}
+	return serviceGuideSubject
+}
+
+func matchStructuredContactDirectoryCandidate(
+	normalizedGoal string,
+	policy IntentPolicyArtifact,
+) string {
+	contactSubject := firstMatch(normalizedGoal, policy.Signals("structured_contact_directory"))
+	if contactSubject == "" {
+		return ""
+	}
+	if !containsAny(normalizedGoal, policy.Signals("structured_contact_directory_action")) {
+		return ""
+	}
+	return contactSubject
+}
+
+func matchOpenDomainPoliticalFact(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if !containsAny(normalizedGoal, policy.Signals("geopolitical_entity")) {
+		return ""
+	}
+	return firstMatch(normalizedGoal, policy.Signals("political_office"))
+}
+
+func firstContextSignal(context Context, policy IntentPolicyArtifact) string {
+	for _, candidate := range previousGoalContextCandidates(context, policy) {
+		if signal := firstMatch(NormalizeGoal(candidate), policy.Signals("campus_scope")); signal != "" {
+			return signal
+		}
+	}
+	return ""
+}
+
+func previousGoalContextCandidates(context Context, policy IntentPolicyArtifact) []string {
+	candidates := []string{}
+	seen := map[string]struct{}{}
+	for _, slot := range context.SessionSlots {
+		if !slot.Confirmed {
+			continue
+		}
+		value := strings.TrimSpace(slot.Value)
+		if value == "" {
+			continue
+		}
+		if firstMatch(NormalizeGoal(value), policy.Signals("campus_scope")) == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		candidates = append(candidates, value)
+	}
+	for _, item := range context.ProfileMemory {
+		if item.Key != "" && item.Key != "recent_goal" {
+			continue
+		}
+		value := strings.TrimSpace(item.Value)
+		if value == "" {
+			continue
+		}
+		if firstMatch(NormalizeGoal(value), policy.Signals("campus_scope")) == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		candidates = append(candidates, value)
+	}
+	return candidates
+}
+
+func looksLikeContextualSemesterFollowUp(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	if strings.HasSuffix(normalizedGoal, "呢") || len([]rune(normalizedGoal)) <= 6 {
+		return true
+	}
+	return containsAny(normalizedGoal, policy.Signals("follow_up_leading"))
+}
+
+func sessionSlotValue(slots []SessionSlot, name string) string {
+	for _, slot := range slots {
+		if !slot.Confirmed {
+			continue
+		}
+		if slot.Name == name {
+			return slot.Value
+		}
+	}
+	return ""
+}
+
+func NormalizeGoal(userGoal string) string {
+	return strings.ToLower(strings.Join(strings.Fields(userGoal), ""))
+}
+
+func firstMatch(normalizedValue string, signals []string) string {
+	for _, signal := range signals {
+		normalizedSignal := NormalizeGoal(signal)
+		if normalizedSignal != "" && strings.Contains(normalizedValue, normalizedSignal) {
+			return signal
+		}
+	}
+	return ""
+}
+
+func containsAny(normalizedValue string, signals []string) bool {
+	return firstMatch(normalizedValue, signals) != ""
+}
+
+func defaultString(value string, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}

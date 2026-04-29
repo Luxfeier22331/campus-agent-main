@@ -1,0 +1,47 @@
+{
+  "current_release_id": "service-status-current-20260428T122000",
+  "expected_release_id": "service-status-current-20260428T122000",
+  "record_count": 2,
+  "records": [
+    {
+      "display_name": "静园10号楼负一层女浴室",
+      "effective_from": "2026-04-15 16:00:00+00",
+      "effective_until": "2099-12-31 15:59:59+00",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "record_id": "facility:bathroom:jingyuan-10",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:355650"
+      ]
+    },
+    {
+      "display_name": "校医院",
+      "effective_from": "2026-03-05 16:00:00+00",
+      "effective_until": "2099-12-31 15:59:59+00",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:354845"
+      ],
+      "record_id": "service-counter:campus-hospital",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:354845"
+      ]
+    }
+  ],
+  "release_counts": {
+    "rejected_sources": 5,
+    "service_status_records": 2
+  },
+  "source_notice_ids": [
+    "notice:muc_internal_portal:247726",
+    "notice:muc_internal_portal:352345",
+    "notice:muc_internal_portal:354502",
+    "notice:muc_internal_portal:354575",
+    "notice:muc_internal_portal:354674",
+    "notice:muc_internal_portal:354845",
+    "notice:muc_internal_portal:355650"
+  ],
+  "status": "ok"
+}

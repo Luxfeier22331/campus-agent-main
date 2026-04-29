@@ -11,12 +11,13 @@ from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     CurriculumProgramSemesterFactsMaterializationReport,
 )
 
-
 _MODULE_NAME = "campus_ingestion_worker.materialize_curriculum_program_semester_facts"
 
 
 class MaterializeCurriculumProgramSemesterFactsWorkerCliTest(unittest.TestCase):
-    def test_main_runs_canonical_scope_materialization_for_requested_source_documents_and_prints_report(self) -> None:
+    def test_main_runs_canonical_scope_materialization_for_requested_source_documents_and_prints_report(
+        self,
+    ) -> None:
         module_spec = importlib.util.find_spec(_MODULE_NAME)
         self.assertIsNotNone(module_spec)
         if module_spec is None:

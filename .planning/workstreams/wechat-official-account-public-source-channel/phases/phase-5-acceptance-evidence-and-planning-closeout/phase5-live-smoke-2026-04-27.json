@@ -1,0 +1,31 @@
+{
+  "errors": [],
+  "ok": true,
+  "projection": {
+    "article_count": 1,
+    "body_state_counts": {
+      "not_captured": 1
+    },
+    "consumption_status_counts": {
+      "retained_for_notice_query": 1
+    },
+    "duplicate_source_family_counts": {},
+    "duplicate_suppressed_count": 0,
+    "projection_entry_count": 1,
+    "query_serving_opened": false,
+    "retained_count": 1,
+    "retained_entry_count": 1,
+    "suppressed_entry_count": 0,
+    "target_surface_counts": {
+      "notice_level_query": 1
+    }
+  },
+  "runtime_gate_expectation": {
+    "verification_hint": "Run go test ./internal/structuredquery -run Notice in apps/supervisor-api to validate fail-close behavior for wechat_public_notice.",
+    "wechat_public_notice_runtime_open": false
+  },
+  "selection": {
+    "explicit_manifest_count": 1,
+    "selection_path": ""
+  }
+}

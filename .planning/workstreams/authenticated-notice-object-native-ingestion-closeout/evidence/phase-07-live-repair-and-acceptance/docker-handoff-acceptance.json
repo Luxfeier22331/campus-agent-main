@@ -1,0 +1,179 @@
+{
+  "schema_version": "authenticated_notice_docker_handoff_acceptance.v1",
+  "generated_at": "2026-04-29T03:29:58+08:00",
+  "live_execution": "repo_local_docker_compatible_execution_and_full_historical_recollect_completed",
+  "write_performed": true,
+  "docker_collector_run": {
+    "execution_mode": "repo_local_package_entrypoints_with_docker_compatible_env_contract",
+    "notice": {
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_surface": "notice",
+      "status": "success",
+      "verification_status": "verified",
+      "source_bucket": "campus-rag-source",
+      "bundle_object_key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+      "manifest_object_key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+      "required_source_object_count": 307,
+      "verified_source_object_count": 307,
+      "missing_source_object_count": 0,
+      "checksum_mismatch_count": 0,
+      "size_mismatch_count": 0,
+      "notices_collected": 282,
+      "pages_fetched": 15,
+      "detail_fetched": 282
+    },
+    "file_release": {
+      "run_id": "muc_internal_portal:file_release:20260428T182624439Z",
+      "source_surface": "file_release",
+      "status": "success",
+      "verification_status": "verified",
+      "source_bucket": "campus-rag-source",
+      "bundle_object_key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T182624.439Z/file-releases-bundle.json",
+      "manifest_object_key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T182624.439Z/file-releases-manifest.json",
+      "required_source_object_count": 3,
+      "verified_source_object_count": 3,
+      "missing_source_object_count": 0,
+      "checksum_mismatch_count": 0,
+      "size_mismatch_count": 0,
+      "file_releases_collected": 1,
+      "pages_fetched": 1,
+      "detail_fetched": 1
+    }
+  },
+  "worker_import_run": {
+    "notice": {
+      "input_mode": "run_id",
+      "mode": "admit_and_materialize",
+      "source_truth_only": true,
+      "write_enabled": true,
+      "notice_count": 282,
+      "created_document_count": 277,
+      "updated_document_count": 0,
+      "skipped_document_count": 5,
+      "raw_uploaded_count": 255,
+      "raw_reused_count": 27,
+      "attachment_fetch_status_record_count": 305,
+      "errors": []
+    },
+    "file_release": {
+      "input_mode": "run_id",
+      "mode": "admit_and_materialize",
+      "write_enabled": true,
+      "file_release_count": 1,
+      "created_document_count": 1,
+      "updated_document_count": 0,
+      "skipped_document_count": 0,
+      "raw_uploaded_count": 1,
+      "raw_reused_count": 0,
+      "file_release_inventory_rows": 1,
+      "errors": []
+    }
+  },
+  "object_verification": {
+    "implemented": true,
+    "bundle_manifest_object_refs": "run_id import succeeded for notice and file_release with ledger verification_status=verified",
+    "file_release_source_bytes": "file_release import verified released source bytes before materialization"
+  },
+  "dry_run_no_write": {
+    "implemented": true,
+    "verified_by": [
+      "tests.ingestion.test_authenticated_notice_object_ref_import.AuthenticatedNoticeObjectRefImportTest.test_notice_import_plan_does_not_write_injected_stores",
+      "tests.ingestion.test_project_wechat_public_notices_worker.ProjectWeChatPublicNoticesWorkerCliTest.test_main_supports_selection_path_dry_run_and_evidence_output"
+    ]
+  },
+  "downstream_untouched_proof": {
+    "notice": {
+      "source_truth_only": true,
+      "consumption_projection_rebuild": false,
+      "internal_notice_read_model_rebuild": false,
+      "consumer_admission_manifest_supplied": false
+    },
+    "file_release": {
+      "holding_stage": "imported_holding",
+      "action_required_count": 0,
+      "downstream_projection_count": 0,
+      "downstream_read_model_count": 0,
+      "wrong_scope_inventory_count": 1
+    }
+  },
+  "object_locator_audit": {
+    "total_locator_count": 3332,
+    "verified_object_count": 3332,
+    "missing_object_count": 0,
+    "checksum_mismatch_count": 0,
+    "size_mismatch_count": 0,
+    "write_performed": false
+  },
+  "remaining_repair_gap": {
+    "candidate_count": 0,
+    "candidate_scope": "campus_notices/file_release_capture",
+    "candidate_reason_code": "missing_source_bytes",
+    "repaired_unit_ids_via_fresh_recollect": [
+      "475",
+      "477",
+      "481",
+      "483",
+      "485",
+      "487",
+      "489",
+      "493",
+      "495",
+      "499",
+      "505",
+      "509",
+      "537",
+      "549",
+      "551",
+      "553",
+      "554",
+      "555",
+      "557",
+      "558",
+      "559",
+      "560",
+      "562",
+      "564",
+      "565",
+      "566",
+      "567",
+      "571",
+      "572",
+      "574",
+      "575",
+      "576",
+      "579",
+      "580",
+      "592",
+      "594",
+      "595",
+      "596",
+      "597",
+      "615",
+      "619",
+      "620",
+      "635",
+      "636",
+      "637",
+      "638",
+      "639",
+      "640",
+      "641",
+      "642",
+      "643",
+      "644",
+      "645",
+      "646",
+      "647"
+    ],
+    "operator_policy_required": false
+  },
+  "reason": "Fresh notice incremental collection and run_id-based worker materialization remain valid. Full historical file_release_capture recollection/import is complete, and the refreshed object-locator audit verifies every required source object.",
+  "historical_repair_batch": {
+    "strategy": "A",
+    "selected_count": 55,
+    "success_count": 55,
+    "failure_count": 0,
+    "report_path": ".planning/workstreams/authenticated-notice-object-native-ingestion-closeout/evidence/phase-07-live-repair-and-acceptance/historical-file-release-recollect-batch-A.json",
+    "backup_artifact": ".planning/workstreams/authenticated-notice-object-native-ingestion-closeout/evidence/phase-07-live-repair-and-acceptance/backup/file-release-capture-pre-recollect-20260429.json"
+  }
+}

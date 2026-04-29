@@ -1,0 +1,286 @@
+{
+  "database": {
+    "current_schema": "app_auth",
+    "database_name": "campus_agent",
+    "default_transaction_read_only": "on",
+    "observed_at": "2026-04-29 02:01:56.466059+00:00",
+    "server_addr": "172.20.0.3/32",
+    "server_port": 5432
+  },
+  "execute_requires": [
+    "Phase 2 chain contract completed",
+    "operator confirmation",
+    "--yes equivalent in Phase 3"
+  ],
+  "generated_at": "2026-04-29T02:01:56.431278+00:00",
+  "manual_confirmation_groups": [
+    {
+      "action": "manual_confirmation_required",
+      "name": "source_truth_and_document_holding_reset_scope",
+      "reason": "user target says collected-not-imported; that may require clearing source-truth / holding rows, but Phase 3 plan must explicitly confirm before write",
+      "row_counts": {
+        "ingestion_projection.authenticated_notice_file_release_inventory": 112,
+        "ingestion_projection.authenticated_notice_source_truth_inventory": 330
+      },
+      "scopes": [
+        {
+          "attachment_document_count": 19,
+          "collection": "common_download_source",
+          "corpus": "authenticated_documents",
+          "ocr_required_count": 3,
+          "reference_only_count": 0,
+          "row_count": 22,
+          "text_extractable_count": 19
+        },
+        {
+          "attachment_document_count": 175,
+          "collection": "internal_notice",
+          "corpus": "campus_notices",
+          "ocr_required_count": 109,
+          "reference_only_count": 21,
+          "row_count": 308,
+          "text_extractable_count": 175
+        },
+        {
+          "collection": "file_release_source",
+          "corpus": "authenticated_documents",
+          "released_file_ingest_status": "uploaded",
+          "released_file_provenance_status": "collected_internal",
+          "row_count": 56
+        },
+        {
+          "collection": "file_release_capture",
+          "corpus": "campus_notices",
+          "released_file_ingest_status": "uploaded",
+          "released_file_provenance_status": "collected_internal",
+          "row_count": 56
+        }
+      ],
+      "tables": [
+        "ingestion_projection.authenticated_notice_source_truth_inventory",
+        "ingestion_projection.authenticated_notice_file_release_inventory"
+      ]
+    },
+    {
+      "action": "manual_confirmation_required",
+      "current_rows": [
+        {
+          "collection": "service_guide",
+          "corpus": "campus_services",
+          "release_id": "service-guide-transport-merged-20260427T111821",
+          "updated_at": "2026-04-27 03:20:26.403800+00:00"
+        }
+      ],
+      "name": "mixed_service_guide_current_release",
+      "notice_derived_row_count": 3,
+      "preserve_or_review_row_count": 30,
+      "reason": "service_guide current release contains stable handbook/campus-card rows plus notice-derived rows; reset should preserve stable rows or explicitly roll back current",
+      "tables": [
+        "ingestion_projection.service_guide_read_model",
+        "ingestion_projection.structured_projection_current"
+      ]
+    }
+  ],
+  "mode": "dry_run_no_write",
+  "non_goals": [
+    "do not delete source bucket captured objects",
+    "do not delete collector run ledger",
+    "do not run OCR or downstream replay in Phase 1",
+    "do not change current serving surfaces in Phase 1"
+  ],
+  "reset_groups": [
+    {
+      "action": "delete_rows",
+      "name": "notice_consumption_projection",
+      "reason": "old derived consumption state; restore to clean replay baseline",
+      "row_count": 68,
+      "table": "ingestion_projection.notice_consumption_projection"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_read_model",
+      "reason": "old derived consumption state; restore to clean replay baseline",
+      "row_count": 0,
+      "table": "ingestion_projection.internal_notice_read_model"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_consumption_admission",
+      "reason": "old derived consumption state; restore to clean replay baseline",
+      "row_count": 28,
+      "table": "ingestion_projection.internal_notice_consumption_admission"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_consumption_admission_event",
+      "reason": "old derived consumption state; restore to clean replay baseline",
+      "row_count": 56,
+      "table": "ingestion_projection.internal_notice_consumption_admission_event"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_multimodal_attempt",
+      "reason": "old derived consumption state; restore to clean replay baseline",
+      "row_count": 0,
+      "table": "ingestion_projection.internal_notice_multimodal_attempt"
+    },
+    {
+      "action": "delete_rows",
+      "name": "internal_notice_schedule_image_ocr_attempt",
+      "reason": "old derived consumption state; restore to clean replay baseline",
+      "row_count": 13,
+      "table": "ingestion_projection.internal_notice_schedule_image_ocr_attempt"
+    },
+    {
+      "action": "delete_rows",
+      "name": "wechat_public_notice_multimodal_attempt",
+      "reason": "old derived consumption state; restore to clean replay baseline",
+      "row_count": 0,
+      "table": "ingestion_projection.wechat_public_notice_multimodal_attempt"
+    },
+    {
+      "action": "delete_rows_by_release_id",
+      "name": "notice_derived_transport_schedule_release_state",
+      "reason": "transport schedule releases are notice-derived stage/current/smoke state and will be rebuilt from admission manifests",
+      "release_ids": [
+        "transport-schedule-354889-stage-20260428T030903Z",
+        "transport-schedule-355122-stage-20260428T025821Z",
+        "transport-schedule-355512-stage-20260428T023900Z",
+        "transport-schedule-355867-stage-20260428T005620Z",
+        "transport-schedule-355881-stage-20260428T012432Z",
+        "transport-schedule-clean-auto-stage-20260428T131500Z",
+        "transport-schedule-full-ready-20260427T111821",
+        "transport-schedule-full-ready-20260427T121945",
+        "transport-schedule-full-ready-20260427T122315",
+        "transport-schedule-full-ready-20260427T122730",
+        "transport-schedule-full-ready-20260427T122940",
+        "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+        "transport-schedule-notice-e2e-20260427T120000",
+        "transport-schedule-notice-e2e-20260427T123000",
+        "transport-schedule-reviewed-pdf-245272-stage-20260428T222000"
+      ],
+      "row_counts": {
+        "ingestion_projection.transport_operational_notices": 21,
+        "ingestion_projection.transport_rejected_sources": 2,
+        "ingestion_projection.transport_release_notices": 218,
+        "ingestion_projection.transport_routes": 108,
+        "ingestion_projection.transport_schedule_snapshots": 204,
+        "ingestion_projection.transport_scheduled_departures": 2125,
+        "ingestion_projection.transport_service_exceptions": 61
+      },
+      "tables": [
+        "ingestion_projection.transport_release_notices",
+        "ingestion_projection.transport_operational_notices",
+        "ingestion_projection.transport_routes",
+        "ingestion_projection.transport_schedule_snapshots",
+        "ingestion_projection.transport_scheduled_departures",
+        "ingestion_projection.transport_service_exceptions",
+        "ingestion_projection.transport_rejected_sources"
+      ]
+    },
+    {
+      "action": "delete_release_rows_and_clear_current_for_notice_derived_targets",
+      "current_rows": [
+        {
+          "collection": "service_guide",
+          "corpus": "campus_services",
+          "release_id": "service-guide-transport-merged-20260427T111821",
+          "updated_at": "2026-04-27 03:20:26.403800+00:00"
+        },
+        {
+          "collection": "service_status",
+          "corpus": "campus_services",
+          "release_id": "service-status-current-20260428T122000",
+          "updated_at": "2026-04-28 13:19:30.182965+00:00"
+        },
+        {
+          "collection": "transport_schedule",
+          "corpus": "campus_services",
+          "release_id": "transport-schedule-full-ready-20260427T122940",
+          "updated_at": "2026-04-27 04:29:57.169060+00:00"
+        }
+      ],
+      "name": "structured_projection_notice_derived_releases",
+      "reason": "old typed releases/current pointers must not define replay truth",
+      "release_ids": [
+        "service-guide-notice-e2e-20260427T123000",
+        "schedule-e2e-smoke-20260427-service-guide",
+        "service-guide-transport-merged-20260427T111821",
+        "service-status-current-20260428T122000",
+        "service-status-live-355650-promote-20260428T105200",
+        "service-status-live-355650-stage-20260428T104800",
+        "service-status-notice-derived-20260427T121945",
+        "schedule-e2e-smoke-20260427-service-status",
+        "service-status-notice-derived-20260427T115004",
+        "service-status-notice-derived-20260427T115303",
+        "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+        "transport-schedule-reviewed-pdf-245272-stage-20260428T222000",
+        "transport-schedule-clean-auto-stage-20260428T131500Z",
+        "transport-schedule-354889-stage-20260428T030903Z",
+        "transport-schedule-355122-stage-20260428T025821Z",
+        "transport-schedule-355512-stage-20260428T023900Z",
+        "transport-schedule-355881-stage-20260428T012432Z",
+        "transport-schedule-355867-stage-20260428T005620Z",
+        "transport-schedule-notice-e2e-20260427T123000",
+        "transport-schedule-full-ready-20260427T122940",
+        "transport-schedule-full-ready-20260427T122730",
+        "transport-schedule-full-ready-20260427T122315",
+        "transport-schedule-full-ready-20260427T121945",
+        "schedule-e2e-smoke-20260427-transport-schedule",
+        "transport-schedule-notice-e2e-20260427T120000",
+        "transport-schedule-full-ready-20260427T111821"
+      ],
+      "tables": [
+        "ingestion_projection.structured_projection_releases",
+        "ingestion_projection.structured_projection_current"
+      ]
+    },
+    {
+      "action": "delete_rows_by_release_id",
+      "name": "service_status_notice_derived_read_model",
+      "reason": "service-status read model rows are notice-derived/smoke and will be replayed through Phase 6",
+      "release_ids": [
+        "schedule-e2e-smoke-20260427-service-status",
+        "service-status-current-20260428T122000",
+        "service-status-live-355650-promote-20260428T105200",
+        "service-status-live-355650-stage-20260428T104800",
+        "service-status-notice-derived-20260427T115004",
+        "service-status-notice-derived-20260427T115303",
+        "service-status-notice-derived-20260427T121945"
+      ],
+      "row_count": 11,
+      "table": "ingestion_projection.service_status_read_model"
+    },
+    {
+      "action": "delete_rows_by_release_id_or_source_ref_after_manual_scope_confirmation",
+      "name": "service_guide_notice_derived_rows",
+      "reason": "service guide is not a Phase 6 target; only notice-derived contamination should be removed while preserving stable handbook/campus-card rows",
+      "release_ids": [
+        "schedule-e2e-smoke-20260427-service-guide",
+        "service-guide-notice-e2e-20260427T123000",
+        "service-guide-transport-merged-20260427T111821"
+      ],
+      "row_count": 3,
+      "table": "ingestion_projection.service_guide_read_model"
+    }
+  ],
+  "retain_groups": [
+    {
+      "action": "retain",
+      "name": "collector_run_ledger",
+      "reason": "captured source-channel truth; reset must not remove run ledger",
+      "row_count": 76,
+      "tables": [
+        "ingestion_projection.authenticated_notice_collector_run"
+      ]
+    },
+    {
+      "action": "retain",
+      "name": "source_bucket_objects",
+      "reason": "captured object truth lives in S3-compatible source bucket; Phase 1 does not delete objects",
+      "row_count": null,
+      "tables": []
+    }
+  ],
+  "schema_version": "collected_notice_phase1_reset_manifest.v1"
+}

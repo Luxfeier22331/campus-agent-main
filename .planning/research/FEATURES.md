@@ -12,11 +12,11 @@
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Cited, verifiable `student_handbook` answers | Students and staff treating the assistant as an official channel expect citations so they can act without reopening email queues. | MEDIUM | Microsoft’s campus support assistant scenario shows ingestion and retrieval before answering, and StackAI’s guide frames grounding/audit as non-negotiable for production RAG.citeturn0search0turn3search0 |
+| Cited, verifiable `student_rules` answers | Students and staff treating the assistant as an official channel expect citations so they can act without reopening email queues. | MEDIUM | Microsoft’s campus support assistant scenario shows ingestion and retrieval before answering, and StackAI’s guide frames grounding/audit as non-negotiable for production RAG.citeturn0search0turn3search0 |
 | Role-based identity and ACL gating for students, staff, and prospects | FERPA/GDPR/SOC2 compliance and campus trust require each persona to see only its approved scope. | HIGH | Florida State University’s Copilot rollout paused for privacy/data usage reviews, echoing EdTech guidance that permissions and logging are foundational.citeturn2search1turn2search2 |
 | Observability, citation logging, and escalation traces | Support teams need to understand what happened, why routing occurred, and which evidence grounded the answer. | MEDIUM | StackAI and Microsoft both insist on traceability and audit so humans can follow a request from query to citation.citeturn3search0turn0search0 |
 | Multi-channel scheduling and human escalation | Campus assistants commonly integrate with calendars/ticketing so users can self-serve while keeping a human fallback. | MEDIUM | Microsoft’s scenario explicitly wires calendar integration and escalation to student services to keep the human fallback visible.citeturn0search0 |
-| Structured ingestion pipeline for `student_handbook` answers + `curriculum_plan` prep | Modern knowledge assistants rely on chunking, metadata, deduplication, and analytics before answering, keeping new corpuses ready. | MEDIUM | LearnWise’s platform and Times Higher Education’s human-centred rollout stress focused corpuses plus analytics-driven ingestion discipline.citeturn4search0turn1search0 |
+| Structured ingestion pipeline for `student_rules` answers + `curriculum_plan` prep | Modern knowledge assistants rely on chunking, metadata, deduplication, and analytics before answering, keeping new corpuses ready. | MEDIUM | LearnWise’s platform and Times Higher Education’s human-centred rollout stress focused corpuses plus analytics-driven ingestion discipline.citeturn4search0turn1search0 |
 
 ### Differentiators (Competitive Advantage)
 
@@ -58,7 +58,7 @@
 ## MVP Definition
 
 ### Launch With (v1)
-- [ ] Verified `student_handbook` ingestion + chunking pipeline feeding the `rag-specialist` index with citations and structured metadata.  
+- [ ] Verified `student_rules` ingestion + chunking pipeline feeding the `rag-specialist` index with citations and structured metadata.  
 - [ ] Supervisor → specialist query path with audit, trace, and escalation hooks so every answer is explainable and human-reviewable.  
 - [ ] Role-based identity, ACL gating, and logging that satisfy FERPA/SOC2 guardrails while serving students, staff, and prospects.  
 - [ ] Observability dashboards that surface unresolved queries, manual escalations, and evidence gaps for continuous refinement.  

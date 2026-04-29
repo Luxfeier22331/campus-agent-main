@@ -1,21 +1,31 @@
 from __future__ import annotations
 
-from dataclasses import replace
+import time
 import unittest
+from dataclasses import replace
+from threading import Lock
 
 from campus_contracts import (
     ActorContext,
+    AgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    SpecialistResponse,
     SupervisorResponse,
 )
-from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult, TraceExpectation, build_ragas_projection, run_cases
+from campus_evals import (
+    ExecutionResult,
+    GoldenCase,
+    ObservedTrace,
+    SupplementalResult,
+    TraceExpectation,
+    build_ragas_projection,
+    run_cases,
+)
 from campus_evals.ragas_adapter import RagasSupplementalAdapter
 
-HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _source(
@@ -23,7 +33,7 @@ def _source(
     doc_id: str = "handbook:library",
     version_id: str = "v1",
     chunk_id: str = "chunk-1",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     snippet: str = "Library hours are 08:00 to 22:00.",
 ) -> EvidenceSource:
     return EvidenceSource(
@@ -47,11 +57,11 @@ def _response(
     status: str = "completed",
     answer_text: str = "Library hours are 08:00 to 22:00.",
     corpus: str = "regulations",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
-) -> SpecialistResponse:
-    return SpecialistResponse(
-        target="rag-specialist",
+) -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -84,9 +94,11 @@ class RagasProjectionTest(unittest.TestCase):
             ),
         )
         execution = ExecutionResult(
-            response=_response(sources=(_source(), _source(chunk_id="chunk-2", snippet="Closed on holidays."))),
+            response=_response(
+                sources=(_source(), _source(chunk_id="chunk-2", snippet="Closed on holidays."))
+            ),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
             ),
         )
@@ -104,7 +116,7 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.reference_context_ids, ())
         self.assertEqual(projection.reference_contexts, ())
         self.assertEqual(projection.reference, "Library opens at 08:00.\nLibrary closes at 22:00.")
-        self.assertEqual(projection.metadata["collection"], "student_handbook")
+        self.assertEqual(projection.metadata["collection"], "student_rules")
         self.assertEqual(projection.metadata["expected_status"], "completed")
         self.assertEqual(projection.metadata["reference_fact_count"], 2)
         self.assertEqual(
@@ -112,7 +124,9 @@ class RagasProjectionTest(unittest.TestCase):
             "response.evidence.sources:statement_contexts",
         )
 
-    def test_build_ragas_projection_uses_supporting_evidence_for_contexts_and_trace_for_counts(self) -> None:
+    def test_build_ragas_projection_uses_supporting_evidence_for_contexts_and_trace_for_counts(
+        self,
+    ) -> None:
         case = GoldenCase(
             case_id="ragas-2",
             split="release_gate",
@@ -127,12 +141,17 @@ class RagasProjectionTest(unittest.TestCase):
                 retrieval_called=True,
             ),
         )
-        support_source = _source(chunk_id="chunk-support", snippet="Library hours are 08:00 to 22:00.")
-        raw_background = _source(chunk_id="chunk-background", snippet="The library policy is interpreted by the student office.")
+        support_source = _source(
+            chunk_id="chunk-support", snippet="Library hours are 08:00 to 22:00."
+        )
+        raw_background = _source(
+            chunk_id="chunk-background",
+            snippet="The library policy is interpreted by the student office.",
+        )
         execution = ExecutionResult(
             response=_response(sources=(support_source,)),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 retrieved_sources=(support_source, raw_background),
                 supporting_sources=(support_source,),
@@ -149,7 +168,9 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.metadata["retrieved_source_count"], 2)
         self.assertEqual(projection.metadata["supporting_source_count"], 1)
 
-    def test_build_ragas_projection_falls_back_to_retrieved_sources_when_supporting_and_evidence_are_empty(self) -> None:
+    def test_build_ragas_projection_falls_back_to_retrieved_sources_when_supporting_and_evidence_are_empty(
+        self,
+    ) -> None:
         case = GoldenCase(
             case_id="ragas-3",
             split="release_gate",
@@ -164,11 +185,13 @@ class RagasProjectionTest(unittest.TestCase):
                 retrieval_called=True,
             ),
         )
-        retrieved_source = _source(chunk_id="chunk-retrieved", snippet="Library hours are 08:00 to 22:00.")
+        retrieved_source = _source(
+            chunk_id="chunk-retrieved", snippet="Library hours are 08:00 to 22:00."
+        )
         execution = ExecutionResult(
             response=_response(sources=()),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 retrieved_sources=(retrieved_source,),
                 supporting_sources=(),
@@ -183,7 +206,9 @@ class RagasProjectionTest(unittest.TestCase):
             "observed_trace.retrieved_sources",
         )
 
-    def test_build_ragas_projection_uses_statement_level_supporting_contexts_for_multiline_sources(self) -> None:
+    def test_build_ragas_projection_uses_statement_level_supporting_contexts_for_multiline_sources(
+        self,
+    ) -> None:
         case = GoldenCase(
             case_id="ragas-4",
             split="release_gate",
@@ -225,7 +250,7 @@ class RagasProjectionTest(unittest.TestCase):
                 sources=(support_source,),
             ),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 supporting_sources=(support_source,),
             ),
@@ -252,7 +277,7 @@ class RagasProjectionTest(unittest.TestCase):
         )
         execution = ExecutionResult(
             response=SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="completed",
                 answer_text="Library hours are 08:00 to 22:00.",
                 confidence="high",
@@ -260,13 +285,13 @@ class RagasProjectionTest(unittest.TestCase):
                     evidence=EvidenceBundle(
                         query_text="library hours",
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                         sources=(_source(),),
                     )
                 ),
             ),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 retrieved_sources=(_source(),),
                 supporting_sources=(_source(),),
@@ -357,7 +382,9 @@ class SupplementalRunnerTest(unittest.TestCase):
         self.assertEqual(results[0].verdict, "not_applicable")
         self.assertEqual(results[0].metadata["metric_applicable"], False)
 
-    def test_run_cases_attaches_supplemental_results_without_changing_deterministic_pass(self) -> None:
+    def test_run_cases_attaches_supplemental_results_without_changing_deterministic_pass(
+        self,
+    ) -> None:
         case = GoldenCase(
             case_id="supplemental-1",
             split="release_gate",
@@ -389,7 +416,7 @@ class SupplementalRunnerTest(unittest.TestCase):
             executor=lambda _: ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                 ),
             ),
@@ -406,7 +433,9 @@ class SupplementalRunnerTest(unittest.TestCase):
         self.assertEqual(report.by_supplemental["ragas.faithfulness"].verdict_counts["passed"], 1)
         self.assertTrue(report.by_supplemental["ragas.faithfulness"].report_only)
 
-    def test_failed_report_only_supplemental_result_does_not_flip_deterministic_verdict(self) -> None:
+    def test_failed_report_only_supplemental_result_does_not_flip_deterministic_verdict(
+        self,
+    ) -> None:
         case = GoldenCase(
             case_id="supplemental-2",
             split="release_gate",
@@ -438,7 +467,7 @@ class SupplementalRunnerTest(unittest.TestCase):
             executor=lambda _: ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                 ),
             ),
@@ -448,3 +477,61 @@ class SupplementalRunnerTest(unittest.TestCase):
         self.assertEqual(report.passed, 1)
         self.assertEqual(report.by_supplemental["ragas.faithfulness"].verdict_counts["failed"], 1)
         self.assertTrue(report.results[0].passed)
+
+    def test_run_cases_respects_case_workers_and_preserves_case_order(self) -> None:
+        cases = tuple(
+            GoldenCase(
+                case_id=case_id,
+                split="release_gate",
+                source_type="expert_authored",
+                user_goal=f"library hours {index}",
+                actor=ActorContext(),
+                scope=HANDBOOK_SCOPE,
+                expected_status="completed",
+                required_facts=("08:00",),
+                trace_expectation=TraceExpectation(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                ),
+            )
+            for index, case_id in enumerate(
+                ("supplemental-parallel-1", "supplemental-parallel-2", "supplemental-parallel-3")
+            )
+        )
+        sleep_by_case_id = {
+            "supplemental-parallel-1": 0.08,
+            "supplemental-parallel-2": 0.01,
+            "supplemental-parallel-3": 0.01,
+        }
+        active_count = 0
+        max_active_count = 0
+        lock = Lock()
+
+        def executor(case: GoldenCase) -> ExecutionResult:
+            nonlocal active_count, max_active_count
+            with lock:
+                active_count += 1
+                max_active_count = max(max_active_count, active_count)
+            time.sleep(sleep_by_case_id[case.case_id])
+            with lock:
+                active_count -= 1
+            return ExecutionResult(
+                response=_response(sources=(_source(doc_id=f"handbook:{case.case_id}"),)),
+                observed_trace=ObservedTrace(
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                    retrieval_called=True,
+                ),
+            )
+
+        report = run_cases(
+            cases,
+            executor=executor,
+            case_workers=2,
+        )
+
+        self.assertEqual(report.passed, 3)
+        self.assertGreaterEqual(max_active_count, 2)
+        self.assertEqual(
+            tuple(result.case_id for result in report.results),
+            tuple(case.case_id for case in cases),
+        )

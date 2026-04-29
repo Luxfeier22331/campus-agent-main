@@ -1,0 +1,29 @@
+{
+  "candidate_count": 1,
+  "candidate_kind_counts": {
+    "transport_schedule": 1
+  },
+  "candidates": [
+    {
+      "consumption_status": "ready_for_target_materialization",
+      "notice_family": "facility_transport_classroom_status",
+      "notice_title": "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+      "primary_role": "service_status_override",
+      "service_status_candidate_kind": "transport_schedule",
+      "source_document_id": "notice:muc_internal_portal:355867",
+      "source_notice_document_id": "notice:muc_internal_portal:355867",
+      "source_notice_id": "355867",
+      "source_notice_release_time": "2026-04-25 13:11",
+      "source_ref": "notice:muc_internal_portal:355867",
+      "target_surface": "campus_services/service_status_candidate",
+      "unit_id": "notice_unit:notice:muc_internal_portal:355867:service_status_override"
+    }
+  ],
+  "consumption_statuses": [],
+  "notice_family_counts": {
+    "facility_transport_classroom_status": 1
+  },
+  "selected_notice_ids": [],
+  "source_collection": "internal_notice",
+  "source_corpus": "campus_notices"
+}

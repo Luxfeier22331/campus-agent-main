@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.in_memory_registries import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
+from campus_ingestion_core.in_memory_registries import (
+    InMemoryDocumentRegistry,
+    InMemoryRawAssetRegistry,
+)
 from campus_ingestion_core.internal_notice_regulation_materialization import (
     InstitutionalRegulationMaterializationReport,
     materialize_institutional_regulations_from_internal_notice_scope,
@@ -46,7 +50,7 @@ class LocalFilesystemObjectStore:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Materialize regulations/institutional_regulations from "
+            "Materialize regulations/institutional_rules from "
             "campus_notices/internal_notice promotion candidates"
         )
     )
@@ -82,7 +86,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         request=request,
         **runtime_kwargs,
     )
-    payload = asdict(report) if isinstance(report, InstitutionalRegulationMaterializationReport) else _normalize_payload(report)
+    payload = (
+        asdict(report)
+        if isinstance(report, InstitutionalRegulationMaterializationReport)
+        else _normalize_payload(report)
+    )
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
@@ -114,10 +122,7 @@ def _build_local_snapshot_runtime(
     inventory_payload = json.loads(Path(source_truth_inventory_json).read_text(encoding="utf-8"))
     rows = inventory_payload.values() if isinstance(inventory_payload, dict) else inventory_payload
     inventory_store.upsert_many(
-        tuple(
-            AuthenticatedNoticeSourceTruthInventoryEntry.from_dict(dict(row))
-            for row in rows
-        )
+        tuple(AuthenticatedNoticeSourceTruthInventoryEntry.from_dict(dict(row)) for row in rows)
     )
     object_store = LocalFilesystemObjectStore(Path(object_store_root))
     return {
@@ -130,8 +135,8 @@ def _build_local_snapshot_runtime(
 
 __all__ = [
     "InstitutionalRegulationMaterializationReport",
-    "LocalFilesystemObjectStore",
     "InternalNoticeRegulationPromotionRequest",
+    "LocalFilesystemObjectStore",
     "build_parser",
     "main",
     "materialize_institutional_regulations_from_internal_notice_scope",

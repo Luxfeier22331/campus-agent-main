@@ -1,0 +1,137 @@
+{
+	"schema_version": 1,
+	"policy_id": "eval_operations_profile_policy.v1",
+	"updated_at": "2026-04-29",
+	"profiles": [
+		{
+			"profile_id": "public_chat_product_path",
+			"budget": {
+				"max_cases_per_run": 20,
+				"max_provider_calls_per_run": 0
+			},
+			"runtime_timeout_seconds": 300,
+			"max_retries": 0,
+			"pacing_seconds": 0.0,
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
+			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
+			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
+			"quarantine": {
+				"allowed": true,
+				"max_days": 14,
+				"readmission_rule": "requires owner review, fixed evidence and one clean scheduled run"
+			},
+			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
+		},
+		{
+			"profile_id": "tool_family_denominator",
+			"budget": {
+				"max_cases_per_run": 60,
+				"max_provider_calls_per_run": 0
+			},
+			"runtime_timeout_seconds": 300,
+			"max_retries": 0,
+			"pacing_seconds": 0.0,
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
+			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
+			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
+			"quarantine": {
+				"allowed": true,
+				"max_days": 14,
+				"readmission_rule": "requires denominator owner review and fixed read-model evidence"
+			},
+			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
+		},
+		{
+			"profile_id": "agentic_retrieval_plan",
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 0
+			},
+			"runtime_timeout_seconds": 300,
+			"max_retries": 0,
+			"pacing_seconds": 0.0,
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
+			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
+			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
+			"quarantine": {
+				"allowed": true,
+				"max_days": 14,
+				"readmission_rule": "requires planner owner review and clean branch/evidence rerun"
+			},
+			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
+		},
+		{
+			"profile_id": "document_quality",
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 0
+			},
+			"runtime_timeout_seconds": 300,
+			"max_retries": 0,
+			"pacing_seconds": 0.0,
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
+			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
+			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
+			"quarantine": {
+				"allowed": true,
+				"max_days": 14,
+				"readmission_rule": "requires document quality owner review and clean OCR/projection rerun"
+			},
+			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
+		},
+		{
+			"profile_id": "authz_privacy",
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 0
+			},
+			"runtime_timeout_seconds": 300,
+			"max_retries": 0,
+			"pacing_seconds": 0.0,
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
+			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
+			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
+			"quarantine": {
+				"allowed": true,
+				"max_days": 14,
+				"readmission_rule": "requires authz owner review and clean restricted-surface rerun"
+			},
+			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
+		}
+	]
+}

@@ -1,0 +1,29 @@
+{
+  "admission_decision_counts": {
+    "admit": 1
+  },
+  "consumption_status_counts": {
+    "candidate_for_typed_materialization": 1
+  },
+  "manifest_selected_notice_ids": [
+    "355650"
+  ],
+  "operation": "projection_rebuild",
+  "reason_codes": [],
+  "selected_notice_ids": [
+    "355650"
+  ],
+  "source_collection": "internal_notice",
+  "source_corpus": "campus_notices",
+  "target_surface_counts": {
+    "campus_services/service_status_candidate": 1
+  },
+  "threshold_counts": {
+    "empty_body_count": 0,
+    "owner_expectation_count": 0,
+    "pending_multimodal_attachment_count": 0,
+    "reference_only_attachment_ref_count": 0,
+    "unsupported_binary_count": 0
+  },
+  "verdict": "allow"
+}

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-import re
 
 from campus_ingestion_core.source_truth_common import looks_like_cross_page_continuation
 
@@ -34,35 +34,46 @@ class CurriculumSourceTruthValidationReport:
     passed: bool
 
 
-def scan_curriculum_source_truth_rows(rows: list[dict[str, object]]) -> CurriculumSourceTruthValidationReport:
+def scan_curriculum_source_truth_rows(
+    rows: list[dict[str, object]],
+) -> CurriculumSourceTruthValidationReport:
     row_type_counts = Counter(str(row.get("row_type") or "") for row in rows)
     row_ids = {
-        str(row.get("row_id") or "").strip()
-        for row in rows
-        if str(row.get("row_id") or "").strip()
+        str(row.get("row_id") or "").strip() for row in rows if str(row.get("row_id") or "").strip()
     }
-    forbidden_field_count = sum(len(FORBIDDEN_SOURCE_TRUTH_FIELDS & set(row.keys())) for row in rows)
+    forbidden_field_count = sum(
+        len(FORBIDDEN_SOURCE_TRUTH_FIELDS & set(row.keys())) for row in rows
+    )
     heading_role_conflict_count = sum(1 for row in rows if _has_heading_role_conflict(row))
     page_number_leak_count = sum(
-        1 for row in rows if str(row.get("block_role") or "") == "number" and str(row.get("row_type") or "") != "page_number"
+        1
+        for row in rows
+        if str(row.get("block_role") or "") == "number"
+        and str(row.get("row_type") or "") != "page_number"
     )
     footer_leak_count = sum(
-        1 for row in rows if str(row.get("block_role") or "") == "footer" and str(row.get("row_type") or "") != "footer"
+        1
+        for row in rows
+        if str(row.get("block_role") or "") == "footer"
+        and str(row.get("row_type") or "") != "footer"
     )
     orphan_caption_count = sum(
         1
         for row in rows
-        if str(row.get("row_type") or "") == "table_caption" and not _has_valid_owner(row, row_ids=row_ids)
+        if str(row.get("row_type") or "") == "table_caption"
+        and not _has_valid_owner(row, row_ids=row_ids)
     )
     orphan_note_count = sum(
         1
         for row in rows
         if str(row.get("row_type") or "") == "note" and not _has_valid_owner(row, row_ids=row_ids)
     )
-    broken_table_continuation_count = sum(1 for row in rows if _is_broken_table_continuation(row, row_ids=row_ids))
+    broken_table_continuation_count = sum(
+        1 for row in rows if _is_broken_table_continuation(row, row_ids=row_ids)
+    )
     cross_page_continuation_miss_count = _count_cross_page_continuation_misses(rows)
     section_hint_missing_count = sum(1 for row in rows if _requires_section_hint(row))
-    parent_heading_hint_missing_count = sum(1 for row in rows if _requires_parent_heading_hint(row))
+    parent_heading_hint_missing_count = _count_parent_heading_hint_misses(rows)
     reading_order_gap_count = _count_reading_order_gaps(rows)
     passed = not any(
         (
@@ -97,6 +108,29 @@ def scan_curriculum_source_truth_rows(rows: list[dict[str, object]]) -> Curricul
     )
 
 
+def validate_curriculum_source_truth_rows(rows: list[dict[str, object]]) -> None:
+    report = scan_curriculum_source_truth_rows(rows)
+    if report.passed:
+        return
+    failures = {
+        "forbidden_field_count": report.forbidden_field_count,
+        "heading_role_conflict_count": report.heading_role_conflict_count,
+        "page_number_leak_count": report.page_number_leak_count,
+        "footer_leak_count": report.footer_leak_count,
+        "orphan_caption_count": report.orphan_caption_count,
+        "orphan_note_count": report.orphan_note_count,
+        "broken_table_continuation_count": report.broken_table_continuation_count,
+        "cross_page_continuation_miss_count": report.cross_page_continuation_miss_count,
+        "section_hint_missing_count": report.section_hint_missing_count,
+        "parent_heading_hint_missing_count": report.parent_heading_hint_missing_count,
+        "reading_order_gap_count": report.reading_order_gap_count,
+    }
+    failure_summary = (
+        ", ".join(f"{key}={value}" for key, value in failures.items() if value) or "unknown_failure"
+    )
+    raise ValueError(f"curriculum source truth validation failed: {failure_summary}")
+
+
 def _has_heading_role_conflict(row: dict[str, object]) -> bool:
     row_type = str(row.get("row_type") or "")
     heading_level = row.get("heading_level")
@@ -113,9 +147,7 @@ def _has_valid_owner(row: dict[str, object], *, row_ids: set[str]) -> bool:
         return False
     if not relation_type:
         return False
-    if not continuation_group_id:
-        return False
-    return True
+    return bool(continuation_group_id)
 
 
 def _is_broken_table_continuation(row: dict[str, object], *, row_ids: set[str]) -> bool:
@@ -127,9 +159,7 @@ def _is_broken_table_continuation(row: dict[str, object], *, row_ids: set[str]) 
     continuation_group_id = str(row.get("continuation_group_id") or "").strip()
     if not owner_row_id or owner_row_id not in row_ids:
         return True
-    if not continuation_group_id or continuation_group_id != owner_row_id:
-        return True
-    return False
+    return not continuation_group_id or continuation_group_id != owner_row_id
 
 
 def _count_cross_page_continuation_misses(rows: list[dict[str, object]]) -> int:
@@ -152,9 +182,14 @@ def _count_cross_page_continuation_misses(rows: list[dict[str, object]]) -> int:
         next_row = next_rows[0]
         current_text = str(current.get("text_normalized") or "").strip()
         next_text = str(next_row.get("text_normalized") or "").strip()
-        if looks_like_cross_page_continuation(current_text=current_text, next_text=next_text):
-            if not bool(current.get("continues_to_next_page")) or not bool(next_row.get("continues_from_previous_page")):
-                misses += 1
+        if looks_like_cross_page_continuation(
+            current_text=current_text,
+            next_text=next_text,
+        ) and (
+            not bool(current.get("continues_to_next_page"))
+            or not bool(next_row.get("continues_from_previous_page"))
+        ):
+            misses += 1
     return misses
 
 
@@ -174,13 +209,25 @@ def _requires_section_hint(row: dict[str, object]) -> bool:
     return not str(row.get("section_hint") or "").strip()
 
 
-def _requires_parent_heading_hint(row: dict[str, object]) -> bool:
-    if str(row.get("row_type") or "") != "paragraph":
-        return False
-    list_level_hint = row.get("list_level_hint")
-    if list_level_hint in (None, "", 0):
-        return False
-    return not str(row.get("parent_heading_hint") or "").strip()
+def _count_parent_heading_hint_misses(rows: list[dict[str, object]]) -> int:
+    seen_heading = False
+    misses = 0
+    for row in rows:
+        if bool(row.get("is_repeated_candidate")):
+            continue
+        if str(row.get("row_type") or "") == "heading":
+            seen_heading = True
+            continue
+        if str(row.get("row_type") or "") != "paragraph":
+            continue
+        list_level_hint = row.get("list_level_hint")
+        if list_level_hint in (None, "", 0):
+            continue
+        if not seen_heading:
+            continue
+        if not str(row.get("parent_heading_hint") or "").strip():
+            misses += 1
+    return misses
 
 
 def _count_reading_order_gaps(rows: list[dict[str, object]]) -> int:

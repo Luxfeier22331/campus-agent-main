@@ -1,0 +1,13 @@
+[
+	{
+		"type": "file",
+		"name": "index",
+		"label": "文档首页"
+	},
+	{
+		"type": "dir",
+		"name": "docs",
+		"label": "公开文档",
+		"collapsed": false
+	}
+]

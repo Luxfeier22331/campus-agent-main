@@ -1,0 +1,30 @@
+{
+  "schema_version": "campus_services_projection_bundle.v1",
+  "service_status_records": [
+    {
+      "subject_id": "it-platform:campus-card",
+      "display_name": "一卡通平台",
+      "service_family": "it_platform",
+      "aliases": [
+        "一卡通",
+        "校园卡",
+        "关于临时停用校园一卡通、网费和电费充值功能的通知"
+      ],
+      "campus_scope": "",
+      "observed_status": "temporarily_closed",
+      "effective_from": "2025-12-29T17:00:00+08:00",
+      "effective_until": "2026-01-01T10:00:00+08:00",
+      "affected_scope": "线上服务",
+      "severity": "high",
+      "override_source_refs": [
+        "notice:muc_internal_portal:247726"
+      ],
+      "related_notice_refs": [
+        "notice:muc_internal_portal:247726"
+      ],
+      "status_note": "根据财务处《关于2025年度财务年终工作安排的通知》要求，为配合完成2025年年终财务决算工作，我处将于2025年12月29日17:00——2026年1月1日10:00关闭校园一卡通充值、网费充值和电费充值的功能",
+      "extraction_status": "ready"
+    }
+  ],
+  "service_status_rejected_sources": []
+}

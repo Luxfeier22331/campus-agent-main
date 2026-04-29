@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from collections import Counter
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import json
+from collections import Counter
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED
-
 
 _TARGET_SCOPE = ("regulations", "scoped_rules")
 _SCHEMA_VERSION = "internal_notice_scoped_rule_chunk_prep_v1"
@@ -26,7 +26,6 @@ _HIGH_CONFIDENCE_WRAPPER_LEAK_MARKERS = (
     "请遵照执行",
     "学校各单位、各部门",
     "现将有关事项通知如下",
-    "附件：",
 )
 _FRONT_MATTER_LEAK_MARKERS = (
     "schema_version:",
@@ -57,6 +56,7 @@ class ScopedRuleChunkPrepDocumentReport:
     missing_contextualization_count: int
     missing_projection_metadata_count: int
     missing_cycle_year_count: int
+    missing_school_unit_name_count: int
     wrapper_notice_leak_chunk_count: int
     front_matter_leak_chunk_count: int
     short_body_chunk_count: int
@@ -102,6 +102,7 @@ class ScopedRuleChunkPrepValidationReport:
     missing_contextualization_count: int
     missing_projection_metadata_count: int
     missing_cycle_year_count: int
+    missing_school_unit_name_count: int
     wrapper_notice_leak_chunk_count: int
     front_matter_leak_chunk_count: int
     short_body_chunk_count: int
@@ -135,9 +136,7 @@ def prepare_scoped_rule_chunks(
     bucket_derived: str = DEFAULT_BUCKET_DERIVED,
 ) -> ScopedRuleChunkPrepExportReport:
     scoped_rule_records = tuple(
-        record
-        for record in records
-        if (record.corpus, record.collection) == _TARGET_SCOPE
+        record for record in records if (record.corpus, record.collection) == _TARGET_SCOPE
     )
     prepared_documents = tuple(
         _prepare_scoped_rule_record(
@@ -152,13 +151,11 @@ def prepare_scoped_rule_chunks(
     validation_report = build_scoped_rule_chunk_prep_validation_report(
         prepared_documents=prepared_documents
     )
-    manifest_path, validation_path, document_reports_path = (
-        export_scoped_rule_chunk_prep_artifacts(
-            output_dir=Path(output_dir),
-            prepared_documents=prepared_documents,
-            manifest=manifest,
-            validation_report=validation_report,
-        )
+    manifest_path, validation_path, document_reports_path = export_scoped_rule_chunk_prep_artifacts(
+        output_dir=Path(output_dir),
+        prepared_documents=prepared_documents,
+        manifest=manifest,
+        validation_report=validation_report,
     )
     return ScopedRuleChunkPrepExportReport(
         manifest_path=str(manifest_path),
@@ -178,7 +175,7 @@ def build_scoped_rule_chunk_prep_manifest(
 ) -> ScopedRuleChunkPrepManifest:
     return ScopedRuleChunkPrepManifest(
         schema_version=_SCHEMA_VERSION,
-        prepared_at=datetime.now(timezone.utc).isoformat(),
+        prepared_at=datetime.now(UTC).isoformat(),
         target_corpus=_TARGET_SCOPE[0],
         target_collection=_TARGET_SCOPE[1],
         prepared_document_count=len(prepared_documents),
@@ -210,6 +207,7 @@ def build_scoped_rule_chunk_prep_validation_report(
     missing_contextualization_count = 0
     missing_projection_metadata_count = 0
     missing_cycle_year_count = 0
+    missing_school_unit_name_count = 0
     wrapper_notice_leak_chunk_count = 0
     front_matter_leak_chunk_count = 0
     short_body_chunk_count = 0
@@ -224,6 +222,7 @@ def build_scoped_rule_chunk_prep_validation_report(
         missing_contextualization_count += item.report.missing_contextualization_count
         missing_projection_metadata_count += item.report.missing_projection_metadata_count
         missing_cycle_year_count += item.report.missing_cycle_year_count
+        missing_school_unit_name_count += item.report.missing_school_unit_name_count
         wrapper_notice_leak_chunk_count += item.report.wrapper_notice_leak_chunk_count
         front_matter_leak_chunk_count += item.report.front_matter_leak_chunk_count
         short_body_chunk_count += item.report.short_body_chunk_count
@@ -241,6 +240,7 @@ def build_scoped_rule_chunk_prep_validation_report(
         missing_contextualization_count=missing_contextualization_count,
         missing_projection_metadata_count=missing_projection_metadata_count,
         missing_cycle_year_count=missing_cycle_year_count,
+        missing_school_unit_name_count=missing_school_unit_name_count,
         wrapper_notice_leak_chunk_count=wrapper_notice_leak_chunk_count,
         front_matter_leak_chunk_count=front_matter_leak_chunk_count,
         short_body_chunk_count=short_body_chunk_count,
@@ -285,7 +285,9 @@ def _prepare_scoped_rule_record(
     output_dir: Path,
 ) -> _PreparedScopedRule:
     if not record.document_units_object_key:
-        raise ValueError(f"scoped_rules record missing document_units_object_key: {record.document_id}")
+        raise ValueError(
+            f"scoped_rules record missing document_units_object_key: {record.document_id}"
+        )
     document_units_bytes = object_store.get_bytes(
         bucket=bucket_derived,
         key=record.document_units_object_key,
@@ -297,7 +299,9 @@ def _prepare_scoped_rule_record(
     )
     title = _resolve_title(unit_rows)
     target_suffix = record.document_id.rsplit(":", 1)[-1]
-    prepared_dir = output_dir / "prepared-documents" / f"{_slugify_path_component(title)}--{target_suffix}"
+    prepared_dir = (
+        output_dir / "prepared-documents" / f"{_slugify_path_component(title)}--{target_suffix}"
+    )
     prepared_dir.mkdir(parents=True, exist_ok=True)
     document_units_path = prepared_dir / "document-units.jsonl"
     chunk_catalog_path = prepared_dir / "chunks.jsonl"
@@ -375,6 +379,11 @@ def _build_document_report(
         first_metadata.get("cycle_year")
     ):
         missing_cycle_year_count = 1
+    missing_school_unit_name_count = 0
+    if document_nature == "annual_cycle_rule" and _is_missing_metadata_field(
+        first_metadata.get("school_unit_name")
+    ):
+        missing_school_unit_name_count = 1
     wrapper_notice_leak_chunk_count = sum(
         1 for chunk in chunks if _contains_marker(chunk.text, _HIGH_CONFIDENCE_WRAPPER_LEAK_MARKERS)
     )
@@ -398,17 +407,21 @@ def _build_document_report(
         issues.append("missing_projection_metadata")
     if missing_cycle_year_count:
         issues.append("missing_cycle_year")
+    if missing_school_unit_name_count:
+        issues.append("missing_school_unit_name")
     if wrapper_notice_leak_chunk_count:
         issues.append("wrapper_notice_leak")
     if front_matter_leak_chunk_count:
         issues.append("front_matter_leak")
     passed = not any(
-        issue in {
+        issue
+        in {
             "no_chunks_emitted",
             "missing_title_chunk",
             "missing_contextualization",
             "missing_projection_metadata",
             "missing_cycle_year",
+            "missing_school_unit_name",
             "wrapper_notice_leak",
             "front_matter_leak",
         }
@@ -429,6 +442,7 @@ def _build_document_report(
         missing_contextualization_count=missing_contextualization_count,
         missing_projection_metadata_count=missing_projection_metadata_count,
         missing_cycle_year_count=missing_cycle_year_count,
+        missing_school_unit_name_count=missing_school_unit_name_count,
         wrapper_notice_leak_chunk_count=wrapper_notice_leak_chunk_count,
         front_matter_leak_chunk_count=front_matter_leak_chunk_count,
         short_body_chunk_count=short_body_chunk_count,
@@ -481,7 +495,10 @@ def _is_missing_metadata_field(value: object) -> bool:
 
 def _slugify_path_component(value: str) -> str:
     normalized = value.strip()
-    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-") or "scoped-rule"
+    return (
+        "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-")
+        or "scoped-rule"
+    )
 
 
 __all__ = [

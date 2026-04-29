@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-from datetime import datetime, timedelta, timezone
-from enum import Enum
 import hashlib
-from typing import Any, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
@@ -15,7 +16,6 @@ from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION,
     DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
 )
-
 
 DEFAULT_CLOSEOUT_OPERATION = "authenticated-notice-closeout"
 DEFAULT_CLOSEOUT_INPUT_KIND = "bundle_import"
@@ -28,11 +28,11 @@ DEFAULT_CLOSEOUT_LEASE_SECONDS = 300
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def utc_now_dt() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def lease_expires_at(lease_seconds: int) -> str:
@@ -49,7 +49,7 @@ def coerce_non_negative(value: int) -> int:
     return max(0, int(value))
 
 
-class CloseoutRunState(str, Enum):
+class CloseoutRunState(StrEnum):
     PLANNING = "planning"
     PLANNED = "planned"
     RUNNING = "running"
@@ -60,28 +60,28 @@ class CloseoutRunState(str, Enum):
     FAILED = "failed"
 
 
-class CloseoutShardState(str, Enum):
+class CloseoutShardState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
 
 
-class CloseoutBatchState(str, Enum):
+class CloseoutBatchState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
 
 
-class CloseoutWorkerState(str, Enum):
+class CloseoutWorkerState(StrEnum):
     IDLE = "idle"
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
 
 
-class CloseoutPromotionBatchState(str, Enum):
+class CloseoutPromotionBatchState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
@@ -108,9 +108,7 @@ class CloseoutRun:
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     site_id: str = ""
     source_home_url: str = ""
-    default_entitlement_groups: tuple[str, ...] = (
-        DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS
-    )
+    default_entitlement_groups: tuple[str, ...] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS
     visibility_scope: str | None = DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE
     parser_version: str = DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION
     embedding_model: str = DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL
@@ -160,9 +158,7 @@ class CloseoutRun:
     ) -> CloseoutRun:
         return replace(
             self,
-            staged_notice_count=coerce_non_negative(
-                self.staged_notice_count + staged_notice_delta
-            ),
+            staged_notice_count=coerce_non_negative(self.staged_notice_count + staged_notice_delta),
             staged_raw_asset_count=coerce_non_negative(
                 self.staged_raw_asset_count + staged_raw_asset_delta
             ),
@@ -172,21 +168,15 @@ class CloseoutRun:
             completed_batch_count=coerce_non_negative(
                 self.completed_batch_count + completed_batch_delta
             ),
-            running_batch_count=coerce_non_negative(
-                self.running_batch_count + running_batch_delta
-            ),
-            pending_batch_count=coerce_non_negative(
-                self.pending_batch_count + pending_batch_delta
-            ),
+            running_batch_count=coerce_non_negative(self.running_batch_count + running_batch_delta),
+            pending_batch_count=coerce_non_negative(self.pending_batch_count + pending_batch_delta),
             processed_notice_count=coerce_non_negative(
                 self.processed_notice_count + processed_notice_delta
             ),
             completed_shard_count=coerce_non_negative(
                 self.completed_shard_count + completed_shard_delta
             ),
-            failed_shard_count=coerce_non_negative(
-                self.failed_shard_count + failed_shard_delta
-            ),
+            failed_shard_count=coerce_non_negative(self.failed_shard_count + failed_shard_delta),
             active_worker_count=(
                 self.active_worker_count
                 if active_worker_count is None
@@ -267,9 +257,7 @@ class CloseoutRun:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CloseoutRun:
         raw = dict(payload)
-        raw["state"] = CloseoutRunState(
-            str(raw.get("state") or CloseoutRunState.PLANNING.value)
-        )
+        raw["state"] = CloseoutRunState(str(raw.get("state") or CloseoutRunState.PLANNING.value))
         raw["selected_notice_ids"] = tuple(
             str(item) for item in raw.get("selected_notice_ids") or ()
         )
@@ -352,9 +340,7 @@ class CloseoutShard:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CloseoutShard:
         raw = dict(payload)
-        raw["state"] = CloseoutShardState(
-            str(raw.get("state") or CloseoutShardState.PENDING.value)
-        )
+        raw["state"] = CloseoutShardState(str(raw.get("state") or CloseoutShardState.PENDING.value))
         raw["notice_ids"] = tuple(str(item) for item in raw.get("notice_ids") or ())
         raw["batch_ids"] = tuple(int(item) for item in raw.get("batch_ids") or ())
         return cls(**raw)
@@ -429,9 +415,7 @@ class CloseoutBatch:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CloseoutBatch:
         raw = dict(payload)
-        raw["state"] = CloseoutBatchState(
-            str(raw.get("state") or CloseoutBatchState.PENDING.value)
-        )
+        raw["state"] = CloseoutBatchState(str(raw.get("state") or CloseoutBatchState.PENDING.value))
         raw["notice_ids"] = tuple(str(item) for item in raw.get("notice_ids") or ())
         return cls(**raw)
 
@@ -464,15 +448,11 @@ class CloseoutWorker:
 
     def complete_batch(self, batch_id: int) -> CloseoutWorker:
         timestamp = utc_now()
-        current_batch_ids = tuple(
-            item for item in self.current_batch_ids if item != int(batch_id)
-        )
+        current_batch_ids = tuple(item for item in self.current_batch_ids if item != int(batch_id))
         return replace(
             self,
             state=(
-                CloseoutWorkerState.IDLE
-                if not current_batch_ids
-                else CloseoutWorkerState.RUNNING
+                CloseoutWorkerState.IDLE if not current_batch_ids else CloseoutWorkerState.RUNNING
             ),
             active_batch_count=len(current_batch_ids),
             completed_batch_count=self.completed_batch_count + 1,
@@ -484,9 +464,7 @@ class CloseoutWorker:
 
     def fail_batch(self, batch_id: int, error: str) -> CloseoutWorker:
         timestamp = utc_now()
-        current_batch_ids = tuple(
-            item for item in self.current_batch_ids if item != int(batch_id)
-        )
+        current_batch_ids = tuple(item for item in self.current_batch_ids if item != int(batch_id))
         return replace(
             self,
             state=CloseoutWorkerState.FAILED,
@@ -515,12 +493,8 @@ class CloseoutWorker:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CloseoutWorker:
         raw = dict(payload)
-        raw["state"] = CloseoutWorkerState(
-            str(raw.get("state") or CloseoutWorkerState.IDLE.value)
-        )
-        raw["current_batch_ids"] = tuple(
-            int(item) for item in raw.get("current_batch_ids") or ()
-        )
+        raw["state"] = CloseoutWorkerState(str(raw.get("state") or CloseoutWorkerState.IDLE.value))
+        raw["current_batch_ids"] = tuple(int(item) for item in raw.get("current_batch_ids") or ())
         return cls(**raw)
 
 
@@ -584,8 +558,7 @@ class CloseoutPromotionBatch:
             str(raw.get("state") or CloseoutPromotionBatchState.PENDING.value)
         )
         raw["document_refs"] = tuple(
-            tuple(str(part) for part in item)
-            for item in raw.get("document_refs") or ()
+            tuple(str(part) for part in item) for item in raw.get("document_refs") or ()
         )
         return cls(**raw)
 
@@ -597,10 +570,7 @@ def attach_batches_to_shards(
     batch_ids_by_shard: dict[int, list[int]] = {shard.shard_id: [] for shard in shards}
     for batch in batches:
         batch_ids_by_shard.setdefault(batch.shard_id, []).append(batch.batch_id)
-    return tuple(
-        shard.with_batches(batch_ids_by_shard.get(shard.shard_id, ()))
-        for shard in shards
-    )
+    return tuple(shard.with_batches(batch_ids_by_shard.get(shard.shard_id, ())) for shard in shards)
 
 
 def batch_lease_expired(batch: CloseoutBatch) -> bool:

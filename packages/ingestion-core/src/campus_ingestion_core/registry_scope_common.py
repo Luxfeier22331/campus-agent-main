@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.models import DocumentRegistryRecord

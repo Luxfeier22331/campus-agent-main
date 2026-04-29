@@ -4,7 +4,6 @@ status: active
 created: 2026-04-04
 updated: 2026-04-14
 ---
-
 # Official Web Fresh News Surface Handoff
 
 ## 文档边界
@@ -25,13 +24,15 @@ updated: 2026-04-14
 
 对应 machine truth：
 
-- fixture：`packages/evals/fixtures/official_web_muc_public_pages_current_truth_inventory.json`
+- fixture：`packages/evals/fixtures/official_web_muc_public_pages_current_truth_i
+  nventory.json`
 - helpers：`packages/evals/src/campus_evals/official_web_inventory.py`
 - tests：`tests/evals/test_official_web_live_benchmark.py`
 
 ## Accepted Handoff Baseline
 
-`official_web/muc_public_pages` 的 accepted mixed-bridge inventory 基线固定为 `21` 条文档：
+`official_web/muc_public_pages` 的 accepted mixed-bridge inventory 基线固定为 `21`
+条文档：
 
 - `release_gate_required = 11`
 - `retain_inventory_only = 2`
@@ -133,6 +134,7 @@ updated: 2026-04-14
 
 - `muc_public_pages` truth 与后续 `fresh_news` surface 之间已经有显式 handoff 边界
 - stable-reference-like gate 只消费 `release_gate_required`
-- future fresh-news 工作必须从这 `8` 条 seed set 出发，但不能跳过单独的 freshness / serving / release-gate 设计
+- future fresh-news 工作必须从这 `8` 条 seed set 出发，但不能跳过单独的 freshness / serving /
+  release-gate 设计
 - opening acceptance / handoff 统一看
   `docs/reference/official-web-news-surface-opening-checklist.md`

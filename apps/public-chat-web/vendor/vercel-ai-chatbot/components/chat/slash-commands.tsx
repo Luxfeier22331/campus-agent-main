@@ -2,11 +2,7 @@
 
 import {
   BombIcon,
-  ListIcon,
-  PaletteIcon,
-  PenLineIcon,
   PenSquareIcon,
-  Trash2Icon,
   XIcon,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
@@ -23,43 +19,19 @@ export type SlashCommand = {
 export const slashCommands: SlashCommand[] = [
   {
     name: "new",
-    description: "Start a new chat",
+    description: "开始新对话",
     icon: <PenSquareIcon className="size-3.5" />,
     action: "new",
   },
   {
-    name: "clear",
-    description: "Clear current chat",
-    icon: <Trash2Icon className="size-3.5" />,
-    action: "clear",
-  },
-  {
-    name: "rename",
-    description: "Rename current chat",
-    icon: <PenLineIcon className="size-3.5" />,
-    action: "rename",
-  },
-  {
-    name: "model",
-    description: "Change the AI model",
-    icon: <ListIcon className="size-3.5" />,
-    action: "model",
-  },
-  {
-    name: "theme",
-    description: "Toggle dark/light mode",
-    icon: <PaletteIcon className="size-3.5" />,
-    action: "theme",
-  },
-  {
     name: "delete",
-    description: "Delete current chat",
+    description: "删除当前对话",
     icon: <XIcon className="size-3.5" />,
     action: "delete",
   },
   {
     name: "purge",
-    description: "Delete all chats",
+    description: "清空全部对话",
     icon: <BombIcon className="size-3.5" />,
     action: "purge",
   },
@@ -100,7 +72,7 @@ export function SlashCommandMenu({
       ref={menuRef}
     >
       <div className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">
-        Commands
+        快捷指令
       </div>
       <div className="max-h-64 overflow-y-auto pb-1 no-scrollbar">
         {filtered.map((cmd, index) => (

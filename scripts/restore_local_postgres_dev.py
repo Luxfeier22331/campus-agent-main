@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import subprocess
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from campus_ingestion_core.authenticated_notice_legacy_export import (
@@ -37,10 +38,13 @@ APP_API_DEV_VARS_PATH = Path("apps/app-api/.dev.vars")
 
 _ROOT_LOCAL_POSTGRES_ENV_KEYS = (
     "CAMPUS_SHARED_POSTGRES_URL",
+    "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
     "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
     "DOCUMENT_REGISTRY_DATABASE_URL",
+    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
     "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
     "RAW_ASSET_REGISTRY_DATABASE_URL",
+    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
     "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL",
 )
 
@@ -237,7 +241,7 @@ def merge_authenticated_notice_normalized_batches(
         filtered_notice_count=len(merged_records),
         original_notice_count=_resolve_original_notice_count(manifests[0]),
         export_scope=export_scope,
-        exported_at=datetime.now(timezone.utc).isoformat(),
+        exported_at=datetime.now(UTC).isoformat(),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -420,9 +424,7 @@ def capture_pre_local_postgres_backups(
         "app_api_dev_vars": repo_root / APP_API_DEV_VARS_BACKUP_PATH,
     }
     root_env_path = repo_root / ".env"
-    current_root_values = (
-        parse_env_file(root_env_path) if root_env_path.exists() else {}
-    )
+    current_root_values = parse_env_file(root_env_path) if root_env_path.exists() else {}
     current_runtime_url = current_root_values.get("CAMPUS_SHARED_POSTGRES_URL", "").strip()
     if current_runtime_url and not is_local_postgres_database_url(current_runtime_url):
         _write_backup_snapshot(
@@ -448,7 +450,7 @@ def _rewrite_root_env_for_local_postgres(
     target_path = repo_root / ".env"
     content = replace_or_append_env_values(
         load_target_seed(target_path),
-        {key: local_postgres_url for key in _ROOT_LOCAL_POSTGRES_ENV_KEYS},
+        dict.fromkeys(_ROOT_LOCAL_POSTGRES_ENV_KEYS, local_postgres_url),
     )
     target_path.write_text(content, encoding="utf-8")
     return target_path

@@ -1,7 +1,15 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
-import type { Vote } from "@/lib/db/schema";
-import type { ChatMessage, ChatMessagePart, PlaceCardData } from "@/lib/types";
+import { useState } from "react";
+import type { AnswerFeedback } from "@/lib/db/schema";
+import type {
+  CampusServiceTraceCardData,
+  ChatMessage,
+  ChatMessagePart,
+  PlaceCardData,
+  SourceActionData,
+  SourceItemData,
+} from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { MessageContent, MessageResponse } from "../ai-elements/message";
 import { Shimmer } from "../ai-elements/shimmer";
@@ -172,13 +180,234 @@ function PlaceCardBlock({
   );
 }
 
+function sourceKindLabel(item: SourceItemData): string {
+  switch (item.sourceKind) {
+    case "curriculum":
+      return "培养方案";
+    case "regulation":
+      return "规章";
+    case "notice":
+      return item.targetKind === "restricted_notice" ? "校内通知" : "通知";
+    case "campus_service":
+      return "服务";
+    case "document":
+      return "文档";
+  }
+}
+
+function SourceMeta({ item }: { item: SourceItemData }) {
+  const metaItems = [
+    item.collectionLabel || item.publisherLabel,
+    item.versionLabel || item.publishedAt,
+    item.pageLabel,
+  ].filter(Boolean);
+
+  if (metaItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+      {metaItems.map((item) => (
+        <span key={item}>{item}</span>
+      ))}
+    </div>
+  );
+}
+
+function sanitizeSourceActionHref(href: string | null): string | null {
+  const trimmed = href?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? trimmed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function SourceActionLink({
+  action,
+  title,
+}: {
+  action: SourceActionData;
+  title: string;
+}) {
+  const label = sourceActionText(action);
+  const safeHref = sanitizeSourceActionHref(action.href);
+  if (!safeHref) {
+    return (
+      <span className="rounded-md border border-border/60 px-2.5 py-1 text-[12px] text-muted-foreground">
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <a
+      aria-label={`${label}：${title}`}
+      className="inline-flex min-h-10 items-center rounded-md border border-border/70 px-2.5 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:border-foreground/20 hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-8"
+      href={safeHref}
+    >
+      {label}
+    </a>
+  );
+}
+
+function sourceActionText(action: SourceActionData): string {
+  switch (action.label) {
+    case "查看文档":
+      return "查看文档";
+    case "打开原通知":
+      return "打开原通知";
+    case "查看整理版":
+      return "查看整理版";
+    case "需登录查看":
+      return "需登录查看";
+    case "原通知":
+      return "原通知";
+  }
+}
+
+function SourceItemRow({ item }: { item: SourceItemData }) {
+  const context = item.sectionTitle || item.pageLabel || item.publishedAt || item.publisherLabel;
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/15 px-3 py-2.5">
+      <div className="flex flex-wrap items-start gap-2">
+        <span className="shrink-0 rounded-md border border-border/70 bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
+          {sourceKindLabel(item)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium leading-[1.45] text-foreground">
+            {item.title}
+          </div>
+          {context ? (
+            <div className="mt-0.5 text-[12px] leading-[1.45] text-muted-foreground">
+              {context}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {item.snippet ? (
+        <p className="line-clamp-2 text-[12px] leading-[1.55] text-muted-foreground">
+          {item.snippet}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SourceMeta item={item} />
+        <div className="flex flex-wrap gap-1.5">
+          <SourceActionLink action={item.primaryAction} title={item.title} />
+          {item.secondaryActions.map((action) => (
+            <SourceActionLink action={action} key={`${action.label}:${action.href}`} title={item.title} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SourceItemsBlock({
+  part,
+}: {
+  part: Extract<ChatMessagePart, { type: "data-source-items" }>;
+}) {
+  const items = part.data;
+  const [expanded, setExpanded] = useState(false);
+  if (!items.length) {
+    return null;
+  }
+
+  const visibleItems = expanded ? items : items.slice(0, 3);
+  const hiddenCount = Math.max(0, items.length - visibleItems.length);
+
+  return (
+    <section
+      aria-label="参考来源"
+      className="w-full max-w-[min(100%,40rem)] rounded-xl border border-border/70 bg-background/80 p-3 shadow-[var(--shadow-card)]"
+      data-testid="source-items"
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-[12px] font-medium text-muted-foreground">参考来源</div>
+        {items.length > 3 ? (
+          <button
+            className="rounded-md px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setExpanded((value) => !value)}
+            type="button"
+          >
+            {expanded ? "收起" : `查看全部 ${items.length} 条`}
+          </button>
+        ) : null}
+      </div>
+      <div className="grid gap-2">
+        {visibleItems.map((item) => (
+          <SourceItemRow
+            item={item}
+            key={`${item.targetKind}:${item.primaryAction.href ?? item.title}`}
+          />
+        ))}
+      </div>
+      {hiddenCount > 0 ? (
+        <div className="mt-2 text-[11px] text-muted-foreground">
+          还有 {hiddenCount} 条来源未展开
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CampusServiceTraceCardsBlock({
+  part,
+}: {
+  part: Extract<ChatMessagePart, { type: "data-campus-service-trace-cards" }>;
+}) {
+  const cards = part.data;
+  if (!cards.length) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-label="信息溯源"
+      className="w-full max-w-[min(100%,40rem)] rounded-2xl border border-border/70 bg-background/80 p-3 shadow-[var(--shadow-card)]"
+      data-testid="campus-service-trace-cards"
+    >
+      <div className="mb-2 text-[12px] font-medium text-muted-foreground">信息溯源</div>
+      <div className="grid gap-2">
+        {cards.map((card: CampusServiceTraceCardData) => (
+          <div
+            className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5"
+            key={`${card.title}:${card.refs.join("|")}`}
+          >
+            <div className="text-[12px] font-semibold text-foreground">{card.title}</div>
+            <ul className="mt-1.5 list-disc space-y-1 pl-5 text-[12px] leading-[1.55] text-muted-foreground">
+              {card.refs.map((ref) => (
+                <li key={ref}>{ref}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 const PurePreviewMessage = ({
   addToolApprovalResponse,
   chatId,
   message,
-  vote,
+  feedback,
   isLoading,
-  setMessages: _setMessages,
+  setMessages,
   regenerate: _regenerate,
   isReadonly,
   requiresScrollPadding: _requiresScrollPadding,
@@ -187,7 +416,7 @@ const PurePreviewMessage = ({
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
   chatId: string;
   message: ChatMessage;
-  vote: Vote | undefined;
+  feedback: AnswerFeedback | null | undefined;
   isLoading: boolean;
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
@@ -283,6 +512,14 @@ const PurePreviewMessage = ({
       return <PlaceCardBlock key={key} part={part} />;
     }
 
+    if (type === "data-source-items") {
+      return <SourceItemsBlock key={key} part={part} />;
+    }
+
+    if (type === "data-campus-service-trace-cards") {
+      return <CampusServiceTraceCardsBlock key={key} part={part} />;
+    }
+
     if (type === "tool-getWeather") {
       const { toolCallId, state } = part;
       const approvalId = (part as { approval?: { id: string } }).approval?.id;
@@ -308,7 +545,7 @@ const PurePreviewMessage = ({
               <ToolHeader state="output-denied" type="tool-getWeather" />
               <ToolContent>
                 <div className="px-4 py-3 text-muted-foreground text-sm">
-                  Weather lookup was denied.
+                  天气查询已取消。
                 </div>
               </ToolContent>
             </Tool>
@@ -346,12 +583,12 @@ const PurePreviewMessage = ({
                       addToolApprovalResponse({
                         id: approvalId,
                         approved: false,
-                        reason: "User denied weather lookup",
+                        reason: "用户取消天气查询",
                       });
                     }}
                     type="button"
                   >
-                    Deny
+                    拒绝
                   </button>
                   <button
                     className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground text-sm transition-colors hover:bg-primary/90"
@@ -363,7 +600,7 @@ const PurePreviewMessage = ({
                     }}
                     type="button"
                   >
-                    Allow
+                    允许
                   </button>
                 </div>
               )}
@@ -382,7 +619,7 @@ const PurePreviewMessage = ({
             className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-500 dark:bg-red-950/50"
             key={toolCallId}
           >
-            Error creating document: {String(part.output.error)}
+            创建文档失败：{String(part.output.error)}
           </div>
         );
       }
@@ -405,7 +642,7 @@ const PurePreviewMessage = ({
             className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-500 dark:bg-red-950/50"
             key={toolCallId}
           >
-            Error updating document: {String(part.output.error)}
+            更新文档失败：{String(part.output.error)}
           </div>
         );
       }
@@ -439,7 +676,7 @@ const PurePreviewMessage = ({
                 output={
                   "error" in part.output ? (
                     <div className="rounded border p-2 text-red-500">
-                      Error: {String(part.output.error)}
+                      请求建议失败：{String(part.output.error)}
                     </div>
                   ) : (
                     <DocumentToolResult
@@ -466,14 +703,15 @@ const PurePreviewMessage = ({
       key={`action-${message.id}`}
       message={message}
       onEdit={onEdit ? () => onEdit(message) : undefined}
-      vote={vote}
+      feedback={feedback}
+      setMessages={setMessages}
     />
   );
 
   const content = isThinking ? (
     <div className="flex h-[calc(13px*1.65)] items-center text-[13px] leading-[1.65]">
       <Shimmer className="font-medium" duration={1}>
-        Thinking...
+        正在生成回答...
       </Shimmer>
     </div>
   ) : (
@@ -533,7 +771,7 @@ export const ThinkingMessage = () => {
 
         <div className="flex h-[calc(13px*1.65)] items-center text-[13px] leading-[1.65]">
           <Shimmer className="font-medium" duration={1}>
-            Thinking...
+            正在生成回答...
           </Shimmer>
         </div>
       </div>

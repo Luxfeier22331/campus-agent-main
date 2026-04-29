@@ -1,22 +1,21 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from datetime import datetime, timezone
-import json
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
-from typing import Iterator
 from uuid import uuid4
 
-
-_CURRENT_RUNTIME_EVENT_SINK: ContextVar["RuntimeEventWriter | None"] = ContextVar(
+_CURRENT_RUNTIME_EVENT_SINK: ContextVar[RuntimeEventWriter | None] = ContextVar(
     "campus_evals_runtime_event_sink",
     default=None,
 )
 _CURRENT_RUNTIME_EVENT_CONTEXT: ContextVar[dict[str, object]] = ContextVar(
     "campus_evals_runtime_event_context",
-    default={},
+    default=None,
 )
 
 
@@ -37,17 +36,16 @@ class RuntimeEventWriter:
 
     def emit(self, event_type: str, **payload: object) -> None:
         record = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "event_type": event_type,
             "session_id": self.session_id,
             **current_runtime_event_context(),
             **payload,
         }
         serialized = json.dumps(record, ensure_ascii=False)
-        with self._lock:
-            with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(serialized)
-                handle.write("\n")
+        with self._lock, self.path.open("a", encoding="utf-8") as handle:
+            handle.write(serialized)
+            handle.write("\n")
         if self.verbose:
             message = _render_verbose_message(record)
             if message:
@@ -55,7 +53,9 @@ class RuntimeEventWriter:
 
 
 @contextmanager
-def bind_runtime_event_sink(writer: RuntimeEventWriter | None) -> Iterator[RuntimeEventWriter | None]:
+def bind_runtime_event_sink(
+    writer: RuntimeEventWriter | None,
+) -> Iterator[RuntimeEventWriter | None]:
     token: Token[RuntimeEventWriter | None] = _CURRENT_RUNTIME_EVENT_SINK.set(writer)
     try:
         yield writer
@@ -77,7 +77,7 @@ def bind_runtime_event_context(**fields: object) -> Iterator[dict[str, object]]:
 
 
 def current_runtime_event_context() -> dict[str, object]:
-    return dict(_CURRENT_RUNTIME_EVENT_CONTEXT.get())
+    return dict(_CURRENT_RUNTIME_EVENT_CONTEXT.get() or {})
 
 
 def emit_runtime_event(event_type: str, **payload: object) -> None:
@@ -87,7 +87,9 @@ def emit_runtime_event(event_type: str, **payload: object) -> None:
     sink.emit(event_type, **payload)
 
 
-def load_runtime_events(path: str | Path, *, session_id: str | None = None) -> list[dict[str, object]]:
+def load_runtime_events(
+    path: str | Path, *, session_id: str | None = None
+) -> list[dict[str, object]]:
     resolved = Path(path)
     if not resolved.exists():
         return []
@@ -103,7 +105,9 @@ def load_runtime_events(path: str | Path, *, session_id: str | None = None) -> l
     return events
 
 
-def summarize_provider_events(path: str | Path, *, session_id: str | None = None) -> dict[str, object]:
+def summarize_provider_events(
+    path: str | Path, *, session_id: str | None = None
+) -> dict[str, object]:
     records = load_runtime_events(path, session_id=session_id)
     grouped: dict[tuple[str, str, str], dict[str, object]] = {}
     for record in records:
@@ -169,10 +173,7 @@ def summarize_provider_events(path: str | Path, *, session_id: str | None = None
         if event_type in {"supplemental_breaker_opened", "supplemental_breaker_fast_failed"}:
             bucket["circuit_open_count"] = int(bucket["circuit_open_count"]) + 1
 
-    providers = [
-        bucket
-        for _, bucket in sorted(grouped.items())
-    ]
+    providers = [bucket for _, bucket in sorted(grouped.items())]
     return {
         "schema_version": 1,
         "session_id": session_id,
@@ -232,7 +233,9 @@ def summarize_phase15_request_truth(
     return {
         "schema_version": 1,
         "request_count": len(records),
-        "retrieval_adequacy_verdict_counts": dict(sorted(retrieval_adequacy_verdict_counts.items())),
+        "retrieval_adequacy_verdict_counts": dict(
+            sorted(retrieval_adequacy_verdict_counts.items())
+        ),
         "retrieval_adequacy_reason_counts": dict(sorted(retrieval_adequacy_reason_counts.items())),
         "grounding_verdict_counts": dict(sorted(grounding_verdict_counts.items())),
         "unsupported_claim_type_counts": dict(sorted(unsupported_claim_type_counts.items())),

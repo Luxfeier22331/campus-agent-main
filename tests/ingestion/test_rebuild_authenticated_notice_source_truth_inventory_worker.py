@@ -6,7 +6,6 @@ import json
 import unittest
 from unittest.mock import patch
 
-
 worker = importlib.import_module(
     "campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory"
 )

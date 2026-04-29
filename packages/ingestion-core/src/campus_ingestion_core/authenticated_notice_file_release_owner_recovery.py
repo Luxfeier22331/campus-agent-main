@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import re
-from typing import Any, Mapping, Sequence
 import unicodedata
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
+from campus_ingestion_core.authenticated_notice_file_release_inventory import (
+    AuthenticatedNoticeFileReleaseInventoryEntry,
+    AuthenticatedNoticeFileReleaseInventoryStore,
+)
 
 _FILE_RELEASE_EXPORT_SCHEMA_VERSION = "authenticated_notice_file_release_export_v1"
 _FILE_EXTENSION_RE = re.compile(
@@ -83,9 +88,7 @@ def load_authenticated_notice_file_release_export(
 
     export_manifest: dict[str, Any] | None = None
     if manifest_path is not None:
-        export_manifest = _as_record(
-            json.loads(Path(manifest_path).read_text(encoding="utf-8"))
-        )
+        export_manifest = _as_record(json.loads(Path(manifest_path).read_text(encoding="utf-8")))
         schema_version = _optional_text(export_manifest.get("schema_version"))
         if schema_version != _FILE_RELEASE_EXPORT_SCHEMA_VERSION:
             raise ValueError(
@@ -151,9 +154,7 @@ def resolve_file_release_owner_recovery_readiness(
             reason="file_release_match_ambiguous",
             match_count=len(best_matches),
             selected_match=None,
-            ambiguous_file_release_ids=tuple(
-                sorted(item.file_release_id for item in best_matches)
-            ),
+            ambiguous_file_release_ids=tuple(sorted(item.file_release_id for item in best_matches)),
             **base_kwargs,
         )
 
@@ -178,6 +179,85 @@ def resolve_file_release_owner_recovery_readiness(
     )
 
 
+def resolve_file_release_owner_recovery_readiness_from_inventory_entries(
+    *,
+    owner_title_hint: str,
+    inventory_entries: Sequence[AuthenticatedNoticeFileReleaseInventoryEntry],
+    owner_kind: str = "file_release_document",
+    relation_type: str | None = "file_release_ref",
+) -> FileReleaseOwnerRecoveryReadinessReport:
+    entries = tuple(inventory_entries)
+    return resolve_file_release_owner_recovery_readiness(
+        owner_title_hint=owner_title_hint,
+        bundle_records=tuple(
+            inventory_entry_to_file_release_bundle_record(entry) for entry in entries
+        ),
+        export_manifest=_inventory_entries_export_manifest(entries),
+        owner_kind=owner_kind,
+        relation_type=relation_type,
+    )
+
+
+def resolve_file_release_owner_recovery_readiness_from_inventory_store(
+    *,
+    owner_title_hint: str,
+    inventory_store: AuthenticatedNoticeFileReleaseInventoryStore,
+    corpus: str,
+    collection: str,
+    owner_kind: str = "file_release_document",
+    relation_type: str | None = "file_release_ref",
+    file_release_ids: Sequence[int | str] = (),
+) -> FileReleaseOwnerRecoveryReadinessReport:
+    return resolve_file_release_owner_recovery_readiness_from_inventory_entries(
+        owner_title_hint=owner_title_hint,
+        inventory_entries=inventory_store.list_by_scope(
+            corpus,
+            collection,
+            file_release_ids=file_release_ids,
+        ),
+        owner_kind=owner_kind,
+        relation_type=relation_type,
+    )
+
+
+def inventory_entry_to_file_release_bundle_record(
+    entry: AuthenticatedNoticeFileReleaseInventoryEntry,
+) -> dict[str, Any]:
+    payload = dict(entry.record or {})
+    file_release = _as_record(payload.get("file_release"))
+    released_file = _as_record(payload.get("released_file"))
+    if file_release and released_file and "file_release_id" in payload:
+        return {
+            "file_release_id": _required_int(payload.get("file_release_id")),
+            "file_release": file_release,
+            "released_file": released_file,
+        }
+    return {
+        "file_release_id": entry.file_release_id,
+        "file_release": {
+            "filename": entry.filename,
+            "upfilename": entry.upfilename,
+            "filecode": entry.filecode,
+            "filetime": entry.filetime,
+            "filedepartment": entry.filedepartment,
+            "explain_department": entry.explain_department,
+            "file_type_id": entry.file_type_id,
+            "file_type_name": entry.file_type_name,
+            "resolved_download_url": entry.resolved_download_url,
+        },
+        "released_file": {
+            "storage_provider": entry.released_file_storage_provider,
+            "bucket": entry.released_file_bucket,
+            "object_key": entry.released_file_object_key,
+            "sha256": entry.released_file_sha256,
+            "byte_size": entry.released_file_byte_size,
+            "ingest_status": entry.released_file_ingest_status,
+            "provenance_status": entry.released_file_provenance_status,
+            "original_filename": entry.filename,
+        },
+    }
+
+
 def _match_file_release_record(
     raw_record: Mapping[str, object],
     normalized_title_hint: str,
@@ -193,7 +273,9 @@ def _match_file_release_record(
     best_score = -1
     best_strategy: str | None = None
     best_title: str | None = None
-    for raw_title in _title_candidates(file_release=file_release, released_file=released_file_payload):
+    for raw_title in _title_candidates(
+        file_release=file_release, released_file=released_file_payload
+    ):
         normalized_candidate = _normalize_title_for_match(raw_title)
         if not normalized_candidate:
             continue
@@ -269,9 +351,23 @@ def _released_file_has_recoverable_source(released_file: FileReleaseResolvedFile
         and released_file.sha256
     ):
         return True
-    if released_file.storage_provider == "local" and released_file.local_path:
-        return True
-    return False
+    return bool(released_file.storage_provider == "local" and released_file.local_path)
+
+
+def _inventory_entries_export_manifest(
+    entries: Sequence[AuthenticatedNoticeFileReleaseInventoryEntry],
+) -> dict[str, object] | None:
+    if not entries:
+        return None
+    first = entries[0]
+    return {
+        "export_scope": first.export_scope,
+        "site_id": first.site_id,
+        "source_home_url": first.source_home_url,
+        "collector": {
+            "export_contract_version": first.collector_contract_version,
+        },
+    }
 
 
 def _normalize_title_for_match(value: str) -> str:
@@ -318,3 +414,16 @@ def _optional_int(value: object) -> int | None:
     if not text:
         return None
     return int(text)
+
+
+__all__ = [
+    "AuthenticatedNoticeFileReleaseExport",
+    "FileReleaseOwnerRecoveryMatch",
+    "FileReleaseOwnerRecoveryReadinessReport",
+    "FileReleaseResolvedFile",
+    "inventory_entry_to_file_release_bundle_record",
+    "load_authenticated_notice_file_release_export",
+    "resolve_file_release_owner_recovery_readiness",
+    "resolve_file_release_owner_recovery_readiness_from_inventory_entries",
+    "resolve_file_release_owner_recovery_readiness_from_inventory_store",
+]

@@ -1,0 +1,117 @@
+{
+  "batch_id": "internal_notice_consumption:projection_rebuild:378103b0e3a13dfd",
+  "consumption_status_counts": {
+    "ready_for_target_materialization": 1,
+    "retained_for_notice_query": 1
+  },
+  "entries": [
+    {
+      "answerability": "answerable",
+      "completeness_status": "complete",
+      "consumption_status": "retained_for_notice_query",
+      "default_agent": "notice-agent",
+      "primary_role": "notice_window",
+      "role_metadata": {
+        "admission_policy": "hold_notice_runtime",
+        "attachment_document_count": 0,
+        "attachment_processing_policy": "process",
+        "attachment_processing_reason": "route_requires_attachment_processing",
+        "attachment_ref_count": 1,
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:378103b0e3a13dfd",
+        "consumer_admission_command": "projection_rebuild",
+        "consumer_admission_created_at": "2026-04-28T02:43:40.109134+00:00",
+        "machine_processing_policy": "not_required",
+        "matched_body_patterns": [],
+        "matched_title_patterns": [
+          "浴室.*试运行",
+          "女浴室.*试运行"
+        ],
+        "multimodal_action_required": false,
+        "multimodal_consumption_policy": "not_required",
+        "multimodal_skipped_attachment_count": 0,
+        "notice_family": "facility_transport_classroom_status",
+        "notice_risk_label": "body_with_text_attachments",
+        "notice_title": "关于静园10号楼负一层女浴室试运行的通知",
+        "notice_type_names": [
+          "办公通知"
+        ],
+        "ocr_required_count": 1,
+        "owner_expectation_count": 0,
+        "pending_multimodal_attachment_count": 0,
+        "reference_only_count": 0,
+        "source_multimodal_processing_required_count": 0,
+        "suggested_consumption_route": "service_status_candidate",
+        "text_extractable_count": 0
+      },
+      "semantic_owner": "notice_body",
+      "source_attachment_ref_ids": [],
+      "source_collection": "internal_notice",
+      "source_corpus": "campus_notices",
+      "source_document_id": "notice:muc_internal_portal:355650",
+      "source_family": "internal_notice_restricted",
+      "source_notice_document_id": "notice:muc_internal_portal:355650",
+      "source_notice_id": "355650",
+      "source_notice_release_time": "2026-04-15 16:21",
+      "target_surface": "notice_level_query",
+      "temporal_policy": "announcement_window",
+      "unit_id": "notice_unit:notice:muc_internal_portal:355650:notice_window",
+      "updated_at": "2026-04-28T02:43:40.477530+00:00"
+    },
+    {
+      "answerability": "body_only_answerable",
+      "completeness_status": "complete",
+      "consumption_status": "ready_for_target_materialization",
+      "default_agent": "campus-services-agent",
+      "primary_role": "service_status_override",
+      "role_metadata": {
+        "admission_policy": "hold_notice_runtime",
+        "attachment_document_ids": [
+          "notice_attachment:muc_internal_portal:355650:attachment-0001"
+        ],
+        "attachment_processing_policy": "process",
+        "attachment_processing_reason": "route_requires_attachment_processing",
+        "consumer_admission_batch_id": "internal_notice_consumption:projection_rebuild:378103b0e3a13dfd",
+        "consumer_admission_command": "projection_rebuild",
+        "consumer_admission_created_at": "2026-04-28T02:43:40.109134+00:00",
+        "machine_processing_policy": "not_required",
+        "matched_body_patterns": [],
+        "matched_title_patterns": [
+          "浴室.*试运行",
+          "女浴室.*试运行"
+        ],
+        "notice_category": "service_status_override",
+        "notice_family": "facility_transport_classroom_status",
+        "notice_query_reason": "service_status_typed_materialization_candidate",
+        "notice_title": "关于静园10号楼负一层女浴室试运行的通知",
+        "service_status_candidate_kind": "service_status",
+        "suggested_consumption_route": "service_status_candidate"
+      },
+      "semantic_owner": "notice_body",
+      "source_attachment_ref_ids": [
+        "attachment-0001"
+      ],
+      "source_collection": "internal_notice",
+      "source_corpus": "campus_notices",
+      "source_document_id": "notice:muc_internal_portal:355650",
+      "source_family": "internal_notice_restricted",
+      "source_notice_document_id": "notice:muc_internal_portal:355650",
+      "source_notice_id": "355650",
+      "source_notice_release_time": "2026-04-15 16:21",
+      "target_surface": "campus_services/service_status_candidate",
+      "temporal_policy": "current_override",
+      "unit_id": "notice_unit:notice:muc_internal_portal:355650:service_status_override",
+      "updated_at": "2026-04-28T02:43:40.477585+00:00"
+    }
+  ],
+  "held_in_notice_runtime_count": 1,
+  "no_adoption_count": 0,
+  "notice_count": 1,
+  "pending_multimodal_processing_count": 0,
+  "primary_role_counts": {
+    "notice_window": 1,
+    "service_status_override": 1
+  },
+  "projection_entry_count": 2,
+  "ready_for_target_count": 1,
+  "retained_for_notice_query_count": 1
+}

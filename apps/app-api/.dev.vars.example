@@ -2,6 +2,13 @@ APP_API_NAME=campus-agent-app-api
 APP_API_ENVIRONMENT=development
 # Generate a high-entropy secret with at least 32 characters.
 BETTER_AUTH_SECRET=replace-with-dev-secret
+AUTH_TURNSTILE_SECRET_KEY=replace-with-turnstile-secret-key
+RESEND_API_KEY=replace-with-resend-api-key
+AUTH_RESET_EMAIL_FROM=Campus Agent <auth@example.com>
+# Optional. Keep empty unless your transactional mail setup needs a distinct reply-to.
+AUTH_RESET_EMAIL_REPLY_TO=
+# Generate a different high-entropy secret for anonymous safety identifier derivation.
+APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 # Must match the deployed origin of `apps/public-chat-web`.
 PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com
 # Comma-separated campus email domain suffixes allowed for end-user sign-up/sign-in.
@@ -13,6 +20,10 @@ SUPERVISOR_API_BASE_URL=https://supervisor.internal
 SUPERVISOR_API_SHARED_SECRET=replace-with-supervisor-shared-secret
 SUPERVISOR_API_TIMEOUT_MS=8000
 SUPERVISOR_API_EVAL_TIMEOUT_MS=30000
+# Optional. Required only when SUPERVISOR_API_BASE_URL is protected by
+# Cloudflare Access service-token authentication.
+SUPERVISOR_API_ACCESS_CLIENT_ID=
+SUPERVISOR_API_ACCESS_CLIENT_SECRET=
 # Comma-separated exact operator emails allowed through the panel bridge.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 # Must match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`.
@@ -23,12 +34,20 @@ APP_API_DATABASE_SSLMODE=prefer
 # Required for live `official_web` control-plane smoke. This must match
 # `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`.
 APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=
+# Required for live `wechat_official_account` capture control-plane smoke. This
+# must match `apps/wechat-official-account-collector/.env`
+# `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`.
+APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN=
 APP_API_OFFICIAL_WEB_HANDOFF_URL=
 APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=
 APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS=8000
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=app-api@dev-local
+# Optional panel deep-link templates. Placeholders are URL-encoded before use.
+# Supported placeholders: {requestId}, {traceId}, {errorCode}, {selectedTarget}, {surface}, {status}.
+APP_API_OPERATOR_TRACE_LINK_TEMPLATE=
+APP_API_OPERATOR_ISSUE_LINK_TEMPLATE=
 # Copy the base domain of your Axiom org edge deployment, for example:
 # https://us-east-1.aws.edge.axiom.co or https://eu-central-1.aws.edge.axiom.co
 AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co
@@ -40,4 +59,5 @@ AXIOM_TOKEN=
 # For local Wrangler / Drizzle commands, place the process-level database URLs in
 # `apps/app-api/.env` instead. `pnpm dev`, `pnpm db:generate`, and `pnpm db:migrate`
 # load that file before invoking the underlying tool.
-# APP_API_MANAGEMENT_DATABASE_URL is used only for schema generation and migrations.
+# APP_API_OPERATOR_DATABASE_URL lives in `apps/app-api/.env` for schema generation,
+# drift reconciliation, and repo-owned operator scripts.

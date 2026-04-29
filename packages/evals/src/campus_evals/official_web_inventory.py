@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from functools import lru_cache
 import json
+from functools import lru_cache
 from pathlib import Path
-
 
 OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH = (
     Path(__file__).resolve().parents[2]
@@ -28,9 +27,7 @@ def load_official_web_current_truth_inventory() -> dict[str, object]:
     if not isinstance(inventory_triage_summary, dict):
         raise ValueError("official_web current truth inventory summary must be an object")
 
-    computed_inventory_counts: dict[str, int] = {
-        disposition: 0 for disposition in _ALLOWED_INVENTORY_DISPOSITIONS
-    }
+    computed_inventory_counts: dict[str, int] = dict.fromkeys(_ALLOWED_INVENTORY_DISPOSITIONS, 0)
 
     for raw_entry in documents:
         if not isinstance(raw_entry, dict):
@@ -84,8 +81,7 @@ def official_web_current_truth_doc_ids_by_bucket() -> dict[str, frozenset[str]]:
         doc_ids_by_bucket[disposition].add(doc_id)
 
     partition = {
-        bucket: frozenset(sorted(doc_ids))
-        for bucket, doc_ids in doc_ids_by_bucket.items()
+        bucket: frozenset(sorted(doc_ids)) for bucket, doc_ids in doc_ids_by_bucket.items()
     }
     covered_doc_ids = set().union(*partition.values())
     total_partition_count = sum(len(doc_ids) for doc_ids in partition.values())
@@ -139,13 +135,13 @@ def official_web_retain_inventory_only_titles() -> frozenset[str]:
 
 __all__ = [
     "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
+    "load_official_web_current_truth_inventory",
     "official_web_current_truth_doc_ids_by_bucket",
     "official_web_future_fresh_news_doc_ids",
     "official_web_future_fresh_news_titles",
-    "load_official_web_current_truth_inventory",
     "official_web_inventory_only_doc_ids_by_disposition",
     "official_web_inventory_only_titles_by_disposition",
+    "official_web_release_gate_doc_ids",
     "official_web_retain_inventory_only_doc_ids",
     "official_web_retain_inventory_only_titles",
-    "official_web_release_gate_doc_ids",
 ]
