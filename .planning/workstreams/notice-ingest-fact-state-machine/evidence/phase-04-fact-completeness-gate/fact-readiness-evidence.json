@@ -1,0 +1,412 @@
+{
+  "schema_version": "notice_fact_readiness_evidence.v1",
+  "entries": [
+    {
+      "source_notice_id": "355881",
+      "target": "transport_schedule",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "ready_from_text",
+        "target_admission_state": "stage_ready",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "missing_fact_groups": [],
+        "reason_codes": [
+          "body_facts_complete",
+          "supplemental_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:74bc7d2bcc5001d8",
+            "unit_id": "searchable:notice:muc_internal_portal:355881",
+            "source_notice_id": "355881",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "qr_or_reservation_instruction",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": false,
+            "reason_codes": [
+              "qr_or_reservation_instruction",
+              "supplemental_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355881",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355881"
+        }
+      }
+    },
+    {
+      "source_notice_id": "355867",
+      "target": "transport_schedule",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "blocked_by_required_media",
+        "target_admission_state": "needs_multimodal",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "reason_codes": [
+          "required_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:4b05191086d926ff",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0002",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:b87915ec35e8ed8d",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:dfd0f5dd94beacad",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0003",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [
+          {
+            "candidate_id": "notice-mm:4b05191086d926ff",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0002",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:b87915ec35e8ed8d",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:dfd0f5dd94beacad",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0003",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "provenance": {
+          "source_notice_id": "355867",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355867"
+        }
+      }
+    },
+    {
+      "source_notice_id": "355122",
+      "target": "transport_schedule",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "blocked_by_required_media",
+        "target_admission_state": "needs_multimodal",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "reason_codes": [
+          "required_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:9e8f43da3ac4d64b",
+            "unit_id": "searchable:notice:muc_internal_portal:355122",
+            "source_notice_id": "355122",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [
+          {
+            "candidate_id": "notice-mm:9e8f43da3ac4d64b",
+            "unit_id": "searchable:notice:muc_internal_portal:355122",
+            "source_notice_id": "355122",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "provenance": {
+          "source_notice_id": "355122",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355122"
+        }
+      }
+    },
+    {
+      "source_notice_id": "355512",
+      "target": "transport_schedule",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "ready_from_text",
+        "target_admission_state": "stage_ready",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "missing_fact_groups": [],
+        "reason_codes": [
+          "body_facts_complete"
+        ],
+        "media_states": [],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355512",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355512"
+        }
+      }
+    },
+    {
+      "source_notice_id": "355283",
+      "target": "service_status",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "service_status",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "missing",
+        "target_admission_state": "defer",
+        "required_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "reason_codes": [
+          "required_fact_missing"
+        ],
+        "media_states": [],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355283",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355283"
+        }
+      }
+    },
+    {
+      "source_notice_id": "355549",
+      "target": "service_status",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "service_status",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "blocked_by_required_media",
+        "target_admission_state": "needs_multimodal",
+        "required_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "reason_codes": [
+          "required_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:1eb24c870f77bf9d",
+            "unit_id": "searchable:notice:muc_internal_portal:355549",
+            "source_notice_id": "355549",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "visual_text_only",
+            "media_state": "ocr_pending",
+            "target": "service_status",
+            "target_blocking": true,
+            "reason_codes": [
+              "visual_text_only",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [
+          {
+            "candidate_id": "notice-mm:1eb24c870f77bf9d",
+            "unit_id": "searchable:notice:muc_internal_portal:355549",
+            "source_notice_id": "355549",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "visual_text_only",
+            "media_state": "ocr_pending",
+            "target": "service_status",
+            "target_blocking": true,
+            "reason_codes": [
+              "visual_text_only",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "provenance": {
+          "source_notice_id": "355549",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355549"
+        }
+      }
+    },
+    {
+      "source_notice_id": "355650",
+      "target": "service_status",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "service_status",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "ready_from_text",
+        "target_admission_state": "stage_ready",
+        "required_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "ready_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "missing_fact_groups": [],
+        "reason_codes": [
+          "body_facts_complete",
+          "supplemental_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:d59834a9741c528b",
+            "unit_id": "searchable:notice:muc_internal_portal:355650",
+            "source_notice_id": "355650",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "supplemental_location_visual",
+            "media_state": "ocr_pending",
+            "target": "service_status",
+            "target_blocking": false,
+            "reason_codes": [
+              "supplemental_location_visual",
+              "supplemental_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355650",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355650"
+        }
+      }
+    }
+  ]
+}

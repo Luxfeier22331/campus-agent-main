@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -16,13 +16,13 @@ updated: 2026-04-30
 
 ## Phase Status
 
-- [ ] **Phase 1: Failure Taxonomy And Sample Corpus** — 收集 schedule、service-status、regulation、WeChat/PDF、多媒体补充图样本，形成可复跑 fixture。
-- [ ] **Phase 2: State Machine Contract** — 冻结 source/media/fact/target 四层状态、transition、reason code、idempotency key 和 dry-run report schema。
-- [ ] **Phase 3: Media Role Classifier** — 实现媒体角色分类，让图片/附件区分 fact carrier、supplemental visual、QR/reservation instruction、unknown。
-- [ ] **Phase 4: Fact Completeness Gate** — 实现 text-first fact readiness，只有 required fact 缺失且 media 是 carrier 时才要求 OCR/multimodal。
-- [ ] **Phase 5: Target Replay Refactor** — 让 transport_schedule、service_status、regulation replay 消费 fact readiness，而不是直接消费 unit-level multimodal status。
-- [ ] **Phase 6: Evidence Replay And Acceptance** — 重放固定 corpus，证明 `355881` stage ready、`355867` OCR-primary、service-status/regulation 边界稳定。
-- [ ] **Phase 7: Guardrails And Closeout** — 增加防回流测试、rg/decomposition guard、docs/state closeout evidence。
+- [x] **Phase 1: Failure Taxonomy And Sample Corpus** — 收集 schedule、service-status、regulation、WeChat/PDF、多媒体补充图样本，形成可复跑 fixture。
+- [x] **Phase 2: State Machine Contract** — 冻结 source/media/fact/target 四层状态、transition、reason code、idempotency key 和 dry-run report schema。
+- [x] **Phase 3: Media Role Classifier** — 实现媒体角色分类，让图片/附件区分 fact carrier、supplemental visual、QR/reservation instruction、unknown。
+- [x] **Phase 4: Fact Completeness Gate** — 实现 text-first fact readiness，只有 required fact 缺失且 media 是 carrier 时才要求 OCR/multimodal。
+- [x] **Phase 5: Target Replay Refactor** — 让 transport_schedule、service_status、regulation replay 消费 fact readiness，而不是直接消费 unit-level multimodal status。
+- [x] **Phase 6: Evidence Replay And Acceptance** — 重放固定 corpus，证明 `355881` stage ready、`355867` OCR-primary、service-status/regulation 边界稳定。
+- [x] **Phase 7: Guardrails And Closeout** — 增加防回流测试、rg/decomposition guard、docs/state closeout evidence。
 
 ## Phase 1: Failure Taxonomy And Sample Corpus
 

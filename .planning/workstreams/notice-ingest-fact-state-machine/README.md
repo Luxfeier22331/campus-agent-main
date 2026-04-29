@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -11,6 +11,8 @@ updated: 2026-04-30
 
 本 workstream 负责把 collected notice 的 ingest / OCR / downstream replay 从
 notice-level 粗粒度 gating 收口为 fact-level 状态机。
+
+Completed on 2026-04-30.
 
 触发问题是 `355881`（`关于开通丰台校区社会实践专车的通知`）：正文已经包含完整班次事实，但因为 notice
 存在 pending inline image，当前 replay 把整条通知标记为 `multimodal_not_ready`，导致 7 条可从正文提取的
