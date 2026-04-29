@@ -237,6 +237,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
         '\t"bytes"\n'
         '\t"encoding/json"\n'
         '\t"fmt"\n'
+        '\t"io"\n'
         ")\n\n"
         "const (\n"
         f"\tBridgeVersion = {_go_quote(meta['bridge_version'])}\n"
@@ -347,7 +348,8 @@ func decodeStrictJSON(data []byte, target any) error {
 \tif err := decoder.Decode(target); err != nil {
 \t\treturn err
 \t}
-\tif decoder.More() {
+\tvar trailing any
+\tif err := decoder.Decode(&trailing); err != io.EOF {
 \t\treturn fmt.Errorf("unexpected trailing JSON content")
 \t}
 \treturn nil
