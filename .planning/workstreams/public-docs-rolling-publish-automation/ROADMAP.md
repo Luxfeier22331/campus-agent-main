@@ -20,19 +20,20 @@ updated: 2026-04-29
 - [x] **Phase 1: Manifest Check Contract And Release Ledger**
   — 冻结 current manifest pointer、digest/release id comparison、release ledger schema、
   dry-run output、状态机与 validation gates。
-- [ ] **Phase 2: Scheduled Runner And Single-flight Lock**
+- [x] **Phase 2: Scheduled Runner And Single-flight Lock**
   — 落地北京时间 `00:00 / 06:00 / 12:00 / 18:00` 的 scheduled check，
-  使用 UTC `0 4,10,16,22 * * *` 表达，并补齐 lock / no-change skip / stale-run cleanup。
-- [ ] **Phase 3: Build, Smoke, And Deploy Pipeline Integration**
+  controlled runner 使用 UTC `7 4,10,16,22 * * *` 触发，并补齐 lock / no-change skip /
+  stale-run cleanup。
+- [x] **Phase 3: Build, Smoke, And Deploy Pipeline Integration**
   — 把 changed manifest 接到 `apps/public-docs` 的
   `build:published-reader-assets`、preview smoke、`wrangler deploy` / staging deploy
   与 deployment id capture。
-- [ ] **Phase 4: Failure Handling, Retry, And Rollback Drill**
+- [x] **Phase 4: Failure Handling, Retry, And Rollback Drill**
   — 明确 build/smoke/deploy 失败不推进 deployed ledger；补齐 retry policy、manual
   rollback command、Cloudflare rollback evidence 与 previous-release continuity。
-- [ ] **Phase 5: Optional Deploy Hook Nudger**
+- [x] **Phase 5: Optional Deploy Hook Nudger**
   — 接入 webhook / deploy-hook 作为即时触发，但只触发 manifest check，不信任 payload
   直接发布。
-- [ ] **Phase 6: Production Acceptance And Operator Runbook**
+- [x] **Phase 6: Production Acceptance And Operator Runbook**
   — 完成 staging/prod dry-run、no-change、changed-manifest、failure、rollback
   证据与 operator 文档，收口为可长期运行的发布节奏。

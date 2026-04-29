@@ -27,6 +27,7 @@ export interface PublicDocsReleaseLedgerRecord {
 	candidateManifestDigest: string;
 	candidateReleaseId: string;
 	cloudflareDeploymentId?: string;
+	cloudflareVersionId?: string;
 	completedAt?: string;
 	environment: PublicDocsPublishEnvironment;
 	failureReason?: string;
@@ -34,10 +35,19 @@ export interface PublicDocsReleaseLedgerRecord {
 	lockId?: string;
 	previousManifestDigest?: string;
 	previousReleaseId?: string;
+	attemptNumber?: number;
+	retryOfRecordId?: string;
+	rollbackCommand?: string;
+	rollbackReason?: string;
+	rollbackTargetRecordId?: string;
+	rollbackTargetReleaseId?: string;
+	rollbackTargetVersionId?: string;
 	runnerId?: string;
+	scheduleKey?: string;
 	startedAt: string;
 	status: PublicDocsReleaseLedgerStatus;
 	surface: "public_docs";
+	trigger?: "forced" | "hook" | "manual" | "scheduled";
 	validation: PublicDocsManifestValidationResult;
 }
 
@@ -213,6 +223,16 @@ function validateLedgerRecord(record: PublicDocsReleaseLedgerRecord): void {
 	}
 	if (record.status === "deployed" && !record.validation.ok) {
 		throw new Error("deployed release ledger record requires successful validation");
+	}
+	if (
+		record.status === "rolled_back" &&
+		!(
+			record.rollbackTargetRecordId &&
+			record.rollbackTargetReleaseId &&
+			record.rollbackTargetVersionId
+		)
+	) {
+		throw new Error("rolled_back release ledger record requires rollback target metadata");
 	}
 }
 
