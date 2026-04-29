@@ -54,8 +54,7 @@ describe("WeChat official-account article source-truth", () => {
 						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/page-cover/0?wx_fmt=jpeg",
 					objectKey:
 						"wechat_official_account/中央民族大学学生会/2026/woa_ver_placeholder/capture/media/cover/original.jpg",
-					sourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/page-cover/0?wx_fmt=jpeg",
+					sourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/page-cover/0?wx_fmt=jpeg",
 				},
 				{
 					byteSize: 120_001,
@@ -65,12 +64,10 @@ describe("WeChat official-account article source-truth", () => {
 					finalUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
 					fetchErrorMessage: null,
 					mimeType: "image/jpeg",
-					normalizedSourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
+					normalizedSourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
 					objectKey:
 						"wechat_official_account/中央民族大学学生会/2026/woa_ver_placeholder/capture/media/inline-1/original.jpg",
-					sourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
+					sourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
 				},
 				{
 					byteSize: null,
@@ -80,11 +77,9 @@ describe("WeChat official-account article source-truth", () => {
 					finalUrl: null,
 					fetchErrorMessage: "403 Forbidden",
 					mimeType: null,
-					normalizedSourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
+					normalizedSourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
 					objectKey: null,
-					sourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
+					sourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
 				},
 			],
 		});
@@ -129,16 +124,14 @@ describe("WeChat official-account article source-truth", () => {
 				expect.objectContaining({
 					schemaVersion: "wechat_official_account_media_ref.v2",
 					resourceRole: "inline_image",
-					normalizedSourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
+					normalizedSourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-1/0?wx_fmt=jpeg",
 					captureStatus: "captured",
 					contentSha256: "b".repeat(64),
 				}),
 				expect.objectContaining({
 					schemaVersion: "wechat_official_account_media_ref.v2",
 					resourceRole: "inline_image",
-					normalizedSourceUrl:
-						"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
+					normalizedSourceUrl: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/inline-2/0?wx_fmt=jpeg",
 					captureStatus: "fetch_failed",
 					fetchErrorMessage: "403 Forbidden",
 					objectKey: null,

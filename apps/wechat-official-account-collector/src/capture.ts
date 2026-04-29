@@ -758,8 +758,8 @@ function inferImageExtension(input: { contentType: string; sourceUrl: string }):
 	if (direct) {
 		return direct;
 	}
-	const match = /\.([a-z0-9]{1,8})(?:$|[?#])/i.exec(input.sourceUrl);
-	return match ? `.${match[1]!.toLowerCase()}` : ".bin";
+	const extension = /\.([a-z0-9]{1,8})(?:$|[?#])/i.exec(input.sourceUrl)?.[1];
+	return extension ? `.${extension.toLowerCase()}` : ".bin";
 }
 
 function extractPageYear(page: FeedWeArticlesPage, capturedAt: string): string {

@@ -364,10 +364,15 @@ describe("FeedWe capture", () => {
 			writes.some((item) => item.objectKey.endsWith("/capture/wechat-article-fetch-metadata.json")),
 		).toBe(true);
 		expect(
-			writes.some((item) => item.objectKey.includes("/provider/wechat-page-parser/page-extraction.json")),
+			writes.some((item) =>
+				item.objectKey.includes("/provider/wechat-page-parser/page-extraction.json"),
+			),
 		).toBe(true);
 		expect(
-			writes.some((item) => item.objectKey.includes("/capture/media/") && item.objectKey.endsWith("/original.png")),
+			writes.some(
+				(item) =>
+					item.objectKey.includes("/capture/media/") && item.objectKey.endsWith("/original.png"),
+			),
 		).toBe(true);
 		expect(
 			writes.find((item) => item.objectKey.endsWith("/source-truth/article-manifest.json"))?.text,
@@ -623,9 +628,8 @@ describe("FeedWe capture", () => {
 			writes.find((item) => item.objectKey.endsWith("/capture/wechat-article-page.html"))?.text,
 		).toContain("环境异常");
 		expect(
-			writes.find(
-				(item) =>
-					item.objectKey.includes("/provider/wechat-page-parser/page-extraction.json"),
+			writes.find((item) =>
+				item.objectKey.includes("/provider/wechat-page-parser/page-extraction.json"),
 			)?.text,
 		).toContain('"pageKind": "verification"');
 		expect(
