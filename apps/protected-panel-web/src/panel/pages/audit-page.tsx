@@ -41,6 +41,7 @@ import {
 	formatSelectedTargetLabel,
 	formatSurfaceLabel,
 } from "../requests/request-formatters";
+import { buildRequestShowPath } from "../requests/request-routes";
 import type { OperatorAuditEventRecord } from "../types";
 import {
 	buildAuditDiagnosticEntries,
@@ -529,7 +530,7 @@ export function AuditPage() {
 															<Button
 																component={RouterLink}
 																size="small"
-																to={`/requests/${event.requestId}/show`}
+																to={buildRequestShowPath(event.requestId)}
 															>
 																{PANEL_COPY.auditPage.timeline.viewRequest}
 															</Button>
@@ -730,7 +731,7 @@ export function AuditPage() {
 								<Button
 									component={RouterLink}
 									size="small"
-									to={`/requests/${detailEvent?.requestId ?? selectedEvent?.requestId ?? ""}/show`}
+									to={buildRequestShowPath(detailEvent?.requestId ?? selectedEvent?.requestId ?? "")}
 									variant="contained"
 								>
 									{PANEL_COPY.auditPage.timeline.viewRequest}
