@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: planned
+status: completed
 created: 2026-04-29
 updated: 2026-04-29
 ---
@@ -48,7 +48,7 @@ Phase 3 必须清除：
 - `internal_notice_multimodal_attempt`。
 - `internal_notice_schedule_image_ocr_attempt`。
 - `wechat_public_notice_multimodal_attempt`。
-- notice-derived `service_status` / `transport_schedule` release、stage、current、read-model rows。
+- notice-derived `service_status` / `service_guide` / `transport_schedule` release、stage、current、read-model rows。
 
 ## Service Guide Lineage Rule
 
@@ -79,3 +79,11 @@ current release 处理：
 - derived/downstream 污染项归零或只剩明确豁免项。
 - stable PDF/handbook/campus-card service-guide rows 被保留。
 - reset execute report 与 dry-run manifest 对齐。
+
+## Completion Artifacts
+
+- `../../evidence/phase-03-reset-derived-state-to-collected-only/reset-derived-state.dry-run.json`
+- `../../evidence/phase-03-reset-derived-state-to-collected-only/reset-derived-state.backup.json` was generated as a local row-level backup and is intentionally not committed.
+- `../../evidence/phase-03-reset-derived-state-to-collected-only/reset-derived-state.execute.json`
+- `../../evidence/phase-03-reset-derived-state-to-collected-only/post-reset-collected-only-audit.json`
+- `SUMMARY.md`

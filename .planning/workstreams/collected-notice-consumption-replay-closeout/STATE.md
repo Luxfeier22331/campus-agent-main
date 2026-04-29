@@ -12,10 +12,10 @@ updated: 2026-04-29
 ## Current Position
 
 - status: `active`
-- current phase: `Phase 3`
-- current slice: reset implementation, dry-run report, backup, execute, and post-reset audit
+- current phase: `Phase 4`
+- current slice: dry-run reimport and universal searchable notice preview
 - last activity: 2026-04-29
-- last activity description: Phase 2 completed chain contract, consumer admission schema, searchable notice schema, downstream batching policy, dry-run report contract, and admission fixture. Phase 3 can now implement reset dry-run / backup / execute against the captured-but-not-imported boundary.
+- last activity description: Phase 3 reset completed. Dry-run planned 4197 deletes and one current-pointer update; backup captured 4200 rows; execute deleted 4197 rows, updated service_guide current to stable campus-card release, deleted zero source objects, and post-reset audit passed with collector run ledger still at 76 rows.
 
 ## Why This Workstream Exists
 
@@ -46,14 +46,20 @@ updated: 2026-04-29
 - [x] Froze searchable notice layer schema.
 - [x] Froze downstream batching policy for `regulation`, `transport_schedule`, and `service_status`.
 - [x] Froze dry-run no-write report contract.
+- [x] Implemented Phase 3 collected notice reset worker.
+- [x] Produced Phase 3 reset dry-run report.
+- [x] Produced Phase 3 backup artifact before execute.
+- [x] Executed reset to captured-but-not-imported boundary.
+- [x] Preserved stable `service_guide` current by promoting `service-guide-campus-card-20260427T110000`.
+- [x] Produced post-reset audit with `verdict=passed`.
 
 ## Current Phase Tasks
 
-- [ ] Implement or identify reset dry-run command and output report.
-- [ ] Produce reset backup artifact before write mode.
-- [ ] Execute reset to captured-but-not-imported boundary.
-- [ ] Apply source-lineage `service_guide` cleanup and stable-row preservation.
-- [ ] Produce post-reset audit proving captured objects and run ledger remain intact.
+- [ ] Build dry-run reimport plan from captured objects and run ledger.
+- [ ] Produce source-truth preview.
+- [ ] Produce searchable notice preview.
+- [ ] Produce searchable coverage report.
+- [ ] Confirm dry-run writes no DB or object-store state.
 
 ## Known Non-Overlap
 
@@ -83,8 +89,8 @@ Start with:
 - `README.md`
 - `REQUIREMENTS.md`
 - `ROADMAP.md`
-- `phases/phase-02-chain-contract-and-admission-design/SUMMARY.md`
-- `phases/phase-03-reset-derived-state-to-collected-only/PLAN.md`
-- `evidence/phase-01-current-state-audit-and-reset-manifest/reset-manifest.dry-run.json`
+- `phases/phase-03-reset-derived-state-to-collected-only/SUMMARY.md`
+- `phases/phase-04-dry-run-reimport-and-universal-search-preview/PLAN.md`
+- `evidence/phase-03-reset-derived-state-to-collected-only/post-reset-collected-only-audit.json`
 
-Phase 2 has resolved the reset boundary and admission contract. Phase 3 may implement reset dry-run and backup first; do not run execute mode until the dry-run report and backup artifact are present.
+Phase 3 cleared source-truth / holding / registry import rows. Phase 4 must rebuild from captured source objects and collector run ledger, not from prior source-truth rows.
