@@ -5,6 +5,9 @@ import type {
 } from "wechat-official-account-core";
 
 export const WECHAT_ARTICLE_PAGE_PARSER_VERSION = "wechat-page-parser.v1";
+const WECHAT_ARTICLE_USER_AGENT =
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+	"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 export interface ParsedWeChatOfficialAccountArticlePage {
 	bodyBlocks: string[];
@@ -30,8 +33,7 @@ export async function fetchWeChatOfficialAccountArticlePage(input: {
 		headers: {
 			accept: "text/html,application/xhtml+xml",
 			"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-			"user-agent":
-				"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0 Safari/537.36",
+			"user-agent": WECHAT_ARTICLE_USER_AGENT,
 		},
 		redirect: "follow",
 	});
@@ -85,25 +87,30 @@ export function parseWeChatOfficialAccountArticlePageHtml(input: {
 	const title = firstText(
 		normalizeBlockText($("#activity-name").first().text()),
 		attributeContent($, 'meta[property="og:title"]', "content"),
+		extractJsDecodeField(input.html, "title"),
 	);
 	const summary = normalizeMultilineText(
 		firstText(
 			attributeContent($, 'meta[property="og:description"]', "content"),
 			attributeContent($, 'meta[name="description"]', "content"),
+			extractJsDecodeField(input.html, "desc"),
 		),
 	);
 	const coverImageUrl = normalizeOptionalUrl(
 		firstText(
 			attributeContent($, 'meta[property="og:image"]', "content"),
 			attributeContent($, 'meta[name="twitter:image"]', "content"),
+			extractJsDecodeField(input.html, "cdn_url"),
 		),
 	);
-	const bodyBlocks = extractBodyBlocks($, contentRoot);
-	const inlineImageUrls = extractInlineImageUrls($, contentRoot);
+	const bodyBlocks = extractBodyBlocks($, contentRoot, input.html);
+	const inlineImageUrls = extractInlineImageUrls($, contentRoot, input.html);
 	const publishTime = extractPublishTime(input.html);
 	const pageKind = classifyWeChatArticlePage({
+		bodyBlockCount: bodyBlocks.length,
 		contentRootPresent: contentRoot.length > 0,
 		html: input.html,
+		inlineImageUrlCount: inlineImageUrls.length,
 	});
 	return {
 		bodyBlocks,
@@ -118,19 +125,28 @@ export function parseWeChatOfficialAccountArticlePageHtml(input: {
 }
 
 function classifyWeChatArticlePage(input: {
+	bodyBlockCount: number;
 	contentRootPresent: boolean;
 	html: string;
+	inlineImageUrlCount: number;
 }): WeChatArticlePageKind {
 	const verificationMarkers = ["环境异常", "去验证", "wappoc_appmsgcaptcha", "验证后可继续访问"];
 	if (verificationMarkers.some((marker) => input.html.includes(marker))) {
 		return "verification";
 	}
-	return input.contentRootPresent ? "article" : "non_article";
+	if (input.contentRootPresent || input.bodyBlockCount > 0 || input.inlineImageUrlCount > 0) {
+		return "article";
+	}
+	return "non_article";
 }
 
-function extractBodyBlocks($: CheerioAPI, contentRoot: CheerioElementSelection) {
+function extractBodyBlocks(
+	$: CheerioAPI,
+	contentRoot: CheerioElementSelection,
+	html: string,
+) {
 	if (contentRoot.length === 0) {
-		return [];
+		return splitTextBlocks(extractJsDecodeField(html, "content_noencode"));
 	}
 	const blocks: string[] = [];
 	const seen = new Set<string>();
@@ -160,9 +176,13 @@ function extractBodyBlocks($: CheerioAPI, contentRoot: CheerioElementSelection) 
 	return blocks;
 }
 
-function extractInlineImageUrls($: CheerioAPI, contentRoot: CheerioElementSelection) {
+function extractInlineImageUrls(
+	$: CheerioAPI,
+	contentRoot: CheerioElementSelection,
+	html: string,
+) {
 	if (contentRoot.length === 0) {
-		return [];
+		return extractPicturePageImageUrls(html);
 	}
 	const urls: string[] = [];
 	const seen = new Set<string>();
@@ -183,6 +203,7 @@ function extractPublishTime(html: string): { source: string; value: string } | n
 	const directMatches: [RegExp, string][] = [
 		[/window\.ct\s*=\s*["']?(?<seconds>\d{10})["']?/u, "window.ct"],
 		[/var\s+ct\s*=\s*["']?(?<seconds>\d{10})["']?/u, "var ct"],
+		[/ori_create_time\s*:\s*["']?(?<seconds>\d{10})["']?\s*(?:\*\s*1)?/u, "ori_create_time"],
 	];
 	for (const [pattern, source] of directMatches) {
 		const match = pattern.exec(html);
@@ -193,6 +214,13 @@ function extractPublishTime(html: string): { source: string; value: string } | n
 		const value = new Date(Number.parseInt(seconds, 10) * 1000).toISOString();
 		return { source, value };
 	}
+	const createTime = extractJsDecodeField(html, "create_time");
+	if (createTime) {
+		const parsed = parseWeChatCreateTime(createTime);
+		if (parsed) {
+			return { source: "create_time", value: parsed };
+		}
+	}
 	return null;
 }
 
@@ -202,7 +230,11 @@ function attributeContent(
 	attributeName: string,
 ): string | null {
 	const value = $(selector).first().attr(attributeName);
-	return value?.trim() ? value.trim() : null;
+	if (!value?.trim()) {
+		return null;
+	}
+	const decoded = decodeWeChatJsString(value);
+	return decoded.trim() ? decoded.trim() : null;
 }
 
 function normalizeBlockText(value: string): string {
@@ -221,6 +253,106 @@ function normalizeMultilineText(value: string | null): string | null {
 		.map((line) => normalizeBlockText(line))
 		.filter(Boolean)
 		.join("\n");
+}
+
+function splitTextBlocks(value: string | null): string[] {
+	if (!value) {
+		return [];
+	}
+	const blocks: string[] = [];
+	const seen = new Set<string>();
+	for (const line of value.split(/\r?\n/u)) {
+		const normalized = normalizeBlockText(line);
+		if (!normalized || seen.has(normalized)) {
+			continue;
+		}
+		seen.add(normalized);
+		blocks.push(normalized);
+	}
+	return blocks;
+}
+
+function extractPicturePageImageUrls(html: string): string[] {
+	const block = /picture_page_info_list\s*:\s*\[(?<body>[\s\S]*?)\n\s*\]/u.exec(html)?.groups
+		?.body;
+	if (!block) {
+		return [];
+	}
+	const urls: string[] = [];
+	const seen = new Set<string>();
+	const pattern = /cdn_url\s*:\s*JsDecode\('(?<value>(?:\\.|[^'])*)'\)/gu;
+	for (const match of block.matchAll(pattern)) {
+		const normalized = normalizeOptionalUrl(decodeWeChatJsString(match.groups?.value ?? ""));
+		if (!normalized || seen.has(normalized)) {
+			continue;
+		}
+		seen.add(normalized);
+		urls.push(normalized);
+	}
+	return urls;
+}
+
+function extractJsDecodeField(html: string, fieldName: string): string | null {
+	const escapedField = escapeRegExp(fieldName);
+	const pattern = new RegExp(
+		`${escapedField}\\s*:\\s*JsDecode\\('(?<value>(?:\\\\.|[^'])*)'\\)`,
+		"u",
+	);
+	const raw = pattern.exec(html)?.groups?.value;
+	if (!raw) {
+		return null;
+	}
+	const decoded = decodeWeChatJsString(raw);
+	return decoded.trim() ? decoded.trim() : null;
+}
+
+function decodeWeChatJsString(value: string): string {
+	return decodeHtmlEntities(
+		value
+			.replace(/\\x(?<hex>[0-9a-fA-F]{2})/gu, (_, hex: string) =>
+				String.fromCharCode(Number.parseInt(hex, 16)),
+			)
+			.replace(/\\u(?<hex>[0-9a-fA-F]{4})/gu, (_, hex: string) =>
+				String.fromCharCode(Number.parseInt(hex, 16)),
+			)
+			.replace(/\\n/gu, "\n")
+			.replace(/\\r/gu, "\r")
+			.replace(/\\t/gu, "\t")
+			.replace(/\\'/gu, "'")
+			.replace(/\\"/gu, '"')
+			.replace(/\\\\/gu, "\\"),
+	);
+}
+
+function decodeHtmlEntities(value: string): string {
+	if (!(value.includes("&") && value.includes(";"))) {
+		return value;
+	}
+	return load(`<textarea>${value}</textarea>`)("textarea").text();
+}
+
+function parseWeChatCreateTime(value: string): string | null {
+	const match =
+		/^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})\s+(?<hour>\d{2}):(?<minute>\d{2})(?::(?<second>\d{2}))?$/u.exec(
+			value.trim(),
+		);
+	if (!match?.groups) {
+		return null;
+	}
+	const second = match.groups.second ?? "00";
+	const timestamp = Date.UTC(
+		Number.parseInt(match.groups.year, 10),
+		Number.parseInt(match.groups.month, 10) - 1,
+		Number.parseInt(match.groups.day, 10),
+		Number.parseInt(match.groups.hour, 10) - 8,
+		Number.parseInt(match.groups.minute, 10),
+		Number.parseInt(second, 10),
+	);
+	return new Date(timestamp).toISOString();
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function normalizeOptionalUrl(value: string | null): string | null {

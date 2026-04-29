@@ -72,6 +72,83 @@ describe("WeChat article page parsing", () => {
 		expect(parsed.inlineImageUrls).toEqual([]);
 	});
 
+	it("extracts body and inline images from modern mp.weixin shell data", () => {
+		const html = `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="MUC出行快讯｜加车！实践周班车合集来啦～" />
+    <meta property="og:description" content="有乘车需求的MUCer注意啦\\x0a详情可见上图2" />
+    <meta property="og:image" content="http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg" />
+  </head>
+  <body>
+    <script>
+      function JsDecode(value) { return value; }
+      window.cgiDataNew = {
+        title: JsDecode('MUC出行快讯｜加车！实践周班车合集来啦～'),
+        desc: JsDecode('有乘车需求的MUCer注意啦\\x0a详情可见上图2'),
+        content_noencode: JsDecode('有乘车需求的MUCer注意啦\\x0a4月27日—5月5日期间\\x0a详情可见上图2'),
+        create_time: JsDecode('2026-04-26 09:15'),
+        cdn_url: JsDecode('http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg'),
+        picture_page_info_list: [
+          { cdn_url: JsDecode('https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/schedule-1/0?wx_fmt=jpeg') },
+          { cdn_url: JsDecode('http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/schedule-2/0?wx_fmt=jpeg') },
+        ],
+        ori_create_time: '1777166101' * 1,
+      };
+    </script>
+  </body>
+</html>`;
+
+		const parsed = parseWeChatOfficialAccountArticlePageHtml({
+			articleUrl: "https://mp.weixin.qq.com/s/I_0ji-iVJWm_ukb6UNDMiw",
+			html,
+		});
+
+		expect(parsed.pageKind).toBe("article");
+		expect(parsed.title).toBe("MUC出行快讯｜加车！实践周班车合集来啦～");
+		expect(parsed.summary).toBe("有乘车需求的MUCer注意啦\n详情可见上图2");
+		expect(parsed.publishTime).toBe("2026-04-26T01:15:01.000Z");
+		expect(parsed.publishTimeSource).toBe("ori_create_time");
+		expect(parsed.coverImageUrl).toBe(
+			"http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg",
+		);
+		expect(parsed.bodyBlocks).toEqual([
+			"有乘车需求的MUCer注意啦",
+			"4月27日—5月5日期间",
+			"详情可见上图2",
+		]);
+		expect(parsed.inlineImageUrls).toEqual([
+			"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/schedule-1/0?wx_fmt=jpeg",
+			"http://mmbiz.qpic.cn/sz_mmbiz_jpg/example/schedule-2/0?wx_fmt=jpeg",
+		]);
+	});
+
+	it("does not classify metadata-only modern mp.weixin shell data as an article", () => {
+		const html = `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="MUC出行快讯｜加车！实践周班车合集来啦～" />
+  </head>
+  <body>
+    <script>
+      function JsDecode(value) { return value; }
+      window.cgiDataNew = {
+        title: JsDecode('MUC出行快讯｜加车！实践周班车合集来啦～'),
+      };
+    </script>
+  </body>
+</html>`;
+
+		const parsed = parseWeChatOfficialAccountArticlePageHtml({
+			articleUrl: "https://mp.weixin.qq.com/s/metadata-only",
+			html,
+		});
+
+		expect(parsed.pageKind).toBe("non_article");
+		expect(parsed.bodyBlocks).toEqual([]);
+		expect(parsed.inlineImageUrls).toEqual([]);
+	});
+
 	it("fetches mp.weixin pages with browser-profile headers and preserves page classification", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(
@@ -101,7 +178,7 @@ describe("WeChat article page parsing", () => {
 				headers: expect.objectContaining({
 					accept: "text/html,application/xhtml+xml",
 					"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-					"user-agent": expect.stringContaining("Mozilla/5.0"),
+					"user-agent": expect.stringContaining("Windows NT"),
 				}),
 				redirect: "follow",
 			}),
