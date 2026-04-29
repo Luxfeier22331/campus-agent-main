@@ -25,6 +25,49 @@ function requireConversationId(conversationId: string | null | undefined) {
 	return null;
 }
 
+function requireObjectBody(value: unknown): Record<string, unknown> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new AppApiRouteError({
+			code: "invalid_request",
+			message: "Expected a JSON object request body.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	return value as Record<string, unknown>;
+}
+
+function readFeedbackVote(body: Record<string, unknown>): "helpful" | "unhelpful" {
+	const vote = body.vote;
+	if (vote === "helpful" || vote === "unhelpful") {
+		return vote;
+	}
+
+	throw new AppApiRouteError({
+		code: "invalid_request",
+		message: "vote must be helpful or unhelpful.",
+		retryable: false,
+		status: 400,
+	});
+}
+
+function readFeedbackReasonCodes(body: Record<string, unknown>): string[] | undefined {
+	if (!("reasonCodes" in body)) {
+		return undefined;
+	}
+
+	if (!Array.isArray(body.reasonCodes) || body.reasonCodes.some((item) => typeof item !== "string")) {
+		throw new AppApiRouteError({
+			code: "invalid_request",
+			message: "reasonCodes must be an array of strings.",
+			retryable: false,
+			status: 400,
+		});
+	}
+
+	return body.reasonCodes;
+}
+
 function encodeSseEvent(event: ChatCommandStreamEvent): Uint8Array {
 	return new TextEncoder().encode(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
 }
@@ -335,6 +378,63 @@ export function registerChatRoutes(input: {
 		});
 		return jsonResponse(response);
 	});
+
+	input.app.put(
+		"/api/chat/conversations/:conversationId/messages/:messageId/feedback",
+		async (c) => {
+			const scope = input.createRequestScope();
+			const resolved = await requireSessionPrincipal({
+				env: input.env,
+				getPrincipal: input.getPrincipal,
+				request: c.req.raw,
+				scope,
+			});
+			if (resolved.response) {
+				return resolved.response;
+			}
+
+			const fallbackCorrelation = createFallbackCorrelation();
+			try {
+				const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
+				const response = await scope.resolveChatConversationService().setMessageFeedback({
+					conversationId: c.req.param("conversationId"),
+					messageId: c.req.param("messageId"),
+					principal: resolved.principal,
+					reasonCodes: readFeedbackReasonCodes(body),
+					vote: readFeedbackVote(body),
+				});
+				return jsonResponse(response);
+			} catch (error) {
+				if (error instanceof AppApiRouteError) {
+					return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+				}
+				throw error;
+			}
+		},
+	);
+
+	input.app.delete(
+		"/api/chat/conversations/:conversationId/messages/:messageId/feedback",
+		async (c) => {
+			const scope = input.createRequestScope();
+			const resolved = await requireSessionPrincipal({
+				env: input.env,
+				getPrincipal: input.getPrincipal,
+				request: c.req.raw,
+				scope,
+			});
+			if (resolved.response) {
+				return resolved.response;
+			}
+
+			await scope.resolveChatConversationService().deleteMessageFeedback({
+				conversationId: c.req.param("conversationId"),
+				messageId: c.req.param("messageId"),
+				principal: resolved.principal,
+			});
+			return new Response(null, { status: 204 });
+		},
+	);
 
 	input.app.delete(
 		"/api/chat/conversations/:conversationId/messages/:messageId/trailing",

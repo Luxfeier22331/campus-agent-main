@@ -223,4 +223,134 @@ describe("chat conversation service", () => {
 			status: 404,
 		});
 	});
+
+	it("upserts answer feedback only through owned assistant messages", async () => {
+		const store = createStore() as ChatConversationStore & {
+			upsertMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
+		};
+		store.upsertMessageFeedbackByOwner = vi.fn().mockResolvedValue({
+			createdAt: "2026-04-29T08:00:00.000Z",
+			feedbackId: "fb_01HQ",
+			messageId: "msg_assistant_01HQ",
+			reasonCodes: ["wrong_intent"],
+			updatedAt: "2026-04-29T08:00:00.000Z",
+			vote: "unhelpful",
+		});
+		const service = buildChatConversationService({
+			generateId: () => "fb_01HQ",
+			now: () => new Date("2026-04-29T08:00:00.000Z"),
+			store,
+		}) as ChatConversationService & {
+			setMessageFeedback(input: {
+				conversationId: string;
+				messageId: string;
+				principal: ResolvedAppPrincipal;
+				reasonCodes?: string[];
+				vote: "helpful" | "unhelpful";
+			}): Promise<{
+				feedback: {
+					feedbackId: string;
+					messageId: string;
+					reasonCodes: string[];
+					vote: "helpful" | "unhelpful";
+				};
+			}>;
+		};
+
+		await expect(
+			service.setMessageFeedback({
+				conversationId: "conv_01HQ",
+				messageId: "msg_assistant_01HQ",
+				principal: createPrincipal(),
+				reasonCodes: ["wrong_intent"],
+				vote: "unhelpful",
+			}),
+		).resolves.toEqual({
+			feedback: {
+				createdAt: "2026-04-29T08:00:00.000Z",
+				feedbackId: "fb_01HQ",
+				messageId: "msg_assistant_01HQ",
+				reasonCodes: ["wrong_intent"],
+				updatedAt: "2026-04-29T08:00:00.000Z",
+				vote: "unhelpful",
+			},
+		});
+		expect(store.upsertMessageFeedbackByOwner).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			feedbackId: "fb_01HQ",
+			messageId: "msg_assistant_01HQ",
+			ownerUserId: "user_01HQ",
+			reasonCodes: ["wrong_intent"],
+			updatedAt: "2026-04-29T08:00:00.000Z",
+			vote: "unhelpful",
+		});
+	});
+
+	it("rejects invalid answer feedback reasons before touching storage", async () => {
+		const store = createStore() as ChatConversationStore & {
+			upsertMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
+		};
+		store.upsertMessageFeedbackByOwner = vi.fn();
+		const service = buildChatConversationService({ store }) as ChatConversationService & {
+			setMessageFeedback(input: {
+				conversationId: string;
+				messageId: string;
+				principal: ResolvedAppPrincipal;
+				reasonCodes?: string[];
+				vote: "helpful" | "unhelpful";
+			}): Promise<unknown>;
+		};
+
+		await expect(
+			service.setMessageFeedback({
+				conversationId: "conv_01HQ",
+				messageId: "msg_assistant_01HQ",
+				principal: createPrincipal(),
+				reasonCodes: ["wrong_intent"],
+				vote: "helpful",
+			}),
+		).rejects.toMatchObject({
+			code: "invalid_message_feedback",
+			status: 400,
+		});
+		expect(store.upsertMessageFeedbackByOwner).not.toHaveBeenCalled();
+	});
+
+	it("deletes answer feedback through owned assistant messages", async () => {
+		const store = createStore() as ChatConversationStore & {
+			deleteMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
+		};
+		store.deleteMessageFeedbackByOwner = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+		const service = buildChatConversationService({ store }) as ChatConversationService & {
+			deleteMessageFeedback(input: {
+				conversationId: string;
+				messageId: string;
+				principal: ResolvedAppPrincipal;
+			}): Promise<{ deleted: true }>;
+		};
+
+		await expect(
+			service.deleteMessageFeedback({
+				conversationId: "conv_01HQ",
+				messageId: "msg_assistant_01HQ",
+				principal: createPrincipal(),
+			}),
+		).resolves.toEqual({ deleted: true });
+		expect(store.deleteMessageFeedbackByOwner).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			messageId: "msg_assistant_01HQ",
+			ownerUserId: "user_01HQ",
+		});
+
+		await expect(
+			service.deleteMessageFeedback({
+				conversationId: "conv_01HQ",
+				messageId: "msg_missing",
+				principal: createPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "message_feedback_not_found",
+			status: 404,
+		});
+	});
 });

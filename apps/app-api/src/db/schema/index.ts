@@ -1,5 +1,5 @@
 export { account, appAuthSchema, session, user, verification } from "./auth";
-export { conversations, messages, sessionSlots } from "./chat";
+export { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 export {
 	docsCollections,
 	docsDocuments,
@@ -34,7 +34,7 @@ export {
 } from "./wechat-official-account";
 
 import { account, session, user, verification } from "./auth";
-import { conversations, messages, sessionSlots } from "./chat";
+import { conversations, messageFeedback, messages, sessionSlots } from "./chat";
 import {
 	docsCollections,
 	docsDocuments,
@@ -74,6 +74,7 @@ export const appApiSchema = {
 	account,
 	verification,
 	conversations,
+	messageFeedback,
 	messages,
 	sessionSlots,
 	docsCollections,

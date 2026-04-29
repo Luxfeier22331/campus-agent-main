@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 const chat = pgSchema("chat");
 
@@ -40,6 +40,33 @@ export const messages = chat.table(
 			table.createdAt,
 		),
 		requestIdIndex: index("chat_messages_request_id_idx").on(table.requestId),
+	}),
+);
+
+export const messageFeedback = chat.table(
+	"message_feedback",
+	{
+		feedbackId: text("feedback_id").primaryKey(),
+		ownerUserId: text("owner_user_id").notNull(),
+		conversationId: text("conversation_id")
+			.notNull()
+			.references(() => conversations.id, { onDelete: "cascade" }),
+		messageId: text("message_id")
+			.notNull()
+			.references(() => messages.id, { onDelete: "cascade" }),
+		requestId: text("request_id").notNull(),
+		vote: text("vote").notNull(),
+		reasonCodesJson: jsonb("reason_codes_json").$type<string[]>().notNull().default([]),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		ownerMessageUnique: uniqueIndex("chat_message_feedback_owner_message_uidx").on(
+			table.ownerUserId,
+			table.messageId,
+		),
+		requestIdIndex: index("chat_message_feedback_request_id_idx").on(table.requestId),
+		updatedAtIndex: index("chat_message_feedback_updated_at_idx").on(table.updatedAt),
 	}),
 );
 

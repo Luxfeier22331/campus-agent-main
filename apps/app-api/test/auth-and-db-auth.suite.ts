@@ -217,6 +217,7 @@ export function registerAppApiAuthConfigSuite() {
 					"account",
 					"verification",
 					"conversations",
+					"messageFeedback",
 					"messages",
 					"sessionSlots",
 					"crawlRuns",

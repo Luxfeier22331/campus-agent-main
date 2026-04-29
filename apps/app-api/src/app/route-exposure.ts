@@ -29,6 +29,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "DELETE",
+		path: "/api/chat/conversations/:conversationId/messages/:messageId/feedback",
+		callerClass: "browser-surface",
+		admission: "session principal required",
+	},
+	{
+		method: "DELETE",
 		path: "/api/chat/conversations/:conversationId/messages/:messageId/trailing",
 		callerClass: "browser-surface",
 		admission: "session principal required",
@@ -276,6 +282,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "PATCH",
 		path: "/api/me/profile-memory/settings",
+		callerClass: "browser-surface",
+		admission: "session principal required",
+	},
+	{
+		method: "PUT",
+		path: "/api/chat/conversations/:conversationId/messages/:messageId/feedback",
 		callerClass: "browser-surface",
 		admission: "session principal required",
 	},

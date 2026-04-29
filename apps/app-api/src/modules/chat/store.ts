@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
-import { conversations, messages, sessionSlots } from "../../db/schema";
+import { conversations, messageFeedback, messages, sessionSlots } from "../../db/schema";
 import {
 	type ChatConversation,
+	type ChatMessageFeedback,
 	type ChatConversationSummary,
 	type ChatMessage,
 	type ChatSessionSlot,
@@ -22,6 +23,11 @@ export interface ChatConversationDraftWrite {
 }
 
 export interface ChatConversationStore {
+	deleteMessageFeedbackByOwner(input: {
+		conversationId: string;
+		messageId: string;
+		ownerUserId: string;
+	}): Promise<boolean>;
 	listConversationSummariesByOwner(ownerUserId: string): Promise<ChatConversationSummary[]>;
 	listConversationSummariesPageByOwner(input: {
 		ownerUserId: string;
@@ -45,14 +51,37 @@ export interface ChatConversationStore {
 		ownerUserId: string,
 		conversationId: string,
 	): Promise<ChatConversation | null>;
+	upsertMessageFeedbackByOwner(input: {
+		conversationId: string;
+		feedbackId: string;
+		messageId: string;
+		ownerUserId: string;
+		reasonCodes: ChatMessageFeedback["reasonCodes"];
+		updatedAt: string;
+		vote: ChatMessageFeedback["vote"];
+	}): Promise<ChatMessageFeedback | null>;
 }
 
 function toIsoString(value: Date): string {
 	return value.toISOString();
 }
 
-function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
+function toChatFeedback(row: typeof messageFeedback.$inferSelect): ChatMessageFeedback {
 	return {
+		createdAt: toIsoString(row.createdAt),
+		feedbackId: row.feedbackId,
+		messageId: row.messageId,
+		reasonCodes: row.reasonCodesJson as ChatMessageFeedback["reasonCodes"],
+		updatedAt: toIsoString(row.updatedAt),
+		vote: row.vote as ChatMessageFeedback["vote"],
+	};
+}
+
+function toChatMessage(
+	row: typeof messages.$inferSelect,
+	feedbackByMessageId: Map<string, ChatMessageFeedback> = new Map(),
+): ChatMessage {
+	const message: ChatMessage = {
 		id: row.id,
 		conversationId: row.conversationId,
 		role: row.role as ChatMessage["role"],
@@ -63,6 +92,10 @@ function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
 		retryable: row.retryable ?? null,
 		structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
 	};
+	if (message.role === "assistant") {
+		message.feedback = feedbackByMessageId.get(message.id) ?? null;
+	}
+	return message;
 }
 
 function toChatConversationSummary(
@@ -80,7 +113,11 @@ function toChatConversation(
 	row: typeof conversations.$inferSelect,
 	messageRows: (typeof messages.$inferSelect)[],
 	sessionSlotRows: (typeof sessionSlots.$inferSelect)[],
+	feedbackRows: (typeof messageFeedback.$inferSelect)[] = [],
 ): ChatConversation {
+	const feedbackByMessageId = new Map(
+		feedbackRows.map((feedbackRow) => [feedbackRow.messageId, toChatFeedback(feedbackRow)]),
+	);
 	return {
 		id: row.id,
 		ownerUserId: row.ownerUserId,
@@ -95,8 +132,48 @@ function toChatConversation(
 				value: slot.value,
 			}),
 		),
-		messages: messageRows.map(toChatMessage),
+		messages: messageRows.map((messageRow) => toChatMessage(messageRow, feedbackByMessageId)),
 	};
+}
+
+async function loadFeedbackTarget(input: {
+	conversationId: string;
+	db: Awaited<ReturnType<RuntimeDbGetter>>;
+	messageId: string;
+	ownerUserId: string;
+}): Promise<typeof messages.$inferSelect | null> {
+	const conversationRows = await input.db
+		.select({ id: conversations.id })
+		.from(conversations)
+		.where(
+			and(
+				eq(conversations.ownerUserId, input.ownerUserId),
+				eq(conversations.id, input.conversationId),
+			),
+		)
+		.limit(1);
+	if (!conversationRows[0]) {
+		return null;
+	}
+
+	const messageRows = await input.db
+		.select()
+		.from(messages)
+		.where(
+			and(eq(messages.id, input.messageId), eq(messages.conversationId, input.conversationId)),
+		)
+		.limit(1);
+	const messageRow = messageRows[0];
+	if (
+		!messageRow ||
+		messageRow.role !== "assistant" ||
+		!messageRow.requestId ||
+		messageRow.kind === "error"
+	) {
+		return null;
+	}
+
+	return messageRow;
 }
 
 export function createPgChatConversationStore(
@@ -134,10 +211,46 @@ export function createPgChatConversationStore(
 			.where(eq(sessionSlots.conversationId, conversationId))
 			.orderBy(asc(sessionSlots.name));
 
-		return toChatConversation(conversationRow, messageRows, sessionSlotRows);
+		const assistantMessageIds = messageRows
+			.filter((messageRow) => messageRow.role === "assistant")
+			.map((messageRow) => messageRow.id);
+		const feedbackRows =
+			assistantMessageIds.length === 0
+				? []
+				: await db
+						.select()
+						.from(messageFeedback)
+						.where(
+							and(
+								eq(messageFeedback.ownerUserId, ownerUserId),
+								inArray(messageFeedback.messageId, assistantMessageIds),
+							),
+						);
+
+		return toChatConversation(conversationRow, messageRows, sessionSlotRows, feedbackRows);
 	}
 
 	return {
+		async deleteMessageFeedbackByOwner(input) {
+			const db = await getDb();
+			const messageRow = await loadFeedbackTarget({ db, ...input });
+			if (!messageRow) {
+				return false;
+			}
+
+			const deletedRows = await db
+				.delete(messageFeedback)
+				.where(
+					and(
+						eq(messageFeedback.ownerUserId, input.ownerUserId),
+						eq(messageFeedback.messageId, input.messageId),
+					),
+				)
+				.returning({ feedbackId: messageFeedback.feedbackId });
+
+			return deletedRows.length > 0;
+		},
+
 		async listConversationSummariesByOwner(ownerUserId) {
 			const db = await getDb();
 			const rows = await db
@@ -275,6 +388,44 @@ export function createPgChatConversationStore(
 
 		async getConversationByOwner(ownerUserId, conversationId) {
 			return loadConversation(ownerUserId, conversationId);
+		},
+
+		async upsertMessageFeedbackByOwner(input) {
+			const db = await getDb();
+			const messageRow = await loadFeedbackTarget({ db, ...input });
+			if (!messageRow) {
+				return null;
+			}
+
+			const now = new Date(input.updatedAt);
+			const rows = await db
+				.insert(messageFeedback)
+				.values({
+					conversationId: input.conversationId,
+					createdAt: now,
+					feedbackId: input.feedbackId,
+					messageId: input.messageId,
+					ownerUserId: input.ownerUserId,
+					reasonCodesJson: input.reasonCodes,
+					requestId: messageRow.requestId,
+					updatedAt: now,
+					vote: input.vote,
+				})
+				.onConflictDoUpdate({
+					set: {
+						reasonCodesJson: input.reasonCodes,
+						updatedAt: now,
+						vote: input.vote,
+					},
+					target: [messageFeedback.ownerUserId, messageFeedback.messageId],
+				})
+				.returning();
+			const row = rows[0];
+			if (!row) {
+				throw new Error("Message feedback upsert returned no row.");
+			}
+
+			return toChatFeedback(row);
 		},
 	};
 }

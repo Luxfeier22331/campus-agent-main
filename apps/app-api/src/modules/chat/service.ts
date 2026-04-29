@@ -4,6 +4,9 @@ import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
 	type ChatConversationResponse,
+	type ChatMessageFeedback,
+	type ChatMessageFeedbackReasonCode,
+	type ChatMessageFeedbackVote,
 	type ChatConversationSummaryResponse,
 	DRAFT_CONVERSATION_TITLE,
 	toConversationResponse,
@@ -14,6 +17,11 @@ import {
 import type { ChatConversationStore } from "./store";
 
 export interface ChatConversationService {
+	deleteMessageFeedback(input: {
+		conversationId: string;
+		messageId: string;
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ deleted: true }>;
 	list(input: {
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ conversations: ChatConversationSummaryResponse[] }>;
@@ -39,6 +47,13 @@ export interface ChatConversationService {
 		conversationId: string;
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ conversation: ChatConversationResponse }>;
+	setMessageFeedback(input: {
+		conversationId: string;
+		messageId: string;
+		principal: ResolvedAppPrincipal;
+		reasonCodes?: string[];
+		vote: ChatMessageFeedbackVote;
+	}): Promise<{ feedback: ChatMessageFeedback }>;
 }
 
 export interface ChatConversationServiceDependencies {
@@ -76,6 +91,62 @@ function assertChatPrincipal(principal: ResolvedAppPrincipal): string {
 	return principal.principal.principalId;
 }
 
+const MESSAGE_FEEDBACK_REASON_CODES = new Set<ChatMessageFeedbackReasonCode>([
+	"wrong_intent",
+	"not_enough_detail",
+	"outdated_or_missing_source",
+	"incorrect_answer",
+	"unclear_or_hard_to_use",
+	"other",
+]);
+
+function normalizeMessageFeedbackReasonCodes(input: {
+	reasonCodes?: string[];
+	vote: ChatMessageFeedbackVote;
+}): ChatMessageFeedbackReasonCode[] {
+	const rawReasonCodes = input.reasonCodes ?? [];
+	if (!Array.isArray(rawReasonCodes)) {
+		throw createChatRouteError({
+			code: "invalid_message_feedback",
+			message: "reasonCodes must be an array.",
+			status: 400,
+		});
+	}
+
+	const reasonCodes = rawReasonCodes.map((reasonCode) => reasonCode.trim());
+	if (input.vote === "helpful" && reasonCodes.length > 0) {
+		throw createChatRouteError({
+			code: "invalid_message_feedback",
+			message: "reasonCodes are only accepted for unhelpful feedback.",
+			status: 400,
+		});
+	}
+	if (reasonCodes.length > 3) {
+		throw createChatRouteError({
+			code: "invalid_message_feedback",
+			message: "reasonCodes cannot contain more than 3 values.",
+			status: 400,
+		});
+	}
+
+	const seen = new Set<string>();
+	for (const reasonCode of reasonCodes) {
+		if (
+			!MESSAGE_FEEDBACK_REASON_CODES.has(reasonCode as ChatMessageFeedbackReasonCode) ||
+			seen.has(reasonCode)
+		) {
+			throw createChatRouteError({
+				code: "invalid_message_feedback",
+				message: "reasonCodes must be unique supported feedback reason codes.",
+				status: 400,
+			});
+		}
+		seen.add(reasonCode);
+	}
+
+	return reasonCodes as ChatMessageFeedbackReasonCode[];
+}
+
 export function buildChatConversationService(
 	dependencies: ChatConversationServiceDependencies,
 ): ChatConversationService {
@@ -83,6 +154,24 @@ export function buildChatConversationService(
 	const now = dependencies.now ?? (() => new Date());
 
 	return {
+		async deleteMessageFeedback(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const deleted = await dependencies.store.deleteMessageFeedbackByOwner({
+				conversationId: input.conversationId,
+				messageId: input.messageId,
+				ownerUserId,
+			});
+			if (!deleted) {
+				throw createChatRouteError({
+					code: "message_feedback_not_found",
+					message: "Message feedback not found.",
+					status: 404,
+				});
+			}
+
+			return { deleted: true as const };
+		},
+
 		async list(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
 			const conversations = await dependencies.store.listConversationSummariesByOwner(ownerUserId);
@@ -182,6 +271,33 @@ export function buildChatConversationService(
 			return {
 				conversation: toConversationResponse(conversation),
 			};
+		},
+
+		async setMessageFeedback(input) {
+			const ownerUserId = assertChatPrincipal(input.principal);
+			const reasonCodes = normalizeMessageFeedbackReasonCodes({
+				reasonCodes: input.reasonCodes,
+				vote: input.vote,
+			});
+			const updatedAt = now().toISOString();
+			const feedback = await dependencies.store.upsertMessageFeedbackByOwner({
+				conversationId: input.conversationId,
+				feedbackId: generateId("fb"),
+				messageId: input.messageId,
+				ownerUserId,
+				reasonCodes,
+				updatedAt,
+				vote: input.vote,
+			});
+			if (!feedback) {
+				throw createChatRouteError({
+					code: "message_feedback_target_not_found",
+					message: "Message feedback target not found.",
+					status: 404,
+				});
+			}
+
+			return { feedback };
 		},
 	};
 }

@@ -84,6 +84,7 @@ function createConversationService() {
 		createDraft: vi.fn().mockResolvedValue({ conversation }),
 		deleteAll: vi.fn().mockResolvedValue({ deletedCount: 1 }),
 		deleteById: vi.fn().mockResolvedValue({ deleted: true }),
+		deleteMessageFeedback: vi.fn(),
 		deleteTrailingMessages,
 		getById: vi.fn().mockResolvedValue({ conversation }),
 		listHistoryPage: vi.fn().mockResolvedValue({
@@ -99,6 +100,7 @@ function createConversationService() {
 			hasMore: false,
 		}),
 		list: vi.fn().mockResolvedValue({ conversations }),
+		setMessageFeedback: vi.fn(),
 	};
 
 	return {
@@ -177,6 +179,123 @@ describe("chat conversation routes", () => {
 				}),
 			}),
 		});
+	});
+
+	it("routes answer feedback PUT and DELETE through the shared chat service", async () => {
+		const { service } = createConversationService();
+		const setMessageFeedback = vi.fn().mockResolvedValue({
+			feedback: {
+				createdAt: "2026-04-29T08:00:00.000Z",
+				feedbackId: "fb_01HQ",
+				messageId: "msg_assistant_01HQ",
+				reasonCodes: ["wrong_intent"],
+				updatedAt: "2026-04-29T08:00:00.000Z",
+				vote: "unhelpful",
+			},
+		});
+		const deleteMessageFeedback = vi.fn().mockResolvedValue({ deleted: true });
+		const app = createApp(env, {
+			chatConversationService: {
+				...service,
+				deleteMessageFeedback,
+				setMessageFeedback,
+			} as ChatConversationService & {
+				deleteMessageFeedback: typeof deleteMessageFeedback;
+				setMessageFeedback: typeof setMessageFeedback;
+			},
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const putResponse = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/chat/conversations/conv_01HQ/messages/msg_assistant_01HQ/feedback",
+				{
+					body: JSON.stringify({
+						reasonCodes: ["wrong_intent"],
+						vote: "unhelpful",
+					}),
+					headers: {
+						"content-type": "application/json",
+					},
+					method: "PUT",
+				},
+			),
+		);
+		const deleteResponse = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/chat/conversations/conv_01HQ/messages/msg_assistant_01HQ/feedback",
+				{
+					method: "DELETE",
+				},
+			),
+		);
+
+		expect(putResponse.status).toBe(200);
+		await expect(putResponse.json()).resolves.toEqual({
+			feedback: {
+				createdAt: "2026-04-29T08:00:00.000Z",
+				feedbackId: "fb_01HQ",
+				messageId: "msg_assistant_01HQ",
+				reasonCodes: ["wrong_intent"],
+				updatedAt: "2026-04-29T08:00:00.000Z",
+				vote: "unhelpful",
+			},
+		});
+		expect(deleteResponse.status).toBe(204);
+		expect(setMessageFeedback).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			messageId: "msg_assistant_01HQ",
+			principal: expect.objectContaining({
+				principal: expect.objectContaining({ principalId: "user_01HQ" }),
+			}),
+			reasonCodes: ["wrong_intent"],
+			vote: "unhelpful",
+		});
+		expect(deleteMessageFeedback).toHaveBeenCalledWith({
+			conversationId: "conv_01HQ",
+			messageId: "msg_assistant_01HQ",
+			principal: expect.objectContaining({
+				principal: expect.objectContaining({ principalId: "user_01HQ" }),
+			}),
+		});
+	});
+
+	it("rejects malformed answer feedback request bodies", async () => {
+		const { service } = createConversationService();
+		const setMessageFeedback = vi.fn();
+		const app = createApp(env, {
+			chatConversationService: {
+				...service,
+				setMessageFeedback,
+			} as ChatConversationService & {
+				setMessageFeedback: typeof setMessageFeedback;
+			},
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/chat/conversations/conv_01HQ/messages/msg_assistant_01HQ/feedback",
+				{
+					body: JSON.stringify({
+						vote: "maybe",
+					}),
+					headers: {
+						"content-type": "application/json",
+					},
+					method: "PUT",
+				},
+			),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "invalid_request",
+				message: "vote must be helpful or unhelpful.",
+			},
+		});
+		expect(setMessageFeedback).not.toHaveBeenCalled();
 	});
 
 	it("serves vendor-compatible paginated history through /api/history", async () => {

@@ -1,5 +1,13 @@
 export type AssistantMessageKind = "answer" | "clarification" | "no_answer" | "error";
 export type ChatMessageRole = "user" | "assistant";
+export type ChatMessageFeedbackVote = "helpful" | "unhelpful";
+export type ChatMessageFeedbackReasonCode =
+	| "wrong_intent"
+	| "not_enough_detail"
+	| "outdated_or_missing_source"
+	| "incorrect_answer"
+	| "unclear_or_hard_to_use"
+	| "other";
 export const DRAFT_CONVERSATION_TITLE = "New conversation";
 
 export interface ChatPlacePointGeometry {
@@ -109,9 +117,19 @@ export interface ChatMessage {
 	kind: AssistantMessageKind | null;
 	text: string;
 	createdAt: string;
+	feedback?: ChatMessageFeedback | null;
 	requestId: string | null;
 	retryable: boolean | null;
 	structuredParts: ChatMessageStructuredPart[];
+}
+
+export interface ChatMessageFeedback {
+	createdAt: string;
+	feedbackId: string;
+	messageId: string;
+	reasonCodes: ChatMessageFeedbackReasonCode[];
+	updatedAt: string;
+	vote: ChatMessageFeedbackVote;
 }
 
 export interface ChatConversation {
