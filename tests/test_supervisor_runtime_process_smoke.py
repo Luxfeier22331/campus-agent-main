@@ -81,11 +81,22 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertEqual(closed.expected_status, 503)
         self.assertIn("structured_runtime_closed", closed.expected_body_tokens)
         self.assertEqual(terminal.expected_status, 200)
-        self.assertIn("transactional_action_not_supported", terminal.expected_body_tokens)
+        self.assertEqual(terminal.answer_payload["requested_capability"], "knowledge")
+        self.assertIn("product_scope_boundary", terminal.expected_body_tokens)
         self.assertEqual(rag.expected_status, 200)
         self.assertIn("workflow_trace_summary", rag.expected_body_tokens)
-        self.assertIn("agent_observability", rag.expected_body_tokens)
+        self.assertIn("agent_execution_projection", rag.expected_body_tokens)
+        self.assertIn("agent_plan", rag.expected_body_tokens)
         self.assertEqual(rag.answer_payload["requested_capability"], "knowledge")
+
+    def test_answer_probe_uses_process_smoke_timeout_budget(self) -> None:
+        import inspect
+
+        from scripts.supervisor_runtime_process_smoke import _post_json
+
+        parameters = inspect.signature(_post_json).parameters
+
+        self.assertIn("timeout_seconds", parameters)
 
 
 if __name__ == "__main__":

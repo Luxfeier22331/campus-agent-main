@@ -140,13 +140,13 @@ def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, t
     if profile == "terminal_fail_close":
         return (
             {
-                "user_goal": "帮我提交采购公告",
+                "user_goal": "解释一下 AI",
                 "request_id": "process-smoke-terminal-fail-close",
                 "requested_capability": "knowledge",
                 "context": context,
             },
             200,
-            ("transactional_action_not_supported",),
+            ("product_scope_boundary",),
         )
     if profile == "rag_delegate":
         return (
@@ -161,7 +161,7 @@ def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, t
                 "context": context,
             },
             200,
-            ("workflow_trace_summary", "agent_observability"),
+            ("workflow_trace_summary", "agent_execution_projection", "agent_plan"),
         )
     raise ValueError(f"unsupported process smoke profile: {profile}")
 
@@ -208,6 +208,7 @@ def run_process_smoke(
             f"{plan.api_base_url}/api/v1/answer",
             plan.answer_payload,
             headers={"x-worker-origin-auth": plan.processes[1].env["API_WORKER_SHARED_SECRET"]},
+            timeout_seconds=timeout_seconds,
         )
         answer_text = json.dumps(answer_body, ensure_ascii=False)
         passed = (
@@ -318,6 +319,7 @@ def _post_json(
     payload: dict[str, object],
     *,
     headers: dict[str, str],
+    timeout_seconds: float,
 ) -> tuple[int, object]:
     request = urllib.request.Request(
         url,
@@ -326,7 +328,7 @@ def _post_json(
         headers={"content-type": "application/json", **headers},
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             return int(response.status), json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         return int(exc.code), json.loads(exc.read().decode("utf-8") or "{}")
