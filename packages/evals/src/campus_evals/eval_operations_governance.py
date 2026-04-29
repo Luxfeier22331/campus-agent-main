@@ -65,6 +65,7 @@ class EvalOperationsObservation:
     retry_count: int
     artifact_age_days: int
     provider_calls: int = 0
+    metrics_missing: bool = False
     failed_cases: tuple[str, ...] = ()
     skipped_cases: tuple[str, ...] = ()
     quarantined_cases: tuple[str, ...] = ()
@@ -155,6 +156,8 @@ def _evaluate_profile(
         failures.append(("budget_exceeded", "case budget exceeded"))
     if observation.provider_calls > profile.budget.max_provider_calls_per_run:
         failures.append(("budget_exceeded", "provider call budget exceeded"))
+    if observation.metrics_missing:
+        failures.append(("runtime_metrics_missing", "runtime metrics are missing"))
     if observation.runtime_seconds > profile.runtime_timeout_seconds:
         failures.append(("runtime_policy_violation", "runtime timeout exceeded"))
     if observation.retry_count > profile.max_retries:

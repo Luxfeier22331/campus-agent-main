@@ -45,11 +45,13 @@ class PublicChatProductPathObservation:
     fail_close_reason: str = ""
     response_contract: dict[str, object] = field(default_factory=dict)
     operator_backflow: dict[str, object] = field(default_factory=dict)
+    request_correlation: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for field_name, payload in (
             ("response_contract", self.response_contract),
             ("operator_backflow", self.operator_backflow),
+            ("request_correlation", self.request_correlation),
         ):
             reject_forbidden_workflow_trace_keys(payload, field_name)
 
