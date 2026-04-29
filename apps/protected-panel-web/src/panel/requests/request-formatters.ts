@@ -15,6 +15,19 @@ export const CURRENT_RUNTIME_TARGET_OPTIONS = [
 	{ label: "通知能力", value: "notice-agent" },
 ] as const;
 
+const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
+	"auth_envelope",
+	"cookie",
+	"jwt",
+	"provider_raw_response",
+	"raw_bridge_payload",
+	"raw_payload",
+	"raw_prompt",
+	"raw_response",
+	"raw_transcript",
+	"retrieval_backend_dump",
+];
+
 export function formatDuration(durationMs: number | null) {
 	if (durationMs === null) {
 		return PANEL_COPY.pending;
@@ -375,12 +388,30 @@ function formatKeyValueRecord(record: Record<string, unknown> | null | undefined
 		return PANEL_COPY.none;
 	}
 	const entries = Object.entries(record)
-		.filter(([, value]) => typeof value === "string" || typeof value === "number")
+		.filter(
+			([key, value]) =>
+				!isForbiddenWorkflowTraceKey(key) &&
+				(typeof value === "string" || typeof value === "number"),
+		)
 		.sort(([left], [right]) => left.localeCompare(right));
 	if (entries.length === 0) {
 		return PANEL_COPY.none;
 	}
 	return entries.map(([key, value]) => `${key}=${value}`).join(" · ");
+}
+
+function isForbiddenWorkflowTraceKey(key: string) {
+	const normalized = normalizeWorkflowTraceKeyToken(key);
+	return FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS.some((token) =>
+		normalized.includes(normalizeWorkflowTraceKeyToken(token)),
+	);
+}
+
+function normalizeWorkflowTraceKeyToken(value: string) {
+	return value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "");
 }
 
 function workflowStringValue(record: Record<string, unknown>, ...keys: string[]) {

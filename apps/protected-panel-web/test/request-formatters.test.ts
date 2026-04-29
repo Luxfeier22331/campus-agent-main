@@ -201,6 +201,47 @@ describe("request workflow trace formatters", () => {
 	it("keeps workflow trace rows compatible with old records", () => {
 		expect(buildRequestWorkflowTraceEntries(undefined)).toEqual([]);
 	});
+
+	it("does not expose raw supervisor bridge or provider payload keys", () => {
+		const rows = buildRequestWorkflowTraceEntries({
+			contextResolution: {},
+			directVsDelegateBranch: "delegate",
+			failCloseReason: null,
+			guardrailOutcomes: {},
+			handoff: {},
+			planningOutcome: "preplanned",
+			policyArtifactVersions: {
+				intent_policy: "intent-policy.v1",
+				provider_raw_response: "secret-provider-response",
+			},
+			routingFrame: {},
+			runtimeVersions: {
+				bridge_contract: "supervisor_bridge_v6",
+				supervisor_bridge_v6_raw_payload: "secret-bridge-payload",
+			},
+			selectedTarget: "rag-agent",
+			selectedTools: ["retrieval.query"],
+			toolArgumentSummary: {
+				safe_details: {
+					agent_plan: {
+						planner: "deterministic_payload_router",
+						selected_tool: "retrieval.query",
+						tool_selection_reason: "typed_payload_allowed_tool",
+					},
+					raw_prompt: "secret-prompt",
+				},
+			},
+			toolCallSummaries: [],
+			traceSteps: [],
+		});
+
+		const rendered = JSON.stringify(rows);
+		expect(rendered).toContain("bridge_contract=supervisor_bridge_v6");
+		expect(rendered).toContain("intent_policy=intent-policy.v1");
+		expect(rendered).not.toContain("secret-bridge-payload");
+		expect(rendered).not.toContain("secret-provider-response");
+		expect(rendered).not.toContain("secret-prompt");
+	});
 });
 
 describe("request replay formatters", () => {
