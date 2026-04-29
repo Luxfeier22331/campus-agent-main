@@ -264,26 +264,43 @@ updated: 2026-04-30
 source。因此它们固定走 document owner path。
 
 - `646`：中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法。
+  - 标题信号：管理办法，属于稳定制度正文。
+  - 正文证据：正文只有文件编号、发布时间、发布/说明部门、文件类型、
+    下载地址和原始文件名；正式内容在 PDF。
   - `notice_capture_route=candidate_document_owner`。
   - PDF `fetch_required_for_source_truth`。
   - 进入 regulation materializer 前仍需 downstream admission。
 - `647`：中央民族大学 2026 届推荐应届本科毕业生免试攻读硕士学位研究生实施办法。
+  - 标题信号：实施办法，属于稳定制度正文。
+  - 正文证据：正文是 file-release metadata，只有文号、发布时间、部门、
+    文件类型、下载地址和原始 PDF 文件名。
   - `notice_capture_route=candidate_document_owner`。
   - PDF `fetch_required_for_source_truth`。
   - 后续 promotion owner 应为 `regulations/*` admission。
 - `560`：中央民族大学强基计划学生本研衔接转段工作办法。
+  - 标题信号：工作办法，属于稳定制度正文。
+  - 正文证据：正文没有办法条文，只提供文号、发布时间、说明部门、文件类型
+    和 PDF 下载地址。
   - `notice_capture_route=candidate_document_owner`。
   - PDF `fetch_required_for_source_truth`。
 - `537`：中央民族大学本科生生活物价补贴管理办法。
+  - 标题信号：管理办法，属于稳定制度正文。
+  - 正文证据：正文只有 file-release metadata；补贴办法正文在 PDF。
   - `notice_capture_route=candidate_document_owner`。
   - PDF `fetch_required_for_source_truth`。
 - `592`：中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法。
+  - 标题信号：奖励暂行办法，属于稳定制度正文。
+  - 正文证据：正文只有文号、发布时间、说明部门、文件类型和下载地址。
   - `notice_capture_route=candidate_document_owner`。
   - PDF `fetch_required_for_source_truth`。
 - `481`：中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法。
+  - 标题信号：工作办法（试行），属于稳定制度正文。
+  - 正文证据：正文只列文号、发布时间、部门、文件类型和 PDF 原始文件。
   - `notice_capture_route=candidate_document_owner`。
   - PDF `fetch_required_for_source_truth`。
 - `572`：中央民族大学排课管理办法。
+  - 标题信号：管理办法，属于稳定制度正文。
+  - 正文证据：正文只有 file-release metadata；排课管理办法正文在 PDF。
   - `notice_capture_route=candidate_document_owner`。
   - PDF `fetch_required_for_source_truth`。
 
