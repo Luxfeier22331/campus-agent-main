@@ -529,7 +529,7 @@ function buildHomePage(entries: PublishedReaderDocEntry[]): string {
 		"## 阅读方式",
 		"",
 		'<ul className="docs-home-guide">',
-		"<li><strong>按集合进入</strong>从左侧目录选择学生手册、培养方案或公开规章。</li>",
+		"<li><strong>按集合进入</strong>从文档目录选择学生手册、培养方案或公开规章。</li>",
 		"<li><strong>按关键词检索</strong>使用顶部搜索查找文件名、章节标题或制度关键词。</li>",
 		"<li><strong>按来源核对</strong>每篇正文顶部展示版本和来源摘要，技术身份放入折叠详情。</li>",
 		"</ul>",
@@ -553,7 +553,7 @@ function buildDocsIndex(entries: PublishedReaderDocEntry[]): string {
 		"",
 		"# 公开文档总览",
 		"",
-		`当前公开发布 ${entries.length} 篇文档。请选择左侧目录中的集合继续阅读。`,
+		`当前公开发布 ${entries.length} 篇文档。请选择文档目录中的集合继续阅读。`,
 		"",
 		...summarizeCollections(entries).map(
 			(summary) => `- [${summary.label}](${summary.href})：${summary.count} 篇文档`,

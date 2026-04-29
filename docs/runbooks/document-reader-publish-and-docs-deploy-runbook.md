@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 # Document Reader Publish And Docs Deploy Runbook
@@ -108,7 +108,37 @@ staging 使用：
 pnpm --filter app-api docs:export-public-sync-manifest:staging -- var/public-docs-sync-manifest.json
 ```
 
-### 4. 构建 public-docs published reader bundle
+### 4. 检查 public docs sync manifest
+
+```bash
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+  pnpm --filter public-docs check:published-reader-manifest -- \
+  --env prod \
+  --ledger .planning/runtime/public-docs-publish/prod-ledger.json
+```
+
+这个检查只读取 manifest、对象存储 reader assets 与 release ledger，不执行 build 或
+deploy。输出 JSON verdict：
+
+- `changed`：manifest digest 相对上次成功部署已变化，可以进入 build/deploy。
+- `unchanged`：manifest digest 已是上次成功部署版本，本轮应跳过。
+- `invalid`：manifest JSON / schema 不合法，不允许进入 build/deploy。
+- `blocked`：发现缺失 source object、hash/size 不一致、重复 target 或 gated asset
+  误入 public path 等发布阻断问题。
+
+如果需要把本轮检查记录写入 ledger，显式追加 `--write-ledger`。默认 dry-run 不改写
+ledger。
+
+staging 使用：
+
+```bash
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+  pnpm --filter public-docs check:published-reader-manifest -- \
+  --env staging \
+  --ledger .planning/runtime/public-docs-publish/staging-ledger.json
+```
+
+### 5. 构建 public-docs published reader bundle
 
 ```bash
 PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
@@ -124,7 +154,7 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 - 按 manifest 复制受限 reader assets 到 `doc_build/_gated-docs/...`
 - 校验 `asset-manifest.json` 的 size / sha256
 
-### 5. 部署 staging
+### 6. 部署 staging
 
 ```bash
 PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
@@ -137,7 +167,7 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 pnpm --filter public-docs deploy:verify-config:staging
 ```
 
-### 6. 验证 gated static admission
+### 7. 验证 gated static admission
 
 部署后，用同一登录态访问任意受限路径（`/_gated-docs/...`）：
 
@@ -161,7 +191,7 @@ pnpm --filter public-docs deploy:verify-config:staging
   URL；不得生成匿名 static MDX，也不得暴露正文、object key 或 raw provider locator。
 - gated reader asset response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
 - 缺失 source object、重复 target object、unsafe target path 或 hash/size 不一致时，
-  sync 必须失败。
+  manifest check / sync 必须失败。
 
 ## 回滚
 

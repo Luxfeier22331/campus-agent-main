@@ -100,6 +100,9 @@ export function buildCurriculumMarkdown(input: {
 		if (rowType === "page_number") {
 			continue;
 		}
+		if (blocks.length === 0 && (text === input.title || isLeadingCurriculumBodyHeading(text))) {
+			continue;
+		}
 		if (inCourseMapSection) {
 			if (rowType === "heading" && isCurriculumCourseMapSectionBoundaryRow(text, row)) {
 				inCourseMapSection = false;
@@ -143,9 +146,6 @@ export function buildCurriculumMarkdown(input: {
 					sectionHint === "section" ||
 					sectionHint === "chapter";
 				lastHeadingLevel = 2;
-				continue;
-			}
-			if (text === input.title && blocks.length === 0) {
 				continue;
 			}
 			lastHeadingLevel = appendCurriculumHeading(blocks, text, row.heading_level, lastHeadingLevel);
@@ -226,4 +226,9 @@ export function buildCurriculumMarkdown(input: {
 		throw new Error(`missing 课程地图 section while published blocks exist for ${input.title}`);
 	}
 	return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function isLeadingCurriculumBodyHeading(text: string): boolean {
+	const normalized = normalizeText(text).replace(/\s+/g, "");
+	return normalized === "文档正文" || normalized === "正文";
 }

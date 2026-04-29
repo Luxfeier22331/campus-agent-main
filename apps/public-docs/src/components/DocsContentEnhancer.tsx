@@ -79,9 +79,31 @@ function expandTable(table: HTMLTableElement): string[][] {
 	return rows;
 }
 
-function buildRowTitle(row: string[], rowIndex: number): string {
-	const titleParts = row.slice(0, 3).filter(Boolean);
-	return titleParts.length > 0 ? titleParts.join(" / ") : `第 ${rowIndex + 1} 行`;
+function isUsefulMobileTableTitle(value: string): boolean {
+	return /[\p{Script=Han}A-Za-z]/u.test(value) && !/^[\d./,\s-]+$/.test(value);
+}
+
+function findPreferredTitleColumn(headers: string[]): number {
+	const preferredHeaderPattern = /课程名称|课程名|项目|事项|环节|类别|模块|名称|要求|内容/;
+	const exactIndex = headers.findIndex((header) => /^(课程名称|课程名|项目|事项|环节|类别)$/.test(header));
+	if (exactIndex >= 0) {
+		return exactIndex;
+	}
+	return headers.findIndex((header) => preferredHeaderPattern.test(header));
+}
+
+export function buildMobileTableRowTitle(
+	headers: string[],
+	row: string[],
+	rowIndex: number,
+): string {
+	const preferredColumn = findPreferredTitleColumn(headers);
+	const preferredValue = normalizeText(row[preferredColumn]);
+	if (preferredColumn >= 0 && isUsefulMobileTableTitle(preferredValue)) {
+		return preferredValue;
+	}
+	const fallbackValue = row.slice(0, 4).map(normalizeText).find(isUsefulMobileTableTitle);
+	return fallbackValue ?? `第 ${rowIndex + 1} 行`;
 }
 
 function resolveFallbackTableHeader(headers: string[], columnIndex: number): string {
@@ -130,7 +152,7 @@ function buildMobileTableCards(table: HTMLTableElement): HTMLElement | null {
 
 	const note = document.createElement("p");
 	note.className = "docs-table-mobile-note";
-	note.textContent = "已将表格转换为按行阅读。需要核对合并单元格时，可展开原表横向查看。";
+	note.textContent = "移动端按行阅读；如需核对合并单元格，可查看原表。";
 	mobileCards.append(note);
 
 	const rawDetails = document.createElement("details");
@@ -153,7 +175,7 @@ function buildMobileTableCards(table: HTMLTableElement): HTMLElement | null {
 
 		const title = document.createElement("p");
 		title.className = "docs-table-mobile-card-title";
-		title.textContent = buildRowTitle(row, rowIndex);
+		title.textContent = buildMobileTableRowTitle(headers, row, rowIndex);
 		card.append(title);
 
 		const definitionList = document.createElement("dl");

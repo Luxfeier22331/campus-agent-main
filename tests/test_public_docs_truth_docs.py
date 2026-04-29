@@ -28,11 +28,7 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
             REPO_ROOT / "docs" / "architecture" / "current-architecture.md"
         ).read_text(encoding="utf-8")
         product_runtime = (
-            REPO_ROOT
-            / "docs"
-            / "architecture"
-            / "system"
-            / "product-runtime-architecture.md"
+            REPO_ROOT / "docs" / "architecture" / "system" / "product-runtime-architecture.md"
         ).read_text(encoding="utf-8")
 
         self.assertIn("apps/public-docs", readme)

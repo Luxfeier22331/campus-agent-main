@@ -12,6 +12,7 @@
 		"dev": "pnpm run ensure:docs-scaffold && rspress dev --host 127.0.0.1 --port 5177",
 		"dev:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run dev",
 		"build:published-reader-assets": "pnpm run sync:published-reader-docs && pnpm run lint:generated && pnpm run build && pnpm run sync:published-reader-assets",
+		"check:published-reader-manifest": "node ./scripts/run-with-local-env.mjs pnpm exec tsx scripts/check-published-reader-manifest.ts --dry-run",
 		"deploy": "pnpm build:published-reader-assets && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config wrangler.toml",
 		"deploy:staging": "CLOUDFLARE_ENV=staging pnpm run build:published-reader-assets && pnpm deploy:verify-config:staging && node ../../scripts/run-wrangler-command.mjs deploy --env staging --config wrangler.toml",
 		"deploy:verify-config": "node ./scripts/verify-worker-config.mjs",

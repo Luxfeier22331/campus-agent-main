@@ -133,7 +133,7 @@ function buildDocsIndex(): string {
 		"",
 		"# 公开文档总览",
 		"",
-		"当前本地环境尚未同步公开正文。请选择左侧目录查看已生成的集合入口。",
+		"当前本地环境尚未同步公开正文。请选择文档目录查看已生成的集合入口。",
 		"",
 		...SCAFFOLD_COLLECTIONS.map(
 			(collection) =>

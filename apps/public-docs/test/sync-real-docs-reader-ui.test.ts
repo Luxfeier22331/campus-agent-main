@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildRspressSidebarConfig } from "../scripts/rspress-sidebar";
 import { sanitizePreservedHtmlForMdx } from "../scripts/sync-real-docs/html-table";
-import { buildMobileTableRowPairs } from "../src/components/DocsContentEnhancer";
+import {
+	buildMobileTableRowPairs,
+	buildMobileTableRowTitle,
+} from "../src/components/DocsContentEnhancer";
 import { normalizeSearchInputAccessibility } from "../src/components/SearchKeyboardGuard";
 import { buildLocalSearchFallbackResults } from "../src/search/local-search-fallback-core";
 
@@ -31,6 +34,20 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("color: var(--docs-accent-strong);");
 		expect(css).toContain(".rp-nav__title__link:hover");
 		expect(css).toContain("opacity: 1;");
+	});
+
+	it("uses device-neutral directory wording across generated public docs entry pages", () => {
+		const entrySources = [
+			"docs/index.md",
+			"scripts/ensure-docs-scaffold.ts",
+			"scripts/sync-published-reader-docs.ts",
+			"scripts/sync-real-docs/handbook.ts",
+		].map((path) => readFileSync(join(process.cwd(), path), "utf8"));
+
+		for (const source of entrySources) {
+			expect(source).not.toContain("左侧目录");
+		}
+		expect(entrySources.join("\n")).toContain("文档目录");
 	});
 
 	it("builds an explicit sidebar when the top navigation is disabled", () => {
@@ -110,9 +127,13 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("--docs-reader-page-max-wide: 76rem;");
 		expect(css).toContain("--docs-reader-page-max-full: 88rem;");
 		expect(css).toContain("--docs-prose-measure: 64rem;");
+		expect(css).toContain("scroll-margin-top: calc(var(--rp-nav-height, 64px) + 1.25rem);");
+		expect(css).toContain(".rspress-doc h2::before");
+		expect(css).toContain("content: none;");
 		expect(css).toContain("max-width: min(100%, var(--docs-reader-page-max));");
 		expect(css).toContain(".rspress-doc :where(p, blockquote)");
 		expect(css).toContain("max-width: var(--docs-prose-measure);");
+		expect(css).toContain(".rspress-doc.docs-reader-layout-landing > ul:not([class]) li::after");
 		expect(css).toContain(
 			".rspress-doc :where(.docs-table-scroll, .rp-table-scroll-container, .handbook-flow-shell)",
 		);
@@ -139,9 +160,9 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("--docs-table-hint-bg: var(--docs-surface-soft);");
 		expect(css).not.toContain("--docs-table-header-bg: color-mix(in srgb, var(--docs-accent)");
 		expect(css).not.toContain("--docs-table-section-bg: color-mix(in srgb, var(--docs-accent)");
-		expect(css).toContain("--docs-outline-width: 14rem;");
-		expect(css).toContain("--docs-outline-gutter: 24px;");
-		expect(css).toContain("--docs-outline-gutter: 40px;");
+		expect(css).toContain("--docs-outline-width: 12rem;");
+		expect(css).toContain("--docs-outline-gutter: 20px;");
+		expect(css).toContain("--docs-outline-gutter: 32px;");
 		expect(css).toContain("--rp-sidebar-margin-left: var(--docs-sidebar-gutter);");
 		expect(css).toContain("--rp-outline-width: var(--docs-outline-width);");
 		expect(css).toContain("--rp-outline-margin-right: var(--docs-outline-gutter);");
@@ -156,6 +177,9 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).not.toContain("position: fixed !important;");
 		expect(css).not.toContain("right: max(16px, env(safe-area-inset-right)) !important;");
 		expect(css).not.toContain("height: calc(100dvh - var(--rp-nav-height, 64px)) !important;");
+		expect(css).toContain(".rp-doc-layout__container {\n\t\tmax-width: 100vw;\n\t\toverflow-x: clip;");
+		expect(css).toContain("max-width: 100vw;\n\t\toverflow-x: clip;");
+		expect(css).toContain(".rspress-doc,\n\t.rspress-doc :where(p, blockquote, ul, ol)");
 		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item__left");
 		expect(css).toContain('.rp-doc-layout__sidebar .rp-sidebar-item[data-depth="1"]');
 		expect(css).toContain("--docs-sidebar-item-indent: 0.75rem;");
@@ -164,17 +188,33 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("padding-left: var(--docs-sidebar-item-indent, 0.25rem);");
 		expect(css).toContain("-webkit-line-clamp: 2;");
 		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item--group-item::before");
-		expect(css).toContain("body .rp-search-button--mobile");
+		expect(css).toContain("body .rp-nav__right > .rp-search-button--mobile.rp-search-button--mobile");
+		expect(css).toContain("display: inline-flex;");
+		expect(css).toContain('content: "搜索";');
+		expect(css).toContain("min-width: 4.45rem;");
+		expect(css).toContain("border-radius: 999px;");
+		expect(css).toContain("background: var(--docs-accent-strong);");
+		expect(css).toContain("color: #ffffff;");
 		expect(css).toContain("body .rp-nav-hamburger__sm");
 		expect(css).toContain("body:has(.rp-doc-layout__sidebar--open) .rp-sidebar-menu__left::after");
 		expect(css).toContain('content: "关闭目录";');
 		expect(css).toContain("position: fixed;");
 		expect(css).toContain("z-index: 70;");
+		expect(css).toContain(
+			".rp-doc-layout__container .rp-doc-layout__sidebar.rp-doc-layout__sidebar--open",
+		);
+		expect(css).toContain("visibility: hidden;");
+		expect(css).toContain("visibility: visible;");
+		expect(css).toContain("pointer-events: none;");
+		expect(css).toContain("pointer-events: auto;");
 		expect(css).toContain(".rp-doc-layout__menu {\n\t\tmin-height: 46px;");
 		expect(css).toContain(".rspress-doc .docs-table-scroll table");
 		expect(css).toContain(".rspress-doc .docs-table-mobile-cards");
 		expect(css).toContain(".rspress-doc .docs-table-mobile-raw");
+		expect(css).toContain(".rspress-doc .docs-table-mobile-raw:not([open]) > :not(summary)");
 		expect(css).toContain("max-width: 100%;\n\t\tmin-width: 0;\n\t\toverflow-x: auto;");
+		expect(css).toContain("overflow-x: clip;");
+		expect(css).toContain("contain: inline-size;");
 		expect(css).toContain('.docs-table-scroll[data-docs-enhanced-table="true"]');
 		expect(css).toContain('.docs-table-scroll[data-docs-scrollable="false"]::before');
 		expect(css).toContain(".rspress-doc table thead th");
@@ -198,7 +238,9 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("@media (min-width: 1280px)");
 		expect(css).toContain(".rp-doc-layout__container .rp-doc-layout__sidebar-placeholder");
 		expect(css).toContain("margin-left: var(--docs-sidebar-outer-gutter);");
-		expect(css).toContain("@media (min-width: 1100px) and (max-width: 1599px)");
+		expect(css).toContain("@media (min-width: 1280px) and (max-width: 1599px)");
+		expect(css).toContain("--docs-outline-width: 10.5rem;");
+		expect(css).toContain("@media (min-width: 1100px) and (max-width: 1279px)");
 		expect(css).toContain("@media (min-width: 900px) and (max-width: 1099px)");
 		expect(css).toContain("@media (max-width: 899px)");
 		expect(css).toContain("--docs-sidebar-item-indent: 0.85rem;");
@@ -281,6 +323,16 @@ describe("public-docs reader UI contracts", () => {
 		expect(pairs.map((pair) => pair.header)).not.toContain("第 9 列");
 	});
 
+	it("uses the most readable semantic column as the mobile table card title", () => {
+		const title = buildMobileTableRowTitle(
+			["课程类", "课程号", "课程名称", "学分", "学时", "实践学时", "开设学期"],
+			["专业核心课", "1046030699", "中外美术史", "2", "36", "/", "1"],
+			0,
+		);
+
+		expect(title).toBe("中外美术史");
+	});
+
 	it("keeps the rough desktop sidebar collapse control unmounted", () => {
 		const config = readFileSync(join(process.cwd(), "rspress.config.ts"), "utf8");
 		const component = readFileSync(
@@ -338,9 +390,12 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain(".rspress-doc .document-meta-summary");
 		expect(css).toContain(".rspress-doc .document-meta-details dl");
 		expect(css).toContain(".rspress-doc .document-meta-details summary");
+		expect(css).toContain(".rspress-doc .document-meta-details:not([open]) dl");
 		expect(css).toContain(".rspress-doc .document-meta-panel + h2");
+		expect(css).toContain(".rspress-doc .document-meta-panel + span[id] + h2");
 		expect(css).toContain("margin-top: 2rem;");
 		expect(css).toContain("margin-top: 1.75rem;");
+		expect(css).toContain("padding-top: 0;");
 		expect(css).toContain("position: fixed;");
 		expect(css).toContain("bottom: 2rem;");
 		expect(css).toContain("bottom: max(1rem, env(safe-area-inset-bottom));");

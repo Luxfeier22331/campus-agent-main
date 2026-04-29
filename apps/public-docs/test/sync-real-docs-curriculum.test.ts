@@ -91,6 +91,24 @@ describe("curriculum generated markdown", () => {
 		expect(markdown).not.toContain("readerProfile:");
 	});
 
+	it("does not expose generic body labels or duplicate document titles at the reading entry", () => {
+		const jsonlText = [
+			'{"row_type":"heading","clean_text":"文档正文","heading_level":2}',
+			'{"row_type":"paragraph","clean_text":"计算机类本科人才培养方案"}',
+			'{"row_type":"heading","clean_text":"一、培养目标","heading_level":2}',
+			'{"row_type":"paragraph","clean_text":"正文"}',
+		].join("\n");
+
+		const markdown = buildCurriculumMarkdown({
+			title: "计算机类本科人才培养方案",
+			jsonlText,
+		});
+
+		expect(markdown).not.toContain("## 文档正文");
+		expect(markdown).not.toContain("\n计算机类本科人才培养方案\n\n## 一、培养目标");
+		expect(markdown).toContain("\n## 一、培养目标\n\n正文\n");
+	});
+
 	it("renders curriculum source and version metadata before generated body content", () => {
 		const jsonlText = [
 			'{"doc_id":"curriculum:英语本科人才培养方案","version_id":"sha256:curriculum-version","source_pdf":"curriculum-plan-2022.pdf","page_start":198,"row_type":"heading","clean_text":"英语本科人才培养方案","heading_level":1}',
