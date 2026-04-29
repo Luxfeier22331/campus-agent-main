@@ -37,7 +37,7 @@ Status: completed on 2026-04-29. Summary is recorded in `SUMMARY.md`.
 - feedback table 不复制 raw prompt、raw answer、provider response、retrieval payload。
 - required correlation fields：owner principal id、conversation id、message id、request id nullable、
   vote、reason codes、created/updated timestamp。
-- optional comment 必须长度限制并按用户提供文本处理。
+- v1 不接受 free-form comment；如后续新增 comment，必须另行冻结 contract、长度限制与展示/导出边界。
 
 ## Exit Criteria
 
