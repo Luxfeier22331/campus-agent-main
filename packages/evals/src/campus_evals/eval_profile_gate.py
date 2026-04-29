@@ -458,6 +458,168 @@ def collect_document_quality_runtime_observations(
     return observations
 
 
+def _collect_with_runtime_metrics(
+    *,
+    profile_id: str,
+    case_count: int,
+    collector: Callable[[], dict[str, object]],
+) -> tuple[dict[str, object], EvalRuntimeMetrics]:
+    started_at = datetime.now(UTC)
+    monotonic_started = time.monotonic()
+    observations = collector()
+    finished_at = datetime.now(UTC)
+    runtime_seconds = max(1, math.ceil(time.monotonic() - monotonic_started))
+    return observations, EvalRuntimeMetrics(
+        started_at=started_at.isoformat(),
+        finished_at=finished_at.isoformat(),
+        runtime_seconds=runtime_seconds,
+        retry_count=0,
+        provider_calls=max(case_count, len(observations)),
+        collector_version=DEFAULT_SCHEMA_VERSION,
+        runtime_profile=profile_id,
+    )
+
+
+def _public_chat_observation_from_execution(
+    *,
+    case_id: str,
+    execution,
+) -> PublicChatProductPathObservation:
+    response = execution.response
+    observability = response.observability
+    result_payload = asdict(response.result) if response.result is not None else {}
+    return PublicChatProductPathObservation(
+        case_id=case_id,
+        request_id=execution.request_correlation.request_id,
+        trace_id=execution.request_correlation.trace_id,
+        selected_target=response.selected_target or "none",
+        terminal_outcome=response.status,
+        fail_close_reason=(
+            response.workflow_trace_summary.fail_close_reason
+            if response.workflow_trace_summary is not None
+            else ""
+        )
+        or (observability.tool_fail_close_reason if observability is not None else ""),
+        response_contract={
+            "answer_text_present": bool(response.answer_text.strip()),
+            "citations_present": _has_source_url(result_payload)
+            or bool(_workflow_source_ids(response.workflow_trace_summary)),
+            "cards_present": _has_cards(result_payload),
+            "source_url_present": _has_source_url(result_payload),
+        },
+        operator_backflow={
+            "quality_candidate_supported": True,
+            "trace_backlink_present": bool(execution.request_correlation.trace_id),
+        },
+        request_correlation=asdict(execution.request_correlation),
+    )
+
+
+def _attach_public_chat_request_correlations(
+    results,
+    observations: dict[str, PublicChatProductPathObservation],
+) -> tuple[dict[str, object], ...]:
+    enriched: list[dict[str, object]] = []
+    for result in results:
+        item = asdict(result)
+        correlation = observations.get(result.case_id).request_correlation if observations.get(result.case_id) else {}
+        if correlation:
+            item["request_correlation"] = _request_correlation_mapping(correlation)
+        enriched.append(item)
+    return tuple(enriched)
+
+
+def _request_correlation_mapping(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        "case_id": _required_string(value.get("case_id"), "request_correlation.case_id"),
+        "request_id": _required_string(value.get("request_id"), "request_correlation.request_id"),
+        "trace_id": _required_string(value.get("trace_id"), "request_correlation.trace_id"),
+        "sampled_at": _required_string(value.get("sampled_at"), "request_correlation.sampled_at"),
+        "trace_link": _optional_string_value(value.get("trace_link")),
+        "issue_link": _optional_string_value(value.get("issue_link")),
+        "issue_fingerprint": _optional_string_value(value.get("issue_fingerprint")),
+    }
+
+
+def _tool_case_prompt(case) -> str:
+    return (
+        f"请执行 {case.tool_name} 工具验证，期望参数为 "
+        f"{json.dumps(case.expected_arguments, ensure_ascii=False, sort_keys=True)}。"
+    )
+
+
+def _requested_capability_for_tool(tool_name: str) -> str:
+    if tool_name.startswith("campus_notice"):
+        return "notice"
+    if tool_name == "retrieval.query":
+        return "knowledge"
+    return "campus_services"
+
+
+def _authz_case_prompt(case) -> str:
+    return (
+        f"请验证授权与隐私边界：{case.case_id}，"
+        f"期望结果 {case.expected_terminal_outcome}/{case.expected_fail_close_reason or 'none'}。"
+    )
+
+
+def _first_workflow_tool(summary) -> str:
+    if summary is None:
+        return ""
+    if summary.selected_tools:
+        return summary.selected_tools[0]
+    if summary.tool_call_summaries:
+        return str(
+            summary.tool_call_summaries[0].get("tool_name")
+            or summary.tool_call_summaries[0].get("tool")
+            or ""
+        )
+    return ""
+
+
+def _tool_argument_summary(summary) -> dict[str, object]:
+    if summary is None:
+        return {}
+    if summary.tool_argument_summary:
+        return dict(summary.tool_argument_summary)
+    if not summary.tool_call_summaries:
+        return {}
+    argument_summary = summary.tool_call_summaries[0].get("argument_summary")
+    return dict(argument_summary) if isinstance(argument_summary, dict) else {}
+
+
+def _step_plan_from_trace(summary) -> tuple[str, ...]:
+    if summary is None:
+        return ()
+    steps = tuple(
+        str(item.get("step_id") or item.get("step") or item.get("name") or "")
+        for item in summary.trace_steps
+        if str(item.get("step_id") or item.get("step") or item.get("name") or "").strip()
+    )
+    if steps:
+        return steps
+    if summary.planning_outcome:
+        return (summary.planning_outcome,)
+    return ()
+
+
+def _workflow_source_ids(summary) -> set[str]:
+    if summary is None:
+        return set()
+    source_ids: set[str] = set()
+    for item in summary.tool_call_summaries:
+        for key in ("source_ids", "sourceIds", "evidence_ids", "evidenceIds"):
+            raw_values = item.get(key)
+            if isinstance(raw_values, list | tuple):
+                source_ids.update(str(value) for value in raw_values if str(value).strip())
+        source_id = item.get("source_id") or item.get("sourceId")
+        if source_id:
+            source_ids.add(str(source_id))
+    return source_ids
+
+
 def derive_eval_operations_observations_from_artifacts(
     artifact_paths: Sequence[Path],
     *,
@@ -877,6 +1039,16 @@ def _has_source_url(value: object) -> bool:
     return False
 
 
+def _has_cards(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("cards"):
+            return True
+        return any(_has_cards(item) for item in value.values())
+    if isinstance(value, list | tuple):
+        return any(_has_cards(item) for item in value)
+    return False
+
+
 def _result_disposition(result: dict[str, object]) -> str:
     raw_failure_classes = result.get("failure_classes")
     if isinstance(raw_failure_classes, list) and raw_failure_classes:
@@ -923,6 +1095,37 @@ def _non_negative_int(value: object, field_name: str) -> int:
     if parsed < 0:
         raise ValueError(f"{field_name} must be non-negative")
     return parsed
+
+
+def _optional_string_value(value: object) -> str | None:
+    normalized = str(value or "").strip()
+    return normalized or None
+
+
+def _string_tuple_or_empty(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(str(item) for item in value if str(item).strip())
+
+
+def _runtime_metrics_missing(summary: dict[str, object]) -> bool:
+    if bool(summary.get("metrics_missing")):
+        return True
+    required_fields = (
+        "started_at",
+        "finished_at",
+        "runtime_seconds",
+        "retry_count",
+        "provider_calls",
+        "collector_version",
+        "runtime_profile",
+    )
+    legacy_required_fields = ("runtime_seconds", "retry_count", "provider_calls")
+    if all(field_name in summary for field_name in required_fields):
+        return any(not str(summary.get(field_name) or "").strip() for field_name in required_fields)
+    if all(field_name in summary for field_name in legacy_required_fields):
+        return False
+    return True
 
 
 def _resolve_git_head() -> str | None:
