@@ -183,6 +183,57 @@ updated: 2026-04-27
 - 当前 `role=user` message 仍写空 structured parts；首发 structured payload 只来自
   assistant finalized turn
 
+## `chat.message_feedback`
+
+用途：
+
+- 当前用户对单条 assistant answer 的 latest quality feedback
+
+最小列：
+
+- `feedback_id`
+- `owner_user_id`
+- `conversation_id`
+- `message_id`
+- `request_id`
+- `vote`
+- `reason_codes_json`
+- `created_at`
+- `updated_at`
+
+最小索引：
+
+- unique `(owner_user_id, message_id)`
+- `(request_id)`
+- `(updated_at desc)`
+
+`vote` 第一版允许：
+
+- `helpful`
+- `unhelpful`
+
+`reason_codes_json` 第一版允许：
+
+- `wrong_intent`
+- `not_enough_detail`
+- `outdated_or_missing_source`
+- `incorrect_answer`
+- `unclear_or_hard_to_use`
+- `other`
+
+规则：
+
+- target 必须是当前 owner conversation 内的 assistant message
+- target message 必须有 non-null `request_id`
+- assistant `kind=error` 不接受 feedback
+- `reason_codes_json` 只允许和 `vote=unhelpful` 一起出现，最多 3 个，且不能重复
+- v1 不保存自由文本 comment
+- `DELETE` 撤回反馈时 hard delete；不保留 tombstone
+- 不保存 raw prompt、raw answer、provider response、retrieval payload 或 auth material
+- `request_id` 用于和 request observability / operator quality read model 关联
+- feedback 不参与 authorization、serving surface、tool permission、memory projection 或
+  supervisor admission
+
 ## `chat.session_slots`
 
 用途：
@@ -936,15 +987,18 @@ updated: 2026-04-27
 
 - `chat.conversations`
 - `chat.messages`
+- `chat.message_feedback`
 
 只服务：
 
 - public chat UX
 - current-user history
+- answer quality feedback
 
 不服务：
 
 - operator request list/detail
+- authorization、routing、memory 或 supervisor admission
 
 ### Runtime Ownership
 

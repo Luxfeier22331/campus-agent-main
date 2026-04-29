@@ -101,6 +101,8 @@ contract test carrier。新增 route 必须声明：
 - `GET /api/chat/conversations`
 - `POST /api/chat/conversations`
 - `GET /api/chat/conversations/:conversationId`
+- `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
+- `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 - `POST /api/chat/requests`
 - `POST /api/chat/requests/stream`
@@ -150,6 +152,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
   "kind": "answer",
   "text": "图书馆开放到 22:00。",
   "createdAt": "2026-03-28T07:11:00.000Z",
+  "feedback": null,
   "requestId": "req_01HQ..."
 }
 ```
@@ -160,6 +163,26 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
 - `clarification`
 - `no_answer`
 - `error`
+
+assistant message 可以包含 `feedback`：
+
+```json
+{
+  "feedbackId": "fb_01HQ...",
+  "messageId": "msg_01HQ...",
+  "vote": "unhelpful",
+  "reasonCodes": ["wrong_intent"],
+  "createdAt": "2026-04-29T08:00:00.000Z",
+  "updatedAt": "2026-04-29T08:00:00.000Z"
+}
+```
+
+规则：
+
+- `feedback` 只表示当前登录用户对该 assistant message 的 latest answer-quality feedback
+- user message 不返回 feedback state
+- assistant message 未反馈时返回 `feedback: null`
+- `feedback` 不影响权限、routing、memory、serving surface 或 supervisor admission
 
 ### Conversation Detail
 
@@ -508,6 +531,63 @@ Upsert 一个用户声明的 profile memory item。
   }
 }
 ```
+
+### `PUT /api/chat/conversations/:conversationId/messages/:messageId/feedback`
+
+提交或修改当前用户对单条 assistant answer 的质量反馈。
+
+请求 body：
+
+```json
+{
+  "vote": "unhelpful",
+  "reasonCodes": ["wrong_intent"]
+}
+```
+
+响应：
+
+```json
+{
+  "feedback": {
+    "feedbackId": "fb_01HQ...",
+    "messageId": "msg_01HQ...",
+    "vote": "unhelpful",
+    "reasonCodes": ["wrong_intent"],
+    "createdAt": "2026-04-29T08:00:00.000Z",
+    "updatedAt": "2026-04-29T08:00:00.000Z"
+  }
+}
+```
+
+规则：
+
+- `conversationId` 必须属于当前登录用户
+- `messageId` 必须属于该 conversation
+- target message 必须是 assistant message，且有 non-null `requestId`
+- assistant `kind=error` 不接受 feedback
+- `vote` 只允许 `helpful` 或 `unhelpful`
+- `reasonCodes` 只允许和 `unhelpful` 一起出现，最多 3 个，且不能重复
+- `reasonCodes` 允许：`wrong_intent`、`not_enough_detail`、
+  `outdated_or_missing_source`、`incorrect_answer`、`unclear_or_hard_to_use`、`other`
+- v1 不接受自由文本 comment
+- 同一 owner user + assistant message 只保留 latest feedback；后续 `PUT` 覆盖原值
+
+### `DELETE /api/chat/conversations/:conversationId/messages/:messageId/feedback`
+
+撤回当前用户对单条 assistant answer 的质量反馈。
+
+响应：
+
+- `204 No Content`
+
+规则：
+
+- `conversationId` 必须属于当前登录用户
+- `messageId` 必须属于该 conversation
+- target message 必须是 assistant message，且有 non-null `requestId`
+- 只删除当前用户自己的 latest feedback row
+- v1 使用 hard delete；撤回后不计入 feedback metrics
 
 ### `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 

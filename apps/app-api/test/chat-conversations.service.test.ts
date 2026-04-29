@@ -47,8 +47,14 @@ function createPrincipal(input: Partial<ResolvedAppPrincipal> = {}): ResolvedApp
 	};
 }
 
-type TestChatConversationStore = ChatConversationStore & {
+type TestChatConversationStore = Omit<
+	ChatConversationStore,
+	| "deleteMessageFeedbackByOwner"
+	| "deleteTrailingMessagesFromMessageByOwner"
+	| "upsertMessageFeedbackByOwner"
+> & {
 	deleteMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
+	deleteTrailingMessagesFromMessageByOwner: ReturnType<typeof vi.fn>;
 	upsertMessageFeedbackByOwner: ReturnType<typeof vi.fn>;
 };
 
