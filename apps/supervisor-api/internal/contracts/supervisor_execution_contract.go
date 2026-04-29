@@ -2,6 +2,12 @@
 
 package contracts
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
+
 const (
 	BridgeVersion                       = "supervisor_bridge_v6"
 	ResponseContract                    = "agent_response"
@@ -115,4 +121,176 @@ type SupervisorResponseWire struct {
 	Observability        map[string]any   `json:"observability,omitempty"`
 	WorkflowTraceSummary map[string]any   `json:"workflow_trace_summary,omitempty"`
 	TraceID              string           `json:"trace_id"`
+}
+
+func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
+	var wire BridgeV6RequestWire
+	if err := decodeStrictJSON(data, &wire); err != nil {
+		return wire, err
+	}
+	if err := wire.Validate(); err != nil {
+		return wire, err
+	}
+	return wire, nil
+}
+
+func DecodeSupervisorResponseWireJSON(data []byte) (SupervisorResponseWire, error) {
+	var wire SupervisorResponseWire
+	if err := decodeStrictJSON(data, &wire); err != nil {
+		return wire, err
+	}
+	if err := wire.Validate(); err != nil {
+		return wire, err
+	}
+	return wire, nil
+}
+
+func decodeStrictJSON(data []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	if decoder.More() {
+		return fmt.Errorf("unexpected trailing JSON content")
+	}
+	return nil
+}
+
+func (wire BridgeV6RequestWire) Validate() error {
+	if wire.BridgeVersion != BridgeVersion {
+		return fmt.Errorf("bridge_version must be %s", BridgeVersion)
+	}
+	if wire.ResponseContract != ResponseContract {
+		return fmt.Errorf("response_contract must be %s", ResponseContract)
+	}
+	if wire.UserGoal == "" {
+		return fmt.Errorf("user_goal is required")
+	}
+	if wire.RequestID == "" {
+		return fmt.Errorf("request_id is required")
+	}
+	if !wire.EffectiveCapability.Valid() {
+		return fmt.Errorf("effective_capability is invalid")
+	}
+	if !wire.RequestedCapability.Valid() {
+		return fmt.Errorf("requested_capability is invalid")
+	}
+	if wire.Lane == "" {
+		return fmt.Errorf("lane is required")
+	}
+	if len(wire.Trace) == 0 {
+		return fmt.Errorf("trace is required")
+	}
+	if wire.Actor == nil {
+		return fmt.Errorf("actor is required")
+	}
+	if wire.Context == nil {
+		return fmt.Errorf("context is required")
+	}
+	if wire.VersionQuery == nil {
+		return fmt.Errorf("version_query is required")
+	}
+	if err := wire.RuntimeDecisions.Validate(); err != nil {
+		return fmt.Errorf("runtime_decisions: %w", err)
+	}
+	return nil
+}
+
+func (wire RuntimeDecisionsWire) Validate() error {
+	if wire.SchemaVersion != RuntimeDecisionsSchemaVersion {
+		return fmt.Errorf("schema_version must be %s", RuntimeDecisionsSchemaVersion)
+	}
+	if !wire.EffectiveCapability.Valid() {
+		return fmt.Errorf("effective_capability is invalid")
+	}
+	if wire.Lane == "" {
+		return fmt.Errorf("lane is required")
+	}
+	if wire.RoutingFrame == nil {
+		return fmt.Errorf("routing_frame is required")
+	}
+	if err := wire.RuntimeDecisionSummary.Validate(); err != nil {
+		return fmt.Errorf("runtime_decision_summary: %w", err)
+	}
+	return nil
+}
+
+func (wire RuntimeDecisionSummaryWire) Validate() error {
+	if wire.SchemaVersion != RuntimeDecisionSummarySchemaVersion {
+		return fmt.Errorf("schema_version must be %s", RuntimeDecisionSummarySchemaVersion)
+	}
+	if wire.PlanningOutcome == "" {
+		return fmt.Errorf("planning_outcome is required")
+	}
+	return nil
+}
+
+func (wire SupervisorResponseWire) Validate() error {
+	if wire.SelectedTarget != nil && !wire.SelectedTarget.Valid() {
+		return fmt.Errorf("selected_target is invalid")
+	}
+	if !wire.Status.Valid() {
+		return fmt.Errorf("status is invalid")
+	}
+	if !wire.Confidence.Valid() {
+		return fmt.Errorf("confidence is invalid")
+	}
+	if wire.TraceID == "" {
+		return fmt.Errorf("trace_id is required")
+	}
+	if wire.Error != nil {
+		if _, ok := wire.Error["code"].(string); !ok {
+			return fmt.Errorf("error.code is required")
+		}
+		if _, ok := wire.Error["message"].(string); !ok {
+			return fmt.Errorf("error.message is required")
+		}
+	}
+	return nil
+}
+
+func (value AgentTarget) Valid() bool {
+	switch value {
+	case AgentTargetRagAgent, AgentTargetNavigationAgent, AgentTargetCampusServicesAgent, AgentTargetNoticeAgent:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value RequestedCapability) Valid() bool {
+	switch value {
+	case RequestedCapabilityKnowledge, RequestedCapabilityPlaceLookup, RequestedCapabilityCampusServices, RequestedCapabilityNotice:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value ConfidenceLevel) Valid() bool {
+	switch value {
+	case ConfidenceLevelHigh, ConfidenceLevelMedium, ConfidenceLevelLow:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value DelegateStatus) Valid() bool {
+	switch value {
+	case DelegateStatusCompleted, DelegateStatusNeedsClarification, DelegateStatusNoAnswer, DelegateStatusError:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value SupervisorStatus) Valid() bool {
+	switch value {
+	case SupervisorStatusCompleted, SupervisorStatusNeedsClarification, SupervisorStatusNoAnswer, SupervisorStatusError, SupervisorStatusRejected, SupervisorStatusApprovalRequired, SupervisorStatusCancelled:
+		return true
+	default:
+		return false
+	}
 }
