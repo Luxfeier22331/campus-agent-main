@@ -1,0 +1,21 @@
+{
+  "completed_admission_batch_count": 2,
+  "multimodal_provider_checked": true,
+  "multimodal_provider_error": "",
+  "multimodal_provider_ok": true,
+  "ok": true,
+  "pending_multimodal_without_attempt_count": 0,
+  "pending_multimodal_without_source_image_count": 0,
+  "projection_entries_missing_admission_count": 0,
+  "projection_entry_count": 3,
+  "queryable_without_captured_body_count": 0,
+  "read_model_ok": true,
+  "selected_notice_ids": [
+    "woa_article_1335feaf76d3fc90b63b3999",
+    "woa_article_217cc61c1a316981a7a81b5d",
+    "woa_article_3b1fc6e6dcb75acdfa948a87"
+  ],
+  "source_collection": "wechat_public_notice",
+  "source_corpus": "campus_notices",
+  "source_truth_missing_object_count": 0
+}

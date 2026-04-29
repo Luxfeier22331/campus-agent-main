@@ -1,0 +1,14 @@
+{
+  "completed_admission_batch_count": 2,
+  "orphan_read_model_unit_count": 0,
+  "projection_entry_count": 3,
+  "purge_notice_ids": [],
+  "read_model_entry_count": 3,
+  "reproject_notice_ids": [],
+  "selected_notice_ids": [],
+  "source_collection": "wechat_public_notice",
+  "source_corpus": "campus_notices",
+  "suspect_notice_count": 0,
+  "suspect_unit_count": 0,
+  "suspect_units": []
+}

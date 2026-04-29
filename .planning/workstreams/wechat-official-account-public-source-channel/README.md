@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-04-30
 ---
 
 # Workstream: WeChat Official-Account Public Source Channel
@@ -14,13 +14,15 @@ notice consumption 输入，而不是混入 `official_web` crawl policy、generi
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 12`
+- status: `completed`
+- current phase: `Phase 12 completed`
 - current focus:
   repo 内部链路已经恢复并收口为
   `FeedWe discovery -> real mp.weixin page capture -> canonical source-truth -> notice consumption`，
-  并补齐了 `consumer_admission_batch_id`、runtime smoke、历史 audit/purge 与统一 shell。
-  当前剩余工作是 live 历史坏数据修复、operator replay 验证与 acceptance evidence closeout。
+  并补齐了 `consumer_admission_batch_id`、runtime smoke、历史 audit/purge、统一 shell、
+  modern mp.weixin shell parser、默认媒体采集与 live acceptance evidence。
+  当前 workstream 已收口；后续只有在 provider/page shape 漂移、source-truth/queryable gate
+  回归或新的 WeChat source-family admission 需求出现时才重开。
 
 ## Reopen Basis
 
