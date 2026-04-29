@@ -11,18 +11,17 @@ updated: 2026-04-29
 **Status:** Active
 **Current Phase:** 2
 **Current Phase Name:** Scheduled Runner And Single-flight Lock
-**Current Plan:** Not planned yet
+**Current Plan:** .planning/workstreams/public-docs-rolling-publish-automation/phases/phase-2-scheduled-runner-and-single-flight-lock/PLAN.md
 **Total Phases:** 6
 **Total Plans in Phase:** 1
 **Progress:** 1/6 phases complete
 **Last Activity:** 2026-04-29
-**Last Activity Description:** Completed Phase 1 local implementation:
-`public-docs` now has a manifest check CLI, release ledger schema, dry-run
-verdicts, validation gates, tests, package script, and runbook wiring.
+**Last Activity Description:** Started Phase 2 and planned scheduled runner +
+single-flight lock implementation.
 
 ## Current Slice
 
-- Phase 1 is implemented locally.
+- Phase 2 is planned and entering implementation.
 - Scope is release orchestration for `apps/public-docs`, not docs shell /
   reader UI.
 - Prod schedule target is Shanghai time `00:00 / 06:00 / 12:00 / 18:00`,
@@ -36,8 +35,7 @@ verdicts, validation gates, tests, package script, and runbook wiring.
 ## Blockers
 
 - No active blocker for planning.
-- Phase 2 needs a plan for scheduled runner storage, lock owner and CI/runner
-  substrate before implementation.
+- No active blocker for Phase 2 local implementation.
 
 ## Verification
 
@@ -48,9 +46,9 @@ verdicts, validation gates, tests, package script, and runbook wiring.
 ## Progress
 
 **Phases Complete:** 1
-**Current Plan:** Not planned yet
+**Current Plan:** .planning/workstreams/public-docs-rolling-publish-automation/phases/phase-2-scheduled-runner-and-single-flight-lock/PLAN.md
 
 ## Session Continuity
 
-**Stopped At:** Phase 1 implemented locally; next action is Phase 2 planning.
+**Stopped At:** Phase 2 planned; implementation in progress.
 **Resume File:** .planning/workstreams/public-docs-rolling-publish-automation/README.md
