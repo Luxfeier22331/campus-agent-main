@@ -429,6 +429,78 @@ def build_case_results_publish_batch(
     )
 
 
+def build_profile_report_publish_batch(
+    *,
+    profile_report_payload: dict[str, object],
+    grade_source: str,
+    grader_version: str,
+) -> OperatorPublishBatch:
+    profile_id = _required_string(profile_report_payload.get("profile_id"), "profile_id")
+    metric_key = f"profile.{profile_id}"
+    grades: list[OperatorQualityGrade] = []
+    backlinks: list[OperatorTraceBacklink] = []
+    skipped: list[OperatorSkippedPublishItem] = []
+    backlink_keys: set[tuple[str, str]] = set()
+
+    for raw_result in profile_report_payload.get("sanitized_results") or ():
+        result = dict(raw_result or {})
+        case_id = _required_string(result.get("case_id"), "sanitized_results[].case_id")
+        raw_correlation = result.get("request_correlation")
+        if not isinstance(raw_correlation, dict):
+            skipped.append(
+                OperatorSkippedPublishItem(
+                    case_id=case_id,
+                    metric_key=metric_key,
+                    reason="missing_request_correlation",
+                )
+            )
+            continue
+        correlation = _request_correlation_from_mapping(
+            case_id=case_id,
+            payload=raw_correlation,
+            field_prefix="sanitized_results[].request_correlation",
+        )
+        grades.append(
+            OperatorQualityGrade(
+                request_id=correlation.request_id,
+                trace_id=correlation.trace_id,
+                grade_source=grade_source,
+                grade_domain="intent",
+                verdict="pass" if bool(result.get("passed")) else "fail",
+                score=None,
+                grader_version=grader_version,
+                sampled_at=correlation.sampled_at,
+                rationale_summary=_optional_string(result.get("reason"))
+                or _optional_string(result.get("failure_class")),
+            )
+        )
+        backlink_key = (correlation.request_id, correlation.trace_id)
+        if backlink_key not in backlink_keys and any(
+            value is not None
+            for value in (
+                correlation.trace_link,
+                correlation.issue_link,
+                correlation.issue_fingerprint,
+            )
+        ):
+            backlinks.append(
+                OperatorTraceBacklink(
+                    request_id=correlation.request_id,
+                    trace_id=correlation.trace_id,
+                    trace_link=correlation.trace_link,
+                    issue_link=correlation.issue_link,
+                    issue_fingerprint=correlation.issue_fingerprint,
+                )
+            )
+            backlink_keys.add(backlink_key)
+
+    return OperatorPublishBatch(
+        grades=tuple(grades),
+        backlinks=tuple(backlinks),
+        skipped=tuple(skipped),
+    )
+
+
 def _extract_inline_request_correlations(
     case_results_payload: dict[str, object],
 ) -> dict[str, OperatorRequestCorrelation]:
@@ -439,23 +511,30 @@ def _extract_inline_request_correlations(
         if not isinstance(raw_correlation, dict):
             continue
         case_id = _required_string(result.get("case_id"), "results[].case_id")
-        correlation = OperatorRequestCorrelation(
+        correlation = _request_correlation_from_mapping(
             case_id=case_id,
-            request_id=_required_string(
-                raw_correlation.get("request_id"), "results[].request_correlation.request_id"
-            ),
-            trace_id=_required_string(
-                raw_correlation.get("trace_id"), "results[].request_correlation.trace_id"
-            ),
-            sampled_at=_required_string(
-                raw_correlation.get("sampled_at"), "results[].request_correlation.sampled_at"
-            ),
-            trace_link=_optional_string(raw_correlation.get("trace_link")),
-            issue_link=_optional_string(raw_correlation.get("issue_link")),
-            issue_fingerprint=_optional_string(raw_correlation.get("issue_fingerprint")),
+            payload=raw_correlation,
+            field_prefix="results[].request_correlation",
         )
         correlations[case_id] = correlation
     return correlations
+
+
+def _request_correlation_from_mapping(
+    *,
+    case_id: str,
+    payload: dict[str, object],
+    field_prefix: str,
+) -> OperatorRequestCorrelation:
+    return OperatorRequestCorrelation(
+        case_id=case_id,
+        request_id=_required_string(payload.get("request_id"), f"{field_prefix}.request_id"),
+        trace_id=_required_string(payload.get("trace_id"), f"{field_prefix}.trace_id"),
+        sampled_at=_required_string(payload.get("sampled_at"), f"{field_prefix}.sampled_at"),
+        trace_link=_optional_string(payload.get("trace_link")),
+        issue_link=_optional_string(payload.get("issue_link")),
+        issue_fingerprint=_optional_string(payload.get("issue_fingerprint")),
+    )
 
 
 def build_publish_parser() -> argparse.ArgumentParser:
@@ -538,6 +617,51 @@ def publish_case_results_artifact(
         "request_correlations_path": (
             str(request_correlations_path) if request_correlations_path is not None else None
         ),
+        "grade_source": grade_source,
+        "grader_version": grader_version,
+        "dry_run": dry_run,
+        "grade_count": len(batch.grades),
+        "backlink_count": len(batch.backlinks),
+        "accepted_grades": accepted_grades,
+        "accepted_backlinks": accepted_backlinks,
+        "skipped": [
+            {
+                "case_id": item.case_id,
+                "metric_key": item.metric_key,
+                "reason": item.reason,
+            }
+            for item in batch.skipped
+        ],
+    }
+
+
+def publish_profile_report_artifact(
+    *,
+    profile_report_path: str | Path,
+    grade_source: str,
+    grader_version: str,
+    settings: OperatorObservabilityClientSettings | None = None,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    profile_report_payload = json.loads(Path(profile_report_path).read_text(encoding="utf-8"))
+    batch = build_profile_report_publish_batch(
+        profile_report_payload=profile_report_payload,
+        grade_source=grade_source,
+        grader_version=grader_version,
+    )
+
+    accepted_grades = 0
+    accepted_backlinks = 0
+    if not dry_run:
+        resolved_settings = settings or OperatorObservabilityClientSettings.from_env()
+        client = OperatorObservabilityClient(settings=resolved_settings)
+        if batch.grades:
+            accepted_grades = client.ingest_quality_grades(batch.grades)
+        if batch.backlinks:
+            accepted_backlinks = client.ingest_trace_backlinks(batch.backlinks)
+
+    return {
+        "profile_report_path": str(profile_report_path),
         "grade_source": grade_source,
         "grader_version": grader_version,
         "dry_run": dry_run,
