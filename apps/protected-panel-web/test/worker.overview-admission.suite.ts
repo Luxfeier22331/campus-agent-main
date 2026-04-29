@@ -129,6 +129,41 @@ export function registerWorkerOverviewAdmissionSuite() {
 		);
 	});
 
+	it("rejects signed access assertions that do not carry a stable operator identity", async () => {
+		await withAccessAssertion(
+			{
+				accessTeamDomain: "https://team-overview-empty-identity.cloudflareaccess.com",
+				claims: {
+					email: "   ",
+					sub: "   ",
+				},
+			},
+			async (token) => {
+				const response = await worker.fetch(
+					new Request("https://panel.example.com/api/overview", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					{
+						APP_API: {
+							fetch: async () => new Response(null, { status: 204 }),
+						},
+						PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+						PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+						PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+						PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+						ACCESS_TEAM_DOMAIN: "https://team-overview-empty-identity.cloudflareaccess.com",
+						ACCESS_POLICY_AUD: "panel-operator-audience",
+					},
+				);
+
+				expect(response.status).toBe(401);
+				await expect(response.text()).resolves.toBe("Invalid Access JWT.");
+			},
+		);
+	});
+
 	it("fails closed when protected overview bridge is not configured", async () => {
 		await withAccessAssertion(
 			{
