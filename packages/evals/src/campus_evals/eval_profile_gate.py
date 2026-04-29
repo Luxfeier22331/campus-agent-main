@@ -308,38 +308,154 @@ def collect_public_chat_product_path_runtime_observations(
     client: httpx.Client | None = None,
 ) -> dict[str, PublicChatProductPathObservation]:
     resolved_settings = settings or AppApiEvalClientSettings.from_env()
-    headers = {
-        "x-app-internal-auth": resolved_settings.internal_shared_secret,
-        "x-eval-user-email": resolved_settings.eval_user_email,
-        "x-eval-principal-type": resolved_settings.eval_principal_type,
-    }
-    if resolved_settings.eval_user_id:
-        headers["x-eval-user-id"] = resolved_settings.eval_user_id
-    if resolved_settings.eval_user_name:
-        headers["x-eval-user-name"] = resolved_settings.eval_user_name
-
-    close_client = client is None
-    http_client = client or httpx.Client(
-        base_url=resolved_settings.app_api_base_url.rstrip("/"),
-        timeout=resolved_settings.timeout_seconds,
-    )
+    api_client = AppApiEvalClient(settings=resolved_settings, client=client)
     try:
         observations: dict[str, PublicChatProductPathObservation] = {}
         for case in case_set.cases:
-            response = http_client.post(
-                "/api/internal/evals/chat/requests",
-                json={"prompt": case.user_goal},
-                headers=headers,
-            )
-            response.raise_for_status()
-            observations[case.case_id] = _public_chat_observation_from_response(
+            execution = api_client.execute_chat_request(
                 case_id=case.case_id,
-                response=response,
+                prompt=case.user_goal,
+            )
+            observations[case.case_id] = _public_chat_observation_from_execution(
+                case_id=case.case_id,
+                execution=execution,
             )
         return observations
     finally:
-        if close_client:
-            http_client.close()
+        if client is None:
+            pass
+
+
+def collect_tool_family_denominator_runtime_observations(
+    fixture,
+    *,
+    settings: AppApiEvalClientSettings | None = None,
+    client: httpx.Client | None = None,
+) -> dict[str, ToolObservation]:
+    api_client = AppApiEvalClient(settings=settings or AppApiEvalClientSettings.from_env(), client=client)
+    observations: dict[str, ToolObservation] = {}
+    for case in fixture.cases:
+        execution = api_client.execute_chat_request(
+            case_id=case.case_id,
+            prompt=_tool_case_prompt(case),
+            requested_capability=_requested_capability_for_tool(case.tool_name),
+        )
+        response = execution.response
+        observability = response.observability
+        selected_tool = (
+            (observability.selected_tool if observability is not None else "")
+            or _first_workflow_tool(response.workflow_trace_summary)
+            or case.tool_name
+        )
+        result_status = (
+            (observability.tool_business_outcome if observability is not None else "")
+            or response.status
+        )
+        observations[case.case_id] = ToolObservation(
+            case_id=case.case_id,
+            selected_tool=selected_tool,
+            result_status=result_status,
+            argument_summary=_tool_argument_summary(response.workflow_trace_summary),
+        )
+    return observations
+
+
+def collect_authz_privacy_runtime_observations(
+    case_set,
+    *,
+    settings: AppApiEvalClientSettings | None = None,
+    client: httpx.Client | None = None,
+) -> dict[str, AuthzPrivacyObservation]:
+    api_client = AppApiEvalClient(settings=settings or AppApiEvalClientSettings.from_env(), client=client)
+    observations: dict[str, AuthzPrivacyObservation] = {}
+    for case in case_set.cases:
+        execution = api_client.execute_chat_request(
+            case_id=case.case_id,
+            prompt=_authz_case_prompt(case),
+            requested_capability="notice",
+        )
+        response = execution.response
+        observability = response.observability
+        authorization_summary = dict(response.workflow_trace_summary.guardrail_outcomes) if response.workflow_trace_summary else {}
+        if observability is not None:
+            if observability.acl_decision:
+                authorization_summary["acl_decision"] = observability.acl_decision
+            if observability.acl_anomaly_code:
+                authorization_summary["acl_anomaly_code"] = observability.acl_anomaly_code
+        observations[case.case_id] = AuthzPrivacyObservation(
+            case_id=case.case_id,
+            terminal_outcome=response.status,
+            fail_close_reason=(
+                response.workflow_trace_summary.fail_close_reason
+                if response.workflow_trace_summary is not None
+                else ""
+            )
+            or (observability.tool_fail_close_reason if observability is not None else ""),
+            authorization_summary=authorization_summary,
+            artifact_payload={"request_correlation": asdict(execution.request_correlation)},
+        )
+    return observations
+
+
+def collect_agentic_retrieval_plan_runtime_observations(
+    case_set,
+    *,
+    settings: AppApiEvalClientSettings | None = None,
+    client: httpx.Client | None = None,
+) -> dict[str, AgenticRetrievalPlanObservation]:
+    api_client = AppApiEvalClient(settings=settings or AppApiEvalClientSettings.from_env(), client=client)
+    observations: dict[str, AgenticRetrievalPlanObservation] = {}
+    for case in case_set.cases:
+        execution = api_client.execute_chat_request(
+            case_id=case.case_id,
+            prompt=case.user_goal,
+            requested_capability="knowledge",
+        )
+        summary = execution.response.workflow_trace_summary
+        routing_frame = summary.routing_frame if summary is not None else {}
+        planning = summary.context_resolution if summary is not None else {}
+        observations[case.case_id] = AgenticRetrievalPlanObservation(
+            case_id=case.case_id,
+            decomposition=_string_tuple_or_empty(routing_frame.get("decomposition")),
+            step_plan=_step_plan_from_trace(summary),
+            freshness_branch=str(routing_frame.get("freshness_branch") or ""),
+            live_branch_outcome=str(routing_frame.get("live_branch_outcome") or "not_required"),
+            fail_close_reason=(summary.fail_close_reason if summary is not None else ""),
+            supporting_evidence_ids=_string_tuple_or_empty(
+                planning.get("supporting_evidence_ids")
+            )
+            or tuple(sorted(_workflow_source_ids(summary))),
+            final_answer_status=execution.response.status,
+        )
+    return observations
+
+
+def collect_document_quality_runtime_observations(
+    *,
+    manifest_path: Path,
+) -> dict[str, DocumentQualityObservation]:
+    payload = _load_json(manifest_path)
+    raw_documents = payload.get("documents")
+    if not isinstance(raw_documents, list):
+        raise ValueError("normalized document manifest documents must be a list")
+    observations: dict[str, DocumentQualityObservation] = {}
+    for raw_item in raw_documents:
+        item = _mapping(raw_item, "document")
+        case_id = _required_string(item.get("case_id"), "document.case_id")
+        observations[case_id] = DocumentQualityObservation(
+            case_id=case_id,
+            extracted_text=_required_string(
+                item.get("normalized_text")
+                or item.get("text")
+                or item.get("extracted_text"),
+                "document.normalized_text",
+            ),
+            table_headers=_string_tuple(item.get("table_headers") or []),
+            confidence=float(item.get("confidence") or 0.0),
+            projection_target=str(item.get("projection_target") or ""),
+            claims=_string_tuple(item.get("claims") or []),
+        )
+    return observations
 
 
 def derive_eval_operations_observations_from_artifacts(
@@ -383,6 +499,7 @@ def derive_eval_operations_observations_from_artifacts(
                 summary.get("provider_calls") or 0,
                 "summary.provider_calls",
             ),
+            metrics_missing=_runtime_metrics_missing(summary),
             failed_cases=failed_cases,
             case_dispositions=case_dispositions,
             version_summary=_mapping(payload.get("version_summary") or {}, "version_summary"),
@@ -565,6 +682,7 @@ def _load_public_chat_observations(
             fail_close_reason=str(item.get("fail_close_reason") or ""),
             response_contract=_mapping(item.get("response_contract") or {}, "response_contract"),
             operator_backflow=_mapping(item.get("operator_backflow") or {}, "operator_backflow"),
+            request_correlation=_request_correlation_mapping(item.get("request_correlation")),
         )
         for item in _load_observation_items(path)
     }
