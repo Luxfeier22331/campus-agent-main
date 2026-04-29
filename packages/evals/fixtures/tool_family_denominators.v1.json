@@ -1,0 +1,307 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-29",
+  "tools": [
+    {
+      "tool_name": "service_status_lookup",
+      "capability_family": "campus-services-agent",
+      "denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+    },
+    {
+      "tool_name": "transport_schedule_lookup",
+      "capability_family": "campus-services-agent",
+      "denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+    },
+    {
+      "tool_name": "service_guide_lookup",
+      "capability_family": "campus-services-agent",
+      "denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+    },
+    {
+      "tool_name": "contact_directory_lookup",
+      "capability_family": "campus-services-agent",
+      "denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+    },
+    {
+      "tool_name": "campus_notice_discover",
+      "capability_family": "notice-agent",
+      "denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+    },
+    {
+      "tool_name": "campus_notice_get",
+      "capability_family": "notice-agent",
+      "denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+    },
+    {
+      "tool_name": "retrieval.query",
+      "capability_family": "rag-agent",
+      "denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "tool-service-status-smoke-current-open",
+      "tool_name": "service_status_lookup",
+      "split": "smoke",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "service_key": "campus_card",
+        "status_kind": "current"
+      }
+    },
+    {
+      "case_id": "tool-service-status-release-current-open",
+      "tool_name": "service_status_lookup",
+      "split": "release_gate",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "service_key": "campus_card",
+        "status_kind": "current"
+      }
+    },
+    {
+      "case_id": "tool-service-status-regression-projection-missing",
+      "tool_name": "service_status_lookup",
+      "split": "regression_locked",
+      "expected_result_status": "projection_missing",
+      "expected_arguments": {
+        "service_key": "unknown",
+        "status_kind": "current"
+      }
+    },
+    {
+      "case_id": "tool-service-status-exploratory-temporary-unavailable",
+      "tool_name": "service_status_lookup",
+      "split": "exploratory",
+      "expected_result_status": "temporarily_unavailable",
+      "expected_arguments": {
+        "service_key": "campus_card",
+        "status_kind": "temporary_adjustment"
+      }
+    },
+    {
+      "case_id": "tool-transport-schedule-smoke-current-window",
+      "tool_name": "transport_schedule_lookup",
+      "split": "smoke",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "service_key": "transport_commute",
+        "time_scope": "current"
+      }
+    },
+    {
+      "case_id": "tool-transport-schedule-release-current-window",
+      "tool_name": "transport_schedule_lookup",
+      "split": "release_gate",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "service_key": "transport_commute",
+        "time_scope": "current"
+      }
+    },
+    {
+      "case_id": "tool-transport-schedule-regression-not-found",
+      "tool_name": "transport_schedule_lookup",
+      "split": "regression_locked",
+      "expected_result_status": "not_found",
+      "expected_arguments": {
+        "service_key": "transport_commute",
+        "route_key": "unknown"
+      }
+    },
+    {
+      "case_id": "tool-transport-schedule-exploratory-argument-ambiguity",
+      "tool_name": "transport_schedule_lookup",
+      "split": "exploratory",
+      "expected_result_status": "argument_ambiguity",
+      "expected_arguments": {
+        "service_key": "transport_commute",
+        "time_scope": "ambiguous"
+      }
+    },
+    {
+      "case_id": "tool-service-guide-smoke-campus-card-lost",
+      "tool_name": "service_guide_lookup",
+      "split": "smoke",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "guide_key": "campus_card_lost"
+      }
+    },
+    {
+      "case_id": "tool-service-guide-release-medical-reimbursement",
+      "tool_name": "service_guide_lookup",
+      "split": "release_gate",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "guide_key": "medical_reimbursement"
+      }
+    },
+    {
+      "case_id": "tool-service-guide-regression-not-found",
+      "tool_name": "service_guide_lookup",
+      "split": "regression_locked",
+      "expected_result_status": "not_found",
+      "expected_arguments": {
+        "guide_key": "unknown"
+      }
+    },
+    {
+      "case_id": "tool-service-guide-exploratory-missing-entry",
+      "tool_name": "service_guide_lookup",
+      "split": "exploratory",
+      "expected_result_status": "projection_missing",
+      "expected_arguments": {
+        "guide_key": "source_not_projected"
+      }
+    },
+    {
+      "case_id": "tool-contact-directory-smoke-campus-card",
+      "tool_name": "contact_directory_lookup",
+      "split": "smoke",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "unit_query": "校园卡"
+      }
+    },
+    {
+      "case_id": "tool-contact-directory-release-medical",
+      "tool_name": "contact_directory_lookup",
+      "split": "release_gate",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "unit_query": "公费医疗"
+      }
+    },
+    {
+      "case_id": "tool-contact-directory-regression-not-found",
+      "tool_name": "contact_directory_lookup",
+      "split": "regression_locked",
+      "expected_result_status": "not_found",
+      "expected_arguments": {
+        "unit_query": "不存在的单位"
+      }
+    },
+    {
+      "case_id": "tool-contact-directory-exploratory-ambiguous",
+      "tool_name": "contact_directory_lookup",
+      "split": "exploratory",
+      "expected_result_status": "argument_ambiguity",
+      "expected_arguments": {
+        "unit_query": "办公室"
+      }
+    },
+    {
+      "case_id": "tool-notice-discover-smoke-title-url",
+      "tool_name": "campus_notice_discover",
+      "split": "smoke",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "query_kind": "title_url_card"
+      }
+    },
+    {
+      "case_id": "tool-notice-discover-release-title-url",
+      "tool_name": "campus_notice_discover",
+      "split": "release_gate",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "query_kind": "title_url_card"
+      }
+    },
+    {
+      "case_id": "tool-notice-discover-regression-not-found",
+      "tool_name": "campus_notice_discover",
+      "split": "regression_locked",
+      "expected_result_status": "not_found",
+      "expected_arguments": {
+        "query_kind": "no_hit"
+      }
+    },
+    {
+      "case_id": "tool-notice-discover-exploratory-date-ambiguity",
+      "tool_name": "campus_notice_discover",
+      "split": "exploratory",
+      "expected_result_status": "argument_ambiguity",
+      "expected_arguments": {
+        "query_kind": "ambiguous_date_range"
+      }
+    },
+    {
+      "case_id": "tool-notice-get-smoke-public-title-url",
+      "tool_name": "campus_notice_get",
+      "split": "smoke",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "source_family": "public_title_url"
+      }
+    },
+    {
+      "case_id": "tool-notice-get-release-public-title-url",
+      "tool_name": "campus_notice_get",
+      "split": "release_gate",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "source_family": "public_title_url"
+      }
+    },
+    {
+      "case_id": "tool-notice-get-regression-restricted-deny",
+      "tool_name": "campus_notice_get",
+      "split": "regression_locked",
+      "expected_result_status": "authorization_denied",
+      "expected_arguments": {
+        "source_family": "internal_notice_restricted"
+      }
+    },
+    {
+      "case_id": "tool-notice-get-exploratory-attachment-summary",
+      "tool_name": "campus_notice_get",
+      "split": "exploratory",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "source_family": "public_notice_with_attachment"
+      }
+    },
+    {
+      "case_id": "tool-retrieval-query-smoke-student-rules",
+      "tool_name": "retrieval.query",
+      "split": "smoke",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "collection": "student_rules",
+        "query_family": "policy_lookup"
+      }
+    },
+    {
+      "case_id": "tool-retrieval-query-release-curriculum-plan",
+      "tool_name": "retrieval.query",
+      "split": "release_gate",
+      "expected_result_status": "completed",
+      "expected_arguments": {
+        "collection": "curriculum_plan",
+        "query_family": "plan_lookup"
+      }
+    },
+    {
+      "case_id": "tool-retrieval-query-regression-no-hit",
+      "tool_name": "retrieval.query",
+      "split": "regression_locked",
+      "expected_result_status": "not_found",
+      "expected_arguments": {
+        "collection": "student_rules",
+        "query_family": "no_hit"
+      }
+    },
+    {
+      "case_id": "tool-retrieval-query-exploratory-needs-clarification",
+      "tool_name": "retrieval.query",
+      "split": "exploratory",
+      "expected_result_status": "argument_ambiguity",
+      "expected_arguments": {
+        "collection": "curriculum_plan",
+        "query_family": "deictic_follow_up"
+      }
+    }
+  ]
+}

@@ -88,6 +88,62 @@ Evaluation helpers for campus-agent v2.
 - `campus_evals.eval_admission intent-candidates` 只把 mined JSONL 包装成
   `pending_review` manifest，不会直接接收 golden truth；review / dedupe / expected truth
   修订完成后，才允许人工迁入 observed regression fixture
+- `campus_evals.eval_admission quality-candidates` 只把 app-api operator quality
+  eval-candidates export 包装成 `pending_review` manifest，支持 `operator_badcase` 与
+  `negative_feedback`，不会直接接收 golden truth
+- `campus_evals.observed_regression_review apply` 负责把 pending review manifest 与
+  repo-owned review decision 合并，输出 reviewed manifest 与 accepted observed regression
+  fixture；`accept` 必须提供 reviewer / reason / target suite / correlation 和重写后的
+  eval-owned case payload，不能把 app-api candidate JSON 原样晋升
+- `eval_denominator_registry.v1.json` 是 shared denominator registry scaffold，只表达每个
+  admitted surface / tool / intake 当前应由哪些 eval family 覆盖，不 author domain truth
+- formal benchmark case-results artifact 现在同时允许 `observed_trace`、
+  `workflow_trace_summary` 与 `orchestration_case_results`；后两者是 workflow trace gate
+  的 sanitized artifact surface，不保存 raw transcript、auth material 或 provider raw response
+- workflow trace runtime gate 现在固定在
+  `packages/evals/fixtures/workflow_trace_gate_cases.v1.json` 与
+  `campus_evals.workflow_trace_gate`；它按 case expectation 确定性评估
+  direct/delegate/clarification/fail-close branch、handoff target、selected tool、tool
+  argument summary、guardrail outcome 与 trace projection completeness，并通过
+  `attach_workflow_trace_gate(...)` 把 verdict 写入 formal benchmark 的
+  `orchestration_case_results`
+- public chat product-path eval 固定在
+  `packages/evals/fixtures/public_chat_product_path_cases.v1.json` 与
+  `campus_evals.public_chat_product_path_eval`；它只评估 sanitized request / trace
+  correlation、selected target、terminal outcome、response contract 与 operator backflow
+  summary，不保存 raw transcript 或 provider raw response
+- campus-services / notice tool-family denominator 固定在
+  `packages/evals/fixtures/tool_family_denominators.v1.json` 与
+  `campus_evals.tool_family_denominator`；它覆盖 `service_status_lookup`、
+  `transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup`、
+  `campus_notice_discover` 与 `campus_notice_get`，并把 failure class 固定为
+  routing error、read-model gap、authorization fail-close 或 missing observation
+- multimodal / OCR document quality eval 固定在
+  `packages/evals/fixtures/document_quality_cases.v1.json` 与
+  `campus_evals.document_quality_eval`；它覆盖 required span、table header、confidence、
+  projection target 与 forbidden claim，防止 OCR/视觉输出冒充 owner-authored regulation
+  truth
+- restricted/authz/privacy eval 固定在
+  `packages/evals/fixtures/authz_privacy_cases.v1.json` 与
+  `campus_evals.authz_privacy_eval`；它覆盖 restricted deny、policy unavailable、
+  capability closed 与 artifact minimization，forbidden raw key guard 也覆盖 restricted/raw
+  payload keys
+- agentic retrieval plan / freshness eval 固定在
+  `packages/evals/fixtures/agentic_retrieval_plan_cases.v1.json` 与
+  `campus_evals.agentic_retrieval_plan_eval`；它把 query decomposition、step plan、
+  freshness/current/historical/as-of/compare branch、live fail-close、supporting evidence
+  与 final answer status 分开归因
+- eval operations governance 固定在
+  `packages/evals/fixtures/eval_operations_profile_policy.v1.json`、
+  `campus_evals.eval_operations_governance` 与
+  `docs/runbooks/eval-operations-governance.md`；它评估 profile budget、timeout、retry、
+  retention、failure disposition、quarantine readmission 与 version drift
+- Phase 8-13 的 observation-backed deterministic profiles 已统一接入
+  `campus_evals.eval_profile_gate` 与 `scripts.eval_gate`。这些 profile 输出
+  `eval_profile_gate.v1` 的 `profile-report.json`，必须包含 `profile_id`、
+  `case_family`、`summary`、`version_summary` 与 `sanitized_results`，并且只保存
+  sanitized observation，不保存 raw prompt、provider raw response、auth material、
+  restricted payload 或带 token/cookie 的 URL 值。
 - `service_guide_lookup` release gate 是确定性组合 gate，入口为：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   service-guide-lookup`；
@@ -108,27 +164,39 @@ Evaluation helpers for campus-agent v2.
   `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`
   与 `contact_directory_lookup` 是 opened tools，`service_process_lookup`
   明确记录为 `keep_closed`。
+- `multi-agent-product-path` gate 是 supervisor-led multi-agent 产品路径的确定性组合
+  gate，入口为：`uv run --all-packages python -m scripts.eval_gate accept --profile
+  multi-agent-product-path`；它组合 workflow trace eval、tool-family denominator、
+  public-chat product-path eval，以及 supervisor-api / app-api / panel targeted test
+  lanes。该 gate 不启动本地 live process，不运行 Docker smoke，不修改 serving
+  admission，不引入 Agents SDK，也不产生 operator observability live case-results
+  publish dry-run artifact。
+- `multi-agent-product-path` denominator 当前覆盖 10 条 workflow trace case、28 条
+  tool-family case 与 10 条 public-chat product-path case。知识类 student_rules /
+  curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
+  可直接调用的 flat tool。
 
 ## Orchestration / Workflow Trace Eval Gap
 
-当前 eval 已经覆盖 retrieval qrels、intent gate、observability publish、formal benchmark
-artifact、supplemental judge / ragas adapter 与 `service_guide_lookup` release gate，但还不能
-把 supervisor-led orchestration 的每一步都作为独立 denominator 评估。
+当前 eval 已经覆盖 retrieval qrels、intent gate、observability publish、formal
+benchmark artifact、supplemental judge / ragas adapter、`service_guide_lookup`
+release gate 与 shared workflow trace runtime gate。后续缺口不再是 artifact/gate
+shape，而是把更多真实产品路径和 domain-specific case 扩编进这些 gate。
 
 需要补齐的 shared suite family：
 
 - `workflow_trace`
-  - 验证 planner、routing frame、handoff、tool call、guardrail、direct runtime branch 与
-    fail-close terminal outcome 的 trace correctness
+  - 已有 shared gate；当前覆盖 direct structured、campus-services handoff、notice handoff、
+    knowledge delegate、ambiguous follow-up、fail-close 与 no-result 产品路径
 - `direct_vs_delegate`
   - 验证 Go structured runtime / non-delegate terminal / Python delegate 三类分支是否命中
     expected truth
 - `tool_argument_precision`
-  - 验证 retrieval plan、structured lookup subtype、source channel、temporal
+  - 验证 selected tools、retrieval plan、structured lookup subtype、source channel、temporal
     scope、doc / version / service id 等参数是否精确
 - `handoff_correctness`
-  - 验证 `AgentRequest` 的 capability family、target、allowed tools、context resolution、
-    missing slots 与 policy reason 是否和 case truth 对齐
+  - 验证 selected target、`AgentRequest` 的 capability family、target、allowed tools、
+    context resolution、missing slots 与 policy reason 是否和 case truth 对齐
 - `agent_escalation_fail_close`
   - 验证 capability closed、scope disabled、policy unavailable、missing context、ambiguous
     follow-up 与 unauthorized visibility 的 terminal outcome
@@ -165,6 +233,35 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
   --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   contact-directory-lookup --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  multi-agent-product-path --json`
+- `uv run --all-packages python -m unittest
+  tests.evals.public_chat_product_path_eval_suite
+  tests.evals.tool_family_denominator_suite
+  tests.evals.document_quality_eval_suite
+  tests.evals.authz_privacy_eval_suite`
+- `uv run --all-packages python -m unittest tests.evals.case_governance_suite
+  tests.evals.workflow_trace_gate_suite tests.evals.test_intent_eval`
+- `uv run --all-packages python -m unittest
+  tests.evals.agentic_retrieval_plan_eval_suite
+  tests.evals.eval_operations_governance_suite`
+- `uv run --all-packages python -m unittest tests.evals.test_eval_profile_gate
+  tests.evals.test_eval_artifact_redaction`
+
+observation-backed profile gate CLI：
+
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  public-chat-product-path --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  tool-family-denominator --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  document-quality --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  authz-privacy --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  agentic-retrieval-plan --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  eval-operations-governance --artifact-path <profile-report.json> --json`
 
 retrieval benchmark CLI：
 

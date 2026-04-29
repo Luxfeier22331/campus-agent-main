@@ -3,9 +3,9 @@ from __future__ import annotations
 import re
 
 from campus_contracts import (
+    AgentResponse,
     RagResultDiagnostics,
     RagResultPayload,
-    AgentResponse,
     SupervisorResponse,
 )
 
@@ -446,9 +446,7 @@ def _grade_approval_required_accuracy(
     if response.status != "approval_required":
         return DimensionResult(False, f"status={response.status}")
     if _response_targets_rag(response):
-        return DimensionResult(
-            False, "approval_required response should not select agent target"
-        )
+        return DimensionResult(False, "approval_required response should not select agent target")
     if not response.answer_text.strip() and not response.follow_up_question.strip():
         return DimensionResult(False, "approval_required response should include operator guidance")
     return DimensionResult(True, "ok")
@@ -646,7 +644,10 @@ def _matches_source_ref(source_ref, source) -> bool:
         and source.source_unit_kind != source_ref.source_unit_kind
     ):
         return False
-    return not (source_ref.source_unit_key is not None and source.source_unit_key != source_ref.source_unit_key)
+    return not (
+        source_ref.source_unit_key is not None
+        and source.source_unit_key != source_ref.source_unit_key
+    )
 
 
 def _require_supported_response(

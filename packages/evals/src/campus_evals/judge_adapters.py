@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import httpx
-from campus_contracts import RagResultPayload, AgentResponse, SupervisorResponse
+from campus_contracts import AgentResponse, RagResultPayload, SupervisorResponse
 from langchain_core.prompt_values import StringPromptValue
 
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult

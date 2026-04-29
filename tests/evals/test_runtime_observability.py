@@ -23,10 +23,13 @@ class RuntimeObservabilityTest(unittest.TestCase):
             path = Path(tmpdir) / "events.jsonl"
             writer = RuntimeEventWriter(path=path, session_id="session-1")
 
-            with bind_runtime_event_sink(writer), bind_runtime_event_context(
-                run_number=1,
-                case_id="case-1",
-                adapter_id="ragas",
+            with (
+                bind_runtime_event_sink(writer),
+                bind_runtime_event_context(
+                    run_number=1,
+                    case_id="case-1",
+                    adapter_id="ragas",
+                ),
             ):
                 emit_runtime_event(
                     "supplemental_request_failed",

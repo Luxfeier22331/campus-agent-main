@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from campus_evals import DimensionResult
+from campus_evals import models as eval_models
+
 from tests.evals.formal_benchmark_test_support import (
     HANDBOOK_SCOPE,
     ExecutionResult,
@@ -78,6 +81,66 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
                 "issue_link": None,
                 "issue_fingerprint": None,
             },
+        )
+
+    def test_run_formal_benchmark_persists_workflow_trace_artifact_fields(self) -> None:
+        self.assertTrue(hasattr(eval_models, "WorkflowTraceSummary"))
+        self.assertTrue(hasattr(eval_models, "OrchestrationCaseResults"))
+        workflow_trace_summary_cls = eval_models.WorkflowTraceSummary
+        orchestration_case_results_cls = eval_models.OrchestrationCaseResults
+        cases = (_completed_case(),)
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+
+            run_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                    workflow_trace_summary=workflow_trace_summary_cls(
+                        routing_frame={"requested_capability": "knowledge"},
+                        context_resolution={"resolved_scope": "regulations/student_rules"},
+                        planning_outcome="delegate",
+                        direct_vs_delegate_branch="delegate",
+                        handoff={"target": "rag-agent"},
+                        selected_target="rag-agent",
+                        selected_tools=("retrieval.query",),
+                        tool_argument_summary={"collection": "student_rules"},
+                        guardrail_outcomes={"scope_gate": "pass"},
+                        runtime_versions={"supervisor-api": "test"},
+                        policy_artifact_versions={"intent-policy": "test"},
+                    ),
+                    orchestration_case_results=orchestration_case_results_cls(
+                        direct_vs_delegate_branch_correctness=DimensionResult(True, "ok"),
+                        handoff_correctness=DimensionResult(True, "ok"),
+                        tool_argument_precision=DimensionResult(True, "ok"),
+                        guardrail_correctness=DimensionResult(True, "ok"),
+                        fail_close_correctness=DimensionResult(True, "not_applicable"),
+                        trace_projection_completeness=DimensionResult(True, "ok"),
+                    ),
+                ),
+                supplemental_adapters=(),
+                output_dir=output_dir,
+                reruns=1,
+            )
+
+            payload = json.loads(
+                (output_dir / "run-01-case-results.json").read_text(encoding="utf-8")
+            )
+
+        result = payload["results"][0]
+        self.assertEqual(result["workflow_trace_summary"]["selected_target"], "rag-agent")
+        self.assertEqual(result["workflow_trace_summary"]["selected_tools"], ["retrieval.query"])
+        self.assertTrue(
+            result["orchestration_case_results"]["trace_projection_completeness"]["passed"]
         )
 
     def test_run_formal_benchmark_binds_faithfulness_artifact_context_per_run(

@@ -93,6 +93,72 @@ class EvalGateTest(unittest.TestCase):
             ],
         )
 
+    def test_run_eval_acceptance_builds_observation_profile_args(self) -> None:
+        seen_argv: list[str] = []
+
+        def fake_runner(argv: list[str]) -> int:
+            nonlocal seen_argv
+            seen_argv = list(argv)
+            return 0
+
+        with patch("scripts.eval_gate._resolve_profile_runner", return_value=fake_runner):
+            summary = run_eval_acceptance(
+                profile="public-chat-product-path",
+                output_dir=Path("/tmp/eval-artifacts"),
+                reruns=1,
+                cases_path=Path("/tmp/cases.json"),
+                observations_path=Path("/tmp/observations.json"),
+                collect_runtime=True,
+            )
+
+        self.assertEqual(summary["exit_code"], 0)
+        self.assertEqual(
+            seen_argv,
+            [
+                "accept",
+                "--output-dir",
+                "/tmp/eval-artifacts",
+                "--reruns",
+                "1",
+                "--cases-path",
+                "/tmp/cases.json",
+                "--observations-path",
+                "/tmp/observations.json",
+                "--collect-runtime",
+            ],
+        )
+
+    def test_observation_profiles_do_not_support_operator_publish_dry_run(self) -> None:
+        with (
+            patch("scripts.eval_gate._resolve_profile_runner", return_value=lambda _: 0),
+            self.assertRaisesRegex(ValueError, "does not produce live case-results"),
+        ):
+            run_eval_acceptance(
+                profile="tool-family-denominator",
+                output_dir=Path("/tmp/eval-artifacts"),
+                publish_dry_run=True,
+                publish_grade_source="eval_release_gate",
+                publish_grader_version="grader@2026-04-29",
+            )
+
+    def test_all_observation_profiles_are_registered(self) -> None:
+        profiles = (
+            "public-chat-product-path",
+            "tool-family-denominator",
+            "document-quality",
+            "authz-privacy",
+            "agentic-retrieval-plan",
+            "eval-operations-governance",
+        )
+
+        with patch("scripts.eval_gate._resolve_profile_runner", return_value=lambda _: 0):
+            summaries = [
+                run_eval_acceptance(profile=profile, output_dir=Path("/tmp/eval-artifacts"))
+                for profile in profiles
+            ]
+
+        self.assertEqual([summary["exit_code"] for summary in summaries], [0] * len(profiles))
+
     def test_main_publish_defaults_to_dry_run_json_output(self) -> None:
         buffer = io.StringIO()
         with (

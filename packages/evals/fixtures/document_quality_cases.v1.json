@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-29",
+  "cases": [
+    {
+      "case_id": "document-quality-transport-table-ocr",
+      "required_spans": ["海淀校区", "丰台校区", "发车时间"],
+      "required_table_headers": ["方向", "发车时间", "乘车点"],
+      "forbidden_claims": ["这是正式规章制度"],
+      "min_confidence": 0.8,
+      "allowed_projection_targets": ["transport_schedule_candidate", "notice_read_model_excerpt"]
+    },
+    {
+      "case_id": "document-quality-image-notice-required-spans",
+      "required_spans": ["校园卡挂失", "补卡地点", "校园卡管理中心"],
+      "required_table_headers": [],
+      "forbidden_claims": ["可直接作为制度正文"],
+      "min_confidence": 0.75,
+      "allowed_projection_targets": ["service_guide_candidate", "notice_read_model_excerpt"]
+    },
+    {
+      "case_id": "document-quality-scanned-pdf-required-spans",
+      "required_spans": ["采购项目", "报名时间", "联系人"],
+      "required_table_headers": [],
+      "forbidden_claims": ["可作为正式制度入库"],
+      "min_confidence": 0.8,
+      "allowed_projection_targets": ["notice_read_model_excerpt", "notice_card_candidate"]
+    },
+    {
+      "case_id": "document-quality-table-heavy-schedule",
+      "required_spans": ["首班", "末班", "运营时间"],
+      "required_table_headers": ["方向", "首班", "末班", "间隔"],
+      "forbidden_claims": ["全天无限制运营"],
+      "min_confidence": 0.82,
+      "allowed_projection_targets": ["transport_schedule_candidate", "notice_read_model_excerpt"]
+    },
+    {
+      "case_id": "document-quality-low-confidence-false-adoption",
+      "required_spans": ["办理地点", "办公时间"],
+      "required_table_headers": [],
+      "forbidden_claims": ["可直接采用为官方指南"],
+      "min_confidence": 0.9,
+      "allowed_projection_targets": ["service_guide_candidate", "notice_read_model_excerpt"]
+    }
+  ]
+}

@@ -7,11 +7,11 @@ from threading import Lock
 
 from campus_contracts import (
     ActorContext,
+    AgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    AgentResponse,
     SupervisorResponse,
 )
 from campus_evals import (

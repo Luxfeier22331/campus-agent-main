@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 
 from campus_contracts import (
+    AgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    AgentResponse,
 )
 from campus_shared import load_repo_env
 

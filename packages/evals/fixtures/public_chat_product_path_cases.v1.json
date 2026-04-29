@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "case_family": "public_chat_product_path.v1",
+  "updated_at": "2026-04-29",
+  "cases": [
+    {
+      "case_id": "public-chat-service-guide-happy-path",
+      "user_goal": "校园卡丢了怎么办",
+      "split": "smoke",
+      "expected": {
+        "selected_target": "campus-services-agent",
+        "terminal_outcome": "completed",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": true,
+          "cards_present": true,
+          "source_url_present": true
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-medical-reimbursement-service-guide",
+      "user_goal": "公费医疗报销怎么办理，需要哪些材料",
+      "split": "release_gate",
+      "expected": {
+        "selected_target": "campus-services-agent",
+        "terminal_outcome": "completed",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": true,
+          "cards_present": true,
+          "source_url_present": true
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-transport-schedule-routing",
+      "user_goal": "今天两校区通勤班车怎么坐",
+      "split": "release_gate",
+      "expected": {
+        "selected_target": "campus-services-agent",
+        "terminal_outcome": "completed",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": true,
+          "cards_present": true,
+          "source_url_present": true
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-ambiguous-service-clarification",
+      "user_goal": "卡怎么处理",
+      "split": "clarification",
+      "expected": {
+        "selected_target": "campus-services-agent",
+        "terminal_outcome": "clarification",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": false,
+          "cards_present": false,
+          "source_url_present": false
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-contextual-follow-up-materials",
+      "user_goal": "我刚才说的那个流程需要哪些材料",
+      "split": "regression_locked",
+      "expected": {
+        "selected_target": "campus-services-agent",
+        "terminal_outcome": "completed",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": true,
+          "cards_present": true,
+          "source_url_present": true
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-notice-title-url-card",
+      "user_goal": "最近采购公告有哪些，给我标题和链接",
+      "split": "release_gate",
+      "expected": {
+        "selected_target": "notice-agent",
+        "terminal_outcome": "completed",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": false,
+          "cards_present": true,
+          "source_url_present": true
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-notice-detail-summary",
+      "user_goal": "国家语言资源监测与研究民族语言中心那条通知说了什么",
+      "split": "regression_locked",
+      "expected": {
+        "selected_target": "notice-agent",
+        "terminal_outcome": "completed",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": true,
+          "cards_present": true,
+          "source_url_present": true
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-transactional-service-fail-close",
+      "user_goal": "帮我提交公费医疗报销申请",
+      "split": "fail_close",
+      "expected": {
+        "selected_target": "none",
+        "terminal_outcome": "fail_close",
+        "fail_close_reason": "transactional_action_not_supported",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": false,
+          "cards_present": false,
+          "source_url_present": false
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-no-hit-safe-response",
+      "user_goal": "查询一个不存在的校内服务办理入口",
+      "split": "no_hit",
+      "expected": {
+        "selected_target": "campus-services-agent",
+        "terminal_outcome": "no_hit",
+        "response_contract": {
+          "answer_text_present": true,
+          "citations_present": false,
+          "cards_present": false,
+          "source_url_present": false
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    },
+    {
+      "case_id": "public-chat-policy-unavailable-fail-close",
+      "user_goal": "查询暂未开放的受限通知全文",
+      "split": "fail_close",
+      "expected": {
+        "selected_target": "none",
+        "terminal_outcome": "fail_close",
+        "fail_close_reason": "policy_unavailable",
+        "response_contract": {
+          "answer_text_present": false,
+          "citations_present": false,
+          "cards_present": false,
+          "source_url_present": false
+        },
+        "operator_backflow": {
+          "quality_candidate_supported": true,
+          "trace_backlink_present": true
+        }
+      }
+    }
+  ]
+}

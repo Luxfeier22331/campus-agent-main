@@ -11,8 +11,10 @@ from typing import Protocol
 from campus_evals.expectations import KNOWN_DETERMINISTIC_METRICS, evaluate_case
 from campus_evals.models import (
     CaseResult,
+    DimensionResult,
     ExecutionResult,
     GoldenCase,
+    OrchestrationCaseResults,
     RunReport,
     SummaryCount,
     SupplementalMetricSummary,
@@ -105,6 +107,14 @@ def _run_case(
             result = replace(result, observed_trace=execution.observed_trace)
         if execution.request_correlation is not None:
             result = replace(result, request_correlation=execution.request_correlation)
+        if execution.workflow_trace_summary is not None:
+            result = replace(result, workflow_trace_summary=execution.workflow_trace_summary)
+        if execution.orchestration_case_results is not None:
+            result = replace(
+                result,
+                orchestration_case_results=execution.orchestration_case_results,
+            )
+            result = _apply_orchestration_case_gate(result, execution.orchestration_case_results)
         supplemental_results = _evaluate_supplemental_results(
             case,
             execution,
@@ -197,6 +207,50 @@ def _evaluate_supplemental_results(
     for adapter in supplemental_adapters:
         results.extend(adapter.evaluate(case, execution))
     return tuple(results)
+
+
+def _apply_orchestration_case_gate(
+    result: CaseResult,
+    orchestration_results: OrchestrationCaseResults,
+) -> CaseResult:
+    failed_dimensions = tuple(
+        name
+        for name, dimension in _orchestration_dimension_items(orchestration_results)
+        if not dimension.passed
+    )
+    if not failed_dimensions:
+        return result
+    trace_result = DimensionResult(
+        False,
+        "workflow_trace_gate_failed: " + ", ".join(failed_dimensions),
+    )
+    metric_results = dict(result.metric_results)
+    metric_results["trace_path_correctness"] = trace_result
+    return replace(
+        result,
+        passed=False,
+        trace_result=trace_result,
+        metric_results=metric_results,
+    )
+
+
+def _orchestration_dimension_items(
+    orchestration_results: OrchestrationCaseResults,
+) -> tuple[tuple[str, DimensionResult], ...]:
+    return (
+        (
+            "direct_vs_delegate_branch_correctness",
+            orchestration_results.direct_vs_delegate_branch_correctness,
+        ),
+        ("handoff_correctness", orchestration_results.handoff_correctness),
+        ("tool_argument_precision", orchestration_results.tool_argument_precision),
+        ("guardrail_correctness", orchestration_results.guardrail_correctness),
+        ("fail_close_correctness", orchestration_results.fail_close_correctness),
+        (
+            "trace_projection_completeness",
+            orchestration_results.trace_projection_completeness,
+        ),
+    )
 
 
 def _supplemental_bucket_key(result: SupplementalResult) -> str:

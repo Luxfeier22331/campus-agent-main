@@ -7,11 +7,11 @@ from tempfile import TemporaryDirectory
 
 from campus_contracts import (
     ActorContext,
+    AgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    AgentResponse,
 )
 from campus_evals import (
     ExecutionResult,
@@ -109,6 +109,7 @@ def _response(
 __all__ = (
     "HANDBOOK_SCOPE",
     "ActorContext",
+    "AgentResponse",
     "EvidenceBundle",
     "EvidenceSource",
     "ExecutionResult",
@@ -118,7 +119,6 @@ __all__ = (
     "OperatorRequestCorrelation",
     "Path",
     "RagResultPayload",
-    "AgentResponse",
     "SupplementalResult",
     "TemporaryDirectory",
     "TraceExpectation",

@@ -1,18 +1,20 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import (
     ALLOWED_AGENT_TARGETS,
     ActorContext,
-    EvidenceSource,
-    KnowledgeScope,
     AgentResponse,
     AgentTarget,
+    EvidenceSource,
+    KnowledgeScope,
     SupervisorResponse,
     SupervisorStatus,
     VersionQuery,
+    WorkflowTraceSummary,
 )
 from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
 
@@ -48,12 +50,79 @@ _RUNTIME_TARGET_TO_CAPABILITY_FAMILY: dict[AgentTarget, CapabilityFamilyLabel] =
     "campus-services-agent": "campus-services-agent",
     "notice-agent": "notice-agent",
 }
+_FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = (
+    "raw_prompt",
+    "raw_transcript",
+    "provider_raw_response",
+    "raw_response",
+    "raw_auth_material",
+    "raw_retrieval_dump",
+    "restricted_document_payload",
+    "restricted_payload",
+    "raw_restricted_payload",
+    "jwt",
+    "cookie",
+    "auth_envelope",
+    "retrieval_backend_dump",
+)
+_FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS = (
+    "authorization:",
+    "bearer ",
+    "cookie:",
+    "set-cookie:",
+    "x-app-internal-auth:",
+    "access_token=",
+    "refresh_token=",
+    "sessionid=",
+    "session_id=",
+    "sso_tgc=",
+    "token=",
+)
+_JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
 
 
 def capability_family_for_runtime_target(target: AgentTarget | None) -> CapabilityFamilyLabel:
     if target is None:
         return "none"
     return _RUNTIME_TARGET_TO_CAPABILITY_FAMILY[target]
+
+
+def reject_forbidden_workflow_trace_keys(payload: object, field_name: str) -> None:
+    _reject_raw_workflow_trace_keys(payload, field_name, field_name)
+
+
+def _reject_raw_workflow_trace_keys(payload: object, field_name: str, path: str) -> None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            normalized_key = _normalize_forbidden_key_token(str(key))
+            child_path = f"{path}.{key}"
+            if any(
+                _normalize_forbidden_key_token(token) in normalized_key
+                for token in _FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS
+            ):
+                raise ValueError(
+                    f"{field_name} contains forbidden raw workflow trace key: {child_path}"
+                )
+            _reject_raw_workflow_trace_keys(value, field_name, child_path)
+    elif isinstance(payload, list | tuple):
+        for index, value in enumerate(payload):
+            _reject_raw_workflow_trace_keys(value, field_name, f"{path}[{index}]")
+    elif isinstance(payload, str):
+        _reject_raw_workflow_trace_value(payload, field_name, path)
+
+
+def _normalize_forbidden_key_token(value: str) -> str:
+    return "".join(ch for ch in value.strip().lower() if ch.isalnum())
+
+
+def _reject_raw_workflow_trace_value(value: str, field_name: str, path: str) -> None:
+    normalized = value.strip().lower()
+    if not normalized:
+        return
+    if any(token in normalized for token in _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS):
+        raise ValueError(f"{field_name} contains forbidden raw workflow trace value: {path}")
+    if _JWT_VALUE_RE.search(value):
+        raise ValueError(f"{field_name} contains forbidden raw workflow trace value: {path}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,16 +273,28 @@ class ObservedTrace:
 
 
 @dataclass(frozen=True, slots=True)
+class DimensionResult:
+    passed: bool
+    reason: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class OrchestrationCaseResults:
+    direct_vs_delegate_branch_correctness: DimensionResult
+    handoff_correctness: DimensionResult
+    tool_argument_precision: DimensionResult
+    guardrail_correctness: DimensionResult
+    fail_close_correctness: DimensionResult
+    trace_projection_completeness: DimensionResult
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionResult:
     response: AgentResponse | SupervisorResponse
     observed_trace: ObservedTrace | None = None
     request_correlation: OperatorRequestCorrelation | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class DimensionResult:
-    passed: bool
-    reason: str = ""
+    workflow_trace_summary: WorkflowTraceSummary | None = None
+    orchestration_case_results: OrchestrationCaseResults | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +308,8 @@ class CaseResult:
     metric_results: dict[str, DimensionResult] = field(default_factory=dict)
     observed_trace: ObservedTrace | None = None
     request_correlation: OperatorRequestCorrelation | None = None
+    workflow_trace_summary: WorkflowTraceSummary | None = None
+    orchestration_case_results: OrchestrationCaseResults | None = None
     supplemental_results: tuple[SupplementalResult, ...] = field(default_factory=tuple)
 
 

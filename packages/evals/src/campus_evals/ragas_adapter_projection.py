@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import (
+    AgentResponse,
     EvidenceBundle,
     RagResultPayload,
-    AgentResponse,
     SupervisorResponse,
 )
 

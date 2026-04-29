@@ -12,9 +12,11 @@ from campus_evals.models import (
     DimensionResult,
     GoldenCase,
     ObservedTrace,
+    OrchestrationCaseResults,
     RunReport,
     SummaryCount,
     SupplementalResult,
+    WorkflowTraceSummary,
 )
 from campus_evals.operator_observability import OperatorRequestCorrelation
 
@@ -104,6 +106,16 @@ def _serialize_case_result(result: CaseResult) -> dict[str, object]:
             if result.request_correlation is not None
             else None
         ),
+        "workflow_trace_summary": (
+            _serialize_dataclass(result.workflow_trace_summary)
+            if result.workflow_trace_summary is not None
+            else None
+        ),
+        "orchestration_case_results": (
+            _serialize_dataclass(result.orchestration_case_results)
+            if result.orchestration_case_results is not None
+            else None
+        ),
         "supplemental_results": [
             _serialize_dataclass(item) for item in result.supplemental_results
         ],
@@ -152,6 +164,12 @@ def _deserialize_case_result(payload: dict[str, object]) -> CaseResult:
         metric_results=metric_results,
         observed_trace=_deserialize_observed_trace(payload.get("observed_trace")),
         request_correlation=_deserialize_request_correlation(payload.get("request_correlation")),
+        workflow_trace_summary=_deserialize_workflow_trace_summary(
+            payload.get("workflow_trace_summary")
+        ),
+        orchestration_case_results=_deserialize_orchestration_case_results(
+            payload.get("orchestration_case_results")
+        ),
         supplemental_results=supplemental_results,
     )
 
@@ -209,6 +227,49 @@ def _deserialize_request_correlation(payload: object) -> OperatorRequestCorrelat
         trace_link=_deserialize_optional_string(payload.get("trace_link")),
         issue_link=_deserialize_optional_string(payload.get("issue_link")),
         issue_fingerprint=_deserialize_optional_string(payload.get("issue_fingerprint")),
+    )
+
+
+def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary | None:
+    if not isinstance(payload, dict):
+        return None
+    selected_tools = payload.get("selected_tools")
+    return WorkflowTraceSummary(
+        routing_frame=dict(payload.get("routing_frame") or {}),
+        context_resolution=dict(payload.get("context_resolution") or {}),
+        planning_outcome=str(payload.get("planning_outcome") or ""),
+        direct_vs_delegate_branch=str(payload.get("direct_vs_delegate_branch") or ""),
+        handoff=dict(payload.get("handoff") or {}),
+        selected_target=str(payload.get("selected_target") or ""),
+        selected_tools=tuple(str(item) for item in selected_tools)
+        if isinstance(selected_tools, list)
+        else (),
+        tool_argument_summary=dict(payload.get("tool_argument_summary") or {}),
+        guardrail_outcomes=dict(payload.get("guardrail_outcomes") or {}),
+        fail_close_reason=str(payload.get("fail_close_reason") or ""),
+        runtime_versions=dict(payload.get("runtime_versions") or {}),
+        policy_artifact_versions=dict(payload.get("policy_artifact_versions") or {}),
+    )
+
+
+def _deserialize_orchestration_case_results(
+    payload: object,
+) -> OrchestrationCaseResults | None:
+    if not isinstance(payload, dict):
+        return None
+    return OrchestrationCaseResults(
+        direct_vs_delegate_branch_correctness=_deserialize_dimension_result(
+            payload.get("direct_vs_delegate_branch_correctness")
+        ),
+        handoff_correctness=_deserialize_dimension_result(payload.get("handoff_correctness")),
+        tool_argument_precision=_deserialize_dimension_result(
+            payload.get("tool_argument_precision")
+        ),
+        guardrail_correctness=_deserialize_dimension_result(payload.get("guardrail_correctness")),
+        fail_close_correctness=_deserialize_dimension_result(payload.get("fail_close_correctness")),
+        trace_projection_completeness=_deserialize_dimension_result(
+            payload.get("trace_projection_completeness")
+        ),
     )
 
 

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-23
-updated: 2026-04-27
+updated: 2026-04-29
 ---
 # Eval Benchmark Artifact Contract
 
@@ -73,6 +73,34 @@ per-corpus entrypoint 可以不同，但 artifact 语义必须统一。
 
 ## Stable Fields
 
+### Observation-Backed Profile Reports
+
+Phase 8-13 deterministic profile gates write `profile-report.json` with
+`schema_version = eval_profile_gate.v1`. This artifact is not a formal
+`run-XX-case-results.json` and is not directly publishable to operator
+observability, but it is the canonical input for profile-specific release,
+scheduled and operations-governance checks.
+
+Stable fields:
+
+- `profile_id`
+- `case_family`
+- `passed`
+- `summary.total`
+- `summary.passed`
+- `summary.failed`
+- `summary.overall_passed`
+- `version_summary.case_set_version`
+- `version_summary.policy_artifact`
+- `version_summary.runtime_version`
+- `version_summary.git_head`
+- `sanitized_results[].case_id`
+- `sanitized_results[].passed`
+
+The artifact must not contain raw prompt, raw transcript, provider raw
+response, auth material, restricted payload, cookies, JWTs, bearer tokens or
+token-bearing URL values.
+
 ### Case Results
 
 `run-XX-case-results.json` 的共享重点字段：
@@ -125,11 +153,16 @@ per-corpus entrypoint 可以不同，但 artifact 语义必须统一。
 固定规则：
 
 - workflow trace artifact 只保存 sanitized summary，不保存 raw prompt、raw transcript、
-  provider raw response、raw retrieval backend dump、JWT、cookies 或 auth envelope
+  provider raw response、raw retrieval backend dump、JWT、cookies、auth envelope、restricted
+  document payload 或 raw restricted payload
 - external trace ids / grader ids 只能作为 backlink；不能替代 repo-owned case truth 或
   release verdict
 - direct structured runtime case 与 Python delegate case 都必须可落到同一
   `workflow_trace_summary` shape，避免形成两套不可比的 artifact
+- repo-owned workflow trace runtime gate 固定由
+  `campus_evals.workflow_trace_gate` 消费 `workflow_trace_summary`，并将
+  deterministic verdict 写回
+  `orchestration_case_results`
 
 ### Run / Repair Summary
 
@@ -146,6 +179,28 @@ per-corpus entrypoint 可以不同，但 artifact 语义必须统一。
 - app-api operator read-model truth
 - browser-facing contract
 - golden dataset case governance
+
+### Candidate Review Manifests
+
+operator quality candidate export 可以进入 eval-owned review manifest，但仍不能跳过人工/评测 owner
+复核。
+
+固定规则：
+
+- `GET /api/operator/quality/eval-candidates` 输出的是 pending candidate，不是 golden truth
+- `packages/evals` 只能先把 operator badcase / negative feedback candidate 包成
+  `pending_review` manifest
+- negative feedback manifest 不保存 raw transcript、raw auth material、provider raw response、raw
+  prompt 或 retrieval payload
+- accepted case 必须重新写成 eval-owned case model；不得把 app-api candidate JSON 原样提升为
+  benchmark artifact truth
+- `campus_evals.observed_regression_review apply` 是 observed regression review/admission
+  的 repo-owned apply step；它消费 pending manifest 和 review decisions，输出 reviewed
+  manifest 与 accepted fixture
+- accepted review decision 至少记录 `source_request_id`、`trace_id`、`sampled_at`、
+  `source_surface`、`observed_failure_class`、`reviewer`、`reason` 与 `target_suite`
+- `duplicate` decision 必须记录 `duplicate_of`；`rejected`、`deprecated` 与
+  `needs_info` 只留在 reviewed manifest，不进入 accepted fixture
 
 ### Acceptance Summary
 
@@ -190,6 +245,18 @@ operator publish 只允许从 accepted artifact 进入。
 - `curriculum_plan`
 - `official_web/stable_reference`
 - `official_web/fresh_news`
+- `workflow_trace_gate.v1` artifact/runtime gate
+- `public_chat_product_path`
+- `service_status_lookup`
+- `transport_schedule_lookup`
+- `service_guide_lookup`
+- `contact_directory_lookup`
+- `campus_notice_discover`
+- `campus_notice_get`
+- `multimodal_ocr_document_quality`
+- `restricted_authz_privacy`
+- `agentic_retrieval_plan`
+- `eval_operations_governance`
 
 后续新 corpus 只有在：
 

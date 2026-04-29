@@ -12,11 +12,11 @@ from unittest.mock import patch
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 import campus_retrieval_core.service as retrieval_service_module
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
-    AgentRequest,
-    AgentResponse,
 )
 from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import retrieve_sources

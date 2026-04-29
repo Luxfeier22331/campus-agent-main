@@ -69,6 +69,48 @@ _PROFILE_SPECS = {
         output_prefix="campus-services-product-path-opening-gate-accept",
         supports_publish_dry_run=False,
     ),
+    "multi-agent-product-path": EvalGateProfileSpec(
+        name="multi-agent-product-path",
+        default_reruns=1,
+        output_prefix="multi-agent-product-path-gate-accept",
+        supports_publish_dry_run=False,
+    ),
+    "public-chat-product-path": EvalGateProfileSpec(
+        name="public-chat-product-path",
+        default_reruns=1,
+        output_prefix="public-chat-product-path-gate-accept",
+        supports_publish_dry_run=False,
+    ),
+    "tool-family-denominator": EvalGateProfileSpec(
+        name="tool-family-denominator",
+        default_reruns=1,
+        output_prefix="tool-family-denominator-gate-accept",
+        supports_publish_dry_run=False,
+    ),
+    "document-quality": EvalGateProfileSpec(
+        name="document-quality",
+        default_reruns=1,
+        output_prefix="document-quality-gate-accept",
+        supports_publish_dry_run=False,
+    ),
+    "authz-privacy": EvalGateProfileSpec(
+        name="authz-privacy",
+        default_reruns=1,
+        output_prefix="authz-privacy-gate-accept",
+        supports_publish_dry_run=False,
+    ),
+    "agentic-retrieval-plan": EvalGateProfileSpec(
+        name="agentic-retrieval-plan",
+        default_reruns=1,
+        output_prefix="agentic-retrieval-plan-gate-accept",
+        supports_publish_dry_run=False,
+    ),
+    "eval-operations-governance": EvalGateProfileSpec(
+        name="eval-operations-governance",
+        default_reruns=1,
+        output_prefix="eval-operations-governance-gate-accept",
+        supports_publish_dry_run=False,
+    ),
 }
 
 
@@ -140,6 +182,25 @@ def build_parser() -> argparse.ArgumentParser:
     accept_parser.add_argument(
         "--qdrant-collection-name",
         help="Required for official-web profiles; ignored by handbook/curriculum profiles.",
+    )
+    accept_parser.add_argument(
+        "--cases-path",
+        help="Optional case fixture override for observation-backed deterministic profiles.",
+    )
+    accept_parser.add_argument(
+        "--observations-path",
+        help="Observation JSON path for observation-backed deterministic profiles.",
+    )
+    accept_parser.add_argument(
+        "--collect-runtime",
+        action="store_true",
+        help="Collect runtime observations when the selected profile supports it.",
+    )
+    accept_parser.add_argument(
+        "--artifact-path",
+        action="append",
+        default=[],
+        help="Input profile artifact path used by eval operations governance profiles.",
     )
     accept_parser.add_argument(
         "--publish-dry-run",
@@ -243,6 +304,10 @@ def run_eval_acceptance(
     verbose: bool = False,
     log_jsonl: Path | None = None,
     qdrant_collection_name: str | None = None,
+    cases_path: Path | None = None,
+    observations_path: Path | None = None,
+    collect_runtime: bool = False,
+    artifact_paths: tuple[Path, ...] = (),
     publish_dry_run: bool = False,
     publish_grade_source: str | None = None,
     publish_grader_version: str | None = None,
@@ -292,6 +357,14 @@ def run_eval_acceptance(
             raise ValueError("qdrant_collection_name is required for official-web profiles")
         argv.extend(["--official-web-scope", profile_spec.official_web_scope])
         argv.extend(["--qdrant-collection-name", qdrant_collection_name])
+    if cases_path is not None:
+        argv.extend(["--cases-path", str(cases_path)])
+    if observations_path is not None:
+        argv.extend(["--observations-path", str(observations_path)])
+    if collect_runtime:
+        argv.append("--collect-runtime")
+    for artifact_path in artifact_paths:
+        argv.extend(["--artifact-path", str(artifact_path)])
 
     exit_code = runner(argv)
     return {
@@ -390,6 +463,34 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.campus_services_product_path_opening_gate import main as runner
 
         return runner
+    if normalized == "multi-agent-product-path":
+        from campus_evals.multi_agent_product_path_gate import main as runner
+
+        return runner
+    if normalized == "public-chat-product-path":
+        from campus_evals.eval_profile_gate import public_chat_product_path_main as runner
+
+        return runner
+    if normalized == "tool-family-denominator":
+        from campus_evals.eval_profile_gate import tool_family_denominator_main as runner
+
+        return runner
+    if normalized == "document-quality":
+        from campus_evals.eval_profile_gate import document_quality_main as runner
+
+        return runner
+    if normalized == "authz-privacy":
+        from campus_evals.eval_profile_gate import authz_privacy_main as runner
+
+        return runner
+    if normalized == "agentic-retrieval-plan":
+        from campus_evals.eval_profile_gate import agentic_retrieval_plan_main as runner
+
+        return runner
+    if normalized == "eval-operations-governance":
+        from campus_evals.eval_profile_gate import eval_operations_governance_main as runner
+
+        return runner
     raise ValueError(f"unsupported eval profile runner: {profile}")
 
 
@@ -451,6 +552,10 @@ def main(argv: list[str] | None = None) -> int:
                 verbose=bool(args.verbose),
                 log_jsonl=Path(args.log_jsonl) if args.log_jsonl else None,
                 qdrant_collection_name=args.qdrant_collection_name,
+                cases_path=Path(args.cases_path) if args.cases_path else None,
+                observations_path=Path(args.observations_path) if args.observations_path else None,
+                collect_runtime=bool(args.collect_runtime),
+                artifact_paths=tuple(Path(item) for item in args.artifact_path),
                 publish_dry_run=bool(args.publish_dry_run),
                 publish_grade_source=args.publish_grade_source,
                 publish_grader_version=args.publish_grader_version,

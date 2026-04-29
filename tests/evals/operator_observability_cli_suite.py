@@ -6,7 +6,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from campus_evals.operator_observability import main, publish_case_results_artifact
+from campus_evals.operator_observability import (
+    build_profile_report_publish_batch,
+    main,
+    publish_case_results_artifact,
+)
 
 
 class OperatorObservabilityCliTest(unittest.TestCase):
@@ -265,3 +269,42 @@ class OperatorObservabilityCliTest(unittest.TestCase):
         self.assertEqual(printed_summary["grade_count"], 1)
         self.assertEqual(printed_summary["backlink_count"], 1)
         self.assertEqual(printed_summary["skipped"], [])
+
+    def test_build_profile_report_publish_batch_skips_uncorrelated_results(self) -> None:
+        profile_report_payload = {
+            "schema_version": "eval_profile_gate.v1",
+            "profile_id": "public_chat_product_path",
+            "sanitized_results": [
+                {
+                    "case_id": "case-1",
+                    "passed": False,
+                    "reason": "selected target mismatch",
+                    "request_correlation": {
+                        "case_id": "case-1",
+                        "request_id": "req_01",
+                        "trace_id": "trace_01",
+                        "sampled_at": "2026-04-29T00:00:00+00:00",
+                        "trace_link": "https://traces.example/trace_01",
+                    },
+                },
+                {
+                    "case_id": "case-2",
+                    "passed": True,
+                    "reason": "ok",
+                },
+            ],
+        }
+
+        batch = build_profile_report_publish_batch(
+            profile_report_payload=profile_report_payload,
+            grade_source="eval_profile_gate",
+            grader_version="profile@2026-04-29",
+        )
+
+        self.assertEqual(len(batch.grades), 1)
+        self.assertEqual(batch.grades[0].request_id, "req_01")
+        self.assertEqual(batch.grades[0].verdict, "fail")
+        self.assertEqual(len(batch.backlinks), 1)
+        self.assertEqual(len(batch.skipped), 1)
+        self.assertEqual(batch.skipped[0].case_id, "case-2")
+        self.assertEqual(batch.skipped[0].reason, "missing_request_correlation")

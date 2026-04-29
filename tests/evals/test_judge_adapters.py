@@ -5,11 +5,11 @@ from unittest.mock import patch
 
 from campus_contracts import (
     ActorContext,
+    AgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    AgentResponse,
 )
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, TraceExpectation
 from campus_evals.judge_adapters import (

@@ -71,10 +71,13 @@ def run_formal_benchmark(
         else resolved_output_dir / "supplemental-runtime-events.jsonl"
     )
     event_writer = RuntimeEventWriter(path=resolved_runtime_events_path, verbose=verbose)
-    with bind_runtime_event_sink(event_writer), bind_runtime_event_context(
-        benchmark_type=benchmark_type,
-        benchmark_session_id=event_writer.session_id,
-        benchmark_mode="run",
+    with (
+        bind_runtime_event_sink(event_writer),
+        bind_runtime_event_context(
+            benchmark_type=benchmark_type,
+            benchmark_session_id=event_writer.session_id,
+            benchmark_mode="run",
+        ),
     ):
         policy = load_judge_gate_policy(policy_path)
         supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
@@ -94,9 +97,7 @@ def run_formal_benchmark(
                 "reruns": reruns,
                 "case_workers": case_workers,
                 "policy_path": policy.get("path"),
-                "supplemental_adapters": [
-                    adapter.adapter_id for adapter in supplemental_adapters
-                ],
+                "supplemental_adapters": [adapter.adapter_id for adapter in supplemental_adapters],
                 "supplemental_preflight_path": str(supplemental_preflight_path),
                 "supplemental_preflight": supplemental_preflight["summary"],
                 "runtime_events_path": str(resolved_runtime_events_path),
@@ -223,183 +224,176 @@ def repair_formal_benchmark(
         else resolved_output_dir / "supplemental-runtime-events.jsonl"
     )
     event_writer = RuntimeEventWriter(path=resolved_runtime_events_path, verbose=verbose)
-    with bind_runtime_event_sink(event_writer), bind_runtime_event_context(
-        benchmark_type=benchmark_type,
-        benchmark_session_id=event_writer.session_id,
-        benchmark_mode="repair",
+    with (
+        bind_runtime_event_sink(event_writer),
+        bind_runtime_event_context(
+            benchmark_type=benchmark_type,
+            benchmark_session_id=event_writer.session_id,
+            benchmark_mode="repair",
+        ),
     ):
-            original_config = _load_json(resolved_benchmark_dir / "benchmark-config.json")
-            policy = load_judge_gate_policy(policy_path or original_config.get("policy_path"))
-            targets = collect_repairable_benchmark_targets(resolved_benchmark_dir)
-            grouped_targets = _group_repair_targets_by_run_case(targets)
-            case_index = {case.case_id: case for case in cases}
-            original_run_payloads = _load_run_case_result_payloads(resolved_benchmark_dir)
-            supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
-            supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
-            _write_json(supplemental_preflight_path, supplemental_preflight)
-            _raise_for_blocking_preflight_entries(supplemental_preflight)
-            runnable_supplemental_adapters = _select_runnable_supplemental_adapters(
-                supplemental_adapters=supplemental_adapters,
-                supplemental_preflight=supplemental_preflight,
-            )
-            skipped_metric_details = _skipped_supplemental_metric_details(supplemental_preflight)
+        original_config = _load_json(resolved_benchmark_dir / "benchmark-config.json")
+        policy = load_judge_gate_policy(policy_path or original_config.get("policy_path"))
+        targets = collect_repairable_benchmark_targets(resolved_benchmark_dir)
+        grouped_targets = _group_repair_targets_by_run_case(targets)
+        case_index = {case.case_id: case for case in cases}
+        original_run_payloads = _load_run_case_result_payloads(resolved_benchmark_dir)
+        supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
+        supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
+        _write_json(supplemental_preflight_path, supplemental_preflight)
+        _raise_for_blocking_preflight_entries(supplemental_preflight)
+        runnable_supplemental_adapters = _select_runnable_supplemental_adapters(
+            supplemental_adapters=supplemental_adapters,
+            supplemental_preflight=supplemental_preflight,
+        )
+        skipped_metric_details = _skipped_supplemental_metric_details(supplemental_preflight)
 
-            _write_json(
-                resolved_output_dir / "repair-config.json",
-                {
-                    "schema_version": 1,
-                    "benchmark_type": benchmark_type,
-                    "repair_of": str(resolved_benchmark_dir),
-                    "source_benchmark_type": original_config.get("benchmark_type"),
-                    "case_workers": case_workers,
-                    "policy_path": policy.get("path"),
-                    "supplemental_adapters": [
-                        adapter.adapter_id for adapter in supplemental_adapters
-                    ],
-                    "supplemental_preflight_path": str(supplemental_preflight_path),
-                    "supplemental_preflight": supplemental_preflight["summary"],
-                    "runtime_events_path": str(resolved_runtime_events_path),
-                    "selected_target_count": len(targets),
-                },
-            )
-            _write_json(
-                resolved_output_dir / "repair-plan.json",
-                {
-                    "schema_version": 1,
-                    "benchmark_type": benchmark_type,
-                    "repair_of": str(resolved_benchmark_dir),
-                    "targets": targets,
-                },
-            )
+        _write_json(
+            resolved_output_dir / "repair-config.json",
+            {
+                "schema_version": 1,
+                "benchmark_type": benchmark_type,
+                "repair_of": str(resolved_benchmark_dir),
+                "source_benchmark_type": original_config.get("benchmark_type"),
+                "case_workers": case_workers,
+                "policy_path": policy.get("path"),
+                "supplemental_adapters": [adapter.adapter_id for adapter in supplemental_adapters],
+                "supplemental_preflight_path": str(supplemental_preflight_path),
+                "supplemental_preflight": supplemental_preflight["summary"],
+                "runtime_events_path": str(resolved_runtime_events_path),
+                "selected_target_count": len(targets),
+            },
+        )
+        _write_json(
+            resolved_output_dir / "repair-plan.json",
+            {
+                "schema_version": 1,
+                "benchmark_type": benchmark_type,
+                "repair_of": str(resolved_benchmark_dir),
+                "targets": targets,
+            },
+        )
 
-            repaired_run_reports: list[RunReport] = []
-            applied_target_count = 0
-            all_repair_entries: list[dict[str, object]] = []
-            for run_payload in original_run_payloads:
-                run_number = int(run_payload["run_number"])
-                original_results = tuple(
-                    _deserialize_case_result(item) for item in run_payload["results"]
+        repaired_run_reports: list[RunReport] = []
+        applied_target_count = 0
+        all_repair_entries: list[dict[str, object]] = []
+        for run_payload in original_run_payloads:
+            run_number = int(run_payload["run_number"])
+            original_results = tuple(
+                _deserialize_case_result(item) for item in run_payload["results"]
+            )
+            results_by_case_id = {result.case_id: result for result in original_results}
+            repair_entries: list[dict[str, object]] = []
+
+            for case_id, case_targets in grouped_targets.get(run_number, {}).items():
+                case = case_index.get(case_id)
+                if case is None:
+                    raise ValueError(f"repair target references unknown case_id: {case_id}")
+                targeted_metric_keys = sorted(
+                    {metric_key for target in case_targets for metric_key in target["metric_keys"]}
                 )
-                results_by_case_id = {result.case_id: result for result in original_results}
-                repair_entries: list[dict[str, object]] = []
-
-                for case_id, case_targets in grouped_targets.get(run_number, {}).items():
-                    case = case_index.get(case_id)
-                    if case is None:
-                        raise ValueError(f"repair target references unknown case_id: {case_id}")
-                    targeted_metric_keys = sorted(
-                        {
-                            metric_key
-                            for target in case_targets
-                            for metric_key in target["metric_keys"]
-                        }
-                    )
-                    skipped_metric_keys = sorted(
-                        metric_key
-                        for metric_key in targeted_metric_keys
-                        if metric_key in skipped_metric_details
-                    )
-                    if skipped_metric_keys and set(skipped_metric_keys) == set(
-                        targeted_metric_keys
-                    ):
-                        repair_entries.append(
-                            {
-                                "case_id": case_id,
-                                "targets": case_targets,
-                                "status": "skipped_provider_unavailable",
-                                "skipped_metric_keys": skipped_metric_keys,
-                                "preflight_failures": [
-                                    skipped_metric_details[metric_key]
-                                    for metric_key in skipped_metric_keys
-                                ],
-                            }
-                        )
-                        continue
-                    runnable_metric_keys = sorted(
-                        set(targeted_metric_keys) - set(skipped_metric_keys)
-                    )
-                    selected_adapters = _select_repair_adapters(
-                        supplemental_adapters=runnable_supplemental_adapters,
-                        metric_keys=tuple(runnable_metric_keys),
-                    )
-                    with bind_faithfulness_artifact_context(
-                        output_dir=resolved_output_dir,
-                        run_number=run_number,
-                        benchmark_mode="repair",
-                        source_output_dir=resolved_benchmark_dir,
-                    ):
-                        rerun_report = run_cases(
-                            (case,),
-                            executor=executor,
-                            supplemental_adapters=selected_adapters,
-                            run_number=run_number,
-                            benchmark_mode="repair",
-                            case_workers=case_workers,
-                        )
-                    rerun_case_result = rerun_report.results[0]
-                    replacement_by_metric_key = {
-                        _supplemental_metric_key(item): item
-                        for item in rerun_case_result.supplemental_results
-                        if _supplemental_metric_key(item) in runnable_metric_keys
-                    }
-                    missing_metric_keys = sorted(
-                        set(runnable_metric_keys) - set(replacement_by_metric_key)
-                    )
-                    if missing_metric_keys:
-                        raise ValueError(
-                            f"repair rerun did not return supplemental results for metric keys: {missing_metric_keys}"
-                        )
-
-                    original_case_result = results_by_case_id[case_id]
-                    repaired_case_result, replacements = _merge_case_result_supplemental_results(
-                        original_case_result,
-                        replacement_by_metric_key,
-                    )
-                    repair_status, recovered_metric_keys, remaining_metric_keys = (
-                        _classify_repair_replacements(
-                            replacement_by_metric_key,
-                            metric_keys=tuple(runnable_metric_keys),
-                        )
-                    )
-                    results_by_case_id[case_id] = repaired_case_result
+                skipped_metric_keys = sorted(
+                    metric_key
+                    for metric_key in targeted_metric_keys
+                    if metric_key in skipped_metric_details
+                )
+                if skipped_metric_keys and set(skipped_metric_keys) == set(targeted_metric_keys):
                     repair_entries.append(
                         {
                             "case_id": case_id,
                             "targets": case_targets,
-                            "replacements": replacements,
-                            "status": repair_status,
-                            "recovered_metric_keys": recovered_metric_keys,
-                            "remaining_metric_keys": remaining_metric_keys,
+                            "status": "skipped_provider_unavailable",
+                            "skipped_metric_keys": skipped_metric_keys,
+                            "preflight_failures": [
+                                skipped_metric_details[metric_key]
+                                for metric_key in skipped_metric_keys
+                            ],
                         }
                     )
-                    applied_target_count += len(case_targets)
-
-                repaired_results = tuple(
-                    results_by_case_id[result.case_id] for result in original_results
+                    continue
+                runnable_metric_keys = sorted(set(targeted_metric_keys) - set(skipped_metric_keys))
+                selected_adapters = _select_repair_adapters(
+                    supplemental_adapters=runnable_supplemental_adapters,
+                    metric_keys=tuple(runnable_metric_keys),
                 )
-                repaired_report = summarize_case_results(cases, repaired_results)
-                repaired_run_reports.append(repaired_report)
-                all_repair_entries.extend(repair_entries)
-                _write_json(
-                    resolved_output_dir / f"run-{run_number:02d}-repair-results.json",
-                    {
-                        "schema_version": 1,
-                        "benchmark_type": benchmark_type,
-                        "run_number": run_number,
-                        "repair_of": str(resolved_benchmark_dir),
-                        "results": repair_entries,
-                    },
-                )
-                _write_run_artifacts(
+                with bind_faithfulness_artifact_context(
                     output_dir=resolved_output_dir,
-                    benchmark_type=benchmark_type,
                     run_number=run_number,
-                    report=repaired_report,
-                    extra_payload={
-                        "repair_of": str(resolved_benchmark_dir),
-                        "repaired_case_count": len(repair_entries),
-                    },
+                    benchmark_mode="repair",
+                    source_output_dir=resolved_benchmark_dir,
+                ):
+                    rerun_report = run_cases(
+                        (case,),
+                        executor=executor,
+                        supplemental_adapters=selected_adapters,
+                        run_number=run_number,
+                        benchmark_mode="repair",
+                        case_workers=case_workers,
+                    )
+                rerun_case_result = rerun_report.results[0]
+                replacement_by_metric_key = {
+                    _supplemental_metric_key(item): item
+                    for item in rerun_case_result.supplemental_results
+                    if _supplemental_metric_key(item) in runnable_metric_keys
+                }
+                missing_metric_keys = sorted(
+                    set(runnable_metric_keys) - set(replacement_by_metric_key)
                 )
+                if missing_metric_keys:
+                    raise ValueError(
+                        f"repair rerun did not return supplemental results for metric keys: {missing_metric_keys}"
+                    )
+
+                original_case_result = results_by_case_id[case_id]
+                repaired_case_result, replacements = _merge_case_result_supplemental_results(
+                    original_case_result,
+                    replacement_by_metric_key,
+                )
+                repair_status, recovered_metric_keys, remaining_metric_keys = (
+                    _classify_repair_replacements(
+                        replacement_by_metric_key,
+                        metric_keys=tuple(runnable_metric_keys),
+                    )
+                )
+                results_by_case_id[case_id] = repaired_case_result
+                repair_entries.append(
+                    {
+                        "case_id": case_id,
+                        "targets": case_targets,
+                        "replacements": replacements,
+                        "status": repair_status,
+                        "recovered_metric_keys": recovered_metric_keys,
+                        "remaining_metric_keys": remaining_metric_keys,
+                    }
+                )
+                applied_target_count += len(case_targets)
+
+            repaired_results = tuple(
+                results_by_case_id[result.case_id] for result in original_results
+            )
+            repaired_report = summarize_case_results(cases, repaired_results)
+            repaired_run_reports.append(repaired_report)
+            all_repair_entries.extend(repair_entries)
+            _write_json(
+                resolved_output_dir / f"run-{run_number:02d}-repair-results.json",
+                {
+                    "schema_version": 1,
+                    "benchmark_type": benchmark_type,
+                    "run_number": run_number,
+                    "repair_of": str(resolved_benchmark_dir),
+                    "results": repair_entries,
+                },
+            )
+            _write_run_artifacts(
+                output_dir=resolved_output_dir,
+                benchmark_type=benchmark_type,
+                run_number=run_number,
+                report=repaired_report,
+                extra_payload={
+                    "repair_of": str(resolved_benchmark_dir),
+                    "repaired_case_count": len(repair_entries),
+                },
+            )
 
     provider_summary = summarize_provider_events(
         resolved_runtime_events_path,

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-31
-updated: 2026-04-03
+updated: 2026-04-29
 ---
 # Eval Gold Truth Model
 
@@ -21,8 +21,9 @@ candidate review manifest，不能直接写入 golden truth。
 1. `app-api` 或 audit exporter 只提供 request / trace / sampled_at 等 correlation，以及可复现的候选
    input。
 2. `packages/evals` 用 admission CLI 生成 `pending_review` manifest。
-3. eval reviewer 完成 dedupe、边界判断和 expected truth 修订后，才把 case
-   接收入对应 suite fixture。
+3. eval reviewer 完成 dedupe、边界判断和 expected truth 修订后，用
+   `campus_evals.observed_regression_review apply` 生成 reviewed manifest 与 accepted
+   fixture。
 4. 接收入 fixture 后，deterministic gate 才把它计入 release / regression denominator。
 5. supplemental grader、OpenAI tracing、Sentry、Axiom 或 operator panel 只能消费
    artifact 或 backlink，不改写 canonical truth。
@@ -34,6 +35,10 @@ candidate review manifest，不能直接写入 golden truth。
   with `--input <mined.jsonl> --output <review-manifest.json>`
 - accepted observed regression fixture：
   `packages/evals/fixtures/intent_observed_regression.json`
+- review apply workflow：
+  `uv run --all-packages python -m campus_evals.observed_regression_review apply`
+  with `--manifest <pending.json> --decisions <decisions.json> --reviewed-output
+  <reviewed.json> --accepted-output <accepted.json>`
 - default gate：
   `uv run --all-packages python -m scripts.intent_gate`
 
@@ -101,6 +106,38 @@ candidate review manifest，不能直接写入 golden truth。
   gate
 - 但不应默认进入 `ragas.answer_relevancy`
 - 是否排除由 case 显式配置，不靠 runtime 猜测
+
+## Structured / Product / Privacy Denominator Truth
+
+`Phase 8-13` 新增的 eval family 不 author domain truth，也不替代 runtime owner。它们只固定
+denominator expectation、sanitized observation shape 与 deterministic verdict：
+
+- `public_chat_product_path`
+  - truth 来源是产品路径 case expectation：request / trace correlation、selected target、
+    terminal outcome、response contract 与 operator backflow summary
+  - 不保存 raw transcript、raw prompt 或 provider raw response
+- `tool_family_denominators`
+  - truth 来源是 opened tool denominator：tool name、split、expected result status 与必要
+    argument summary
+  - failure class 只表达 routing error、read-model gap、authorization fail-close 或 missing
+    observation，不替代 service / notice read-model owner
+- `document_quality_cases`
+  - truth 来源是 OCR/MinerU/document-quality expectation：required spans、table headers、
+    confidence、allowed projection target 与 forbidden claims
+  - visual/OCR output 不得被 author 成 regulation-ready owner text
+- `authz_privacy_cases`
+  - truth 来源是 restricted surface fail-close expectation：terminal outcome、fail-close
+    reason 与 sanitized authorization summary
+  - eval artifact 不得携带 JWT、cookies、auth envelope、raw auth material、restricted document
+    payload 或 raw restricted payload
+- `agentic_retrieval_plan_cases`
+  - truth 来源是 retrieval planning expectation：decomposition、step plan、freshness branch、
+    live branch outcome、supporting evidence ids 与 final answer status
+  - plan、freshness、evidence、live fail-close 与 final answer failure 必须分开归因
+- `eval_operations_profile_policy`
+  - truth 来源是 eval-owned operations policy：budget、timeout、retry、pacing、breaker、
+    retention、gate mode、failure disposition、quarantine readmission 与 version summary
+  - operations policy 只治理 eval runtime，不 author domain case truth
 
 ## 当前字段语义
 

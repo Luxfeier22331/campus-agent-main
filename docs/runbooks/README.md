@@ -65,6 +65,7 @@ updated: 2026-04-27
 ## Eval / Acceptance automation
 
 - `eval-release-gate-automation.md`
+- `eval-operations-governance.md`
 
 ## Historical / Comparison Archive
 
