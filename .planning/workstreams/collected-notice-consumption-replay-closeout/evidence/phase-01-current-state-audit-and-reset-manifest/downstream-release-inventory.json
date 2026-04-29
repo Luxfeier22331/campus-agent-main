@@ -1,0 +1,2217 @@
+{
+  "database": {
+    "current_schema": "app_auth",
+    "database_name": "campus_agent",
+    "default_transaction_read_only": "on",
+    "observed_at": "2026-04-29 02:01:56.466059+00:00",
+    "server_addr": "172.20.0.3/32",
+    "server_port": 5432
+  },
+  "generated_at": "2026-04-29T02:01:56.431278+00:00",
+  "mode": "read_only",
+  "schema_version": "collected_notice_phase1_downstream_release_inventory.v1",
+  "service_guide_read_model_rows": [
+    {
+      "campus_scope": "all",
+      "category": "transportation",
+      "display_name": "结构化投影服务指南 smoke",
+      "extraction_status": "ready",
+      "record_id": "service:smoke:transport-reservation",
+      "release_id": "schedule-e2e-smoke-20260427-service-guide",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "service_id": "service:smoke:transport-reservation",
+      "source_ref": "smoke:service-guide",
+      "source_refs": [
+        "smoke:service-guide"
+      ],
+      "updated_at": "2026-04-26 23:35:00.789411+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "campus_card",
+      "display_name": "校园卡挂失与补卡",
+      "extraction_status": "ready",
+      "record_id": "service:campus-card:lost-reissue",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:campus-card:lost-reissue",
+      "source_ref": "https://met.muc.edu.cn/info/1027/1127.htm",
+      "source_refs": [
+        "https://met.muc.edu.cn/info/1027/1127.htm",
+        "https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "研究生申请办理退宿手续",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:25700de00fce",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:25700de00fce",
+      "source_ref": "handbook:student_rules:pages:252-255#page=255",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=255"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "研究生申请不住宿流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:615274fe929f",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:615274fe929f",
+      "source_ref": "handbook:student_rules:pages:252-255#page=254",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=254"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "本科生申请不住宿流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:8ef9a319cd7d",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:8ef9a319cd7d",
+      "source_ref": "handbook:student_rules:pages:252-255#page=254",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=254"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "公寓楼毕业生办理离校手续流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:c55efb420815",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:c55efb420815",
+      "source_ref": "handbook:student_rules:pages:252-255#page=253",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=253"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "本科生特殊情况申请办理退宿手续",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:d228a2dd03d0",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:d228a2dd03d0",
+      "source_ref": "handbook:student_rules:pages:252-255#page=255",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=255"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "公寓楼新生办理入住手续流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:d6109ab64119",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:d6109ab64119",
+      "source_ref": "handbook:student_rules:pages:252-255#page=253",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=253"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_loan",
+      "display_name": "国家助学贷款申请指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:national-student-loan-application",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:national-student-loan-application",
+      "source_ref": "handbook:student_rules:pages:240-246#page=241",
+      "source_refs": [
+        "handbook:student_rules:pages:240-246#page=241",
+        "handbook:student_rules:pages:240-246#page=242"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_appeal",
+      "display_name": "学生申诉办理指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-appeal",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-appeal",
+      "source_ref": "handbook:student_rules:pages:133-137#page=134",
+      "source_refs": [
+        "handbook:student_rules:pages:133-137#page=134",
+        "handbook:student_rules:pages:133-137#page=135"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_affairs",
+      "display_name": "学生证补办办理指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-card-replacement",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-card-replacement",
+      "source_ref": "handbook:student_rules:pages:163-165#page=164",
+      "source_refs": [
+        "handbook:student_rules:pages:163-165#page=164",
+        "handbook:student_rules:pages:163-165#page=165"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_public_medical",
+      "display_name": "公费医疗资格与就医规则",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-public-medical-eligibility-care",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-public-medical-eligibility-care",
+      "source_ref": "handbook:student_rules:pages:259-260#page=259",
+      "source_refs": [
+        "handbook:student_rules:pages:259-260#page=259"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_public_medical",
+      "display_name": "公费医疗不予报销范围",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-public-medical-exclusions",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-public-medical-exclusions",
+      "source_ref": "handbook:student_rules:pages:259-260#page=260",
+      "source_refs": [
+        "handbook:student_rules:pages:259-260#page=260"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_public_medical",
+      "display_name": "公费医疗报销办理指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-public-medical-reimbursement",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-public-medical-reimbursement",
+      "source_ref": "handbook:student_rules:pages:259-260#page=259",
+      "source_refs": [
+        "handbook:student_rules:pages:259-260#page=259",
+        "handbook:student_rules:pages:259-260#page=260"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "financial_aid",
+      "display_name": "临时困难补助申请指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:temporary-hardship-subsidy",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:temporary-hardship-subsidy",
+      "source_ref": "handbook:student_rules:pages:217-219#page=217",
+      "source_refs": [
+        "handbook:student_rules:pages:217-219#page=217",
+        "handbook:student_rules:pages:217-219#page=218"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "work_study",
+      "display_name": "勤工助学岗位聘用指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:work-study-position",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:work-study-position",
+      "source_ref": "handbook:student_rules:pages:220-225#page=221",
+      "source_refs": [
+        "handbook:student_rules:pages:220-225#page=221",
+        "handbook:student_rules:pages:220-225#page=222",
+        "handbook:student_rules:pages:220-225#page=223"
+      ],
+      "updated_at": "2026-04-27 00:19:37.286767+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "category": "transport_reservation",
+      "display_name": "地铁接驳车预约说明",
+      "extraction_status": "ready",
+      "record_id": "service:transport-reservation:subway-shuttle",
+      "release_id": "service-guide-notice-e2e-20260427T123000",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "service_id": "service:transport-reservation:subway-shuttle",
+      "source_ref": "notice:muc_internal_portal:354777",
+      "source_refs": [
+        "notice:muc_internal_portal:354777"
+      ],
+      "updated_at": "2026-04-26 23:39:07.197841+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "campus_card",
+      "display_name": "校园卡挂失与补卡",
+      "extraction_status": "ready",
+      "record_id": "service:campus-card:lost-reissue",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:campus-card:lost-reissue",
+      "source_ref": "https://met.muc.edu.cn/info/1027/1127.htm",
+      "source_refs": [
+        "https://met.muc.edu.cn/info/1027/1127.htm",
+        "https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "研究生申请办理退宿手续",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:25700de00fce",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:25700de00fce",
+      "source_ref": "handbook:student_rules:pages:252-255#page=255",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=255"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "研究生申请不住宿流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:615274fe929f",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:615274fe929f",
+      "source_ref": "handbook:student_rules:pages:252-255#page=254",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=254"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "本科生申请不住宿流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:8ef9a319cd7d",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:8ef9a319cd7d",
+      "source_ref": "handbook:student_rules:pages:252-255#page=254",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=254"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "公寓楼毕业生办理离校手续流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:c55efb420815",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:c55efb420815",
+      "source_ref": "handbook:student_rules:pages:252-255#page=253",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=253"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "本科生特殊情况申请办理退宿手续",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:d228a2dd03d0",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:d228a2dd03d0",
+      "source_ref": "handbook:student_rules:pages:252-255#page=255",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=255"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_housing",
+      "display_name": "公寓楼新生办理入住手续流程",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:d6109ab64119",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:d6109ab64119",
+      "source_ref": "handbook:student_rules:pages:252-255#page=253",
+      "source_refs": [
+        "handbook:student_rules:pages:252-255#page=253"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_loan",
+      "display_name": "国家助学贷款申请指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:national-student-loan-application",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:national-student-loan-application",
+      "source_ref": "handbook:student_rules:pages:240-246#page=241",
+      "source_refs": [
+        "handbook:student_rules:pages:240-246#page=241",
+        "handbook:student_rules:pages:240-246#page=242"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_appeal",
+      "display_name": "学生申诉办理指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-appeal",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-appeal",
+      "source_ref": "handbook:student_rules:pages:133-137#page=134",
+      "source_refs": [
+        "handbook:student_rules:pages:133-137#page=134",
+        "handbook:student_rules:pages:133-137#page=135"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_affairs",
+      "display_name": "学生证补办办理指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-card-replacement",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-card-replacement",
+      "source_ref": "handbook:student_rules:pages:163-165#page=164",
+      "source_refs": [
+        "handbook:student_rules:pages:163-165#page=164",
+        "handbook:student_rules:pages:163-165#page=165"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_public_medical",
+      "display_name": "公费医疗资格与就医规则",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-public-medical-eligibility-care",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-public-medical-eligibility-care",
+      "source_ref": "handbook:student_rules:pages:259-260#page=259",
+      "source_refs": [
+        "handbook:student_rules:pages:259-260#page=259"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_public_medical",
+      "display_name": "公费医疗不予报销范围",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-public-medical-exclusions",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-public-medical-exclusions",
+      "source_ref": "handbook:student_rules:pages:259-260#page=260",
+      "source_refs": [
+        "handbook:student_rules:pages:259-260#page=260"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "student_public_medical",
+      "display_name": "公费医疗报销办理指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:student-public-medical-reimbursement",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:student-public-medical-reimbursement",
+      "source_ref": "handbook:student_rules:pages:259-260#page=259",
+      "source_refs": [
+        "handbook:student_rules:pages:259-260#page=259",
+        "handbook:student_rules:pages:259-260#page=260"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "financial_aid",
+      "display_name": "临时困难补助申请指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:temporary-hardship-subsidy",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:temporary-hardship-subsidy",
+      "source_ref": "handbook:student_rules:pages:217-219#page=217",
+      "source_refs": [
+        "handbook:student_rules:pages:217-219#page=217",
+        "handbook:student_rules:pages:217-219#page=218"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "all",
+      "category": "work_study",
+      "display_name": "勤工助学岗位聘用指南",
+      "extraction_status": "ready",
+      "record_id": "service:handbook:work-study-position",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "preserve_or_manual_review",
+      "service_id": "service:handbook:work-study-position",
+      "source_ref": "handbook:student_rules:pages:220-225#page=221",
+      "source_refs": [
+        "handbook:student_rules:pages:220-225#page=221",
+        "handbook:student_rules:pages:220-225#page=222",
+        "handbook:student_rules:pages:220-225#page=223"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "category": "transport_reservation",
+      "display_name": "地铁接驳车预约说明",
+      "extraction_status": "ready",
+      "record_id": "service:transport-reservation:subway-shuttle",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "reset_candidate_notice_derived",
+      "service_id": "service:transport-reservation:subway-shuttle",
+      "source_ref": "notice:muc_internal_portal:354777",
+      "source_refs": [
+        "notice:muc_internal_portal:354777"
+      ],
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    }
+  ],
+  "service_status_read_model_rows": [
+    {
+      "campus_scope": "all",
+      "display_name": "结构化投影 PG smoke",
+      "effective_from": "2025-12-31 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "",
+      "observed_status": "open",
+      "override_source_refs": [
+        "smoke:structured-projection"
+      ],
+      "record_id": "smoke:structured-projection",
+      "related_notice_refs": [
+        "smoke:structured-projection"
+      ],
+      "release_id": "schedule-e2e-smoke-20260427-service-status",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "source_ref": "smoke:structured-projection",
+      "updated_at": "2026-04-26 23:34:56.567293+00:00"
+    },
+    {
+      "campus_scope": "haidian",
+      "display_name": "静园10号楼负一层女浴室",
+      "effective_from": "2026-04-15 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "ready",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "record_id": "facility:bathroom:jingyuan-10",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "release_id": "service-status-current-20260428T122000",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:355650",
+      "updated_at": "2026-04-28 13:19:30.182965+00:00"
+    },
+    {
+      "campus_scope": "",
+      "display_name": "校医院",
+      "effective_from": "2026-03-05 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "ready",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:354845"
+      ],
+      "record_id": "service-counter:campus-hospital",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:354845"
+      ],
+      "release_id": "service-status-current-20260428T122000",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:354845",
+      "updated_at": "2026-04-28 13:19:30.182965+00:00"
+    },
+    {
+      "campus_scope": "haidian",
+      "display_name": "静园10号楼负一层女浴室",
+      "effective_from": "2026-04-15 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "ready",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "record_id": "facility:bathroom:jingyuan-10",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "release_id": "service-status-live-355650-promote-20260428T105200",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:355650",
+      "updated_at": "2026-04-28 02:45:55.405964+00:00"
+    },
+    {
+      "campus_scope": "haidian",
+      "display_name": "静园10号楼负一层女浴室",
+      "effective_from": "2026-04-15 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "ready",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "record_id": "facility:bathroom:jingyuan-10",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "release_id": "service-status-live-355650-stage-20260428T104800",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "source_ref": "notice:muc_internal_portal:355650",
+      "updated_at": "2026-04-28 02:45:11.324404+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "display_name": "两校区通勤班车丰台校区乘车点",
+      "effective_from": "2025-12-14 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:353903"
+      ],
+      "record_id": "transport:intercampus-commute:boarding-point:fengtai",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:353903"
+      ],
+      "release_id": "service-status-notice-derived-20260427T115004",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:353903",
+      "updated_at": "2026-04-27 03:50:11.458469+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "display_name": "丰台校区地铁接驳车乘车点",
+      "effective_from": "2025-09-24 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:352325"
+      ],
+      "record_id": "transport:subway-shuttle:boarding-point:fengtai",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:352325"
+      ],
+      "release_id": "service-status-notice-derived-20260427T115004",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:352325",
+      "updated_at": "2026-04-27 03:50:11.458469+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "display_name": "两校区通勤班车丰台校区乘车点",
+      "effective_from": "2025-12-14 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:353903"
+      ],
+      "record_id": "transport:intercampus-commute:boarding-point:fengtai",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:353903"
+      ],
+      "release_id": "service-status-notice-derived-20260427T115303",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:353903",
+      "updated_at": "2026-04-27 03:53:09.685964+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "display_name": "丰台校区地铁接驳车乘车点",
+      "effective_from": "2025-09-24 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:352325"
+      ],
+      "record_id": "transport:subway-shuttle:boarding-point:fengtai",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:352325"
+      ],
+      "release_id": "service-status-notice-derived-20260427T115303",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:352325",
+      "updated_at": "2026-04-27 03:53:09.685964+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "display_name": "两校区通勤班车丰台校区乘车点",
+      "effective_from": "2025-12-14 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:353903"
+      ],
+      "record_id": "transport:intercampus-commute:boarding-point:fengtai",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:353903"
+      ],
+      "release_id": "service-status-notice-derived-20260427T121945",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:353903",
+      "updated_at": "2026-04-27 04:20:32.128780+00:00"
+    },
+    {
+      "campus_scope": "fengtai",
+      "display_name": "丰台校区地铁接驳车乘车点",
+      "effective_from": "2025-09-24 16:00:00+00:00",
+      "effective_until": "2099-12-31 15:59:59+00:00",
+      "extraction_status": "",
+      "observed_status": "limited_service",
+      "override_source_refs": [
+        "notice:muc_internal_portal:352325"
+      ],
+      "record_id": "transport:subway-shuttle:boarding-point:fengtai",
+      "related_notice_refs": [
+        "notice:muc_internal_portal:352325"
+      ],
+      "release_id": "service-status-notice-derived-20260427T121945",
+      "reset_classification": "reset_candidate_notice_derived",
+      "source_ref": "notice:muc_internal_portal:352325",
+      "updated_at": "2026-04-27 04:20:32.128780+00:00"
+    }
+  ],
+  "structured_current": [
+    {
+      "collection": "service_guide",
+      "corpus": "campus_services",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "updated_at": "2026-04-27 03:20:26.403800+00:00"
+    },
+    {
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "release_id": "service-status-current-20260428T122000",
+      "updated_at": "2026-04-28 13:19:30.182965+00:00"
+    },
+    {
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "updated_at": "2026-04-27 04:29:57.169060+00:00"
+    }
+  ],
+  "structured_releases": [
+    {
+      "artifact_checksum": "sha256:1ddfc1e61b7a2612b2609b78ef19ad6415f10031d2245134ae369b8979062617",
+      "artifact_object_key": "campus_services/releases/service_guide/service-guide-notice-e2e-20260427T123000/service-guide-projection.json",
+      "collection": "service_guide",
+      "corpus": "campus_services",
+      "counts": {
+        "conflict_records": 0,
+        "manual_review_sources": 0,
+        "service_guide_records": 1
+      },
+      "generated_at": "2026-04-27 04:30:00+00:00",
+      "published_at": "2026-04-26 23:39:07.197841+00:00",
+      "release_id": "service-guide-notice-e2e-20260427T123000",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "schema_version": "campus_services_service_guide_projection.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:354777"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:a7ecb38eb8446a48e7d9917e7dfb7fe8465601ac1be6ac9038aeaf9ab38e1606",
+      "artifact_object_key": "campus_services/releases/service_guide/schedule-e2e-smoke-20260427-service-guide/structured-projection-smoke.json",
+      "collection": "service_guide",
+      "corpus": "campus_services",
+      "counts": {
+        "conflict_records": 0,
+        "manual_review_sources": 0,
+        "service_guide_records": 1
+      },
+      "generated_at": "2026-04-27 04:00:00+00:00",
+      "published_at": "2026-04-26 23:35:00.789411+00:00",
+      "release_id": "schedule-e2e-smoke-20260427-service-guide",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "schema_version": "campus_services_service_guide_projection.v1",
+      "source_notice_ids": [],
+      "validation_status": "smoke_valid"
+    },
+    {
+      "artifact_checksum": "sha256:9b284000ece9223e1f008deeee02b48cd8661b132a6763c0054c6cf71adc5ce7",
+      "artifact_object_key": "campus_services/releases/service_guide/service-guide-transport-merged-20260427T111821/service-guide-projection.json",
+      "collection": "service_guide",
+      "corpus": "campus_services",
+      "counts": {
+        "conflict_records": 0,
+        "manual_review_sources": 0,
+        "service_guide_records": 16
+      },
+      "generated_at": "2026-04-27 03:18:21+00:00",
+      "published_at": "2026-04-27 03:20:26.403800+00:00",
+      "release_id": "service-guide-transport-merged-20260427T111821",
+      "reset_classification": "reset_candidate_notice_derived",
+      "schema_version": "campus_services_service_guide_projection.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:354777"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:b6da9c00f9c547d8bbd22d13e87d030490e0a68348f05e4c39330bf276b319b2",
+      "artifact_object_key": "campus_services/releases/service_guide/service-guide-campus-card-20260427T110000/service-guide-projection.json",
+      "collection": "service_guide",
+      "corpus": "campus_services",
+      "counts": {
+        "conflict_records": 0,
+        "manual_review_sources": 0,
+        "service_guide_records": 15
+      },
+      "generated_at": "2026-04-27 03:00:00+00:00",
+      "published_at": "2026-04-27 00:19:37.286767+00:00",
+      "release_id": "service-guide-campus-card-20260427T110000",
+      "reset_classification": "preserve_or_manual_review",
+      "schema_version": "campus_services_service_guide_projection.v1",
+      "source_notice_ids": [],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:2400051179f5c0a1429b90ef6233eda1c310661eee2d3f849bcb09a2350eca47",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-current-20260428T122000/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "rejected_sources": 5,
+        "service_status_records": 2
+      },
+      "generated_at": "2026-04-28 04:20:00+00:00",
+      "published_at": "2026-04-28 13:19:30.182965+00:00",
+      "release_id": "service-status-current-20260428T122000",
+      "reset_classification": "reset_candidate_notice_derived",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:247726",
+        "notice:muc_internal_portal:352345",
+        "notice:muc_internal_portal:354502",
+        "notice:muc_internal_portal:354575",
+        "notice:muc_internal_portal:354674",
+        "notice:muc_internal_portal:354845",
+        "notice:muc_internal_portal:355650"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:3fbbe0374f643e825abdaf0668dc01a82b2680a7cb26a6eede954bf2d8f4e258",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-live-355650-promote-20260428T105200/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "rejected_sources": 0,
+        "service_status_records": 1
+      },
+      "generated_at": "2026-04-28 02:52:00+00:00",
+      "published_at": "2026-04-28 02:45:55.405964+00:00",
+      "release_id": "service-status-live-355650-promote-20260428T105200",
+      "reset_classification": "reset_candidate_notice_derived",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:3fbbe0374f643e825abdaf0668dc01a82b2680a7cb26a6eede954bf2d8f4e258",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-live-355650-stage-20260428T104800/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "rejected_sources": 0,
+        "service_status_records": 1
+      },
+      "generated_at": "2026-04-28 02:48:00+00:00",
+      "published_at": "2026-04-28 02:45:11.324404+00:00",
+      "release_id": "service-status-live-355650-stage-20260428T104800",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:355650"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:71c89b6ce3c9bda5f4ffb160a0c4bf81efe05fd7bd10297a7188b3bb6353a1c8",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-notice-derived-20260427T121945/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 2
+      },
+      "generated_at": "2026-04-27 04:19:45+00:00",
+      "published_at": "2026-04-27 04:20:32.128780+00:00",
+      "release_id": "service-status-notice-derived-20260427T121945",
+      "reset_classification": "reset_candidate_notice_derived",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353903"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:5df46ea724f091296b0e10d60721b731475f5fd1b84cec1124ecfac8dbd6273a",
+      "artifact_object_key": "campus_services/releases/service_status/schedule-e2e-smoke-20260427-service-status/structured-projection-smoke.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 1
+      },
+      "generated_at": "2026-04-27 04:00:00+00:00",
+      "published_at": "2026-04-26 23:34:56.567293+00:00",
+      "release_id": "schedule-e2e-smoke-20260427-service-status",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [],
+      "validation_status": "smoke_valid"
+    },
+    {
+      "artifact_checksum": "sha256:6e85bb66395128a1cbf8864bde34027e30b5c06fc9a89ed2de18726128c31a0a",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-notice-derived-20260427T115004/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 2
+      },
+      "generated_at": "2026-04-27 04:00:00+00:00",
+      "published_at": "2026-04-27 03:50:11.458469+00:00",
+      "release_id": "service-status-notice-derived-20260427T115004",
+      "reset_classification": "reset_candidate_notice_derived",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353903"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:71c89b6ce3c9bda5f4ffb160a0c4bf81efe05fd7bd10297a7188b3bb6353a1c8",
+      "artifact_object_key": "campus_services/releases/service_status/service-status-notice-derived-20260427T115303/service-status-projection.json",
+      "collection": "service_status",
+      "corpus": "campus_services",
+      "counts": {
+        "service_status_records": 2
+      },
+      "generated_at": "2026-04-27 04:00:00+00:00",
+      "published_at": "2026-04-27 03:53:09.685964+00:00",
+      "release_id": "service-status-notice-derived-20260427T115303",
+      "reset_classification": "reset_candidate_notice_derived",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353903"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:cbfa2182b71cda68638d517d17775a6460e8b89f89d37f5dfa6df8b4bfc1bd88",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-manual-review-combined-16-stage-20260428T230000/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 19,
+        "service_exceptions": 5,
+        "snapshots": 16
+      },
+      "generated_at": "2026-04-28 15:00:00+00:00",
+      "published_at": "2026-04-28 15:03:33.539954+00:00",
+      "release_id": "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:c43dd8e788e92f97741b30d8fb87e8fd869ad688eccf86ba08044cd1943b88db",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-reviewed-pdf-245272-stage-20260428T222000/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 19,
+        "service_exceptions": 5,
+        "snapshots": 14
+      },
+      "generated_at": "2026-04-28 14:20:00+00:00",
+      "published_at": "2026-04-28 14:22:47.557117+00:00",
+      "release_id": "transport-schedule-reviewed-pdf-245272-stage-20260428T222000",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:06af82d5d2990580a9edf3b74eaa98a0506ebc583f4d76d0d4a729311c3238ea",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-clean-auto-stage-20260428T131500Z/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 19,
+        "service_exceptions": 5,
+        "snapshots": 13
+      },
+      "generated_at": "2026-04-28 13:15:00+00:00",
+      "published_at": "2026-04-28 13:10:07.517078+00:00",
+      "release_id": "transport-schedule-clean-auto-stage-20260428T131500Z",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:c160bab3cf12ff491c736f4d9d6222ed8757cb3d5b8e0356d0bc39fc8c6c9ce1",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-354889-stage-20260428T030903Z/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 30,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "generated_at": "2026-04-28 03:09:03+00:00",
+      "published_at": "2026-04-28 03:09:17.245533+00:00",
+      "release_id": "transport-schedule-354889-stage-20260428T030903Z",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:354889"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:f29344035820b90c61e5e1251ad952b3d605f23420dd9cbb132599300c6a9dde",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-355122-stage-20260428T025821Z/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 32,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "generated_at": "2026-04-28 02:58:21+00:00",
+      "published_at": "2026-04-28 02:58:27.767229+00:00",
+      "release_id": "transport-schedule-355122-stage-20260428T025821Z",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:355122"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:2939c290e8084515fab83b652416b1d4f279d01fe85453d614b24c044a7e66a9",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-355512-stage-20260428T023900Z/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 1,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "generated_at": "2026-04-28 02:39:00+00:00",
+      "published_at": "2026-04-28 02:33:26.877080+00:00",
+      "release_id": "transport-schedule-355512-stage-20260428T023900Z",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:355512"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:a228b8e558b1630301f531cba54b951bb624917f1d24fa2a4ec365de678ca00d",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-355881-stage-20260428T012432Z/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 7,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "generated_at": "2026-04-28 01:24:00+00:00",
+      "published_at": "2026-04-28 01:37:07.589492+00:00",
+      "release_id": "transport-schedule-355881-stage-20260428T012432Z",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:355881"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:435eed22660e401e8a40a48f2cdc242d3e5ce18af8e2b4573030c214c1e4284a",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-355867-stage-20260428T005620Z/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 0,
+        "rejected_sources": 0,
+        "routes": 9,
+        "scheduled_departures": 49,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "generated_at": "2026-04-28 00:56:20+00:00",
+      "published_at": "2026-04-28 00:57:24.111825+00:00",
+      "release_id": "transport-schedule-355867-stage-20260428T005620Z",
+      "reset_classification": "reset_candidate_stage_or_review",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:355867"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:3382cf2a4d55ae12d641cd5c1afb0e41e8ecfa7af873ccf3bc6a5de6fbbd0477",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-notice-e2e-20260427T123000/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "routes": 5,
+        "scheduled_departures": 69,
+        "service_exceptions": 3,
+        "snapshots": 5
+      },
+      "generated_at": "2026-04-27 04:30:00+00:00",
+      "published_at": "2026-04-26 23:39:07.726585+00:00",
+      "release_id": "transport-schedule-notice-e2e-20260427T123000",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:20a52222e461c285ee6eaf60d385c29fadc17c2aad7fd0add8f95977e2cb4235",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-full-ready-20260427T122940/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 5,
+        "rejected_sources": 0,
+        "routes": 5,
+        "scheduled_departures": 362,
+        "service_exceptions": 8,
+        "snapshots": 29
+      },
+      "generated_at": "2026-04-27 04:29:40+00:00",
+      "published_at": "2026-04-27 04:29:57.169060+00:00",
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "reset_classification": "reset_candidate_notice_derived_transport",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:a6386a2bce51a0c88550892fc481c693cd4d4a48105aeef243fb748b016a30d4",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-full-ready-20260427T122730/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 5,
+        "rejected_sources": 0,
+        "routes": 5,
+        "scheduled_departures": 362,
+        "service_exceptions": 8,
+        "snapshots": 29
+      },
+      "generated_at": "2026-04-27 04:27:30+00:00",
+      "published_at": "2026-04-27 04:27:49.650966+00:00",
+      "release_id": "transport-schedule-full-ready-20260427T122730",
+      "reset_classification": "reset_candidate_notice_derived_transport",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:a6386a2bce51a0c88550892fc481c693cd4d4a48105aeef243fb748b016a30d4",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-full-ready-20260427T122315/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 5,
+        "rejected_sources": 0,
+        "routes": 5,
+        "scheduled_departures": 362,
+        "service_exceptions": 8,
+        "snapshots": 29
+      },
+      "generated_at": "2026-04-27 04:23:15+00:00",
+      "published_at": "2026-04-27 04:23:30.969025+00:00",
+      "release_id": "transport-schedule-full-ready-20260427T122315",
+      "reset_classification": "reset_candidate_notice_derived_transport",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:eb64f62f5f7da7d36cd32d0d09c45dc84e36edae9b1171bbab4b1d756bd26afa",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-full-ready-20260427T121945/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 3,
+        "rejected_sources": 1,
+        "routes": 5,
+        "scheduled_departures": 362,
+        "service_exceptions": 8,
+        "snapshots": 29
+      },
+      "generated_at": "2026-04-27 04:19:45+00:00",
+      "published_at": "2026-04-27 04:20:58.344242+00:00",
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "reset_classification": "reset_candidate_notice_derived_transport",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:a115416bd2f0f7d0a4c1f5788316f674834e8684dd7d80f43b80f304aa03a7a7",
+      "artifact_object_key": "campus_services/releases/transport_schedule/schedule-e2e-smoke-20260427-transport-schedule/structured-projection-smoke.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "routes": 1,
+        "scheduled_departures": 1,
+        "service_exceptions": 0,
+        "snapshots": 1
+      },
+      "generated_at": "2026-04-27 04:00:00+00:00",
+      "published_at": "2026-04-26 23:34:58.659871+00:00",
+      "release_id": "schedule-e2e-smoke-20260427-transport-schedule",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [],
+      "validation_status": "smoke_valid"
+    },
+    {
+      "artifact_checksum": "sha256:3382cf2a4d55ae12d641cd5c1afb0e41e8ecfa7af873ccf3bc6a5de6fbbd0477",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-notice-e2e-20260427T120000/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "routes": 5,
+        "scheduled_departures": 69,
+        "service_exceptions": 3,
+        "snapshots": 5
+      },
+      "generated_at": "2026-04-27 04:00:00+00:00",
+      "published_at": "2026-04-26 23:36:59.221932+00:00",
+      "release_id": "transport-schedule-notice-e2e-20260427T120000",
+      "reset_classification": "reset_candidate_smoke_or_e2e",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122"
+      ],
+      "validation_status": "valid"
+    },
+    {
+      "artifact_checksum": "sha256:eb64f62f5f7da7d36cd32d0d09c45dc84e36edae9b1171bbab4b1d756bd26afa",
+      "artifact_object_key": "campus_services/releases/transport_schedule/transport-schedule-full-ready-20260427T111821/campus-services-projection.json",
+      "collection": "transport_schedule",
+      "corpus": "campus_services",
+      "counts": {
+        "operational_notices": 3,
+        "rejected_sources": 1,
+        "routes": 5,
+        "scheduled_departures": 362,
+        "service_exceptions": 8,
+        "snapshots": 29
+      },
+      "generated_at": "2026-04-27 03:18:21+00:00",
+      "published_at": "2026-04-27 03:18:52.061961+00:00",
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "reset_classification": "reset_candidate_notice_derived_transport",
+      "schema_version": "campus_services_projection_bundle.v1",
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ],
+      "validation_status": "valid"
+    }
+  ],
+  "table_counts": [
+    {
+      "row_count": 3,
+      "table": "ingestion_projection.structured_projection_current"
+    },
+    {
+      "row_count": 27,
+      "table": "ingestion_projection.structured_projection_releases"
+    },
+    {
+      "row_count": 11,
+      "table": "ingestion_projection.service_status_read_model"
+    },
+    {
+      "row_count": 33,
+      "table": "ingestion_projection.service_guide_read_model"
+    },
+    {
+      "row_count": 218,
+      "table": "ingestion_projection.transport_release_notices"
+    },
+    {
+      "row_count": 21,
+      "table": "ingestion_projection.transport_operational_notices"
+    },
+    {
+      "row_count": 108,
+      "table": "ingestion_projection.transport_routes"
+    },
+    {
+      "row_count": 204,
+      "table": "ingestion_projection.transport_schedule_snapshots"
+    },
+    {
+      "row_count": 2125,
+      "table": "ingestion_projection.transport_scheduled_departures"
+    },
+    {
+      "row_count": 61,
+      "table": "ingestion_projection.transport_service_exceptions"
+    },
+    {
+      "row_count": 2,
+      "table": "ingestion_projection.transport_rejected_sources"
+    }
+  ],
+  "transport_release_groups": [
+    {
+      "release_id": "transport-schedule-354889-stage-20260428T030903Z",
+      "row_count": 1,
+      "source_notice_ids": [
+        "354889"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-355122-stage-20260428T025821Z",
+      "row_count": 1,
+      "source_notice_ids": [
+        "355122"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-355512-stage-20260428T023900Z",
+      "row_count": 1,
+      "source_notice_ids": [
+        "355512"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-355867-stage-20260428T005620Z",
+      "row_count": 1,
+      "source_notice_ids": [
+        "355867"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-355881-stage-20260428T012432Z",
+      "row_count": 1,
+      "source_notice_ids": [
+        "355881"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-clean-auto-stage-20260428T131500Z",
+      "row_count": 13,
+      "source_notice_ids": [
+        "203935",
+        "245395",
+        "247734",
+        "247970",
+        "348483",
+        "348880",
+        "349494",
+        "350030",
+        "351030",
+        "352218",
+        "354505",
+        "354533",
+        "354578"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "row_count": 32,
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "row_count": 32,
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122315",
+      "row_count": 32,
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122730",
+      "row_count": 32,
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "row_count": 32,
+      "source_notice_ids": [
+        "notice:muc_internal_portal:202713",
+        "notice:muc_internal_portal:203935",
+        "notice:muc_internal_portal:233383",
+        "notice:muc_internal_portal:237479",
+        "notice:muc_internal_portal:244214",
+        "notice:muc_internal_portal:245271",
+        "notice:muc_internal_portal:245272",
+        "notice:muc_internal_portal:245395",
+        "notice:muc_internal_portal:247734",
+        "notice:muc_internal_portal:247970",
+        "notice:muc_internal_portal:248186",
+        "notice:muc_internal_portal:348272",
+        "notice:muc_internal_portal:348457",
+        "notice:muc_internal_portal:348483",
+        "notice:muc_internal_portal:348880",
+        "notice:muc_internal_portal:349494",
+        "notice:muc_internal_portal:350030",
+        "notice:muc_internal_portal:351030",
+        "notice:muc_internal_portal:351696",
+        "notice:muc_internal_portal:351862",
+        "notice:muc_internal_portal:352218",
+        "notice:muc_internal_portal:352325",
+        "notice:muc_internal_portal:353901",
+        "notice:muc_internal_portal:353903",
+        "notice:muc_internal_portal:354270",
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122",
+        "notice:muc_internal_portal:355512",
+        "notice:muc_internal_portal:355867"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+      "row_count": 16,
+      "source_notice_ids": [
+        "203935",
+        "245272",
+        "245395",
+        "247734",
+        "247970",
+        "348483",
+        "348880",
+        "349494",
+        "350030",
+        "351030",
+        "352218",
+        "353901",
+        "354270",
+        "354505",
+        "354533",
+        "354578"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T120000",
+      "row_count": 5,
+      "source_notice_ids": [
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T123000",
+      "row_count": 5,
+      "source_notice_ids": [
+        "notice:muc_internal_portal:354505",
+        "notice:muc_internal_portal:354533",
+        "notice:muc_internal_portal:354578",
+        "notice:muc_internal_portal:354889",
+        "notice:muc_internal_portal:355122"
+      ]
+    },
+    {
+      "release_id": "transport-schedule-reviewed-pdf-245272-stage-20260428T222000",
+      "row_count": 14,
+      "source_notice_ids": [
+        "203935",
+        "245272",
+        "245395",
+        "247734",
+        "247970",
+        "348483",
+        "348880",
+        "349494",
+        "350030",
+        "351030",
+        "352218",
+        "354505",
+        "354533",
+        "354578"
+      ]
+    }
+  ],
+  "transport_table_release_counts": [
+    {
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "row_count": 3,
+      "table_name": "transport_operational_notices"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "row_count": 3,
+      "table_name": "transport_operational_notices"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122315",
+      "row_count": 5,
+      "table_name": "transport_operational_notices"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122730",
+      "row_count": 5,
+      "table_name": "transport_operational_notices"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "row_count": 5,
+      "table_name": "transport_operational_notices"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "row_count": 1,
+      "table_name": "transport_rejected_sources"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "row_count": 1,
+      "table_name": "transport_rejected_sources"
+    },
+    {
+      "release_id": "schedule-e2e-smoke-20260427-transport-schedule",
+      "row_count": 1,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-354889-stage-20260428T030903Z",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-355122-stage-20260428T025821Z",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-355512-stage-20260428T023900Z",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-355867-stage-20260428T005620Z",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-355881-stage-20260428T012432Z",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-clean-auto-stage-20260428T131500Z",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "row_count": 5,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "row_count": 5,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122315",
+      "row_count": 5,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122730",
+      "row_count": 5,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "row_count": 5,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T120000",
+      "row_count": 5,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T123000",
+      "row_count": 5,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "transport-schedule-reviewed-pdf-245272-stage-20260428T222000",
+      "row_count": 9,
+      "table_name": "transport_routes"
+    },
+    {
+      "release_id": "schedule-e2e-smoke-20260427-transport-schedule",
+      "row_count": 1,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-354889-stage-20260428T030903Z",
+      "row_count": 30,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-355122-stage-20260428T025821Z",
+      "row_count": 32,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-355512-stage-20260428T023900Z",
+      "row_count": 1,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-355867-stage-20260428T005620Z",
+      "row_count": 49,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-355881-stage-20260428T012432Z",
+      "row_count": 7,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-clean-auto-stage-20260428T131500Z",
+      "row_count": 19,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "row_count": 362,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "row_count": 362,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122315",
+      "row_count": 362,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122730",
+      "row_count": 362,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "row_count": 362,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+      "row_count": 19,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T120000",
+      "row_count": 69,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T123000",
+      "row_count": 69,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "transport-schedule-reviewed-pdf-245272-stage-20260428T222000",
+      "row_count": 19,
+      "table_name": "transport_scheduled_departures"
+    },
+    {
+      "release_id": "schedule-e2e-smoke-20260427-transport-schedule",
+      "row_count": 1,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-354889-stage-20260428T030903Z",
+      "row_count": 1,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-355122-stage-20260428T025821Z",
+      "row_count": 1,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-355512-stage-20260428T023900Z",
+      "row_count": 1,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-355867-stage-20260428T005620Z",
+      "row_count": 1,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-355881-stage-20260428T012432Z",
+      "row_count": 1,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-clean-auto-stage-20260428T131500Z",
+      "row_count": 13,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "row_count": 29,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "row_count": 29,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122315",
+      "row_count": 29,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122730",
+      "row_count": 29,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "row_count": 29,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+      "row_count": 16,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T120000",
+      "row_count": 5,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T123000",
+      "row_count": 5,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-reviewed-pdf-245272-stage-20260428T222000",
+      "row_count": 14,
+      "table_name": "transport_schedule_snapshots"
+    },
+    {
+      "release_id": "transport-schedule-clean-auto-stage-20260428T131500Z",
+      "row_count": 5,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T111821",
+      "row_count": 8,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T121945",
+      "row_count": 8,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122315",
+      "row_count": 8,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122730",
+      "row_count": 8,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-full-ready-20260427T122940",
+      "row_count": 8,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-manual-review-combined-16-stage-20260428T230000",
+      "row_count": 5,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T120000",
+      "row_count": 3,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-notice-e2e-20260427T123000",
+      "row_count": 3,
+      "table_name": "transport_service_exceptions"
+    },
+    {
+      "release_id": "transport-schedule-reviewed-pdf-245272-stage-20260428T222000",
+      "row_count": 5,
+      "table_name": "transport_service_exceptions"
+    }
+  ]
+}
