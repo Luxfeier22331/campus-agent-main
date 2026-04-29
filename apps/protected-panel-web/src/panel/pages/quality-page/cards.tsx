@@ -25,6 +25,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { normalizeSafeExternalHref } from "../../panel-safe-links";
 import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
+import { buildRequestShowPath } from "../../requests/request-routes";
 import type {
 	OperatorOverviewWindow,
 	OperatorQualityBadcaseRecord,
@@ -597,7 +598,7 @@ export function QualityEvalCandidateSection(props: {
 										<Button
 											component={RouterLink}
 											size="small"
-											to={`/requests/${candidate.requestId}/show`}
+											to={buildRequestShowPath(candidate.requestId)}
 											variant="outlined"
 										>
 											{candidate.requestId}
@@ -731,7 +732,7 @@ export function QualityDetailDrawer(props: {
 							<Stack spacing={1}>
 								<Button
 									component={RouterLink}
-									to={`/requests/${props.selectedBadcase.requestId}/show`}
+									to={buildRequestShowPath(props.selectedBadcase.requestId)}
 									variant="contained"
 								>
 									{PANEL_COPY.qualityPage.queue.viewRequest}

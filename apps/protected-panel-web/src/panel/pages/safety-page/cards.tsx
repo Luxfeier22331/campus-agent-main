@@ -27,6 +27,7 @@ import {
 	formatSelectedTargetLabel,
 	formatSurfaceLabel,
 } from "../../requests/request-formatters";
+import { buildRequestShowPath } from "../../requests/request-routes";
 import type { OperatorOverviewWindow, OperatorSafetyAnomalyRecord } from "../../types";
 import {
 	buildSafetyPostureEntries,
@@ -583,7 +584,7 @@ export function SafetyDetailDrawer(props: {
 									<Button
 										component={RouterLink}
 										size="small"
-										to={`/requests/${props.selectedAnomaly.requestId}/show`}
+										to={buildRequestShowPath(props.selectedAnomaly.requestId)}
 										variant="contained"
 									>
 										{PANEL_COPY.safetyPage.queue.viewRequest}
