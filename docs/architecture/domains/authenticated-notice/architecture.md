@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-28
+updated: 2026-04-30
 ---
 # Authenticated Notice Source Architecture
 
@@ -231,6 +231,8 @@ manifest path 只允许作为显式 fixture/dev 模式进入；裸 `--bundle-pat
   strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
 - restricted document center artifact
   contract：`docs/reference/restricted-document-center-artifact-contract.md`
+- source retention state-machine
+  verification set：`docs/reference/authenticated-notice-retention-state-machine-verification.md`
 - authenticated document center / regulation 分层决策：`docs/decisions/adr-0041-authe
   nticated-document-center-and-regulation-layer-split.md`
 - restricted document authorization：
@@ -373,6 +375,110 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
   parse、PDF/image parsing lane 都不属于 collector 私有 contract
 - 如果 attachment 最终只落到 `reference_only`、`multimodal_processing_required` 或
   `unsupported_binary`，collector 仍只持有 source relation truth，不伪造 child document
+
+## Notice-First Source Retention State Machine
+
+authenticated notice 的 source retention 必须先按 notice 级语义分流，再决定附件字节是否抓取、
+保留或晋升。附件后缀、MIME type、大小和下载可用性只能在 notice route 已确定后细化 byte
+policy，不能反向驱动整条 notice 进入 OCR、附件保留或 downstream materialization。
+
+固定顺序为：
+
+1. `notice_capture_route`
+   - 由标题、正文、portal 分类、notice-family / route policy 与已知正文质量决定。
+2. `attachment_capture_policy`
+   - 在 notice route 已确定后，对每个 attachment ref 单独决定是否只保留 metadata、
+     quarantine bytes、要求 source-truth bytes，或跳过。
+3. byte fetch / upload
+   - 只对 policy 明确要求 bytes 的 attachment 执行；不允许因“附件存在”而默认下载。
+4. source-truth import
+   - 写入 notice manifest、content blocks 与 attachment refs；metadata-only attachment
+     relation 也是 source truth。
+5. downstream consumer admission
+   - 只消费 explicit admission manifest，不重新扫描 source bundle 扩张候选。
+6. attachment promotion / retention
+   - 只有 admitted owner 或 target materializer 声明需要时，quarantine bytes 才能晋升为长期
+     admitted source bytes。
+
+`notice_capture_route` 第一版允许值固定为：
+
+- `notice_level_query_only`
+  - 正文、标题、URL 与必要 metadata 已足够服务 notice discover / card / generic query。
+  - attachment refs 只保留 metadata，不下载、不保留 bytes，不计入 required source objects。
+  - 例如“中央民族大学关于申报2027年度国家艺术基金项目的通知”这类申报通知，如果当前产品只把它作为
+    notice discover/card 消费，即使带有图片、压缩包或表格附件，也不得因为附件类型而进入附件保留链路。
+- `candidate_requires_attachment_routing`
+  - notice 本身有潜在高价值，但正文不足以判断 target family 或事实完整性。
+  - 允许在大小、类型和来源 allowlist 内 fetch to quarantine；未 admission 前不能长期保留为
+    admitted source bytes。
+- `candidate_document_owner`
+  - notice 明确指向可独立消费的 owner document，例如制度正文、办事指南、正式附件正文或
+    released original。
+  - 允许对 owner-like attachment 进入 required / quarantine byte path；promotion 必须由
+    downstream admission 决定。
+- `candidate_service_fact`
+  - notice 可能承载服务状态、班车/开放时间/预约窗口等 facts。
+  - 如果正文已经覆盖 target-required fact groups，attachment 仍应保持 metadata-only；
+    只有缺失 fact group 明确落在图片、PDF 或 office attachment 时，才允许抓取对应 bytes。
+- `capture_only_no_adoption`
+  - notice 只保留受限 upstream provenance，不进入当前 downstream consumption。
+  - attachment refs 只保留 metadata 或 typed terminal outcome。
+
+`attachment_capture_policy` 第一版允许值固定为：
+
+- `metadata_only`
+- `fetch_to_quarantine`
+- `fetch_required_for_source_truth`
+- `fetch_required_for_admitted_owner`
+- `skip_unsupported`
+- `skip_too_large`
+- `terminal_unavailable`
+
+`attachment_capture_state` 第一版允许值固定为：
+
+- `not_attempted`
+- `metadata_recorded`
+- `fetching`
+- `uploaded_quarantine`
+- `uploaded_required`
+- `reference_only`
+- `terminal_missing`
+- `transient_failed`
+
+`retention_class` 第一版允许值固定为：
+
+- `permanent_source_truth`
+  - notice manifest、content blocks 与 attachment refs 等 source-truth metadata。
+- `metadata_only`
+  - attachment relation truth；不要求 object bytes。
+- `quarantine_candidate`
+  - 为 routing、OCR 或 owner recovery 临时抓取的 bytes；必须有 expiry / cleanup policy。
+- `admitted_source_bytes`
+  - downstream admission 后被某个 owner / materializer 接收的长期 source bytes。
+- `transient_run_artifact`
+  - run bundle、manifest 之外的中间产物；不得被 query runtime 依赖。
+- `debug_transient`
+  - 本地排障或人工验证文件；不得进入 handoff truth。
+
+`attachment_promotion_state` 第一版允许值固定为：
+
+- `not_applicable`
+- `candidate`
+- `promoted`
+- `rejected`
+- `expired`
+- `deleted`
+
+run ledger / manifest verification 必须把 observed attachment refs 与 required
+source objects 分开：
+
+- `handoff_bundle` 与 `handoff_manifest` 始终是 required objects。
+- 只有 `fetch_required_for_source_truth`、`fetch_required_for_admitted_owner` 或已经晋升为
+  `admitted_source_bytes` 的附件 bytes，才计入 required source object verification。
+- `metadata_only`、`skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 不得因为缺少
+  `object_key` 而导致 source-truth import 失败。
+- `fetch_to_quarantine` 的 bytes 可以有 object key，但在未 admission 前只能按 quarantine
+  lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。
 
 ## Bootstrap Import Ownership
 
