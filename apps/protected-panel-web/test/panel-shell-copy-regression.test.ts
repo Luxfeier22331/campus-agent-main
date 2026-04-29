@@ -238,6 +238,17 @@ describe("protected panel shell chinese copy", () => {
 		expect(auditPageSource).not.toContain("href={detailLinks.traceLink}");
 	});
 
+	it("keeps guarded external links isolated from the opener browsing context", () => {
+		expect(requestShowSource).not.toContain('rel="noreferrer"');
+		expect(qualityPageCardsSource).not.toContain('rel="noreferrer"');
+		expect(safetyPageCardsSource).not.toContain('rel="noreferrer"');
+		expect(auditPageSource).not.toContain('rel="noreferrer"');
+		expect(requestShowSource).toContain('rel="noopener noreferrer"');
+		expect(qualityPageCardsSource).toContain('rel="noopener noreferrer"');
+		expect(safetyPageCardsSource).toContain('rel="noopener noreferrer"');
+		expect(auditPageSource).toContain('rel="noopener noreferrer"');
+	});
+
 	it("keeps manual cursor queue pagination locked while page queries are in flight", () => {
 		expect(qualityPageCardsSource).toContain("disabled={props.isPageChanging ||");
 		expect(safetyPageCardsSource).toContain("disabled={props.isPageChanging ||");

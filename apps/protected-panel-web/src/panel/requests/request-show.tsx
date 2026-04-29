@@ -45,7 +45,7 @@ function linkValue(href: string | null, label: string) {
 	}
 
 	return (
-		<Link href={safeHref} rel="noreferrer" target="_blank" underline="hover">
+		<Link href={safeHref} rel="noopener noreferrer" target="_blank" underline="hover">
 			{label}
 		</Link>
 	);

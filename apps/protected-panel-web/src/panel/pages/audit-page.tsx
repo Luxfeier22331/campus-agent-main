@@ -144,7 +144,7 @@ function SafeExternalLink(props: { unsafeHref: string | null; label: string }) {
 	}
 
 	return (
-		<MuiLink href={safeHref} rel="noreferrer" target="_blank">
+		<MuiLink href={safeHref} rel="noopener noreferrer" target="_blank">
 			{props.label}
 		</MuiLink>
 	);
