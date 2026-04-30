@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.collected_notice_media_extraction_closeout import (
+    build_schedule_image_ocr_media_extraction_closeout_result_manifest,
+)
 from campus_ingestion_core.internal_notice_schedule_image_ocr import (
     ScheduleImageOcrEvidence,
     ScheduleImageOcrProviderResult,
@@ -239,12 +242,18 @@ def build_schedule_image_ocr_mini_batch_post_run_preview(
         generated_at=timestamp,
         generated_by=generated_by,
     )
+    closeout_result_manifest = build_schedule_image_ocr_media_extraction_closeout_result_manifest(
+        execution_manifest=execution_manifest,
+        post_run_preview={"post_run_gap_report": gap_report},
+        generated_at=timestamp,
+    )
     return {
         "searchable_merge_preview": searchable_merge_preview,
         "transport_replay_dry_run": transport_replay,
         "transport_stage_report": transport_stage,
         "transport_consistency_report": consistency,
         "post_run_gap_report": gap_report,
+        "media_extraction_closeout_result_manifest": closeout_result_manifest,
     }
 
 
@@ -263,6 +272,9 @@ def mini_batch_post_run_output_files(payload: Mapping[str, Any]) -> dict[str, An
         "transport-ocr-stage-report.json": payload["transport_stage_report"],
         "transport-ocr-consistency-report.json": payload["transport_consistency_report"],
         "schedule-image-ocr-post-run-gap-report.json": payload["post_run_gap_report"],
+        "media-extraction-closeout-result-manifest.json": payload[
+            "media_extraction_closeout_result_manifest"
+        ],
     }
 
 

@@ -78,6 +78,7 @@ campus-ingestion-repair-internal-notice-read-model-consistency = "campus_ingesti
 campus-ingestion-check-internal-notice-processing-gaps = "campus_ingestion_worker.check_internal_notice_processing_gaps:main"
 campus-ingestion-process-internal-notice-multimodal = "campus_ingestion_worker.process_internal_notice_multimodal:main"
 campus-ingestion-drain-internal-notice-pending-multimodal = "campus_ingestion_worker.drain_internal_notice_pending_multimodal:main"
+campus-ingestion-preview-collected-notice-media-extraction-closeout = "campus_ingestion_worker.preview_collected_notice_media_extraction_closeout:main"
 campus-ingestion-schedule-router-dry-run = "campus_ingestion_worker.schedule_router_dry_run:main"
 campus-ingestion-schedule-image-ocr-dry-run = "campus_ingestion_worker.schedule_image_ocr_dry_run:main"
 campus-ingestion-admit-schedule-image-ocr-results = "campus_ingestion_worker.admit_schedule_image_ocr_results:main"

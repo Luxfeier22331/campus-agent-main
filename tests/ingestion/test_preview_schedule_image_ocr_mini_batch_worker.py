@@ -77,6 +77,9 @@ class PreviewScheduleImageOcrMiniBatchWorkerTests(unittest.TestCase):
                 "transport_stage_report": {"stage_candidate_count": 2},
                 "transport_consistency_report": {"verdict": "passed"},
                 "post_run_gap_report": {"verdict": "ready_for_transport_replay"},
+                "media_extraction_closeout_result_manifest": {
+                    "schema_version": "notice_media_extraction_closeout_result_manifest.v1"
+                },
             }
 
             with (
@@ -114,6 +117,7 @@ class PreviewScheduleImageOcrMiniBatchWorkerTests(unittest.TestCase):
                     "transport-ocr-stage-report.json",
                     "transport-ocr-consistency-report.json",
                     "schedule-image-ocr-post-run-gap-report.json",
+                    "media-extraction-closeout-result-manifest.json",
                 },
             )
             payload = json.loads(stdout.getvalue())
