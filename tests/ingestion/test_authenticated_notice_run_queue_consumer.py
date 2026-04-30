@@ -220,6 +220,92 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
         self.assertEqual(record.last_error_code, "media_gate_requires_manual_review")
         self.assertEqual(result.failed_report["manual_review_count"], 1)
 
+    def test_downstream_materialization_trace_is_required_when_requested(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+
+        result = consume_authenticated_notice_ingest_queue(
+            queue_store=store,
+            object_store=_ObjectStore(
+                {
+                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                }
+            ),
+            run_ref_resolver=_resolver_for(job),
+            importer=_RecordingImporter(
+                {
+                    "notice_count": 1,
+                    "consumption_projection_entry_count": 1,
+                    "internal_notice_read_model_entry_count": 1,
+                    "consumer_admission_projection_gate": {"allowed": True},
+                    "consumer_admission_read_model_gate": {"allowed": True},
+                }
+            ),
+            mode="execute",
+            worker_id="worker-a",
+            site_id="muc_internal_portal",
+            source_home_url="https://my.muc.edu.cn",
+            source_truth_only=False,
+        )
+
+        row = result.trace["trace_rows"][0]
+        self.assertEqual(row["downstream_materialization"]["status"], "completed")
+        self.assertEqual(
+            row["downstream_materialization"]["consumption_projection_entry_count"],
+            1,
+        )
+        self.assertEqual(
+            row["downstream_materialization"]["internal_notice_read_model_entry_count"],
+            1,
+        )
+        self.assertEqual(store.get(job.job_id).status, "succeeded")  # type: ignore[union-attr]
+
+    def test_missing_downstream_materialization_result_maps_to_manual_review(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+
+        result = consume_authenticated_notice_ingest_queue(
+            queue_store=store,
+            object_store=_ObjectStore(
+                {
+                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                }
+            ),
+            run_ref_resolver=_resolver_for(job),
+            importer=_RecordingImporter({"notice_count": 1}),
+            mode="execute",
+            worker_id="worker-a",
+            site_id="muc_internal_portal",
+            source_home_url="https://my.muc.edu.cn",
+            source_truth_only=False,
+        )
+
+        record = store.get(job.job_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.status, "manual_review")
+        self.assertEqual(record.last_error_code, "downstream_materialization_missing")
+        self.assertEqual(result.failed_report["manual_review_count"], 1)
+
 
 class _ObjectStore:
     def __init__(self, objects: dict[tuple[str, str], bytes]) -> None:

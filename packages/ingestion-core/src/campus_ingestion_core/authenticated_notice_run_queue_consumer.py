@@ -212,15 +212,29 @@ def consume_authenticated_notice_ingest_queue(
                     run_id=record.run_id,
                     media_gate_evidence_dir=media_gate_evidence_dir,
                 )
+            downstream_materialization = _downstream_materialization_summary(
+                import_result,
+                source_truth_only=source_truth_only,
+            )
             imported_count += 1
             trace_row.update(
                 {
                     "status": "imported",
                     "import_result": _import_result_summary(import_result),
+                    "downstream_materialization": downstream_materialization,
                 }
             )
             if media_gate_verdict is not None:
                 trace_row["media_gate"] = media_gate_verdict
+            if not source_truth_only and downstream_materialization["status"] != "completed":
+                raise _RunQueueConsumeFailure(
+                    error_code="downstream_materialization_missing",
+                    message=(
+                        "downstream materialization was requested but importer did not "
+                        "report projection/read-model materialization evidence"
+                    ),
+                    failure_class="manual_review",
+                )
             if normalized_mode == "execute":
                 queue_store.complete(record.job_id, worker_id=normalized_worker_id)
                 completed_count += 1
@@ -631,6 +645,29 @@ def _import_result_summary(result: Mapping[str, Any]) -> dict[str, Any]:
             "attachment_fetch_status_record_count",
         )
         if key in result
+    }
+
+
+def _downstream_materialization_summary(
+    result: Mapping[str, Any],
+    *,
+    source_truth_only: bool,
+) -> dict[str, Any]:
+    projection_count = int(result.get("consumption_projection_entry_count") or 0)
+    read_model_count = int(result.get("internal_notice_read_model_entry_count") or 0)
+    if source_truth_only:
+        status = "skipped_source_truth_only"
+    elif projection_count > 0 or read_model_count > 0:
+        status = "completed"
+    else:
+        status = "missing"
+    return {
+        "status": status,
+        "source_truth_only": source_truth_only,
+        "consumption_projection_entry_count": projection_count,
+        "internal_notice_read_model_entry_count": read_model_count,
+        "consumer_admission_projection_gate": result.get("consumer_admission_projection_gate"),
+        "consumer_admission_read_model_gate": result.get("consumer_admission_read_model_gate"),
     }
 
 
