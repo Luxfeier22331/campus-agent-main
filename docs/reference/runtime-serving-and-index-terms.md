@@ -312,6 +312,10 @@ updated: 2026-04-23
 - live evidence 不是 general web fallback
 - live evidence 是否能成为 answer-bearing evidence，受 source-trust 与 freshness policy
   约束
+- live evidence 必须显式标注 `retrieval_mode=live_assisted`、`as_of` 与
+  `canonical_index_truth=false`
+- live evidence 不写入 canonical index；它只能作为当前 retrieval execution 的临时 evidence
+  和 observation / eval candidate 输入
 
 ### Execution Metadata
 
@@ -323,6 +327,8 @@ updated: 2026-04-23
 
 - execution metadata 用于 observability、audit 与 grading
 - execution metadata 不应直接暴露 raw vendor payload
+- runtime observation 默认包含 query mode、retrieval mode、scope、latency、
+  failure kind 与 sanitized query hash；raw query text 只允许 operator debug 显式打开
 
 ### Serving Alias
 

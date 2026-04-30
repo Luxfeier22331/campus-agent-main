@@ -485,7 +485,7 @@ def _apply_profile_gated_reranker(
     rerank_step: ExecutableRerankFn | None,
 ) -> tuple[EvidenceBundle, str]:
     profile = load_runtime_profile(request.corpus, request.collection)
-    if not profile.reranker_enabled_by_default:
+    if not getattr(profile, "reranker_enabled_by_default", False):
         return evidence, ""
     if rerank_step is None:
         return evidence, "reranker_executor_unavailable"
@@ -494,7 +494,7 @@ def _apply_profile_gated_reranker(
             request,
             _bounded_rerank_candidate_bundle(
                 evidence,
-                top_n=profile.reranker_top_n,
+                top_n=getattr(profile, "reranker_top_n", None),
             ),
         ), ""
     except Exception:

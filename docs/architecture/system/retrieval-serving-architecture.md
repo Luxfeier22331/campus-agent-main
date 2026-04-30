@@ -144,8 +144,8 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - alias publish 前的 qrels coverage gate；默认 query-enabled scope 必须有 declared scenario
   denominator，缺 fixture、缺 required class 或缺 required scenario 都 fail closed
 - release manifest / point payload 中的 dense、sparse、hybrid、chunk、cleaning、
-  query instruction provenance、profile identity hash，以及 quality gate / chunk
-  quality / qrels coverage / release metadata consistency status
+  query instruction provenance、profile identity hash、显式 reranker opt-in provenance，以及
+  quality gate / chunk quality / qrels coverage / release metadata consistency status
 - runtime 查询 alias 前的 release drift guard；profile / release metadata 不一致或 sampled
   point payload 混入不同 release/profile metadata 时 fail closed；guard cache key 必须包含
   collection 与 profile identity，profile 变更不得复用旧 guard 结果
@@ -163,6 +163,10 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - qrels / tuning runner 只生成 deterministic evidence 与 `recommended_profile_patch`
 - tuning 不自动修改 `runtime-profile.json`
 - tuning 不扩大 query-enabled scope
+- reranker 不作为全局默认；只有 collection runtime profile 显式 opt-in，且 deterministic
+  adoption gate 同时满足 quality、latency、cost 与 regression 约束后，才能进入生产候选
+- reranker runtime 失败、超时或 executor 缺失时必须 fallback 到 baseline hybrid/RRF candidate
+  order，并写入 `failure_kind=reranker_degraded` 的 observation
 - supplemental judge / RAGAS 指标只能做诊断，不作为 alias publish 或 profile patch 的唯一通过依据
 - runtime retrieval 可以把 request/step outcome 发给显式注入的 observation sink；observation
   只作为 eval/backlog intake，不反向改变 release manifest、runtime profile 或 serving alias
@@ -220,11 +224,16 @@ applicability / preference / clarification，不得静默改写 visibility truth
 - explicit `current` / `historical` / `as_of` / `compare` query mode
 - 多来源等价内容归并
 - planner-first agentic retrieval
+- service-level `freshness_sensitive` / `live_assisted` admission seam；live
+  lookup 必须通过 explicit query mode、source-trust policy、runtime profile 与
+  live lookup budget
+- live evidence 标注 `retrieval_mode=live_assisted`、`as_of` 与
+  `canonical_index_truth=false`，runtime observation 同步记录 query/retrieval mode
 
 当前尚未完成：
 
-- explicit freshness-sensitive branch
-- explicit live-assisted branch
+- product-facing freshness/live tool opening
+- real live source executor 与 production observation storage rollout
 
 这些属于目标架构的一部分，而不是当前默认 surface；当前 active/deferred execution 仍以
 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与相关

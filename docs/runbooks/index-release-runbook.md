@@ -361,6 +361,19 @@ uv run --all-packages python -m campus_evals.retrieval_tuning \
 
 - 发布前确认默认 query-enabled qrels fixture 覆盖完整：
   `campus_evals.benchmark.validate_default_query_enabled_qrels_coverage()`
+- 发布前需要估算大规模 rebuild / embedding / Qdrant write posture 时，先跑 dry-run
+  release benchmark；该报告只记录规模、token、embedding call/cache 与 Qdrant step 的
+  `not_executed` timing，不发布 alias：
+
+```bash
+uv run --all-packages python -m campus_evals.retrieval_release_benchmark_cli \
+  --chunks <chunks.jsonl> \
+  --corpus <corpus> \
+  --collection <collection> \
+  --scale-multiplier <N> \
+  --output <retrieval-release-benchmark.json>
+```
+
 - 发布前 release path 会自动执行 chunk quality gate 和 qrels coverage gate；operator
   仍可用同一批 chunk / qrels artifact 做离线复核，但离线复核不能替代 registry-scope
   release gate
@@ -406,9 +419,25 @@ uv run --all-packages python -m campus_evals.retrieval_monitoring_cli \
   --output <retrieval-monitoring-backlog.json>
 ```
 
-二阶段排序或 reranker 只能先进入 deterministic eval branch。使用
+二阶段排序或 reranker 必须先进入 deterministic eval branch。使用
 `campus_evals.retrieval_rerank_eval.evaluate_deterministic_rerank_branch()` 对同一
-qrels/run 输出 before/after 指标；它是调参证据，不是生产 reranker 开关。
+qrels/run 输出 before/after 指标，再用
+`campus_evals.retrieval_rerank_eval.evaluate_reranker_adoption_gate()`
+校验 quality delta、latency p95、cost per query、forbidden hit 与 regression
+case。
+
+reranker 不是全局默认开关。只有 collection runtime profile 显式设置以下字段，且对应
+deterministic adoption evidence 可追溯时，才允许进入 runtime candidate：
+
+- `reranker_enabled_by_default`
+- `reranker_top_n`
+- `reranker_profile_version`
+- `reranker_adoption_evidence_id`
+
+启用 reranker 的 release payload 必须带同一组 reranker metadata；runtime release drift guard
+会对 opt-in profile 缺失或不一致的 release fail closed。runtime reranker provider
+不可用、超时或 executor 缺失时，retrieval service 必须返回 baseline hybrid/RRF 结果，并在
+observation 中写入 `failure_kind=reranker_degraded` / `reranker_degraded=true`。
 
 这些检查只产生 release evidence、tuning recommendation 或 backlog candidate；不得直接改写
 runtime profile、canonical qrels 或 serving alias。
