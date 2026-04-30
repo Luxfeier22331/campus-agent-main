@@ -4,6 +4,7 @@ import {
 	deployStagingSource,
 	localAccessSmokeServerSource,
 	packageManifest,
+	stagingAccessServiceTokenSmokeSource,
 	viteConfigSource,
 	wranglerConfig,
 	wranglerLocalSmokeConfig,
@@ -45,6 +46,9 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["build:staging"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
+		expect(packageManifest.scripts?.["build:staging"]).toContain("run-worker-staging-build.mjs");
+		expect(packageManifest.scripts?.["build:staging"]).toContain("PANEL_APP_API_SHARED_SECRET");
+		expect(packageManifest.scripts?.["build:staging"]).toContain("SENTRY_DSN");
 		expect(packageManifest.scripts?.dev).toContain("CLOUDFLARE_ENV=local");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("PANEL_LIVE_SMOKE=1");
@@ -60,6 +64,13 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["dev:live-smoke:access"]).toContain(
 			"local-access-smoke-server.mjs",
 		);
+		expect(packageManifest.scripts?.["access:smoke:staging"]).toContain(
+			"staging-access-service-token-smoke.mjs",
+		);
+		expect(stagingAccessServiceTokenSmokeSource).toContain("STAGING_PANEL_ACCESS_CLIENT_ID");
+		expect(stagingAccessServiceTokenSmokeSource).toContain("STAGING_PANEL_ACCESS_CLIENT_SECRET");
+		expect(stagingAccessServiceTokenSmokeSource).toContain("CF-Access-Client-Id");
+		expect(stagingAccessServiceTokenSmokeSource).toContain("Invalid Access JWT.");
 		expect(viteConfigSource).toContain("auxiliaryWorkers");
 		expect(viteConfigSource).toContain("wrangler.local-smoke.toml");
 		expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");

@@ -21,10 +21,11 @@
 	},
 	"scripts": {
 		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build",
-		"build:staging": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home vite build",
+		"build:staging": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home node ../../scripts/run-worker-staging-build.mjs PANEL_APP_API_SHARED_SECRET SENTRY_DSN -- vite build",
 		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=local XDG_CONFIG_HOME=./.wrangler-home vite",
 		"dev:live-smoke": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 PANEL_LIVE_SMOKE=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 5174 --strictPort",
 		"dev:live-smoke:access": "node ./scripts/local-access-smoke-server.mjs",
+		"access:smoke:staging": "node ./scripts/staging-access-service-token-smoke.mjs",
 		"deploy": "pnpm build && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config dist/protected_panel_web/wrangler.json",
 		"deploy:check-secrets:staging": "uv run --all-packages python ../../scripts/check_worker_secret_presence.py --app apps/protected-panel-web --env staging",
 		"deploy:preflight:staging": "node ../../scripts/run-worker-staging-preflight.mjs --app apps/protected-panel-web",
