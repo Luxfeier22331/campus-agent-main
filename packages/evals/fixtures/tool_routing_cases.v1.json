@@ -1,48 +1,48 @@
 {
-  "schema_version": 1,
-  "case_family": "tool_routing_product_path.v1",
-  "cases": [
-    {
-      "case_id": "tool-routing-campus-card-loss-guide",
-      "user_goal": "校园卡丢了怎么办",
-      "split": "smoke",
-      "expected_tool": "service_guide_lookup",
-      "expected_terminal_outcome": "completed",
-      "expected_arguments": {
-        "service_key": "campus_card"
-      },
-      "expected_response_contract": {
-        "source_url_present": true,
-        "title_present": true
-      }
-    },
-    {
-      "case_id": "tool-routing-shuttle-schedule",
-      "user_goal": "今天丰台校区地铁接驳车怎么坐",
-      "split": "release_gate",
-      "expected_tool": "transport_schedule_lookup",
-      "expected_terminal_outcome": "completed",
-      "expected_arguments": {
-        "service_key": "metro_shuttle"
-      },
-      "expected_response_contract": {
-        "source_url_present": true,
-        "title_present": true
-      }
-    },
-    {
-      "case_id": "tool-routing-notice-title-url",
-      "user_goal": "最近有哪些班车调整通知",
-      "split": "regression_locked",
-      "expected_tool": "campus_notice_discover",
-      "expected_terminal_outcome": "completed",
-      "expected_arguments": {
-        "notice_family": "transport_schedule"
-      },
-      "expected_response_contract": {
-        "source_url_present": true,
-        "title_present": true
-      }
-    }
-  ]
+	"schema_version": 1,
+	"case_family": "tool_routing_product_path.v1",
+	"cases": [
+		{
+			"case_id": "tool-routing-campus-card-loss-guide",
+			"user_goal": "校园卡丢了怎么办",
+			"split": "smoke",
+			"expected_tool": "service_guide_lookup",
+			"expected_terminal_outcome": "completed",
+			"expected_arguments": {
+				"service_key": "campus_card"
+			},
+			"expected_response_contract": {
+				"source_url_present": true,
+				"title_present": true
+			}
+		},
+		{
+			"case_id": "tool-routing-shuttle-schedule",
+			"user_goal": "今天丰台校区地铁接驳车怎么坐",
+			"split": "release_gate",
+			"expected_tool": "transport_schedule_lookup",
+			"expected_terminal_outcome": "completed",
+			"expected_arguments": {
+				"service_key": "metro_shuttle"
+			},
+			"expected_response_contract": {
+				"source_url_present": true,
+				"title_present": true
+			}
+		},
+		{
+			"case_id": "tool-routing-notice-title-url",
+			"user_goal": "最近有哪些班车调整通知",
+			"split": "regression_locked",
+			"expected_tool": "campus_notice_discover",
+			"expected_terminal_outcome": "completed",
+			"expected_arguments": {
+				"notice_family": "transport_schedule"
+			},
+			"expected_response_contract": {
+				"source_url_present": true,
+				"title_present": true
+			}
+		}
+	]
 }

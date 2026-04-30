@@ -202,6 +202,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
             json_body=_bridge_v6_payload(
                 request_id="req-reject-non-string-actor",
+                actor={"user_id": "student@example.edu"},
                 context=context,
             ),
         )

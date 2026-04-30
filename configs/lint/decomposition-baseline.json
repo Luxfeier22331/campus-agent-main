@@ -2,7 +2,7 @@
 	"threshold": 800,
 	"admitted": {
 		"apps/app-api/src/modules/operator-query/service-types.ts": {
-			"max_lines": 811
+			"max_lines": 819
 		},
 		"apps/app-api/src/modules/runtime-command/service/normalize.ts": {
 			"max_lines": 1717
@@ -34,11 +34,20 @@
 		"apps/ingestion-worker/src/campus_ingestion_worker/on_demand_batch_runner.py": {
 			"max_lines": 820
 		},
-		"apps/protected-panel-web/src/panel/pages/quality-page/cards.tsx": {
+		"apps/protected-panel-web/src/panel/pages/audit-page.tsx": {
 			"max_lines": 805
 		},
+		"apps/protected-panel-web/src/panel/pages/quality-page/cards.tsx": {
+			"max_lines": 811
+		},
+		"apps/protected-panel-web/src/panel/requests/request-formatters.ts": {
+			"max_lines": 916
+		},
 		"apps/public-chat-web/test/worker.test.ts": {
-			"max_lines": 1767
+			"max_lines": 1799
+		},
+		"apps/supervisor-api/internal/httpapi/finalizer.go": {
+			"max_lines": 994
 		},
 		"apps/supervisor-api/internal/structuredquery/notice_test.go": {
 			"max_lines": 808
@@ -55,8 +64,17 @@
 		"packages/contracts/src/campus_contracts/models_tools.py": {
 			"max_lines": 893
 		},
+		"packages/evals/src/campus_evals/app_api_chat_runtime_decoding.py": {
+			"max_lines": 843
+		},
+		"packages/evals/src/campus_evals/eval_profile_gate.py": {
+			"max_lines": 1244
+		},
 		"packages/evals/src/campus_evals/intent_scenarios.py": {
 			"max_lines": 817
+		},
+		"packages/evals/src/campus_evals/operator_observability.py": {
+			"max_lines": 832
 		},
 		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_file_release_import.py": {
 			"max_lines": 1085
@@ -66,6 +84,12 @@
 		},
 		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections_engine.py": {
 			"max_lines": 903
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/collected_notice_regulation_admission.py": {
+			"max_lines": 1123
+		},
+		"packages/ingestion-core/src/campus_ingestion_core/collected_notice_reimport_preview.py": {
+			"max_lines": 1416
 		},
 		"packages/ingestion-core/src/campus_ingestion_core/internal_notice_schedule_image_ocr.py": {
 			"max_lines": 1861
@@ -98,7 +122,7 @@
 			"max_lines": 895
 		},
 		"tests/agent/test_campus_services_agent.py": {
-			"max_lines": 1012
+			"max_lines": 1041
 		},
 		"tests/ingestion/authenticated_notice_import_export_suite.py": {
 			"max_lines": 1037

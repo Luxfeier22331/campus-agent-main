@@ -168,7 +168,18 @@ function targetExists(inventory, target) {
 	return false;
 }
 
-function shouldApplyStatement(inventory, target, expectedTablesForMigration) {
+function latestSnapshotKeepsIndex(expectedLatestTables, target) {
+	if (target.kind !== "index") {
+		return true;
+	}
+	return (
+		expectedLatestTables
+			.get(qualifyTable(target.schema, target.table))
+			?.indexes.has(target.index) ?? false
+	);
+}
+
+function shouldApplyStatement(inventory, target, expectedTablesForMigration, expectedLatestTables) {
 	if (target.kind === "drop_index") {
 		const actualIndex = findInventoryIndex(inventory, target);
 		if (!actualIndex) {
@@ -181,6 +192,11 @@ function shouldApplyStatement(inventory, target, expectedTablesForMigration) {
 		return !compareIndexSpec(actualIndex.index, expectedIndex);
 	}
 	if (target.kind === "index") {
+		if (
+			!(latestSnapshotKeepsIndex(expectedLatestTables, target) || targetExists(inventory, target))
+		) {
+			return false;
+		}
 		return !targetExists(inventory, target);
 	}
 	return !targetExists(inventory, target);
@@ -295,7 +311,14 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 		}
 		for (const statement of migration.statements) {
 			const target = parseMigrationStatement(statement);
-			if (shouldApplyStatement(plannedInventory, target, expectedTablesForMigration)) {
+			if (
+				shouldApplyStatement(
+					plannedInventory,
+					target,
+					expectedTablesForMigration,
+					expectedLatestTables,
+				)
+			) {
 				statements.push({
 					migrationTag: migration.tag,
 					statement,

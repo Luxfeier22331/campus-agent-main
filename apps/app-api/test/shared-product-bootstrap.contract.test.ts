@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { APP_API_KNOWN_SCHEMAS } from "../scripts/adopt-shared-database.mjs";
 import { appApiSchema } from "../src/db/schema";
 
 const appRoot = resolve(import.meta.dirname, "..");
@@ -66,6 +67,19 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("exports chat message feedback from the unified app-api schema object", () => {
 		expect(Object.keys(appApiSchema)).toEqual(expect.arrayContaining(["messageFeedback"]));
+	});
+
+	it("scans all app-owned schemas during shared DB adoption and drift reconciliation", () => {
+		expect(APP_API_KNOWN_SCHEMAS).toEqual(
+			expect.arrayContaining([
+				"docs",
+				"official_web",
+				"operator",
+				"profile",
+				"runtime",
+				"wechat_official_account",
+			]),
+		);
 	});
 
 	it("documents app-api as the shared product DB bootstrap owner", () => {
