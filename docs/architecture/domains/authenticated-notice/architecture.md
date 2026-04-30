@@ -1103,7 +1103,10 @@ pipeline，后续吞吐升级为 planning/worker split + batch-leased executor�
 它不单独表示：
 
 - 某个分支是否已经合入 `develop`
-- `authenticated_notice_portal` 已经打开 query-serving
+- `authenticated_notice_portal` 这个 source channel 本身已经打开 query-serving；
+  2026-04-30 Phase 10 只把 selected regulation targets 提升为受控 serving：
+  `regulations/institutional_rules` 默认 query-enabled，
+  `regulations/scoped_rules` retrieval-ready 但默认 query-disabled
 - bounded worker CLI 已经升级成 product/API control plane
 
 当前 merged truth 仍以 `docs/architecture/current-architecture.md` 为准。

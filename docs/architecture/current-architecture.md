@@ -66,6 +66,7 @@ model`
 当前 query-enabled surface 固定为：
 
 - `regulations/student_rules`
+- `regulations/institutional_rules`
 - `curriculum/curriculum_plan`
 
 当前非默认公开查询面：
@@ -73,13 +74,10 @@ model`
 - `campus_notices/internal_notice` restricted source-channel triage
   collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入
   `regulations/*`
-- `regulations/institutional_rules` notice-derived canonical regulation target
-  collection；当前 posture 仍是 `offline_preparation`，只承接经 `internal_notice`
-  promotion/materialization 后的正式制度正文，不直接开放 query-serving
 - `regulations/scoped_rules` notice-derived scoped-rule holding collection；当前
-  posture 仍是 `offline_preparation`，repo 已冻结其作为 `annual_cycle_rule` /
-  `time_bound_operational_rule` 的统一下游承接面，materialization 与 local-only chunk
-  acceptance 已补齐，但继续保持 `query_enabled=false`
+  posture 已进入 retrieval-ready `query_serving` data plane，但仍保持
+  `query_enabled_by_default=false`，repo 已冻结其作为 `annual_cycle_rule` /
+  `time_bound_operational_rule` 的统一下游承接面；默认用户入口仍不放行这个 scope
 - `curriculum/course_facts` agent-internal retrieval
   surface；`retrieval_enabled=true`，`query_enabled_by_default=false`
 - `curriculum/program_family_facts` agent-internal retrieval surface；用于培养方案家族成员关

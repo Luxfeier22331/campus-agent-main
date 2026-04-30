@@ -95,8 +95,10 @@ updated: 2026-04-23
 
 说明：
 
-- 当前 query-enabled scope 是 `regulations/student_rules` 与
-  `curriculum/curriculum_plan`
+- 当前 query-enabled scope 是 `regulations/student_rules`、
+  `regulations/institutional_rules` 与 `curriculum/curriculum_plan`
+- `regulations/scoped_rules` 当前已具备 retrieval-ready serving alias，但
+  `query_enabled_by_default=false`，不属于默认 query-enabled scope
 - `campus_services/*` 当前仍是 `offline_preparation`
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
   bridge，不应误读成长期最终 serving scope
@@ -369,6 +371,9 @@ updated: 2026-04-23
 说明：
 
 - manifest 用于把 preparation 结果和 current registry scope 对齐
+- manifest 必须记录 document-units object key hash、document-units content hash、
+  chunk profile hash 与 chunk fingerprint hash；release 只能在这些 truth 与当前
+  registry/object-store/config/chunk 结果一致时继续
 - manifest 是 release gate 的输入，不是最终在线索引的替代物
 
 ### Index Release
@@ -399,6 +404,10 @@ updated: 2026-04-23
 说明：
 
 - release manifest 用于审计、回滚和追溯
+- release manifest 记录实际 embedding provider/model/dimensions、document-units
+  content hash 与 chunk fingerprint hash，供 retrieval runtime 与发布审计确认同源
+- provider-response replay 不发布 serving alias；alias 发布只走 registry-scope release
+  path
 - release manifest 不保存 chunk dump
 
 ### Managed Backup

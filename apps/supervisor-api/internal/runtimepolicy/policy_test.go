@@ -609,10 +609,10 @@ func TestQueryServingScopePolicyMatchesDefaultRuntimeProfile(t *testing.T) {
 			want:       true,
 		},
 		{
-			name:       "institutional rules rejected until release",
+			name:       "institutional rules allowed after serving admission",
 			corpus:     "regulations",
 			collection: "institutional_rules",
-			want:       false,
+			want:       true,
 		},
 		{
 			name:       "scoped rules rejected by default",

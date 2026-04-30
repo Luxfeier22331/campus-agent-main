@@ -9,10 +9,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
-from campus_ingestion_core.campusrag_ingestion_sources import (
-    build_source_observation,
-    merge_equivalent_source_record,
-)
 from campus_ingestion_core.campusrag_ingestion_support import (
     collect_import_document_stats,
 )
@@ -21,6 +17,10 @@ from campus_ingestion_core.collected_notice_regulation_first_batch_documents imp
 )
 from campus_ingestion_core.collected_notice_regulation_first_batch_evidence import (
     write_phase09_evidence_files,
+)
+from campus_ingestion_core.collected_notice_regulation_first_batch_provenance import (
+    PROVENANCE_HARDENING_SCHEMA_VERSION,
+    harden_first_batch_regulation_registry_provenance,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -37,9 +37,6 @@ MATERIALIZATION_EXECUTE_SCHEMA_VERSION = (
 )
 SOURCE_TRACE_SCHEMA_VERSION = "collected_notice_regulation_first_batch_source_to_target_trace.v1"
 SERVING_CLOSED_SCHEMA_VERSION = "collected_notice_regulation_first_batch_serving_closed.v1"
-PROVENANCE_HARDENING_SCHEMA_VERSION = (
-    "collected_notice_regulation_first_batch_provenance_hardening.v1"
-)
 
 DEFAULT_FIRST_BATCH_SELECTED_NOTICE_IDS = ("594", "483", "485", "487", "493", "509", "564", "620")
 INSTITUTIONAL_TARGET_COLLECTION = "institutional_rules"
@@ -299,74 +296,6 @@ def materialize_first_batch_regulation_selection(
         ),
         "query_serving_opened": False,
         "rag_release_opened": False,
-    }
-
-
-def harden_first_batch_regulation_registry_provenance(
-    *,
-    selection: Mapping[str, Any],
-    registry: DocumentRegistry,
-    execute: bool,
-    generated_at: str | None = None,
-) -> dict[str, Any]:
-    timestamp = generated_at or utc_now()
-    updated_records: list[DocumentRegistryRecord] = []
-    unchanged_target_document_ids: list[str] = []
-    missing_target_document_ids: list[str] = []
-
-    for entry in _selection_entries(selection):
-        target_document_id = _required_text(entry.get("target_document_id"), "target_document_id")
-        record = _latest_current_effective_record(registry, target_document_id)
-        if record is None:
-            missing_target_document_ids.append(target_document_id)
-            continue
-        source_channel = _entry_source_channel(entry)
-        source_uri = _entry_source_uri(entry)
-        if _record_primary_source_matches(
-            record,
-            source_channel=source_channel,
-            source_uri=source_uri,
-        ):
-            unchanged_target_document_ids.append(target_document_id)
-            continue
-        candidate_observation = build_source_observation(
-            source_channel=source_channel,
-            source_uri=source_uri,
-            raw_asset=record.raw_asset,
-            is_primary=False,
-            import_source="collected_notice_regulation_first_batch_promotion",
-        )
-        updated_record = merge_equivalent_source_record(
-            existing=record,
-            candidate_observation=candidate_observation,
-            candidate_is_current=record.is_current,
-            timestamp=timestamp,
-        )
-        if updated_record == record:
-            unchanged_target_document_ids.append(target_document_id)
-        else:
-            updated_records.append(updated_record)
-
-    if missing_target_document_ids:
-        raise ValueError(
-            "selected target registry records are missing: "
-            + ", ".join(sorted(missing_target_document_ids))
-        )
-    if execute and updated_records:
-        registry.upsert_many(tuple(updated_records))
-
-    return {
-        "schema_version": PROVENANCE_HARDENING_SCHEMA_VERSION,
-        "generated_at": timestamp,
-        "phase": PHASE_09_ID,
-        "mode": "execute" if execute else "dry_run",
-        "write_enabled": execute,
-        "target": "regulation",
-        "selected_target_document_ids": list(_selection_target_document_ids(selection)),
-        "candidate_update_count": len(updated_records),
-        "updated_record_count": len(updated_records) if execute else 0,
-        "updated_target_document_ids": sorted(record.document_id for record in updated_records),
-        "unchanged_target_document_ids": sorted(unchanged_target_document_ids),
     }
 
 
@@ -633,58 +562,6 @@ def _target_scope_counts(registry: DocumentRegistry) -> dict[str, int]:
         f"{corpus}/{collection}": len(registry.list_by_scope(corpus, collection))
         for corpus, collection in TARGET_SCOPES
     }
-
-
-def _latest_current_effective_record(
-    registry: DocumentRegistry,
-    target_document_id: str,
-) -> DocumentRegistryRecord | None:
-    records = registry.latest_versions(target_document_id, revision_track="current-effective")
-    if not records:
-        return None
-    current_records = [record for record in records if record.is_current]
-    return current_records[0] if current_records else records[0]
-
-
-def _entry_source_channel(entry: Mapping[str, Any]) -> str:
-    source_scope = entry.get("source_scope")
-    if isinstance(source_scope, Mapping):
-        source_channel = str(source_scope.get("source_channel") or "").strip()
-        if source_channel:
-            return source_channel
-    return "authenticated_notice_portal"
-
-
-def _entry_source_uri(entry: Mapping[str, Any]) -> str:
-    urls = [str(item).strip() for item in list(entry.get("source_urls") or ()) if str(item).strip()]
-    if urls:
-        return urls[0]
-    notice_ids = [
-        str(item).strip()
-        for item in list(entry.get("source_notice_ids") or ())
-        if str(item).strip()
-    ]
-    if notice_ids:
-        return f"campusrag://authenticated_notice_portal/file-release/{notice_ids[0]}"
-    return f"campusrag://regulation-promotion/{entry.get('target_document_id')}"
-
-
-def _record_primary_source_matches(
-    record: DocumentRegistryRecord,
-    *,
-    source_channel: str,
-    source_uri: str,
-) -> bool:
-    if record.source_channel != source_channel or record.source_uri != source_uri:
-        return False
-    if not record.source_observations:
-        return False
-    return any(
-        observation.is_primary
-        and observation.source_channel == source_channel
-        and observation.source_uri == source_uri
-        for observation in record.source_observations
-    )
 
 
 def _load_existing_record_provenance(

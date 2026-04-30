@@ -9,16 +9,17 @@ updated: 2026-04-30
 ## Current Position
 
 **Status:** Completed
-**Current Phase:** 9
-**Current Phase Name:** First-Batch Regulation Promotion Write Gate
-**Current Plan:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-09-first-batch-regulation-promotion-write-gate/PLAN.md`
-**Total Phases:** 9
+**Current Phase:** 10
+**Current Phase Name:** Regulation Serving Admission
+**Current Plan:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-10-regulation-serving-admission/PLAN.md`
+**Total Phases:** 10
 **Total Plans in Phase:** 1
-**Progress:** 9/9 phases complete
+**Progress:** 10/10 phases complete
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Completed the selected first-batch promotion write
-gate over the `8` regulation candidates proven ready by collected-notice Phase
-6R/7 evidence. Query serving and RAG release remain closed.
+**Last Activity Description:** Completed regulation serving admission for the
+Phase 9 first batch: provenance hardening, chunk preparation, Qdrant release
+alias publication, gated reader assets, runtime profile admission and retrieval
+smoke evidence.
 
 ## Current Slice
 
@@ -38,13 +39,24 @@ gate over the `8` regulation candidates proven ready by collected-notice Phase
   - postflight registry 为 `institutional_rules=2`、`scoped_rules=16`
   - selected target-side acceptance 通过：institutional `1`，scoped `7`
   - `32` 个 `needs_multimodal` 与 `2` 个 `manual_review` 不进入本 phase
+- `Phase 10` 已完成：
+  - selected `8` 条 registry record provenance 已硬化为
+    `authenticated_notice_portal`
+  - `institutional_rules` 进入默认 query-serving allowlist
+  - `scoped_rules` 发布 retrieval alias，但默认 query allowlist 仍拒绝
+  - 两个 target scope 都已完成 mandatory chunk preparation 和 Qdrant release
+    alias publish
+  - gated reader assets 已发布；`public_entry_count=0`
+  - retrieval smoke 证明 campus-member filter 可检索，public filter 返回 0
 - `school_unit_name` 已收口为 title-first / fail-close metadata；无法从 source-facing title 高置信识别时返回 `None`
 - `暂行/试行` 继续保留 `force_status=provisional_in_force`
 
 ## Blockers
 
 - 暂无 active blocker；workstream 已收口
-- embedding、Qdrant、release、alias publish、query serving 与 public-chat citation 仍不在授权范围内
+- public-chat citation / public reader 仍不在授权范围内
+- `scoped_rules` 默认 query allowlist 仍关闭；只有显式 internal path 可消费其
+  retrieval-ready data-plane
 - residual test debt：`tests.ingestion.internal_notice_scoped_rule_materialization_materialize_suite` 仍保留旧 duplicate-provenance 期望，和当前 duplicate `191177` 留在 source truth 的口径不一致
 
 ## Verification
@@ -67,15 +79,26 @@ gate over the `8` regulation candidates proven ready by collected-notice Phase
   - selected acceptance: `passed=true`
   - serving closed assertion: query serving / RAG release / Qdrant alias /
     public-chat citation all closed
+- Phase 10 serving admission evidence：
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/provenance-hardening.execute.json`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/chunk-preparation.institutional-rules.json`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/chunk-preparation.scoped-rules.json`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/release.institutional-rules.publish.json`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/release.scoped-rules.publish.json`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/reader-assets.execute.stdout.json`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/retrieval-smoke.institutional-rules.json`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-10-regulation-serving-admission/retrieval-smoke.institutional-rules.public-filter.json`
 
 ## Reopen Guidance
 
 - 新 admission authenticated-notice regulation target 时恢复
 - `institutional_rules` / `scoped_rules` 边界被显式改写时恢复
-- stop point 从 `offline_preparation` 提升到 release / query-serving 时恢复
+- `scoped_rules` 被提升为默认 query allowlist 时恢复
+- public-chat citation / public reader 被显式打开时恢复
+- regulation serving evidence 与当前 runtime/profile/alias truth 漂移时恢复
 - `32` 个 multimodal blocked 或 `2` 个 manual-review rows 被解决时恢复
 
 ## Session Continuity
 
-**Stopped At:** Phase 9 completed; no active continuation task.
-**Resume File:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-09-first-batch-regulation-promotion-write-gate/SUMMARY.md`
+**Stopped At:** Phase 10 completed; no active continuation task.
+**Resume File:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-10-regulation-serving-admission/SUMMARY.md`

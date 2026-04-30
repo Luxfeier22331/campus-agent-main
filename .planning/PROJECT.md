@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-agent -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `student_rules` 与 `curriculum_plan`；`campus_services` 仍保持 offline preparation。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
+`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-agent -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules` 与 `curriculum/curriculum_plan`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled；`campus_services` 仍保持 offline preparation。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
 ## Planning File Contract
 
@@ -22,7 +22,7 @@
 ## Current Truth
 
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
-- 当前 query-enabled scope 是 `regulations/student_rules` 与 `curriculum/curriculum_plan`
+- 当前 query-enabled scope 是 `regulations/student_rules`、`regulations/institutional_rules` 与 `curriculum/curriculum_plan`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled
 - `student_rules` 与 `curriculum_plan` 的 source OCR runtime profile 当前都已切到 `mineru_api + vlm + mineru-vlm-adapted-v2`；覆盖历史 Paddle 派生 canonical truth 的 cutover 现由独立 `handbook-curriculum-mineru-cutover` workstream 收口
 - `campus_services/*` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
@@ -129,7 +129,11 @@
 ### Active
 
 - [ ] Phase 1000 `Curriculum 结构化证据契约与 Semester Facts 修复` 已完成 closeout；curriculum 线当前不再是 active implementation lane，若后续触碰旧 planning/docs，只允许把 historical artifact pointer 收敛到 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000`
-- [ ] authenticated-notice 当前 active 数据面 follow-up 继续只保留非认证的 downstream consumption：它负责 unpublished `internal_notice` release 之后的 post-release retrieval-prep、`regulations/institutional_rules` / `regulations/scoped_rules` 承接与 target-side quality hardening；auth-dependent `file_release owner recovery` 已在独立 workstream 完成 readiness closeout，不再混入本线
+- [x] authenticated-notice regulation downstream consumption 已完成 Phase 10 serving
+  admission：`regulations/institutional_rules` 进入默认 query-serving，
+  `regulations/scoped_rules` 发布 retrieval-ready alias 但仍不在默认 query allowlist；
+  public-chat citation 继续关闭。auth-dependent `file_release owner recovery`
+  仍由独立 workstream 管理，不混入本线。
 - [ ] staging@ayafeed.com 的项目隔离一级子域部署基线已经成立；`campus-api-staging`、`campus-chat-staging`、`campus-panel-staging` 当前 truth 稳定，后续 release hardening 已收口为 Phase 1002 `Worker 部署与发布硬化收口`
 - [ ] `shared product surfaces acceptance / hardening` 已在 `Phase I` closeout 之后继续 reopen 到 `Phase J` Turnstile posture productization：固定方向是 always-on verification、Cloudflare-managed adaptive interactive challenge only on elevated risk，以及 local / staging / prod runtime posture seam；`Phase K` 的 mature auth shell local cutover 已完成，但 workstream 当前仍只剩 `Phase J` 真实 staging 浏览器 closeout blocker；它继续只覆盖 shared backend、public chat 与 protected panel，不改 panel Access model
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 repo-level runtime opening criteria 已在 Phase 1003 冻结；后续 opening execution / acceptance 已下调到 backlog `999.4`，当前只保留 `stable_reference` 与 default-off news contract，不在 active implementation lane

@@ -20,7 +20,7 @@ class QueryServingScopePolicyDriftTest(unittest.TestCase):
 
         self.assertEqual(policy_scopes, profile_scopes)
 
-    def test_regulation_serving_profiles_remain_closed_until_release(self) -> None:
+    def test_regulation_serving_admission_profiles_are_explicit(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         institutional_profile = json.loads(
             (
@@ -33,15 +33,20 @@ class QueryServingScopePolicyDriftTest(unittest.TestCase):
             ).read_text(encoding="utf-8")
         )
 
-        self.assertEqual(institutional_profile["serving_stage"], "offline_preparation")
-        self.assertIs(institutional_profile["retrieval_enabled"], False)
-        self.assertIs(institutional_profile["query_enabled_by_default"], False)
-        self.assertEqual(institutional_profile["current_only"], False)
+        self.assertEqual(institutional_profile["serving_stage"], "query_serving")
+        self.assertIs(institutional_profile["retrieval_enabled"], True)
+        self.assertIs(institutional_profile["query_enabled_by_default"], True)
+        self.assertEqual(institutional_profile["current_only"], True)
+        self.assertEqual(
+            institutional_profile["serving_revision_tracks"],
+            ["current-effective"],
+        )
 
-        self.assertEqual(scoped_profile["serving_stage"], "offline_preparation")
-        self.assertIs(scoped_profile["retrieval_enabled"], False)
+        self.assertEqual(scoped_profile["serving_stage"], "query_serving")
+        self.assertIs(scoped_profile["retrieval_enabled"], True)
         self.assertIs(scoped_profile["query_enabled_by_default"], False)
-        self.assertEqual(scoped_profile["current_only"], False)
+        self.assertEqual(scoped_profile["current_only"], True)
+        self.assertEqual(scoped_profile["serving_revision_tracks"], ["current-effective"])
 
 
 if __name__ == "__main__":

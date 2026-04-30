@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from campus_ingestion_core.campusrag_ingestion_sources import merge_equivalent_source_record
+from campus_ingestion_core.corpus_profiles import load_chunk_profile
 from campus_ingestion_core.models import DocumentRegistryRecord, SourceObservation
 from campus_ingestion_core.registry_scope_chunk_preparation import (
     require_verified_chunk_preparation,
@@ -45,6 +46,18 @@ class RegulationServingReleaseGateTests(unittest.TestCase):
         ]
         self.assertEqual(len(primary_observations), 1)
         self.assertEqual(primary_observations[0].source_channel, "authenticated_notice_portal")
+
+    def test_regulation_lane_chunk_limits_do_not_exceed_mandatory_release_limit(self) -> None:
+        for collection in ("institutional_rules", "scoped_rules"):
+            with self.subTest(collection=collection):
+                profile = load_chunk_profile("regulations", collection)
+                release_limit = profile.runtime_defaults.max_chunk_size
+                for lane, lane_defaults in profile.lane_defaults.items():
+                    self.assertLessEqual(
+                        lane_defaults.max_chunk_size,
+                        release_limit,
+                        f"{collection}/{lane} lane max must not exceed release validation limit",
+                    )
 
 
 def _registry_record(*, collection: str) -> DocumentRegistryRecord:

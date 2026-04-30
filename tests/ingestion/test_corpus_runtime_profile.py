@@ -436,13 +436,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "regulations")
         self.assertEqual(profile.collection, "institutional_rules")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
         self.assertFalse(profile.split_manifest_required)
-        self.assertFalse(profile.retrieval_enabled)
-        self.assertFalse(profile.query_enabled_by_default)
-        self.assertFalse(profile.current_only)
-        self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
+        self.assertTrue(profile.retrieval_enabled)
+        self.assertTrue(profile.query_enabled_by_default)
+        self.assertTrue(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("current-effective",))
         self.assertEqual(profile.retrieval_top_k, 3)
         self.assertEqual(profile.cleaning_policy_version, "institutional_rules_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "institutional_rules_semantic_v1")
@@ -454,13 +454,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "regulations")
         self.assertEqual(profile.collection, "scoped_rules")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
         self.assertFalse(profile.split_manifest_required)
-        self.assertFalse(profile.retrieval_enabled)
+        self.assertTrue(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
-        self.assertFalse(profile.current_only)
-        self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
+        self.assertTrue(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("current-effective",))
         self.assertEqual(profile.retrieval_top_k, 3)
         self.assertEqual(profile.cleaning_policy_version, "scoped_rules_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "scoped_rules_semantic_v1")
@@ -473,6 +473,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
             (
                 ("curriculum", "curriculum_plan"),
                 ("official_web", "stable_reference"),
+                ("regulations", "institutional_rules"),
                 ("regulations", "student_rules"),
             ),
         )

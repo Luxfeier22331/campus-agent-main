@@ -162,6 +162,58 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	}
 }
 
+func TestParseAnswerRequestAcceptsInstitutionalRulesQueryScope(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"毕业生就业奖励办法怎么规定？",
+			"request_id":"req-institutional-rules-scope",
+			"requested_scope":{"corpus":"regulations","collection":"institutional_rules"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	projectedScope := expectExecutionRecord(t, payload["requested_scope"], "requested_scope")
+	if projectedScope["collection"] != "institutional_rules" {
+		t.Fatalf("requested_scope.collection = %v, want institutional_rules", projectedScope["collection"])
+	}
+}
+
+func TestParseAnswerRequestRejectsScopedRulesQueryScopeByDefault(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"英才计划实施细则怎么规定？",
+			"request_id":"req-scoped-rules-scope",
+			"requested_scope":{"corpus":"regulations","collection":"scoped_rules"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected scoped_rules requested_scope to be rejected by default")
+	}
+	if httpErr.Code != "disallowed_knowledge_scope" {
+		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
+	}
+}
+
 func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
