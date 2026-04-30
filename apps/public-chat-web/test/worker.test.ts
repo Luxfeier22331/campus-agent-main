@@ -556,6 +556,8 @@ describe("public chat web worker shell", () => {
 		expect(packageManifest.scripts?.["build:staging"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
+		expect(packageManifest.scripts?.["build:staging"]).toContain("run-worker-staging-build.mjs");
+		expect(packageManifest.scripts?.["build:staging"]).toContain("SENTRY_DSN");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
