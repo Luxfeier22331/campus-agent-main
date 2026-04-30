@@ -285,6 +285,83 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         self.assertEqual(report.attachment_processing_policy_counts["process"], 1)
         self.assertEqual(report.attachment_processing_ref_counts["process"], 1)
 
+    def test_notice_level_query_with_complete_body_keeps_attachments_metadata_only(
+        self,
+    ) -> None:
+        inventory = _inventory_entry(
+            notice_id="355702",
+            notice_title="关于做好2025-2026学年第二学期期末考试工作的通知",
+        )
+        inventory = replace(
+            inventory,
+            attachment_ref_count=3,
+            text_extractable_count=3,
+            parent_snapshot={
+                **inventory.parent_snapshot,
+                "notice_content": (
+                    "各教学单位：为做好本学期期末考试工作，根据校历，现就期末"
+                    "考试工作做如下安排。6月22日-26日大学体育、人工智能素养课、"
+                    "通识教育选修课、部分专业选修课随堂考试。6月29日-7月3日"
+                    "大学英语、思政课和高等数学等通识教育必修课考试。7月6日-10日"
+                    "各学院专业课考试。"
+                ),
+                "notice_type_names": ["教学通知"],
+            },
+        )
+
+        report = build_authenticated_notice_routing_sample_report_from_inventory_entries(
+            inventory_entries=(inventory,),
+            config=self.config,
+            sample_limit_per_group=4,
+            boundary_sample_limit=4,
+        )
+
+        sample = report.samples[0]
+        self.assertEqual(sample.notice_family, "academic_course_exam_operation")
+        self.assertEqual(sample.suggested_consumption_route, "notice_level_query")
+        self.assertEqual(sample.attachment_processing_policy, "metadata_only")
+        self.assertEqual(
+            sample.attachment_processing_reason,
+            "notice_level_query_keeps_attachment_metadata_only",
+        )
+        self.assertEqual(report.attachment_processing_ref_counts["metadata_only"], 3)
+
+    def test_owner_like_form_without_admitted_target_keeps_attachment_metadata_only(
+        self,
+    ) -> None:
+        inventory = _inventory_entry(
+            notice_id="199724",
+            notice_title="中央民族大学财务事项问答手册",
+        )
+        inventory = replace(
+            inventory,
+            attachment_ref_count=1,
+            attachment_document_count=1,
+            text_extractable_count=1,
+            parent_snapshot={
+                **inventory.parent_snapshot,
+                "notice_content": "请下载附件查看",
+                "notice_type_names": ["办公通知"],
+            },
+        )
+
+        report = build_authenticated_notice_routing_sample_report_from_inventory_entries(
+            inventory_entries=(inventory,),
+            config=self.config,
+            sample_limit_per_group=4,
+            boundary_sample_limit=4,
+        )
+
+        sample = report.samples[0]
+        self.assertEqual(sample.notice_family, "form_template_download")
+        self.assertEqual(sample.suggested_consumption_route, "notice_level_query")
+        self.assertEqual(sample.attachment_processing_policy, "metadata_only")
+        self.assertEqual(
+            sample.attachment_processing_reason,
+            "notice_level_query_keeps_attachment_metadata_only",
+        )
+        self.assertEqual(report.attachment_processing_ref_counts["metadata_only"], 1)
+
     def test_audit_report_exports_terminal_residual_notices_and_clusters(self) -> None:
         report = build_authenticated_notice_routing_audit_report_from_bundle_records(
             bundle_records=(

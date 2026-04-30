@@ -261,6 +261,8 @@ def _expected_attachment_processing_policy(
     attachment_ref_count = _int_field(raw, "attachment_ref_count")
     if attachment_ref_count <= 0:
         return "not_required"
+    if route == "notice_level_query":
+        return "metadata_only"
     return "process"
 
 

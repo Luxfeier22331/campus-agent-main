@@ -159,7 +159,7 @@ updated: 2026-04-30
 
 抽样分层：
 
-- service-status 候选：13 条全量覆盖。
+- classifier service-status 候选：13 条全量覆盖；人工验证后 2 条降级为仅搜索。
 - regulation / file-release owner：7 条。
 - `notice_level_query + process` 高风险旧策略桶：7 条。
 - `notice_level_query + metadata_only + attachments` 负样本：3 条。
@@ -208,18 +208,6 @@ updated: 2026-04-30
     “具体见下表”；具体新增班次不在正文中。
   - `notice_capture_route=candidate_service_fact`。
   - 班次表图片为 required fact carrier，`fetch_to_quarantine`。
-- `355085`：关于丰台校区开展废旧非机动车集中清理及规范停放管理的通知。
-  - 标题信号：非机动车清理与停放管理，属于校园交通治理服务事实。
-  - 正文证据：正文覆盖废旧车辆认定标准、3 月 31 日集中清理、B2 地下车库
-    存放、自查期限、认领和后续规范停放管理要求。
-  - `notice_capture_route=candidate_service_fact`。
-  - 无附件 refs；本条不产生 attachment policy row。
-- `355570`：关于丰台校区废旧非机动车清理后认领事宜的通知。
-  - 标题信号：清理后认领，属于校园交通/资产认领服务事实。
-  - 正文证据：正文覆盖即日起至 6 月 30 日的认领期限、综合楼东区 116
-    办理地点、身份证明/车辆证明材料和 7 月 1 日后统一处置规则。
-  - `notice_capture_route=candidate_service_fact`。
-  - 无附件 refs；本条不产生 attachment policy row。
 - `355479`：关于 2026 届教师职业能力测试期间使用教室的通知。
   - 标题信号：考试期间使用教室，属于教室临时封闭/可用性变化。
   - 正文证据：正文覆盖 4 月 10 日 9:00-11:30 考试、文华楼西区 0107、
@@ -356,6 +344,20 @@ source。因此它们固定走 document owner path。
 
 ### Notice-level metadata-only 负样本
 
+- `355085`：关于丰台校区开展废旧非机动车集中清理及规范停放管理的通知。
+  - 标题信号：非机动车清理与停放管理，但重点是保卫处行政治理与合规告知，
+    不是某个可查询服务的开放、关闭、班次或容量变化。
+  - 正文证据：正文覆盖废旧车辆认定标准、3 月 31 日集中清理、B2 地下车库
+    存放、自查期限、认领和后续规范停放管理要求。
+  - `notice_capture_route=notice_level_query_only`。
+  - 无附件 refs；本条不产生 attachment policy row。
+- `355570`：关于丰台校区废旧非机动车清理后认领事宜的通知。
+  - 标题信号：清理后认领，属于保卫处行政处置后的通知告知，不是服务状态
+    或 service-status materializer 的稳定事实。
+  - 正文证据：正文覆盖即日起至 6 月 30 日的认领期限、综合楼东区 116
+    办理地点、身份证明/车辆证明材料和 7 月 1 日后统一处置规则。
+  - `notice_capture_route=notice_level_query_only`。
+  - 无附件 refs；本条不产生 attachment policy row。
 - `355891`：关于做好科级以下岗位聘用工作的通知。
   - 标题信号：岗位聘用，属于内部人事行政通知。
   - 正文证据：正文覆盖聘用原则、岗位和聘期、人员范围、聘用条件、
@@ -380,6 +382,8 @@ source。因此它们固定走 document owner path。
 
 ### Batch 2 结论
 
+- classifier service-status 桶中的 `355085` 与 `355570` 人工验证后降级为
+  `notice_level_query_only`，不进入 service-status downstream。
 - 30 条中只有 3 条需要附件 quarantine：
   - `355867` 的 3 张班车/接驳车安排图片。
   - `355122` 的 1 张班次表图片。
@@ -388,6 +392,156 @@ source。因此它们固定走 document owner path。
 - 其余 notice-level 查询样本即使附件很多，也应保持 metadata-only。
 - 旧 `attachment_processing_policy=process` 在 notice-level query 桶中误伤明显，
   需要被新状态机替换为 notice-first 判定。
+
+## Batch 3: 旧 `process` / 无 target 样本全量复核
+
+样本来源：
+
+- `phase-04-dry-run-reimport-and-universal-search-preview/searchable-notice-preview.json`
+- 条件：`source_surface=notice`、`attachment_processing_policy=process`、
+  `target_candidates=[]`
+- 样本数：83 条
+
+本批次目标是复核旧策略中“有附件就 process，但没有 downstream target”的高风险池。
+判定仍按标题和正文先确定 `notice_capture_route`，再决定附件 policy。
+
+### Attachment-owner-like 表单 / 手册类
+
+这些条目的正文为空或只提示下载附件，attachment 是表单、模板、手册或证明材料本体。
+它们不是普通正文完整 notice，但当前也没有 admitted `form_template`、`service_guide`
+或 `manual` owner target。因此本轮只能记录为候选 owner-like source relation：
+
+- `notice_capture_route=candidate_document_owner`
+- 当前 `attachment_capture_policy=metadata_only`
+- `required_source_object=false`
+- 未来只有显式 admission 表单中心、办事指南或手册 owner target 时，才重评为
+  `fetch_required_for_admitted_owner`
+
+逐条结论：
+
+- `中央民族大学学生证补办申请表`：表单本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学2020年度预算申报表样`：预算申报表样本体在 XLS；当前无表单 owner target，metadata-only。
+- `中央民族大学学生毕业证书和学位证书复印件加盖印章审核表`：审核表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学学生毕业证书和学位证书翻译件加盖印章审核表`：审核表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学 2021年度预算申报表`：预算申报表本体在 XLS；当前无表单 owner target，metadata-only。
+- `中央民族大学工程结算付款审批单`：审批单本体在 DOC；当前无表单 owner target，metadata-only。
+- `中央民族大学工程预付（进度）款付款审批单`：审批单本体在 DOC；当前无表单 owner target，metadata-only。
+- `中央民族大学货物(服务)采购付款审批单`：审批单本体在 DOC；当前无表单 owner target，metadata-only。
+- `中央民族大学法定代表人手签章使用审批表`：审批表本体在 DOC；当前无表单 owner target，metadata-only。
+- `中央民族大学财务事项问答手册`：正文只提示下载附件，手册 PDF 是 owner-like；当前无手册 owner target，metadata-only。
+- `中央民族大学教职工慰问金（品）申请表`：申请表本体在 DOC；当前无表单 owner target，metadata-only。
+- `外请人员参加活动备案表`：备案表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `师生参加校外活动备案表`：备案表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `移动平台关注方式`：操作说明 PDF 是 owner-like；当前无 IT service guide target，metadata-only。
+- `北京高校非北京户籍大学生在学证明`：证明模板本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学非北京户籍在校本科生申请办理出入境证件审查登记表`：登记表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `“民大通”APP使用手册`：使用手册 PDF 是 owner-like；当前无 IT service guide target，metadata-only。
+- `中央民族大学国内差旅费（自驾车租车）事项审批表`：审批表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学出差人员出差住宿证明`：证明模板本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学出差人员国内差旅住宿费限额标准明细表`：明细表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学国内差旅费情况说明表`：说明表本体在 DOCX；当前无表单 owner target，metadata-only。
+- `中央民族大学出差审批单`：审批单本体在 DOCX；当前无表单 owner target，metadata-only。
+
+### Conditional service fact 样本
+
+- `关于进一步加强校园交通安全管理的通知`：正文覆盖校园停车秩序、通行权限、
+  停车区域调整与违规处理规则；它可以作为 `candidate_service_fact`，但不能因为同时带有
+  PNG 区域图和管理规定 DOCX 就整条默认 process。当前停车可用性如果只做通知卡片，
+  PNG 为 `metadata_only`；只有 service-status / navigation target 明确需要精确红蓝线空间边界时，
+  该 PNG 才可重评为 `fetch_to_quarantine`。附带的《校园道路交通安全管理暂行规定》
+  DOCX 是 owner-like regulation attachment，但当前没有本条 admission，保持 metadata-only。
+
+### 正文完整的 notice-level query 样本
+
+以下条目正文已经覆盖当前 notice discover/card 需要的核心事实，附件主要是表单、名单、指南、
+二维码、模板、汇总表或支撑材料。当前没有 admitted downstream target，因此：
+
+- `notice_capture_route=notice_level_query_only`
+- 附件均为 `attachment_capture_policy=metadata_only`
+- `required_source_object=false`
+- 不得因为 PDF / DOC / XLS / 图片 / 压缩包存在而进入默认 byte retention
+
+逐条结论：
+
+- `关于开展2026年春季学期研究生助教岗位聘任工作的通知`：正文覆盖岗位职责、设聘、申请和时间安排；制度 PDF / 操作手册不进入当前 owner target。
+- `关于开展2026年博士硕士学位授权学科和专业学位授权类别动态调整工作的通知`：正文覆盖动态调整范围、流程和报送要求；申请表与条件文件 metadata-only。
+- `关于办理2025年度个人所得税综合所得年度汇算的通知`：正文覆盖办理时间、预约、操作提醒和责任边界；图片只作操作辅助。
+- `关于开展2027-2029年工程类财政专项申报工作的通知`：正文覆盖申报范围、材料要求和提交方式；申报书和排序表 metadata-only。
+- `关于开展2027-2029年中央高校改善基本办学条件（设备购置类）申报工作的通知`：
+  正文覆盖申报范围、流程和材料要求；8 个附件当前无 admitted owner target。
+- `关于申报5月批量集中采购的通知`：正文覆盖品目、时间节点和系统提交要求；图片只作操作辅助。
+- `关于开展2025-2026学年春季学期家庭经济困难学生补充认定和复核工作的通知`：正文覆盖申请阶段、复核流程和时间；操作指南、表单、汇总表 metadata-only。
+- `关于开展2026年西部计划志愿者招募选拔工作的通知`：正文覆盖对象、报名流程、时间和联系方式；汇总表和推荐报告 metadata-only。
+- `关于校园监控录像查询申请流程的通知`：正文覆盖线上/线下申请、审批流程、地点和保密要求；线下申请表 metadata-only。
+- `关于2026年无偿献血活动安排的通知`：正文覆盖报名、献血时间地点、流程和注意事项；条件说明、二维码和群材料 metadata-only。
+- `关于申报辅导员工作室的通知`：正文覆盖建设目标、申报条件和流程；方向清单和申请表 metadata-only。
+- `关于2026年离退休教职工体检安排的通知`：正文覆盖报名、体检时间、项目、地点和查询方式；体检须知 metadata-only。
+- `关于组织开展2026年北京市“高创计划·青年人才托举工程”候选人推荐工作的通知`：正文覆盖推荐渠道、名额、条件和报送要求；汇总表 metadata-only。
+- `关于征集《北京社会科学年鉴2026》相关稿件的通知`：正文覆盖征稿内容、格式和提交要求；稿件模板 metadata-only。
+- `关于公布2025年研究生课程建设和教育教学改革项目（“项目制”教学改革项目）入选学生名单的通知`：
+  正文说明入选名单发布和项目范围；名单 XLSX 不进入当前 downstream。
+- `关于公布我校2026年国家留学基金委与加拿大麦克马斯特大学合作奖学金项目候选人名单的通知`：正文覆盖公示期和异议方式；候选名单 metadata-only。
+- `关于提交2022级本科生及2024级第二学士学位学生学籍卡的通知`：正文覆盖填写、提交和缺卡领取要求；填写须知和名单表 metadata-only。
+- `关于提交2022级本科生及2024级第二学士学位学生学籍卡的通知`：重复 source notice，正文覆盖相同提交要求；附件 metadata-only。
+- `关于确认发放2026年3月份研究生助管、助研岗位津贴的通知`：正文覆盖发放主体、核定和报送要求；报送表 metadata-only。
+- `关于举办 “2026 第九届全国应用统计专业学位研究生案例大赛” 中央民族大学校内选拔赛的通知`：
+  正文覆盖赛事目标、报名、材料和校内安排；报名/模板附件 metadata-only。
+- `关于开展2026年度“发明创业奖”评选工作的通知`：正文覆盖奖项、申报要求、材料和时间；申报附件 metadata-only。
+- `关于公布我校2026年国家留学基金委与英国利物浦大学合作奖学金项目候选人名单的通知`：正文覆盖公示期和异议方式；候选名单 metadata-only。
+- `关于申报组织开展2026年“CSC学友汇”活动的通知`：正文覆盖活动目标、申报条件和材料要求；申报模板 metadata-only。
+- `关于举办2026年“挑战杯”首都大学生创业计划竞赛“揭榜挂帅”机制专项赛校内遴选的通知`：正文覆盖赛道、参赛要求和材料提交；榜单、模板和承诺书 metadata-only。
+- `【境外访学项目宣讲】美国加利福尼亚大学伯克利分校 University of California,
+  Berkeley`：正文覆盖宣讲时间、地点、内容和报名信息；项目附件 metadata-only。
+- `关于2025年春季及2025年秋季学期本科生境外访学资助情况的公示`：正文覆盖资助情况公示和异议方式；名单 metadata-only。
+- `关于组织开展2026年“4·15”全民国家安全教育系列活动的通知`：正文覆盖活动主题、启动仪式、讲座、线上活动和要求；线上活动说明 metadata-only。
+- `关于评选2026届北京市优秀毕业生和校级优秀毕业生的通知`：正文覆盖评选对象、条件、程序和时间；名额表、推荐表等 metadata-only。
+- `关于办理丰台校区保障房住房公积金提取的通知`：正文覆盖适用人群、材料、办理地点和流程；表格 metadata-only。
+- `关于公布我校2026年国家建设高水平大学公派研究生项目候选人名单的通知（更新）`：正文覆盖公示期和异议方式；候选名单 metadata-only。
+- `关于2027年度国家艺术基金项目申报的预通知`：正文覆盖系统开通时间、申报准备和联系信息；附件 metadata-only。
+- `关于公布我校2026年秋季派出研究生赴台访学项目（台湾艺术大学）候选人名单的通知`：正文覆盖公示期和异议方式；候选名单 metadata-only。
+- `关于召开保密委员会2026年第一次全体会议暨保密工作会议的通知`：正文覆盖会议时间、地点、主持人和参会人员；附件 metadata-only。
+- `关于2026届本科毕业生学历学位图像采集的通知`：正文覆盖采集对象、时间、流程和要求；操作说明 metadata-only。
+- `关于2026届本科毕业生学历学位图像采集的通知`：重复 source notice，正文覆盖相同采集要求；附件 metadata-only。
+- `关于举办第十六届全国大学生电子商务“创新、创意及创业”挑战赛常规赛拟推荐参加北京市赛答辩排名赛的通知`：正文覆盖推荐背景、排名赛和名单发布；名单附件 metadata-only。
+- `关于开展2026年“春蕾茁壮公益计划” 助学金评选工作的通知`：正文覆盖评选条件、名额、流程和材料；表单附件 metadata-only。
+- `关于开展2026年师生思想政治状况滚动调查工作的通知`：正文覆盖调查对象、抽样、访谈、问卷和报送要求；抽样表与模板 metadata-only。
+- `关于公布我校2026年秋季派出研究生赴台访学项目（中国文化大学、台湾辅仁大学）候选人名单的通知`：正文覆盖公示期和异议方式；候选名单 metadata-only。
+- `关于开展2026年秋季派出本科生赴香港浸会大学访学项目补充选拔工作的通知`：正文覆盖补充选拔背景、条件和流程；申请附件 metadata-only。
+- `关于举办第十六届全国大学生电子商务“创新、创意及创业”挑战赛实战赛校级终审答辩排名赛的通知`：正文覆盖比赛背景、终审答辩和名单安排；名单附件 metadata-only。
+- `信息工程学院关于评选2026届北京市优秀毕业生和校级优秀毕业生的通知`：正文覆盖学院评选小组、资格和材料要求；附件 metadata-only。
+- `关于本学期劳动教育理论在线学习提醒的通知`：正文覆盖结课时间、学习要求和通过条件；未通过名单 metadata-only。
+- `关于开展2022级本科毕业生和开展2025-2026年度体测补测的通知`：正文覆盖补测对象、成绩核对和测试安排；名单、申请表和图片 metadata-only。
+- `关于进一步规范学位答辩委员会组成及答辩公告管理的通知`：正文覆盖答辩委员会组成、公告管理和要求；公告模板 metadata-only。
+- `关于做好2025-2026学年第二学期期末考试工作的通知`：正文覆盖期末考试时间、工作安排和命题要求；考试表、清单和格式要求 metadata-only。
+- `信息工程学院关于2026年“春蕾茁壮公益计划助学金”评选结果的公示`：正文覆盖评选结果公示、异议方式和地点；名单 metadata-only。
+- `关于开展2025-2026学年第二学期学生电子信息数据完善与更新工作的通知`：正文覆盖数据更新对象、时间和操作路径；操作指南和图片 metadata-only。
+- `关于公示2026年秋季派出本科生赴香港浸会大学访学项目补充入选名单的通知`：正文覆盖公示期和异议方式；入选名单 metadata-only。
+- `关于申报6月批量集中采购的通知`：正文覆盖品目、时间节点和系统提交要求；图片只作操作辅助。
+- `关于开展2026-2027年度本科生体质健康测试的通知`：正文覆盖测试对象、项目、
+  窗口和注意事项；时间安排、表单和图片当前无 admitted health/test target。
+- `关于开展2025年度党建引领创新攻坚示范项目、优秀党支部工作法、党建和思想政治工作研究课题结项及2026年度立项工作的通知`：
+  正文覆盖结项、立项和材料要求；附件当前无 admitted owner target。
+- `关于开展2026届本科生毕业资格、学士学位资格审核工作的通知`：正文覆盖资格审核、
+  学位授予准备和申请安排；附带规则 PDF 是 owner-like，但本条当前无 regulation admission。
+- `关于2026年“北京社科青年学者文库”申报工作的通知`：正文覆盖申报对象、条件、材料和时间；申请书和汇总表 metadata-only。
+- `关于认领和清理历年到校未入账科研经费的通知`：正文覆盖清理对象、认领时限和联系人；清单 metadata-only。
+- `2026“外研社·国才杯”“理解当代中国”全国大学生外语能力大赛定题演讲报名通知`：正文覆盖参赛对象、内容、形式和报名方式；图片只作宣传/报名辅助。
+- `中央民族大学关于申报2027年度国家艺术基金项目的通知`：正文覆盖申报类别、流程、时间节点和联系人；二维码、指南、表格 metadata-only。
+- `江苏省2026年应届优秀大学毕业生选调乡镇（街道）职位拟录用人选公示`：正文覆盖公示期、联系方式和异议渠道；名单 metadata-only。
+- `关于组织开展2026年“千人百村”系列活动青年创业项目遴选及“汇谷杯”创新创业大赛的通知`：
+  正文覆盖活动时间、对象、内容和申报方式；报名统计表 metadata-only。
+- `关于开展2026-2027学年第一学期本（预）科课程安排的通知`：正文覆盖排课准备、课程安排、调整和工作要求；执行计划表与课程变动表 metadata-only。
+
+### Batch 3 结论
+
+- 83 条旧 `process` / 无 target 样本中，只有 `关于进一步加强校园交通安全管理的通知`
+  是当前应保留为 `candidate_service_fact` 的条件样本。
+- 22 条表单 / 手册类是 owner-like attachment relation，但当前没有 admitted owner target；
+  它们不能变成 required source bytes。
+- 60 条正文完整 notice 应降为 `notice_level_query_only`，附件均 metadata-only。
+- 这批样本进一步证明：`attachment_processing_policy=process` 不能作为 retention 决策输入；
+  必须先由 `notice_capture_route` 判定，再按 target-required fact gap 或 admitted
+  owner 决定 bytes。
 
 ## 当前实现缺口
 

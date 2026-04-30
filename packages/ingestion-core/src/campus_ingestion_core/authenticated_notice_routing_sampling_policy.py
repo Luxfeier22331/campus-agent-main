@@ -147,6 +147,8 @@ def _resolve_attachment_processing_policy(
     attachment_ref_count = int(attachment_counts.get("attachment_ref_count") or 0)
     if attachment_ref_count <= 0:
         return "not_required"
+    if suggested_consumption_route == "notice_level_query":
+        return "metadata_only"
     return "process"
 
 
@@ -166,6 +168,8 @@ def _resolve_attachment_processing_reason(
     attachment_ref_count = int(attachment_counts.get("attachment_ref_count") or 0)
     if attachment_ref_count <= 0:
         return "no_attachment_refs"
+    if suggested_consumption_route == "notice_level_query":
+        return "notice_level_query_keeps_attachment_metadata_only"
     return "route_requires_attachment_processing"
 
 
