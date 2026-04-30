@@ -23,6 +23,7 @@
 
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled
+- 2026-05-01 本轮“目前打开内容”验证按当前执行范围显式排除 `official_web/*`，只覆盖 `regulations/student_rules`、`regulations/institutional_rules` 与 `curriculum/curriculum_plan`；验证结果为 qrels/manifest `41 tests OK`、agent/supervisor/contract `180 tests OK`、retrieval-core 非 official-web 路径 `138 tests OK`、scoped profile/qrels coverage `coverage_issues=0`。误跑的 `official_web` freshness/live-assisted suite 失败不计入本轮验收范围，也不改变 official-web planning truth。
 - `student_rules` 与 `curriculum_plan` 的 source OCR runtime profile 当前都已切到 `mineru_api + vlm + mineru-vlm-adapted-v2`；覆盖历史 Paddle 派生 canonical truth 的 cutover 现由独立 `handbook-curriculum-mineru-cutover` workstream 收口
 - `campus_services/*` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
