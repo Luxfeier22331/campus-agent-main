@@ -10,8 +10,8 @@ from campus_evals.retrieval_rerank_eval import (
     RerankCandidateSource,
     RerankerAdoptionThresholds,
     RerankRunCase,
-    evaluate_reranker_adoption_gate,
     evaluate_deterministic_rerank_branch,
+    evaluate_reranker_adoption_gate,
 )
 
 from tests.evals.retrieval_benchmark_test_support import unittest

@@ -42,9 +42,7 @@ class RetrievalQrelsDenominatorPolicy:
     source_path: Path
 
 
-def default_retrieval_qrels_denominator_policy_path(
-    *, repo_root: str | Path | None = None
-) -> Path:
+def default_retrieval_qrels_denominator_policy_path(*, repo_root: str | Path | None = None) -> Path:
     root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[4]
     return root / "packages" / "evals" / "fixtures" / "retrieval_qrels_denominator_policy.v1.json"
 
@@ -52,7 +50,9 @@ def default_retrieval_qrels_denominator_policy_path(
 def load_retrieval_qrels_denominator_policy(
     path: str | Path | None = None,
 ) -> RetrievalQrelsDenominatorPolicy:
-    source_path = Path(path) if path is not None else default_retrieval_qrels_denominator_policy_path()
+    source_path = (
+        Path(path) if path is not None else default_retrieval_qrels_denominator_policy_path()
+    )
     payload = json.loads(source_path.read_text(encoding="utf-8"))
     raw_scopes = payload.get("scopes")
     if not isinstance(raw_scopes, dict):
@@ -159,8 +159,7 @@ def validate_default_query_enabled_qrels_coverage(
         for scenario_id in declared_scenarios:
             if not scope_policy.scenario_denominator_classes.get(scenario_id):
                 issues.append(
-                    f"{scope_key}: qrels scenario {scenario_id} "
-                    "has no denominator class mapping"
+                    f"{scope_key}: qrels scenario {scenario_id} has no denominator class mapping"
                 )
     return tuple(issues)
 
@@ -217,9 +216,7 @@ def _declared_qrels_scenarios(path: str | Path) -> tuple[set[str], tuple[str, ..
     if not isinstance(raw_scenarios, dict):
         return set(), ("missing qrels coverage_scenarios",)
     cases = payload.get("cases") or ()
-    case_ids = {
-        str(case.get("case_id") or "").strip() for case in cases if isinstance(case, dict)
-    }
+    case_ids = {str(case.get("case_id") or "").strip() for case in cases if isinstance(case, dict)}
     scenarios: set[str] = set()
     issues: list[str] = []
     for scenario_id, raw_case_ids in raw_scenarios.items():
@@ -249,7 +246,7 @@ def _declared_qrels_scenarios(path: str | Path) -> tuple[set[str], tuple[str, ..
 
 def _string_tuple(value: object) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
-        return tuple()
+        return ()
     return tuple(str(item).strip() for item in value if str(item).strip())
 
 

@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.index_release_acceptance import (
     QdrantPhysicalCollectionAcceptanceExecutor,
     ReleaseRetrievalAcceptanceExecutor,
@@ -16,13 +17,12 @@ from campus_ingestion_core.index_release_acceptance import (
     load_release_retrieval_acceptance_cases,
     run_release_retrieval_acceptance,
 )
-from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.process_indexing import index_chunks_to_qdrant
 from campus_ingestion_core.registry_scope_release import (
-    publish_scope_release,
     _validate_default_qrels_coverage_for_scope,
+    publish_scope_release,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import build_mock_sparse_embedding_model
