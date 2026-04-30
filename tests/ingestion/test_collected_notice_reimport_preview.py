@@ -12,7 +12,6 @@ from campus_ingestion_core.collected_notice_reimport_preview import (
 
 from tests.ingestion.authenticated_notice_import_test_support import (
     _sample_export_manifest,
-    _sample_inline_image_notice_bundle,
     _sample_notice_bundle,
 )
 
@@ -245,9 +244,48 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
         self.assertEqual(unit["source_url"], "https://portal.example.edu/notice/355119")
         self.assertIn("请同学们于4月10日前完成报名。", unit["body_text"])
         self.assertGreaterEqual(len(unit["source_object_refs"]), 2)
-        self.assertEqual(unit["multimodal_status"], "pending")
+        self.assertEqual(unit["multimodal_status"], "not_required")
         self.assertIn("报名表.docx", unit["search_text"])
         self.assertEqual(object_store.puts, [])
+
+    def test_preview_does_not_repair_empty_notice_discover_only_attachment_body(
+        self,
+    ) -> None:
+        object_store = _ReadOnlyObjectStore()
+        bucket = "campus-rag-source"
+        bundle_key = "runs/empty-form-notice.json"
+        manifest_key = "runs/export-manifest.json"
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_content"] = ""
+        bundle[0]["notice"]["notice_title"] = "中央民族大学学生证补办申请表"
+        object_store.add_json(bucket=bucket, key=bundle_key, payload=bundle)
+        object_store.add_json(bucket=bucket, key=manifest_key, payload=_sample_export_manifest())
+
+        preview = build_collected_notice_reimport_preview(
+            run_refs=(
+                CollectedNoticeCapturedRunRef(
+                    run_id="muc_internal_portal:notice:empty-form",
+                    source_surface="notice",
+                    source_bucket=bucket,
+                    bundle_object_key=bundle_key,
+                    manifest_object_key=manifest_key,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://my.muc.edu.cn",
+                    notices_collected=1,
+                ),
+            ),
+            env={},
+            object_store=object_store,
+        )
+
+        unit = preview.searchable_notice_preview["units"][0]
+        self.assertEqual(unit["classification"]["primary_route"], "notice_level_query")
+        self.assertEqual(unit["classification"]["target_candidates"], [])
+        self.assertEqual(unit["multimodal_status"], "not_required")
+        self.assertEqual(
+            preview.invalid_defer_multimodal_report["needs_multimodal_count"],
+            0,
+        )
 
     def test_preview_applies_notice_first_source_retention_to_notice_level_query_attachments(
         self,
@@ -286,6 +324,7 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
             unit["source_retention"]["attachment_capture_policy_counts"],
             {"metadata_only": 1},
         )
+        self.assertEqual(unit["multimodal_status"], "not_required")
         attachment = unit["attachment_refs"][0]
         self.assertEqual(attachment["attachment_capture_policy"], "metadata_only")
         self.assertEqual(attachment["attachment_capture_state"], "metadata_recorded")
@@ -340,6 +379,7 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
             {"fetch_to_quarantine": 3},
         )
         self.assertEqual(unit["source_retention"]["quarantine_attachment_ref_count"], 3)
+        self.assertEqual(unit["multimodal_status"], "pending")
         for attachment in unit["attachment_refs"]:
             with self.subTest(attachment_ref_id=attachment["attachment_ref_id"]):
                 self.assertEqual(
@@ -356,14 +396,16 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
                 )
 
     def test_preview_reports_invalid_runs_and_multimodal_candidates(self) -> None:
-        attachment_bytes = b"fake-image"
         object_store = _ReadOnlyObjectStore()
         bucket = "campus-rag-source"
-        bundle_key = "runs/inline-image-bundle.json"
+        bundle_key = "runs/transport-schedule-images.json"
         manifest_key = "runs/export-manifest.json"
-        bundle = _sample_inline_image_notice_bundle(attachment_bytes=attachment_bytes)
         manifest = _sample_export_manifest()
-        object_store.add_json(bucket=bucket, key=bundle_key, payload=bundle)
+        object_store.add_json(
+            bucket=bucket,
+            key=bundle_key,
+            payload=_transport_schedule_image_bundle_without_body_times(),
+        )
         object_store.add_json(bucket=bucket, key=manifest_key, payload=manifest)
 
         selected, rejected = select_collected_notice_reimport_run_refs(
@@ -403,7 +445,7 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
         self.assertEqual(preview.invalid_defer_multimodal_report["invalid_capture_count"], 1)
         self.assertEqual(preview.invalid_defer_multimodal_report["needs_multimodal_count"], 1)
         unit = preview.searchable_notice_preview["units"][0]
-        self.assertEqual(unit["source_notice_id"], "351118")
+        self.assertEqual(unit["source_notice_id"], "355867")
         self.assertEqual(unit["multimodal_status"], "pending")
         self.assertIn("image_attachment_pending_text_extraction", unit["reason_codes"])
 

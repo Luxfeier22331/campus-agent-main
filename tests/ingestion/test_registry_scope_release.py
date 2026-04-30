@@ -431,9 +431,7 @@ class RegistryScopeReleaseTest(unittest.TestCase):
                 publish_alias=False,
             )
             for upload in object_store.uploads:
-                object_store.objects[(str(upload["bucket"]), str(upload["key"]))] = upload[
-                    "data"
-                ]
+                object_store.objects[(str(upload["bucket"]), str(upload["key"]))] = upload["data"]
             second_report = release_registry_scope(
                 corpus="official_web",
                 collection="muc_public_pages",

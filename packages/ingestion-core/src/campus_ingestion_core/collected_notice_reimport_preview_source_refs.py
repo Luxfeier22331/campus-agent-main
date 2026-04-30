@@ -242,6 +242,8 @@ def _resolve_multimodal_status(
     if source_surface == FILE_RELEASE_SOURCE_SURFACE:
         reason_codes.append("released_file_text_extraction_pending")
     for attachment in attachment_refs:
+        if _is_metadata_only_attachment_ref(attachment):
+            continue
         object_key = _optional_text(attachment.get("object_key"))
         mime_type = str(attachment.get("mime_type") or "").strip().lower()
         filename = str(
@@ -267,6 +269,17 @@ def _resolve_multimodal_status(
     if normalized_reason_codes:
         return "pending", normalized_reason_codes
     return "not_required", ()
+
+
+def _is_metadata_only_attachment_ref(attachment: Mapping[str, Any]) -> bool:
+    policy = str(attachment.get("attachment_capture_policy") or "").strip()
+    if policy == "metadata_only":
+        return True
+    return (
+        attachment.get("byte_fetch_required") is False
+        and not bool(attachment.get("required_source_object"))
+        and str(attachment.get("retention_class") or "").strip() == "metadata_only"
+    )
 
 
 def _resolved_site_id(

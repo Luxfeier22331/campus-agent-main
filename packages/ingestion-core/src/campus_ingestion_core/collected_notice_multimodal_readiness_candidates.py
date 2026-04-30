@@ -81,13 +81,31 @@ def candidate_records(
 ) -> tuple[dict[str, Any], ...]:
     candidates: list[dict[str, Any]] = []
     for unit in units:
-        attachments = tuple(mapping_rows(unit.get("attachment_refs")))
-        if not attachments:
+        raw_attachments = tuple(mapping_rows(unit.get("attachment_refs")))
+        attachments = tuple(
+            attachment
+            for attachment in raw_attachments
+            if _is_processable_attachment_ref(attachment)
+        )
+        if not raw_attachments:
             candidates.append(_source_body_repair_candidate(unit))
+            continue
+        if not attachments:
             continue
         for index, attachment in enumerate(attachments, start=1):
             candidates.append(_media_candidate(unit, attachment, image_index=index))
     return tuple(sorted(candidates, key=lambda item: str(item["candidate_id"])))
+
+
+def _is_processable_attachment_ref(attachment: Mapping[str, Any]) -> bool:
+    policy = str(attachment.get("attachment_capture_policy") or "").strip()
+    if policy == "metadata_only":
+        return False
+    return not (
+        attachment.get("byte_fetch_required") is False
+        and not bool(attachment.get("required_source_object"))
+        and str(attachment.get("retention_class") or "").strip() == "metadata_only"
+    )
 
 
 def _media_candidate(

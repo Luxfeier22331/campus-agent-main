@@ -513,17 +513,6 @@ def _prepared_preview_item(
         additional_keys=document.additional_processed_object_keys,
     )
     body_text = _content_blocks_body_text(content_blocks)
-    multimodal_status, reason_codes = _resolve_multimodal_status(
-        source_surface=source_surface,
-        body_text=body_text,
-        attachment_refs=attachment_refs,
-    )
-    source_object_refs = _source_object_refs(
-        run_ref=run_ref,
-        source_artifact_keys=source_artifact_keys,
-        attachment_refs=attachment_refs,
-        bucket_source=bucket_source,
-    )
     classification = classify_collected_notice_unit(
         source_identifier=str(source_identifier),
         source_surface=source_surface,
@@ -531,6 +520,23 @@ def _prepared_preview_item(
         body_text=body_text,
         attachment_refs=attachment_refs,
         config=classification_config,
+    )
+    multimodal_status, reason_codes = _resolve_multimodal_status(
+        source_surface=source_surface,
+        body_text=body_text,
+        attachment_refs=attachment_refs,
+    )
+    if _is_notice_discover_only_unit(
+        source_surface=source_surface,
+        classification=classification,
+    ):
+        multimodal_status = "not_required"
+        reason_codes = ()
+    source_object_refs = _source_object_refs(
+        run_ref=run_ref,
+        source_artifact_keys=source_artifact_keys,
+        attachment_refs=attachment_refs,
+        bucket_source=bucket_source,
     )
     resolved_source_retention = dict(
         source_retention
@@ -580,6 +586,18 @@ def _prepared_preview_item(
         reason_codes=reason_codes,
         classification=classification,
         source_retention=resolved_source_retention,
+    )
+
+
+def _is_notice_discover_only_unit(
+    *,
+    source_surface: str,
+    classification: Mapping[str, Any],
+) -> bool:
+    return (
+        source_surface == "notice"
+        and str(classification.get("primary_route") or "") == "notice_level_query"
+        and not tuple(classification.get("target_candidates") or ())
     )
 
 

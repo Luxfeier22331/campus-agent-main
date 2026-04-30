@@ -173,6 +173,39 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         self.assertEqual(manifest["counts_by_processing_family"]["schedule_image_ocr"], 1)
         self.assertEqual(manifest["counts_by_processing_family"]["internal_notice_multimodal"], 1)
 
+    def test_metadata_only_attachment_is_not_a_multimodal_candidate(self) -> None:
+        unit = _unit(
+            notice_id="355881",
+            title="关于开通丰台校区社会实践专车的通知",
+            attachments=[
+                {
+                    **_attachment(
+                        attachment_ref_id="attachment-0001",
+                        filename="专车安排.png",
+                        mime_type="image/png",
+                        role="inline_image",
+                    ),
+                    "attachment_capture_policy": "metadata_only",
+                    "attachment_capture_state": "metadata_recorded",
+                    "byte_fetch_required": False,
+                    "retention_class": "metadata_only",
+                }
+            ],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["transport_schedule"],
+        )
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        self.assertEqual(preview.candidate_inventory["candidate_count"], 0)
+        self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
+
     def test_marks_low_value_posters_skipped_and_missing_media_as_failed_gap(self) -> None:
         low_value = _unit(
             notice_id="354276",
