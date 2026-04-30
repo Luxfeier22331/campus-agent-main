@@ -370,6 +370,85 @@ class RegistryScopeReleaseTest(unittest.TestCase):
         self.assertIn(report.manifest_object_key, upload_keys)
         self.assertIn(str(report.validation_summary_object_key), upload_keys)
 
+    def test_release_registry_scope_reports_embedding_cache_hits_on_repeated_release(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_key_1 = (
+                "official_web/documents/muc_public_pages/"
+                "news-001--news001/source-faithful/undated/document-units.jsonl"
+            )
+            object_key_2 = (
+                "official_web/documents/muc_public_pages/"
+                "news-002--news002/source-faithful/undated/document-units.jsonl"
+            )
+            registry = InMemoryDocumentRegistry(
+                (
+                    _make_record(
+                        document_id="official_web:muc_public_pages:news-001",
+                        version_id="owver:news-001",
+                        object_key=object_key_1,
+                    ),
+                    _make_record(
+                        document_id="official_web:muc_public_pages:news-002",
+                        version_id="owver:news-002",
+                        object_key=object_key_2,
+                    ),
+                ),
+                backing_path=root / "registry.json",
+            )
+            object_store = _FakeObjectStore(
+                objects={
+                    ("campus-rag-derived", object_key_1): _make_document_units_bytes(
+                        document_id="official_web:muc_public_pages:news-001",
+                        version_id="owver:news-001",
+                        text="中央民族大学官网新闻正文。",
+                    ),
+                    ("campus-rag-derived", object_key_2): _make_document_units_bytes(
+                        document_id="official_web:muc_public_pages:news-002",
+                        version_id="owver:news-002",
+                        text="中央民族大学法学院新闻正文。",
+                    ),
+                }
+            )
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "EMBEDDING_PROVIDER": "mock",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+                "SPARSE_PROVIDER": "mock",
+                "INGESTION_EMBEDDING_CACHE_ENABLED": "true",
+            }
+
+            first_report = release_registry_scope(
+                corpus="official_web",
+                collection="muc_public_pages",
+                env=env,
+                registry=registry,
+                object_store=object_store,
+                qdrant_client=QdrantClient(location=":memory:"),
+                publish_alias=False,
+            )
+            for upload in object_store.uploads:
+                object_store.objects[(str(upload["bucket"]), str(upload["key"]))] = upload[
+                    "data"
+                ]
+            second_report = release_registry_scope(
+                corpus="official_web",
+                collection="muc_public_pages",
+                env=env,
+                registry=registry,
+                object_store=object_store,
+                qdrant_client=QdrantClient(location=":memory:"),
+                publish_alias=False,
+            )
+
+        self.assertGreater(first_report.embedding_cache_miss_count, 0)
+        self.assertEqual(first_report.embedding_cache_hit_count, 0)
+        self.assertGreater(second_report.embedding_cache_hit_count, 0)
+        self.assertEqual(second_report.embedding_provider_call_count, 0)
+
     def test_release_registry_scope_publishes_alias_for_active_records_only(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
