@@ -276,11 +276,11 @@ func workflowMode(
 	if branch == "terminal" {
 		return "terminal"
 	}
-	if branch == "delegate" || decisions.RoutingNextAction == "delegate" || handoff != nil {
-		return "single_handoff"
-	}
 	if branch == "direct" {
 		return "direct_runtime"
+	}
+	if branch == "delegate" || decisions.RoutingNextAction == "delegate" || handoff != nil {
+		return "single_handoff"
 	}
 	if decisions.RoutingNextAction != "" && decisions.RoutingNextAction != "delegate" {
 		return "terminal"
