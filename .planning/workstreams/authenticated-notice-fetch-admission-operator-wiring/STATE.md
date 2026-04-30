@@ -8,12 +8,12 @@ updated: 2026-04-30
 
 ## Current Position
 **Status:** Active
-**Current Phase:** Phase 4 completed
+**Current Phase:** Phase 5 completed
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Repaired Phase 5 media readiness semantics so captured PDFs use OCR/text-extraction-first families instead of default multimodal routing; current 338-unit replay keeps 60 candidates with 56 released-file text extraction and 4 schedule image OCR candidates, 0 fetch requests, and 0 audit findings. Quarantine cleanup now preserves expired bytes while target-blocking media extraction candidates are still non-terminal.
+**Last Activity Description:** Added media extraction closeout lane. Schedule image OCR post-run previews and regulation owner-text execution reports now emit canonical closeout result manifests; the new dry-run closeout worker merges those results into media extraction candidate inventory and clears target-blocking for terminal candidates.
 
 ## Progress
-**Phases Complete:** 4
+**Phases Complete:** 5
 **Current Plan:** `ROADMAP.md`
 
 ## Phase 1 Result
@@ -39,8 +39,8 @@ updated: 2026-04-30
 
 ## Next Slice
 
-Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine and media-readiness acceptance are currently clean.
+Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine, media-readiness, cleanup gate, and closeout lane acceptance are currently clean.
 
 ## Session Continuity
-**Stopped At:** Phase 4 media extraction semantics repair complete; live collector proof remains auth-dependent
+**Stopped At:** Phase 5 media extraction closeout lane complete; live collector proof remains auth-dependent
 **Resume File:** None

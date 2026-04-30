@@ -15,6 +15,7 @@ updated: 2026-04-30
 - [x] **Phase 2: Selected Notice E2E Smoke Evidence** — selected notice `355867` is replayed through repaired local source-truth, fetch omission, multimodal readiness, and schedule OCR mini-batch evidence.
 - [x] **Phase 3: Sample State Machine Audit** — current code replays 338 captured units, produces 60 downstream multimodal candidates, generates 0 fetch requests, and passes state-machine audit with 0 findings.
 - [x] **Phase 4: Media Extraction Semantics Repair** — current readiness output now uses OCR/text-extraction-first media extraction semantics while preserving legacy multimodal filenames for compatibility.
+- [x] **Phase 5: Media Extraction Closeout Lane** — schedule OCR and owner-text execution outputs now emit canonical closeout result manifests, and a dry-run closeout CLI updates media extraction candidate inventory terminal states.
 
 ## Phase 1: Operator Manifest Builder And Docs Wiring
 
@@ -120,6 +121,32 @@ uv run --all-packages python -m unittest \
   tests.ingestion.test_collected_notice_reimport_preview \
   tests.ingestion.test_collected_notice_multimodal_readiness \
   tests.ingestion.test_authenticated_notice_state_machine_audit
+```
+
+## Phase 5: Media Extraction Closeout Lane
+
+Goal: close the gap between media extraction execution outputs and canonical
+readiness state, so cleanup gates and downstream replay do not remain stuck on
+`pending` after OCR/text extraction has produced terminal evidence.
+
+Deliverables:
+
+- canonical `notice_media_extraction_closeout_result_manifest.v1` result manifest.
+- dry-run closeout merge that rewrites `notice_media_extraction_candidate_inventory.v1`
+  status / `media_text_status` / `target_blocking` from result manifests.
+- schedule image OCR post-run preview emits media extraction closeout result manifest.
+- regulation owner text execution report emits media extraction closeout result manifest.
+- ingestion-worker CLI:
+  `campus-ingestion-preview-collected-notice-media-extraction-closeout`.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_media_extraction_closeout \
+  tests.ingestion.test_collected_notice_schedule_image_ocr_mini_batch \
+  tests.ingestion.test_preview_schedule_image_ocr_mini_batch_worker \
+  tests.ingestion.test_collected_notice_regulation_owner_text_execution
 ```
 
 ## Phase 4: Media Extraction Semantics Repair
