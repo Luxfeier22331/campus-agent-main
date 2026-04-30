@@ -10,6 +10,9 @@ from campus_supervisor_agent_worker.agent_runtime import (
     PromptHTTPPoolRuntime,
     build_prompt_runtime_assets,
 )
+from campus_supervisor_agent_worker.agents_sdk_runtime_policy import (
+    agents_sdk_runtime_status,
+)
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 from campus_supervisor_agent_worker.http_types import HttpResponse, HttpRoute
@@ -51,6 +54,10 @@ class SupervisorAgentWorkerApp:
                 admitted=self.runtime.prompt_runtime.admitted
             ),
             "provider_tool_runtime": _provider_tool_runtime_status(
+                settings=self.settings,
+                prompt_runtime_admitted=self.runtime.prompt_runtime.admitted,
+            ),
+            "agents_sdk_runtime": _agents_sdk_runtime_status(
                 settings=self.settings,
                 prompt_runtime_admitted=self.runtime.prompt_runtime.admitted,
             ),
@@ -101,6 +108,10 @@ def _create_runtime_app(
                 settings=runtime_settings,
                 prompt_runtime_admitted=prompt_runtime.admitted,
             ),
+            "agents_sdk_runtime": _agents_sdk_runtime_status(
+                settings=runtime_settings,
+                prompt_runtime_admitted=prompt_runtime.admitted,
+            ),
             "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
         },
         cancel_flags=cancel_flags,
@@ -132,4 +143,19 @@ def _provider_tool_runtime_status(
         structured_query_configured=bool(
             settings.structured_query_base_url and settings.structured_query_shared_secret
         ),
+    )
+
+
+def _agents_sdk_runtime_status(
+    *,
+    settings: ApiSettings,
+    prompt_runtime_admitted: bool,
+) -> dict[str, object]:
+    return agents_sdk_runtime_status(
+        enabled=settings.agents_sdk_runtime_enabled,
+        allowed_targets=settings.agents_sdk_runtime_allowed_targets,
+        allowed_tools=settings.agents_sdk_runtime_allowed_tools,
+        prompt_runtime_provider=settings.prompt_runtime_provider or settings.runtime_provider,
+        prompt_runtime_admitted=prompt_runtime_admitted,
+        agent_model=settings.agent_prompt_model,
     )

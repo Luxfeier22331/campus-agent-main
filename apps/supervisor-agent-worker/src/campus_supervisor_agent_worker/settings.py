@@ -52,6 +52,13 @@ def _read_provider_tool_runtime_allowed_tools(name: str) -> tuple[str, ...]:
     return normalized
 
 
+def _read_csv_tuple(name: str) -> tuple[str, ...]:
+    value = os.getenv(name)
+    if value is None:
+        return ()
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
 def _read_int(name: str, *, default: int) -> int:
     value = os.getenv(name)
     if value is None:
@@ -117,6 +124,9 @@ class ApiSettings:
     provider_tool_runtime_allowed_tools: tuple[str, ...] = (
         DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS
     )
+    agents_sdk_runtime_enabled: bool = False
+    agents_sdk_runtime_allowed_targets: tuple[str, ...] = ()
+    agents_sdk_runtime_allowed_tools: tuple[str, ...] = ()
     retrieval_observation_jsonl_path: str = ""
     retrieval_observation_include_query_text: bool = False
     cancel_flag_ttl_seconds: float = 900.0
@@ -269,6 +279,14 @@ class ApiSettings:
             provider_tool_runtime_allowed_tools=_read_provider_tool_runtime_allowed_tools(
                 "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS"
             ),
+            agents_sdk_runtime_enabled=_read_bool(
+                "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED",
+                default=False,
+            ),
+            agents_sdk_runtime_allowed_targets=_read_csv_tuple(
+                "SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS"
+            ),
+            agents_sdk_runtime_allowed_tools=_read_csv_tuple("SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS"),
             retrieval_observation_jsonl_path=os.getenv(
                 "SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH",
                 "",

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 
+from campus_supervisor_agent_worker.agents_sdk_runtime_policy import (
+    agents_sdk_runtime_status,
+)
 from campus_supervisor_agent_worker.bridge_auth import require_bridge_auth
 from campus_supervisor_agent_worker.http_types import HttpResponse
 from campus_supervisor_agent_worker.prompt_stack import PromptRuntimeSettings
@@ -43,10 +46,18 @@ def readyz(
     provider_tool_runtime_degraded = bool(provider_tool_runtime.get("enabled")) and not bool(
         provider_tool_runtime.get("admitted")
     )
+    agents_sdk_runtime = dict(
+        runtime_status.get("agents_sdk_runtime")
+        or default_agents_sdk_runtime_status(settings=settings, admitted=runtime_prompt.admitted)
+    )
+    agents_sdk_runtime_degraded = bool(agents_sdk_runtime.get("enabled")) and not bool(
+        agents_sdk_runtime.get("admitted")
+    )
     degraded = (
         not runtime_prompt.admitted
         or not bool(prompt_http_pool.get("healthy", True))
         or provider_tool_runtime_degraded
+        or agents_sdk_runtime_degraded
     )
     return HttpResponse(
         status_code=503 if degraded else 200,
@@ -68,6 +79,7 @@ def readyz(
             },
             "prompt_http_pool": prompt_http_pool,
             "provider_tool_runtime": provider_tool_runtime,
+            "agents_sdk_runtime": agents_sdk_runtime,
             "worker_runtime": runtime_status.get("worker_runtime")
             or {"role": "semantic_worker", "cancel_flag_store": "available"},
         },
@@ -145,4 +157,19 @@ def default_provider_tool_runtime_status(
         structured_query_configured=bool(
             settings.structured_query_base_url and settings.structured_query_shared_secret
         ),
+    )
+
+
+def default_agents_sdk_runtime_status(
+    *,
+    settings: ApiSettings,
+    admitted: bool,
+) -> dict[str, object]:
+    return agents_sdk_runtime_status(
+        enabled=settings.agents_sdk_runtime_enabled,
+        allowed_targets=settings.agents_sdk_runtime_allowed_targets,
+        allowed_tools=settings.agents_sdk_runtime_allowed_tools,
+        prompt_runtime_provider=settings.prompt_runtime_provider or settings.runtime_provider,
+        prompt_runtime_admitted=admitted,
+        agent_model=settings.agent_prompt_model,
     )
