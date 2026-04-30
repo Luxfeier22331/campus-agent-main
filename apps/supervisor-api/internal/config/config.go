@@ -55,6 +55,9 @@ type Config struct {
 	ExecutionAuditSpoolDir            string
 	ExecutionAuditSpoolMaxBytes       int
 	OpenCapabilities                  []string
+	MultiStepWorkflowEnabled          bool
+	WorkflowRunDatabaseURL            string
+	WorkflowRunAutoMigrate            bool
 	QueryServingScopesPath            string
 	StructuredQuerySharedSecret       string
 	StructuredQueryTrustedTimeRFC3339 string
@@ -124,6 +127,7 @@ type envValues struct {
 	ExecutionAuditRetryBaseMS         int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS" envDefault:"100"`
 	ExecutionAuditSpoolDir            string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR"`
 	ExecutionAuditSpoolMaxBytes       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES" envDefault:"10485760"`
+	WorkflowRunDatabaseURL            string  `env:"SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"`
 	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
 	StructuredQuerySharedSecret       string  `env:"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"`
 	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
@@ -166,6 +170,14 @@ func LoadFromEnv() (Config, error) {
 		return Config{}, err
 	}
 	openCapabilities, err := readOpenCapabilitiesStrict()
+	if err != nil {
+		return Config{}, err
+	}
+	multiStepWorkflowEnabled, err := readBoolStrict("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	workflowRunAutoMigrate, err := readBoolStrict("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", false)
 	if err != nil {
 		return Config{}, err
 	}
@@ -216,6 +228,9 @@ func LoadFromEnv() (Config, error) {
 		ExecutionAuditSpoolDir:            strings.TrimSpace(values.ExecutionAuditSpoolDir),
 		ExecutionAuditSpoolMaxBytes:       values.ExecutionAuditSpoolMaxBytes,
 		OpenCapabilities:                  openCapabilities,
+		MultiStepWorkflowEnabled:          multiStepWorkflowEnabled,
+		WorkflowRunDatabaseURL:            readWorkflowRunDatabaseURL(values),
+		WorkflowRunAutoMigrate:            workflowRunAutoMigrate,
 		QueryServingScopesPath:            strings.TrimSpace(values.QueryServingScopesPath),
 		StructuredQuerySharedSecret:       strings.TrimSpace(values.StructuredQuerySharedSecret),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
@@ -345,6 +360,14 @@ func readNoticeReadModelDatabaseURL() string {
 
 func readStructuredProjectionDatabaseURL() string {
 	databaseURL := readFirstString("CAMPUS_SHARED_POSTGRES_URL")
+	return normalizePostgresDatabaseURL(databaseURL)
+}
+
+func readWorkflowRunDatabaseURL(values envValues) string {
+	databaseURL := strings.TrimSpace(values.WorkflowRunDatabaseURL)
+	if databaseURL == "" {
+		databaseURL = readFirstString("CAMPUS_SHARED_POSTGRES_URL")
+	}
 	return normalizePostgresDatabaseURL(databaseURL)
 }
 

@@ -66,6 +66,7 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 		"contact_directory_focus_location",
 		"contact_directory_focus_office_hours",
 		"contact_directory_focus_contact_person",
+		"notice_knowledge_followthrough",
 	} {
 		if len(policy.SignalGroups[group]) == 0 {
 			t.Fatalf("policy-backed signal group %q must not be empty", group)

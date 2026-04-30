@@ -29,6 +29,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "")
+	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
@@ -160,6 +163,15 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.StructuredProjectionDatabaseURL != "" {
 		t.Fatalf("structured projection database url = %q, want empty", cfg.StructuredProjectionDatabaseURL)
 	}
+	if cfg.MultiStepWorkflowEnabled {
+		t.Fatal("multi-step workflow must be disabled by default")
+	}
+	if cfg.WorkflowRunDatabaseURL != "" {
+		t.Fatalf("workflow run database url = %q, want empty", cfg.WorkflowRunDatabaseURL)
+	}
+	if cfg.WorkflowRunAutoMigrate {
+		t.Fatal("workflow run auto migrate must be disabled by default")
+	}
 	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
 		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
 	}
@@ -242,6 +254,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
 	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
 	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
+	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "true")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
 	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
@@ -294,6 +309,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		len(cfg.OpenCapabilities) != 2 ||
 		cfg.OpenCapabilities[0] != "campus_services" ||
 		cfg.OpenCapabilities[1] != "notice" ||
+		!cfg.MultiStepWorkflowEnabled ||
+		cfg.WorkflowRunDatabaseURL != "postgresql://workflow.example/db" ||
+		!cfg.WorkflowRunAutoMigrate ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
 		cfg.SupervisorPromptModel != "gpt-supervisor" ||
 		cfg.AgentPromptModel != "gpt-agent" ||
@@ -389,6 +407,9 @@ func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeR
 	}
 	if cfg.StructuredProjectionDatabaseURL != "postgresql://shared.example/db" {
 		t.Fatalf("structured projection database url = %q", cfg.StructuredProjectionDatabaseURL)
+	}
+	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/db" {
+		t.Fatalf("workflow run database url = %q", cfg.WorkflowRunDatabaseURL)
 	}
 	if cfg.NoticeObjectStoreAccessKey != "generic-access" {
 		t.Fatalf("notice object store access key = %q", cfg.NoticeObjectStoreAccessKey)

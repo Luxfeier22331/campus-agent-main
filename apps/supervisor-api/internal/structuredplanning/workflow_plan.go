@@ -30,7 +30,7 @@ type WorkflowPlan struct {
 	TerminalPolicy      WorkflowTerminalPolicy
 	ResumePolicy        WorkflowResumePolicy
 	SemanticRetryPolicy SemanticRetryPolicy
-	handoff             *Handoff
+	handoffs            []Handoff
 }
 
 type WorkflowPlanStep struct {
@@ -85,15 +85,71 @@ func SingleHandoffPlan(handoff Handoff) *WorkflowPlan {
 		SemanticRetryPolicy: SemanticRetryPolicy{
 			MaxReplans: 0,
 		},
-		handoff: cloneHandoff(handoff),
+		handoffs: []Handoff{cloneHandoffValue(handoff)},
+	}
+}
+
+func MultiStepNoticeKnowledgeFollowthroughPlan(
+	noticeHandoff Handoff,
+	ragHandoff Handoff,
+) *WorkflowPlan {
+	noticeStep := workflowPlanStepForHandoff(noticeHandoff)
+	ragStep := workflowPlanStepForHandoff(ragHandoff)
+	return &WorkflowPlan{
+		SchemaVersion: WorkflowPlanSchemaVersion,
+		PlanID:        "plan:multi_step:notice-agent:rag-agent:notice_knowledge_followthrough",
+		WorkflowMode:  WorkflowModeMultiStep,
+		Steps:         []WorkflowPlanStep{noticeStep, ragStep},
+		Edges: []WorkflowPlanEdge{
+			{
+				FromStepID: noticeStep.StepID,
+				ToStepID:   ragStep.StepID,
+				Condition:  "completed",
+			},
+		},
+		TerminalPolicy: WorkflowTerminalPolicy{
+			FailCloseOnInvalidPlan: true,
+		},
+		ResumePolicy: WorkflowResumePolicy{
+			ResumeSupported: true,
+		},
+		SemanticRetryPolicy: SemanticRetryPolicy{
+			MaxReplans: 1,
+		},
+		handoffs: []Handoff{
+			cloneHandoffValue(noticeHandoff),
+			cloneHandoffValue(ragHandoff),
+		},
+	}
+}
+
+func workflowPlanStepForHandoff(handoff Handoff) WorkflowPlanStep {
+	return WorkflowPlanStep{
+		StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
+		StepKind:     WorkflowStepKindHandoff,
+		Target:       handoff.Target,
+		PayloadKind:  handoff.PayloadKind,
+		AllowedTools: append([]string{}, handoff.AllowedTools...),
+		SelectedTool: selectedToolForHandoff(handoff),
 	}
 }
 
 func (p *WorkflowPlan) SelectedHandoff() *Handoff {
-	if p == nil || p.handoff == nil {
+	if p == nil || len(p.handoffs) == 0 {
 		return nil
 	}
-	return cloneHandoff(*p.handoff)
+	return cloneHandoff(p.handoffs[0])
+}
+
+func (p *WorkflowPlan) Handoffs() []Handoff {
+	if p == nil {
+		return []Handoff{}
+	}
+	handoffs := make([]Handoff, 0, len(p.handoffs))
+	for _, handoff := range p.handoffs {
+		handoffs = append(handoffs, cloneHandoffValue(handoff))
+	}
+	return handoffs
 }
 
 func (p *WorkflowPlan) Map() map[string]any {
@@ -174,7 +230,12 @@ func selectedToolForHandoff(handoff Handoff) string {
 }
 
 func cloneHandoff(handoff Handoff) *Handoff {
-	return &Handoff{
+	clone := cloneHandoffValue(handoff)
+	return &clone
+}
+
+func cloneHandoffValue(handoff Handoff) Handoff {
+	return Handoff{
 		Target:       handoff.Target,
 		PayloadKind:  handoff.PayloadKind,
 		Payload:      cloneAnyMap(handoff.Payload),

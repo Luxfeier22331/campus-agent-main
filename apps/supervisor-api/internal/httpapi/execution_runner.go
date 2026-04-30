@@ -32,6 +32,7 @@ type executionRunResult struct {
 	BridgeRunState bridgeExecutionRunState
 	QueueWait      time.Duration
 	RequestContext context.Context
+	WorkflowRun    *execution.WorkflowRun
 	Terminal       *executionTerminal
 
 	complete func(lifecycle.State)
@@ -56,6 +57,19 @@ func (r executionRunResult) Complete(state lifecycle.State) {
 	if r.complete != nil {
 		r.complete(state)
 	}
+}
+
+func (s *Server) runWorkflowExecution(
+	parentCtx context.Context,
+	executionRequest execution.AnswerExecutionRequest,
+	startedAt time.Time,
+	mode executionMode,
+	emitProgress func(executionRunnerEvent),
+) executionRunResult {
+	if executionRequest.WorkflowMode == execution.WorkflowModeMultiStep {
+		return s.runMultiStepBridgeExecution(parentCtx, executionRequest, startedAt, mode, emitProgress)
+	}
+	return s.runBridgeExecution(parentCtx, executionRequest, startedAt, mode, emitProgress)
 }
 
 func (s *Server) runBridgeExecution(

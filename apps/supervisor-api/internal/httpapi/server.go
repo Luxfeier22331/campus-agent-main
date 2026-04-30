@@ -11,6 +11,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/observability"
@@ -30,6 +31,8 @@ type Server struct {
 	telemetry       *telemetry.Emitter
 	executionAudit  *executionaudit.Emitter
 	structuredQuery *structuredquery.Runtime
+	workflowRuns    execution.WorkflowRunStore
+	workflowRunsErr error
 	intentPolicy    runtimepolicy.IntentPolicyArtifact
 	intentPolicyErr error
 }
@@ -134,6 +137,7 @@ func NewServerWithDependencies(
 		NoticeObjectStoreBucketDerived:  cfg.NoticeObjectStoreBucketDerived,
 		NoticeObjectStoreBodyLimitBytes: cfg.NoticeObjectStoreBodyLimitBytes,
 	})
+	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 
 	return &Server{
 		config: cfg,
@@ -149,9 +153,23 @@ func NewServerWithDependencies(
 		telemetry:       telemetryEmitter,
 		executionAudit:  executionAuditEmitter,
 		structuredQuery: structuredQueryRuntime,
+		workflowRuns:    workflowRuns,
+		workflowRunsErr: workflowRunsErr,
 		intentPolicy:    intentPolicy,
 		intentPolicyErr: intentPolicyErr,
 	}
+}
+
+func newWorkflowRunStore(cfg config.Config) (execution.WorkflowRunStore, error) {
+	if strings.TrimSpace(cfg.WorkflowRunDatabaseURL) == "" {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return execution.NewPostgresWorkflowRunStore(ctx, execution.PostgresWorkflowRunStoreOptions{
+		DatabaseURL: strings.TrimSpace(cfg.WorkflowRunDatabaseURL),
+		AutoMigrate: cfg.WorkflowRunAutoMigrate,
+	})
 }
 
 func newAdmissionController(cfg config.Config) *admission.Controller {
@@ -187,6 +205,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if s.structuredQuery != nil {
 		s.structuredQuery.Close()
+	}
+	if closer, ok := s.workflowRuns.(interface{ Close() }); ok {
+		closer.Close()
 	}
 	return firstErr
 }

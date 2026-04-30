@@ -20,6 +20,7 @@ func runtimeDecisions(
 	requestedScope knowledgeScope,
 	versionQuery versionQuery,
 	context contextProjection,
+	multiStepWorkflowEnabled bool,
 	intentPolicy runtimepolicy.IntentPolicyArtifact,
 	intentPolicyErr error,
 ) (map[string]any, RuntimeDecisionSummary, *RuntimeHandoff, map[string]any) {
@@ -88,11 +89,15 @@ func runtimeDecisions(
 				SourceFamily: context.SelectedNoticeRef.SourceFamily,
 				Title:        context.SelectedNoticeRef.Title,
 			},
+			MultiStepWorkflowEnabled: multiStepWorkflowEnabled,
 		}, intentPolicy)
 	}
 	handoff := plan.SelectedHandoff()
 	if policyDecision.RoutingFrame.SuggestedNextAction == "delegate" && handoff != nil {
 		summary.PlanningOutcome = "preplanned"
+		summary.WorkflowMode = WorkflowMode(plan.WorkflowMode)
+		summary.WorkflowPlanID = plan.PlanID
+		summary.PlannedHandoffs = runtimeHandoffsFromPlan(plan)
 		summary.SelectedTarget = handoff.Target
 		if len(handoff.AllowedTools) == 1 {
 			summary.SelectedTool = handoff.AllowedTools[0]
@@ -133,6 +138,23 @@ func runtimeDecisions(
 	}
 	decisions["runtime_decision_summary"] = summary.Map()
 	return decisions, summary, nil, terminal
+}
+
+func runtimeHandoffsFromPlan(plan *structuredplanning.WorkflowPlan) []RuntimeHandoff {
+	if plan == nil {
+		return []RuntimeHandoff{}
+	}
+	handoffs := plan.Handoffs()
+	result := make([]RuntimeHandoff, 0, len(handoffs))
+	for _, handoff := range handoffs {
+		result = append(result, RuntimeHandoff{
+			Target:       handoff.Target,
+			PayloadKind:  handoff.PayloadKind,
+			Payload:      cloneAnyMap(handoff.Payload),
+			AllowedTools: append([]string{}, handoff.AllowedTools...),
+		})
+	}
+	return result
 }
 
 func runtimeVersionSummary() map[string]any {

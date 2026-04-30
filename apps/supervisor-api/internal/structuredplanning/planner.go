@@ -10,12 +10,13 @@ import (
 var yearPattern = regexp.MustCompile(`(20\d{2})年`)
 
 type Request struct {
-	EffectiveCapability string
-	UserGoal            string
-	HasRequestedScope   bool
-	RequestedScope      Scope
-	VersionQuery        VersionQuery
-	SelectedNoticeRef   SelectedNoticeRef
+	EffectiveCapability      string
+	UserGoal                 string
+	HasRequestedScope        bool
+	RequestedScope           Scope
+	VersionQuery             VersionQuery
+	SelectedNoticeRef        SelectedNoticeRef
+	MultiStepWorkflowEnabled bool
 }
 
 type Scope struct {
@@ -124,6 +125,28 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		})
 	}
 	if request.EffectiveCapability == "knowledge" {
+		if isNoticeKnowledgeFollowthrough(normalizedGoal, request, policy) {
+			noticePayload := map[string]any{
+				"notice_id": request.SelectedNoticeRef.NoticeID,
+			}
+			if request.SelectedNoticeRef.SourceFamily != "" {
+				noticePayload["source_family"] = request.SelectedNoticeRef.SourceFamily
+			}
+			return MultiStepNoticeKnowledgeFollowthroughPlan(
+				Handoff{
+					Target:       "notice-agent",
+					PayloadKind:  "campus_notice_get",
+					Payload:      noticePayload,
+					AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
+				},
+				Handoff{
+					Target:       "rag-agent",
+					PayloadKind:  "rag_request",
+					Payload:      ragRequestPayload(request),
+					AllowedTools: runtimepolicy.AllowedToolsForTarget("rag-agent"),
+				},
+			)
+		}
 		return SingleHandoffPlan(Handoff{
 			Target:       "rag-agent",
 			PayloadKind:  "rag_request",
@@ -132,6 +155,18 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		})
 	}
 	return nil
+}
+
+func isNoticeKnowledgeFollowthrough(
+	normalizedGoal string,
+	request Request,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return request.MultiStepWorkflowEnabled &&
+		request.HasRequestedScope &&
+		request.SelectedNoticeRef.NoticeID != "" &&
+		containsAny(normalizedGoal, policy.Signals("notice_get_reference")) &&
+		containsAny(normalizedGoal, policy.Signals("notice_knowledge_followthrough"))
 }
 
 func isDelegatedTransactionAction(

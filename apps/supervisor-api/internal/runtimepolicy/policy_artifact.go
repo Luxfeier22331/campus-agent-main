@@ -22,6 +22,7 @@ var requiredIntentSignalGroups = []string{
 	"high_risk_transaction_action",
 	"notice_context_reference",
 	"notice_get_reference",
+	"notice_knowledge_followthrough",
 	"political_influence_action",
 	"political_message_writing",
 	"political_office",

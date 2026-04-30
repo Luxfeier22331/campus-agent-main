@@ -39,21 +39,18 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	if s.handleDirectTerminalAnswer(response, request, executionRequest, startedAt) {
 		return
 	}
-	if s.handleDirectStructuredAnswer(response, request, executionRequest, startedAt) {
+	if s.rejectMultiStepWorkflowUnavailable(response, executionRequest) {
 		return
 	}
-
+	if executionRequest.WorkflowMode != execution.WorkflowModeMultiStep &&
+		s.handleDirectStructuredAnswer(response, request, executionRequest, startedAt) {
+		return
+	}
 	if s.rejectBridgeNotConfigured(response, request.Context(), executionRequest, startedAt) {
 		return
 	}
 
-	runResult := s.runBridgeExecution(
-		request.Context(),
-		executionRequest,
-		startedAt,
-		executionModeAnswer,
-		nil,
-	)
+	runResult := s.runWorkflowExecution(request.Context(), executionRequest, startedAt, executionModeAnswer, nil)
 	if runResult.Terminal != nil {
 		setOutcome(response, runResult.Terminal.Outcome)
 		if runResult.Terminal.Code == "client_canceled" {
@@ -67,6 +64,7 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		runResult.BridgeResponse,
 		executionRequest,
 		runResult.BridgeRunState,
+		runResult.WorkflowRun,
 	)
 	s.recordBridgeWriteOutcome(
 		runResult.RequestContext,
@@ -114,15 +112,18 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 	if s.handleDirectTerminalAnswerStream(response, request, executionRequest, startedAt) {
 		return
 	}
-	if s.handleDirectStructuredAnswerStream(response, request, executionRequest, startedAt) {
+	if s.rejectMultiStepWorkflowUnavailableStream(response, executionRequest) {
 		return
 	}
-
+	if executionRequest.WorkflowMode != execution.WorkflowModeMultiStep &&
+		s.handleDirectStructuredAnswerStream(response, request, executionRequest, startedAt) {
+		return
+	}
 	if s.rejectBridgeNotConfiguredStream(response, request.Context(), executionRequest, startedAt) {
 		return
 	}
 
-	runResult := s.runBridgeExecution(
+	runResult := s.runWorkflowExecution(
 		request.Context(),
 		executionRequest,
 		startedAt,
@@ -155,6 +156,7 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 		runResult.BridgeResponse,
 		executionRequest,
 		runResult.BridgeRunState,
+		runResult.WorkflowRun,
 	)
 	payload.RequestID = executionRequest.RequestID
 	if payload.TraceID == "" {

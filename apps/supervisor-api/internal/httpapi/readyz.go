@@ -67,15 +67,18 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	)
 	defer structuredQueryCancel()
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
+	workflowRunStatus := s.workflowRunStoreStatus(request.Context())
 	promptGate := evaluatePromptConfigGate(s.config)
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
 	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
+	workflowRuntimeHealthy := !s.config.MultiStepWorkflowEnabled || workflowRunStatus["healthy"] == true
 	ready := bridgeHealthy &&
 		transportStatus.Healthy &&
 		telemetryHealthy &&
 		executionAuditHealthy &&
 		structuredRuntimeHealthy &&
+		workflowRuntimeHealthy &&
 		promptGate.Admitted
 	statusCode := http.StatusOK
 	statusText := "ready"
@@ -92,6 +95,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"telemetry_runtime":        telemetryStatus,
 		"execution_audit_runtime":  executionAuditStatus,
 		"structured_query_runtime": structuredQueryStatus,
+		"workflow_run_runtime":     workflowRunStatus,
 		"capability_gates":         s.capabilityGateStatus(),
 		"prompt_config_gate":       promptGate,
 		"bridge_runtime": map[string]any{
@@ -165,6 +169,39 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		AgentModel:              agentModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
 	}
+}
+
+func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {
+	configured := s.workflowRuns != nil
+	status := map[string]any{
+		"configured": configured,
+		"enabled":    s.config.MultiStepWorkflowEnabled,
+		"healthy":    !s.config.MultiStepWorkflowEnabled,
+		"last_error": "",
+	}
+	if s.workflowRunsErr != nil {
+		status["last_error"] = "workflow run store could not be initialized"
+		return status
+	}
+	if !configured {
+		if s.config.MultiStepWorkflowEnabled {
+			status["last_error"] = "workflow run store is required when multi-step workflow is enabled"
+		}
+		return status
+	}
+	checker, ok := s.workflowRuns.(interface{ HealthCheck(context.Context) error })
+	if !ok {
+		status["healthy"] = true
+		return status
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+	defer cancel()
+	if err := checker.HealthCheck(checkCtx); err != nil {
+		status["last_error"] = "workflow run store health check failed"
+		return status
+	}
+	status["healthy"] = true
+	return status
 }
 
 func (s *Server) structuredRuntimeGateApplies(capability string) bool {
