@@ -79,6 +79,13 @@ OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH = (
     / "fixtures"
     / "official_web_stable_reference_retrieval_qrels.json"
 )
+INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "institutional_rules_retrieval_qrels.json"
+)
 OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
     / "packages"
@@ -101,6 +108,14 @@ OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH = (
     / "official_web"
     / "stable_reference"
     / "split-manifest.v1.json"
+)
+INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "configs"
+    / "ingestion"
+    / "regulations"
+    / "institutional_rules"
+    / "retrieval-eval-manifest.v1.json"
 )
 OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
@@ -166,6 +181,8 @@ __all__ = (
     "FIXTURE_PATH",
     "HANDBOOK_MANIFEST_PATH",
     "HYBRID_FIXTURE_PATH",
+    "INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH",
+    "INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH",
     "OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH",
     "OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH",
     "OFFICIAL_WEB_MANIFEST_PATH",

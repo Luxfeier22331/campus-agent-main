@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -16,13 +16,19 @@ updated: 2026-04-30
 
 ## Phase Status
 
-- [ ] **Phase 1: Failure Taxonomy And Sample Corpus** — 收集 schedule、service-status、regulation、WeChat/PDF、多媒体补充图样本，形成可复跑 fixture。
-- [ ] **Phase 2: State Machine Contract** — 冻结 source/media/fact/target 四层状态、transition、reason code、idempotency key 和 dry-run report schema。
-- [ ] **Phase 3: Media Role Classifier** — 实现媒体角色分类，让图片/附件区分 fact carrier、supplemental visual、QR/reservation instruction、unknown。
-- [ ] **Phase 4: Fact Completeness Gate** — 实现 text-first fact readiness，只有 required fact 缺失且 media 是 carrier 时才要求 OCR/multimodal。
-- [ ] **Phase 5: Target Replay Refactor** — 让 transport_schedule、service_status、regulation replay 消费 fact readiness，而不是直接消费 unit-level multimodal status。
-- [ ] **Phase 6: Evidence Replay And Acceptance** — 重放固定 corpus，证明 `355881` stage ready、`355867` OCR-primary、service-status/regulation 边界稳定。
-- [ ] **Phase 7: Guardrails And Closeout** — 增加防回流测试、rg/decomposition guard、docs/state closeout evidence。
+- [x] **Phase 1: Failure Taxonomy And Sample Corpus** — 收集 schedule、service-status、regulation、WeChat/PDF、多媒体补充图样本，形成可复跑 fixture。
+- [x] **Phase 2: State Machine Contract** — 冻结 source/media/fact/target 四层状态、transition、reason code、idempotency key 和 dry-run report schema。
+- [x] **Phase 3: Media Role Classifier** — 实现媒体角色分类，让图片/附件区分 fact carrier、supplemental visual、QR/reservation instruction、unknown。
+- [x] **Phase 4: Fact Completeness Gate** — 实现 text-first fact readiness，只有 required fact 缺失且 media 是 carrier 时才要求 OCR/multimodal。
+- [x] **Phase 5: Target Replay Refactor** — 让 transport_schedule、service_status、regulation replay 消费 fact readiness，而不是直接消费 unit-level multimodal status。
+- [x] **Phase 6: Evidence Replay And Acceptance** — 重放固定 corpus，证明 `355881` stage ready、`355867` OCR-primary、service-status/regulation 边界稳定。
+- [x] **Phase 7: Guardrails And Closeout** — 增加防回流测试、rg/decomposition guard、docs/state closeout evidence。
+- [x] **Phase 8: Source Retention Preview Audit And Integration** — 把 notice-first retention
+  state machine 从人工验证推进到 source-truth / preview 输出，修正 legacy `process/no target`
+  附件 bytes 误保留风险。
+- [x] **Phase 9: Live Collector Fetch Admission** — 把 source retention 结果接入 live
+  collector：默认 reference-only，只有显式 fetch request manifest admission 才下载附件 bytes，
+  并让 run ledger required object verification 与 required/admitted owner bytes 对齐。
 
 ## Phase 1: Failure Taxonomy And Sample Corpus
 
@@ -170,4 +176,78 @@ uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 uv run --all-packages python -m unittest discover -s tests -t .
 git diff --check
+```
+
+## Phase 8: Source Retention Preview Audit And Integration
+
+**Goal:** 把 source retention 状态机落到 source-truth 与 collected notice reimport
+preview，让附件 bytes 是否保留由 `notice_capture_route` 和 per-attachment policy 决定，而不是
+沿用旧 `attachment_processing_policy=process`。
+
+**Deliverables:**
+
+- `authenticated_notice_source_retention_decision.py`
+- source-truth `notice-manifest.json` retention summary fields
+- source-truth `attachment-refs.jsonl` per-attachment capture / retention fields
+- collected notice reimport preview `source_retention` summary
+- metadata-only attachment source object ref filtering
+- Batch 3 preview audit evidence for 83 legacy `process/no target` units
+
+**Verification:**
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_authenticated_notice_source_retention_decision \
+  tests.ingestion.test_authenticated_notice_retention_preview_audit \
+  tests.ingestion.test_authenticated_notice_routing_sampling \
+  tests.ingestion.test_authenticated_notice_routing_taxonomy_eval \
+  tests.ingestion.test_evaluate_authenticated_notice_routing_taxonomy_worker \
+  tests.ingestion.test_collected_notice_reimport_preview \
+  tests.ingestion.test_preview_collected_notice_reimport_worker \
+  tests.ingestion.authenticated_notice_import_bundle_suite \
+  tests.ingestion.authenticated_notice_import_inventory_suite
+uv run --all-packages ruff check \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_retention_decision.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_truth_artifacts.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py \
+  packages/ingestion-core/src/campus_ingestion_core/collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_source_retention_decision.py \
+  tests/ingestion/test_collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_retention_preview_audit.py \
+  tests/ingestion/test_authenticated_notice_routing_sampling.py \
+  tests/ingestion/test_authenticated_notice_routing_taxonomy_eval.py
+uv run --all-packages ruff format \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_retention_decision.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_truth_artifacts.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py \
+  packages/ingestion-core/src/campus_ingestion_core/collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_source_retention_decision.py \
+  tests/ingestion/test_collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_retention_preview_audit.py \
+  tests/ingestion/test_authenticated_notice_routing_sampling.py \
+  tests/ingestion/test_authenticated_notice_routing_taxonomy_eval.py --check
+```
+
+## Phase 9: Live Collector Fetch Admission
+
+**Goal:** 把 Phase 8 source retention 决策从 source-truth / preview 推进到 collector live
+行为，避免 collector 因配置了 object store 就自动下载所有内部附件或 allowlisted external inline
+image。
+
+**Deliverables:**
+
+- collector `attachmentFetchAdmissions` contract。
+- `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH` env entrypoint。
+- ingestion-core `authenticated_notice_attachment_fetch_request_manifest_v1` builder。
+- collector manifest parser from fetch request rows to admissions。
+- run ledger required source object verification aligned to explicit required/admitted owner bytes。
+
+**Verification:**
+
+```bash
+pnpm --dir apps/authenticated-notice-collector test -- bootstrap-export.test.ts config.test.ts portal.test.ts
+pnpm --dir apps/authenticated-notice-collector typecheck
+uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_attachment_fetch_request_manifest -q
+uv run --all-packages ruff check packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_attachment_fetch_request_manifest.py tests/ingestion/test_authenticated_notice_attachment_fetch_request_manifest.py
+uv run --all-packages ruff format packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_attachment_fetch_request_manifest.py tests/ingestion/test_authenticated_notice_attachment_fetch_request_manifest.py --check
 ```

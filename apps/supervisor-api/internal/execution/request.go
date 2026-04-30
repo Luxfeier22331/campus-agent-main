@@ -31,6 +31,9 @@ type AnswerExecutionRequest struct {
 	Lane                string
 	RuntimeDecisions    RuntimeDecisionSummary
 	StructuredHandoff   *RuntimeHandoff
+	WorkflowMode        WorkflowMode
+	WorkflowPlanID      string
+	PlannedHandoffs     []RuntimeHandoff
 	TerminalEnvelope    map[string]any
 	NoticeAccessContext map[string]any
 }
@@ -41,12 +44,15 @@ type RuntimeDecisionSummary struct {
 	ContextPreflightState  string
 	RoutingNextAction      string
 	PlanningOutcome        string
+	WorkflowMode           WorkflowMode
+	WorkflowPlanID         string
 	SelectedTarget         string
 	SelectedTool           string
 	TerminalOutcome        string
 	FailCloseReason        string
 	RuntimeVersions        map[string]any
 	PolicyArtifactVersions map[string]any
+	PlannedHandoffs        []RuntimeHandoff
 }
 
 func (s RuntimeDecisionSummary) Map() map[string]any {
@@ -78,10 +84,11 @@ func cloneAnyMap(source map[string]any) map[string]any {
 }
 
 type RuntimeHandoff struct {
-	Target       string
-	PayloadKind  string
-	Payload      map[string]any
-	AllowedTools []string
+	Target                 string
+	PayloadKind            string
+	Payload                map[string]any
+	AllowedTools           []string
+	RequiredProjectionKind string
 }
 
 type actorContext struct {
@@ -316,6 +323,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		requestedScope,
 		versionQuery,
 		context,
+		cfg.MultiStepWorkflowEnabled,
 		intentPolicy,
 		intentPolicyErr,
 	)
@@ -370,6 +378,9 @@ func ParseAnswerRequestWithIntentPolicy(
 		Lane:                laneForCapability(effectiveRequestedCapability),
 		RuntimeDecisions:    runtimeDecisionSummary,
 		StructuredHandoff:   structuredHandoff,
+		WorkflowMode:        runtimeDecisionSummary.WorkflowMode,
+		WorkflowPlanID:      runtimeDecisionSummary.WorkflowPlanID,
+		PlannedHandoffs:     runtimeDecisionSummary.PlannedHandoffs,
 		TerminalEnvelope:    terminalEnvelope,
 		NoticeAccessContext: context.noticeAccessContextMap(),
 	}, nil

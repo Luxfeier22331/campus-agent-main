@@ -139,9 +139,12 @@ class WorkflowTraceSummary:
     context_resolution: dict[str, Any] = field(default_factory=dict)
     planning_outcome: str = ""
     direct_vs_delegate_branch: str = ""
+    workflow_mode: str = ""
     handoff: dict[str, Any] = field(default_factory=dict)
+    handoff_chain: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     selected_target: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
+    context_projections: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, Any] = field(default_factory=dict)
     trace_steps: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     tool_call_summaries: tuple[dict[str, Any], ...] = field(default_factory=tuple)
@@ -155,6 +158,7 @@ class WorkflowTraceSummary:
             ("routing_frame", self.routing_frame),
             ("context_resolution", self.context_resolution),
             ("handoff", self.handoff),
+            ("context_projections", self.context_projections),
             ("tool_argument_summary", self.tool_argument_summary),
             ("trace_steps", self.trace_steps),
             ("tool_call_summaries", self.tool_call_summaries),

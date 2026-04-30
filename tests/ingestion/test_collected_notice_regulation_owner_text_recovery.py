@@ -115,7 +115,9 @@ def _candidate(
         "media_ref_id": "released-file",
         "image_index": None,
         "media_kind": media_kind,
-        "processing_family": "internal_notice_multimodal",
+        "processing_family": "released_file_text_extraction"
+        if media_kind == "pdf"
+        else "office_text_extraction",
         "priority": "high",
         "status": status,
         "policy_action": "process",
@@ -125,7 +127,11 @@ def _candidate(
         "source_object_ref": object_ref,
         "attachment_ref": None,
         "attempt_ledger": {
-            "table": "ingestion_projection.internal_notice_multimodal_attempt",
+            "table": (
+                "ingestion_projection.collected_notice_released_file_text_extraction_attempt"
+                if media_kind == "pdf"
+                else "ingestion_projection.collected_notice_office_text_extraction_attempt"
+            ),
             "identity": {
                 "source_corpus": "authenticated_documents",
                 "source_collection": "file_release_source",
@@ -137,7 +143,7 @@ def _candidate(
         "normalized_output_refs": {
             "provider_response": {
                 "bucket": "campus-rag-source",
-                "key": f"{output_prefix}/provider/notice-multimodal-v1/provider-response.jsonl",
+                "key": f"{output_prefix}/provider/media-extraction-v1/provider-response.jsonl",
                 "role": "provider_response",
             },
             "plain_text": {

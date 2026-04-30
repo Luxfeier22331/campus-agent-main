@@ -163,7 +163,9 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         )
         regulation = by_notice["354897"]
         self.assertEqual(regulation["media_kind"], "office")
-        self.assertEqual(regulation["processing_family"], "internal_notice_multimodal")
+        self.assertEqual(regulation["processing_family"], "office_text_extraction")
+        self.assertEqual(regulation["media_role"], "owner_document")
+        self.assertTrue(regulation["target_blocking"])
         self.assertEqual(regulation["priority"], "high")
 
         manifest = preview.ocr_batch_manifest
@@ -171,7 +173,86 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         self.assertFalse(manifest["provider_calls_enabled"])
         self.assertEqual(manifest["pending_attempt_count"], 2)
         self.assertEqual(manifest["counts_by_processing_family"]["schedule_image_ocr"], 1)
-        self.assertEqual(manifest["counts_by_processing_family"]["internal_notice_multimodal"], 1)
+        self.assertEqual(manifest["counts_by_processing_family"]["office_text_extraction"], 1)
+
+    def test_file_release_pdf_uses_released_file_text_extraction_not_multimodal(self) -> None:
+        unit = _unit(
+            notice_id="477",
+            title="中央民族大学本科毕业论文（设计）工作管理办法",
+            attachments=[
+                _attachment(
+                    attachment_ref_id="file_release:477",
+                    filename="中央民族大学本科毕业论文（设计）工作管理办法.pdf",
+                    mime_type="application/pdf",
+                    role="released_file",
+                )
+            ],
+            reason_codes=[
+                "released_file_text_extraction_pending",
+                "pdf_attachment_pending_text_extraction",
+            ],
+            targets=["regulation"],
+            body_text="文件编号：民大校发〔2023〕117号\n下载地址：https://my.muc.edu.cn/file.pdf",
+            source_surface="file_release",
+        )
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        inventory = preview.candidate_inventory
+        self.assertEqual(
+            inventory["schema_version"],
+            "notice_media_extraction_candidate_inventory.v1",
+        )
+        candidate = inventory["candidates"][0]
+        self.assertEqual(candidate["schema_version"], "notice_media_extraction_candidate.v1")
+        self.assertEqual(candidate["media_kind"], "pdf")
+        self.assertEqual(candidate["processing_family"], "released_file_text_extraction")
+        self.assertEqual(candidate["media_role"], "owner_document")
+        self.assertTrue(candidate["target_blocking"])
+        self.assertNotEqual(candidate["processing_family"], "internal_notice_multimodal")
+        self.assertEqual(
+            preview.ocr_batch_manifest["counts_by_processing_family"],
+            {"released_file_text_extraction": 1},
+        )
+
+    def test_metadata_only_attachment_is_not_a_multimodal_candidate(self) -> None:
+        unit = _unit(
+            notice_id="355881",
+            title="关于开通丰台校区社会实践专车的通知",
+            attachments=[
+                {
+                    **_attachment(
+                        attachment_ref_id="attachment-0001",
+                        filename="专车安排.png",
+                        mime_type="image/png",
+                        role="inline_image",
+                    ),
+                    "attachment_capture_policy": "metadata_only",
+                    "attachment_capture_state": "metadata_recorded",
+                    "byte_fetch_required": False,
+                    "retention_class": "metadata_only",
+                }
+            ],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["transport_schedule"],
+        )
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        self.assertEqual(preview.candidate_inventory["candidate_count"], 0)
+        self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
 
     def test_marks_low_value_posters_skipped_and_missing_media_as_failed_gap(self) -> None:
         low_value = _unit(
@@ -314,16 +395,11 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         self.assertEqual(merge_unit["normalized_multimodal_fragments"], [])
 
         files = preview_to_output_files(preview)
+        self.assertIn("media-extraction-candidate-inventory.json", files)
+        self.assertIn("multimodal-candidate-inventory.json", files)
         self.assertEqual(
-            set(files),
-            {
-                "multimodal-candidate-inventory.json",
-                "multimodal-state-mapping-report.json",
-                "ocr-batch-manifest.dry-run.json",
-                "ocr-attempt-plan.json",
-                "multimodal-searchable-merge-preview.json",
-                "multimodal-gap-report.json",
-            },
+            files["media-extraction-candidate-inventory.json"]["schema_version"],
+            "notice_media_extraction_candidate_inventory.v1",
         )
 
 

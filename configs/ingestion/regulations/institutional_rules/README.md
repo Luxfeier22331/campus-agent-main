@@ -22,9 +22,9 @@ This directory holds the repo-tracked config scaffold for the
 
 Current runtime truth:
 
-- serving stage: `offline_preparation`
-- retrieval enabled: `false`
-- query enabled by default: `false`
+- serving stage: `query_serving`
+- retrieval enabled: `true`
+- query enabled by default: `true`
 - serving alias: `institutional_rules`
 - collection prefix: `institutional_rules`
 
@@ -54,8 +54,12 @@ Current scaffold note:
     onal_regulation_chunk_prep.py`
   - `apps/ingestion-worker/src/campus_ingestion_worker/prepare_institutional_reg
     ulation_chunks.py`
-- the current boundary is still `offline_preparation` only
-- it still does not enable embedding, Qdrant write, release, or alias publish
+- the current boundary has moved into release-managed `query_serving`
+- query-serving publish must still pass the deterministic release acceptance gate
+  before alias mutation
+- qrels validation for this projection-derived scope uses
+  `retrieval-eval-manifest.v1.json` because this collection does not have a static
+  split manifest
 
 Current materialization truth:
 

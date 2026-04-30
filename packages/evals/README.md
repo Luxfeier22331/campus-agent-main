@@ -197,6 +197,15 @@ Evaluation helpers for campus-agent v2.
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
   dry-run artifact。`multi-agent-product-path` 暂保留为 deprecated alias；真实产品路径 E2E 使用
   `public-chat-product-path --collect-runtime` 和后续 public chat acceptance lane。
+- `multi-agent-live-smoke` 是本地 direct-process live gate，入口为：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  multi-agent-live-smoke`；它顺序启动 `supervisor-agent-worker`、`supervisor-api`
+  以及 notice profile 需要的本地最小 S3-compatible smoke endpoint，不启动 Docker /
+  Wrangler。该 gate 覆盖 closed structured gate、terminal fail-close、RAG delegate、
+  opened structured direct runtime、opened structured stream runtime、campus-services
+  direct runtime、notice discover/detail direct runtime 与 terminal approval-required
+  guardrail，并把真实 supervisor response 中的 `workflow_trace_summary` 回放到
+  blocking workflow trace replay；process smoke 或 trace replay 任一失败都会使 gate 失败。
 - `multi-agent-runtime-contract` 额外固定 cross-language supervisor execution fixture
   matrix：`tests/fixtures/supervisor_execution_contract/` 的 valid / invalid 样本必须同时被
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
@@ -206,10 +215,18 @@ Evaluation helpers for campus-agent v2.
   direct/delegate/clarification/fail-close branch 与 fail-close reason 是否和产品路径 observation
   一致；panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
   provider / prompt key 做非暴露断言。
-- `multi-agent-runtime-contract` denominator 当前覆盖 10 条 workflow trace case、28 条
+- `multi-agent-runtime-contract` denominator 当前覆盖 12 条 workflow trace case、28 条
   tool-family case 与 10 条 public-chat product-path case。知识类 student_rules /
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
   可直接调用的 flat tool。
+- `workflow_trace_summary.workflow_mode` 现在是 canonical enum：
+  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。当前 live runtime 已验证前三种，
+  并新增受 gate 保护的首条 `multi_step` profile：selected notice context + knowledge
+  follow-through，执行 `notice-agent campus_notice_get -> rag-agent retrieval.query`。
+  workflow trace gate 会拒绝把单个 handoff projection 伪装成 `multi_step`；completed
+  `multi_step` 至少需要两段 handoff chain，并且需要 cross-step context 的路径必须提供
+  `workflow_trace_summary.context_projections` sanitized summary。resume 与 semantic
+  retry/replan 仍需独立 eval denominator。
 - eval profile registry 固定在 `campus_evals.profile_registry`。`scripts.eval_gate audit`
   会校验 registry runner、GitHub Actions dispatch choices、operations policy、denominator
   registry、tool-family fixture coverage 与 profile fixture smoke；新增 profile 时必须同步这些
@@ -227,6 +244,9 @@ shape，而是把更多真实产品路径和 domain-specific case 扩编进这�
 - `workflow_trace`
   - 已有 shared gate；当前覆盖 direct structured、campus-services handoff、notice handoff、
     knowledge delegate、ambiguous follow-up、fail-close 与 no-result 产品路径
+  - `workflow_mode` 只接受 `terminal`、`direct_runtime`、`single_handoff`、`multi_step`；
+    `multi_step` trace 必须至少有两段 handoff chain，避免把当前单 handoff projection
+    冒充成多步 workflow
 - `direct_vs_delegate`
   - 验证 Go structured runtime / non-delegate terminal / Python delegate 三类分支是否命中
     expected truth
@@ -321,6 +341,31 @@ retrieval benchmark CLI：
   "retrieved_sources": [{"doc_id": "...", "version_id": "...", "chunk_id":
   "...", "score": 0.9}]}]}`
 - 默认输出 text summary；加 `--format json` 输出 aggregate 指标与 `by_split` 汇总
+- 默认 query-enabled retrieval scopes 的 qrels denominator 由
+  `campus_evals.benchmark.default_query_enabled_retrieval_qrels_paths()` 固定：
+  `regulations/student_rules`、`regulations/institutional_rules`、
+  `curriculum/curriculum_plan` 与 `official_web/stable_reference`
+- 对没有静态 `split-manifest.v1.json` 的 projection-derived scope，qrels validation
+  可使用同目录 `retrieval-eval-manifest.v1.json` 作为 deterministic eval manifest；
+  该 manifest 只服务 qrels anchoring，不替代 registry / release manifest truth
+
+retrieval tuning CLI：
+
+- `uv run --all-packages python -m campus_evals.retrieval_tuning --qrels
+  packages/evals/fixtures/student_handbook_retrieval_qrels.json --candidate
+  <candidate-run.json> --candidate <candidate-run.json> --runtime-profile
+  configs/ingestion/regulations/student_rules/runtime-profile.json --output
+  <tuning-report.json>`
+- `candidate-run.json` 输入形状为
+  `{"schema_version": "retrieval-tuning-candidate-run-v1", "candidate_id": "...",
+  "profile": {"dense_prefetch_limit": 20, "sparse_prefetch_limit": 20,
+  "rrf_k": 60, "rrf_dense_weight": 1.0, "rrf_sparse_weight": 1.0,
+  "no_hit_min_top_score": 0.6, "no_hit_min_score_gap": 0.1}, "cases": [...]}`;
+  `cases` 与 retrieval benchmark `run-results.json` 一致
+- tuning report 会对 positive hit@3 / doc recall@5、no-hit、forbidden hit、version-locked
+  recall 做 deterministic gate，并只在候选通过 gate 时输出 `recommended_profile_patch`
+- tuning runner 只生成 evidence-backed recommendation，不会自动修改 production
+  `runtime-profile.json`，也不会扩大 query-enabled scope
 
 supplemental adapter seam：
 

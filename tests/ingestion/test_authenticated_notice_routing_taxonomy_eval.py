@@ -115,6 +115,37 @@ class AuthenticatedNoticeRoutingTaxonomyEvalTest(unittest.TestCase):
             2,
         )
 
+    def test_notice_level_query_defaults_attachment_expectation_to_metadata_only(
+        self,
+    ) -> None:
+        report = evaluate_authenticated_notice_routing_taxonomy_jsonl(
+            json.dumps(
+                {
+                    "case_id": "exam-arrangement-attachment",
+                    "notice_id": "355702",
+                    "title": "关于做好2025-2026学年第二学期期末考试工作的通知",
+                    "body": "正文已经覆盖期末考试时间、工作安排和命题要求。",
+                    "notice_type_name": "教学通知",
+                    "attachment_ref_count": 3,
+                    "expected_notice_family": "academic_course_exam_operation",
+                    "expected_consumption_route": "notice_level_query",
+                    "expected_machine_processing_policy": "not_required",
+                },
+                ensure_ascii=False,
+            ),
+            config=self.config,
+        )
+
+        self.assertTrue(report.ok)
+        self.assertEqual(
+            report.expected_attachment_processing_policy_counts["metadata_only"],
+            1,
+        )
+        self.assertEqual(
+            report.predicted_attachment_processing_policy_counts["metadata_only"],
+            1,
+        )
+
     def test_reports_mismatch_details(self) -> None:
         report = evaluate_authenticated_notice_routing_taxonomy_jsonl(
             json.dumps(

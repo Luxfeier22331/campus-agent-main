@@ -124,6 +124,35 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
                 ),
             ),
         )
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        self.assertEqual(response.agent_observability.selected_tool, "retrieval.query")
+        self.assertEqual(response.agent_observability.tool_attempted, True)
+        self.assertEqual(response.agent_observability.tool_outcome, "grounded_answer")
+        self.assertEqual(response.agent_observability.source_ref_count, 2)
+        safe_details = response.agent_observability.safe_details
+        self.assertEqual(
+            safe_details["agent_execution_projection"],
+            {
+                "schema_version": "agent-execution-projection-v1",
+                "projection_owner": "rag-agent",
+                "selected_tool": "retrieval.query",
+                "payload_kind": "rag_request",
+                "tool_selection_reason": "retrieval_plan_executed",
+            },
+        )
+        agent_plan = safe_details["agent_plan"]
+        self.assertEqual(agent_plan["schema_version"], "agent-local-plan-v1")
+        self.assertEqual(agent_plan["planner"], "rag_retrieval_planner")
+        self.assertEqual(agent_plan["selected_tool"], "retrieval.query")
+        self.assertEqual(agent_plan["query_mode"], "current")
+        self.assertEqual(agent_plan["terminal_state"], "completed")
+        result_guardrail = safe_details["result_guardrail"]
+        self.assertEqual(result_guardrail["schema_version"], "agent-result-guardrail-v1")
+        self.assertEqual(result_guardrail["outcome"], "source_backed")
+        self.assertEqual(result_guardrail["retrieval_adequacy_verdict"], "sufficient")
+        self.assertEqual(result_guardrail["grounding_verdict"], "grounded")
+        self.assertEqual(result_guardrail["source_ref_count"], 2)
 
     def test_delegate_passes_context_authorization_filter_to_retriever(self) -> None:
         captured_kwargs: dict[str, object] = {}

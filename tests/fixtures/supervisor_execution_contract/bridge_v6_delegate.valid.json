@@ -93,6 +93,31 @@
 				"intent_policy": "intent-policy.v1"
 			}
 		},
+		"workflow_plan": {
+			"schema_version": "workflow-plan-v1",
+			"plan_id": "plan:single_handoff:rag-agent:rag_request",
+			"workflow_mode": "single_handoff",
+			"steps": [
+				{
+					"step_id": "handoff:rag-agent:rag_request",
+					"step_kind": "handoff",
+					"target": "rag-agent",
+					"payload_kind": "rag_request",
+					"allowed_tools": [],
+					"selected_tool": "retrieval.query"
+				}
+			],
+			"edges": [],
+			"terminal_policy": {
+				"fail_close_on_invalid_plan": true
+			},
+			"resume_policy": {
+				"resume_supported": false
+			},
+			"semantic_retry_policy": {
+				"max_replans": 0
+			}
+		},
 		"handoff": {
 			"planning_outcome": "preplanned",
 			"target": "rag-agent",

@@ -6,9 +6,19 @@ from dataclasses import replace
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRef, SourceObservation
 
 DEFAULT_SOURCE_PREFERENCE = {
-    "current-effective": ("official_web", "manual_curated", "pdf_ocr"),
-    "source-faithful": ("pdf_ocr", "manual_curated", "official_web"),
-    "editorial": ("manual_curated", "official_web", "pdf_ocr"),
+    "current-effective": (
+        "official_web",
+        "authenticated_notice_portal",
+        "manual_curated",
+        "pdf_ocr",
+    ),
+    "source-faithful": (
+        "pdf_ocr",
+        "authenticated_notice_portal",
+        "manual_curated",
+        "official_web",
+    ),
+    "editorial": ("manual_curated", "official_web", "authenticated_notice_portal", "pdf_ocr"),
 }
 OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS = frozenset({"official_web"})
 

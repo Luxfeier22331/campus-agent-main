@@ -75,6 +75,12 @@ class CollectedNoticeScheduleImageOcrMiniBatchTests(unittest.TestCase):
         self.assertEqual(row["departure_time"], "08:00")
         self.assertEqual(row["service_date_ranges"], [["2026-04-28", "2026-05-05"]])
         self.assertEqual(preview["transport_consistency_report"]["verdict"], "passed")
+        closeout = preview["media_extraction_closeout_result_manifest"]
+        self.assertEqual(
+            closeout["schema_version"], "notice_media_extraction_closeout_result_manifest.v1"
+        )
+        self.assertEqual(closeout["results"][0]["candidate_id"], "notice-mm:a")
+        self.assertEqual(closeout["results"][0]["status"], "completed")
 
 
 def _consumer_manifest() -> dict[str, object]:

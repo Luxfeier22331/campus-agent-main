@@ -8,7 +8,6 @@ import {
 	Divider,
 	Drawer,
 	MenuItem,
-	Link as MuiLink,
 	Stack,
 	Table,
 	TableBody,
@@ -50,6 +49,7 @@ import {
 	formatAuditEventType,
 	formatAuditStatus,
 } from "./audit-domain";
+import { SafeExternalLink } from "./safe-external-link";
 
 interface AuditFilterState {
 	eventType: string;
@@ -146,19 +146,6 @@ function SectionCard(props: { children: ReactNode; description?: string; title: 
 				</Stack>
 			</CardContent>
 		</Card>
-	);
-}
-
-function SafeExternalLink(props: { unsafeHref: string | null; label: string }) {
-	const safeHref = normalizeSafeExternalHref(props.unsafeHref);
-	if (!safeHref) {
-		return null;
-	}
-
-	return (
-		<MuiLink href={safeHref} rel="noopener noreferrer" target="_blank">
-			{props.label}
-		</MuiLink>
 	);
 }
 

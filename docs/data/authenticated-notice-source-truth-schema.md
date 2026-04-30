@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-03
-updated: 2026-04-15
+updated: 2026-04-30
 ---
 # Authenticated Notice Source-Truth Schema
 
@@ -230,6 +230,22 @@ authenticated notice 采集必须把“增量游标”和“内容版本”分�
 - `link_count`
 - `attachment_ref_count`
 
+### E. Source Retention Routing Summary
+
+- `notice_capture_route`
+- `attachment_capture_policy_counts`
+- `attachment_capture_state_counts`
+- `retention_class_counts`
+- `required_source_object_count`
+- `metadata_only_attachment_ref_count`
+- `quarantine_attachment_ref_count`
+- `admitted_source_byte_ref_count`
+
+`notice_capture_route` 属于 notice 级 source retention decision，不属于下游 consumer
+admission。它只决定本条 notice 在 source capture / import 阶段是否需要 attachment bytes；
+真正进入 notice read model、campus services、regulations 或 unsupported 仍由 downstream
+consumer admission manifest 决定。
+
 ## Block Rows Canonical 字段
 
 `content-blocks.jsonl` 中每一行至少固定以下字段组。
@@ -308,10 +324,107 @@ authenticated notice 采集必须把“增量游标”和“内容版本”分�
 - `mime_type`
 - `byte_size`
 
+### D. Capture Policy And State
+
+- `notice_capture_route`
+- `attachment_capture_policy`
+- `attachment_capture_state`
+- `byte_fetch_required`
+- `byte_fetch_required_reason`
+- `required_source_object`
+- `source_object_role`
+
+### E. Retention And Promotion
+
+- `retention_class`
+- `retention_expires_at`
+- `promotion_owner`
+- `attachment_promotion_state`
+- `promotion_decision_id`
+- `promotion_reason_codes`
+
+### F. Terminal Outcome
+
+- `skip_reason`
+- `terminal_reason`
+- `last_error_class`
+
 `resource_role` 第一版允许：
 
 - `attachment`
 - `inline_image`
+
+`notice_capture_route` 和 `attachment_capture_policy` 的顺序固定为 notice-first：
+
+- 先由 notice 标题、正文、portal 分类、notice-family / route policy 与正文质量决定
+  `notice_capture_route`
+- 再由 notice route、attachment ref 的 source relation、content kind、大小、MIME/type
+  allowlist 与 target-required fact gap 决定 `attachment_capture_policy`
+- 不允许只因附件是 `pdf`、`docx`、`xlsx`、`zip`、`png` 或其他类型，就绕过 notice route
+  直接下载或长期保留 bytes
+
+`attachment_capture_policy` 第一版允许：
+
+- `metadata_only`
+- `fetch_to_quarantine`
+- `fetch_required_for_source_truth`
+- `fetch_required_for_admitted_owner`
+- `skip_unsupported`
+- `skip_too_large`
+- `terminal_unavailable`
+
+`attachment_capture_state` 第一版允许：
+
+- `not_attempted`
+- `metadata_recorded`
+- `fetching`
+- `uploaded_quarantine`
+- `uploaded_required`
+- `reference_only`
+- `terminal_missing`
+- `transient_failed`
+
+`retention_class` 第一版允许：
+
+- `metadata_only`
+- `quarantine_candidate`
+- `admitted_source_bytes`
+- `transient_run_artifact`
+- `debug_transient`
+
+`attachment_promotion_state` 第一版允许：
+
+- `not_applicable`
+- `candidate`
+- `promoted`
+- `rejected`
+- `expired`
+- `deleted`
+
+字段语义固定如下：
+
+- `metadata_only` attachment ref 必须保留 source relation、filename / anchor_text、
+  source URL、origin scope、MIME/type 和 byte size 等可观测 metadata；`object_key`、
+  `content_sha256` 与 `byte_size` 可以为空或只保留已知值，`required_source_object=false`。
+- `fetch_to_quarantine` 允许写入 `object_key`、`content_sha256` 与 `byte_size`，但必须同时写入
+  `retention_class=quarantine_candidate` 和 `retention_expires_at`；未 promotion 前不得被视为
+  下游 owner source bytes。该 policy 表示 bytes 需要进入 quarantine processing，不等同于
+  collector 必须重新 fetch；如果 collector 已经捕获并上传该 ref，状态必须写为
+  `uploaded_quarantine`，`byte_fetch_required=false`。
+- quarantine cleanup 不得只按 `retention_expires_at` 删除 object-backed bytes；如果
+  media extraction candidate inventory 中存在 `target_blocking=true` 且引用同一
+  `source_object_ref` 的未终态 candidate，则必须阻塞删除。仅当所有阻塞 candidate 已进入
+  `completed`、`skipped` 或 `failed_terminal` 后，过期 quarantine bytes 才能按 lifecycle
+  cleanup。
+- `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 必须具备
+  `object_key`、`content_sha256`、`byte_size` 与 `required_source_object=true`，否则 source
+  import / downstream materialization 必须 fail closed。
+- `skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 是 typed terminal
+  outcome；必须记录 `skip_reason` 或 `terminal_reason`，不能靠无限重试或 silent
+  missing 表达。
+- `attachment_promotion_state=promoted` 必须携带 `promotion_owner` 与
+  `promotion_decision_id`，用于证明 bytes 是由哪个 target materializer 或 admission
+  decision 接收，而不是 collector 默认永久保留。
 
 ## Collection Extension Fields
 

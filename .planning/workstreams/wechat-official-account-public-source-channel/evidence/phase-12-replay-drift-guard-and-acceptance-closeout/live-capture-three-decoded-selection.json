@@ -1,0 +1,24 @@
+{
+  "schema_version": "wechat_public_notice_phase12_selection.v1",
+  "source": ".planning/workstreams/wechat-official-account-public-source-channel/evidence/phase-12-replay-drift-guard-and-acceptance-closeout/live-capture-three-decoded-20260430070701.json",
+  "source_truth_articles": [
+    {
+      "bucket": "campus-rag-source",
+      "article_manifest_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_8082640742fbdd6f34b0f2ea/source-truth/article-manifest.json",
+      "content_blocks_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_8082640742fbdd6f34b0f2ea/source-truth/content-blocks.jsonl",
+      "media_refs_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_8082640742fbdd6f34b0f2ea/source-truth/media-refs.jsonl"
+    },
+    {
+      "bucket": "campus-rag-source",
+      "article_manifest_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_3795bcf62cfab6cb6c2f3e30/source-truth/article-manifest.json",
+      "content_blocks_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_3795bcf62cfab6cb6c2f3e30/source-truth/content-blocks.jsonl",
+      "media_refs_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_3795bcf62cfab6cb6c2f3e30/source-truth/media-refs.jsonl"
+    },
+    {
+      "bucket": "campus-rag-source",
+      "article_manifest_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_28890161a547f7aaa4b4ec96/source-truth/article-manifest.json",
+      "content_blocks_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_28890161a547f7aaa4b4ec96/source-truth/content-blocks.jsonl",
+      "media_refs_key": "wechat_official_account/中央民族大学学生会/2026/woa_ver_28890161a547f7aaa4b4ec96/source-truth/media-refs.jsonl"
+    }
+  ]
+}

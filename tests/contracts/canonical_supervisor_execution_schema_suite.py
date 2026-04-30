@@ -62,6 +62,73 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             openapi["x-campus-contract"]["runtime_decision_summary_schema_version"],
             "runtime-decision-summary-v1",
         )
+        self.assertEqual(
+            openapi["x-campus-contract"]["workflow_trace_summary_version"],
+            "workflow-trace-summary-v3",
+        )
+
+    def test_workflow_trace_summary_declares_workflow_mode_and_handoff_chain(self) -> None:
+        schema = _schema("WorkflowTraceSummary")
+
+        self.assertIn("workflow_mode", schema["required"])
+        self.assertIn("handoff_chain", schema["required"])
+        self.assertIn("context_projections", schema["required"])
+        self.assertEqual(
+            schema["properties"]["workflow_mode"],
+            {"$ref": "#/components/schemas/WorkflowMode"},
+        )
+        self.assertEqual(schema["properties"]["handoff_chain"]["type"], "array")
+        self.assertEqual(
+            schema["properties"]["context_projections"]["items"],
+            {"$ref": "#/components/schemas/WorkflowContextProjection"},
+        )
+
+    def test_step_output_projection_schema_is_canonical(self) -> None:
+        projection = _schema("StepOutputProjection")
+        context_projection = _schema("WorkflowContextProjection")
+
+        self.assertEqual(_schema("StepOutputProjectionKind")["enum"], ["notice_context"])
+        self.assertIn("projection_id", projection["required"])
+        self.assertIn("projection_kind", projection["required"])
+        self.assertIn("content_hash", projection["required"])
+        self.assertIn("safety", projection["required"])
+        self.assertEqual(
+            projection["properties"]["projection_kind"],
+            {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
+        self.assertEqual(
+            context_projection["properties"]["projection_kind"],
+            {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
+
+    def test_workflow_mode_is_canonical_cross_language_enum(self) -> None:
+        workflow_modes = tuple(_schema("WorkflowMode")["enum"])
+
+        self.assertEqual(
+            workflow_modes,
+            ("terminal", "direct_runtime", "single_handoff", "multi_step"),
+        )
+
+    def test_runtime_decisions_declares_canonical_workflow_plan_projection(self) -> None:
+        runtime_decisions = _schema("RuntimeDecisions")
+        workflow_plan = _schema("WorkflowPlan")
+
+        self.assertEqual(
+            runtime_decisions["properties"]["workflow_plan"],
+            {"$ref": "#/components/schemas/WorkflowPlan"},
+        )
+        self.assertEqual(workflow_plan["properties"]["schema_version"]["const"], "workflow-plan-v1")
+        self.assertEqual(
+            workflow_plan["properties"]["workflow_mode"],
+            {"$ref": "#/components/schemas/WorkflowMode"},
+        )
+        self.assertIn("steps", workflow_plan["required"])
+        self.assertIn("semantic_retry_policy", workflow_plan["required"])
+        edge = _schema("WorkflowPlanEdge")
+        self.assertEqual(
+            edge["properties"]["required_projection_kind"],
+            {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
 
     def test_contract_versioning_policy_is_declared_in_canonical_schema(self) -> None:
         openapi = _load_openapi()
@@ -118,6 +185,36 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             with self.subTest(path=str(path)):
                 self.assertTrue(path.exists())
                 self.assertIn(marker, path.read_text(encoding="utf-8"))
+
+    def test_workflow_trace_summary_is_generated_as_typed_wire_in_all_languages(self) -> None:
+        ts_contract = GENERATED_TS_PATH.read_text(encoding="utf-8")
+        go_contract = GENERATED_GO_PATH.read_text(encoding="utf-8")
+        py_contract = GENERATED_PY_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("interface SupervisorExecutionWorkflowTraceSummaryWire", ts_contract)
+        self.assertIn("export type WorkflowMode = (typeof WORKFLOW_MODES)[number];", ts_contract)
+        self.assertIn("workflow_mode: WorkflowMode;", ts_contract)
+        self.assertIn(
+            "workflow_trace_summary?: SupervisorExecutionWorkflowTraceSummaryWire | null",
+            ts_contract,
+        )
+        self.assertIn("type WorkflowMode string", go_contract)
+        self.assertRegex(
+            go_contract,
+            r"WorkflowMode\s+WorkflowMode\s+`json:\"workflow_mode\"`",
+        )
+        self.assertIn("type WorkflowTraceSummaryWire struct", go_contract)
+        self.assertIn(
+            'WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`',
+            go_contract,
+        )
+        self.assertIn("WorkflowMode = Literal[", py_contract)
+        self.assertIn("workflow_mode: WorkflowMode", py_contract)
+        self.assertIn("class WorkflowTraceSummaryWire(BaseModel):", py_contract)
+        self.assertIn(
+            "workflow_trace_summary: WorkflowTraceSummaryWire | None = None",
+            py_contract,
+        )
 
     def test_cross_language_generated_artifacts_are_in_sync(self) -> None:
         completed = subprocess.run(

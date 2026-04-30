@@ -1,0 +1,9 @@
+{
+  "schema_version": "notice_ingest_fact_state_acceptance_summary.v1",
+  "verdict": "passed",
+  "transport_355881_rows": 7,
+  "transport_355867_state": "blocked_by_required_media",
+  "service_355650_state": "ready_from_text",
+  "regulation_boundary": "owner_text_or_verified_document_extraction_required",
+  "dry_run_write_enabled": false
+}

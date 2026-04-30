@@ -221,10 +221,6 @@ class ProviderResultReplayRebuildFailureTest(unittest.TestCase):
                     "campus_ingestion_core.local_rebuild_indexing.index_chunks_to_qdrant",
                     return_value=(),
                 ),
-                patch(
-                    "campus_ingestion_core.local_rebuild_indexing.publish_release_alias",
-                    return_value=None,
-                ),
             ):
                 report = replay_provider_response_rebuild(
                     env={

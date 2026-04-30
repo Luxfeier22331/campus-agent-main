@@ -47,13 +47,16 @@ truth。
 当前默认公开 query-enabled surface 仍限于：
 
 - `regulations/student_rules`
+- `regulations/institutional_rules`
 - `curriculum/curriculum_plan`
+- `official_web/stable_reference`
 
 当前还存在若干 internal retrieval surface，但它们不因此自动成为默认公开 query-serving collection：
 
 - `curriculum/course_facts` internal agent retrieval surface
 - `curriculum/program_family_facts` internal agent retrieval surface
 - `curriculum/program_semester_facts` internal agent retrieval surface
+- `regulations/scoped_rules` notice-derived scoped-rule holding collection
 
 当前 accepted retrieval baseline 是：
 
@@ -129,6 +132,27 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 - serving alias / release manifest
 - current query-enabled scope
 - explicit authz projection
+
+## Release Safety And Tuning
+
+query-enabled collection 的 release / serving hardening 固定包含以下层次：
+
+- alias publish 前的 deterministic retrieval acceptance gate
+- release manifest / point payload 中的 dense、sparse、hybrid、chunk、cleaning 与 query
+  instruction provenance
+- runtime 查询 alias 前的 release drift guard；profile / release metadata 不一致时 fail
+  closed
+- `packages/evals` 持有的 per-collection qrels denominator 与 retrieval tuning report
+
+固定规则：
+
+- qrels / tuning runner 只生成 deterministic evidence 与 `recommended_profile_patch`
+- tuning 不自动修改 `runtime-profile.json`
+- tuning 不扩大 query-enabled scope
+- supplemental judge / RAGAS 指标只能做诊断，不作为 alias publish 或 profile patch 的唯一通过依据
+- projection-derived scope 如果没有静态 `split-manifest.v1.json`，可以使用同目录
+  `retrieval-eval-manifest.v1.json` 作为 qrels anchoring manifest；它不替代 registry、
+  release manifest 或 current pointer truth
 
 ## Filter Layers
 

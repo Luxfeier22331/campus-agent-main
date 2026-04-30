@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -11,78 +11,64 @@ updated: 2026-04-30
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 1 planned
+**Status:** Completed
+**Current Phase:** Phase 9 complete
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Workstream created and complete GSD planning documents added.
+**Last Activity Description:** Integrated source retention fetch admission into live collector behavior and run-ledger verification.
 
 ## Progress
 
-**Phases Complete:** 0
-**Current Plan:** `phases/phase-01-failure-taxonomy-and-sample-corpus/PLAN.md`
-
-## Current Slice
-
-Failure taxonomy and sample corpus.
-
-## Why This Workstream Exists
-
-The collected notice replay closeout exposed a structural ingest flaw:
-
-- `355881` has complete transport schedule facts in body text.
-- Direct text extraction can produce 7 transport rows.
-- The current replay path blocks the whole target because the notice has a pending inline image.
-- That image is supplemental location evidence, not the schedule table carrier.
-
-This is not a single-notice bug. It means the current chain is mixing source/media readiness with target fact readiness.
+**Phases Complete:** 9
+**Current Plan:** N/A
 
 ## Completed Tasks
 
-- [x] Created native workstream directory with `gsd-sdk query workstream.create`.
-- [x] Defined workstream scope, target shape, owned scope and non-owned scope.
-- [x] Planned seven phases from taxonomy to closeout guardrails.
-- [x] Added Phase 1-7 executable `PLAN.md` files.
-- [x] Registered the new active workstream in `.planning/WORKSTREAMS.md`.
+- [x] Created failure taxonomy and sample corpus.
+- [x] Froze source/media/fact/target contract.
+- [x] Implemented media role classifier.
+- [x] Implemented fact readiness builders.
+- [x] Refactored `transport_schedule` replay to admit text-complete rows with supplemental pending media.
+- [x] Refactored `service_status` replay to admit text-complete current status with supplemental pending media.
+- [x] Added regulation fact readiness exposure while preserving owner-text gate.
+- [x] Generated replay evidence and closeout summaries.
+- [x] Added guard tests for the old pending-media hard gate failure mode.
+- [x] Added source retention decision model for notice-level query, service-fact,
+  document-owner and capture-only routes.
+- [x] Added retention fields to notice source-truth manifest and attachment refs.
+- [x] Exposed `source_retention` in collected notice reimport preview and filtered
+  metadata-only attachments out of required source object refs.
+- [x] Audited 83 legacy `process/no target` units and confirmed current routing keeps
+  them metadata-only.
+- [x] Added `authenticated_notice_attachment_fetch_request_manifest_v1` builder.
+- [x] Changed notice collector default to keep attachments reference-only even when an
+  object store is configured.
+- [x] Added explicit collector fetch admissions from fetch request manifest rows.
+- [x] Aligned collector run ledger required source object verification to required /
+  admitted owner bytes; quarantine fetches do not count as required source objects.
 
-## Current Phase Tasks
+## Acceptance Evidence
 
-- [ ] Build `FAILURE-TAXONOMY.md`.
-- [ ] Build `SAMPLE-CORPUS.md`.
-- [ ] Generate `sample-corpus.json` from existing closeout evidence and focused fixtures.
-- [ ] Audit current behavior for `355881`, `355867`, service-status, regulation and search-only image samples.
-- [ ] Produce Phase 1 summary and verification output.
+- `evidence/phase-06-evidence-replay-and-acceptance/acceptance-summary.json`
+- `evidence/phase-06-evidence-replay-and-acceptance/transport-schedule-acceptance.json`
+- `evidence/phase-06-evidence-replay-and-acceptance/service-status-acceptance.json`
+- `evidence/phase-06-evidence-replay-and-acceptance/regulation-acceptance.json`
+- `evidence/phase-08-retention-preview-audit/preview-process-no-target-audit.json`
+- `phases/phase-09-live-collector-fetch-admission/SUMMARY.md`
 
 ## Known Non-Overlap
 
-- Does not reopen `collected-notice-consumption-replay-closeout`; that workstream remains completed.
-- Does not change collector provider selection or authentication.
-- Does not introduce scheduler, Kafka, Temporal, Step Functions or new public serving surface.
-- Does not implement OCR provider logic; it consumes existing OCR/multimodal attempt outputs.
+- No scheduler, auth renewal, collector provider or public serving surface was changed.
+- No DB, object-store, release or current truth writes were performed.
+- Collector live execution now requires upstream operator/scheduler wiring to set
+  `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH` when attachment bytes are admitted.
 
 ## Blockers
 
-- No planning blocker.
-- Implementation should start with Phase 1 corpus before touching target replay code.
-
-## Verification Plan
-
-Planning-only verification:
-
-```bash
-pnpm docs:lint
-git diff --check
-```
-
-Implementation verification is phase-specific and recorded in `ROADMAP.md` and each phase `PLAN.md`.
+No workstream blockers remain.
 
 ## Resume Notes
 
-Start with:
-
-- `README.md`
-- `REQUIREMENTS.md`
-- `ROADMAP.md`
-- `phases/phase-01-failure-taxonomy-and-sample-corpus/PLAN.md`
-- `packages/ingestion-core/src/campus_ingestion_core/collected_notice_downstream_pilot.py`
-- `packages/ingestion-core/src/campus_ingestion_core/collected_notice_transport_baseline_policy.py`
-- `.planning/workstreams/collected-notice-consumption-replay-closeout/evidence/phase-04-dry-run-reimport-and-universal-search-preview/searchable-notice-preview.json`
+Only reopen if target replay regresses to whole-notice media gating, source retention
+regresses to attachment-type-first byte retention, collector default attachment capture
+regresses to eager bytes download, required/admitted owner bytes stop failing closed, new
+target fact groups are admitted, or OCR/owner-text output schemas change.

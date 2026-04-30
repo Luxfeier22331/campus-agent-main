@@ -57,6 +57,24 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 	if handoff["planning_outcome"] != "preplanned" {
 		t.Fatalf("handoff.planning_outcome = %v, want preplanned", handoff["planning_outcome"])
 	}
+	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
+	if workflowPlan["schema_version"] != "workflow-plan-v1" {
+		t.Fatalf("workflow_plan.schema_version = %v, want workflow-plan-v1", workflowPlan["schema_version"])
+	}
+	if workflowPlan["workflow_mode"] != "single_handoff" {
+		t.Fatalf("workflow_plan.workflow_mode = %v, want single_handoff", workflowPlan["workflow_mode"])
+	}
+	if workflowPlan["workflow_mode"] == "multi_step" {
+		t.Fatalf("transport preplan must not emit multi_step workflow plans: %#v", workflowPlan)
+	}
+	planSteps, ok := workflowPlan["steps"].([]any)
+	if !ok || len(planSteps) != 1 {
+		t.Fatalf("workflow_plan.steps = %#v, want one handoff step", workflowPlan["steps"])
+	}
+	planStep := expectExecutionRecord(t, planSteps[0], "workflow_plan.steps[0]")
+	if planStep["step_kind"] != "handoff" || planStep["target"] != "campus-services-agent" {
+		t.Fatalf("workflow plan step = %#v, want campus-services handoff", planStep)
+	}
 	if handoff["target"] != "campus-services-agent" {
 		t.Fatalf("handoff.target = %v, want campus-services-agent", handoff["target"])
 	}
@@ -159,6 +177,58 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 		versionQuery["version_id"] != "v1:student-handbook" ||
 		versionQuery["compare_to_version_id"] != "v2:student-handbook" {
 		t.Fatalf("version_query = %#v, want compare query", versionQuery)
+	}
+}
+
+func TestParseAnswerRequestAcceptsInstitutionalRulesQueryScope(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"毕业生就业奖励办法怎么规定？",
+			"request_id":"req-institutional-rules-scope",
+			"requested_scope":{"corpus":"regulations","collection":"institutional_rules"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	projectedScope := expectExecutionRecord(t, payload["requested_scope"], "requested_scope")
+	if projectedScope["collection"] != "institutional_rules" {
+		t.Fatalf("requested_scope.collection = %v, want institutional_rules", projectedScope["collection"])
+	}
+}
+
+func TestParseAnswerRequestRejectsScopedRulesQueryScopeByDefault(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"英才计划实施细则怎么规定？",
+			"request_id":"req-scoped-rules-scope",
+			"requested_scope":{"corpus":"regulations","collection":"scoped_rules"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected scoped_rules requested_scope to be rejected by default")
+	}
+	if httpErr.Code != "disallowed_knowledge_scope" {
+		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
 	}
 }
 

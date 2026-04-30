@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: completed
 created: 2026-04-19
-updated: 2026-04-24
+updated: 2026-04-30
 ---
 
 # Roadmap: Authenticated Notice Regulation Consumption
@@ -12,7 +12,11 @@ updated: 2026-04-24
 这条 workstream 只收口已捕获 authenticated-notice corpus 的 regulation downstream consumption。
 固定顺序来自 `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` 与本 workstream phase 目录，
 不再拆成 replay / promotion / quality 多条并发 lane。
-当前已完成 `11-target rerun -> evidence freeze`，workstream 停在 `offline_preparation`。
+当前已完成 `11-target rerun -> evidence freeze`、2026-04-30 first-batch
+selected regulation promotion 与 Phase 10 regulation serving admission。Phase 10
+把已 materialized 的 `8` 条 selected targets 推进到 provenance-hardened、
+chunk-prepared、Qdrant released、gated-reader-ready 状态；`institutional_rules`
+进入默认 query-serving allowlist，`scoped_rules` 保持 explicit/internal only。
 
 ## Phases
 
@@ -24,3 +28,79 @@ updated: 2026-04-24
 - [x] **Phase 6: Institutional Regulations Target Chunk-Prep Parity** — 已补齐 `regulations/institutional_rules` 的 collection-specific lane profile/runtime wiring，并与既有 `scoped_rules` acceptance seam 对齐。
 - [x] **Phase 7: Eleven-Target Acceptance Rerun And Gap Closure** — 已完成当前 `11` 条 admitted target 的 full local-only acceptance rerun；最终 `institutional_rules=2`、`scoped_rules=9`，两条 lane 均通过 fail-close 验收。
 - [x] **Phase 8: Acceptance Evidence Freeze And Closeout** — 已冻结 `chunk-prep-manifest.json` / `validation-summary.json` / `document-reports.jsonl`，补齐 runbook / reference continuity，并把 stop point 保持在 `offline_preparation`。
+- [x] **Phase 9: First-Batch Regulation Promotion Write Gate** — 对 collected-notice Phase 6R/7 已证明 ready 的 `8` 条 regulation candidates 建立 selected promotion write gate，执行 target materialization / offline reader preparation，并证明 query serving 与 RAG release 仍关闭。
+- [x] **Phase 10: Regulation Serving Admission** — 对 first-batch regulation targets 执行 provenance hardening、chunk preparation、Qdrant release alias、gated reader asset publish、retrieval smoke 与 admission guard 更新；保持 public-chat citation 关闭。
+
+## Phase 9: First-Batch Regulation Promotion Write Gate
+
+**Goal:** 把已 dry-run 证明 ready 的 `8` 条 selected regulation candidates
+推进到真实 target materialization，同时保留既有 target rows，并保持
+query-serving / RAG release 关闭。
+
+**Inputs:**
+
+- collected-notice Phase 6R.1 candidate audit
+- collected-notice Phase 6R.3 normalized dry-run materialization
+- collected-notice Phase 6R.3 consistency report
+- collected-notice Phase 7 acceptance summary
+
+**Selected cohort:**
+
+- `594` -> `regulations/institutional_rules`
+- `483`, `485`, `487`, `493`, `509`, `564`, `620` ->
+  `regulations/scoped_rules`
+
+**Deliverables:**
+
+- first-batch selected admission artifact
+- selected promotion preflight report
+- selected target materialization execute report
+- before/after target registry snapshot
+- source-to-target provenance trace
+- target-side acceptance artifacts for institutional/scoped lanes
+- serving-closed assertion
+
+**Result:**
+
+- materialized document count: `8`
+- postflight target counts:
+  - `regulations/institutional_rules=2`
+  - `regulations/scoped_rules=16`
+- selected acceptance:
+  - institutional lane: `passed=true`, prepared documents `1`
+  - scoped lane: `passed=true`, prepared documents `7`
+- query serving / RAG release: closed
+
+**Plan:** `phases/phase-09-first-batch-regulation-promotion-write-gate/PLAN.md`
+**Summary:** `phases/phase-09-first-batch-regulation-promotion-write-gate/SUMMARY.md`
+
+## Phase 10: Regulation Serving Admission
+
+**Goal:** 将 Phase 9 已入库的 `8` 条 regulation target 从 materialized
+状态推进到受控 serving 状态，同时保持 public-chat citation 关闭。
+
+**Deliverables:**
+
+- registry provenance hardening：`manual_curated` residual 收敛到
+  `authenticated_notice_portal`
+- runtime/query-serving profile admission：
+  - `regulations/institutional_rules`: `query_enabled_by_default=true`
+  - `regulations/scoped_rules`: `retrieval_enabled=true`，但
+    `query_enabled_by_default=false`
+- mandatory chunk-preparation artifacts
+- Qdrant release aliases for both target collections
+- gated reader assets，`public_entry_count=0`
+- retrieval smoke with campus-member authorization and public-filter denial
+- Go/Python drift guards for scope allowlist, profile posture, chunk budget, reader
+  revision-track selection, provenance idempotency
+
+**Result:**
+
+- `institutional_rules`: 1 document, 26 indexed points, alias published
+- `scoped_rules`: 7 documents, 175 indexed points, alias published
+- reader assets: 8 gated entries, 0 public entries
+- default query allowlist: `institutional_rules` included, `scoped_rules` excluded
+- public-chat citation: closed
+
+**Plan:** `phases/phase-10-regulation-serving-admission/PLAN.md`
+**Summary:** `phases/phase-10-regulation-serving-admission/SUMMARY.md`

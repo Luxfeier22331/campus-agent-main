@@ -86,6 +86,7 @@ class PreviewCollectedNoticeMultimodalReadinessWorkerTests(unittest.TestCase):
 
             build_preview.assert_called_once()
             expected_json_files = {
+                "media-extraction-candidate-inventory.json",
                 "multimodal-candidate-inventory.json",
                 "multimodal-state-mapping-report.json",
                 "ocr-batch-manifest.dry-run.json",

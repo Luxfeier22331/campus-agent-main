@@ -24,8 +24,9 @@ browser -> public-docs static reader assets / same-site /api/docs/* -> app-api
 
 该仓库当前的核心约束包括：
 
-- 当前 query-enabled surface 是 `regulations/student_rules` 与
-  `curriculum/curriculum_plan`
+- 当前 query-enabled surface 是 `regulations/student_rules`、
+  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+  `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/supervisor-api` 是 Docker-first internal execution engine，不是产品后端
 - online query path 与 offline data plane 持续分层

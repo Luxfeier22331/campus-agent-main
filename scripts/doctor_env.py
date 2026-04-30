@@ -19,6 +19,7 @@ from campus_shared.provider_config import (
     resolve_llm_provider_config,
 )
 
+from scripts.doctor_env_parse import read_bool_env, read_capability_set
 from scripts.env_sync import parse_env_file
 
 _SURFACE_SPECS = {
@@ -245,6 +246,8 @@ _SURFACE_SPECS = {
                 "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD",
             ),
             "bridge_breaker_open_ms": ("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS",),
+            "bridge_retry_max_attempts": ("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS",),
+            "bridge_retry_base_ms": ("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS",),
             "lane_rag_max_concurrent": ("SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT",),
             "lane_navigation_max_concurrent": ("SUPERVISOR_API_LANE_NAVIGATION_MAX_CONCURRENT",),
             "lane_campus_services_max_concurrent": (
@@ -569,7 +572,7 @@ def _collect_surface_conditions(
         isinstance(shared_postgres_status, dict) and shared_postgres_status.get("present")
     )
 
-    execution_audit_enabled = _read_bool_env(env, "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED")
+    execution_audit_enabled = read_bool_env(env, "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED")
     audit_missing: list[str] = []
     if execution_audit_enabled:
         if not _setting_present(optional_settings, "execution_audit_url"):
@@ -586,7 +589,7 @@ def _collect_surface_conditions(
         ),
     }
 
-    opened_capabilities = _read_capability_set(
+    opened_capabilities = read_capability_set(
         env.get("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
     )
     structured_runtime_required = bool(
@@ -648,15 +651,6 @@ def _setting_present(
 ) -> bool:
     setting = settings.get(setting_name)
     return bool(isinstance(setting, dict) and setting.get("present"))
-
-
-def _read_bool_env(env: dict[str, str], key: str) -> bool:
-    value = env.get(key, "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
-
-
-def _read_capability_set(raw_value: str) -> set[str]:
-    return {value.strip() for value in raw_value.split(",") if value.strip()}
 
 
 def _postgres_diagnostics_ready(

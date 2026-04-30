@@ -11,6 +11,7 @@ from campus_rag_agent.remote_content_hardening import apply_remote_content_suspi
 from .service_answer_synthesis import build_grounded_answer_response
 from .service_common import _build_empty_evidence
 from .service_diagnostics_payload import _build_rag_result_payload
+from .service_observability import with_rag_agent_observability
 from .service_outcome_context import build_outcome_context
 from .service_outcomes import (
     build_empty_retrieval_no_answer_response,
@@ -45,6 +46,21 @@ Retriever = Callable[..., object]
 
 
 def delegate_to_rag_agent(
+    request: AgentRequest,
+    *,
+    retriever: Retriever = retrieve_sources,
+    prompt_executor: RagPromptExecutor | None = None,
+) -> AgentResponse:
+    return with_rag_agent_observability(
+        _build_rag_agent_response(
+            request,
+            retriever=retriever,
+            prompt_executor=prompt_executor,
+        )
+    )
+
+
+def _build_rag_agent_response(
     request: AgentRequest,
     *,
     retriever: Retriever = retrieve_sources,

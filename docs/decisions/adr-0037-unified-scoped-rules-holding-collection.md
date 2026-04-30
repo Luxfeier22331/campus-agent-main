@@ -54,18 +54,20 @@ repo 新增统一 target collection：
   outcome 占位物
 - 稳定 institution-wide regulation 正文
 
-### 决策 2：`regulations/scoped_rules` 是 holding collection，不是 query-serving surface
+### 决策 2：`regulations/scoped_rules` 是 explicit/internal retrieval-ready collection
 
-当前固定 posture：
+当前固定 posture 已在 2026-04-30 Phase 10 更新为：
 
-- `serving_stage=offline_preparation`
-- `retrieval_enabled=false`
+- `serving_stage=query_serving`
+- `retrieval_enabled=true`
 - `query_enabled_by_default=false`
+- `serving_revision_tracks=["current-effective"]`
 
 这表示：
 
 - 允许先完成 canonical text import
-- 不要求当前就补齐 admissions / operations 产品入口
+- 允许内部显式 scope 使用 retrieval-ready data-plane
+- 默认用户入口仍不把它作为 query-enabled scope
 - 不要求当前就落 query-planning / clarification / history semantics
 
 ### 决策 3：当前 import 只要求最小 metadata，不把未来 query semantics 当 gate
@@ -90,12 +92,12 @@ repo 新增统一 target collection：
 ### 决策 4：详细 query semantics 明确后置
 
 `annual_cycle_rule` 与 `time_bound_operational_rule` 的详细 query policy 仍可继续作为
-future guidance 存在，但它们只在 future query-serving reopen 时生效。
+future guidance 存在，但它们只在 future default-query admission 时生效。
 
 当前明确规则：
 
 - detailed query semantics 不是 `scoped_rules` import gate
-- 如果后续要把 `scoped_rules` 从 `offline_preparation` 推进到 query-serving，再单独冻结
+- 如果后续要把 `scoped_rules` 推进到默认 query allowlist，再单独冻结
   query-planning / filter policy / eval
 
 ### 决策 5：`institutional_rules` 的边界保持不变

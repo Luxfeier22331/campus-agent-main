@@ -106,7 +106,9 @@ class ProviderResultReplayRebuildIndexingTest(unittest.TestCase):
             self.assertIn(("replay.build_documents", "end"), event_pairs)
             self.assertIn(("replay.persist_documents", "end"), event_pairs)
 
-    def test_replay_provider_response_rebuild_can_optionally_index_qdrant(self) -> None:
+    def test_replay_provider_response_rebuild_can_index_qdrant_without_publishing_alias(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
@@ -207,6 +209,7 @@ class ProviderResultReplayRebuildIndexingTest(unittest.TestCase):
                     "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                    "INGESTION_EMBEDDING_DIMENSIONS": "1536",
                     "EMBEDDING_PROVIDER": "mock",
                     "SPARSE_PROVIDER": "mock",
                     "REBUILD_INDEX_QDRANT": "1",
@@ -222,8 +225,14 @@ class ProviderResultReplayRebuildIndexingTest(unittest.TestCase):
                 alias.alias_name: alias.collection_name
                 for alias in qdrant_client.get_aliases().aliases or []
             }
-            self.assertIn("student_rules", aliases)
-            collection_info = qdrant_client.get_collection(aliases["student_rules"])
+            self.assertNotIn("student_rules", aliases)
+            collections = [
+                collection.name for collection in qdrant_client.get_collections().collections or []
+            ]
+            physical_collection = next(
+                str(name) for name in collections if str(name).startswith("student_rules__r")
+            )
+            collection_info = qdrant_client.get_collection(physical_collection)
             self.assertGreater(collection_info.points_count or 0, 0)
 
     def test_replay_provider_response_rebuild_can_index_without_publishing_alias(self) -> None:

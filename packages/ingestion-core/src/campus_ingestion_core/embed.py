@@ -218,13 +218,40 @@ def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
             embed_batch_size=settings.embed_batch_size,
         )
     if provider == "mock":
-        return MockEmbedding(embed_dim=1536, model_name=settings.model)
+        return MockEmbedding(embed_dim=settings.dimensions or 1536, model_name=settings.model)
     raise ValueError(f"unsupported embedding provider: {settings.provider}")
 
 
 def build_mock_embedding_model(settings: MockEmbeddingSettings | None = None) -> BaseEmbedding:
     resolved = settings or MockEmbeddingSettings()
     return MockEmbedding(embed_dim=resolved.embed_dim, model_name=resolved.model_name)
+
+
+def validate_ingestion_retrieval_embedding_env_alignment(source: dict[str, str]) -> None:
+    ingestion_settings = EmbeddingSettings.from_env(source)
+    retrieval_model = _resolve_retrieval_embedding_model(source)
+    if ingestion_settings.model != retrieval_model:
+        raise ValueError(
+            "embedding model mismatch between INGESTION_EMBEDDING_MODEL "
+            f"({ingestion_settings.model}) and EMBEDDING_MODEL ({retrieval_model})"
+        )
+    retrieval_dimensions = _resolve_retrieval_embedding_dimensions(source)
+    if ingestion_settings.dimensions != retrieval_dimensions:
+        raise ValueError(
+            "embedding dimensions mismatch between INGESTION_EMBEDDING_DIMENSIONS "
+            f"({ingestion_settings.dimensions}) and EMBEDDING_DIMENSIONS ({retrieval_dimensions})"
+        )
+
+
+def _resolve_retrieval_embedding_model(source: dict[str, str]) -> str:
+    return (source.get("EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL).strip()
+
+
+def _resolve_retrieval_embedding_dimensions(source: dict[str, str]) -> int | None:
+    return _resolve_embedding_dimensions(
+        model=_resolve_retrieval_embedding_model(source),
+        raw_dimensions=(source.get("EMBEDDING_DIMENSIONS") or "").strip(),
+    )
 
 
 def _resolve_embedding_dimensions(*, model: str, raw_dimensions: str) -> int | None:

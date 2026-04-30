@@ -5,6 +5,10 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
+from campus_ingestion_core.collected_notice_media_role_classifier import (
+    MEDIA_ROLE_SCHEDULE_TABLE_CARRIER,
+    classify_notice_media_roles,
+)
 from campus_ingestion_core.notice_derived_transport_schedule_parsing import (
     _resolve_segment_service_date_ranges,
     _resolve_service_date_ranges,
@@ -149,7 +153,22 @@ def requires_schedule_image_ocr(
     *,
     unit: Mapping[str, Any],
     multimodal_candidate_inventory: Mapping[str, Any],
+    text_schedule_row_count: int = 0,
 ) -> bool:
+    if text_schedule_row_count > 0:
+        return False
+    media_states = classify_notice_media_roles(
+        unit=unit,
+        multimodal_candidate_inventory=multimodal_candidate_inventory,
+        target=TRANSPORT_SCHEDULE_TARGET,
+        text_fact_complete=False,
+    )
+    if any(
+        row.get("media_role") == MEDIA_ROLE_SCHEDULE_TABLE_CARRIER
+        and row.get("media_state") in {"ocr_pending", "failed_retryable"}
+        for row in media_states
+    ):
+        return True
     if multimodal_policy(unit) in {
         "pending",
         "failed",
@@ -165,8 +184,7 @@ def requires_schedule_image_ocr(
         if status not in {"pending", "failed"}:
             continue
         processing_family = str(row.get("processing_family") or "")
-        media_kind = str(row.get("media_kind") or "")
-        if processing_family == "schedule_image_ocr" or media_kind == "image":
+        if processing_family == "schedule_image_ocr":
             return True
         if not processing_family and TRANSPORT_SCHEDULE_TARGET in target_hints(unit):
             return True

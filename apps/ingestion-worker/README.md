@@ -1338,6 +1338,36 @@ Behavior:
 - Does not import source truth, mutate object store, write Postgres, embed, or
   publish query-serving state.
 
+### `campus-ingestion-build-authenticated-notice-attachment-fetch-request-manifest`
+
+Builds the collector-facing attachment fetch request manifest from authenticated
+notice source-truth inventory and `source-truth/attachment-refs.jsonl`.
+
+Useful local command:
+
+```bash
+FETCH_MANIFEST_MODULE=\
+campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest
+uv run --all-packages python -m "$FETCH_MANIFEST_MODULE" \
+  --corpus campus_notices \
+  --collection internal_notice \
+  --notice-id 355867 \
+  --output-path \
+    .tmp/authenticated-notice-fetch-admission/355867/fetch-request-manifest.json
+```
+
+Behavior:
+
+- Reads source-truth inventory rows and their attachment refs from the source
+  object bucket.
+- Emits `authenticated_notice_attachment_fetch_request_manifest_v1`.
+- Includes only `fetch_to_quarantine`, `fetch_required_for_source_truth`, and
+  `fetch_required_for_admitted_owner` attachment refs.
+- Omits `metadata_only` refs so ordinary notice discover/card attachments do not
+  get downloaded by the collector.
+- Fails when explicit `--notice-id` values are absent from source-truth
+  inventory, instead of silently creating an empty admission manifest.
+
 ### `campus-ingestion-check-authenticated-notice-reference-only-attachments`
 
 Checks source-truth inventory rows whose attachment refs did not produce child

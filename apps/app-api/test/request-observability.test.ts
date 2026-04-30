@@ -327,6 +327,8 @@ describe("request observability", () => {
 						payload_kind: "transport_schedule_lookup",
 						target: "campus-services-agent",
 					},
+					handoffChain: [],
+					contextProjections: [],
 					planningOutcome: "preplanned",
 					policyArtifactVersions: {
 						"intent-policy": "v1",
@@ -344,6 +346,7 @@ describe("request observability", () => {
 					toolArgumentSummary: {
 						payload_kind: "transport_schedule_lookup",
 					},
+					workflowMode: "direct_runtime",
 				},
 			}),
 			sourceDocIds: [],

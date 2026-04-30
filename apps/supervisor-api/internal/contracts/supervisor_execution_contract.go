@@ -14,7 +14,7 @@ const (
 	ResponseContract                    = "agent_response"
 	RuntimeDecisionsSchemaVersion       = "supervisor-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
-	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v1"
+	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v3"
 )
 
 type AgentTarget string
@@ -64,6 +64,15 @@ const (
 	SupervisorStatusCancelled          SupervisorStatus = "cancelled"
 )
 
+type WorkflowMode string
+
+const (
+	WorkflowModeTerminal      WorkflowMode = "terminal"
+	WorkflowModeDirectRuntime WorkflowMode = "direct_runtime"
+	WorkflowModeSingleHandoff WorkflowMode = "single_handoff"
+	WorkflowModeMultiStep     WorkflowMode = "multi_step"
+)
+
 type RuntimeDecisionSummaryWire struct {
 	SchemaVersion          string         `json:"schema_version"`
 	ScopeGateDecision      string         `json:"scope_gate_decision,omitempty"`
@@ -79,6 +88,57 @@ type RuntimeDecisionSummaryWire struct {
 	PolicyArtifactVersions map[string]any `json:"policy_artifact_versions,omitempty"`
 }
 
+type WorkflowPlanStepWire struct {
+	StepID       string   `json:"step_id"`
+	StepKind     string   `json:"step_kind"`
+	Target       string   `json:"target,omitempty"`
+	PayloadKind  string   `json:"payload_kind,omitempty"`
+	AllowedTools []string `json:"allowed_tools,omitempty"`
+	SelectedTool string   `json:"selected_tool,omitempty"`
+}
+
+type WorkflowPlanEdgeWire struct {
+	FromStepID             string `json:"from_step_id"`
+	ToStepID               string `json:"to_step_id"`
+	Condition              string `json:"condition"`
+	RequiredProjectionKind string `json:"required_projection_kind,omitempty"`
+}
+
+type ProjectionSafetySummaryWire struct {
+	Truncated     bool     `json:"truncated"`
+	Redacted      bool     `json:"redacted"`
+	MaxChars      int      `json:"max_chars"`
+	FieldsPresent []string `json:"fields_present"`
+}
+
+type StepOutputProjectionWire struct {
+	ProjectionID   string                      `json:"projection_id"`
+	SourceStepID   string                      `json:"source_step_id"`
+	ProjectionKind string                      `json:"projection_kind"`
+	ContentHash    string                      `json:"content_hash"`
+	Payload        map[string]any              `json:"payload"`
+	Safety         ProjectionSafetySummaryWire `json:"safety"`
+}
+
+type WorkflowContextProjectionWire struct {
+	ProjectionID   string                      `json:"projection_id"`
+	SourceStepID   string                      `json:"source_step_id"`
+	ProjectionKind string                      `json:"projection_kind"`
+	ContentHash    string                      `json:"content_hash"`
+	Safety         ProjectionSafetySummaryWire `json:"safety"`
+}
+
+type WorkflowPlanWire struct {
+	SchemaVersion       string                 `json:"schema_version"`
+	PlanID              string                 `json:"plan_id"`
+	WorkflowMode        WorkflowMode           `json:"workflow_mode"`
+	Steps               []WorkflowPlanStepWire `json:"steps"`
+	Edges               []WorkflowPlanEdgeWire `json:"edges"`
+	TerminalPolicy      map[string]any         `json:"terminal_policy"`
+	ResumePolicy        map[string]any         `json:"resume_policy"`
+	SemanticRetryPolicy map[string]any         `json:"semantic_retry_policy"`
+}
+
 type RuntimeDecisionsWire struct {
 	SchemaVersion          string                     `json:"schema_version"`
 	EffectiveCapability    RequestedCapability        `json:"effective_capability"`
@@ -90,6 +150,7 @@ type RuntimeDecisionsWire struct {
 	ContextPreflight       map[string]any             `json:"context_preflight,omitempty"`
 	ToolPolicy             map[string]any             `json:"tool_policy,omitempty"`
 	Handoff                map[string]any             `json:"handoff,omitempty"`
+	WorkflowPlan           *WorkflowPlanWire          `json:"workflow_plan,omitempty"`
 	TerminalEnvelope       map[string]any             `json:"terminal_envelope,omitempty"`
 }
 
@@ -111,17 +172,37 @@ type BridgeV6RequestWire struct {
 	RuntimeDecisions    RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
+type WorkflowTraceSummaryWire struct {
+	RoutingFrame           map[string]any                  `json:"routing_frame"`
+	ContextResolution      map[string]any                  `json:"context_resolution"`
+	PlanningOutcome        string                          `json:"planning_outcome"`
+	DirectVsDelegateBranch string                          `json:"direct_vs_delegate_branch"`
+	WorkflowMode           WorkflowMode                    `json:"workflow_mode"`
+	Handoff                map[string]any                  `json:"handoff"`
+	HandoffChain           []map[string]any                `json:"handoff_chain"`
+	SelectedTarget         *string                         `json:"selected_target"`
+	SelectedTools          []string                        `json:"selected_tools"`
+	ContextProjections     []WorkflowContextProjectionWire `json:"context_projections"`
+	ToolArgumentSummary    map[string]any                  `json:"tool_argument_summary"`
+	TraceSteps             []map[string]any                `json:"trace_steps,omitempty"`
+	ToolCallSummaries      []map[string]any                `json:"tool_call_summaries,omitempty"`
+	GuardrailOutcomes      map[string]any                  `json:"guardrail_outcomes"`
+	FailCloseReason        string                          `json:"fail_close_reason"`
+	RuntimeVersions        map[string]any                  `json:"runtime_versions"`
+	PolicyArtifactVersions map[string]any                  `json:"policy_artifact_versions"`
+}
+
 type SupervisorResponseWire struct {
-	SelectedTarget       *AgentTarget     `json:"selected_target"`
-	Status               SupervisorStatus `json:"status"`
-	AnswerText           string           `json:"answer_text"`
-	FollowUpQuestion     string           `json:"follow_up_question"`
-	Confidence           ConfidenceLevel  `json:"confidence"`
-	Result               map[string]any   `json:"result"`
-	Error                map[string]any   `json:"error"`
-	Observability        map[string]any   `json:"observability,omitempty"`
-	WorkflowTraceSummary map[string]any   `json:"workflow_trace_summary,omitempty"`
-	TraceID              string           `json:"trace_id"`
+	SelectedTarget       *AgentTarget              `json:"selected_target"`
+	Status               SupervisorStatus          `json:"status"`
+	AnswerText           string                    `json:"answer_text"`
+	FollowUpQuestion     string                    `json:"follow_up_question"`
+	Confidence           ConfidenceLevel           `json:"confidence"`
+	Result               map[string]any            `json:"result"`
+	Error                map[string]any            `json:"error"`
+	Observability        map[string]any            `json:"observability,omitempty"`
+	WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`
+	TraceID              string                    `json:"trace_id"`
 }
 
 func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
@@ -215,6 +296,11 @@ func (wire RuntimeDecisionsWire) Validate() error {
 	if err := wire.RuntimeDecisionSummary.Validate(); err != nil {
 		return fmt.Errorf("runtime_decision_summary: %w", err)
 	}
+	if wire.WorkflowPlan != nil {
+		if err := wire.WorkflowPlan.Validate(); err != nil {
+			return fmt.Errorf("workflow_plan: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -224,6 +310,116 @@ func (wire RuntimeDecisionSummaryWire) Validate() error {
 	}
 	if wire.PlanningOutcome == "" {
 		return fmt.Errorf("planning_outcome is required")
+	}
+	return nil
+}
+
+func (wire WorkflowPlanWire) Validate() error {
+	if wire.SchemaVersion != "workflow-plan-v1" {
+		return fmt.Errorf("schema_version must be workflow-plan-v1")
+	}
+	if wire.PlanID == "" {
+		return fmt.Errorf("plan_id is required")
+	}
+	if !wire.WorkflowMode.Valid() {
+		return fmt.Errorf("workflow_mode is invalid")
+	}
+	if wire.Steps == nil {
+		return fmt.Errorf("steps is required")
+	}
+	if wire.Edges == nil {
+		return fmt.Errorf("edges is required")
+	}
+	if wire.TerminalPolicy == nil {
+		return fmt.Errorf("terminal_policy is required")
+	}
+	if wire.ResumePolicy == nil {
+		return fmt.Errorf("resume_policy is required")
+	}
+	if wire.SemanticRetryPolicy == nil {
+		return fmt.Errorf("semantic_retry_policy is required")
+	}
+	for index, step := range wire.Steps {
+		if step.StepID == "" {
+			return fmt.Errorf("steps[%d].step_id is required", index)
+		}
+		if step.StepKind == "" {
+			return fmt.Errorf("steps[%d].step_kind is required", index)
+		}
+	}
+	for index, edge := range wire.Edges {
+		if edge.FromStepID == "" {
+			return fmt.Errorf("edges[%d].from_step_id is required", index)
+		}
+		if edge.ToStepID == "" {
+			return fmt.Errorf("edges[%d].to_step_id is required", index)
+		}
+		if edge.Condition == "" {
+			return fmt.Errorf("edges[%d].condition is required", index)
+		}
+	}
+	return nil
+}
+
+func (wire WorkflowTraceSummaryWire) Validate() error {
+	if wire.RoutingFrame == nil {
+		return fmt.Errorf("routing_frame is required")
+	}
+	if wire.ContextResolution == nil {
+		return fmt.Errorf("context_resolution is required")
+	}
+	if wire.PlanningOutcome == "" {
+		return fmt.Errorf("planning_outcome is required")
+	}
+	if wire.DirectVsDelegateBranch == "" {
+		return fmt.Errorf("direct_vs_delegate_branch is required")
+	}
+	if wire.WorkflowMode == "" {
+		return fmt.Errorf("workflow_mode is required")
+	}
+	if !wire.WorkflowMode.Valid() {
+		return fmt.Errorf("workflow_mode is invalid")
+	}
+	if wire.Handoff == nil {
+		return fmt.Errorf("handoff is required")
+	}
+	if wire.HandoffChain == nil {
+		return fmt.Errorf("handoff_chain is required")
+	}
+	if wire.SelectedTarget == nil || *wire.SelectedTarget == "" {
+		return fmt.Errorf("selected_target is required")
+	}
+	if wire.SelectedTools == nil {
+		return fmt.Errorf("selected_tools is required")
+	}
+	if wire.ContextProjections == nil {
+		return fmt.Errorf("context_projections is required")
+	}
+	for index, projection := range wire.ContextProjections {
+		if projection.ProjectionID == "" {
+			return fmt.Errorf("context_projections[%d].projection_id is required", index)
+		}
+		if projection.SourceStepID == "" {
+			return fmt.Errorf("context_projections[%d].source_step_id is required", index)
+		}
+		if projection.ProjectionKind != "notice_context" {
+			return fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
+		}
+		if projection.ContentHash == "" {
+			return fmt.Errorf("context_projections[%d].content_hash is required", index)
+		}
+	}
+	if wire.ToolArgumentSummary == nil {
+		return fmt.Errorf("tool_argument_summary is required")
+	}
+	if wire.GuardrailOutcomes == nil {
+		return fmt.Errorf("guardrail_outcomes is required")
+	}
+	if wire.RuntimeVersions == nil {
+		return fmt.Errorf("runtime_versions is required")
+	}
+	if wire.PolicyArtifactVersions == nil {
+		return fmt.Errorf("policy_artifact_versions is required")
 	}
 	return nil
 }
@@ -247,6 +443,11 @@ func (wire SupervisorResponseWire) Validate() error {
 		}
 		if _, ok := wire.Error["message"].(string); !ok {
 			return fmt.Errorf("error.message is required")
+		}
+	}
+	if wire.WorkflowTraceSummary != nil {
+		if err := wire.WorkflowTraceSummary.Validate(); err != nil {
+			return fmt.Errorf("workflow_trace_summary: %w", err)
 		}
 	}
 	return nil
@@ -291,6 +492,15 @@ func (value DelegateStatus) Valid() bool {
 func (value SupervisorStatus) Valid() bool {
 	switch value {
 	case SupervisorStatusCompleted, SupervisorStatusNeedsClarification, SupervisorStatusNoAnswer, SupervisorStatusError, SupervisorStatusRejected, SupervisorStatusApprovalRequired, SupervisorStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value WorkflowMode) Valid() bool {
+	switch value {
+	case WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
 		return true
 	default:
 		return false

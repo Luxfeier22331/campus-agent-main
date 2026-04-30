@@ -306,7 +306,7 @@ def _build_rebuild_request_from_env(source: dict[str, str]) -> RebuildRequest:
         source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
         reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
         index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
-        publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True),
+        publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=False),
     )
 
 
@@ -324,7 +324,11 @@ def _build_rebuild_import_env(
         import_env["REBUILD_RESET_QDRANT"] = "1"
     if request.index_qdrant:
         import_env["REBUILD_INDEX_QDRANT"] = "1"
-    if not request.publish_qdrant_alias:
+    if request.import_mode == "provider_response_replay" and request.publish_qdrant_alias:
+        raise ValueError(
+            "provider_response_replay cannot publish qdrant alias; use release_registry_scope"
+        )
+    if request.import_mode == "provider_response_replay" or not request.publish_qdrant_alias:
         import_env["REBUILD_PUBLISH_ALIAS"] = "0"
     if request.raw_asset_id:
         import_env["RAW_ASSET_ID"] = request.raw_asset_id
@@ -589,7 +593,7 @@ def _build_replay_request_from_env(source: dict[str, str]) -> RebuildRequest:
         source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
         reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
         index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
-        publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True),
+        publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=False),
     )
 
 
@@ -666,7 +670,12 @@ def _should_index_qdrant_for_replay(source: dict[str, str]) -> bool:
 
 
 def _should_publish_qdrant_alias_for_replay(source: dict[str, str]) -> bool:
-    return _parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True)
+    should_publish = _parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=False)
+    if should_publish:
+        raise ValueError(
+            "provider_response_replay cannot publish qdrant alias; use release_registry_scope"
+        )
+    return False
 
 
 def _resolve_replay_source_pdf(

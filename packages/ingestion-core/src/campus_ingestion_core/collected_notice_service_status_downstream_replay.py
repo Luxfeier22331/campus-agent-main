@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.collected_notice_fact_readiness import (
+    TARGET_ADMISSION_NEEDS_MULTIMODAL,
+    build_service_status_fact_readiness,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
@@ -53,6 +57,7 @@ class _ServiceStatusDecision:
     admitted: bool
     reason_codes: list[str]
     record: dict[str, Any] | None
+    fact_readiness: dict[str, Any]
 
 
 class _PreviewDocumentRegistry:
@@ -204,16 +209,19 @@ def _service_status_decision(
     object_store: _PreviewObjectStore,
     generated_at: str,
 ) -> _ServiceStatusDecision:
-    reason_codes = _precondition_rejection_reason_codes(
-        unit=unit,
-        multimodal_candidate_inventory=multimodal_candidate_inventory,
-    )
+    reason_codes = _precondition_rejection_reason_codes(unit=unit)
     if reason_codes:
+        fact_readiness = build_service_status_fact_readiness(
+            unit=unit,
+            multimodal_candidate_inventory=multimodal_candidate_inventory,
+            text_record_ready=False,
+        )
         return _ServiceStatusDecision(
             unit=unit,
             admitted=False,
             reason_codes=reason_codes,
             record=None,
+            fact_readiness=fact_readiness,
         )
     candidate = extract_notice_derived_service_status_record(
         projection_entry=_projection_entry(unit),
@@ -222,12 +230,23 @@ def _service_status_decision(
         derived_bucket=_PREVIEW_DERIVED_BUCKET,
         generated_at=generated_at,
     )
+    fact_readiness = build_service_status_fact_readiness(
+        unit=unit,
+        multimodal_candidate_inventory=multimodal_candidate_inventory,
+        text_record_ready=candidate is not None,
+    )
     if candidate is None:
+        reason_codes = (
+            list(fact_readiness["reason_codes"])
+            if fact_readiness["target_admission_state"] == TARGET_ADMISSION_NEEDS_MULTIMODAL
+            else ["missing_effective_window_or_status_signal"]
+        )
         return _ServiceStatusDecision(
             unit=unit,
             admitted=False,
-            reason_codes=["missing_effective_window_or_status_signal"],
+            reason_codes=reason_codes,
             record=None,
+            fact_readiness=fact_readiness,
         )
     record = candidate.to_record()
     if not _record_effective_at(record, generated_at):
@@ -236,34 +255,31 @@ def _service_status_decision(
             admitted=False,
             reason_codes=["not_current_effective_at_generated_time"],
             record=record,
+            fact_readiness=fact_readiness,
         )
     return _ServiceStatusDecision(
         unit=unit,
         admitted=True,
-        reason_codes=["service_status_current_window_admitted"],
+        reason_codes=list(
+            dict.fromkeys(
+                [
+                    "service_status_current_window_admitted",
+                    *(fact_readiness.get("reason_codes") or ()),
+                ]
+            )
+        ),
         record=record,
+        fact_readiness=fact_readiness,
     )
 
 
 def _precondition_rejection_reason_codes(
     *,
     unit: Mapping[str, Any],
-    multimodal_candidate_inventory: Mapping[str, Any],
 ) -> list[str]:
     reasons: list[str] = []
     if SERVICE_STATUS_TARGET not in _target_candidates(unit):
         reasons.append("target_hint_not_service_status")
-    if str(unit.get("multimodal_status") or "") not in {"not_required", "completed"}:
-        reasons.append("multimodal_not_ready")
-    blocking_candidates = [
-        row
-        for row in multimodal_candidate_inventory.get("candidates") or ()
-        if isinstance(row, Mapping)
-        and str(row.get("unit_id") or "") == str(unit.get("unit_id") or "")
-        and str(row.get("status") or "") in {"pending", "failed"}
-    ]
-    if blocking_candidates and "multimodal_not_ready" not in reasons:
-        reasons.append("multimodal_not_ready")
     if not unit.get("source_object_refs"):
         reasons.append("missing_source_object_refs")
     if not str(unit.get("body_text") or "").strip():
@@ -375,6 +391,9 @@ def _admission_entry(decision: _ServiceStatusDecision) -> dict[str, Any]:
         "target_surface": NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE if admitted else None,
         "target_hints": unit.get("target_hints") or {},
         "multimodal_policy": _multimodal_policy(unit),
+        "fact_readiness_state": decision.fact_readiness["fact_readiness_state"],
+        "target_admission_state": decision.fact_readiness["target_admission_state"],
+        "fact_readiness": decision.fact_readiness,
         "reason_codes": decision.reason_codes,
         "preconditions": [
             "searchable_unit_present",
@@ -465,7 +484,7 @@ def _consistency_report(
     issues: list[dict[str, str]] = []
     admitted_decisions = [decision for decision in decisions if decision.admitted]
     blocking_reason_codes = {
-        "multimodal_not_ready",
+        "required_media_pending",
         "missing_source_object_refs",
         "missing_body_text",
         "missing_effective_window_or_status_signal",
@@ -553,7 +572,7 @@ def _rejected_deferred_source_report(
                 "consumption_class": _blocked_class(decision),
                 "searchable_exists": bool(unit.get("unit_id")),
                 "multimodal_processing_could_change_decision": (
-                    "multimodal_not_ready" in decision.reason_codes
+                    "required_media_pending" in decision.reason_codes
                 ),
                 "source_url": unit.get("source_url"),
             }
@@ -641,7 +660,7 @@ def _parse_datetime(value: str) -> datetime:
 
 
 def _blocked_class(decision: _ServiceStatusDecision) -> str:
-    if "multimodal_not_ready" in decision.reason_codes:
+    if decision.fact_readiness.get("target_admission_state") == TARGET_ADMISSION_NEEDS_MULTIMODAL:
         return "needs_multimodal"
     if "not_current_effective_at_generated_time" in decision.reason_codes:
         return "search_only"

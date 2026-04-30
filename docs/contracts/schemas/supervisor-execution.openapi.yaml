@@ -8,7 +8,7 @@ x-campus-contract:
   response_contract: agent_response
   runtime_decisions_schema_version: supervisor-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
-  workflow_trace_summary_version: workflow-trace-summary-v1
+  workflow_trace_summary_version: workflow-trace-summary-v3
   versioning_policy:
     bridge_version: incompatible bridge envelope changes must bump bridge_version
     response_contract: AgentResponse wire contract changes must bump response_contract
@@ -87,6 +87,166 @@ components:
         - rejected
         - approval_required
         - cancelled
+    WorkflowMode:
+      type: string
+      enum:
+        - terminal
+        - direct_runtime
+        - single_handoff
+        - multi_step
+    StepOutputProjectionKind:
+      type: string
+      enum:
+        - notice_context
+    ProjectionSafetySummary:
+      type: object
+      additionalProperties: false
+      required:
+        - truncated
+        - redacted
+        - max_chars
+        - fields_present
+      properties:
+        truncated:
+          type: boolean
+        redacted:
+          type: boolean
+        max_chars:
+          type: integer
+          minimum: 0
+        fields_present:
+          type: array
+          items:
+            type: string
+    NoticeContextProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - title
+        - body_excerpt
+        - source_url
+      properties:
+        title:
+          type: string
+        body_excerpt:
+          type: string
+        source_url:
+          type: string
+    StepOutputProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - projection_id
+        - source_step_id
+        - projection_kind
+        - content_hash
+        - payload
+        - safety
+      properties:
+        projection_id:
+          type: string
+        source_step_id:
+          type: string
+        projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
+        content_hash:
+          type: string
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/NoticeContextProjection"
+            - $ref: "#/components/schemas/SafeObject"
+        safety:
+          $ref: "#/components/schemas/ProjectionSafetySummary"
+    WorkflowContextProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - projection_id
+        - source_step_id
+        - projection_kind
+        - content_hash
+        - safety
+      properties:
+        projection_id:
+          type: string
+        source_step_id:
+          type: string
+        projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
+        content_hash:
+          type: string
+        safety:
+          $ref: "#/components/schemas/ProjectionSafetySummary"
+    WorkflowPlanStep:
+      type: object
+      additionalProperties: false
+      required:
+        - step_id
+        - step_kind
+      properties:
+        step_id:
+          type: string
+        step_kind:
+          type: string
+        target:
+          type: string
+        payload_kind:
+          type: string
+        allowed_tools:
+          type: array
+          items:
+            type: string
+        selected_tool:
+          type: string
+    WorkflowPlanEdge:
+      type: object
+      additionalProperties: false
+      required:
+        - from_step_id
+        - to_step_id
+        - condition
+      properties:
+        from_step_id:
+          type: string
+        to_step_id:
+          type: string
+        condition:
+          type: string
+        required_projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
+    WorkflowPlan:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - plan_id
+        - workflow_mode
+        - steps
+        - edges
+        - terminal_policy
+        - resume_policy
+        - semantic_retry_policy
+      properties:
+        schema_version:
+          const: workflow-plan-v1
+        plan_id:
+          type: string
+        workflow_mode:
+          $ref: "#/components/schemas/WorkflowMode"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowPlanStep"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowPlanEdge"
+        terminal_policy:
+          $ref: "#/components/schemas/SafeObject"
+        resume_policy:
+          $ref: "#/components/schemas/SafeObject"
+        semantic_retry_policy:
+          $ref: "#/components/schemas/SafeObject"
     SafeObject:
       type: object
       additionalProperties: true
@@ -245,6 +405,8 @@ components:
           $ref: "#/components/schemas/SafeObject"
         handoff:
           $ref: "#/components/schemas/SafeObject"
+        workflow_plan:
+          $ref: "#/components/schemas/WorkflowPlan"
         terminal_envelope:
           $ref: "#/components/schemas/SafeObject"
         runtime_decision_summary:
@@ -377,9 +539,12 @@ components:
         - context_resolution
         - planning_outcome
         - direct_vs_delegate_branch
+        - workflow_mode
         - handoff
+        - handoff_chain
         - selected_target
         - selected_tools
+        - context_projections
         - tool_argument_summary
         - guardrail_outcomes
         - fail_close_reason
@@ -394,8 +559,14 @@ components:
           type: string
         direct_vs_delegate_branch:
           type: string
+        workflow_mode:
+          $ref: "#/components/schemas/WorkflowMode"
         handoff:
           $ref: "#/components/schemas/SafeObject"
+        handoff_chain:
+          type: array
+          items:
+            $ref: "#/components/schemas/SafeObject"
         selected_target:
           oneOf:
             - $ref: "#/components/schemas/AgentTarget"
@@ -405,6 +576,10 @@ components:
           type: array
           items:
             type: string
+        context_projections:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowContextProjection"
         tool_argument_summary:
           $ref: "#/components/schemas/SafeObject"
         trace_steps:

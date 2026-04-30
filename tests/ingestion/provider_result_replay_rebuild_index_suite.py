@@ -211,10 +211,6 @@ class ProviderResultReplayIndexTest(unittest.TestCase):
                 patch(
                     "campus_ingestion_core.local_rebuild_indexing.index_chunks_to_qdrant"
                 ) as index_chunks,
-                patch(
-                    "campus_ingestion_core.local_rebuild_indexing.publish_release_alias",
-                    return_value=None,
-                ),
             ):
                 _index_replayed_documents(
                     source={
@@ -424,10 +420,6 @@ class ProviderResultReplayIndexTest(unittest.TestCase):
                 patch(
                     "campus_ingestion_core.local_rebuild_indexing.index_chunks_to_qdrant"
                 ) as index_chunks,
-                patch(
-                    "campus_ingestion_core.local_rebuild_indexing.publish_release_alias",
-                    return_value=None,
-                ),
             ):
                 _index_replayed_documents(
                     source={

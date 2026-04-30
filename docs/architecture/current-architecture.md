@@ -66,20 +66,19 @@ model`
 当前 query-enabled surface 固定为：
 
 - `regulations/student_rules`
+- `regulations/institutional_rules`
 - `curriculum/curriculum_plan`
+- `official_web/stable_reference`
 
 当前非默认公开查询面：
 
 - `campus_notices/internal_notice` restricted source-channel triage
   collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入
   `regulations/*`
-- `regulations/institutional_rules` notice-derived canonical regulation target
-  collection；当前 posture 仍是 `offline_preparation`，只承接经 `internal_notice`
-  promotion/materialization 后的正式制度正文，不直接开放 query-serving
 - `regulations/scoped_rules` notice-derived scoped-rule holding collection；当前
-  posture 仍是 `offline_preparation`，repo 已冻结其作为 `annual_cycle_rule` /
-  `time_bound_operational_rule` 的统一下游承接面，materialization 与 local-only chunk
-  acceptance 已补齐，但继续保持 `query_enabled=false`
+  posture 已进入 retrieval-ready `query_serving` data plane，但仍保持
+  `query_enabled_by_default=false`，repo 已冻结其作为 `annual_cycle_rule` /
+  `time_bound_operational_rule` 的统一下游承接面；默认用户入口仍不放行这个 scope
 - `curriculum/course_facts` agent-internal retrieval
   surface；`retrieval_enabled=true`，`query_enabled_by_default=false`
 - `curriculum/program_family_facts` agent-internal retrieval surface；用于培养方案家族成员关
@@ -148,6 +147,12 @@ model`
 - 拥有 deterministic structured planner；当前实现位于
   `apps/supervisor-api/internal/structuredplanning`，`internal/execution`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
+- `runtime_decisions.workflow_plan` 已作为 planner 的 canonical safe projection
+  落入 bridge contract；当前 runtime 默认只发出 `single_handoff` plan。受控开启
+  `SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run store ready 后，
+  可执行首条真实 `multi_step` path：selected notice context + knowledge follow-through
+  触发 `notice-agent campus_notice_get -> rag-agent retrieval.query`，并将 notice step
+  输出以 bounded internal workflow context projection 传给 RAG step
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope

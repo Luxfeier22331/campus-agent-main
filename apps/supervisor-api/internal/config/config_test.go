@@ -10,6 +10,8 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS", "")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_PORT", "")
 	t.Setenv("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", "")
@@ -27,6 +29,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "")
+	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
 	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
@@ -78,6 +83,12 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.BridgeBreakerOpenMS != 10_000 {
 		t.Fatalf("bridge breaker open ms = %d, want 10000", cfg.BridgeBreakerOpenMS)
+	}
+	if cfg.BridgeRetryMaxAttempts != 2 {
+		t.Fatalf("bridge retry max attempts = %d, want 2", cfg.BridgeRetryMaxAttempts)
+	}
+	if cfg.BridgeRetryBaseMS != 50 {
+		t.Fatalf("bridge retry base ms = %d, want 50", cfg.BridgeRetryBaseMS)
 	}
 	if cfg.MaxConcurrentAnswers != 8 {
 		t.Fatalf("max concurrent answers = %d, want 8", cfg.MaxConcurrentAnswers)
@@ -152,6 +163,15 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.StructuredProjectionDatabaseURL != "" {
 		t.Fatalf("structured projection database url = %q, want empty", cfg.StructuredProjectionDatabaseURL)
 	}
+	if cfg.MultiStepWorkflowEnabled {
+		t.Fatal("multi-step workflow must be disabled by default")
+	}
+	if cfg.WorkflowRunDatabaseURL != "" {
+		t.Fatalf("workflow run database url = %q, want empty", cfg.WorkflowRunDatabaseURL)
+	}
+	if cfg.WorkflowRunAutoMigrate {
+		t.Fatal("workflow run auto migrate must be disabled by default")
+	}
 	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
 		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
 	}
@@ -207,6 +227,8 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "7500")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS", "4")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", "15")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "20000")
 	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
@@ -232,6 +254,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
 	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
 	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
+	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
+	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "true")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
 	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
@@ -255,6 +280,8 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.BridgeResponseLimitBytes != 2048 ||
 		cfg.BridgeBreakerFailureThreshold != 3 ||
 		cfg.BridgeBreakerOpenMS != 7500 ||
+		cfg.BridgeRetryMaxAttempts != 4 ||
+		cfg.BridgeRetryBaseMS != 15 ||
 		cfg.ShutdownGraceMS != 20000 ||
 		cfg.MetricsBearerToken != "metrics-token" ||
 		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
@@ -282,6 +309,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		len(cfg.OpenCapabilities) != 2 ||
 		cfg.OpenCapabilities[0] != "campus_services" ||
 		cfg.OpenCapabilities[1] != "notice" ||
+		!cfg.MultiStepWorkflowEnabled ||
+		cfg.WorkflowRunDatabaseURL != "postgresql://workflow.example/db" ||
+		!cfg.WorkflowRunAutoMigrate ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
 		cfg.SupervisorPromptModel != "gpt-supervisor" ||
 		cfg.AgentPromptModel != "gpt-agent" ||
@@ -377,6 +407,9 @@ func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeR
 	}
 	if cfg.StructuredProjectionDatabaseURL != "postgresql://shared.example/db" {
 		t.Fatalf("structured projection database url = %q", cfg.StructuredProjectionDatabaseURL)
+	}
+	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/db" {
+		t.Fatalf("workflow run database url = %q", cfg.WorkflowRunDatabaseURL)
 	}
 	if cfg.NoticeObjectStoreAccessKey != "generic-access" {
 		t.Fatalf("notice object store access key = %q", cfg.NoticeObjectStoreAccessKey)

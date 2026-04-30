@@ -235,6 +235,33 @@ class RebuildLocalDataReplayTest(unittest.TestCase):
         self.assertEqual(calls[0]["REBUILD_PUBLISH_ALIAS"], "0")
         self.assertEqual(report.import_context["REBUILD_PUBLISH_ALIAS"], "0")
 
+    def test_rebuild_provider_response_replay_rejects_alias_publish_request(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "provider_response_replay cannot publish qdrant alias",
+        ):
+            rebuild_local_data(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                },
+                request=RebuildRequest(
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    import_mode="provider_response_replay",
+                    raw_version_id="sha256:curriculum-replay-001",
+                    index_qdrant=True,
+                    publish_qdrant_alias=True,
+                ),
+                object_store=_FakeObjectStoreAdmin(),
+                document_registry=_FakeDocumentRegistry(),
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                import_runner=lambda **kwargs: {"status": "replay"},
+            )
+
     def test_rebuild_provider_response_replay_uses_raw_processed_keys_when_scope_rows_have_legacy_auth_projection(
         self,
     ) -> None:

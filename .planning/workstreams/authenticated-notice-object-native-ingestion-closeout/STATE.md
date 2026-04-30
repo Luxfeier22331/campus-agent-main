@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-29
 ---
@@ -11,14 +11,12 @@ updated: 2026-04-29
 
 ## Current Position
 
-- status: `active`
-- current phase: `Phase 7`
-- current slice: live repair, historical recollection, and acceptance evidence closeout
-- last activity: 2026-04-29
-- last activity description: stale `storageState` override bug fixed, operator cookies revalidated,
-  55 historical `file_release_capture` rows backed up and recollected through live
-  collector->run_id->worker imports, and refreshed object-locator audit completed with
-  `missing_object_count=0`
+- status: `completed`
+- current phase: `Phase 7 complete`
+- current slice: complete; only reopen on object-native handoff or locator evidence drift
+- last activity: 2026-04-30
+- last activity description: workstream closed with phase summaries, completed registry state,
+  retained Phase 7 evidence, and fresh read-only local audit command sanity check
 
 ## Why This Workstream Exists
 
@@ -115,6 +113,12 @@ updated: 2026-04-29
 ## Blockers
 
 - none
+
+## Closeout Notes
+
+- Retained Phase 7 evidence reports `3332 / 3332` required authenticated-notice object locators verified and `missing_object_count=0`.
+- Fresh 2026-04-30 audit-only command executed successfully and wrote only to `/tmp`; the current local PG inventory returned zero rows, so it was treated as command sanity evidence rather than replacement for retained live evidence.
+- Reopen only if collector/worker handoff regresses to local export paths, object locator audit finds missing required source objects, run-ledger `run_id` import breaks, or a notice-family consumer bypasses object/source-truth/projection/admission truth.
 
 ## Verification
 

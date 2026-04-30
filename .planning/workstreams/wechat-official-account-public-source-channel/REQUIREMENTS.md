@@ -1,8 +1,8 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-04-30
 ---
 
 # Requirements: WeChat Official-Account Public Source Channel

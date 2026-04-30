@@ -10,7 +10,7 @@ BRIDGE_VERSION = "supervisor_bridge_v6"
 RESPONSE_CONTRACT = "agent_response"
 RUNTIME_DECISIONS_SCHEMA_VERSION = "supervisor-runtime-decisions-v1"
 RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "runtime-decision-summary-v1"
-WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v1"
+WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v3"
 
 AgentTarget = Literal[
     "rag-agent",
@@ -46,6 +46,14 @@ SupervisorStatus = Literal[
 ]
 
 
+WorkflowMode = Literal[
+    "terminal",
+    "direct_runtime",
+    "single_handoff",
+    "multi_step",
+]
+
+
 class RuntimeDecisionSummaryWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -63,6 +71,69 @@ class RuntimeDecisionSummaryWire(BaseModel):
     policy_artifact_versions: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkflowPlanStepWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    step_id: str
+    step_kind: str
+    target: str = ""
+    payload_kind: str = ""
+    allowed_tools: list[str] = Field(default_factory=list)
+    selected_tool: str = ""
+
+
+class WorkflowPlanEdgeWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    from_step_id: str
+    to_step_id: str
+    condition: str
+    required_projection_kind: str = ""
+
+
+class ProjectionSafetySummaryWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    truncated: bool
+    redacted: bool
+    max_chars: int
+    fields_present: list[str]
+
+
+class StepOutputProjectionWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    projection_id: str
+    source_step_id: str
+    projection_kind: Literal["notice_context"]
+    content_hash: str
+    payload: dict[str, Any]
+    safety: ProjectionSafetySummaryWire
+
+
+class WorkflowContextProjectionWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    projection_id: str
+    source_step_id: str
+    projection_kind: Literal["notice_context"]
+    content_hash: str
+    safety: ProjectionSafetySummaryWire
+
+
+class WorkflowPlanWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["workflow-plan-v1"]
+    plan_id: str
+    workflow_mode: WorkflowMode
+    steps: list[WorkflowPlanStepWire]
+    edges: list[WorkflowPlanEdgeWire]
+    terminal_policy: dict[str, Any]
+    resume_policy: dict[str, Any]
+    semantic_retry_policy: dict[str, Any]
+
+
 class RuntimeDecisionsWire(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -76,6 +147,7 @@ class RuntimeDecisionsWire(BaseModel):
     context_preflight: dict[str, Any] = Field(default_factory=dict)
     tool_policy: dict[str, Any] = Field(default_factory=dict)
     handoff: dict[str, Any] | None = None
+    workflow_plan: WorkflowPlanWire | None = None
     terminal_envelope: dict[str, Any] | None = None
 
 
@@ -112,6 +184,28 @@ class AgentResponseWire(BaseModel):
     agent_observability: dict[str, Any] | None = None
 
 
+class WorkflowTraceSummaryWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    routing_frame: dict[str, Any]
+    context_resolution: dict[str, Any]
+    planning_outcome: str
+    direct_vs_delegate_branch: str
+    workflow_mode: WorkflowMode
+    handoff: dict[str, Any]
+    handoff_chain: list[dict[str, Any]]
+    selected_target: str | None
+    selected_tools: list[str]
+    context_projections: list[WorkflowContextProjectionWire]
+    tool_argument_summary: dict[str, Any]
+    guardrail_outcomes: dict[str, Any]
+    fail_close_reason: str
+    runtime_versions: dict[str, Any]
+    policy_artifact_versions: dict[str, Any]
+    trace_steps: list[dict[str, Any]] = Field(default_factory=list)
+    tool_call_summaries: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class SupervisorResponseWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -124,4 +218,4 @@ class SupervisorResponseWire(BaseModel):
     error: dict[str, Any] | None
     trace_id: str
     observability: dict[str, Any] | None = None
-    workflow_trace_summary: dict[str, Any] | None = None
+    workflow_trace_summary: WorkflowTraceSummaryWire | None = None

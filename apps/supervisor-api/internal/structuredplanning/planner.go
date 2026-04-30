@@ -10,12 +10,13 @@ import (
 var yearPattern = regexp.MustCompile(`(20\d{2})年`)
 
 type Request struct {
-	EffectiveCapability string
-	UserGoal            string
-	HasRequestedScope   bool
-	RequestedScope      Scope
-	VersionQuery        VersionQuery
-	SelectedNoticeRef   SelectedNoticeRef
+	EffectiveCapability      string
+	UserGoal                 string
+	HasRequestedScope        bool
+	RequestedScope           Scope
+	VersionQuery             VersionQuery
+	SelectedNoticeRef        SelectedNoticeRef
+	MultiStepWorkflowEnabled bool
 }
 
 type Scope struct {
@@ -43,59 +44,59 @@ type Handoff struct {
 	AllowedTools []string
 }
 
-func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) *Handoff {
+func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) *WorkflowPlan {
 	normalizedGoal := runtimepolicy.NormalizeGoal(request.UserGoal)
 	if normalizedGoal == "" || isDelegatedTransactionAction(normalizedGoal, policy) {
 		return nil
 	}
 	if request.EffectiveCapability == "campus_services" {
 		if isTransportBoardingStatusLookup(normalizedGoal, policy) {
-			return &Handoff{
+			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_status_lookup",
 				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
-			}
+			})
 		}
 		if isTransportServiceGuideLookup(normalizedGoal, policy) {
-			return &Handoff{
+			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
 				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
-			}
+			})
 		}
 		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
-			return &Handoff{
+			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "transport_schedule_lookup",
 				Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "transport_schedule_lookup"),
-			}
+			})
 		}
 		if containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
-			return &Handoff{
+			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_status_lookup",
 				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
-			}
+			})
 		}
 		if isContactDirectoryLookup(normalizedGoal, policy) {
-			return &Handoff{
+			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "contact_directory_lookup",
 				Payload:      contactDirectoryPayload(request.UserGoal, normalizedGoal, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup"),
-			}
+			})
 		}
 		if isServiceGuideLookup(normalizedGoal, policy) {
-			return &Handoff{
+			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
 				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
-			}
+			})
 		}
 		return nil
 	}
@@ -109,29 +110,63 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			if selectedNoticeRef.SourceFamily != "" {
 				payload["source_family"] = selectedNoticeRef.SourceFamily
 			}
-			return &Handoff{
+			return SingleHandoffPlan(Handoff{
 				Target:       "notice-agent",
 				PayloadKind:  "campus_notice_get",
 				Payload:      payload,
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
-			}
+			})
 		}
-		return &Handoff{
+		return SingleHandoffPlan(Handoff{
 			Target:       "notice-agent",
 			PayloadKind:  "campus_notice_discover",
 			Payload:      noticeDiscoverPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_discover"),
-		}
+		})
 	}
 	if request.EffectiveCapability == "knowledge" {
-		return &Handoff{
+		if isNoticeKnowledgeFollowthrough(normalizedGoal, request, policy) {
+			noticePayload := map[string]any{
+				"notice_id": request.SelectedNoticeRef.NoticeID,
+			}
+			if request.SelectedNoticeRef.SourceFamily != "" {
+				noticePayload["source_family"] = request.SelectedNoticeRef.SourceFamily
+			}
+			return MultiStepNoticeKnowledgeFollowthroughPlan(
+				Handoff{
+					Target:       "notice-agent",
+					PayloadKind:  "campus_notice_get",
+					Payload:      noticePayload,
+					AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
+				},
+				Handoff{
+					Target:       "rag-agent",
+					PayloadKind:  "rag_request",
+					Payload:      ragRequestPayload(request),
+					AllowedTools: runtimepolicy.AllowedToolsForTarget("rag-agent"),
+				},
+			)
+		}
+		return SingleHandoffPlan(Handoff{
 			Target:       "rag-agent",
 			PayloadKind:  "rag_request",
 			Payload:      ragRequestPayload(request),
 			AllowedTools: runtimepolicy.AllowedToolsForTarget("rag-agent"),
-		}
+		})
 	}
 	return nil
+}
+
+func isNoticeKnowledgeFollowthrough(
+	normalizedGoal string,
+	request Request,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return request.MultiStepWorkflowEnabled &&
+		request.HasRequestedScope &&
+		request.SelectedNoticeRef.NoticeID != "" &&
+		containsAny(normalizedGoal, policy.Signals("notice_get_reference")) &&
+		containsAny(normalizedGoal, policy.Signals("notice_knowledge_followthrough"))
 }
 
 func isDelegatedTransactionAction(

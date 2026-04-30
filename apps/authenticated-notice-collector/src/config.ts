@@ -12,8 +12,10 @@ export interface CollectorConfig {
 	packageRoot: string;
 	repoRoot: string;
 	runtimeDir: string;
+	attachmentFetchRequestManifestPath: string | null;
 	attachmentFetchStatusDatabaseUrl: string | null;
 	attachmentFetchStatusDisabled: boolean;
+	defaultInlineVisualCapture: boolean;
 	authStorageStatePath: string;
 	authCookieHeader: string | null;
 	authJsessionId: string | null;
@@ -71,12 +73,19 @@ export function resolveCollectorConfig(
 		packageRoot,
 		repoRoot,
 		runtimeDir,
+		attachmentFetchRequestManifestPath: normalizeOptionalPath(
+			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH,
+		),
 		attachmentFetchStatusDatabaseUrl: normalizeOptionalSecret(
 			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL,
 		),
 		attachmentFetchStatusDisabled: parseBooleanFlag(
 			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DISABLE,
 			false,
+		),
+		defaultInlineVisualCapture: parseBooleanFlag(
+			source.AUTHENTICATED_NOTICE_DEFAULT_INLINE_VISUAL_CAPTURE,
+			true,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authCookieHeader: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER),
@@ -150,6 +159,11 @@ function parseOptionalStringList(raw: string | undefined): string[] | null {
 function normalizeOptionalSecret(raw: string | undefined): string | null {
 	const normalized = String(raw ?? "").trim();
 	return normalized ? normalized : null;
+}
+
+function normalizeOptionalPath(raw: string | undefined): string | null {
+	const normalized = String(raw ?? "").trim();
+	return normalized ? path.resolve(normalized) : null;
 }
 
 export function ensureRuntimeDirs(config: CollectorConfig): void {

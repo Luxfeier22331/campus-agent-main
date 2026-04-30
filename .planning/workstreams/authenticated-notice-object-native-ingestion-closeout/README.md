@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-28
 updated: 2026-04-29
 ---
@@ -26,9 +26,9 @@ updated: 2026-04-29
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 7`
-- current focus: Phase 7 live repair and acceptance closeout evidence
+- status: `completed`
+- current phase: `Phase 7 complete`
+- current focus: complete; only reopen on object-native handoff or locator evidence drift
 - implementation status: Phase 4-6 implemented and locally verified; Phase 7 audit command,
   selected repair manifest contract, backup evidence path, Docker handoff evidence, full
   historical `file_release_capture` recollection, and refreshed object-locator audit are now

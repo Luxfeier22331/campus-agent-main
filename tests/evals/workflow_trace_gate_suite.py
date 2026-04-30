@@ -8,6 +8,7 @@ from campus_evals.workflow_trace_gate import (
     WorkflowTraceExpectation,
     attach_workflow_trace_gate,
     evaluate_workflow_trace_case,
+    load_process_smoke_workflow_trace_summaries,
     load_workflow_trace_cases,
     validate_workflow_trace_case_set,
 )
@@ -34,8 +35,10 @@ def _trace_summary(**overrides):
         "routing_frame": {"intent": "campus_service_lookup"},
         "context_resolution": {"resolved_scope": "campus_services"},
         "planning_outcome": "direct_structured_tool",
+        "workflow_mode": "direct_runtime",
         "direct_vs_delegate_branch": "direct",
         "handoff": {"target": "campus-services-agent", "mode": "structured_runtime"},
+        "handoff_chain": (),
         "selected_target": "campus-services-agent",
         "selected_tools": ("transport_schedule_lookup",),
         "tool_argument_summary": {
@@ -90,9 +93,11 @@ def _trace_summary(**overrides):
 def _workflow_case(**expectation_overrides) -> WorkflowTraceCase:
     expectation_defaults = {
         "direct_vs_delegate_branch": "direct",
+        "workflow_mode": "direct_runtime",
         "selected_target": "campus-services-agent",
         "selected_tools": ("transport_schedule_lookup",),
         "handoff": {"target": "campus-services-agent"},
+        "handoff_chain": (),
         "tool_argument_summary": {
             "service_key": "transport_commute",
             "campus": "fengtai",
@@ -146,13 +151,15 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
             {
                 "workflow-direct-structured-service-status",
                 "workflow-service-guide-direct",
+                "workflow-contact-directory-direct",
                 "workflow-transport-schedule-direct",
                 "workflow-notice-discover-direct",
                 "workflow-notice-detail-direct",
                 "workflow-knowledge-delegate",
                 "workflow-curriculum-delegate",
                 "workflow-ambiguous-follow-up-clarification",
-                "workflow-transactional-service-fail-close",
+                "workflow-product-scope-fail-close",
+                "workflow-transactional-approval-required",
                 "workflow-service-guide-no-result",
             }.issubset(case_ids)
         )
@@ -203,6 +210,36 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
                 }
             )
 
+    def test_multi_step_trace_requires_context_projection_summary(self) -> None:
+        case = _workflow_case(
+            direct_vs_delegate_branch="multi_step",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("campus_notice_get", "retrieval.query"),
+            handoff_chain=(
+                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
+                {"target": "rag-agent", "payload_kind": "rag_request"},
+            ),
+            expected_tool_order=("campus_notice_get", "retrieval.query"),
+        )
+        summary = _trace_summary(
+            direct_vs_delegate_branch="multi_step",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("campus_notice_get", "retrieval.query"),
+            handoff_chain=(
+                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
+                {"target": "rag-agent", "payload_kind": "rag_request"},
+            ),
+        )
+
+        results = evaluate_workflow_trace_case(case, summary)
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn(
+            "context_projections.multi_step", results.trace_projection_completeness.reason
+        )
+
 
 class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
     def test_evaluates_all_workflow_trace_dimensions_as_passed(self) -> None:
@@ -217,6 +254,115 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
         self.assertTrue(results.tool_order_correctness.passed)
         self.assertTrue(results.tool_result_status_correctness.passed)
         self.assertTrue(results.evidence_source_selection.passed)
+
+    def test_validates_current_workflow_mode_and_handoff_chain_shape(self) -> None:
+        delegate_case = _workflow_case(
+            direct_vs_delegate_branch="delegate",
+            workflow_mode="single_handoff",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+            expected_source_ids=("student_rules:leave-policy",),
+        )
+        delegate_summary = _trace_summary(
+            workflow_mode="single_handoff",
+            direct_vs_delegate_branch="delegate",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+        )
+
+        delegate_results = evaluate_workflow_trace_case(delegate_case, delegate_summary)
+        self.assertTrue(delegate_results.handoff_correctness.passed)
+        self.assertTrue(delegate_results.trace_projection_completeness.passed)
+
+        terminal_results = evaluate_workflow_trace_case(
+            _workflow_case(
+                direct_vs_delegate_branch="fail_close",
+                workflow_mode="terminal",
+                selected_target="none",
+                selected_tools=(),
+                handoff={},
+                handoff_chain=(),
+                tool_argument_summary={},
+                tool_call_summaries=(),
+                fail_close_expected=True,
+                fail_close_reason="transactional_action_not_supported",
+            ),
+            _trace_summary(
+                workflow_mode="terminal",
+                direct_vs_delegate_branch="fail_close",
+                selected_target="none",
+                selected_tools=(),
+                handoff={},
+                handoff_chain=(),
+                tool_argument_summary={},
+                tool_call_summaries=(),
+                fail_close_reason="transactional_action_not_supported",
+            ),
+        )
+        self.assertTrue(terminal_results.handoff_correctness.passed)
+        self.assertTrue(terminal_results.trace_projection_completeness.passed)
+
+    def test_multi_step_trace_requires_more_than_single_handoff_projection(self) -> None:
+        multi_step_case = _workflow_case(
+            direct_vs_delegate_branch="delegate",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=(
+                {"target": "rag-agent", "selected_tool": "retrieval.query"},
+                {"target": "notice-agent", "selected_tool": "campus_notice_get"},
+            ),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+        )
+        single_handoff_projection = _trace_summary(
+            workflow_mode="multi_step",
+            direct_vs_delegate_branch="delegate",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+        )
+
+        results = evaluate_workflow_trace_case(multi_step_case, single_handoff_projection)
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn("handoff_chain.multi_step", results.trace_projection_completeness.reason)
 
     def test_fails_wrong_branch_target_tools_arguments_guardrails_and_fail_close(self) -> None:
         results = evaluate_workflow_trace_case(
@@ -307,6 +453,77 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
 
         self.assertFalse(results.trace_projection_completeness.passed)
         self.assertIn("tool_call_summaries", results.trace_projection_completeness.reason)
+
+    def test_loads_workflow_trace_summary_from_process_smoke_artifact(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            report_path = Path(temp_dir) / "process-smoke-summary.json"
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "supervisor_runtime_process_smoke.v1",
+                        "profile": "structured_direct_opened",
+                        "passed": True,
+                        "answer": {
+                            "workflow_trace_summary": {
+                                "routing_frame": {"scope_gate_decision": "allow"},
+                                "context_resolution": {"state": "ok"},
+                                "planning_outcome": "preplanned",
+                                "direct_vs_delegate_branch": "direct",
+                                "workflow_mode": "direct_runtime",
+                                "handoff": {"target": "campus-services-agent"},
+                                "handoff_chain": [],
+                                "selected_target": "campus-services-agent",
+                                "selected_tools": ["transport_schedule_lookup"],
+                                "tool_argument_summary": {
+                                    "payload_kind": "transport_schedule_lookup"
+                                },
+                                "trace_steps": [
+                                    {
+                                        "step_id": "runtime_policy",
+                                        "span_kind": "runtime_policy",
+                                        "parent_step_id": "",
+                                        "outcome": "delegate",
+                                    },
+                                    {
+                                        "step_id": "tool_call",
+                                        "span_kind": "tool_call",
+                                        "parent_step_id": "runtime_policy",
+                                        "tool_name": "transport_schedule_lookup",
+                                        "outcome": "completed",
+                                        "result_status": "completed",
+                                        "retry_count": 0,
+                                    },
+                                ],
+                                "tool_call_summaries": [
+                                    {
+                                        "tool_name": "transport_schedule_lookup",
+                                        "result_status": "completed",
+                                        "source_ids": [],
+                                    }
+                                ],
+                                "guardrail_outcomes": {"scope_gate": "allow"},
+                                "fail_close_reason": "",
+                                "runtime_versions": {"workflow_trace_summary": "test"},
+                                "policy_artifact_versions": {"intent_policy": "test"},
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            summaries = load_process_smoke_workflow_trace_summaries(
+                (report_path,),
+                profile_case_ids={
+                    "structured_direct_opened": "workflow-transport-schedule-direct",
+                },
+            )
+
+        self.assertIn("workflow-transport-schedule-direct", summaries)
+        self.assertEqual(
+            summaries["workflow-transport-schedule-direct"].selected_tools,
+            ("transport_schedule_lookup",),
+        )
 
     def test_fails_trace_projection_completeness_when_steps_lack_timeline_fields(
         self,

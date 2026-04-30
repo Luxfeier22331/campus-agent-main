@@ -466,6 +466,35 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	if observability["selected_tool"] != "transport_schedule_lookup" {
 		t.Fatalf("observability.selected_tool = %v, want transport_schedule_lookup", observability["selected_tool"])
 	}
+	traceSummary := expectRecord(t, body["workflow_trace_summary"], "workflow_trace_summary")
+	if traceSummary["workflow_mode"] != "direct_runtime" {
+		t.Fatalf("workflow_mode = %v, want direct_runtime", traceSummary["workflow_mode"])
+	}
+	if traceSummary["selected_target"] != "campus-services-agent" {
+		t.Fatalf("trace selected_target = %v, want campus-services-agent", traceSummary["selected_target"])
+	}
+	toolCalls, ok := traceSummary["tool_call_summaries"].([]any)
+	if !ok || len(toolCalls) != 1 {
+		t.Fatalf("tool_call_summaries = %#v, want one direct tool call", traceSummary["tool_call_summaries"])
+	}
+	toolCall := expectRecord(t, toolCalls[0], "tool_call_summary")
+	if toolCall["tool_name"] != "transport_schedule_lookup" {
+		t.Fatalf("tool_name = %v, want transport_schedule_lookup", toolCall["tool_name"])
+	}
+	safeDetails := expectRecord(t, toolCall["safe_details"], "tool_call.safe_details")
+	executionProjection := expectRecord(
+		t,
+		safeDetails["agent_execution_projection"],
+		"agent_execution_projection",
+	)
+	if executionProjection["projection_owner"] != "campus-services-agent" ||
+		executionProjection["selected_tool"] != "transport_schedule_lookup" {
+		t.Fatalf("agent_execution_projection = %#v", executionProjection)
+	}
+	resultGuardrail := expectRecord(t, safeDetails["result_guardrail"], "result_guardrail")
+	if resultGuardrail["outcome"] != "source_backed" || resultGuardrail["source_ref_count"] != float64(1) {
+		t.Fatalf("result_guardrail = %#v, want source_backed with one source", resultGuardrail)
+	}
 }
 
 func TestAnswerUsesStartupIntentPolicySnapshot(t *testing.T) {
