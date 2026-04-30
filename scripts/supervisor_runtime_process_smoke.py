@@ -33,6 +33,9 @@ NOTICE_DIRECT_OPENED_PROFILES = {
     "notice_discover_direct_opened",
     "notice_get_direct_opened",
 }
+MULTI_STEP_WORKFLOW_PROFILES = {
+    "multi_step_notice_knowledge_followthrough",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +80,10 @@ def build_process_smoke_plan(
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
         "supervisor-agent-worker-local-placeholder",
     )
+    structured_query_secret = _env_or_default(
+        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+        "supervisor-structured-query-local-placeholder",
+    )
     api_base_url = f"http://{api_host}:{api_port}"
     worker_base_url = f"http://{worker_host}:{worker_port}"
     common_env = {
@@ -94,9 +101,18 @@ def build_process_smoke_plan(
         **common_env,
         "SUPERVISOR_AGENT_WORKER_HOST": worker_host,
         "SUPERVISOR_AGENT_WORKER_PORT": str(worker_port),
+        **_profile_worker_env(
+            profile,
+            api_base_url=api_base_url,
+            structured_query_secret=structured_query_secret,
+        ),
     }
     object_store_base_url = f"http://{object_store_host}:{object_store_port}"
-    profile_api_env = _profile_api_env(profile, object_store_base_url=object_store_base_url)
+    profile_api_env = _profile_api_env(
+        profile,
+        object_store_base_url=object_store_base_url,
+        structured_query_secret=structured_query_secret,
+    )
     api_env = {
         **common_env,
         "API_AUTH_MODE": "trusted-worker",
@@ -182,7 +198,12 @@ def build_process_smoke_plan(
     )
 
 
-def _profile_api_env(profile: str, *, object_store_base_url: str) -> dict[str, str]:
+def _profile_api_env(
+    profile: str,
+    *,
+    object_store_base_url: str,
+    structured_query_secret: str,
+) -> dict[str, str]:
     if profile in CAMPUS_SERVICES_DIRECT_OPENED_PROFILES:
         return {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
@@ -204,11 +225,41 @@ def _profile_api_env(profile: str, *, object_store_base_url: str) -> dict[str, s
                 }
             )
         return env
+    if profile in MULTI_STEP_WORKFLOW_PROFILES:
+        return {
+            "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED": "true",
+            "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE": "true",
+            "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET": structured_query_secret,
+            "OBJECT_STORE_ENDPOINT": object_store_base_url,
+            "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+            "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+        }
     return {}
 
 
+def _profile_worker_env(
+    profile: str,
+    *,
+    api_base_url: str,
+    structured_query_secret: str,
+) -> dict[str, str]:
+    if profile not in MULTI_STEP_WORKFLOW_PROFILES:
+        return {}
+    return {
+        "SUPERVISOR_STRUCTURED_QUERY_BASE_URL": api_base_url,
+        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET": structured_query_secret,
+        "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
+    }
+
+
+def _env_or_default(key: str, default: str) -> str:
+    value = os.getenv(key, "").strip()
+    return value or default
+
+
 def _profile_requires_object_store(profile: str) -> bool:
-    return profile in NOTICE_DIRECT_OPENED_PROFILES
+    return profile in NOTICE_DIRECT_OPENED_PROFILES or profile in MULTI_STEP_WORKFLOW_PROFILES
 
 
 def _profile_requires_structured_projection(profile: str) -> bool:
@@ -216,17 +267,25 @@ def _profile_requires_structured_projection(profile: str) -> bool:
 
 
 def _profile_requires_notice_read_model(profile: str) -> bool:
-    return profile in NOTICE_DIRECT_OPENED_PROFILES
+    return profile in NOTICE_DIRECT_OPENED_PROFILES or profile in MULTI_STEP_WORKFLOW_PROFILES
+
+
+def _profile_requires_workflow_run_store(profile: str) -> bool:
+    return profile in MULTI_STEP_WORKFLOW_PROFILES
 
 
 def _profile_requires_temporary_postgres(profile: str) -> bool:
     return _profile_requires_structured_projection(profile) or _profile_requires_notice_read_model(
         profile
-    )
+    ) or _profile_requires_workflow_run_store(profile)
 
 
 def _notice_smoke_body() -> str:
-    return "# 烟雾测试通知\n\n这是一条用于 notice-agent direct runtime smoke 的通知正文。\n"
+    return (
+        "# 烟雾测试通知\n\n"
+        "这是一条用于 notice-agent direct runtime smoke 的通知正文。"
+        "通知事项需要结合学生手册相关规定理解。\n"
+    )
 
 
 def run_process_smoke(
@@ -405,6 +464,15 @@ def _prepare_process_smoke_runtime(
                     "kind": "temporary_postgres_notice_read_model",
                     "seed_log_path": str(notice_seed_log_path),
                     "notice_id": "notice:smoke:001",
+                }
+            )
+        if _profile_requires_workflow_run_store(plan.profile):
+            env_overlay["SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"] = runtime_database_url
+            env_overlay["SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE"] = "true"
+            artifacts.append(
+                {
+                    "kind": "temporary_postgres_workflow_run_store",
+                    "schema": "runtime.workflow_runs",
                 }
             )
     except Exception:

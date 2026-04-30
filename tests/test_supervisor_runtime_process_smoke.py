@@ -202,6 +202,11 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             profile="notice_get_direct_opened",
         )
+        multi_step_notice = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="multi_step_notice_knowledge_followthrough",
+        )
         transactional = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
@@ -305,6 +310,45 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "http://127.0.0.1:18082",
         )
         self.assertIn("campus_notice_get", notice_get.expected_body_tokens)
+        multi_step_processes = {
+            process.label: process for process in multi_step_notice.processes
+        }
+        self.assertEqual(multi_step_notice.expected_status, 200)
+        self.assertEqual(multi_step_notice.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(
+            multi_step_notice.answer_payload["context"]["session"]["selected_notice_ref"][
+                "notice_id"
+            ],
+            "notice:smoke:001",
+        )  # type: ignore[index]
+        self.assertEqual(
+            multi_step_processes["supervisor-api"].env[
+                "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED"
+            ],
+            "true",
+        )
+        self.assertEqual(
+            multi_step_processes["supervisor-api"].env[
+                "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE"
+            ],
+            "true",
+        )
+        self.assertEqual(
+            multi_step_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_STRUCTURED_QUERY_BASE_URL"
+            ],
+            "http://127.0.0.1:18080",
+        )
+        self.assertEqual(
+            multi_step_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"
+            ],
+            multi_step_processes["supervisor-api"].env["SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"],
+        )
+        self.assertIn("s3-smoke-object-store", multi_step_processes)
+        self.assertIn("multi_step", multi_step_notice.expected_body_tokens)
+        self.assertIn("campus_notice_get", multi_step_notice.expected_body_tokens)
+        self.assertIn("retrieval.query", multi_step_notice.expected_body_tokens)
         self.assertEqual(transactional.expected_status, 200)
         self.assertEqual(transactional.answer_payload["requested_capability"], "knowledge")
         self.assertEqual(
@@ -423,6 +467,44 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
                         process_by_label["s3-smoke-object-store"].env,
                     )
+
+    def test_multi_step_profile_uses_workflow_and_notice_runtime_overlays(self) -> None:
+        from scripts.supervisor_runtime_process_smoke import (
+            _postgres_url_with_database,
+            _processes_with_env_overlay,
+        )
+
+        plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="multi_step_notice_knowledge_followthrough",
+        )
+        runtime_database_url = _postgres_url_with_database(
+            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+            "campus_agent_process_smoke_multi_step",
+        )
+
+        processes = _processes_with_env_overlay(
+            plan.processes,
+            {
+                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": runtime_database_url,
+                "SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL": runtime_database_url,
+            },
+        )
+        process_by_label = {process.label: process for process in processes}
+
+        self.assertEqual(
+            process_by_label["supervisor-api"].env["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"],
+            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_multi_step",
+        )
+        self.assertEqual(
+            process_by_label["supervisor-api"].env["SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"],
+            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_multi_step",
+        )
+        self.assertNotIn(
+            "SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL",
+            process_by_label["supervisor-agent-worker"].env,
+        )
 
 
 if __name__ == "__main__":

@@ -226,6 +226,43 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
+    if profile == "multi_step_notice_knowledge_followthrough":
+        notice_context = {
+            **context,
+            "session": {
+                "selected_notice_ref": {
+                    "notice_id": "notice:smoke:001",
+                    "source_family": "wechat_public_notice",
+                    "title": "烟雾测试通知",
+                },
+                "turn_count": 2,
+            },
+        }
+        return (
+            {
+                "user_goal": "这条通知依据学生手册哪条规定？",
+                "request_id": "process-smoke-multi-step-notice-knowledge",
+                "requested_capability": "knowledge",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                },
+                "context": notice_context,
+            },
+            200,
+            (
+                "workflow_trace_summary",
+                "multi_step",
+                "notice-agent",
+                "campus_notice_get",
+                "rag-agent",
+                "retrieval.query",
+                "agent_execution_projection",
+            ),
+            "/api/v1/answer",
+            "json",
+            (200,),
+        )
     if profile == "transactional_approval_required":
         return (
             {
