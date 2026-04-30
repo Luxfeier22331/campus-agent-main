@@ -25,6 +25,9 @@ Implemented:
 - collected notice reimport preview `source_retention` output
 - metadata-only attachment filtering from required source object refs
 - Batch 3 audit for 83 legacy `process/no target` units
+- live collector fetch admission from `authenticated_notice_attachment_fetch_request_manifest_v1`
+- collector default reference-only attachment capture
+- run-ledger required object verification for required/admitted owner bytes
 
 Acceptance:
 
@@ -34,5 +37,9 @@ Acceptance:
 - regulation remains owner-text gated.
 - notice-level query attachments remain metadata-only unless a downstream target-required fact
   gap or admitted owner explicitly requires bytes.
+- collector does not download internal or allowlisted inline image bytes unless an explicit
+  fetch admission exists.
+- required/admitted owner bytes fail collector run ledger verification when missing; quarantine
+  bytes do not count as required source objects.
 
 No production data writes were performed.

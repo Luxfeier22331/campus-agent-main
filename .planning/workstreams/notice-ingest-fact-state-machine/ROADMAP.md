@@ -26,6 +26,9 @@ updated: 2026-04-30
 - [x] **Phase 8: Source Retention Preview Audit And Integration** — 把 notice-first retention
   state machine 从人工验证推进到 source-truth / preview 输出，修正 legacy `process/no target`
   附件 bytes 误保留风险。
+- [x] **Phase 9: Live Collector Fetch Admission** — 把 source retention 结果接入 live
+  collector：默认 reference-only，只有显式 fetch request manifest admission 才下载附件 bytes，
+  并让 run ledger required object verification 与 required/admitted owner bytes 对齐。
 
 ## Phase 1: Failure Taxonomy And Sample Corpus
 
@@ -223,4 +226,28 @@ uv run --all-packages ruff format \
   tests/ingestion/test_authenticated_notice_retention_preview_audit.py \
   tests/ingestion/test_authenticated_notice_routing_sampling.py \
   tests/ingestion/test_authenticated_notice_routing_taxonomy_eval.py --check
+```
+
+## Phase 9: Live Collector Fetch Admission
+
+**Goal:** 把 Phase 8 source retention 决策从 source-truth / preview 推进到 collector live
+行为，避免 collector 因配置了 object store 就自动下载所有内部附件或 allowlisted external inline
+image。
+
+**Deliverables:**
+
+- collector `attachmentFetchAdmissions` contract。
+- `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH` env entrypoint。
+- ingestion-core `authenticated_notice_attachment_fetch_request_manifest_v1` builder。
+- collector manifest parser from fetch request rows to admissions。
+- run ledger required source object verification aligned to explicit required/admitted owner bytes。
+
+**Verification:**
+
+```bash
+pnpm --dir apps/authenticated-notice-collector test -- bootstrap-export.test.ts config.test.ts portal.test.ts
+pnpm --dir apps/authenticated-notice-collector typecheck
+uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_attachment_fetch_request_manifest -q
+uv run --all-packages ruff check packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_attachment_fetch_request_manifest.py tests/ingestion/test_authenticated_notice_attachment_fetch_request_manifest.py
+uv run --all-packages ruff format packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_attachment_fetch_request_manifest.py tests/ingestion/test_authenticated_notice_attachment_fetch_request_manifest.py --check
 ```

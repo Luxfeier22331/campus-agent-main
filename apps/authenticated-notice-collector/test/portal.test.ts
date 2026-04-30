@@ -615,6 +615,7 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 		authCookieHeader: null,
 		authJsessionId: null,
 		authNginxCookie: null,
+		attachmentFetchRequestManifestPath: null,
 		attachmentFetchStatusDatabaseUrl: null,
 		attachmentFetchStatusDisabled: false,
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),

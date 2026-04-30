@@ -112,3 +112,13 @@ Implemented outcome:
 - filtered `source_object_refs` so metadata-only attachments are not planned as
   required source objects;
 - added preview audit evidence for 83 legacy `process/no target` units.
+
+## Phase 9 Addendum
+
+Phase 9 moved retention cleanup into live collector behavior:
+
+- notice collector defaults to reference-only attachment rows even when object storage is configured;
+- attachment bytes are downloaded only from explicit fetch admissions;
+- ingestion-core emits `authenticated_notice_attachment_fetch_request_manifest_v1` rows for quarantine, source-truth-required, and admitted-owner fetches;
+- collector can read the fetch request manifest via `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH`;
+- run ledger required object verification now fails closed for required/admitted owner bytes and does not count quarantine bytes as required source objects.

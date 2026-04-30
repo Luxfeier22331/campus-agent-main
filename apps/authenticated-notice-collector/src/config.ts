@@ -12,6 +12,7 @@ export interface CollectorConfig {
 	packageRoot: string;
 	repoRoot: string;
 	runtimeDir: string;
+	attachmentFetchRequestManifestPath: string | null;
 	attachmentFetchStatusDatabaseUrl: string | null;
 	attachmentFetchStatusDisabled: boolean;
 	authStorageStatePath: string;
@@ -71,6 +72,9 @@ export function resolveCollectorConfig(
 		packageRoot,
 		repoRoot,
 		runtimeDir,
+		attachmentFetchRequestManifestPath: normalizeOptionalPath(
+			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH,
+		),
 		attachmentFetchStatusDatabaseUrl: normalizeOptionalSecret(
 			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL,
 		),
@@ -150,6 +154,11 @@ function parseOptionalStringList(raw: string | undefined): string[] | null {
 function normalizeOptionalSecret(raw: string | undefined): string | null {
 	const normalized = String(raw ?? "").trim();
 	return normalized ? normalized : null;
+}
+
+function normalizeOptionalPath(raw: string | undefined): string | null {
+	const normalized = String(raw ?? "").trim();
+	return normalized ? path.resolve(normalized) : null;
 }
 
 export function ensureRuntimeDirs(config: CollectorConfig): void {

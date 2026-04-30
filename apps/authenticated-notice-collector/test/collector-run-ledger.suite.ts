@@ -72,12 +72,12 @@ export function registerCollectorRunLedgerSuite() {
 			checksumMismatchCount: 0,
 			failureReason: null,
 			missingSourceObjectCount: 0,
-			requiredSourceObjectCount: 3,
+			requiredSourceObjectCount: 2,
 			sizeMismatchCount: 0,
 			sourceBucket: "campus-rag-source",
 			status: "success",
 			verificationStatus: "verified",
-			verifiedSourceObjectCount: 3,
+			verifiedSourceObjectCount: 2,
 		});
 		expect(record.noticeTypeIds).toEqual(["5"]);
 		expect(record.selectedNoticeIds).toEqual([]);
@@ -96,6 +96,122 @@ export function registerCollectorRunLedgerSuite() {
 		).toEqual({
 			schemaSql: '"ingestion_projection"',
 			tableSql: '"ingestion_projection"."authenticated_notice_collector_run"',
+		});
+	});
+
+	it("fails notice handoff when a required attachment admission has no uploaded bytes", () => {
+		const missingRequiredBundle: BundleNoticeRecord = {
+			...sampleBundleRecord(),
+			attachments: [
+				{
+					...sampleBundleRecord().attachments[0],
+					bucket: null,
+					byte_size: null,
+					downloaded_at: null,
+					ingest_status: "reference_only",
+					object_key: null,
+					provenance_status: "reference_only",
+					sha256: null,
+					storage_provider: "reference_only",
+					uploaded_at: null,
+				},
+			],
+			notice_attachments: [sampleBundleRecord().notice_attachments[0]],
+		};
+		const record = buildCollectorRunLedgerRecord({
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_required_for_admitted_owner",
+					attachmentRefId: "attachment-0001",
+					noticeId: "355119",
+				},
+			],
+			bundleArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 23,
+				contentSha256: "bundle-sha",
+				etag: '"bundle-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				versionId: null,
+			},
+			bundlePath: null,
+			bundleRecords: [missingRequiredBundle],
+			collectionMode: "selected",
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			manifest: sampleManifest(),
+			manifestArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 43,
+				contentSha256: "manifest-sha",
+				etag: '"manifest-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+				versionId: null,
+			},
+			manifestPath: null,
+			runId: "run-20260404",
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(record).toMatchObject({
+			attachmentUploaded: 0,
+			failureReason: "missing_required_objects",
+			missingSourceObjectCount: 1,
+			requiredSourceObjectCount: 3,
+			status: "failed",
+			verificationStatus: "missing_required_objects",
+			verifiedSourceObjectCount: 2,
+		});
+	});
+
+	it("does not require quarantine attachment fetch admissions as source objects", () => {
+		const record = buildCollectorRunLedgerRecord({
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_to_quarantine",
+					attachmentRefId: "attachment-0001",
+					noticeId: "355119",
+				},
+			],
+			bundleArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 23,
+				contentSha256: "bundle-sha",
+				etag: '"bundle-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				versionId: null,
+			},
+			bundlePath: null,
+			bundleRecords: [sampleBundleRecord()],
+			collectionMode: "selected",
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			manifest: sampleManifest(),
+			manifestArtifactRef: {
+				bucket: "campus-rag-source",
+				byteSize: 43,
+				contentSha256: "manifest-sha",
+				etag: '"manifest-etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+				versionId: null,
+			},
+			manifestPath: null,
+			runId: "run-20260404",
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(record).toMatchObject({
+			attachmentUploaded: 1,
+			failureReason: null,
+			missingSourceObjectCount: 0,
+			requiredSourceObjectCount: 2,
+			status: "success",
+			verificationStatus: "verified",
+			verifiedSourceObjectCount: 2,
 		});
 	});
 

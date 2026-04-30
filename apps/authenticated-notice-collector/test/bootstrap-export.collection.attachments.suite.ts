@@ -1,6 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import { collectBootstrapBundle } from "../src/bootstrap-export";
+import {
+	collectBootstrapBundle,
+	parseAttachmentFetchAdmissionsFromManifest,
+} from "../src/bootstrap-export";
 
 export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 	afterEach(() => {
@@ -127,7 +130,44 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 			},
 		]);
 	});
-	it("materializes internal attachments into object-backed bundle rows when an artifact store is configured", async () => {
+	it("parses attachment fetch request manifests into collector admissions", () => {
+		const admissions = parseAttachmentFetchAdmissionsFromManifest({
+			requests: [
+				{
+					attachment_capture_policy: "metadata_only",
+					attachment_ref_id: "attachment-0001",
+					notice_id: "355929",
+				},
+				{
+					collector_admission: {
+						attachmentCapturePolicy: "fetch_to_quarantine",
+						attachmentRefId: "attachment-0002",
+						noticeId: "355867",
+					},
+				},
+				{
+					attachment_capture_policy: "fetch_required_for_source_truth",
+					attachment_ref_id: "attachment-0003",
+					notice_id: "646",
+				},
+			],
+		});
+
+		expect(admissions).toEqual([
+			{
+				attachmentCapturePolicy: "fetch_to_quarantine",
+				attachmentRefId: "attachment-0002",
+				noticeId: "355867",
+			},
+			{
+				attachmentCapturePolicy: "fetch_required_for_source_truth",
+				attachmentRefId: "attachment-0003",
+				noticeId: "646",
+			},
+		]);
+	});
+	it("keeps internal attachments reference-only by default even when an artifact store is configured", async () => {
+		let downloadCalls = 0;
 		const storedObjects: Array<{
 			key: string;
 			contentType: string;
@@ -155,6 +195,148 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => ({
+					body: async () => {
+						downloadCalls += 1;
+						return Buffer.from("hello");
+					},
+					headers: () => ({
+						"content-disposition": "attachment; filename*=UTF-8''application.docx",
+						"content-type":
+							"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+					}),
+					json: async () => ({}),
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						home_url: "https://portal.example.edu/home",
+						notice_annext: [
+							{
+								notice_annex_id: "annex-1",
+								notice_annex_name: "application.docx",
+							},
+						],
+						notice_content: "<p>正文</p>",
+						notice_id: noticeId,
+						notice_release_time: "2026-04-02 18:49",
+					},
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 5,
+							notice_type_name: "办公通知",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async () => ({
+				datas: {
+					page: {
+						totalCounts: 1,
+					},
+					tables: [
+						{
+							notice_id: 355119,
+							notice_title: "通知 A",
+							notice_type: "5",
+							notice_type_name: "办公通知",
+						},
+					],
+				},
+				state: true,
+			}),
+			noticeTypes: [
+				{
+					type: "5",
+					name: "办公通知",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 1,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(downloadCalls).toBe(0);
+		expect(result.stats.attachmentObjectsUploaded).toBe(0);
+		expect(result.exportManifest.collector).toEqual({
+			attachment_collection_mode: "detail_api_and_html_reference_only",
+			attachment_storage_mode: "reference_only",
+			export_contract_version: "authenticated_notice_collector_export_v2",
+			link_collection_mode: "html_reference_only",
+			runtime_shell: "repo_local_node",
+		});
+		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+			bucket: null,
+			byte_size: null,
+			ingest_status: "reference_only",
+			mime_type: null,
+			object_key: null,
+			original_filename: "application.docx",
+			provenance_status: "reference_only",
+			sha256: null,
+			storage_provider: "reference_only",
+		});
+		expect(storedObjects).toEqual([]);
+	});
+
+	it("materializes admitted internal attachments into object-backed bundle rows", async () => {
+		const storedObjects: Array<{
+			key: string;
+			contentType: string;
+			data: string;
+			metadata: Record<string, string> | undefined;
+		}> = [];
+		const result = await collectBootstrapBundle({
+			attachmentArtifactStore: {
+				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+				putObject: async ({ objectKey, data, contentType, metadata }) => {
+					storedObjects.push({
+						key: objectKey,
+						contentType,
+						data: Buffer.from(data).toString("utf-8"),
+						metadata,
+					});
+					return {
+						bucket: "campus-rag-source",
+						objectKey,
+						contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+						byteSize: data.byteLength,
+						etag: '"etag-1"',
+						versionId: null,
+					};
+				},
+			},
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_required_for_admitted_owner",
+					attachmentRefId: "attachment-0001",
+					noticeId: "355119",
+				},
+			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -296,6 +478,13 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_to_quarantine",
+					attachmentRefId: "attachment-0001",
+					noticeId: "355120",
+				},
+			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -400,7 +589,127 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		]);
 	});
 
-	it("materializes only allowlisted external inline image refs without using the portal API context", async () => {
+	it("keeps external inline image refs reference-only by default", async () => {
+		const externalFetch = vi.fn(async () => {
+			throw new Error("external fetch should not be called without admission");
+		});
+		vi.stubGlobal("fetch", externalFetch);
+
+		const storedObjects: Array<{
+			key: string;
+			contentType: string;
+			data: string;
+			metadata: Record<string, string> | undefined;
+		}> = [];
+		const result = await collectBootstrapBundle({
+			attachmentArtifactStore: {
+				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+				putObject: async ({ objectKey, data, contentType, metadata }) => {
+					storedObjects.push({
+						key: objectKey,
+						contentType,
+						data: Buffer.from(data).toString("utf-8"),
+						metadata,
+					});
+					return {
+						bucket: "campus-rag-source",
+						objectKey,
+						contentSha256: "a367921267a37b7c0916ab322ee72b9a9f15197d86dc4d648425b3f8f44ece5d",
+						byteSize: data.byteLength,
+						etag: '"etag-external-image"',
+						versionId: null,
+					};
+				},
+			},
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => {
+					throw new Error("portal API context must not fetch external inline images");
+				},
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						home_url: "https://portal.example.edu/home",
+						notice_content: [
+							'<img alt="论文截图" data-src="https://mmbiz.qpic.cn/mmbiz_jpg/VSYicAPlaX6z95r71Jfu4l5vJAfQcSmvQ/640?wx_fmt=jpeg&amp;from=appmsg">',
+							'<img alt="其他外链图" src="https://cdn.example.org/image.jpg">',
+						].join(""),
+						notice_id: noticeId,
+						notice_release_time: "2026-04-02 18:49",
+					},
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 9980,
+							notice_type_name: "综合新闻",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async () => ({
+				datas: {
+					page: {
+						totalCounts: 1,
+					},
+					tables: [
+						{
+							notice_id: 351117,
+							notice_title: "通知 C",
+							notice_type: "9980",
+							notice_type_name: "综合新闻",
+						},
+					],
+				},
+				state: true,
+			}),
+			noticeTypes: [
+				{
+					type: "9980",
+					name: "综合新闻",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 1,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(externalFetch).not.toHaveBeenCalled();
+		expect(result.stats.attachmentObjectsUploaded).toBe(0);
+		expect(result.exportManifest.collector).toMatchObject({
+			attachment_collection_mode: "detail_api_and_html_reference_only",
+			attachment_storage_mode: "reference_only",
+		});
+		expect(result.bundleRecords[0]?.links).toHaveLength(2);
+		expect(result.bundleRecords[0]?.attachments).toHaveLength(2);
+		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+			ingest_status: "reference_only",
+			object_key: null,
+			origin_host: "mmbiz.qpic.cn",
+			origin_scope: "external",
+			storage_provider: "reference_only",
+		});
+		expect(storedObjects).toEqual([]);
+	});
+
+	it("materializes admitted allowlisted external inline image refs without using the portal API context", async () => {
 		const externalFetch = vi.fn(
 			async () =>
 				new Response(Buffer.from("wechat-image"), {
@@ -440,6 +749,13 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_to_quarantine",
+					attachmentRefId: "attachment-0001",
+					noticeId: "351117",
+				},
+			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => {
@@ -593,6 +909,13 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_required_for_admitted_owner",
+					attachmentRefId: "attachment-0001",
+					noticeId: "355491",
+				},
+			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -698,6 +1021,13 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					throw new Error("unexpected upload");
 				},
 			},
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_to_quarantine",
+					attachmentRefId: "attachment-0001",
+					noticeId: "355600",
+				},
+			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -803,6 +1133,13 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					throw new Error("unexpected upload");
 				},
 			},
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_required_for_source_truth",
+					attachmentRefId: "attachment-0001",
+					noticeId: "186977",
+				},
+			],
 			attachmentFetchStatusStore: {
 				getTerminalUnavailable: async ({ attachmentRefId, noticeId, siteId, sourceUrl }) => {
 					expect(siteId).toBe("muc_internal_portal");

@@ -12,13 +12,13 @@ updated: 2026-04-30
 ## Current Position
 
 **Status:** Completed
-**Current Phase:** Phase 8 complete
+**Current Phase:** Phase 9 complete
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Integrated notice-first source retention decision into source-truth and collected notice reimport preview.
+**Last Activity Description:** Integrated source retention fetch admission into live collector behavior and run-ledger verification.
 
 ## Progress
 
-**Phases Complete:** 8
+**Phases Complete:** 9
 **Current Plan:** N/A
 
 ## Completed Tasks
@@ -39,6 +39,12 @@ updated: 2026-04-30
   metadata-only attachments out of required source object refs.
 - [x] Audited 83 legacy `process/no target` units and confirmed current routing keeps
   them metadata-only.
+- [x] Added `authenticated_notice_attachment_fetch_request_manifest_v1` builder.
+- [x] Changed notice collector default to keep attachments reference-only even when an
+  object store is configured.
+- [x] Added explicit collector fetch admissions from fetch request manifest rows.
+- [x] Aligned collector run ledger required source object verification to required /
+  admitted owner bytes; quarantine fetches do not count as required source objects.
 
 ## Acceptance Evidence
 
@@ -47,12 +53,14 @@ updated: 2026-04-30
 - `evidence/phase-06-evidence-replay-and-acceptance/service-status-acceptance.json`
 - `evidence/phase-06-evidence-replay-and-acceptance/regulation-acceptance.json`
 - `evidence/phase-08-retention-preview-audit/preview-process-no-target-audit.json`
+- `phases/phase-09-live-collector-fetch-admission/SUMMARY.md`
 
 ## Known Non-Overlap
 
 - No scheduler, auth renewal, collector provider or public serving surface was changed.
 - No DB, object-store, release or current truth writes were performed.
-- Existing repo-wide docs lint has unrelated tracked MD013 failures outside this workstream.
+- Collector live execution now requires upstream operator/scheduler wiring to set
+  `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH` when attachment bytes are admitted.
 
 ## Blockers
 
@@ -61,5 +69,6 @@ No workstream blockers remain.
 ## Resume Notes
 
 Only reopen if target replay regresses to whole-notice media gating, source retention
-regresses to attachment-type-first byte retention, new target fact groups are admitted, or
-OCR/owner-text output schemas change.
+regresses to attachment-type-first byte retention, collector default attachment capture
+regresses to eager bytes download, required/admitted owner bytes stop failing closed, new
+target fact groups are admitted, or OCR/owner-text output schemas change.

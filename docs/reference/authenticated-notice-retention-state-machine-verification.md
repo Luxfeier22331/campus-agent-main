@@ -560,6 +560,20 @@ Phase 8 已落地第一版 source retention 决策模型：
 - collected notice reimport preview 会暴露 `source_retention` summary，并且不再把
   metadata-only attachment bytes 计入 planned `source_object_refs`。
 
+Phase 9 已把 retention 决策接入 live collector fetch admission：
+
+- `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_attachment_fetch_request_manifest.py`
+  生成 `authenticated_notice_attachment_fetch_request_manifest_v1`，只输出
+  `fetch_to_quarantine`、`fetch_required_for_source_truth` 与
+  `fetch_required_for_admitted_owner` 请求。
+- notice collector 默认即使配置 object store，也保持附件 reference-only，不再因为附件是
+  internal / allowlisted inline image 就自动下载 bytes。
+- collector 只从显式 fetch request manifest 转换出的 `attachmentFetchAdmissions`
+  下载附件；`metadata_only` 不进入 admission。
+- run ledger required source object verification 只把 handoff bundle、manifest 与
+  `fetch_required_for_source_truth` / `fetch_required_for_admitted_owner` 计入 required
+  objects；`fetch_to_quarantine` 不计入 required source object。
+
 仍未完成的部分：
 
 当前 repo 已具备部分粗粒度状态：
@@ -575,9 +589,10 @@ Phase 8 已落地第一版 source retention 决策模型：
 - quarantine byte fetch lifecycle / expiry / cleanup。
 - `fetch_required_for_admitted_owner` 的 promotion owner 与 promotion decision id
   写入。
-- collector live 层按 retention policy 跳过不必要附件下载；当前 Phase 8 先收口
-  ingestion/source-truth/preview。
-- run ledger required source object verification 与 retention summary 的完全对齐。
+- collector live scheduler 需要把 upstream generated fetch request manifest 路径传给
+  `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH`。
+- run ledger 现在接收 collector admission；后续若 source-truth attachment refs 已经携带
+  `required_source_object`，可进一步直接校验 manifest 与 ledger 的逐 ref 一致性。
 
 因此后续 collector/live cleanup 必须继续按 retention decision replay / dry-run report
 验收，不能把旧 pending multimodal gap 或历史附件下载状态直接当作正确目标态。

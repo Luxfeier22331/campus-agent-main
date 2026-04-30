@@ -26,6 +26,7 @@ describe("authenticated notice collector config", () => {
 		).toBe(true);
 		expect(config.attachmentFetchStatusDatabaseUrl).toBeNull();
 		expect(config.attachmentFetchStatusDisabled).toBe(false);
+		expect(config.attachmentFetchRequestManifestPath).toBeNull();
 		expect(config.authJsessionId).toBeNull();
 		expect(config.authNginxCookie).toBeNull();
 		expect(config.collectionMode).toBe("incremental");
@@ -51,6 +52,8 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL:
 				"postgresql://runtime.example/postgres",
 			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DISABLE: "true",
+			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH:
+				"/tmp/attachment-fetch-request-manifest.json",
 			AUTHENTICATED_NOTICE_COLLECTION_MODE: "backfill",
 			AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL:
 				"postgresql://ledger.example/postgres",
@@ -79,6 +82,9 @@ describe("authenticated notice collector config", () => {
 		expect(config.noticeTypeAllowlist).toEqual(["9982", "6"]);
 		expect(config.attachmentFetchStatusDatabaseUrl).toBe("postgresql://runtime.example/postgres");
 		expect(config.attachmentFetchStatusDisabled).toBe(true);
+		expect(config.attachmentFetchRequestManifestPath).toBe(
+			"/tmp/attachment-fetch-request-manifest.json",
+		);
 		expect(config.collectionMode).toBe("backfill");
 		expect(config.collectorRunLedgerDatabaseUrl).toBe("postgresql://ledger.example/postgres");
 		expect(config.collectorRunLedgerDisabled).toBe(true);

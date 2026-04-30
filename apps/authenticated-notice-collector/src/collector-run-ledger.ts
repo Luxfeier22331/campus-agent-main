@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 
 import type { StoredArtifactRef } from "./artifact-store";
+import type { AttachmentFetchAdmission } from "./attachment-materialization";
 import type {
 	BootstrapExportManifest,
 	BundleFileReleaseRecord,
@@ -198,6 +199,7 @@ function buildLifecycleLedgerRecord(input: {
 }
 
 export function buildCollectorRunLedgerRecord(input: {
+	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	bundleArtifactRef?: StoredArtifactRef | null;
 	bundleObjectKey?: string | null;
 	bundlePath: string | null;
@@ -213,12 +215,16 @@ export function buildCollectorRunLedgerRecord(input: {
 	sourceHomeUrl: string;
 }): CollectorRunLedgerRecord {
 	const attachmentFacts = aggregateAttachmentFacts(input.bundleRecords);
+	const requiredAttachmentFacts = aggregateRequiredNoticeAttachmentFacts({
+		admissions: input.attachmentFetchAdmissions ?? [],
+		bundleRecords: input.bundleRecords,
+	});
 	const selectedNoticeIds = input.manifest.filters.selected_notice_ids ?? [];
 	const verification = buildVerificationSummary({
 		bundleArtifactRef: input.bundleArtifactRef ?? null,
 		manifestArtifactRef: input.manifestArtifactRef ?? null,
-		requiredSourceByteObjectCount: attachmentFacts.attachmentUploaded,
-		verifiedSourceByteObjectCount: attachmentFacts.attachmentUploaded,
+		requiredSourceByteObjectCount: requiredAttachmentFacts.requiredSourceByteObjectCount,
+		verifiedSourceByteObjectCount: requiredAttachmentFacts.verifiedSourceByteObjectCount,
 	});
 	const record = {
 		run_id: input.runId ?? buildCollectorRunId(input.exportedAt, input.siteId, "notice"),
@@ -655,6 +661,64 @@ function aggregateAttachmentFacts(bundleRecords: BundleNoticeRecord[]): {
 		attachmentTransientFailed,
 		attachmentUploaded,
 	};
+}
+
+function aggregateRequiredNoticeAttachmentFacts(input: {
+	admissions: AttachmentFetchAdmission[];
+	bundleRecords: BundleNoticeRecord[];
+}): {
+	requiredSourceByteObjectCount: number;
+	verifiedSourceByteObjectCount: number;
+} {
+	const requiredAdmissionKeys = new Set(
+		input.admissions
+			.filter((admission) => isRequiredSourceByteAdmission(admission))
+			.map((admission) => attachmentFetchAdmissionKey(admission)),
+	);
+	if (requiredAdmissionKeys.size === 0) {
+		return {
+			requiredSourceByteObjectCount: 0,
+			verifiedSourceByteObjectCount: 0,
+		};
+	}
+	let verifiedSourceByteObjectCount = 0;
+	for (const bundleRecord of input.bundleRecords) {
+		const attachmentsById = new Map(
+			bundleRecord.attachments.map((attachment) => [attachment.attachment_id, attachment]),
+		);
+		bundleRecord.notice_attachments.forEach((relation, index) => {
+			const key = attachmentFetchAdmissionKey({
+				attachmentRefId: `attachment-${String(index + 1).padStart(4, "0")}`,
+				noticeId: String(bundleRecord.notice_id),
+			});
+			if (!requiredAdmissionKeys.has(key)) {
+				return;
+			}
+			const attachment = attachmentsById.get(relation.attachment_id);
+			if (
+				attachment &&
+				attachment.storage_provider !== "reference_only" &&
+				(attachment.ingest_status === "uploaded" || attachment.ingest_status === "downloaded")
+			) {
+				verifiedSourceByteObjectCount += 1;
+			}
+		});
+	}
+	return {
+		requiredSourceByteObjectCount: requiredAdmissionKeys.size,
+		verifiedSourceByteObjectCount,
+	};
+}
+
+function isRequiredSourceByteAdmission(admission: AttachmentFetchAdmission): boolean {
+	return (
+		admission.attachmentCapturePolicy === "fetch_required_for_source_truth" ||
+		admission.attachmentCapturePolicy === "fetch_required_for_admitted_owner"
+	);
+}
+
+function attachmentFetchAdmissionKey(input: { attachmentRefId: string; noticeId: string }): string {
+	return `${input.noticeId}:${input.attachmentRefId}`;
 }
 
 function aggregateReleasedFileFacts(bundleRecords: BundleFileReleaseRecord[]): {

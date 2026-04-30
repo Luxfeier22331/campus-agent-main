@@ -11,7 +11,10 @@ import {
 	createPostgresAttachmentFetchStatusStore,
 	type DisposableAttachmentFetchStatusStore,
 } from "./attachment-fetch-status";
-import { materializeBundleAttachments } from "./attachment-materialization";
+import {
+	type AttachmentFetchAdmission,
+	materializeBundleAttachments,
+} from "./attachment-materialization";
 import {
 	buildCategories,
 	buildExportManifest,
@@ -70,6 +73,7 @@ import type {
 
 export interface CollectBootstrapBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
+	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	backfillMaxPagesPerType?: number | null;
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
@@ -118,6 +122,26 @@ export interface CollectBootstrapBundleResult {
 	};
 }
 
+export function parseAttachmentFetchAdmissionsFromManifest(
+	manifest: unknown,
+): AttachmentFetchAdmission[] {
+	if (!isRecord(manifest)) {
+		return [];
+	}
+	const requests = manifest.requests;
+	if (!Array.isArray(requests)) {
+		return [];
+	}
+	const admissions: AttachmentFetchAdmission[] = [];
+	for (const request of requests) {
+		const admission = parseAttachmentFetchAdmissionRequest(request);
+		if (admission) {
+			admissions.push(admission);
+		}
+	}
+	return admissions;
+}
+
 export interface WriteBootstrapArtifactsInput {
 	bundleRecords: BundleNoticeRecord[];
 	exportManifest: BootstrapExportManifest;
@@ -151,6 +175,7 @@ export interface UploadBootstrapArtifactsInput {
 
 export interface RunBootstrapExportInput {
 	artifactStore?: AuthenticatedNoticeArtifactStore;
+	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	collectBundle: () => Promise<CollectBootstrapBundleResult>;
 	collectionMode: NoticeCollectionMode;
 	collectorRunLedgerStore?: CollectorRunLedgerStore;
@@ -434,6 +459,7 @@ export async function collectBootstrapBundle(
 				: await materializeBundleAttachments({
 						apiContext,
 						artifactStore: input.attachmentArtifactStore,
+						attachmentFetchAdmissions: input.attachmentFetchAdmissions,
 						attachmentFetchStatusStore: input.attachmentFetchStatusStore,
 						bundleRecords,
 						observedAt: input.exportedAt,
@@ -452,7 +478,7 @@ export async function collectBootstrapBundle(
 		bundleRecords: materialized.bundleRecords,
 		exportManifest: buildExportManifest({
 			attachmentStorageMode:
-				input.attachmentArtifactStore === undefined ? "reference_only" : "object_store_write",
+				materialized.uploadedAttachmentCount > 0 ? "object_store_write" : "reference_only",
 			collectionMode,
 			detailFetched,
 			exportedAt: input.exportedAt,
@@ -658,6 +684,7 @@ export async function runBootstrapExport(
 			siteId: input.siteId,
 		});
 		const ledgerRecord = buildCollectorRunLedgerRecord({
+			attachmentFetchAdmissions: input.attachmentFetchAdmissions,
 			bundleArtifactRef: uploadedArtifactRefs.bundleRef,
 			bundleObjectKey: uploadedArtifactRefs.bundleObjectKey,
 			bundlePath: written?.bundlePath ?? null,
@@ -718,6 +745,7 @@ export async function main(): Promise<void> {
 	);
 	const exportedAt = new Date().toISOString();
 	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
+	const attachmentFetchAdmissions = loadAttachmentFetchAdmissionsForMain(config);
 	const attachmentFetchStatusStore = buildAttachmentFetchStatusStoreForMain(config);
 	const collectorRunLedgerStore = buildCollectorRunLedgerStoreForMain(config);
 	const collectorRunLeaseStore = buildCollectorRunLeaseStoreForMain(config);
@@ -739,6 +767,7 @@ export async function main(): Promise<void> {
 				);
 				const runResult = await runBootstrapExport({
 					artifactStore: attachmentArtifactStore,
+					attachmentFetchAdmissions,
 					collectBundle: () =>
 						collectBootstrapBundle({
 							attachmentArtifactStore,
@@ -748,6 +777,7 @@ export async function main(): Promise<void> {
 							noticeTypes,
 							requestBackoffBaseMs: config.requestBackoffBaseMs,
 							requestMaxRetries: config.requestMaxRetries,
+							attachmentFetchAdmissions,
 							backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
 							selectedNotices,
 							siteId: config.siteId,
@@ -783,9 +813,78 @@ export async function main(): Promise<void> {
 	}
 }
 
+function loadAttachmentFetchAdmissionsForMain(config: CollectorConfig): AttachmentFetchAdmission[] {
+	if (config.attachmentFetchRequestManifestPath === null) {
+		return [];
+	}
+	const raw = fs.readFileSync(config.attachmentFetchRequestManifestPath, "utf-8");
+	return parseAttachmentFetchAdmissionsFromManifest(JSON.parse(raw));
+}
+
 function sanitizeObjectKeySegment(value: string): string {
 	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");
 	return normalized || "unknown";
+}
+
+function parseAttachmentFetchAdmissionRequest(request: unknown): AttachmentFetchAdmission | null {
+	if (!isRecord(request)) {
+		return null;
+	}
+	const nested = request.collector_admission;
+	if (isRecord(nested)) {
+		return normalizeAttachmentFetchAdmission({
+			attachmentCapturePolicy: nested.attachmentCapturePolicy,
+			attachmentRefId: nested.attachmentRefId,
+			noticeId: nested.noticeId,
+		});
+	}
+	return normalizeAttachmentFetchAdmission({
+		attachmentCapturePolicy: request.attachment_capture_policy,
+		attachmentRefId: request.attachment_ref_id,
+		noticeId: request.notice_id,
+	});
+}
+
+function normalizeAttachmentFetchAdmission(input: {
+	attachmentCapturePolicy: unknown;
+	attachmentRefId: unknown;
+	noticeId: unknown;
+}): AttachmentFetchAdmission | null {
+	const attachmentCapturePolicy = normalizeFetchAttachmentCapturePolicy(
+		input.attachmentCapturePolicy,
+	);
+	const attachmentRefId = normalizeUnknownText(input.attachmentRefId);
+	const noticeId = normalizeUnknownText(input.noticeId);
+	if (!(attachmentCapturePolicy && attachmentRefId && noticeId)) {
+		return null;
+	}
+	return {
+		attachmentCapturePolicy,
+		attachmentRefId,
+		noticeId,
+	};
+}
+
+function normalizeFetchAttachmentCapturePolicy(
+	value: unknown,
+): AttachmentFetchAdmission["attachmentCapturePolicy"] | null {
+	const normalized = normalizeUnknownText(value);
+	if (
+		normalized === "fetch_to_quarantine" ||
+		normalized === "fetch_required_for_source_truth" ||
+		normalized === "fetch_required_for_admitted_owner"
+	) {
+		return normalized;
+	}
+	return null;
+}
+
+function normalizeUnknownText(value: unknown): string | null {
+	return typeof value === "string" ? normalizeNullableText(value) : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function buildAttachmentFetchStatusStoreForMain(

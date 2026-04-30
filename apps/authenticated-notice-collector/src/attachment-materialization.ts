@@ -53,6 +53,7 @@ const PREFERRED_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
 export interface MaterializeBundleAttachmentsInput {
 	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
+	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	bundleRecords: BundleNoticeRecord[];
 	observedAt: string;
@@ -65,6 +66,18 @@ export interface MaterializeBundleAttachmentsResult {
 	bundleRecords: BundleNoticeRecord[];
 	downloadedAttachmentCount: number;
 	uploadedAttachmentCount: number;
+}
+
+export type AttachmentCapturePolicy =
+	| "metadata_only"
+	| "fetch_to_quarantine"
+	| "fetch_required_for_source_truth"
+	| "fetch_required_for_admitted_owner";
+
+export interface AttachmentFetchAdmission {
+	noticeId: string;
+	attachmentRefId: string;
+	attachmentCapturePolicy: AttachmentCapturePolicy;
 }
 
 interface MaterializedAttachment {
@@ -89,10 +102,17 @@ interface MaterializationCandidate {
 	originHost: string | null;
 }
 
+const FETCH_REQUIRED_ATTACHMENT_POLICIES = new Set<AttachmentCapturePolicy>([
+	"fetch_to_quarantine",
+	"fetch_required_for_source_truth",
+	"fetch_required_for_admitted_owner",
+]);
+
 export async function materializeBundleAttachments(
 	input: MaterializeBundleAttachmentsInput,
 ): Promise<MaterializeBundleAttachmentsResult> {
 	const cache = new Map<string, Promise<MaterializedAttachment>>();
+	const fetchAdmissions = buildFetchAdmissionMap(input.attachmentFetchAdmissions ?? []);
 	const bundleRecords: BundleNoticeRecord[] = [];
 
 	for (const record of input.bundleRecords) {
@@ -113,6 +133,19 @@ export async function materializeBundleAttachments(
 
 		for (const attachment of record.attachments) {
 			const clonedAttachment = { ...attachment };
+			const attachmentRefId =
+				attachmentRefIdByAttachmentId.get(clonedAttachment.attachment_id) ??
+				`attachment-${String(clonedAttachment.attachment_id).padStart(4, "0")}`;
+			const fetchAdmission = fetchAdmissions.get(
+				attachmentFetchAdmissionKey({
+					noticeId: String(record.notice_id),
+					attachmentRefId,
+				}),
+			);
+			if (!fetchAdmission) {
+				attachmentsById.set(clonedAttachment.attachment_id, clonedAttachment);
+				continue;
+			}
 			const candidateUrl =
 				clonedAttachment.final_url ??
 				clonedAttachment.normalized_source_url ??
@@ -136,9 +169,7 @@ export async function materializeBundleAttachments(
 					artifactStore: input.artifactStore,
 					attachment: clonedAttachment,
 					attachmentFetchStatusStore: input.attachmentFetchStatusStore,
-					attachmentRefId:
-						attachmentRefIdByAttachmentId.get(clonedAttachment.attachment_id) ??
-						`attachment-${String(clonedAttachment.attachment_id).padStart(4, "0")}`,
+					attachmentRefId,
 					fetchMode: materializationCandidate.fetchMode,
 					noticeId: String(record.notice_id),
 					observedAt: input.observedAt,
@@ -344,6 +375,23 @@ async function materializeSingleAttachment(input: {
 			},
 		};
 	}
+}
+
+function buildFetchAdmissionMap(
+	admissions: AttachmentFetchAdmission[],
+): Map<string, AttachmentFetchAdmission> {
+	const map = new Map<string, AttachmentFetchAdmission>();
+	for (const admission of admissions) {
+		if (!FETCH_REQUIRED_ATTACHMENT_POLICIES.has(admission.attachmentCapturePolicy)) {
+			continue;
+		}
+		map.set(attachmentFetchAdmissionKey(admission), admission);
+	}
+	return map;
+}
+
+function attachmentFetchAdmissionKey(input: { noticeId: string; attachmentRefId: string }): string {
+	return `${input.noticeId}:${input.attachmentRefId}`;
 }
 
 function classifyMaterializationCandidate(input: {
