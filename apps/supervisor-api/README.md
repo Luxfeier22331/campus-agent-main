@@ -116,6 +116,12 @@ Current admission boundary:
   bridge transport / protocol failures before opening the circuit.
 - `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS` defaults to `10000`; while open, answer
   requests fail fast instead of occupying execution slots on a known-bad bridge.
+- `SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS` defaults to `2`; only transient
+  bridge transport unavailable errors are retried. Cancellations, request
+  timeouts, oversized responses, invalid envelopes and `bridge_invalid_request`
+  responses are not retried.
+- `SUPERVISOR_API_BRIDGE_RETRY_BASE_MS` defaults to `50`; retry delay is bounded
+  by the same bridge timeout budget as the original attempt.
 - `SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
   query-serving scope allowlist. When unset, local repo runs discover
   `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no
@@ -261,6 +267,8 @@ export SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES=10485760
 export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
 export SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000
+export SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS=2
+export SUPERVISOR_API_BRIDGE_RETRY_BASE_MS=50
 export SUPERVISOR_API_INTENT_POLICY_PATH=
 export SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=
 export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081

@@ -176,6 +176,16 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			m.bridgeFailureTotals[kind],
 		)
 	}
+	builder.WriteString("# HELP campus_supervisor_api_bridge_retries_total Total bridge execution retry attempts by failure kind.\n")
+	builder.WriteString("# TYPE campus_supervisor_api_bridge_retries_total counter\n")
+	for _, kind := range sortedStringKeys(m.bridgeRetryTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_supervisor_api_bridge_retries_total{kind=%q} %d\n",
+			kind,
+			m.bridgeRetryTotals[kind],
+		)
+	}
 	builder.WriteString("# HELP campus_supervisor_api_bridge_cancel_total Total cooperative cancel bridge attempts by outcome.\n")
 	builder.WriteString("# TYPE campus_supervisor_api_bridge_cancel_total counter\n")
 	for _, outcome := range sortedStringKeys(m.bridgeCancelTotals) {

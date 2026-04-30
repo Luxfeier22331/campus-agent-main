@@ -111,17 +111,36 @@ type BridgeV6RequestWire struct {
 	RuntimeDecisions    RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
+type WorkflowTraceSummaryWire struct {
+	RoutingFrame           map[string]any   `json:"routing_frame"`
+	ContextResolution      map[string]any   `json:"context_resolution"`
+	PlanningOutcome        string           `json:"planning_outcome"`
+	DirectVsDelegateBranch string           `json:"direct_vs_delegate_branch"`
+	WorkflowMode           string           `json:"workflow_mode"`
+	Handoff                map[string]any   `json:"handoff"`
+	HandoffChain           []map[string]any `json:"handoff_chain"`
+	SelectedTarget         *string          `json:"selected_target"`
+	SelectedTools          []string         `json:"selected_tools"`
+	ToolArgumentSummary    map[string]any   `json:"tool_argument_summary"`
+	TraceSteps             []map[string]any `json:"trace_steps,omitempty"`
+	ToolCallSummaries      []map[string]any `json:"tool_call_summaries,omitempty"`
+	GuardrailOutcomes      map[string]any   `json:"guardrail_outcomes"`
+	FailCloseReason        string           `json:"fail_close_reason"`
+	RuntimeVersions        map[string]any   `json:"runtime_versions"`
+	PolicyArtifactVersions map[string]any   `json:"policy_artifact_versions"`
+}
+
 type SupervisorResponseWire struct {
-	SelectedTarget       *AgentTarget     `json:"selected_target"`
-	Status               SupervisorStatus `json:"status"`
-	AnswerText           string           `json:"answer_text"`
-	FollowUpQuestion     string           `json:"follow_up_question"`
-	Confidence           ConfidenceLevel  `json:"confidence"`
-	Result               map[string]any   `json:"result"`
-	Error                map[string]any   `json:"error"`
-	Observability        map[string]any   `json:"observability,omitempty"`
-	WorkflowTraceSummary map[string]any   `json:"workflow_trace_summary,omitempty"`
-	TraceID              string           `json:"trace_id"`
+	SelectedTarget       *AgentTarget              `json:"selected_target"`
+	Status               SupervisorStatus          `json:"status"`
+	AnswerText           string                    `json:"answer_text"`
+	FollowUpQuestion     string                    `json:"follow_up_question"`
+	Confidence           ConfidenceLevel           `json:"confidence"`
+	Result               map[string]any            `json:"result"`
+	Error                map[string]any            `json:"error"`
+	Observability        map[string]any            `json:"observability,omitempty"`
+	WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`
+	TraceID              string                    `json:"trace_id"`
 }
 
 func DecodeBridgeV6RequestWireJSON(data []byte) (BridgeV6RequestWire, error) {
@@ -228,6 +247,49 @@ func (wire RuntimeDecisionSummaryWire) Validate() error {
 	return nil
 }
 
+func (wire WorkflowTraceSummaryWire) Validate() error {
+	if wire.RoutingFrame == nil {
+		return fmt.Errorf("routing_frame is required")
+	}
+	if wire.ContextResolution == nil {
+		return fmt.Errorf("context_resolution is required")
+	}
+	if wire.PlanningOutcome == "" {
+		return fmt.Errorf("planning_outcome is required")
+	}
+	if wire.DirectVsDelegateBranch == "" {
+		return fmt.Errorf("direct_vs_delegate_branch is required")
+	}
+	if wire.WorkflowMode == "" {
+		return fmt.Errorf("workflow_mode is required")
+	}
+	if wire.Handoff == nil {
+		return fmt.Errorf("handoff is required")
+	}
+	if wire.HandoffChain == nil {
+		return fmt.Errorf("handoff_chain is required")
+	}
+	if wire.SelectedTarget == nil || *wire.SelectedTarget == "" {
+		return fmt.Errorf("selected_target is required")
+	}
+	if wire.SelectedTools == nil {
+		return fmt.Errorf("selected_tools is required")
+	}
+	if wire.ToolArgumentSummary == nil {
+		return fmt.Errorf("tool_argument_summary is required")
+	}
+	if wire.GuardrailOutcomes == nil {
+		return fmt.Errorf("guardrail_outcomes is required")
+	}
+	if wire.RuntimeVersions == nil {
+		return fmt.Errorf("runtime_versions is required")
+	}
+	if wire.PolicyArtifactVersions == nil {
+		return fmt.Errorf("policy_artifact_versions is required")
+	}
+	return nil
+}
+
 func (wire SupervisorResponseWire) Validate() error {
 	if wire.SelectedTarget != nil && !wire.SelectedTarget.Valid() {
 		return fmt.Errorf("selected_target is invalid")
@@ -247,6 +309,11 @@ func (wire SupervisorResponseWire) Validate() error {
 		}
 		if _, ok := wire.Error["message"].(string); !ok {
 			return fmt.Errorf("error.message is required")
+		}
+	}
+	if wire.WorkflowTraceSummary != nil {
+		if err := wire.WorkflowTraceSummary.Validate(); err != nil {
+			return fmt.Errorf("workflow_trace_summary: %w", err)
 		}
 	}
 	return nil

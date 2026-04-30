@@ -343,6 +343,110 @@ func TestAnswerMapsBridgeInvalidRequestToBadGateway(t *testing.T) {
 	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_request")
 }
 
+func TestAnswerRetriesTransientBridgeUnavailableAndRecordsRunState(t *testing.T) {
+	calls := 0
+	server := NewServer(config.Config{
+		AuthMode:                      "bearer",
+		BearerToken:                   "secret-token",
+		DefaultActorID:                "runtime-bearer-user",
+		RequestBodyLimitBytes:         1_048_576,
+		MaxConcurrentAnswers:          8,
+		BridgeRetryMaxAttempts:        2,
+		BridgeRetryBaseMS:             1,
+		BridgeBreakerOpenMS:           60_000,
+		BridgeBreakerFailureThreshold: 5,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			calls++
+			if calls == 1 {
+				return bridge.ExecuteResponse{}, errors.New("connection refused")
+			}
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "agent_response",
+				Body: json.RawMessage(`{
+					"selected_target":"rag-agent",
+					"status":"completed",
+					"answer_text":"recovered"
+				}`),
+			}, nil
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-bridge-retry-recovered"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if calls != 2 {
+		t.Fatalf("bridge calls = %d, want 2", calls)
+	}
+	body := decodeBody(t, response)
+	traceSummary := expectRecord(t, body["workflow_trace_summary"], "workflow_trace_summary")
+	traceSteps, ok := traceSummary["trace_steps"].([]any)
+	if !ok || len(traceSteps) == 0 {
+		t.Fatalf("trace_steps = %#v, want non-empty list", traceSummary["trace_steps"])
+	}
+	finalization := expectRecord(t, traceSteps[len(traceSteps)-1], "trace_steps[-1]")
+	if finalization["attempt_count"] != float64(2) {
+		t.Fatalf("finalization attempt_count = %v, want 2", finalization["attempt_count"])
+	}
+	if finalization["runtime_retry_count"] != float64(1) {
+		t.Fatalf("finalization runtime_retry_count = %v, want 1", finalization["runtime_retry_count"])
+	}
+
+	metrics := httptest.NewRecorder()
+	server.ServeHTTP(metrics, newTestRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(metrics.Body.String(), `campus_supervisor_api_bridge_retries_total{kind="unavailable"} 1`) {
+		t.Fatalf("metrics body missing unavailable bridge retry:\n%s", metrics.Body.String())
+	}
+}
+
+func TestAnswerDoesNotRetryBridgeInvalidRequestResponse(t *testing.T) {
+	calls := 0
+	server := NewServer(config.Config{
+		AuthMode:               "bearer",
+		BearerToken:            "secret-token",
+		DefaultActorID:         "runtime-bearer-user",
+		RequestBodyLimitBytes:  1_048_576,
+		MaxConcurrentAnswers:   8,
+		BridgeRetryMaxAttempts: 3,
+		BridgeRetryBaseMS:      1,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			calls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusBadRequest,
+				Kind:       "bridge_invalid_request",
+				Body:       json.RawMessage(`{"error":{"code":"invalid_request","message":"bad"}}`),
+			}, nil
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-bridge-invalid-request-no-retry"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_request")
+	if calls != 1 {
+		t.Fatalf("bridge calls = %d, want 1", calls)
+	}
+}
+
 func TestAnswerRejectsMissingBridgeEnvelope(t *testing.T) {
 	server := NewServer(config.Config{
 		AuthMode:              "bearer",

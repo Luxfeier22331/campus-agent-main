@@ -90,7 +90,8 @@ Docker-side Go runtime control plane 长期负责：
 当前 repo-local runtime progress：
 
 - Go `supervisor-api` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
-  admission、bridge circuit breaker、metrics、OTel seam 与 execution audit backflow
+  admission、bridge circuit breaker、bounded bridge transport retry、metrics、OTel seam
+  与 execution audit backflow
 - Go `supervisor-api` 已补齐 Go -> Python cooperative cancel signal；Python bridge
   记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、
   RAG prompt execution 和 agent delegation checkpoints 观测取消；provider /

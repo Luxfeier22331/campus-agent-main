@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"testing"
 
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 )
 
@@ -60,6 +62,73 @@ func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 	}
 	if traceSummary["selected_target"] != "rag-agent" {
 		t.Fatalf("trace selected_target = %v, want rag-agent", traceSummary["selected_target"])
+	}
+}
+
+func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
+	response, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "rag-agent",
+			"status":      "completed",
+			"answer_text": "图书馆开放到 22:00。",
+			"confidence":  "high",
+			"result": map[string]any{
+				"evidence": map[string]any{
+					"sources": []any{map[string]any{"doc_id": "handbook:library-hours"}},
+				},
+			},
+		},
+		"trace-finalizer-canonical-wire",
+		supervisorFinalizerContext{
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				ScopeGateDecision:     "allow",
+				PolicyGateDecision:    "allow",
+				ContextPreflightState: "not_follow_up",
+				RoutingNextAction:     "delegate",
+				PlanningOutcome:       "preplanned",
+				SelectedTarget:        "rag-agent",
+				SelectedTool:          "retrieval.query",
+			},
+			Handoff: &execution.RuntimeHandoff{
+				Target:       "rag-agent",
+				PayloadKind:  "rag_request",
+				Payload:      map[string]any{"scope": map[string]any{"corpus": "regulations", "collection": "student_rules"}},
+				AllowedTools: []string{"retrieval.query"},
+			},
+			Branch:             "delegate",
+			SelectedTool:       "retrieval.query",
+			BridgeAttemptCount: 2,
+			BridgeRetryCount:   1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("finalize returned error: %v", err)
+	}
+	rawResponse, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal finalized response: %v", err)
+	}
+	wire, err := contractsv1.DecodeSupervisorResponseWireJSON(rawResponse)
+	if err != nil {
+		t.Fatalf("decode canonical supervisor response wire: %v; body=%s", err, string(rawResponse))
+	}
+	if wire.WorkflowTraceSummary == nil {
+		t.Fatal("workflow trace summary is nil")
+	}
+	if wire.WorkflowTraceSummary.WorkflowMode != "single_handoff" {
+		t.Fatalf("workflow_mode = %v, want single_handoff", wire.WorkflowTraceSummary.WorkflowMode)
+	}
+	if wire.WorkflowTraceSummary.SelectedTarget == nil ||
+		*wire.WorkflowTraceSummary.SelectedTarget != "rag-agent" {
+		t.Fatalf("selected_target = %#v, want rag-agent", wire.WorkflowTraceSummary.SelectedTarget)
+	}
+	if len(wire.WorkflowTraceSummary.TraceSteps) == 0 {
+		t.Fatal("trace steps are empty")
+	}
+	finalization := wire.WorkflowTraceSummary.TraceSteps[len(wire.WorkflowTraceSummary.TraceSteps)-1]
+	if finalization["attempt_count"] != float64(2) ||
+		finalization["runtime_retry_count"] != float64(1) {
+		t.Fatalf("finalization step = %#v, want attempt/retry counts", finalization)
 	}
 }
 

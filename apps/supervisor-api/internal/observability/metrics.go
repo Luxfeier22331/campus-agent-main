@@ -151,6 +151,7 @@ type Metrics struct {
 	laneWaitDurations       map[string]*routeHistogram
 	bridgeDurations         *routeHistogram
 	bridgeFailureTotals     map[string]uint64
+	bridgeRetryTotals       map[string]uint64
 	bridgeCancelTotals      map[string]uint64
 	structuredQueryTotals   map[structuredQueryKey]uint64
 	capabilityGateTotals    map[capabilityGateKey]uint64
@@ -184,6 +185,7 @@ func NewMetrics() *Metrics {
 			"unavailable":      0,
 			"invalid_response": 0,
 		},
+		bridgeRetryTotals: make(map[string]uint64),
 		bridgeCancelTotals: map[string]uint64{
 			"accepted":       0,
 			"not_found":      0,
@@ -263,6 +265,12 @@ func (m *Metrics) RecordAdmissionDecisionForLane(
 		}
 		recordHistogramDuration(histogram, waitDuration)
 	}
+}
+
+func (m *Metrics) RecordBridgeRetry(kind string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bridgeRetryTotals[kind]++
 }
 
 func (m *Metrics) RecordBridgeFailure(kind string) {

@@ -15,14 +15,16 @@
 		"context_resolution": {},
 		"planning_outcome": "bridge_unavailable",
 		"direct_vs_delegate_branch": "terminal",
+		"workflow_mode": "terminal",
 		"handoff": {},
-		"selected_target": null,
+		"handoff_chain": [],
+		"selected_target": "none",
 		"selected_tools": [],
 		"tool_argument_summary": {},
 		"guardrail_outcomes": {},
 		"fail_close_reason": "supervisor_bridge_unavailable",
 		"runtime_versions": {
-			"workflow_trace_summary_version": "workflow-trace-summary-v1"
+			"workflow_trace_summary": "workflow-trace-summary-v2"
 		},
 		"policy_artifact_versions": {}
 	},

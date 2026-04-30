@@ -246,6 +246,8 @@ breaker。
 
 - `SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD`：默认 `5`
 - `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS`：默认 `10000`
+- `SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS`：默认 `2`
+- `SUPERVISOR_API_BRIDGE_RETRY_BASE_MS`：默认 `50`
 
 语义：
 
@@ -253,6 +255,13 @@ breaker。
 - `open` 期间 answer path fail fast，返回 `503 supervisor_bridge_circuit_open`
 - `open` 状态会让 `/readyz` 降级，并在 `/metrics` 暴露 circuit state、open count
   与 rejected count
+- 只有 transient bridge transport unavailable 会在同一 bridge timeout budget 内进行
+  有界 retry；request timeout、client / execution cancel、oversized response、invalid
+  envelope、`bridge_invalid_request` 与语义层 `supervisor_error` 不通过 bridge retry
+  掩盖
+- 恢复成功的 delegate response 会在 `workflow_trace_summary.trace_steps` 的
+  `finalization` step 中写出 `attempt_count` 与 `runtime_retry_count`；Prometheus
+  通过 `campus_supervisor_api_bridge_retries_total{kind=...}` 记录 retry attempt
 - 语义层 supervisor error 不代表 bridge transport 不健康；有效 bridge envelope 会重置 circuit
 - breaker 只保护 Docker-side execution runtime，不替代 `app-api` 的 product-layer
   user limit、热点合并或 duplicate-submit UX

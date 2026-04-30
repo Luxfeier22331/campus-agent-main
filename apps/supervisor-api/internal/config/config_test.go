@@ -10,6 +10,8 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS", "")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_PORT", "")
 	t.Setenv("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", "")
@@ -78,6 +80,12 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.BridgeBreakerOpenMS != 10_000 {
 		t.Fatalf("bridge breaker open ms = %d, want 10000", cfg.BridgeBreakerOpenMS)
+	}
+	if cfg.BridgeRetryMaxAttempts != 2 {
+		t.Fatalf("bridge retry max attempts = %d, want 2", cfg.BridgeRetryMaxAttempts)
+	}
+	if cfg.BridgeRetryBaseMS != 50 {
+		t.Fatalf("bridge retry base ms = %d, want 50", cfg.BridgeRetryBaseMS)
 	}
 	if cfg.MaxConcurrentAnswers != 8 {
 		t.Fatalf("max concurrent answers = %d, want 8", cfg.MaxConcurrentAnswers)
@@ -207,6 +215,8 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "7500")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS", "4")
+	t.Setenv("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", "15")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "20000")
 	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("SUPERVISOR_API_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
@@ -255,6 +265,8 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.BridgeResponseLimitBytes != 2048 ||
 		cfg.BridgeBreakerFailureThreshold != 3 ||
 		cfg.BridgeBreakerOpenMS != 7500 ||
+		cfg.BridgeRetryMaxAttempts != 4 ||
+		cfg.BridgeRetryBaseMS != 15 ||
 		cfg.ShutdownGraceMS != 20000 ||
 		cfg.MetricsBearerToken != "metrics-token" ||
 		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||

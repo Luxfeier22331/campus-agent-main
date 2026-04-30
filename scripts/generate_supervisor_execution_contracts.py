@@ -303,6 +303,25 @@ type BridgeV6RequestWire struct {
 \tRuntimeDecisions RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
+type WorkflowTraceSummaryWire struct {
+\tRoutingFrame map[string]any `json:"routing_frame"`
+\tContextResolution map[string]any `json:"context_resolution"`
+\tPlanningOutcome string `json:"planning_outcome"`
+\tDirectVsDelegateBranch string `json:"direct_vs_delegate_branch"`
+\tWorkflowMode string `json:"workflow_mode"`
+\tHandoff map[string]any `json:"handoff"`
+\tHandoffChain []map[string]any `json:"handoff_chain"`
+\tSelectedTarget *string `json:"selected_target"`
+\tSelectedTools []string `json:"selected_tools"`
+\tToolArgumentSummary map[string]any `json:"tool_argument_summary"`
+\tTraceSteps []map[string]any `json:"trace_steps,omitempty"`
+\tToolCallSummaries []map[string]any `json:"tool_call_summaries,omitempty"`
+\tGuardrailOutcomes map[string]any `json:"guardrail_outcomes"`
+\tFailCloseReason string `json:"fail_close_reason"`
+\tRuntimeVersions map[string]any `json:"runtime_versions"`
+\tPolicyArtifactVersions map[string]any `json:"policy_artifact_versions"`
+}
+
 type SupervisorResponseWire struct {
 \tSelectedTarget *AgentTarget `json:"selected_target"`
 \tStatus SupervisorStatus `json:"status"`
@@ -312,7 +331,7 @@ type SupervisorResponseWire struct {
 \tResult map[string]any `json:"result"`
 \tError map[string]any `json:"error"`
 \tObservability map[string]any `json:"observability,omitempty"`
-\tWorkflowTraceSummary map[string]any `json:"workflow_trace_summary,omitempty"`
+\tWorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`
 \tTraceID string `json:"trace_id"`
 }
 """
@@ -426,6 +445,49 @@ func (wire RuntimeDecisionSummaryWire) Validate() error {
 \treturn nil
 }
 
+func (wire WorkflowTraceSummaryWire) Validate() error {
+\tif wire.RoutingFrame == nil {
+\t\treturn fmt.Errorf("routing_frame is required")
+\t}
+\tif wire.ContextResolution == nil {
+\t\treturn fmt.Errorf("context_resolution is required")
+\t}
+\tif wire.PlanningOutcome == "" {
+\t\treturn fmt.Errorf("planning_outcome is required")
+\t}
+\tif wire.DirectVsDelegateBranch == "" {
+\t\treturn fmt.Errorf("direct_vs_delegate_branch is required")
+\t}
+\tif wire.WorkflowMode == "" {
+\t\treturn fmt.Errorf("workflow_mode is required")
+\t}
+\tif wire.Handoff == nil {
+\t\treturn fmt.Errorf("handoff is required")
+\t}
+\tif wire.HandoffChain == nil {
+\t\treturn fmt.Errorf("handoff_chain is required")
+\t}
+\tif wire.SelectedTarget == nil || *wire.SelectedTarget == "" {
+\t\treturn fmt.Errorf("selected_target is required")
+\t}
+\tif wire.SelectedTools == nil {
+\t\treturn fmt.Errorf("selected_tools is required")
+\t}
+\tif wire.ToolArgumentSummary == nil {
+\t\treturn fmt.Errorf("tool_argument_summary is required")
+\t}
+\tif wire.GuardrailOutcomes == nil {
+\t\treturn fmt.Errorf("guardrail_outcomes is required")
+\t}
+\tif wire.RuntimeVersions == nil {
+\t\treturn fmt.Errorf("runtime_versions is required")
+\t}
+\tif wire.PolicyArtifactVersions == nil {
+\t\treturn fmt.Errorf("policy_artifact_versions is required")
+\t}
+\treturn nil
+}
+
 func (wire SupervisorResponseWire) Validate() error {
 \tif wire.SelectedTarget != nil && !wire.SelectedTarget.Valid() {
 \t\treturn fmt.Errorf("selected_target is invalid")
@@ -445,6 +507,11 @@ func (wire SupervisorResponseWire) Validate() error {
 \t\t}
 \t\tif _, ok := wire.Error["message"].(string); !ok {
 \t\t\treturn fmt.Errorf("error.message is required")
+\t\t}
+\t}
+\tif wire.WorkflowTraceSummary != nil {
+\t\tif err := wire.WorkflowTraceSummary.Validate(); err != nil {
+\t\t\treturn fmt.Errorf("workflow_trace_summary: %w", err)
 \t\t}
 \t}
 \treturn nil
@@ -578,6 +645,24 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    result: dict[str, Any] | None = None\n"
         "    error: dict[str, Any] | None = None\n"
         "    agent_observability: dict[str, Any] | None = None\n\n\n"
+        "class WorkflowTraceSummaryWire(BaseModel):\n"
+        '    model_config = ConfigDict(extra="forbid")\n\n'
+        "    routing_frame: dict[str, Any]\n"
+        "    context_resolution: dict[str, Any]\n"
+        "    planning_outcome: str\n"
+        "    direct_vs_delegate_branch: str\n"
+        "    workflow_mode: str\n"
+        "    handoff: dict[str, Any]\n"
+        "    handoff_chain: list[dict[str, Any]]\n"
+        "    selected_target: str | None\n"
+        "    selected_tools: list[str]\n"
+        "    tool_argument_summary: dict[str, Any]\n"
+        "    guardrail_outcomes: dict[str, Any]\n"
+        "    fail_close_reason: str\n"
+        "    runtime_versions: dict[str, Any]\n"
+        "    policy_artifact_versions: dict[str, Any]\n"
+        "    trace_steps: list[dict[str, Any]] = Field(default_factory=list)\n"
+        "    tool_call_summaries: list[dict[str, Any]] = Field(default_factory=list)\n\n\n"
         "class SupervisorResponseWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
         "    selected_target: AgentTarget | None\n"
@@ -589,7 +674,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    error: dict[str, Any] | None\n"
         "    trace_id: str\n"
         "    observability: dict[str, Any] | None = None\n"
-        "    workflow_trace_summary: dict[str, Any] | None = None\n"
+        "    workflow_trace_summary: WorkflowTraceSummaryWire | None = None\n"
     )
 
 

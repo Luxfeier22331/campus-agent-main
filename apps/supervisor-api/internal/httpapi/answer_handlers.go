@@ -62,7 +62,12 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		s.writeTerminalError(response, *runResult.Terminal)
 		return
 	}
-	writeOutcome := s.writeBridgeResponse(response, runResult.BridgeResponse, executionRequest)
+	writeOutcome := s.writeBridgeResponse(
+		response,
+		runResult.BridgeResponse,
+		executionRequest,
+		runResult.BridgeRunState,
+	)
 	s.recordBridgeWriteOutcome(
 		runResult.RequestContext,
 		executionRequest,
@@ -146,7 +151,11 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 		return
 	}
 
-	payload, outcome := s.streamBridgePayload(runResult.BridgeResponse, executionRequest)
+	payload, outcome := s.streamBridgePayload(
+		runResult.BridgeResponse,
+		executionRequest,
+		runResult.BridgeRunState,
+	)
 	payload.RequestID = executionRequest.RequestID
 	if payload.TraceID == "" {
 		payload.TraceID = executionRequest.TraceID

@@ -108,6 +108,10 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   `SUPERVISOR_API_QUEUE_CAPACITY=24`、`SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000`、
   `SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000` 与
   `SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000`
+- 默认 bridge protection 参数为 `SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5`、
+  `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000`、
+  `SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS=2` 与
+  `SUPERVISOR_API_BRIDGE_RETRY_BASE_MS=50`
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
   `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
   三元组含义为 `max_concurrent / queue_capacity / queue_timeout`

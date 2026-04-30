@@ -84,6 +84,7 @@ func (s *Server) writeBridgeResponse(
 	response http.ResponseWriter,
 	bridgeResponse bridge.ExecuteResponse,
 	executionRequest execution.AnswerExecutionRequest,
+	runState bridgeExecutionRunState,
 ) bridgeWriteOutcome {
 	if !validBridgeResponseEnvelope(bridgeResponse) {
 		return s.writeInvalidBridgeResponse(
@@ -104,7 +105,7 @@ func (s *Server) writeBridgeResponse(
 		supervisorResponse, err := finalizeAgentBridgeResponse(
 			body,
 			executionRequest.TraceID,
-			finalizerContextFromExecutionRequest(executionRequest, "delegate"),
+			finalizerContextFromExecutionRequest(executionRequest, "delegate", runState),
 		)
 		if err != nil {
 			return s.writeInvalidBridgeResponse(

@@ -29,6 +29,7 @@ type executionRunnerEvent struct {
 type executionRunResult struct {
 	BridgeResponse bridge.ExecuteResponse
 	BridgeDuration time.Duration
+	BridgeRunState bridgeExecutionRunState
 	QueueWait      time.Duration
 	RequestContext context.Context
 	Terminal       *executionTerminal
@@ -44,6 +45,11 @@ type executionTerminal struct {
 	Retryable   bool
 	Outcome     string
 	FailureKind string
+}
+
+type bridgeExecutionRunState struct {
+	AttemptCount int
+	RetryCount   int
 }
 
 func (r executionRunResult) Complete(state lifecycle.State) {
@@ -242,11 +248,22 @@ func (s *Server) runBridgeExecution(
 	defer bridgeCancel()
 
 	bridgeStartedAt := time.Now()
-	bridgeResponse, err := s.bridge.Execute(bridgeCtx, bridge.Request{
-		Payload: executionRequest.Payload,
-	})
+	bridgeResponse, bridgeRunState, err := s.executeBridgeWithRetry(
+		bridgeCtx,
+		requestCtx,
+		executionRequest,
+		emitProgress,
+		bridge.Request{
+			Payload: executionRequest.Payload,
+		},
+	)
 	bridgeDuration := time.Since(bridgeStartedAt)
-	s.metrics.RecordBridgeDuration(bridgeDuration)
+	if bridgeRunState.AttemptCount <= 0 {
+		bridgeRunState.AttemptCount = 1
+	}
+	if bridgeRunState.RetryCount < 0 {
+		bridgeRunState.RetryCount = 0
+	}
 	if err != nil {
 		code, message, status, failureKind, state := s.bridgeExecutionError(
 			err,
@@ -298,9 +315,101 @@ func (s *Server) runBridgeExecution(
 	return executionRunResult{
 		BridgeResponse: bridgeResponse,
 		BridgeDuration: bridgeDuration,
+		BridgeRunState: bridgeRunState,
 		QueueWait:      queueWaitDuration,
 		RequestContext: requestCtx,
 		complete:       complete,
+	}
+}
+
+func (s *Server) executeBridgeWithRetry(
+	bridgeCtx context.Context,
+	requestCtx context.Context,
+	executionRequest execution.AnswerExecutionRequest,
+	emitProgress func(executionRunnerEvent),
+	request bridge.Request,
+) (bridge.ExecuteResponse, bridgeExecutionRunState, error) {
+	maxAttempts := s.config.BridgeRetryMaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+	retryBase := time.Duration(s.config.BridgeRetryBaseMS) * time.Millisecond
+	if retryBase < 0 {
+		retryBase = 0
+	}
+	runState := bridgeExecutionRunState{}
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		runState.AttemptCount = attempt
+		attemptStartedAt := time.Now()
+		response, err := s.bridge.Execute(bridgeCtx, request)
+		s.metrics.RecordBridgeDuration(time.Since(attemptStartedAt))
+		if err == nil {
+			return response, runState, nil
+		}
+		lastErr = err
+		failureKind, retryable := s.retryableBridgeExecutionFailure(
+			err,
+			requestCtx,
+			bridgeCtx,
+			executionRequest.RequestID,
+		)
+		if !retryable || attempt >= maxAttempts {
+			break
+		}
+		runState.RetryCount++
+		s.metrics.RecordBridgeRetry(failureKind)
+		if emitProgress != nil {
+			emitProgress(executionRunnerEvent{
+				Name: "execution.retrying",
+				Payload: streamPayload{
+					RequestID:  executionRequest.RequestID,
+					TraceID:    executionRequest.TraceID,
+					EventType:  "execution.retrying",
+					Status:     "running",
+					Outcome:    "bridge_retry",
+					Retryable:  true,
+					OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+				},
+			})
+		}
+		if !sleepBeforeBridgeRetry(bridgeCtx, retryBase, attempt) {
+			break
+		}
+	}
+	return bridge.ExecuteResponse{}, runState, lastErr
+}
+
+func (s *Server) retryableBridgeExecutionFailure(
+	err error,
+	requestCtx context.Context,
+	bridgeCtx context.Context,
+	requestID string,
+) (string, bool) {
+	_, _, _, failureKind, state := s.bridgeExecutionError(
+		err,
+		requestCtx,
+		bridgeCtx,
+		requestID,
+	)
+	if state == lifecycle.StateCanceled || state == lifecycle.StateClientCanceled {
+		return failureKind, false
+	}
+	return failureKind, failureKind == "unavailable"
+}
+
+func sleepBeforeBridgeRetry(ctx context.Context, base time.Duration, attempt int) bool {
+	if base <= 0 || attempt <= 0 {
+		return true
+	}
+	delay := base * time.Duration(attempt)
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 

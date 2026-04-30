@@ -131,6 +131,27 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
                 self.assertTrue(path.exists())
                 self.assertIn(marker, path.read_text(encoding="utf-8"))
 
+    def test_workflow_trace_summary_is_generated_as_typed_wire_in_all_languages(self) -> None:
+        ts_contract = GENERATED_TS_PATH.read_text(encoding="utf-8")
+        go_contract = GENERATED_GO_PATH.read_text(encoding="utf-8")
+        py_contract = GENERATED_PY_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("interface SupervisorExecutionWorkflowTraceSummaryWire", ts_contract)
+        self.assertIn(
+            "workflow_trace_summary?: SupervisorExecutionWorkflowTraceSummaryWire | null",
+            ts_contract,
+        )
+        self.assertIn("type WorkflowTraceSummaryWire struct", go_contract)
+        self.assertIn(
+            'WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`',
+            go_contract,
+        )
+        self.assertIn("class WorkflowTraceSummaryWire(BaseModel):", py_contract)
+        self.assertIn(
+            "workflow_trace_summary: WorkflowTraceSummaryWire | None = None",
+            py_contract,
+        )
+
     def test_cross_language_generated_artifacts_are_in_sync(self) -> None:
         completed = subprocess.run(
             [

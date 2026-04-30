@@ -245,6 +245,8 @@ _SURFACE_SPECS = {
                 "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD",
             ),
             "bridge_breaker_open_ms": ("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS",),
+            "bridge_retry_max_attempts": ("SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS",),
+            "bridge_retry_base_ms": ("SUPERVISOR_API_BRIDGE_RETRY_BASE_MS",),
             "lane_rag_max_concurrent": ("SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT",),
             "lane_navigation_max_concurrent": ("SUPERVISOR_API_LANE_NAVIGATION_MAX_CONCURRENT",),
             "lane_campus_services_max_concurrent": (

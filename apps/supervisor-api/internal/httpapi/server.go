@@ -94,6 +94,12 @@ func NewServerWithDependencies(
 	if cfg.BridgeBreakerOpenMS <= 0 {
 		cfg.BridgeBreakerOpenMS = 10_000
 	}
+	if cfg.BridgeRetryMaxAttempts <= 0 {
+		cfg.BridgeRetryMaxAttempts = 2
+	}
+	if cfg.BridgeRetryBaseMS <= 0 {
+		cfg.BridgeRetryBaseMS = 50
+	}
 	if cfg.StructuredQueryTimeoutMS <= 0 {
 		cfg.StructuredQueryTimeoutMS = 1_000
 	}

@@ -112,6 +112,27 @@ class AgentResponseWire(BaseModel):
     agent_observability: dict[str, Any] | None = None
 
 
+class WorkflowTraceSummaryWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    routing_frame: dict[str, Any]
+    context_resolution: dict[str, Any]
+    planning_outcome: str
+    direct_vs_delegate_branch: str
+    workflow_mode: str
+    handoff: dict[str, Any]
+    handoff_chain: list[dict[str, Any]]
+    selected_target: str | None
+    selected_tools: list[str]
+    tool_argument_summary: dict[str, Any]
+    guardrail_outcomes: dict[str, Any]
+    fail_close_reason: str
+    runtime_versions: dict[str, Any]
+    policy_artifact_versions: dict[str, Any]
+    trace_steps: list[dict[str, Any]] = Field(default_factory=list)
+    tool_call_summaries: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class SupervisorResponseWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -124,4 +145,4 @@ class SupervisorResponseWire(BaseModel):
     error: dict[str, Any] | None
     trace_id: str
     observability: dict[str, Any] | None = None
-    workflow_trace_summary: dict[str, Any] | None = None
+    workflow_trace_summary: WorkflowTraceSummaryWire | None = None

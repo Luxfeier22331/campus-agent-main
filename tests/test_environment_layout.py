@@ -12,6 +12,7 @@ ACTIVE_COMMAND_ENV_EXAMPLES = {
     "process-raw-ingestion-job.env.example",
     "rebuild-local-data.env.example",
     "release-registry-scope.env.example",
+    "supervisor-runtime.env.example",
 }
 HISTORICAL_COMMAND_ENV_EXAMPLES = {
     "migrate-student-handbook.env.example",
