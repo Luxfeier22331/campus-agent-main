@@ -106,6 +106,46 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
         self.assertEqual(audit["findings"][0]["code"], "non_fetch_policy_in_manifest")
         self.assertEqual(audit["findings"][0]["severity"], "high")
 
+    def test_pdf_candidate_using_legacy_multimodal_family_is_high_finding(self) -> None:
+        unit = _unit(
+            notice_id="477",
+            source_surface="file_release",
+            primary_route="regulation_candidate",
+            target_candidates=("regulation",),
+            attachment_policy="fetch_required_for_source_truth",
+            attachment_state="uploaded_required",
+            retention_class="permanent_source_truth",
+            required_source_object=True,
+            mime_type="application/pdf",
+            resource_role="released_file",
+            original_filename="管理办法.pdf",
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": unit["unit_id"],
+                        "source_notice_id": "477",
+                        "media_kind": "pdf",
+                        "processing_family": "internal_notice_multimodal",
+                        "status": "pending",
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/file-release-477/capture/source.pdf",
+                        },
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {"pdf_candidate_uses_multimodal_fallback": 1},
+        )
+
 
 def _unit(
     *,
@@ -117,15 +157,21 @@ def _unit(
     target_candidates: tuple[str, ...] = (),
     source_surface: str = "notice",
     required_source_object: bool = False,
+    mime_type: str = "image/png",
+    resource_role: str = "inline_image",
+    original_filename: str | None = None,
 ) -> dict[str, object]:
     attachment_ref = {
         "attachment_ref_id": "attachment-0001",
+        "resource_role": resource_role,
+        "original_filename": original_filename or f"{notice_id}.png",
         "attachment_capture_policy": attachment_policy,
         "attachment_capture_state": attachment_state,
         "retention_class": retention_class,
         "byte_fetch_required": False,
         "required_source_object": required_source_object,
         "object_key": f"authenticated_notice_portal/attachment/{notice_id}.png",
+        "mime_type": mime_type,
         "content_sha256": f"sha256-{notice_id}",
         "storage_provider": "object_store",
         "ingest_status": "uploaded",

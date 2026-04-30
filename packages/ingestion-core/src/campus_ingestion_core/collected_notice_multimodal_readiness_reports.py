@@ -6,6 +6,7 @@ from typing import Any
 
 from campus_ingestion_core.collected_notice_multimodal_readiness_shared import (
     DEFAULT_PHASE_05_ADMISSION_BATCH_ID,
+    MEDIA_EXTRACTION_CANDIDATE_INVENTORY_SCHEMA_VERSION,
     MULTIMODAL_CANDIDATE_INVENTORY_SCHEMA_VERSION,
     MULTIMODAL_GAP_REPORT_SCHEMA_VERSION,
     MULTIMODAL_STATE_MAPPING_SCHEMA_VERSION,
@@ -31,7 +32,8 @@ def candidate_inventory(
     generated_by: str,
 ) -> dict[str, Any]:
     return {
-        "schema_version": MULTIMODAL_CANDIDATE_INVENTORY_SCHEMA_VERSION,
+        "schema_version": MEDIA_EXTRACTION_CANDIDATE_INVENTORY_SCHEMA_VERSION,
+        "legacy_schema_version": MULTIMODAL_CANDIDATE_INVENTORY_SCHEMA_VERSION,
         "generated_at": generated_at,
         "generated_by": generated_by,
         "mode": "dry_run",
@@ -234,6 +236,8 @@ def gap_report(
                     "title": candidate["title"],
                     "processing_family": candidate["processing_family"],
                     "media_kind": candidate["media_kind"],
+                    "media_role": candidate.get("media_role", ""),
+                    "target_blocking": bool(candidate.get("target_blocking")),
                     "priority": candidate["priority"],
                     "status": status,
                     "reason_codes": candidate["reason_codes"],
@@ -289,6 +293,7 @@ def preview_to_output_files(
     preview: Any,
 ) -> dict[str, dict[str, Any]]:
     return {
+        "media-extraction-candidate-inventory.json": preview.candidate_inventory,
         "multimodal-candidate-inventory.json": preview.candidate_inventory,
         "multimodal-state-mapping-report.json": preview.state_mapping_report,
         "ocr-batch-manifest.dry-run.json": preview.ocr_batch_manifest,

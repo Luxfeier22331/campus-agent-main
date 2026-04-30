@@ -10,7 +10,10 @@ from campus_ingestion_core.collected_notice_classification import (
     classification_target_candidates,
 )
 from campus_ingestion_core.collected_notice_multimodal_readiness_shared import (
-    MULTIMODAL_CANDIDATE_SCHEMA_VERSION,
+    MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION,
+    OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE,
+    PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE,
+    RELEASED_FILE_TEXT_EXTRACTION_ATTEMPT_TABLE,
     mapping_rows,
 )
 from campus_ingestion_core.internal_notice_consumption_projection_multimodal import (
@@ -52,6 +55,23 @@ _IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 _PDF_SUFFIXES = (".pdf",)
 _OFFICE_SUFFIXES = (".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx")
 _ARCHIVE_SUFFIXES = (".zip", ".rar", ".7z")
+_PROCESSING_FAMILY_SCHEDULE_IMAGE_OCR = "schedule_image_ocr"
+_PROCESSING_FAMILY_RELEASED_FILE_TEXT_EXTRACTION = "released_file_text_extraction"
+_PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION = "pdf_ocr_text_extraction"
+_PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION = "office_text_extraction"
+_PROCESSING_FAMILY_MULTIMODAL_FALLBACK = "multimodal_fallback"
+_MEDIA_ROLE_OWNER_DOCUMENT = "owner_document"
+_MEDIA_ROLE_SCHEDULE_TABLE_CARRIER = "schedule_table_carrier"
+_MEDIA_ROLE_VISUAL_TEXT_ONLY = "visual_text_only"
+_MEDIA_ROLE_SUPPLEMENTAL_MEDIA = "supplemental_media"
+_MEDIA_ROLE_SOURCE_CAPTURE_REPAIR = "source_capture_repair"
+_TARGET_BLOCKING_ROLES = frozenset(
+    (
+        _MEDIA_ROLE_OWNER_DOCUMENT,
+        _MEDIA_ROLE_SCHEDULE_TABLE_CARRIER,
+        _MEDIA_ROLE_VISUAL_TEXT_ONLY,
+    )
+)
 
 
 def selected_units(
@@ -68,10 +88,11 @@ def selected_units(
     for row in mapping_rows(searchable_notice_preview.get("units")):
         unit_id = str(row.get("unit_id") or "").strip()
         multimodal_status = str(row.get("multimodal_status") or "").strip()
+        media_text_status = str(row.get("media_text_status") or multimodal_status).strip()
         if requested_unit_ids:
             if unit_id in requested_unit_ids:
                 units.append(dict(row))
-        elif multimodal_status in {"pending", "failed"}:
+        elif media_text_status in {"pending", "failed"}:
             units.append(dict(row))
     return tuple(sorted(units, key=lambda item: str(item.get("unit_id") or "")))
 
@@ -145,6 +166,12 @@ def _media_candidate(
         policy_action = "skip"
         skip_reason = NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER
         reason_codes.append(skip_reason)
+    media_role = _media_role(
+        media_kind=media_kind,
+        processing_family=processing_family,
+        target_hints=target_hints,
+    )
+    target_blocking = status in {"pending", "failed"} and media_role in _TARGET_BLOCKING_ROLES
     candidate_id = _candidate_id(
         unit_id=str(unit.get("unit_id") or ""),
         media_ref_id=media_ref_id,
@@ -157,7 +184,7 @@ def _media_candidate(
         object_key=str((object_ref or {}).get("key") or ""),
     )
     return {
-        "schema_version": MULTIMODAL_CANDIDATE_SCHEMA_VERSION,
+        "schema_version": MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION,
         "candidate_id": candidate_id,
         "unit_id": str(unit.get("unit_id") or ""),
         "source_channel": str(unit.get("source_channel") or ""),
@@ -173,7 +200,9 @@ def _media_candidate(
         "media_ref_id": media_ref_id,
         "image_index": image_index if media_kind == "image" else None,
         "media_kind": media_kind,
+        "media_role": media_role,
         "processing_family": processing_family,
+        "target_blocking": target_blocking,
         "priority": priority,
         "status": status,
         "policy_action": policy_action,
@@ -209,7 +238,7 @@ def _source_body_repair_candidate(unit: Mapping[str, Any]) -> dict[str, Any]:
         processing_family=processing_family,
     )
     return {
-        "schema_version": MULTIMODAL_CANDIDATE_SCHEMA_VERSION,
+        "schema_version": MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION,
         "candidate_id": candidate_id,
         "unit_id": str(unit.get("unit_id") or ""),
         "source_channel": str(unit.get("source_channel") or ""),
@@ -225,7 +254,9 @@ def _source_body_repair_candidate(unit: Mapping[str, Any]) -> dict[str, Any]:
         "media_ref_id": media_ref_id,
         "image_index": None,
         "media_kind": "source_body",
+        "media_role": _MEDIA_ROLE_SOURCE_CAPTURE_REPAIR,
         "processing_family": processing_family,
+        "target_blocking": False,
         "priority": _priority(unit, media_kind="source_body", target_hints=_target_hints(unit)),
         "status": "failed",
         "policy_action": "fail",
@@ -270,6 +301,26 @@ def _attempt_ledger(
             "attachment_ref_id": media_ref_id,
             "image_index": image_index,
         }
+    elif processing_family in {
+        _PROCESSING_FAMILY_RELEASED_FILE_TEXT_EXTRACTION,
+        _PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION,
+        _PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION,
+    }:
+        table = {
+            _PROCESSING_FAMILY_RELEASED_FILE_TEXT_EXTRACTION: (
+                RELEASED_FILE_TEXT_EXTRACTION_ATTEMPT_TABLE
+            ),
+            _PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION: PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE,
+            _PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION: OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE,
+        }[processing_family]
+        identity = {
+            "source_corpus": str(unit.get("source_corpus") or ""),
+            "source_collection": str(unit.get("source_collection") or ""),
+            "source_notice_id": str(unit.get("source_notice_id") or ""),
+            "unit_id": str(unit.get("unit_id") or ""),
+            "media_ref_id": media_ref_id,
+            "attempt_number": 1,
+        }
     elif processing_family == "wechat_public_notice_multimodal":
         table = DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_TABLE
         identity = {
@@ -280,7 +331,7 @@ def _attempt_ledger(
             "media_ref_id": media_ref_id,
             "attempt_number": 1,
         }
-    elif processing_family == "internal_notice_multimodal":
+    elif processing_family == _PROCESSING_FAMILY_MULTIMODAL_FALLBACK:
         table = DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE
         identity = {
             "source_corpus": str(unit.get("source_corpus") or ""),
@@ -316,7 +367,7 @@ def _normalized_output_refs(
     return {
         "provider_response": {
             "bucket": bucket,
-            "key": f"{base_prefix}/provider/notice-multimodal-v1/provider-response.jsonl",
+            "key": f"{base_prefix}/provider/media-extraction-v1/provider-response.jsonl",
             "role": "provider_response",
         },
         "plain_text": {
@@ -390,10 +441,31 @@ def _processing_family(
     if str(unit.get("source_surface") or "") == "wechat_public_notice":
         return "wechat_public_notice_multimodal"
     if media_kind == "image" and "transport_schedule" in target_hints:
-        return "schedule_image_ocr"
-    if media_kind in {"image", "pdf", "office", "archive", "unknown"}:
-        return "internal_notice_multimodal"
+        return _PROCESSING_FAMILY_SCHEDULE_IMAGE_OCR
+    if media_kind == "pdf" and str(unit.get("source_surface") or "") == "file_release":
+        return _PROCESSING_FAMILY_RELEASED_FILE_TEXT_EXTRACTION
+    if media_kind == "pdf":
+        return _PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION
+    if media_kind == "office":
+        return _PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION
+    if media_kind in {"image", "archive", "unknown"}:
+        return _PROCESSING_FAMILY_MULTIMODAL_FALLBACK
     return "source_capture_repair"
+
+
+def _media_role(
+    *,
+    media_kind: str,
+    processing_family: str,
+    target_hints: Sequence[str],
+) -> str:
+    if "regulation" in target_hints or media_kind in {"pdf", "office"}:
+        return _MEDIA_ROLE_OWNER_DOCUMENT
+    if processing_family == _PROCESSING_FAMILY_SCHEDULE_IMAGE_OCR:
+        return _MEDIA_ROLE_SCHEDULE_TABLE_CARRIER
+    if "service_status" in target_hints:
+        return _MEDIA_ROLE_VISUAL_TEXT_ONLY
+    return _MEDIA_ROLE_SUPPLEMENTAL_MEDIA
 
 
 def _priority(

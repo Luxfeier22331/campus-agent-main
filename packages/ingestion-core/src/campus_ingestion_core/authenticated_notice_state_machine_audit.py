@@ -231,6 +231,51 @@ def _unit_findings(
                 detail="notice-discover-only unit generated downstream multimodal candidates",
             )
         )
+    for candidate in candidates:
+        media_kind = str(candidate.get("media_kind") or "")
+        processing_family = str(candidate.get("processing_family") or "")
+        if media_kind == "pdf" and processing_family in {
+            "internal_notice_multimodal",
+            "multimodal_fallback",
+        }:
+            findings.append(
+                _finding(
+                    severity=FINDING_HIGH,
+                    code="pdf_candidate_uses_multimodal_fallback",
+                    source_notice_id=source_notice_id,
+                    title=title,
+                    detail=(
+                        "pdf media must use text extraction or OCR-first processing before "
+                        "multimodal fallback"
+                    ),
+                )
+            )
+        if media_kind == "office" and processing_family in {
+            "internal_notice_multimodal",
+            "multimodal_fallback",
+        }:
+            findings.append(
+                _finding(
+                    severity=FINDING_HIGH,
+                    code="office_candidate_uses_multimodal_fallback",
+                    source_notice_id=source_notice_id,
+                    title=title,
+                    detail="office media must use office text extraction before multimodal fallback",
+                )
+            )
+        if (
+            str(candidate.get("status") or "") == "pending"
+            and not candidate.get("source_object_ref")
+        ):
+            findings.append(
+                _finding(
+                    severity=FINDING_HIGH,
+                    code="pending_candidate_missing_source_object_ref",
+                    source_notice_id=source_notice_id,
+                    title=title,
+                    detail="pending media extraction candidate must carry source_object_ref",
+                )
+            )
     return tuple(findings)
 
 
