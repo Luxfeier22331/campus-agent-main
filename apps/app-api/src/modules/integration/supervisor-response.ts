@@ -371,6 +371,13 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 				return handoff ? [handoff] : [];
 			})
 		: [];
+	const contextProjectionsValue = recordValue(record, "context_projections", "contextProjections");
+	const contextProjections = Array.isArray(contextProjectionsValue)
+		? contextProjectionsValue.flatMap((item) => {
+				const projection = getRecord(item);
+				return projection ? [projection] : [];
+			})
+		: [];
 	const traceStepsValue = recordValue(record, "trace_steps", "traceSteps");
 	const traceSteps = Array.isArray(traceStepsValue)
 		? traceStepsValue.flatMap((item) => {
@@ -400,6 +407,7 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 		),
 		handoff: normalizeWorkflowRecord(record.handoff),
 		handoffChain,
+		contextProjections,
 		planningOutcome: normalizeRecordString(record, "planning_outcome", "planningOutcome"),
 		policyArtifactVersions: normalizeWorkflowRecord(
 			recordValue(record, "policy_artifact_versions", "policyArtifactVersions"),

@@ -163,7 +163,7 @@ func (s *Server) runMultiStepBridgeExecution(
 	totalBridgeDuration := time.Duration(0)
 	totalRunState := bridgeExecutionRunState{}
 	var finalBridgeResponse bridge.ExecuteResponse
-	workflowPayloadContext := execution.BridgePayloadContext{}
+	workflowContextProjections := []execution.StepOutputProjection{}
 	for index, handoff := range executionRequest.PlannedHandoffs {
 		selectedTool := runtimeSelectedTool(handoff)
 		var appendErr error
@@ -183,10 +183,21 @@ func (s *Server) runMultiStepBridgeExecution(
 				Outcome:    "supervisor_multistep_workflow_unavailable",
 			})
 		}
+		if handoff.RequiredProjectionKind != "" &&
+			!workflowHasRequiredProjection(workflowContextProjections, handoff.RequiredProjectionKind) {
+			return terminalResult(executionTerminal{
+				State:      lifecycle.StateFailed,
+				Code:       "supervisor_multistep_projection_unavailable",
+				Message:    "Supervisor multi-step workflow projection could not be created.",
+				StatusCode: http.StatusBadGateway,
+				Retryable:  false,
+				Outcome:    "supervisor_multistep_projection_unavailable",
+			})
+		}
 		stepPayload, err := execution.BridgePayloadForHandoff(
 			executionRequest.Payload,
 			handoff,
-			workflowPayloadContext,
+			workflowContextProjections...,
 		)
 		if err != nil {
 			return terminalResult(executionTerminal{
@@ -238,11 +249,28 @@ func (s *Server) runMultiStepBridgeExecution(
 		}
 		resultStatus := workflowStepStatus(bridgeResponse)
 		if resultStatus == "completed" {
-			workflowPayloadContext = workflowPayloadContextFromBridgeResponse(
-				workflowPayloadContext,
+			if projection, ok := workflowProjectionFromBridgeResponse(
 				handoff,
+				"handoff:"+handoff.Target+":"+handoff.PayloadKind,
 				bridgeResponse,
-			)
+			); ok {
+				workflowContextProjections = append(workflowContextProjections, projection)
+				workflowRun, appendErr = s.workflowRuns.AppendStepOutputProjection(
+					requestCtx,
+					runID,
+					projection,
+				)
+				if appendErr != nil {
+					return terminalResult(executionTerminal{
+						State:      lifecycle.StateFailed,
+						Code:       "supervisor_multistep_workflow_unavailable",
+						Message:    "Supervisor multi-step workflow run state could not be updated.",
+						StatusCode: http.StatusServiceUnavailable,
+						Retryable:  true,
+						Outcome:    "supervisor_multistep_workflow_unavailable",
+					})
+				}
+			}
 		}
 		workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
 			StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
@@ -326,37 +354,35 @@ func workflowRunParentStepID(index int, handoffs []execution.RuntimeHandoff) str
 	return "handoff:" + previous.Target + ":" + previous.PayloadKind
 }
 
-func workflowPayloadContextFromBridgeResponse(
-	current execution.BridgePayloadContext,
+func workflowProjectionFromBridgeResponse(
 	handoff execution.RuntimeHandoff,
+	sourceStepID string,
 	response bridge.ExecuteResponse,
-) execution.BridgePayloadContext {
+) (execution.StepOutputProjection, bool) {
 	if handoff.Target != "notice-agent" || runtimeSelectedTool(handoff) != "campus_notice_get" {
-		return current
+		return execution.StepOutputProjection{}, false
 	}
 	if response.Kind != "agent_response" {
-		return current
+		return execution.StepOutputProjection{}, false
 	}
 	body, err := decodeJSONObject(response.Body)
 	if err != nil {
-		return current
+		return execution.StepOutputProjection{}, false
 	}
 	if status, _ := body["status"].(string); status != "completed" {
-		return current
+		return execution.StepOutputProjection{}, false
 	}
 	result, _ := body["result"].(map[string]any)
-	next := execution.BridgePayloadContext{
-		NoticeTitle:     firstWorkflowString(result, "title"),
-		NoticeBody:      firstWorkflowString(result, "normalized_body", "body_text", "body"),
-		NoticeSourceURL: firstWorkflowString(result, "source_url", "canonical_url"),
+	noticeBody := firstWorkflowString(result, "normalized_body", "body_text", "body")
+	if noticeBody == "" {
+		noticeBody, _ = body["answer_text"].(string)
 	}
-	if next.NoticeBody == "" {
-		next.NoticeBody, _ = body["answer_text"].(string)
-	}
-	if !bridgePayloadContextHasAnyNoticeContext(next) {
-		return current
-	}
-	return next
+	return execution.NewNoticeContextProjection(
+		sourceStepID,
+		firstWorkflowString(result, "title"),
+		noticeBody,
+		firstWorkflowString(result, "source_url", "canonical_url"),
+	)
 }
 
 func firstWorkflowString(record map[string]any, keys ...string) string {
@@ -368,6 +394,15 @@ func firstWorkflowString(record map[string]any, keys ...string) string {
 	return ""
 }
 
-func bridgePayloadContextHasAnyNoticeContext(context execution.BridgePayloadContext) bool {
-	return context.NoticeTitle != "" || context.NoticeBody != "" || context.NoticeSourceURL != ""
+func workflowHasRequiredProjection(
+	projections []execution.StepOutputProjection,
+	requiredProjectionKind string,
+) bool {
+	switch requiredProjectionKind {
+	case string(execution.ProjectionKindNoticeContext):
+		_, ok := execution.FirstProjectionOfKind(projections, execution.ProjectionKindNoticeContext)
+		return ok
+	default:
+		return false
+	}
 }

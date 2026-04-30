@@ -64,7 +64,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         )
         self.assertEqual(
             openapi["x-campus-contract"]["workflow_trace_summary_version"],
-            "workflow-trace-summary-v2",
+            "workflow-trace-summary-v3",
         )
 
     def test_workflow_trace_summary_declares_workflow_mode_and_handoff_chain(self) -> None:
@@ -72,11 +72,34 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
 
         self.assertIn("workflow_mode", schema["required"])
         self.assertIn("handoff_chain", schema["required"])
+        self.assertIn("context_projections", schema["required"])
         self.assertEqual(
             schema["properties"]["workflow_mode"],
             {"$ref": "#/components/schemas/WorkflowMode"},
         )
         self.assertEqual(schema["properties"]["handoff_chain"]["type"], "array")
+        self.assertEqual(
+            schema["properties"]["context_projections"]["items"],
+            {"$ref": "#/components/schemas/WorkflowContextProjection"},
+        )
+
+    def test_step_output_projection_schema_is_canonical(self) -> None:
+        projection = _schema("StepOutputProjection")
+        context_projection = _schema("WorkflowContextProjection")
+
+        self.assertEqual(_schema("StepOutputProjectionKind")["enum"], ["notice_context"])
+        self.assertIn("projection_id", projection["required"])
+        self.assertIn("projection_kind", projection["required"])
+        self.assertIn("content_hash", projection["required"])
+        self.assertIn("safety", projection["required"])
+        self.assertEqual(
+            projection["properties"]["projection_kind"],
+            {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
+        self.assertEqual(
+            context_projection["properties"]["projection_kind"],
+            {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
 
     def test_workflow_mode_is_canonical_cross_language_enum(self) -> None:
         workflow_modes = tuple(_schema("WorkflowMode")["enum"])
@@ -101,6 +124,11 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         )
         self.assertIn("steps", workflow_plan["required"])
         self.assertIn("semantic_retry_policy", workflow_plan["required"])
+        edge = _schema("WorkflowPlanEdge")
+        self.assertEqual(
+            edge["properties"]["required_projection_kind"],
+            {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
 
     def test_contract_versioning_policy_is_declared_in_canonical_schema(self) -> None:
         openapi = _load_openapi()

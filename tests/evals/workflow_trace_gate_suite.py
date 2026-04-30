@@ -210,6 +210,36 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
                 }
             )
 
+    def test_multi_step_trace_requires_context_projection_summary(self) -> None:
+        case = _workflow_case(
+            direct_vs_delegate_branch="multi_step",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("campus_notice_get", "retrieval.query"),
+            handoff_chain=(
+                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
+                {"target": "rag-agent", "payload_kind": "rag_request"},
+            ),
+            expected_tool_order=("campus_notice_get", "retrieval.query"),
+        )
+        summary = _trace_summary(
+            direct_vs_delegate_branch="multi_step",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("campus_notice_get", "retrieval.query"),
+            handoff_chain=(
+                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
+                {"target": "rag-agent", "payload_kind": "rag_request"},
+            ),
+        )
+
+        results = evaluate_workflow_trace_case(case, summary)
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn(
+            "context_projections.multi_step", results.trace_projection_completeness.reason
+        )
+
 
 class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
     def test_evaluates_all_workflow_trace_dimensions_as_passed(self) -> None:

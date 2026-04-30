@@ -168,6 +168,29 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tfrom_step_id: string;\n"
         "\tto_step_id: string;\n"
         "\tcondition: string;\n"
+        "\trequired_projection_kind?: StepOutputProjectionKind;\n"
+        "}\n\n"
+        'export type StepOutputProjectionKind = "notice_context";\n\n'
+        "export interface ProjectionSafetySummaryWire {\n"
+        "\ttruncated: boolean;\n"
+        "\tredacted: boolean;\n"
+        "\tmax_chars: number;\n"
+        "\tfields_present: string[];\n"
+        "}\n\n"
+        "export interface StepOutputProjectionWire {\n"
+        "\tprojection_id: string;\n"
+        "\tsource_step_id: string;\n"
+        "\tprojection_kind: StepOutputProjectionKind;\n"
+        "\tcontent_hash: string;\n"
+        "\tpayload: SafeRecord;\n"
+        "\tsafety: ProjectionSafetySummaryWire;\n"
+        "}\n\n"
+        "export interface WorkflowContextProjectionWire {\n"
+        "\tprojection_id: string;\n"
+        "\tsource_step_id: string;\n"
+        "\tprojection_kind: StepOutputProjectionKind;\n"
+        "\tcontent_hash: string;\n"
+        "\tsafety: ProjectionSafetySummaryWire;\n"
         "}\n\n"
         "export interface WorkflowPlanWire {\n"
         '\tschema_version: "workflow-plan-v1";\n'
@@ -231,6 +254,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\thandoff_chain: SafeRecord[];\n"
         "\tselected_target: AgentTarget | string | null;\n"
         "\tselected_tools: string[];\n"
+        "\tcontext_projections: WorkflowContextProjectionWire[];\n"
         "\ttool_argument_summary: SafeRecord;\n"
         "\ttrace_steps?: SafeRecord[];\n"
         "\ttool_call_summaries?: SafeRecord[];\n"
@@ -315,6 +339,31 @@ type WorkflowPlanEdgeWire struct {
 \tFromStepID string `json:"from_step_id"`
 \tToStepID string `json:"to_step_id"`
 \tCondition string `json:"condition"`
+\tRequiredProjectionKind string `json:"required_projection_kind,omitempty"`
+}
+
+type ProjectionSafetySummaryWire struct {
+\tTruncated bool `json:"truncated"`
+\tRedacted bool `json:"redacted"`
+\tMaxChars int `json:"max_chars"`
+\tFieldsPresent []string `json:"fields_present"`
+}
+
+type StepOutputProjectionWire struct {
+\tProjectionID string `json:"projection_id"`
+\tSourceStepID string `json:"source_step_id"`
+\tProjectionKind string `json:"projection_kind"`
+\tContentHash string `json:"content_hash"`
+\tPayload map[string]any `json:"payload"`
+\tSafety ProjectionSafetySummaryWire `json:"safety"`
+}
+
+type WorkflowContextProjectionWire struct {
+\tProjectionID string `json:"projection_id"`
+\tSourceStepID string `json:"source_step_id"`
+\tProjectionKind string `json:"projection_kind"`
+\tContentHash string `json:"content_hash"`
+\tSafety ProjectionSafetySummaryWire `json:"safety"`
 }
 
 type WorkflowPlanWire struct {
@@ -371,6 +420,7 @@ type WorkflowTraceSummaryWire struct {
 \tHandoffChain []map[string]any `json:"handoff_chain"`
 \tSelectedTarget *string `json:"selected_target"`
 \tSelectedTools []string `json:"selected_tools"`
+\tContextProjections []WorkflowContextProjectionWire `json:"context_projections"`
 \tToolArgumentSummary map[string]any `json:"tool_argument_summary"`
 \tTraceSteps []map[string]any `json:"trace_steps,omitempty"`
 \tToolCallSummaries []map[string]any `json:"tool_call_summaries,omitempty"`
@@ -452,7 +502,29 @@ def _generate_py(contract: dict[str, Any]) -> str:
         '    model_config = ConfigDict(extra="forbid")\n\n'
         "    from_step_id: str\n"
         "    to_step_id: str\n"
-        "    condition: str\n\n\n"
+        "    condition: str\n"
+        '    required_projection_kind: str = ""\n\n\n'
+        "class ProjectionSafetySummaryWire(BaseModel):\n"
+        '    model_config = ConfigDict(extra="forbid")\n\n'
+        "    truncated: bool\n"
+        "    redacted: bool\n"
+        "    max_chars: int\n"
+        "    fields_present: list[str]\n\n\n"
+        "class StepOutputProjectionWire(BaseModel):\n"
+        '    model_config = ConfigDict(extra="forbid")\n\n'
+        "    projection_id: str\n"
+        "    source_step_id: str\n"
+        '    projection_kind: Literal["notice_context"]\n'
+        "    content_hash: str\n"
+        "    payload: dict[str, Any]\n"
+        "    safety: ProjectionSafetySummaryWire\n\n\n"
+        "class WorkflowContextProjectionWire(BaseModel):\n"
+        '    model_config = ConfigDict(extra="forbid")\n\n'
+        "    projection_id: str\n"
+        "    source_step_id: str\n"
+        '    projection_kind: Literal["notice_context"]\n'
+        "    content_hash: str\n"
+        "    safety: ProjectionSafetySummaryWire\n\n\n"
         "class WorkflowPlanWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
         '    schema_version: Literal["workflow-plan-v1"]\n'
@@ -515,6 +587,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    handoff_chain: list[dict[str, Any]]\n"
         "    selected_target: str | None\n"
         "    selected_tools: list[str]\n"
+        "    context_projections: list[WorkflowContextProjectionWire]\n"
         "    tool_argument_summary: dict[str, Any]\n"
         "    guardrail_outcomes: dict[str, Any]\n"
         "    fail_close_reason: str\n"

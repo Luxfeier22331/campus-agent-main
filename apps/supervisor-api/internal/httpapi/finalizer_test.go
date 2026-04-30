@@ -496,7 +496,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	if !ok || runtimeVersions["supervisor_api_runtime"] != "go-runtime-control-plane-v1" {
 		t.Fatalf("runtime_versions = %#v, want supervisor_api_runtime", traceSummary["runtime_versions"])
 	}
-	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v2" {
+	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v3" {
 		t.Fatalf("runtime_versions = %#v, want workflow trace summary version", runtimeVersions)
 	}
 	policyVersions, ok := traceSummary["policy_artifact_versions"].(map[string]any)

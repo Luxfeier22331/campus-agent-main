@@ -278,6 +278,7 @@ func buildWorkflowTraceSummaryWire(
 		HandoffChain:           run.HandoffChainMaps(),
 		SelectedTarget:         &selectedTarget,
 		SelectedTools:          selectedTools,
+		ContextProjections:     workflowContextProjectionWire(run.ContextProjections),
 		ToolArgumentSummary:    toolArgumentSummary,
 		TraceSteps:             run.StepMaps(),
 		ToolCallSummaries: workflowToolCallSummaries(
@@ -315,6 +316,7 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"handoff_chain":             wire.HandoffChain,
 		"selected_target":           selectedTarget,
 		"selected_tools":            wire.SelectedTools,
+		"context_projections":       workflowContextProjectionWireMaps(wire.ContextProjections),
 		"tool_argument_summary":     wire.ToolArgumentSummary,
 		"trace_steps":               wire.TraceSteps,
 		"tool_call_summaries":       wire.ToolCallSummaries,
@@ -323,6 +325,48 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"runtime_versions":          wire.RuntimeVersions,
 		"policy_artifact_versions":  wire.PolicyArtifactVersions,
 	}
+}
+
+func workflowContextProjectionWire(
+	projections []execution.StepOutputProjection,
+) []contractsv1.WorkflowContextProjectionWire {
+	items := make([]contractsv1.WorkflowContextProjectionWire, 0, len(projections))
+	for _, projection := range projections {
+		items = append(items, contractsv1.WorkflowContextProjectionWire{
+			ProjectionID:   projection.ProjectionID,
+			SourceStepID:   projection.SourceStepID,
+			ProjectionKind: string(projection.ProjectionKind),
+			ContentHash:    projection.ContentHash,
+			Safety: contractsv1.ProjectionSafetySummaryWire{
+				Truncated:     projection.Safety.Truncated,
+				Redacted:      projection.Safety.Redacted,
+				MaxChars:      projection.Safety.MaxChars,
+				FieldsPresent: append([]string{}, projection.Safety.FieldsPresent...),
+			},
+		})
+	}
+	return items
+}
+
+func workflowContextProjectionWireMaps(
+	projections []contractsv1.WorkflowContextProjectionWire,
+) []map[string]any {
+	items := make([]map[string]any, 0, len(projections))
+	for _, projection := range projections {
+		items = append(items, map[string]any{
+			"projection_id":   projection.ProjectionID,
+			"source_step_id":  projection.SourceStepID,
+			"projection_kind": projection.ProjectionKind,
+			"content_hash":    projection.ContentHash,
+			"safety": map[string]any{
+				"truncated":      projection.Safety.Truncated,
+				"redacted":       projection.Safety.Redacted,
+				"max_chars":      projection.Safety.MaxChars,
+				"fields_present": append([]string{}, projection.Safety.FieldsPresent...),
+			},
+		})
+	}
+	return items
 }
 
 func workflowMode(

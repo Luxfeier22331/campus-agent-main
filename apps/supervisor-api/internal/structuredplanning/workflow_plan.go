@@ -43,9 +43,10 @@ type WorkflowPlanStep struct {
 }
 
 type WorkflowPlanEdge struct {
-	FromStepID string
-	ToStepID   string
-	Condition  string
+	FromStepID             string
+	ToStepID               string
+	Condition              string
+	RequiredProjectionKind string
 }
 
 type WorkflowTerminalPolicy struct {
@@ -102,9 +103,10 @@ func MultiStepNoticeKnowledgeFollowthroughPlan(
 		Steps:         []WorkflowPlanStep{noticeStep, ragStep},
 		Edges: []WorkflowPlanEdge{
 			{
-				FromStepID: noticeStep.StepID,
-				ToStepID:   ragStep.StepID,
-				Condition:  "completed",
+				FromStepID:             noticeStep.StepID,
+				ToStepID:               ragStep.StepID,
+				Condition:              "completed",
+				RequiredProjectionKind: "notice_context",
 			},
 		},
 		TerminalPolicy: WorkflowTerminalPolicy{
@@ -194,11 +196,15 @@ func (s WorkflowPlanStep) Map() map[string]any {
 }
 
 func (e WorkflowPlanEdge) Map() map[string]any {
-	return map[string]any{
+	item := map[string]any{
 		"from_step_id": e.FromStepID,
 		"to_step_id":   e.ToStepID,
 		"condition":    e.Condition,
 	}
+	if e.RequiredProjectionKind != "" {
+		item["required_projection_kind"] = e.RequiredProjectionKind
+	}
+	return item
 }
 
 func (p WorkflowTerminalPolicy) Map() map[string]any {

@@ -21,15 +21,16 @@ const (
 )
 
 type WorkflowRun struct {
-	RunID        string
-	RequestID    string
-	TraceID      string
-	PlanID       string
-	Mode         WorkflowMode
-	Branch       string
-	State        WorkflowState
-	HandoffChain []HandoffStep
-	Steps        []WorkflowStep
+	RunID              string
+	RequestID          string
+	TraceID            string
+	PlanID             string
+	Mode               WorkflowMode
+	Branch             string
+	State              WorkflowState
+	HandoffChain       []HandoffStep
+	Steps              []WorkflowStep
+	ContextProjections []StepOutputProjection
 }
 
 type HandoffStep struct {
@@ -82,6 +83,10 @@ func (run WorkflowRun) StepMaps() []map[string]any {
 		items = append(items, step.Map())
 	}
 	return items
+}
+
+func (run WorkflowRun) ContextProjectionMaps() []map[string]any {
+	return WorkflowContextProjectionMaps(run.ContextProjections)
 }
 
 func (step WorkflowStep) Map() map[string]any {

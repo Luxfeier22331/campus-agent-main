@@ -190,6 +190,23 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 \tif wire.SelectedTools == nil {
 \t\treturn fmt.Errorf("selected_tools is required")
 \t}
+\tif wire.ContextProjections == nil {
+\t\treturn fmt.Errorf("context_projections is required")
+\t}
+\tfor index, projection := range wire.ContextProjections {
+\t\tif projection.ProjectionID == "" {
+\t\t\treturn fmt.Errorf("context_projections[%d].projection_id is required", index)
+\t\t}
+\t\tif projection.SourceStepID == "" {
+\t\t\treturn fmt.Errorf("context_projections[%d].source_step_id is required", index)
+\t\t}
+\t\tif projection.ProjectionKind != "notice_context" {
+\t\t\treturn fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
+\t\t}
+\t\tif projection.ContentHash == "" {
+\t\t\treturn fmt.Errorf("context_projections[%d].content_hash is required", index)
+\t\t}
+\t}
 \tif wire.ToolArgumentSummary == nil {
 \t\treturn fmt.Errorf("tool_argument_summary is required")
 \t}

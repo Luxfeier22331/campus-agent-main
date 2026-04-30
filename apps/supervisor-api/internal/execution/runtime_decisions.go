@@ -144,14 +144,22 @@ func runtimeHandoffsFromPlan(plan *structuredplanning.WorkflowPlan) []RuntimeHan
 	if plan == nil {
 		return []RuntimeHandoff{}
 	}
+	requiredProjectionByStepID := map[string]string{}
+	for _, edge := range plan.Edges {
+		if edge.RequiredProjectionKind != "" {
+			requiredProjectionByStepID[edge.ToStepID] = edge.RequiredProjectionKind
+		}
+	}
 	handoffs := plan.Handoffs()
 	result := make([]RuntimeHandoff, 0, len(handoffs))
 	for _, handoff := range handoffs {
+		stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
 		result = append(result, RuntimeHandoff{
-			Target:       handoff.Target,
-			PayloadKind:  handoff.PayloadKind,
-			Payload:      cloneAnyMap(handoff.Payload),
-			AllowedTools: append([]string{}, handoff.AllowedTools...),
+			Target:                 handoff.Target,
+			PayloadKind:            handoff.PayloadKind,
+			Payload:                cloneAnyMap(handoff.Payload),
+			AllowedTools:           append([]string{}, handoff.AllowedTools...),
+			RequiredProjectionKind: requiredProjectionByStepID[stepID],
 		})
 	}
 	return result

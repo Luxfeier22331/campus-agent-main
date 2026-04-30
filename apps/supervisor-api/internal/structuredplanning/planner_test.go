@@ -530,6 +530,12 @@ func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T)
 	if !ok || len(edges) != 1 || edges[0]["condition"] != "completed" {
 		t.Fatalf("projection edges = %#v, want completed edge", projection["edges"])
 	}
+	if edges[0]["required_projection_kind"] != "notice_context" {
+		t.Fatalf(
+			"projection edge required projection = %#v, want notice_context",
+			edges[0]["required_projection_kind"],
+		)
+	}
 }
 
 func TestPlanWithPolicyUsesIntentPolicyArtifactSignals(t *testing.T) {

@@ -125,4 +125,20 @@ func TestAnswerExecutesRecordedMultiStepWorkflow(t *testing.T) {
 	if !ok || len(handoffChain) != 2 {
 		t.Fatalf("handoff_chain = %#v, want two handoffs", traceSummary["handoff_chain"])
 	}
+	contextProjections, ok := traceSummary["context_projections"].([]any)
+	if !ok || len(contextProjections) != 1 {
+		t.Fatalf(
+			"context_projections = %#v, want one notice context projection",
+			traceSummary["context_projections"],
+		)
+	}
+	projection := expectRecord(t, contextProjections[0], "context_projections[0]")
+	if projection["projection_kind"] != "notice_context" ||
+		projection["source_step_id"] != "handoff:notice-agent:campus_notice_get" ||
+		projection["content_hash"] == "" {
+		t.Fatalf("context projection = %#v, want canonical notice context summary", projection)
+	}
+	if _, hasRawPayload := projection["payload"]; hasRawPayload {
+		t.Fatalf("context projection summary leaked payload: %#v", projection)
+	}
 }

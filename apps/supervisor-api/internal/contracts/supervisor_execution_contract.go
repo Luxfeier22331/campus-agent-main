@@ -14,7 +14,7 @@ const (
 	ResponseContract                    = "agent_response"
 	RuntimeDecisionsSchemaVersion       = "supervisor-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
-	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v2"
+	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v3"
 )
 
 type AgentTarget string
@@ -98,9 +98,34 @@ type WorkflowPlanStepWire struct {
 }
 
 type WorkflowPlanEdgeWire struct {
-	FromStepID string `json:"from_step_id"`
-	ToStepID   string `json:"to_step_id"`
-	Condition  string `json:"condition"`
+	FromStepID             string `json:"from_step_id"`
+	ToStepID               string `json:"to_step_id"`
+	Condition              string `json:"condition"`
+	RequiredProjectionKind string `json:"required_projection_kind,omitempty"`
+}
+
+type ProjectionSafetySummaryWire struct {
+	Truncated     bool     `json:"truncated"`
+	Redacted      bool     `json:"redacted"`
+	MaxChars      int      `json:"max_chars"`
+	FieldsPresent []string `json:"fields_present"`
+}
+
+type StepOutputProjectionWire struct {
+	ProjectionID   string                      `json:"projection_id"`
+	SourceStepID   string                      `json:"source_step_id"`
+	ProjectionKind string                      `json:"projection_kind"`
+	ContentHash    string                      `json:"content_hash"`
+	Payload        map[string]any              `json:"payload"`
+	Safety         ProjectionSafetySummaryWire `json:"safety"`
+}
+
+type WorkflowContextProjectionWire struct {
+	ProjectionID   string                      `json:"projection_id"`
+	SourceStepID   string                      `json:"source_step_id"`
+	ProjectionKind string                      `json:"projection_kind"`
+	ContentHash    string                      `json:"content_hash"`
+	Safety         ProjectionSafetySummaryWire `json:"safety"`
 }
 
 type WorkflowPlanWire struct {
@@ -148,22 +173,23 @@ type BridgeV6RequestWire struct {
 }
 
 type WorkflowTraceSummaryWire struct {
-	RoutingFrame           map[string]any   `json:"routing_frame"`
-	ContextResolution      map[string]any   `json:"context_resolution"`
-	PlanningOutcome        string           `json:"planning_outcome"`
-	DirectVsDelegateBranch string           `json:"direct_vs_delegate_branch"`
-	WorkflowMode           WorkflowMode     `json:"workflow_mode"`
-	Handoff                map[string]any   `json:"handoff"`
-	HandoffChain           []map[string]any `json:"handoff_chain"`
-	SelectedTarget         *string          `json:"selected_target"`
-	SelectedTools          []string         `json:"selected_tools"`
-	ToolArgumentSummary    map[string]any   `json:"tool_argument_summary"`
-	TraceSteps             []map[string]any `json:"trace_steps,omitempty"`
-	ToolCallSummaries      []map[string]any `json:"tool_call_summaries,omitempty"`
-	GuardrailOutcomes      map[string]any   `json:"guardrail_outcomes"`
-	FailCloseReason        string           `json:"fail_close_reason"`
-	RuntimeVersions        map[string]any   `json:"runtime_versions"`
-	PolicyArtifactVersions map[string]any   `json:"policy_artifact_versions"`
+	RoutingFrame           map[string]any                  `json:"routing_frame"`
+	ContextResolution      map[string]any                  `json:"context_resolution"`
+	PlanningOutcome        string                          `json:"planning_outcome"`
+	DirectVsDelegateBranch string                          `json:"direct_vs_delegate_branch"`
+	WorkflowMode           WorkflowMode                    `json:"workflow_mode"`
+	Handoff                map[string]any                  `json:"handoff"`
+	HandoffChain           []map[string]any                `json:"handoff_chain"`
+	SelectedTarget         *string                         `json:"selected_target"`
+	SelectedTools          []string                        `json:"selected_tools"`
+	ContextProjections     []WorkflowContextProjectionWire `json:"context_projections"`
+	ToolArgumentSummary    map[string]any                  `json:"tool_argument_summary"`
+	TraceSteps             []map[string]any                `json:"trace_steps,omitempty"`
+	ToolCallSummaries      []map[string]any                `json:"tool_call_summaries,omitempty"`
+	GuardrailOutcomes      map[string]any                  `json:"guardrail_outcomes"`
+	FailCloseReason        string                          `json:"fail_close_reason"`
+	RuntimeVersions        map[string]any                  `json:"runtime_versions"`
+	PolicyArtifactVersions map[string]any                  `json:"policy_artifact_versions"`
 }
 
 type SupervisorResponseWire struct {
@@ -365,6 +391,23 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 	}
 	if wire.SelectedTools == nil {
 		return fmt.Errorf("selected_tools is required")
+	}
+	if wire.ContextProjections == nil {
+		return fmt.Errorf("context_projections is required")
+	}
+	for index, projection := range wire.ContextProjections {
+		if projection.ProjectionID == "" {
+			return fmt.Errorf("context_projections[%d].projection_id is required", index)
+		}
+		if projection.SourceStepID == "" {
+			return fmt.Errorf("context_projections[%d].source_step_id is required", index)
+		}
+		if projection.ProjectionKind != "notice_context" {
+			return fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
+		}
+		if projection.ContentHash == "" {
+			return fmt.Errorf("context_projections[%d].content_hash is required", index)
+		}
 	}
 	if wire.ToolArgumentSummary == nil {
 		return fmt.Errorf("tool_argument_summary is required")

@@ -60,6 +60,25 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 	}
 	withStep.Steps[0].ToolName = "mutated"
 
+	withProjection, err := store.AppendStepOutputProjection(ctx, "run-001", StepOutputProjection{
+		ProjectionID:   "proj-notice-001",
+		SourceStepID:   "handoff:notice-agent:campus_notice_get",
+		ProjectionKind: ProjectionKindNoticeContext,
+		ContentHash:    "sha256:test",
+		Payload: map[string]any{
+			"title": "smoke notice",
+		},
+		Safety: ProjectionSafetySummary{
+			MaxChars:      1600,
+			FieldsPresent: []string{"title"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("append step output projection: %v", err)
+	}
+	withProjection.ContextProjections[0].Payload["title"] = "mutated"
+	withProjection.ContextProjections[0].Safety.FieldsPresent[0] = "mutated"
+
 	completed, err := store.Complete(ctx, "run-001", WorkflowStateCompleted)
 	if err != nil {
 		t.Fatalf("complete workflow run: %v", err)
@@ -72,6 +91,18 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 	}
 	if completed.Steps[0].ToolName != "retrieval.query" {
 		t.Fatalf("stored step = %#v, want defensive copy", completed.Steps[0])
+	}
+	if completed.ContextProjections[0].Payload["title"] != "smoke notice" {
+		t.Fatalf(
+			"stored projection payload = %#v, want defensive copy",
+			completed.ContextProjections[0].Payload,
+		)
+	}
+	if completed.ContextProjections[0].Safety.FieldsPresent[0] != "title" {
+		t.Fatalf(
+			"stored projection safety = %#v, want defensive copy",
+			completed.ContextProjections[0].Safety,
+		)
 	}
 }
 

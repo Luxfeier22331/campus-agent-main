@@ -8,7 +8,7 @@ x-campus-contract:
   response_contract: agent_response
   runtime_decisions_schema_version: supervisor-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
-  workflow_trace_summary_version: workflow-trace-summary-v2
+  workflow_trace_summary_version: workflow-trace-summary-v3
   versioning_policy:
     bridge_version: incompatible bridge envelope changes must bump bridge_version
     response_contract: AgentResponse wire contract changes must bump response_contract
@@ -94,6 +94,89 @@ components:
         - direct_runtime
         - single_handoff
         - multi_step
+    StepOutputProjectionKind:
+      type: string
+      enum:
+        - notice_context
+    ProjectionSafetySummary:
+      type: object
+      additionalProperties: false
+      required:
+        - truncated
+        - redacted
+        - max_chars
+        - fields_present
+      properties:
+        truncated:
+          type: boolean
+        redacted:
+          type: boolean
+        max_chars:
+          type: integer
+          minimum: 0
+        fields_present:
+          type: array
+          items:
+            type: string
+    NoticeContextProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - title
+        - body_excerpt
+        - source_url
+      properties:
+        title:
+          type: string
+        body_excerpt:
+          type: string
+        source_url:
+          type: string
+    StepOutputProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - projection_id
+        - source_step_id
+        - projection_kind
+        - content_hash
+        - payload
+        - safety
+      properties:
+        projection_id:
+          type: string
+        source_step_id:
+          type: string
+        projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
+        content_hash:
+          type: string
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/NoticeContextProjection"
+            - $ref: "#/components/schemas/SafeObject"
+        safety:
+          $ref: "#/components/schemas/ProjectionSafetySummary"
+    WorkflowContextProjection:
+      type: object
+      additionalProperties: false
+      required:
+        - projection_id
+        - source_step_id
+        - projection_kind
+        - content_hash
+        - safety
+      properties:
+        projection_id:
+          type: string
+        source_step_id:
+          type: string
+        projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
+        content_hash:
+          type: string
+        safety:
+          $ref: "#/components/schemas/ProjectionSafetySummary"
     WorkflowPlanStep:
       type: object
       additionalProperties: false
@@ -129,6 +212,8 @@ components:
           type: string
         condition:
           type: string
+        required_projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
     WorkflowPlan:
       type: object
       additionalProperties: false
@@ -459,6 +544,7 @@ components:
         - handoff_chain
         - selected_target
         - selected_tools
+        - context_projections
         - tool_argument_summary
         - guardrail_outcomes
         - fail_close_reason
@@ -490,6 +576,10 @@ components:
           type: array
           items:
             type: string
+        context_projections:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowContextProjection"
         tool_argument_summary:
           $ref: "#/components/schemas/SafeObject"
         trace_steps:

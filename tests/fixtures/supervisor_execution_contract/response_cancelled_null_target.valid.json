@@ -23,11 +23,12 @@
 		"handoff_chain": [],
 		"selected_target": "none",
 		"selected_tools": [],
+		"context_projections": [],
 		"tool_argument_summary": {},
 		"guardrail_outcomes": {},
 		"fail_close_reason": "execution_cancelled",
 		"runtime_versions": {
-			"workflow_trace_summary": "workflow-trace-summary-v2"
+			"workflow_trace_summary": "workflow-trace-summary-v3"
 		},
 		"policy_artifact_versions": {}
 	},

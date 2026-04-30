@@ -45,6 +45,7 @@
 		],
 		"selected_target": "rag-agent",
 		"selected_tools": ["retrieval.query"],
+		"context_projections": [],
 		"tool_argument_summary": {
 			"collection": "student_rules"
 		},
@@ -75,7 +76,7 @@
 		},
 		"fail_close_reason": "",
 		"runtime_versions": {
-			"workflow_trace_summary": "workflow-trace-summary-v2"
+			"workflow_trace_summary": "workflow-trace-summary-v3"
 		},
 		"policy_artifact_versions": {
 			"intent_policy": "intent-policy.v1"

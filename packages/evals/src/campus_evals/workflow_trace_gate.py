@@ -294,6 +294,7 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
     record = dict(payload or {}) if isinstance(payload, dict) else {}
     selected_tools = _list_value(record, "selected_tools", "selectedTools")
     handoff_chain = _list_value(record, "handoff_chain", "handoffChain")
+    context_projections = _list_value(record, "context_projections", "contextProjections")
     return WorkflowTraceSummary(
         routing_frame=_dict_value(record, "routing_frame", "routingFrame"),
         context_resolution=_dict_value(record, "context_resolution", "contextResolution"),
@@ -308,6 +309,9 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
         selected_target=_string_value(record, "selected_target", "selectedTarget"),
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
+        context_projections=tuple(
+            dict(item) for item in context_projections if isinstance(item, dict)
+        ),
         tool_argument_summary=_dict_value(
             record,
             "tool_argument_summary",
@@ -535,6 +539,8 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         missing.append("handoff_chain")
     if summary.workflow_mode == "multi_step" and len(summary.handoff_chain) < 2:
         missing.append("handoff_chain.multi_step")
+    if summary.workflow_mode == "multi_step" and not summary.context_projections:
+        missing.append("context_projections.multi_step")
     if (
         not summary.selected_tools
         and not summary.fail_close_reason

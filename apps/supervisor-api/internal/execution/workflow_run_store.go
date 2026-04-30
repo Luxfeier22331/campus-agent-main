@@ -18,6 +18,7 @@ type WorkflowRunStore interface {
 	Get(context.Context, string) (WorkflowRun, error)
 	AppendHandoff(context.Context, string, HandoffStep) (WorkflowRun, error)
 	AppendStep(context.Context, string, WorkflowStep) (WorkflowRun, error)
+	AppendStepOutputProjection(context.Context, string, StepOutputProjection) (WorkflowRun, error)
 	Complete(context.Context, string, WorkflowState) (WorkflowRun, error)
 }
 
@@ -99,6 +100,25 @@ func (s *InMemoryWorkflowRunStore) AppendStep(
 	return cloneWorkflowRun(run), nil
 }
 
+func (s *InMemoryWorkflowRunStore) AppendStepOutputProjection(
+	_ context.Context,
+	runID string,
+	projection StepOutputProjection,
+) (WorkflowRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[runID]
+	if !exists {
+		return WorkflowRun{}, fmt.Errorf("%w: %s", ErrWorkflowRunNotFound, runID)
+	}
+	run.ContextProjections = append(run.ContextProjections, CloneStepOutputProjection(projection))
+	if err := validateWorkflowRun(run); err != nil {
+		return WorkflowRun{}, err
+	}
+	s.runs[runID] = cloneWorkflowRun(run)
+	return cloneWorkflowRun(run), nil
+}
+
 func (s *InMemoryWorkflowRunStore) Complete(
 	_ context.Context,
 	runID string,
@@ -150,6 +170,13 @@ func cloneWorkflowRun(run WorkflowRun) WorkflowRun {
 		clone.HandoffChain = append(clone.HandoffChain, cloneHandoffStep(handoff))
 	}
 	clone.Steps = append([]WorkflowStep{}, run.Steps...)
+	clone.ContextProjections = make([]StepOutputProjection, 0, len(run.ContextProjections))
+	for _, projection := range run.ContextProjections {
+		clone.ContextProjections = append(
+			clone.ContextProjections,
+			CloneStepOutputProjection(projection),
+		)
+	}
 	return clone
 }
 

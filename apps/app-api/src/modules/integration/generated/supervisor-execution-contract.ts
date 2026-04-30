@@ -5,7 +5,7 @@ export const SUPERVISOR_EXECUTION_CONTRACT = {
 	responseContract: "agent_response",
 	runtimeDecisionsSchemaVersion: "supervisor-runtime-decisions-v1",
 	runtimeDecisionSummarySchemaVersion: "runtime-decision-summary-v1",
-	workflowTraceSummaryVersion: "workflow-trace-summary-v2",
+	workflowTraceSummaryVersion: "workflow-trace-summary-v3",
 } as const;
 
 export const AGENT_TARGETS = [
@@ -81,6 +81,33 @@ export interface WorkflowPlanEdgeWire {
 	from_step_id: string;
 	to_step_id: string;
 	condition: string;
+	required_projection_kind?: StepOutputProjectionKind;
+}
+
+export type StepOutputProjectionKind = "notice_context";
+
+export interface ProjectionSafetySummaryWire {
+	truncated: boolean;
+	redacted: boolean;
+	max_chars: number;
+	fields_present: string[];
+}
+
+export interface StepOutputProjectionWire {
+	projection_id: string;
+	source_step_id: string;
+	projection_kind: StepOutputProjectionKind;
+	content_hash: string;
+	payload: SafeRecord;
+	safety: ProjectionSafetySummaryWire;
+}
+
+export interface WorkflowContextProjectionWire {
+	projection_id: string;
+	source_step_id: string;
+	projection_kind: StepOutputProjectionKind;
+	content_hash: string;
+	safety: ProjectionSafetySummaryWire;
 }
 
 export interface WorkflowPlanWire {
@@ -149,6 +176,7 @@ export interface SupervisorExecutionWorkflowTraceSummaryWire {
 	handoff_chain: SafeRecord[];
 	selected_target: AgentTarget | string | null;
 	selected_tools: string[];
+	context_projections: WorkflowContextProjectionWire[];
 	tool_argument_summary: SafeRecord;
 	trace_steps?: SafeRecord[];
 	tool_call_summaries?: SafeRecord[];

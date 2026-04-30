@@ -121,6 +121,7 @@ export interface SupervisorExecutionWorkflowTraceSummary {
 	guardrailOutcomes: Record<string, unknown>;
 	handoff: Record<string, unknown>;
 	handoffChain: Record<string, unknown>[];
+	contextProjections: Record<string, unknown>[];
 	planningOutcome: string | null;
 	policyArtifactVersions: Record<string, unknown>;
 	routingFrame: Record<string, unknown>;

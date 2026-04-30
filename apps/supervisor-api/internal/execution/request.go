@@ -84,10 +84,11 @@ func cloneAnyMap(source map[string]any) map[string]any {
 }
 
 type RuntimeHandoff struct {
-	Target       string
-	PayloadKind  string
-	Payload      map[string]any
-	AllowedTools []string
+	Target                 string
+	PayloadKind            string
+	Payload                map[string]any
+	AllowedTools           []string
+	RequiredProjectionKind string
 }
 
 type actorContext struct {

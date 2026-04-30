@@ -6,18 +6,10 @@ import (
 	"strings"
 )
 
-const maxBridgeNoticeContextBodyLength = 1600
-
-type BridgePayloadContext struct {
-	NoticeTitle     string
-	NoticeBody      string
-	NoticeSourceURL string
-}
-
 func BridgePayloadForHandoff(
 	basePayload json.RawMessage,
 	handoff RuntimeHandoff,
-	contexts ...BridgePayloadContext,
+	projections ...StepOutputProjection,
 ) (json.RawMessage, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(basePayload, &payload); err != nil {
@@ -28,7 +20,7 @@ func BridgePayloadForHandoff(
 		return nil, fmt.Errorf("runtime_decisions must be an object")
 	}
 	selectedTool := selectedToolForRuntimeHandoff(handoff)
-	userGoal := bridgeUserGoalForHandoff(payload["user_goal"], handoff, firstBridgePayloadContext(contexts))
+	userGoal := bridgeUserGoalForHandoff(payload["user_goal"], handoff, firstNoticeProjection(projections))
 	payload["user_goal"] = userGoal
 	decisions["handoff"] = map[string]any{
 		"planning_outcome": "preplanned",
@@ -62,48 +54,38 @@ func BridgePayloadForHandoff(
 	return raw, nil
 }
 
-func firstBridgePayloadContext(contexts []BridgePayloadContext) BridgePayloadContext {
-	if len(contexts) == 0 {
-		return BridgePayloadContext{}
-	}
-	return contexts[0]
+func firstNoticeProjection(projections []StepOutputProjection) StepOutputProjection {
+	projection, _ := FirstProjectionOfKind(projections, ProjectionKindNoticeContext)
+	return projection
 }
 
 func bridgeUserGoalForHandoff(
 	rawUserGoal any,
 	handoff RuntimeHandoff,
-	context BridgePayloadContext,
+	projection StepOutputProjection,
 ) string {
 	userGoal, _ := rawUserGoal.(string)
-	if handoff.Target != "rag-agent" || !context.hasNoticeContext() {
+	if handoff.Target != "rag-agent" || !projection.hasNoticeContext() {
 		return userGoal
 	}
 	parts := []string{strings.TrimSpace(userGoal), "", "已读取的通知上下文："}
-	if title := strings.TrimSpace(context.NoticeTitle); title != "" {
+	if title := projection.NoticeTitle(); title != "" {
 		parts = append(parts, "标题："+title)
 	}
-	if body := trimNoticeContextBody(context.NoticeBody); body != "" {
+	if body := projection.NoticeBodyExcerpt(); body != "" {
 		parts = append(parts, "正文："+body)
 	}
-	if sourceURL := strings.TrimSpace(context.NoticeSourceURL); sourceURL != "" {
+	if sourceURL := projection.NoticeSourceURL(); sourceURL != "" {
 		parts = append(parts, "原文链接："+sourceURL)
 	}
 	return strings.Join(parts, "\n")
 }
 
-func (context BridgePayloadContext) hasNoticeContext() bool {
-	return strings.TrimSpace(context.NoticeTitle) != "" ||
-		strings.TrimSpace(context.NoticeBody) != "" ||
-		strings.TrimSpace(context.NoticeSourceURL) != ""
-}
-
-func trimNoticeContextBody(value string) string {
-	normalized := strings.TrimSpace(value)
-	if len([]rune(normalized)) <= maxBridgeNoticeContextBodyLength {
-		return normalized
-	}
-	runes := []rune(normalized)
-	return string(runes[:maxBridgeNoticeContextBodyLength]) + "..."
+func (projection StepOutputProjection) hasNoticeContext() bool {
+	return projection.ProjectionKind == ProjectionKindNoticeContext &&
+		(projection.NoticeTitle() != "" ||
+			projection.NoticeBodyExcerpt() != "" ||
+			projection.NoticeSourceURL() != "")
 }
 
 func selectedToolForRuntimeHandoff(handoff RuntimeHandoff) string {

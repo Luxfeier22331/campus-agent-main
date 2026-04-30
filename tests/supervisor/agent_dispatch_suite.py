@@ -161,6 +161,12 @@ class AgentDispatchTest(unittest.TestCase):
 
         self.assertIs(dispatcher.agent_delegates, delegates)
 
+    def test_dispatcher_rejects_workflow_graph_execution(self) -> None:
+        dispatcher = AgentDispatcher(agent_delegates={})
+
+        self.assertFalse(hasattr(dispatcher, "run_workflow"))
+        self.assertFalse(hasattr(dispatcher, "dispatch_chain"))
+
 
 if __name__ == "__main__":
     unittest.main()

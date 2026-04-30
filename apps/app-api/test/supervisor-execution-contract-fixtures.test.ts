@@ -25,6 +25,7 @@ describe("supervisor execution canonical response fixtures", () => {
 			status: "completed",
 			traceId: "trace-contract-completed",
 			workflowTraceSummary: {
+				contextProjections: [],
 				directVsDelegateBranch: "delegate",
 				selectedTarget: "rag-agent",
 				selectedTools: ["retrieval.query"],
@@ -68,5 +69,37 @@ describe("supervisor execution canonical response fixtures", () => {
 				parseSupervisorExecutionResponsePayload(loadFixture(fixtureName), "fallback-trace"),
 			).toThrow(/supervisor response contract/i);
 		}
+	});
+
+	it("parses canonical context projection summaries", () => {
+		const payload = loadFixture("response_completed_delegate.valid.json");
+		payload.workflow_trace_summary = {
+			...(payload.workflow_trace_summary as Record<string, unknown>),
+			context_projections: [
+				{
+					projection_id: "projection:notice:001",
+					source_step_id: "handoff:notice-agent:campus_notice_get",
+					projection_kind: "notice_context",
+					content_hash: "sha256:test",
+					safety: {
+						truncated: false,
+						redacted: false,
+						max_chars: 1600,
+						fields_present: ["title", "body_excerpt", "source_url"],
+					},
+				},
+			],
+		};
+
+		expect(parseSupervisorExecutionResponsePayload(payload, "fallback-trace")).toMatchObject({
+			workflowTraceSummary: {
+				contextProjections: [
+					{
+						projection_id: "projection:notice:001",
+						projection_kind: "notice_context",
+					},
+				],
+			},
+		});
 	});
 });
