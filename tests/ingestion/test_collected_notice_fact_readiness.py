@@ -74,6 +74,40 @@ class CollectedNoticeFactReadinessTests(unittest.TestCase):
         self.assertIn("required_media_pending", readiness["reason_codes"])
         self.assertTrue(readiness["blocking_media"])
 
+    def test_media_text_status_and_candidate_target_blocking_drive_readiness(self) -> None:
+        readiness = build_transport_schedule_fact_readiness(
+            unit={
+                "unit_id": "searchable:notice:muc_internal_portal:355867",
+                "source_notice_id": "355867",
+                "title": "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+                "media_text_status": "pending",
+                "multimodal_status": "not_required",
+            },
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": "searchable:notice:muc_internal_portal:355867",
+                        "status": "pending",
+                        "media_kind": "image",
+                        "media_role": "schedule_table_carrier",
+                        "processing_family": "schedule_image_ocr",
+                        "target_blocking": True,
+                    }
+                ]
+            },
+            text_schedule_row_count=0,
+        )
+
+        self.assertEqual(
+            readiness["fact_readiness_state"],
+            FACT_READINESS_BLOCKED_BY_REQUIRED_MEDIA,
+        )
+        self.assertEqual(
+            readiness["target_admission_state"],
+            TARGET_ADMISSION_NEEDS_MULTIMODAL,
+        )
+        self.assertEqual(readiness["blocking_media"][0]["media_role"], "schedule_table_carrier")
+
 
 if __name__ == "__main__":
     unittest.main()

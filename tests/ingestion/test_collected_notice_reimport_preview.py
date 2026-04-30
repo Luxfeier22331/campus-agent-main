@@ -380,6 +380,11 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
         )
         self.assertEqual(unit["source_retention"]["quarantine_attachment_ref_count"], 3)
         self.assertEqual(unit["multimodal_status"], "pending")
+        self.assertEqual(unit["media_text_status"], "pending")
+        self.assertEqual(
+            unit["media_text_reason_codes"],
+            ["image_attachment_pending_text_extraction"],
+        )
         for attachment in unit["attachment_refs"]:
             with self.subTest(attachment_ref_id=attachment["attachment_ref_id"]):
                 self.assertEqual(
