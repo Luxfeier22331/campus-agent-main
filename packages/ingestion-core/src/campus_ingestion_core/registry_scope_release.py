@@ -15,6 +15,12 @@ from campus_ingestion_core.embed import (
     build_embedding_model,
     validate_ingestion_retrieval_embedding_env_alignment,
 )
+from campus_ingestion_core.embedding_cache import (
+    CacheAwareEmbeddingModel,
+    EmbeddingCacheStats,
+    ObjectStoreEmbeddingCache,
+    build_cache_profile_identity,
+)
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
     build_release_metadata_payload,
@@ -83,6 +89,9 @@ class RegistryScopeReleaseReport:
     published_at: str | None
     retrieval_acceptance_status: str
     retrieval_acceptance_summary_object_key: str | None
+    embedding_cache_hit_count: int = 0
+    embedding_cache_miss_count: int = 0
+    embedding_provider_call_count: int = 0
 
 
 def release_registry_scope(
@@ -138,7 +147,24 @@ def release_registry_scope(
     )
 
     embedding_settings = EmbeddingSettings.from_env(source)
+    embedding_cache_stats = EmbeddingCacheStats()
     embedding_model = build_embedding_model(embedding_settings)
+    if _embedding_cache_enabled(source):
+        embedding_model = CacheAwareEmbeddingModel(
+            provider_model=embedding_model,
+            cache=ObjectStoreEmbeddingCache(
+                object_store=runtime_object_store,
+                bucket=object_store_settings.bucket_derived,
+                settings=embedding_settings,
+                profile_identity=build_cache_profile_identity(
+                    corpus=corpus,
+                    collection=collection,
+                    cleaning=runtime_profile.cleaning_policy_version,
+                    chunk=runtime_profile.chunk_profile_version,
+                ),
+            ),
+            stats=embedding_cache_stats,
+        )
     sparse_embedding_model = build_sparse_embedding_model(SparseEmbeddingSettings.from_env(source))
     chunks: list[IndexableChunk] = []
     empty_chunk_documents: list[str] = []
@@ -183,6 +209,7 @@ def release_registry_scope(
             if publish_alias and _requires_release_retrieval_acceptance(runtime_profile)
             else None
         ),
+        embedding_cache_stats=embedding_cache_stats,
     )
 
 
@@ -204,6 +231,7 @@ def publish_scope_release(
     document_units_sha256_by_key: dict[str, str] | None = None,
     acceptance_case_path: str | None = None,
     retrieval_settings: RetrievalSettings | None = None,
+    embedding_cache_stats: EmbeddingCacheStats | None = None,
 ) -> RegistryScopeReleaseReport:
     if not records:
         raise ValueError(f"records must not be empty for {corpus}/{collection}")
@@ -302,7 +330,7 @@ def publish_scope_release(
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
         )
-        return _build_release_report(artifacts)
+        return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
 
     acceptance_result = None
     if _requires_release_retrieval_acceptance(runtime_profile):
@@ -408,7 +436,7 @@ def publish_scope_release(
                 acceptance_result.summary if acceptance_result is not None else None
             ),
         )
-        return _build_release_report(artifacts)
+        return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
     except Exception:
         if alias_published and previous_physical_collection_name is not None:
             rollback_release_alias(
@@ -426,8 +454,13 @@ def publish_scope_release(
         raise
 
 
-def _build_release_report(artifacts) -> RegistryScopeReleaseReport:
+def _build_release_report(
+    artifacts,
+    *,
+    embedding_cache_stats: EmbeddingCacheStats | None = None,
+) -> RegistryScopeReleaseReport:
     manifest = artifacts.manifest
+    cache_stats = embedding_cache_stats or EmbeddingCacheStats()
     return RegistryScopeReleaseReport(
         corpus=manifest.corpus,
         collection=manifest.collection,
@@ -444,6 +477,9 @@ def _build_release_report(artifacts) -> RegistryScopeReleaseReport:
         published_at=manifest.published_at,
         retrieval_acceptance_status=manifest.retrieval_acceptance_status,
         retrieval_acceptance_summary_object_key=manifest.retrieval_acceptance_summary_object_key,
+        embedding_cache_hit_count=cache_stats.hit_count,
+        embedding_cache_miss_count=cache_stats.miss_count,
+        embedding_provider_call_count=cache_stats.provider_call_count,
     )
 
 
@@ -470,6 +506,14 @@ def _validate_chunk_embedding_runtime_identity(
 
 def _requires_release_retrieval_acceptance(profile: CollectionRuntimeProfile) -> bool:
     return bool(profile.serving_stage == "query_serving" and profile.query_enabled_by_default)
+
+
+def _embedding_cache_enabled(source: dict[str, str]) -> bool:
+    return (source.get("INGESTION_EMBEDDING_CACHE_ENABLED") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 
 def _build_fallback_retrieval_settings(

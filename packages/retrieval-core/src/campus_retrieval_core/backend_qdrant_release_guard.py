@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import Mock
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
+
 from campus_retrieval_core.backend_qdrant_errors import RetrievalBackendError
 from campus_retrieval_core.settings import RetrievalSettings
 

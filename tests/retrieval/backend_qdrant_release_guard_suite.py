@@ -4,7 +4,6 @@ import hashlib
 
 from tests.retrieval.backend_qdrant_test_support import (
     InMemoryDocumentRegistry,
-    Mock,
     QdrantRetrievalBackend,
     RetrievalBackendError,
     RetrievalRequest,
