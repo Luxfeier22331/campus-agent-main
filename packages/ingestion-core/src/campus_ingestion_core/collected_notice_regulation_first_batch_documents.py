@@ -18,6 +18,7 @@ SCOPED_TARGET_COLLECTION = "scoped_rules"
 PHASE_09_ID = "phase-09-first-batch-regulation-promotion-write-gate"
 
 _TARGET_IMPORT_SOURCE = "collected_notice_regulation_first_batch_promotion"
+_TARGET_SOURCE_CHANNEL = "authenticated_notice_portal"
 _ARTICLE_OR_CHAPTER_RE = re.compile(
     r"(?=^第[一二三四五六七八九十百千万0-9]+[章节条][^\n]*)",
     re.MULTILINE,
@@ -62,7 +63,7 @@ def build_document_import_input(document: Mapping[str, Any]) -> DocumentImportIn
         metadata=metadata,
         import_source=_TARGET_IMPORT_SOURCE,
         revision_track="current-effective",
-        source_channel="manual_curated",
+        source_channel=_TARGET_SOURCE_CHANNEL,
         is_current=True,
         corpus="regulations",
         collection=target_collection,

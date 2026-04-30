@@ -8,6 +8,7 @@ from campus_ingestion_core.collected_notice_regulation_first_batch_promotion imp
     FIRST_BATCH_SELECTION_SCHEMA_VERSION,
     PHASE_09_ID,
     build_first_batch_regulation_selection,
+    harden_first_batch_regulation_registry_provenance,
     materialize_first_batch_regulation_selection,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -202,6 +203,17 @@ class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
             },
         )
         selected_record = registry.list_by_scope("regulations", "institutional_rules")[0]
+        self.assertEqual(selected_record.source_channel, "authenticated_notice_portal")
+        self.assertEqual(
+            selected_record.import_source,
+            "collected_notice_regulation_first_batch_promotion",
+        )
+        self.assertEqual(selected_record.source_uri, "https://my.muc.edu.cn/file/594.pdf")
+        self.assertEqual(len(selected_record.source_observations), 1)
+        self.assertEqual(
+            selected_record.source_observations[0].source_channel,
+            "authenticated_notice_portal",
+        )
         rows = object_store.get_bytes(
             bucket="campus-rag-derived",
             key=selected_record.document_units_object_key or "",
@@ -246,6 +258,71 @@ class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
                 execute=True,
                 env=_object_store_env(),
             )
+
+    def test_provenance_hardening_updates_existing_selected_records(self) -> None:
+        selection = build_first_batch_regulation_selection(
+            candidate_audit=_candidate_audit(),
+            consistency_report=_consistency_report(),
+            institutional_materialization=_materialization_report(
+                target_collection="institutional_rules",
+                documents=[
+                    _target_document(source_notice_id="594", collection="institutional_rules")
+                ],
+            ),
+            scoped_materialization=_materialization_report(
+                target_collection="scoped_rules",
+                documents=[_target_document(source_notice_id="620", collection="scoped_rules")],
+            ),
+            selected_notice_ids=("594", "620"),
+        )
+        registry = InMemoryDocumentRegistry(
+            (
+                _existing_regulation_record(
+                    document_id="institutional_regulation:muc:594",
+                    collection="institutional_rules",
+                ),
+                _existing_regulation_record(
+                    document_id="institutional_regulation:muc:620",
+                    collection="scoped_rules",
+                ),
+            )
+        )
+
+        report = harden_first_batch_regulation_registry_provenance(
+            selection=selection,
+            registry=registry,
+            execute=True,
+            generated_at="2026-04-30T00:00:00+00:00",
+        )
+
+        self.assertTrue(report["write_enabled"])
+        self.assertEqual(report["updated_record_count"], 2)
+        updated = registry.latest_versions(
+            "institutional_regulation:muc:594",
+            revision_track="current-effective",
+        )[0]
+        self.assertEqual(updated.source_channel, "authenticated_notice_portal")
+        self.assertEqual(updated.source_uri, "https://my.muc.edu.cn/file/594.pdf")
+        self.assertEqual(
+            [observation.source_channel for observation in updated.source_observations],
+            ["authenticated_notice_portal", "manual_curated"],
+        )
+        rerun_report = harden_first_batch_regulation_registry_provenance(
+            selection=selection,
+            registry=registry,
+            execute=False,
+            generated_at="2026-04-30T00:01:00+00:00",
+        )
+
+        self.assertEqual(rerun_report["candidate_update_count"], 0)
+        self.assertEqual(rerun_report["updated_target_document_ids"], [])
+        self.assertEqual(
+            rerun_report["unchanged_target_document_ids"],
+            [
+                "institutional_regulation:muc:594",
+                "institutional_regulation:muc:620",
+            ],
+        )
 
 
 def _candidate_audit() -> dict[str, object]:
@@ -408,6 +485,37 @@ def _existing_scoped_rule_record(
         corpus="regulations",
         collection="scoped_rules",
         cleaning_policy_version="scoped_rules_cleaning_v1",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        status="active",
+        ingestion_timestamp="2026-04-29T00:00:00+00:00",
+        parser_version="collected_notice_regulation_first_batch_promotion_v1",
+        embedding_model="mock-embedding-8d",
+        source_channel="manual_curated",
+        is_current=True,
+        document_units_object_key=units_key,
+        canonical_markdown_object_key=units_key.replace("document-units.jsonl", "canonical.md"),
+        processed_object_keys=(units_key,),
+        import_source="test",
+    )
+
+
+def _existing_regulation_record(
+    *,
+    document_id: str,
+    collection: str,
+) -> DocumentRegistryRecord:
+    units_key = f"regulations/documents/{collection}/existing/document-units.jsonl"
+    return DocumentRegistryRecord(
+        document_id=document_id,
+        revision_track="current-effective",
+        version_id="sha256:existing",
+        source_uri="campusrag://manual/regulation",
+        content_hash="sha256:existing",
+        corpus="regulations",
+        collection=collection,
+        cleaning_policy_version=f"{collection}_cleaning_v1",
         entitlement_groups=("campus_members",),
         visibility_scope="campus",
         visibility_level="restricted",

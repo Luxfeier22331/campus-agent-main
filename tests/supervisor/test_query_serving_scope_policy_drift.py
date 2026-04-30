@@ -20,6 +20,29 @@ class QueryServingScopePolicyDriftTest(unittest.TestCase):
 
         self.assertEqual(policy_scopes, profile_scopes)
 
+    def test_regulation_serving_profiles_remain_closed_until_release(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        institutional_profile = json.loads(
+            (
+                repo_root / "configs/ingestion/regulations/institutional_rules/runtime-profile.json"
+            ).read_text(encoding="utf-8")
+        )
+        scoped_profile = json.loads(
+            (
+                repo_root / "configs/ingestion/regulations/scoped_rules/runtime-profile.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(institutional_profile["serving_stage"], "offline_preparation")
+        self.assertIs(institutional_profile["retrieval_enabled"], False)
+        self.assertIs(institutional_profile["query_enabled_by_default"], False)
+        self.assertEqual(institutional_profile["current_only"], False)
+
+        self.assertEqual(scoped_profile["serving_stage"], "offline_preparation")
+        self.assertIs(scoped_profile["retrieval_enabled"], False)
+        self.assertIs(scoped_profile["query_enabled_by_default"], False)
+        self.assertEqual(scoped_profile["current_only"], False)
+
 
 if __name__ == "__main__":
     unittest.main()

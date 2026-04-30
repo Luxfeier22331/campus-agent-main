@@ -28,7 +28,13 @@ from campus_ingestion_core.registry_scope_common import (
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION = "registry-scope-chunk-preparation"
-MANDATORY_PREPARATION_SCOPES = frozenset({("campus_notices", "internal_notice")})
+MANDATORY_PREPARATION_SCOPES = frozenset(
+    {
+        ("campus_notices", "internal_notice"),
+        ("regulations", "institutional_rules"),
+        ("regulations", "scoped_rules"),
+    }
+)
 
 
 class RegistryScopePreparationObjectStore(Protocol):
