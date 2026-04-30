@@ -193,6 +193,11 @@ reader asset package / object key / deploy sync 细节统一看
 - document registry 持有逻辑文档版本、hash、status 与 serving关联
 - serving alias 指向当前 query-serving physical collection
 - index release 通过 versioned physical collection + release manifest 追溯
+- query-enabled alias publish 必须先通过 deterministic retrieval acceptance；release
+  manifest / point payload 继续承载 embedding、dense/sparse/hybrid、
+  chunker/tokenizer 与 cleaning provenance
+- embedding cache 只能作为 rebuild cost-control adjunct；cache key 必须包含文本 hash、
+  provider/model/dimensions 与 runtime profile identity，不得替代 release manifest truth
 
 对部分 `offline_preparation` collection，index release 之前允许插入一个 preparation gate。
 
