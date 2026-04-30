@@ -153,26 +153,38 @@ class RagAgentRequestPromptContractTest(unittest.TestCase):
             retriever=raising_retriever,
         )
 
+        self.assertEqual(response.target, "rag-agent")
+        self.assertEqual(response.status, "error")
+        self.assertEqual(response.confidence, "low")
         self.assertEqual(
-            response,
-            AgentResponse(
-                target="rag-agent",
-                status="error",
-                confidence="low",
-                error=ErrorInfo(
-                    code="retrieval_failed",
-                    message="qdrant unavailable",
-                    retryable=False,
-                ),
-                result=RagResultPayload(
-                    evidence=EvidenceBundle(
-                        query_text="library hours",
-                        corpus="regulations",
-                        collection="student_rules",
-                    )
-                ),
+            response.error,
+            ErrorInfo(
+                code="retrieval_failed",
+                message="qdrant unavailable",
+                retryable=False,
             ),
         )
+        self.assertEqual(
+            response.result,
+            RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_rules",
+                )
+            ),
+        )
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        self.assertEqual(response.agent_observability.selected_tool, "retrieval.query")
+        self.assertFalse(response.agent_observability.tool_attempted)
+        self.assertEqual(response.agent_observability.tool_outcome, "retrieval_failed")
+        self.assertEqual(response.agent_observability.failure_class, "retrieval_failed")
+        self.assertEqual(response.agent_observability.fail_close_reason, "retrieval_failed")
+        self.assertEqual(response.agent_observability.source_ref_count, 0)
+        result_guardrail = response.agent_observability.safe_details["result_guardrail"]
+        self.assertEqual(result_guardrail["outcome"], "fail_close")
+        self.assertEqual(result_guardrail["error_code"], "retrieval_failed")
 
     def test_query_disabled_corpus_maps_to_explicit_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
