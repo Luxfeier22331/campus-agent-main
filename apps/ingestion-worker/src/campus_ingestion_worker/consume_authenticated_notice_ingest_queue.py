@@ -6,6 +6,16 @@ import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
+    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
+)
+from campus_ingestion_core.authenticated_notice_run_queue_consumer import (
+    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT,
+    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID,
+    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS,
+    AuthenticatedNoticeRunQueueConsumeResult,
+    consume_authenticated_notice_ingest_queue,
+)
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.collected_notice_ingest_queue_postgres import (
     DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY,
@@ -17,16 +27,6 @@ from campus_ingestion_core.registry import (
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
-from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
-    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
-)
-from campus_ingestion_core.authenticated_notice_run_queue_consumer import (
-    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT,
-    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID,
-    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS,
-    AuthenticatedNoticeRunQueueConsumeResult,
-    consume_authenticated_notice_ingest_queue,
-)
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -42,10 +42,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--execute", action="store_true", help="Complete/fail leased jobs.")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
-    parser.add_argument("--limit", type=int, default=DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT)
-    parser.add_argument("--worker-id", default=DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID)
+    parser.add_argument(
+        "--limit", type=int, default=DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT
+    )
+    parser.add_argument(
+        "--worker-id", default=DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID
+    )
     parser.add_argument("--lease-seconds", type=int, default=300)
-    parser.add_argument("--retry-after-seconds", type=int, default=DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS)
+    parser.add_argument(
+        "--retry-after-seconds",
+        type=int,
+        default=DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS,
+    )
     parser.add_argument("--replay-batch-id")
     parser.add_argument("--run-id")
     parser.add_argument("--site-id", required=True)
@@ -111,9 +119,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         media_gate_evidence_dir=(
             Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None
         ),
-        cleanup_report_path=(
-            Path(args.cleanup_report_path) if args.cleanup_report_path else None
-        ),
+        cleanup_report_path=(Path(args.cleanup_report_path) if args.cleanup_report_path else None),
         destructive_cleanup_enabled=args.enable_destructive_cleanup,
         consumer_admission_manifest_path=(
             Path(args.consumer_admission_manifest_path)

@@ -86,10 +86,7 @@ class ConsumeAuthenticatedNoticeIngestQueueWorkerTest(unittest.TestCase):
                 (output_dir / "authenticated-notice-run-queue-consume.trace.json").exists()
             )
             self.assertTrue(
-                (
-                    output_dir
-                    / "authenticated-notice-run-queue-consume-failed-report.json"
-                ).exists()
+                (output_dir / "authenticated-notice-run-queue-consume-failed-report.json").exists()
             )
 
 

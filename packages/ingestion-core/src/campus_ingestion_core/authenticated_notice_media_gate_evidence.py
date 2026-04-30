@@ -96,7 +96,9 @@ def validate_authenticated_notice_media_gate_evidence_manifest(
     for index, value in enumerate(target_refs, start=1):
         ref = _artifact_mapping(value, f"target_admission_manifests[{index}]")
         expected = str(input_hashes.get(f"target_admission_manifest_{index}_sha256") or "")
-        _assert_hash_matches(ref=ref, expected=expected, label=f"target_admission_manifest_{index}_sha256")
+        _assert_hash_matches(
+            ref=ref, expected=expected, label=f"target_admission_manifest_{index}_sha256"
+        )
     return {
         "verdict": "passed",
         "run_id": str(manifest.get("run_id") or ""),

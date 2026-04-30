@@ -55,7 +55,9 @@ class SmokeAuthenticatedNoticeIngestQueueE2EWorkerTest(unittest.TestCase):
             self.assertEqual(payload["sample_id"], "355867")
             self.assertEqual(payload["verdict"], "passed")
             self.assertEqual(payload["medium_or_higher_finding_count"], 0)
-            self.assertTrue((output_dir / "authenticated-notice-ingest-queue-e2e-smoke.json").exists())
+            self.assertTrue(
+                (output_dir / "authenticated-notice-ingest-queue-e2e-smoke.json").exists()
+            )
 
 
 def _run_refs():

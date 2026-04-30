@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-import json
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -43,18 +43,14 @@ from campus_ingestion_core.collected_notice_ingest_queue_store import (
     NoticeIngestQueueStore,
 )
 
-AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_SCHEMA_VERSION = (
-    "authenticated_notice_run_queue_consume.v1"
-)
+AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_SCHEMA_VERSION = "authenticated_notice_run_queue_consume.v1"
 AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_TRACE_SCHEMA_VERSION = (
     "authenticated_notice_run_queue_consume_trace.v1"
 )
 AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_FAILED_REPORT_SCHEMA_VERSION = (
     "authenticated_notice_run_queue_consume_failed_report.v1"
 )
-DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID = (
-    "authenticated-notice-run-queue-consumer"
-)
+DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID = "authenticated-notice-run-queue-consumer"
 DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT = 10
 DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS = 300
 

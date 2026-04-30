@@ -153,9 +153,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "sample_id": report["sample_id"],
                 "output_path": str(output_path),
                 "verdict": report["verdict"],
-                "medium_or_higher_finding_count": report[
-                    "medium_or_higher_finding_count"
-                ],
+                "medium_or_higher_finding_count": report["medium_or_higher_finding_count"],
             },
             ensure_ascii=False,
             indent=2,

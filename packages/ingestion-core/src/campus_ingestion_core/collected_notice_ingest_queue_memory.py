@@ -85,9 +85,7 @@ class InMemoryNoticeIngestQueueStore:
                     if record.replay_batch_id == normalized_replay_batch_id
                 ]
             if normalized_run_id:
-                candidates = [
-                    record for record in candidates if record.run_id == normalized_run_id
-                ]
+                candidates = [record for record in candidates if record.run_id == normalized_run_id]
             if not candidates:
                 return None
             selected = sorted(
