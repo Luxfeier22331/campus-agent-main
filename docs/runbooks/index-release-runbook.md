@@ -398,6 +398,31 @@ retrieval observation JSONL sink。该 sink 只写 sanitized retrieval observati
 eval / backlog intake，不反向改变 release manifest、runtime profile 或 serving alias；sink
 写入失败只记录 warning，不得让在线 retrieval answer path 失败。
 
+生产观测接入不应继续依赖 JSONL 文件作为主通道。长期接法是：
+
+1. retrieval-core 继续只接受注入的 `RetrievalObservationSink`，不感知 OTel、vendor SDK、
+   Collector 地址或 exporter 配置。
+2. runtime shell 用 `build_retrieval_observation_event_sink()` 把 observation 包成
+   `retrieval.runtime_observation` 事件。
+3. `supervisor-agent-worker` 或后续 runtime adapter 将该事件转成 OTel-compatible log/event；
+   有当前 request trace context 时附带 trace/span correlation，没有 trace context 时至少保留
+   `request_id`、`plan_id`、`step_id`。
+4. 由 OTel Collector 或等价 telemetry pipeline 负责 batching、retry、memory limiting、
+   attribute filtering、environment/resource attribute enrichment 和 backend export。
+5. metrics 从 event 派生，不由 retrieval-core 直接上报。首批 dashboard/alert 只看：
+   retrieval latency、no-hit rate、fail-closed count by `failure_kind`、release metadata
+   drift、reranker degraded、live-assisted branch count。
+
+生产接入验收至少跑三类样本：
+
+- no-hit：确认只有 `query_sha256`，没有 raw query text。
+- release drift：确认 `failure_kind=release_metadata_drift` 可被单独聚合和告警。
+- reranker degraded：确认 answer path 返回 baseline evidence，同时 event 带
+  `reranker_degraded=true`。
+
+这些验收只证明 telemetry pipeline 可用，不允许绕过 release gate、qrels gate 或 runtime
+profile gate。
+
 默认 observation 只写 `query_sha256`，不写原始 query text。只有 operator 明确需要把 runtime
 no-hit / low-confidence 样本转成 qrels 候选时，才临时打开：
 

@@ -177,6 +177,24 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - indexed lookup backend fail-closed exception 必须在重新抛出前写入 sanitized failed
   observation；release metadata drift 必须保留可分类的 failure kind，供 monitoring backlog
   归入 release repair 而不是普通 no-hit
+- production observation 集成边界固定在 runtime adapter，不进入 `packages/retrieval-core`：
+  retrieval-core 只暴露 `RetrievalObservationSink` /
+  `build_retrieval_observation_event_sink()` 这种注入 seam；`supervisor-agent-worker`
+  或后续 runtime shell 负责把 `retrieval.runtime_observation` 转成 OTel-compatible log/event、
+  derived metrics 或 backend-specific export
+- OTel bridge 的默认映射是 log/event first：event name
+  `retrieval.runtime_observation`，attributes 至少包含 `request_id`、`plan_id`、`step_id`、
+  `scope.corpus`、`scope.collection`、`query_mode`、`retrieval_mode`、`terminal_state`、
+  `failure_kind`、`candidate_count`、`reference_count`、`latency_ms`、`query_sha256`；有
+  trace context 时附带 trace/span correlation，没有 trace context 时仍以 `request_id`
+  做跨组件关联
+- metrics 从 observation 派生，不要求 retrieval-core 直接发 metrics：request count、
+  latency histogram、no-hit / low-confidence / forbidden-hit count、release metadata
+  drift count、reranker degraded count、live-assisted count 都应由 runtime adapter 或
+  Collector/backend 聚合
+- OTel Collector 只作为可替换 telemetry pipeline：接收 OTLP logs/metrics/traces，经
+  memory/batch/filter/attribute processors 做限流、批处理、脱敏和资源属性补齐，再 export
+  到实际 backend；Collector/exporter 配置不得反向成为 retrieval serving contract
 - projection-derived scope 如果没有静态 `split-manifest.v1.json`，可以使用同目录
   `retrieval-eval-manifest.v1.json` 作为 qrels anchoring manifest；它不替代 registry、
   release manifest 或 current pointer truth

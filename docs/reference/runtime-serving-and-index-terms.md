@@ -330,6 +330,36 @@ updated: 2026-04-23
 - runtime observation 默认包含 query mode、retrieval mode、scope、latency、
   failure kind 与 sanitized query hash；raw query text 只允许 operator debug 显式打开
 
+### Retrieval Observation Sink
+
+定义：
+
+- retrieval execution 将 sanitized runtime observation 发出的注入式回调边界
+
+说明：
+
+- sink 是 best-effort；sink 失败只记录 warning，不让 answer path 失败
+- JSONL sink 是 local/debug 通道
+- durable event sink 使用 `retrieval.runtime_observation` 事件名，交给 runtime adapter 接入
+  OTel-compatible logs/events 或 operator observation storage
+- sink 不得反向修改 release manifest、runtime profile、canonical qrels、serving alias 或
+  answer evidence
+
+### OTel Bridge
+
+定义：
+
+- runtime adapter 将 `retrieval.runtime_observation` 转成 OpenTelemetry-compatible
+  logs/events/metrics/traces 的集成层
+
+说明：
+
+- OTel bridge 属于 runtime shell / deployment integration，不属于 retrieval-core
+- trace/span correlation 可用时应保留；不可用时至少保留 `request_id`
+- metrics 应从 observation 派生，例如 latency histogram、fail-closed count、release drift
+  count、reranker degraded count 与 live-assisted count
+- Collector/exporter/backend 选择不得成为 contracts 或 retrieval-core 类型
+
 ### Serving Alias
 
 定义：

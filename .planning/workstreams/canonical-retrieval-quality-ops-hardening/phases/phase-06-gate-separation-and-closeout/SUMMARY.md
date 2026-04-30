@@ -15,6 +15,7 @@ updated: 2026-05-01
   - qrels denominator policy
   - dry-run release benchmark posture
   - durable observation seam
+  - production observability integration direction through a runtime-owned OTel-compatible bridge
   - reranker adoption gate and runtime fallback
   - explicit freshness/live evidence contract
 - Updated workstream `README.md`, `ROADMAP.md`, `STATE.md` and repo workstream registry.
@@ -68,5 +69,7 @@ Observed result: `Summary: 0 error(s)`.
 - Real provider / real Qdrant benchmark and production smoke require explicit credentials,
   object-store/Qdrant availability and operator admission.
 - Production observation storage rollout remains outside this code-level closeout; retrieval-core
-  now exposes the durable event seam needed for that integration.
+  now exposes the durable event seam needed for that integration. The documented next step is a
+  runtime adapter that maps `retrieval.runtime_observation` into OTel-compatible logs/events and
+  derived metrics, then sends them through Collector/backend-specific deployment config.
 - Larger golden dataset expansion remains separate from this workstream.
