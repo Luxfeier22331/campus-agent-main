@@ -258,6 +258,7 @@ def profile_answer_expectation(
                 "rag-agent",
                 "retrieval.query",
                 "agent_execution_projection",
+                "已读取的通知上下文",
             ),
             "/api/v1/answer",
             "json",

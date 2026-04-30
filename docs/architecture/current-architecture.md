@@ -151,7 +151,8 @@ model`
   落入 bridge contract；当前 runtime 默认只发出 `single_handoff` plan。受控开启
   `SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run store ready 后，
   可执行首条真实 `multi_step` path：selected notice context + knowledge follow-through
-  触发 `notice-agent campus_notice_get -> rag-agent retrieval.query`
+  触发 `notice-agent campus_notice_get -> rag-agent retrieval.query`，并将 notice step
+  输出以 bounded internal workflow context projection 传给 RAG step
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope

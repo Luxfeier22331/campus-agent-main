@@ -113,9 +113,11 @@ terminal policy、resume policy 与 semantic retry policy；真实 delegate payl
 `runtime_decisions.handoff.agent_request` 进入 Python bridge。当前 runtime 可发出
 `terminal`、`direct_runtime`、`single_handoff`，以及受 gate 保护的 `multi_step`。
 首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
-`notice-agent campus_notice_get -> rag-agent retrieval.query`。该 path 必须配置
-workflow run store；completed `multi_step` trace 至少包含两个 handoff。semantic
-retry/replan 与 resumable resume 仍不是当前 public contract 承诺。
+`notice-agent campus_notice_get -> rag-agent retrieval.query`。notice step 输出会被
+`supervisor-api` 投影成有长度上限的内部 workflow context，再输入后续 RAG step；这个内部
+projection 不改变 shared `AgentRequest` schema。该 path 必须配置 workflow run store；
+completed `multi_step` trace 至少包含两个 handoff。semantic retry/replan 与 resumable resume
+仍不是当前 public contract 承诺。
 
 ## 设计原则
 

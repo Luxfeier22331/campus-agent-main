@@ -163,6 +163,7 @@ func (s *Server) runMultiStepBridgeExecution(
 	totalBridgeDuration := time.Duration(0)
 	totalRunState := bridgeExecutionRunState{}
 	var finalBridgeResponse bridge.ExecuteResponse
+	workflowPayloadContext := execution.BridgePayloadContext{}
 	for index, handoff := range executionRequest.PlannedHandoffs {
 		selectedTool := runtimeSelectedTool(handoff)
 		var appendErr error
@@ -182,7 +183,11 @@ func (s *Server) runMultiStepBridgeExecution(
 				Outcome:    "supervisor_multistep_workflow_unavailable",
 			})
 		}
-		stepPayload, err := execution.BridgePayloadForHandoff(executionRequest.Payload, handoff)
+		stepPayload, err := execution.BridgePayloadForHandoff(
+			executionRequest.Payload,
+			handoff,
+			workflowPayloadContext,
+		)
 		if err != nil {
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
@@ -232,6 +237,13 @@ func (s *Server) runMultiStepBridgeExecution(
 			})
 		}
 		resultStatus := workflowStepStatus(bridgeResponse)
+		if resultStatus == "completed" {
+			workflowPayloadContext = workflowPayloadContextFromBridgeResponse(
+				workflowPayloadContext,
+				handoff,
+				bridgeResponse,
+			)
+		}
 		workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
 			StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
 			SpanKind:     "handoff",
@@ -312,4 +324,50 @@ func workflowRunParentStepID(index int, handoffs []execution.RuntimeHandoff) str
 	}
 	previous := handoffs[index-1]
 	return "handoff:" + previous.Target + ":" + previous.PayloadKind
+}
+
+func workflowPayloadContextFromBridgeResponse(
+	current execution.BridgePayloadContext,
+	handoff execution.RuntimeHandoff,
+	response bridge.ExecuteResponse,
+) execution.BridgePayloadContext {
+	if handoff.Target != "notice-agent" || runtimeSelectedTool(handoff) != "campus_notice_get" {
+		return current
+	}
+	if response.Kind != "agent_response" {
+		return current
+	}
+	body, err := decodeJSONObject(response.Body)
+	if err != nil {
+		return current
+	}
+	if status, _ := body["status"].(string); status != "completed" {
+		return current
+	}
+	result, _ := body["result"].(map[string]any)
+	next := execution.BridgePayloadContext{
+		NoticeTitle:     firstWorkflowString(result, "title"),
+		NoticeBody:      firstWorkflowString(result, "normalized_body", "body_text", "body"),
+		NoticeSourceURL: firstWorkflowString(result, "source_url", "canonical_url"),
+	}
+	if next.NoticeBody == "" {
+		next.NoticeBody, _ = body["answer_text"].(string)
+	}
+	if !bridgePayloadContextHasAnyNoticeContext(next) {
+		return current
+	}
+	return next
+}
+
+func firstWorkflowString(record map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value, _ := record[key].(string); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func bridgePayloadContextHasAnyNoticeContext(context execution.BridgePayloadContext) bool {
+	return context.NoticeTitle != "" || context.NoticeBody != "" || context.NoticeSourceURL != ""
 }

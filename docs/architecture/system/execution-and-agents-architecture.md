@@ -127,7 +127,9 @@ Docker-side Go runtime control plane 长期负责：
   structured runtime，`single_handoff` 表示 supervisor 只委派给一个 domain-agent。
   `multi_step` 已有 gated runtime path，但默认关闭；当前只覆盖 selected notice context +
   knowledge follow-through 的两步链路：`notice-agent campus_notice_get -> rag-agent
-  retrieval.query`。不得把单 handoff trace 包装成 `multi_step`
+  retrieval.query`。第一步 notice 结果会作为有长度上限的内部 workflow context projection
+  输入第二步 RAG bridge payload；该 projection 不进入 shared contract。不得把单 handoff
+  trace 包装成 `multi_step`
 - `runtime_decisions.workflow_plan` 是 Go planner 的 canonical safe projection，当前
   `schema_version=workflow-plan-v1`，用于显式记录 `single_handoff` plan、step kind、
   selected target / payload kind / allowed tools、terminal policy、resume policy 与
