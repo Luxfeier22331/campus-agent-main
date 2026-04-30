@@ -11,13 +11,13 @@ updated: 2026-05-01
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Phase 5 next
+**Current Phase:** Phase 6 next
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed Phase 4 run-level queue consumer and dry-run lease release hardening.
+**Last Activity Description:** Completed Phase 5 consumer-owned media gate evidence manifest and strict audit gate integration.
 
 ## Progress
 
-**Phases Complete:** 4
+**Phases Complete:** 5
 **Current Plan:** `ROADMAP.md`
 
 ## Baseline Code Facts
@@ -29,6 +29,8 @@ updated: 2026-05-01
 - Retryable failure now uses `failed_retryable` plus `next_retry_after` instead of immediate hot-loop requeue.
 - Historical enqueue can project source-truth candidates to notice ingest jobs.
 - Run-level authenticated notice queue consumer can lease `authenticated_notice_ingest` jobs, filter by `run_id`, verify collector run ledger object refs, verify source object hash/size, call object-native authenticated notice import, and map success/retryable/terminal/manual-review outcomes back to queue state.
+- Consumer-owned media gate evidence manifest now validates candidate inventory, attempt ledger, closeout inventory, target admission manifest, cleanup dry-run, object verification report, and strict audit hashes under one operations directory.
+- On-demand closeout can build media gate evidence after strict audit and before promotion.
 - Legacy collected-notice queue consumer can lease jobs and project them into source-truth/searchable evidence.
 - Authenticated notice `run_id` ledger resolver already requires `status=success` and `verification_status=verified`.
 - On-demand closeout runner can chain closeout worker, optional media source-object verification, strict media audit, and promotion when artifact paths are provided.
@@ -37,16 +39,15 @@ updated: 2026-05-01
 ## Current Gaps
 
 - Local-only collected content still needs repair/synthetic ledger upload before enqueue.
-- Media gate artifacts are still manually threaded into on-demand closeout/promotion paths.
 - Downstream materialization/read-model rebuild is not automatically triggered after promotion.
 - Cleanup lifecycle is guarded but not integrated as an automatic stage.
 - No unattended captured-content E2E smoke proves queue-to-downstream behavior with zero manual artifact stitching.
 
 ## Next Slice
 
-Start Phase 5 by moving media gate evidence generation and strict audit gating into consumer-owned operations truth. The immediate target is no manual artifact stitching between queue import, source-truth replay closeout, media source-object verification, strict audit, and promotion admission.
+Start Phase 6 by making downstream materialization/read-model results explicit in queue consume trace and blocking silent success when downstream materialization was requested but produced no admitted projection/read-model evidence.
 
 ## Session Continuity
 
-**Stopped At:** Phase 4 complete; Phase 5 consumer-owned media gate and promotion evidence is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
+**Stopped At:** Phase 5 complete; Phase 6 downstream materialization/read-model result tracing is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
 **Resume File:** None

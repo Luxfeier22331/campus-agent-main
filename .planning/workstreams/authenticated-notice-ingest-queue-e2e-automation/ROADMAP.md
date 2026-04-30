@@ -15,7 +15,7 @@ updated: 2026-05-01
 - [x] **Phase 2: Manual Historical Enqueue And Repair Ledger** — enqueue already collected content through verified run ledger or repair/synthetic ledger rows.
 - [x] **Phase 3: Collector Verified-Run Auto-Enqueue** — make collector or its scheduler enqueue only after source bucket upload and run ledger verification.
 - [x] **Phase 4: Run-Level Queue Consumer** — claim queue jobs by lease and execute source-object verification plus source-truth/import from `run_id`.
-- [ ] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
+- [x] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
 - [ ] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
 - [ ] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
 - [ ] **Phase 8: Unattended Captured-Content E2E Smoke** — prove queue-to-downstream chain over already collected content with no manual artifact stitching.
@@ -148,6 +148,14 @@ uv run --all-packages python -m unittest \
 ## Phase 5: Consumer-Owned Media Gate And Promotion Evidence
 
 Goal: remove manual artifact stitching between import/closeout and media gate promotion.
+
+Result:
+
+- Added `authenticated_notice_media_gate_evidence_manifest.v1`.
+- Added manifest builder/validator that records deterministic operations-dir artifact refs and verifies strict audit input hashes against current file bytes.
+- Added worker CLI `campus_ingestion_worker.build_authenticated_notice_media_gate_evidence`.
+- On-demand authenticated notice closeout now inserts a `build_media_gate_evidence` step after strict audit and before promotion.
+- Run-level queue consumer can require media gate evidence before queue completion and maps missing/stale/failed gate evidence to `manual_review`.
 
 Deliverables:
 
