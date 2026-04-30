@@ -389,8 +389,13 @@ policy，不能反向驱动整条 notice 进入 OCR、附件保留或 downstream
 2. `attachment_capture_policy`
    - 在 notice route 已确定后，对每个 attachment ref 单独决定是否只保留 metadata、
      quarantine bytes、要求 source-truth bytes，或跳过。
-3. byte fetch / upload
-   - 只对 policy 明确要求 bytes 的 attachment 执行；不允许因“附件存在”而默认下载。
+3. byte availability / fetch request
+   - collector 默认只捕获页面可见 inline visual fact carriers；普通附件不因“附件存在”
+     而默认下载。
+   - 如果 policy 要求 quarantine/required bytes 且 ref 已有 object key，则复用已有 bytes，不生成
+     fetch request。
+   - 如果 policy 要求 quarantine/required bytes 且 ref 仍是 reference-only，才生成
+     collector fetch request。
 4. source-truth import
    - 写入 notice manifest、content blocks 与 attachment refs；metadata-only attachment
      relation 也是 source truth。
@@ -478,7 +483,9 @@ source objects 分开：
 - `metadata_only`、`skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 不得因为缺少
   `object_key` 而导致 source-truth import 失败。
 - `fetch_to_quarantine` 的 bytes 可以有 object key，但在未 admission 前只能按 quarantine
-  lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。
+  lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。已有 object-backed bytes 必须
+  进入 `uploaded_quarantine`，下游 OCR/materializer 直接消费 object key；只有
+  reference-only 且 policy 仍要求 bytes 时才进入 fetch manifest。
 
 ## Bootstrap Import Ownership
 

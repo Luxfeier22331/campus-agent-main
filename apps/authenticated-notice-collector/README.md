@@ -117,9 +117,12 @@ Attachment note:
 
 - `bootstrap:export` records internal portal attachments, HTML-discovered
   attachment anchors, inline image refs, and allowlisted external inline visual
-  refs as typed attachment refs, but the default notice attachment behavior is
-  reference-only even when object-store credentials are configured.
-- specific notice attachment bytes are fetched only when
+  refs as typed attachment refs. With object-store credentials, default byte
+  capture is limited to inline visual refs because they can carry page-visible
+  facts that are not present in extracted body text; set
+  `AUTHENTICATED_NOTICE_DEFAULT_INLINE_VISUAL_CAPTURE=false` to force
+  reference-only inline visuals.
+- ordinary notice attachment bytes are fetched only when
   `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH` points to an
   `authenticated_notice_attachment_fetch_request_manifest_v1` manifest built by
   the ingestion/operator side from source-truth retention decisions.
@@ -127,10 +130,10 @@ Attachment note:
   `fetch_required_for_source_truth`, or `fetch_required_for_admitted_owner`
   become collector fetch admissions; `metadata_only` refs are not downloaded and
   do not count as required source objects.
-- allowlisted external inline visual refs can be fetched only when explicitly
-  admitted; the current default allowlist is `mmbiz.qpic.cn`, and those
-  downloads use direct unauthenticated fetches instead of the portal API context
-  or campus cookies.
+- allowlisted external inline visual refs can be fetched by the same default
+  inline visual capture path; the current default allowlist is `mmbiz.qpic.cn`,
+  and those downloads use direct unauthenticated fetches instead of the portal
+  API context or campus cookies.
 - if object-store credentials are absent, collector stays fail-closed on
   source-bucket handoff for `bootstrap:export` / `file-release:export`; fixture
   collection helpers may still produce `reference_only` rows, but a successful

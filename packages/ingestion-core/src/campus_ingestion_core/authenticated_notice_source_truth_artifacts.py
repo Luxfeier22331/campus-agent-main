@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime, timedelta
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_browser_url_backfill import (
@@ -98,6 +99,7 @@ def prepare_authenticated_notice_source_material(
     )
     attachment_refs = _attachment_refs_with_source_retention(
         attachment_refs=attachment_refs,
+        captured_at=_exported_at(export_manifest),
         source_retention_decision=source_retention_decision,
     )
     capture_artifacts = _build_capture_artifacts(
@@ -490,6 +492,7 @@ def _looks_reservation_or_qr_only(ref: dict[str, Any]) -> bool:
 def _attachment_refs_with_source_retention(
     *,
     attachment_refs: tuple[dict[str, Any], ...],
+    captured_at: str,
     source_retention_decision,
 ) -> tuple[dict[str, Any], ...]:
     decisions_by_ref_id = {
@@ -516,9 +519,16 @@ def _attachment_refs_with_source_retention(
                 if decision.required_source_object
                 else None,
                 "retention_class": decision.retention_class,
-                "retention_expires_at": None,
+                "retention_expires_at": _retention_expires_at(
+                    captured_at=captured_at,
+                    retention_class=decision.retention_class,
+                ),
                 "promotion_owner": None,
-                "attachment_promotion_state": "not_applicable",
+                "attachment_promotion_state": (
+                    "candidate"
+                    if decision.retention_class == "quarantine_candidate"
+                    else "not_applicable"
+                ),
                 "promotion_decision_id": None,
                 "promotion_reason_codes": [],
                 "skip_reason": None,
@@ -527,6 +537,25 @@ def _attachment_refs_with_source_retention(
             }
         )
     return tuple(rows)
+
+
+def _retention_expires_at(*, captured_at: str, retention_class: str) -> str | None:
+    if retention_class != "quarantine_candidate":
+        return None
+    parsed = _parse_timestamp(captured_at)
+    if parsed is None:
+        return None
+    return (parsed + timedelta(days=14)).isoformat()
+
+
+def _parse_timestamp(value: str) -> datetime | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    try:
+        return datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def _source_retention_manifest_fields(

@@ -39,7 +39,7 @@ def build_authenticated_notice_attachment_fetch_request_manifest(
             site_id=site_id,
         )
         for attachment_ref in attachment_refs
-        if _attachment_capture_policy(attachment_ref) in FETCH_REQUEST_POLICIES
+        if _requires_collector_fetch(attachment_ref)
     ]
     return {
         "schema_version": FETCH_REQUEST_MANIFEST_SCHEMA,
@@ -107,6 +107,39 @@ def _build_fetch_request(
 def _attachment_capture_policy(attachment_ref: Mapping[str, Any]) -> str:
     policy = _optional_text(attachment_ref.get("attachment_capture_policy"))
     return policy or "metadata_only"
+
+
+def _requires_collector_fetch(attachment_ref: Mapping[str, Any]) -> bool:
+    if _attachment_capture_policy(attachment_ref) not in FETCH_REQUEST_POLICIES:
+        return False
+    if _explicit_false(attachment_ref.get("byte_fetch_required")):
+        return False
+    if _has_collected_attachment_bytes(attachment_ref):
+        return False
+    state = _optional_text(attachment_ref.get("attachment_capture_state"))
+    return state not in {"uploaded_quarantine", "uploaded_required"}
+
+
+def _has_collected_attachment_bytes(attachment_ref: Mapping[str, Any]) -> bool:
+    object_key = _optional_text(attachment_ref.get("object_key"))
+    content_sha256 = _optional_text(
+        attachment_ref.get("content_sha256") or attachment_ref.get("sha256")
+    )
+    storage_provider = _optional_text(attachment_ref.get("storage_provider"))
+    ingest_status = _optional_text(attachment_ref.get("ingest_status"))
+    if object_key is None or content_sha256 is None:
+        return False
+    if storage_provider is None and ingest_status is None:
+        return True
+    return storage_provider != "reference_only" and ingest_status in {"downloaded", "uploaded"}
+
+
+def _explicit_false(value: Any) -> bool:
+    if value is False:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() in {"0", "false", "no", "off"}
+    return False
 
 
 def _required_text(mapping: Mapping[str, Any], key: str) -> str:

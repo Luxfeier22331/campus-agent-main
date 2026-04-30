@@ -346,9 +346,9 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
                     attachment["attachment_capture_policy"],
                     "fetch_to_quarantine",
                 )
-                self.assertEqual(attachment["attachment_capture_state"], "not_attempted")
+                self.assertEqual(attachment["attachment_capture_state"], "uploaded_quarantine")
                 self.assertEqual(attachment["retention_class"], "quarantine_candidate")
-                self.assertTrue(attachment["byte_fetch_required"])
+                self.assertFalse(attachment["byte_fetch_required"])
                 self.assertFalse(attachment["required_source_object"])
                 self.assertEqual(
                     attachment["byte_fetch_required_reason"],

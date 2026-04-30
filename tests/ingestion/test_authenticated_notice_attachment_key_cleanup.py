@@ -211,6 +211,84 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                     object_store=object_store,
                 )
 
+    def test_quarantine_cleanup_deletes_expired_unpromoted_attachment_bytes(self) -> None:
+        cleanup_module = _load_cleanup_module()
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            attachment_refs_path = root / "attachment-refs.jsonl"
+            output_dir = root / "output"
+            expired_key = (
+                "authenticated_notice_portal/attachment-expired/2026/sha256/"
+                + "a" * 64
+                + "/capture/schedule.png"
+            )
+            promoted_key = (
+                "authenticated_notice_portal/attachment-promoted/2026/sha256/"
+                + "b" * 64
+                + "/capture/promoted.png"
+            )
+            _write_jsonl(
+                attachment_refs_path,
+                [
+                    {
+                        "attachment_ref_id": "attachment-0001",
+                        "object_key": expired_key,
+                        "content_sha256": "a" * 64,
+                        "retention_class": "quarantine_candidate",
+                        "retention_expires_at": "2026-04-15T00:00:00+08:00",
+                        "attachment_promotion_state": "candidate",
+                        "required_source_object": False,
+                    },
+                    {
+                        "attachment_ref_id": "attachment-0002",
+                        "object_key": promoted_key,
+                        "content_sha256": "b" * 64,
+                        "retention_class": "quarantine_candidate",
+                        "retention_expires_at": "2026-04-15T00:00:00+08:00",
+                        "attachment_promotion_state": "promoted",
+                        "required_source_object": False,
+                    },
+                ],
+            )
+            object_store = _FakeCleanupObjectStore()
+            object_store.put_bytes(
+                bucket="campus-rag-source",
+                key=expired_key,
+                data=b"expired",
+                content_type="image/png",
+            )
+            object_store.put_bytes(
+                bucket="campus-rag-source",
+                key=promoted_key,
+                data=b"promoted",
+                content_type="image/png",
+            )
+
+            summary = cleanup_module.cleanup_authenticated_notice_quarantine_attachment_keys(
+                request=cleanup_module.AuthenticatedNoticeQuarantineAttachmentCleanupRequest(
+                    attachment_refs_path=attachment_refs_path,
+                    output_dir=output_dir,
+                    now="2026-04-30T00:00:00+08:00",
+                ),
+                env=_object_store_env(),
+                object_store=object_store,
+            )
+
+            deleted_rows = [
+                json.loads(line)
+                for line in (output_dir / "deleted-quarantine-objects.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(summary["candidate_count"], 1)
+        self.assertEqual(summary["deleted_count"], 1)
+        self.assertNotIn(("campus-rag-source", expired_key), object_store.objects)
+        self.assertIn(("campus-rag-source", promoted_key), object_store.objects)
+        self.assertEqual(deleted_rows[0]["attachment_ref_id"], "attachment-0001")
+        self.assertEqual(deleted_rows[0]["object_key"], expired_key)
+
     def test_cli_renders_cleanup_summary(self) -> None:
         cleanup_worker = _load_cleanup_worker()
         cleanup_module = _load_cleanup_module()
@@ -250,6 +328,49 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
         self.assertEqual(payload["deleted_count"], 1)
         self.assertEqual(payload["already_absent_count"], 1)
         self.assertIsNotNone(cleanup_module)
+
+    def test_cli_renders_quarantine_cleanup_summary(self) -> None:
+        cleanup_worker = _load_cleanup_worker()
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            attachment_refs_path = root / "attachment-refs.jsonl"
+            output_dir = root / "output"
+            attachment_refs_path.write_text("", encoding="utf-8")
+
+            with (
+                patch(
+                    "campus_ingestion_worker.cleanup_authenticated_notice_source_attachment_keys.load_worker_env"
+                ),
+                patch(
+                    (
+                        "campus_ingestion_worker.cleanup_authenticated_notice_source_attachment_keys."
+                        "cleanup_authenticated_notice_quarantine_attachment_keys"
+                    ),
+                    return_value={
+                        "input_row_count": 3,
+                        "candidate_count": 1,
+                        "deleted_count": 1,
+                        "already_absent_count": 0,
+                    },
+                ),
+                patch("sys.stdout", new_callable=io.StringIO) as stdout,
+            ):
+                cleanup_worker.main(
+                    [
+                        "--quarantine-attachment-refs-path",
+                        str(attachment_refs_path),
+                        "--output-dir",
+                        str(output_dir),
+                        "--now",
+                        "2026-04-30T00:00:00+08:00",
+                        "--yes",
+                    ]
+                )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["input_row_count"], 3)
+        self.assertEqual(payload["candidate_count"], 1)
+        self.assertEqual(payload["deleted_count"], 1)
 
 
 if __name__ == "__main__":

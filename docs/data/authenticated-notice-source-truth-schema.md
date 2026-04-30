@@ -408,7 +408,9 @@ consumer admission manifest 决定。
   `content_sha256` 与 `byte_size` 可以为空或只保留已知值，`required_source_object=false`。
 - `fetch_to_quarantine` 允许写入 `object_key`、`content_sha256` 与 `byte_size`，但必须同时写入
   `retention_class=quarantine_candidate` 和 `retention_expires_at`；未 promotion 前不得被视为
-  下游 owner source bytes。
+  下游 owner source bytes。该 policy 表示 bytes 需要进入 quarantine processing，不等同于
+  collector 必须重新 fetch；如果 collector 已经捕获并上传该 ref，状态必须写为
+  `uploaded_quarantine`，`byte_fetch_required=false`。
 - `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 必须具备
   `object_key`、`content_sha256`、`byte_size` 与 `required_source_object=true`，否则 source
   import / downstream materialization 必须 fail closed。

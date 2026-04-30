@@ -133,6 +133,62 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestWorkerTest(unittest.TestC
             },
         )
 
+    def test_main_omits_quarantine_refs_that_already_have_uploaded_bytes(self) -> None:
+        inventory_store = _FakeInventoryStore((_inventory_entry("355867", attachment_ref_count=1),))
+        object_store = _FakeSourceTruthObjectStore(
+            {
+                "authenticated_notice_portal/355867/attachment-refs.jsonl": (
+                    {
+                        **_attachment_ref(
+                            "355867",
+                            "attachment-0001",
+                            object_key=(
+                                "authenticated_notice_portal/attachment-a/capture/table-a.png"
+                            ),
+                            content_sha256="a" * 64,
+                        ),
+                        "storage_provider": "object_store",
+                        "ingest_status": "uploaded",
+                        "attachment_capture_policy": "fetch_to_quarantine",
+                        "attachment_capture_state": "uploaded_quarantine",
+                        "retention_class": "quarantine_candidate",
+                        "byte_fetch_required": False,
+                        "byte_fetch_required_reason": "service_fact_missing_required_fact",
+                    },
+                ),
+            }
+        )
+        with (
+            patch(
+                "campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest.build_authenticated_notice_source_truth_inventory_store_from_env",
+                return_value=inventory_store,
+            ),
+            patch(
+                "campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest.build_source_truth_object_store",
+                return_value=object_store,
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            fetch_request_manifest_worker.main(
+                [
+                    "--corpus",
+                    "campus_notices",
+                    "--collection",
+                    "internal_notice",
+                    "--notice-id",
+                    "355867",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["notice_ids"], ["355867"])
+        self.assertEqual(payload["fetch_request_count"], 0)
+        self.assertEqual(payload["required_source_object_count"], 0)
+        self.assertEqual(payload["requests"], [])
+
     def test_package_exposes_manifest_builder_main(self) -> None:
         self.assertIs(
             worker_package.build_authenticated_notice_attachment_fetch_request_manifest_main,

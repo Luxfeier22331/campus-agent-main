@@ -15,6 +15,7 @@ export interface CollectorConfig {
 	attachmentFetchRequestManifestPath: string | null;
 	attachmentFetchStatusDatabaseUrl: string | null;
 	attachmentFetchStatusDisabled: boolean;
+	defaultInlineVisualCapture: boolean;
 	authStorageStatePath: string;
 	authCookieHeader: string | null;
 	authJsessionId: string | null;
@@ -81,6 +82,10 @@ export function resolveCollectorConfig(
 		attachmentFetchStatusDisabled: parseBooleanFlag(
 			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DISABLE,
 			false,
+		),
+		defaultInlineVisualCapture: parseBooleanFlag(
+			source.AUTHENTICATED_NOTICE_DEFAULT_INLINE_VISUAL_CAPTURE,
+			true,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authCookieHeader: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER),

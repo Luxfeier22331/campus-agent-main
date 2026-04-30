@@ -618,6 +618,7 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 		attachmentFetchRequestManifestPath: null,
 		attachmentFetchStatusDatabaseUrl: null,
 		attachmentFetchStatusDisabled: false,
+		defaultInlineVisualCapture: true,
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authSsoTgcToken: null,
 		bypassProxyForPortal: true,

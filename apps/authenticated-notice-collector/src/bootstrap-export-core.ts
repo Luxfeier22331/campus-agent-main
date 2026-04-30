@@ -74,6 +74,7 @@ export interface CollectBootstrapBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
 	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
+	defaultInlineVisualCapture?: boolean;
 	backfillMaxPagesPerType?: number | null;
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 	exportedAt: string;
@@ -442,6 +443,7 @@ export async function collectBootstrapBundle(
 						artifactStore: input.attachmentArtifactStore,
 						attachmentFetchAdmissions: input.attachmentFetchAdmissions,
 						attachmentFetchStatusStore: input.attachmentFetchStatusStore,
+						defaultInlineVisualCapture: input.defaultInlineVisualCapture,
 						bundleRecords,
 						observedAt: input.exportedAt,
 						requestBackoffBaseMs: input.requestBackoffBaseMs,
@@ -759,6 +761,7 @@ export async function main(): Promise<void> {
 							requestBackoffBaseMs: config.requestBackoffBaseMs,
 							requestMaxRetries: config.requestMaxRetries,
 							attachmentFetchAdmissions,
+							defaultInlineVisualCapture: config.defaultInlineVisualCapture,
 							backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
 							selectedNotices,
 							siteId: config.siteId,

@@ -55,6 +55,7 @@ export interface MaterializeBundleAttachmentsInput {
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
+	defaultInlineVisualCapture?: boolean;
 	bundleRecords: BundleNoticeRecord[];
 	observedAt: string;
 	requestBackoffBaseMs: number;
@@ -142,15 +143,22 @@ export async function materializeBundleAttachments(
 					attachmentRefId,
 				}),
 			);
-			if (!fetchAdmission) {
-				attachmentsById.set(clonedAttachment.attachment_id, clonedAttachment);
-				continue;
-			}
 			const candidateUrl =
 				clonedAttachment.final_url ??
 				clonedAttachment.normalized_source_url ??
 				clonedAttachment.source_url;
 			const relation = relationByAttachmentId.get(clonedAttachment.attachment_id);
+			const shouldFetch =
+				Boolean(fetchAdmission) ||
+				(input.defaultInlineVisualCapture !== false &&
+					isDefaultInlineVisualCaptureCandidate({
+						attachment: clonedAttachment,
+						relation,
+					}));
+			if (!shouldFetch) {
+				attachmentsById.set(clonedAttachment.attachment_id, clonedAttachment);
+				continue;
+			}
 			const materializationCandidate = classifyMaterializationCandidate({
 				attachment: clonedAttachment,
 				candidateUrl,
@@ -174,6 +182,7 @@ export async function materializeBundleAttachments(
 					noticeId: String(record.notice_id),
 					observedAt: input.observedAt,
 					originHost: materializationCandidate.originHost,
+					requireVisualContent: !fetchAdmission,
 					requestBackoffBaseMs: input.requestBackoffBaseMs,
 					requestMaxRetries: input.requestMaxRetries,
 					siteId: input.siteId,
@@ -225,6 +234,7 @@ async function materializeSingleAttachment(input: {
 	noticeId: string;
 	observedAt: string;
 	originHost: string | null;
+	requireVisualContent: boolean;
 	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
 	siteId: string;
@@ -291,6 +301,32 @@ async function materializeSingleAttachment(input: {
 				: extensionContentType) ??
 			responseContentType ??
 			"application/octet-stream";
+		if (
+			input.requireVisualContent &&
+			(!resolvedContentType.startsWith("image/") ||
+				result.body.byteLength > EXTERNAL_VISUAL_MAX_BYTES)
+		) {
+			const message = `default_inline_visual_capture_skipped:${resolvedContentType}`;
+			return {
+				attachment: {
+					...input.attachment,
+					mime_type: resolvedContentType,
+					byte_size: result.body.byteLength,
+					last_error: message,
+					updated_at: input.observedAt,
+				},
+				uploaded: false,
+				linkPatch: {
+					status_code: result.statusCode,
+					content_type: resolvedContentType,
+					downloaded: false,
+					download_path: null,
+					file_size: result.body.byteLength,
+					fetched_at: input.observedAt,
+					error_message: message,
+				},
+			};
+		}
 		const resolvedFilename = ensureFilenameExtensionForContentType({
 			contentType: resolvedContentType,
 			filename: initialFilename,
@@ -423,6 +459,17 @@ function classifyMaterializationCandidate(input: {
 		fetchMode: "trusted_external_visual",
 		originHost,
 	};
+}
+
+function isDefaultInlineVisualCaptureCandidate(input: {
+	attachment: BundleAttachmentObservation;
+	relation: BundleNoticeRecord["notice_attachments"][number] | undefined;
+}): boolean {
+	if (input.attachment.storage_provider !== "reference_only") {
+		return false;
+	}
+	const role = input.relation?.resource_role;
+	return role === "inline_image";
 }
 
 async function fetchExternalVisualBinary(input: {
