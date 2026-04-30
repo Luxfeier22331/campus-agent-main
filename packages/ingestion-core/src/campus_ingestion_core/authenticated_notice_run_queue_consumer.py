@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -125,6 +126,8 @@ def consume_authenticated_notice_ingest_queue(
     source_truth_only: bool = True,
     require_media_gate: bool = False,
     media_gate_evidence_dir: Path | None = None,
+    cleanup_report_path: Path | None = None,
+    destructive_cleanup_enabled: bool = False,
     consumer_admission_manifest_path: Path | None = None,
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
@@ -212,6 +215,11 @@ def consume_authenticated_notice_ingest_queue(
                     run_id=record.run_id,
                     media_gate_evidence_dir=media_gate_evidence_dir,
                 )
+            cleanup = _cleanup_summary(
+                cleanup_report_path=cleanup_report_path,
+                destructive_cleanup_enabled=destructive_cleanup_enabled,
+                media_gate_verdict=media_gate_verdict,
+            )
             downstream_materialization = _downstream_materialization_summary(
                 import_result,
                 source_truth_only=source_truth_only,
@@ -221,6 +229,7 @@ def consume_authenticated_notice_ingest_queue(
                 {
                     "status": "imported",
                     "import_result": _import_result_summary(import_result),
+                    "cleanup": cleanup,
                     "downstream_materialization": downstream_materialization,
                 }
             )
@@ -233,6 +242,12 @@ def consume_authenticated_notice_ingest_queue(
                         "downstream materialization was requested but importer did not "
                         "report projection/read-model materialization evidence"
                     ),
+                    failure_class="manual_review",
+                )
+            if cleanup["status"] == "blocked":
+                raise _RunQueueConsumeFailure(
+                    error_code="cleanup_requires_media_gate",
+                    message=str(cleanup["reason"]),
                     failure_class="manual_review",
                 )
             if normalized_mode == "execute":
@@ -342,6 +357,8 @@ def consume_authenticated_notice_ingest_queue(
             "media_gate_evidence_dir": (
                 str(media_gate_evidence_dir) if media_gate_evidence_dir else None
             ),
+            "cleanup_report_path": str(cleanup_report_path) if cleanup_report_path else None,
+            "destructive_cleanup_enabled": destructive_cleanup_enabled,
             "planned_writes": {
                 "queue_completion_rows": completed_count,
                 "queue_failure_rows": len(failed_items) if normalized_mode == "execute" else 0,
@@ -669,6 +686,46 @@ def _downstream_materialization_summary(
         "consumer_admission_projection_gate": result.get("consumer_admission_projection_gate"),
         "consumer_admission_read_model_gate": result.get("consumer_admission_read_model_gate"),
     }
+
+
+def _cleanup_summary(
+    *,
+    cleanup_report_path: Path | None,
+    destructive_cleanup_enabled: bool,
+    media_gate_verdict: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    report: dict[str, Any] = {}
+    if cleanup_report_path is not None:
+        report = _load_json_object(cleanup_report_path)
+    destructive_allowed = (
+        destructive_cleanup_enabled
+        and media_gate_verdict is not None
+        and str(media_gate_verdict.get("verdict") or "") == "passed"
+    )
+    if destructive_cleanup_enabled and not destructive_allowed:
+        status = "blocked"
+        reason = "destructive cleanup requires fresh passed media gate evidence"
+    else:
+        status = "ready" if destructive_allowed else "dry_run_recorded"
+        reason = ""
+    return {
+        "status": status,
+        "reason": reason,
+        "mode": str(report.get("mode") or ("execute" if destructive_allowed else "dry_run")),
+        "write_enabled": bool(report.get("write_enabled") or destructive_allowed),
+        "destructive_cleanup_enabled": destructive_cleanup_enabled,
+        "destructive_cleanup_allowed": destructive_allowed,
+        "report_path": str(cleanup_report_path) if cleanup_report_path else None,
+        "candidate_count": int(report.get("candidate_count") or 0),
+        "eligible_delete_count": int(report.get("eligible_delete_count") or 0),
+    }
+
+
+def _load_json_object(path: Path) -> dict[str, Any]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"JSON object expected at {path}")
+    return dict(payload)
 
 
 def _normalize_mode(mode: str) -> str:

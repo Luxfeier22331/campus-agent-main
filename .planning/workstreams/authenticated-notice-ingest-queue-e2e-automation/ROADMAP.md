@@ -17,7 +17,7 @@ updated: 2026-05-01
 - [x] **Phase 4: Run-Level Queue Consumer** — claim queue jobs by lease and execute source-object verification plus source-truth/import from `run_id`.
 - [x] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
 - [x] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
-- [ ] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
+- [x] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
 - [ ] **Phase 8: Unattended Captured-Content E2E Smoke** — prove queue-to-downstream chain over already collected content with no manual artifact stitching.
 
 ## Phase 1: Queue Contract And Lifecycle Freeze
@@ -207,6 +207,13 @@ uv run --all-packages python -m unittest \
 ## Phase 7: Cleanup Lifecycle Integration
 
 Goal: turn quarantine cleanup into a guarded automatic lifecycle stage without making deletion the default proof path.
+
+Result:
+
+- Run-level consumer can record cleanup dry-run posture in queue consume trace.
+- Destructive cleanup is explicit opt-in and is blocked unless fresh passed media gate evidence is present.
+- Missing destructive cleanup gate maps to queue `manual_review` rather than allowing silent success.
+- Worker CLI exposes cleanup report and destructive cleanup gate flags.
 
 Deliverables:
 

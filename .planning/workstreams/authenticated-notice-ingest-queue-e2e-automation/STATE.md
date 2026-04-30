@@ -11,13 +11,13 @@ updated: 2026-05-01
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Phase 7 next
+**Current Phase:** Phase 8 next
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed Phase 6 downstream materialization/read-model trace and missing-result guard.
+**Last Activity Description:** Completed Phase 7 cleanup lifecycle trace and destructive cleanup guard.
 
 ## Progress
 
-**Phases Complete:** 6
+**Phases Complete:** 7
 **Current Plan:** `ROADMAP.md`
 
 ## Baseline Code Facts
@@ -32,6 +32,7 @@ updated: 2026-05-01
 - Consumer-owned media gate evidence manifest now validates candidate inventory, attempt ledger, closeout inventory, target admission manifest, cleanup dry-run, object verification report, and strict audit hashes under one operations directory.
 - On-demand closeout can build media gate evidence after strict audit and before promotion.
 - Run-level consumer records downstream projection/read-model materialization evidence and prevents queue success when downstream materialization was requested but no projection/read-model evidence was returned.
+- Run-level consumer records cleanup dry-run posture and blocks destructive cleanup unless fresh passed media gate evidence is present.
 - Legacy collected-notice queue consumer can lease jobs and project them into source-truth/searchable evidence.
 - Authenticated notice `run_id` ledger resolver already requires `status=success` and `verification_status=verified`.
 - On-demand closeout runner can chain closeout worker, optional media source-object verification, strict media audit, and promotion when artifact paths are provided.
@@ -40,14 +41,13 @@ updated: 2026-05-01
 ## Current Gaps
 
 - Local-only collected content still needs repair/synthetic ledger upload before enqueue.
-- Cleanup lifecycle is guarded but not integrated as an automatic stage.
 - No unattended captured-content E2E smoke proves queue-to-downstream behavior with zero manual artifact stitching.
 
 ## Next Slice
 
-Start Phase 7 by integrating cleanup dry-run / destructive cleanup eligibility as a guarded lifecycle stage tied to fresh strict media gate evidence.
+Start Phase 8 by adding an unattended captured-content E2E smoke harness that selects/enqueues verified collected content and consumes it through the run-level queue path without manual artifact stitching.
 
 ## Session Continuity
 
-**Stopped At:** Phase 6 complete; Phase 7 cleanup lifecycle integration is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
+**Stopped At:** Phase 7 complete; Phase 8 unattended captured-content E2E smoke is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
 **Resume File:** None

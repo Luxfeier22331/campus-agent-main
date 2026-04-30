@@ -62,6 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Require consumer-owned strict media gate evidence before queue completion.",
     )
     parser.add_argument("--media-gate-evidence-dir")
+    parser.add_argument("--cleanup-report-path")
+    parser.add_argument(
+        "--enable-destructive-cleanup",
+        action="store_true",
+        help="Allow destructive cleanup only when fresh passed media gate evidence is present.",
+    )
     parser.add_argument(
         "--materialize-downstream",
         action="store_true",
@@ -105,6 +111,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         media_gate_evidence_dir=(
             Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None
         ),
+        cleanup_report_path=(
+            Path(args.cleanup_report_path) if args.cleanup_report_path else None
+        ),
+        destructive_cleanup_enabled=args.enable_destructive_cleanup,
         consumer_admission_manifest_path=(
             Path(args.consumer_admission_manifest_path)
             if args.consumer_admission_manifest_path

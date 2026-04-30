@@ -306,6 +306,91 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
         self.assertEqual(record.last_error_code, "downstream_materialization_missing")
         self.assertEqual(result.failed_report["manual_review_count"], 1)
 
+    def test_cleanup_dry_run_posture_is_recorded_when_report_path_is_supplied(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+        with TemporaryDirectory() as tmpdir:
+            cleanup_path = Path(tmpdir) / "cleanup.dry-run.json"
+            cleanup_path.write_text(
+                json.dumps(
+                    {
+                        "mode": "dry_run",
+                        "write_enabled": False,
+                        "candidate_count": 2,
+                        "eligible_delete_count": 0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = consume_authenticated_notice_ingest_queue(
+                queue_store=store,
+                object_store=_ObjectStore(
+                    {
+                        ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                        ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                    }
+                ),
+                run_ref_resolver=_resolver_for(job),
+                importer=_RecordingImporter({"notice_count": 1}),
+                mode="execute",
+                worker_id="worker-a",
+                site_id="muc_internal_portal",
+                source_home_url="https://my.muc.edu.cn",
+                cleanup_report_path=cleanup_path,
+            )
+
+        cleanup = result.trace["trace_rows"][0]["cleanup"]
+        self.assertEqual(cleanup["mode"], "dry_run")
+        self.assertFalse(cleanup["destructive_cleanup_enabled"])
+        self.assertEqual(cleanup["eligible_delete_count"], 0)
+        self.assertEqual(store.get(job.job_id).status, "succeeded")  # type: ignore[union-attr]
+
+    def test_destructive_cleanup_requires_passed_media_gate(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+
+        result = consume_authenticated_notice_ingest_queue(
+            queue_store=store,
+            object_store=_ObjectStore(
+                {
+                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                }
+            ),
+            run_ref_resolver=_resolver_for(job),
+            importer=_RecordingImporter({"notice_count": 1}),
+            mode="execute",
+            worker_id="worker-a",
+            site_id="muc_internal_portal",
+            source_home_url="https://my.muc.edu.cn",
+            destructive_cleanup_enabled=True,
+        )
+
+        record = store.get(job.job_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.status, "manual_review")
+        self.assertEqual(record.last_error_code, "cleanup_requires_media_gate")
+        self.assertEqual(result.failed_report["manual_review_count"], 1)
+
 
 class _ObjectStore:
     def __init__(self, objects: dict[tuple[str, str], bytes]) -> None:
