@@ -91,6 +91,7 @@ class PostgresNoticeIngestQueueStoreTest(unittest.TestCase):
             "max_attempts integer not null",
             "leased_by text",
             "lease_expires_at timestamptz",
+            "next_retry_after timestamptz",
             "last_error_code text",
             "last_error_message text",
             "created_at timestamptz not null",
@@ -140,6 +141,8 @@ class PostgresNoticeIngestQueueStoreTest(unittest.TestCase):
         self.assertIn("for update skip locked", lease_query)
         self.assertIn("status = 'queued'", lease_query)
         self.assertIn("status = 'leased'", lease_query)
+        self.assertIn("status = 'failed_retryable'", lease_query)
+        self.assertIn("next_retry_after <= now()", lease_query)
         self.assertIn("lease_expires_at < now()", lease_query)
         self.assertIn("order by priority asc, created_at asc, job_id asc", lease_query)
 
@@ -191,6 +194,7 @@ def _record_row(job: object, *, status: str, leased_by: str | None = None) -> tu
         0,
         3,
         leased_by,
+        None,
         None,
         None,
         None,

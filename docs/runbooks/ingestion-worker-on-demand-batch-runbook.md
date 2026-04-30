@@ -178,6 +178,33 @@ worktree `.env` 或命令级 env 中使用这些 override：
 
 ## Authenticated Notice Closeout
 
+### Ingest Queue Contract
+
+`authenticated_notice_ingest_job.v1` 是 authenticated notice 的 run-level
+ingest queue payload。它只调度已经写入 run ledger 且对象校验通过的 collector run。
+
+固定要求：
+
+- queue 是 scheduling truth，不是 source truth。
+- source truth 仍由 source bucket object refs、collector run ledger、bundle/manifest
+  hash/size verification 与 import 后 canonical source-truth artifacts 共同表达。
+- queue payload 必须携带 `run_id`、`source_channel`、`source_surface`、`site_id`、
+  source bucket、bundle/manifest object key、hash、size、enqueue source、priority、
+  idempotency key、retry policy 与 provenance。
+- queue payload 禁止携带正文、HTML、OCR payload、attachment bytes 或 local path。
+- run-level idempotency 由 source channel、source surface、site id、run id、bundle hash
+  与 manifest hash 共同决定。
+- retryable failure 进入 `failed_retryable`，并通过 `next_retry_after` 控制下一次 lease；
+  retry budget 耗尽后进入 `dead_letter`。
+- strict media gate 或 repair ledger 缺口这类需要 operator 判断的失败应进入
+  `manual_review` 或 `blocked`，不得伪装成 queued work。
+
+当前已有 queue store 与生命周期基础，但完整无人值守链路仍按
+`.planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/ROADMAP.md`
+分阶段推进。Phase 1 只冻结 queue contract 与 lifecycle；后续 Phase 才接入
+collector auto-enqueue、run-level consumer、media gate、promotion、downstream
+materialization 与 captured-content smoke。
+
 首次从 export bundle 计划并执行：
 
 ```bash

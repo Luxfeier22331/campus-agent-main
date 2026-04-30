@@ -131,7 +131,10 @@ class NoticeIngestQueueStoreTest(unittest.TestCase):
             error_message="first failure",
             now=_dt(2),
         )
-        store.lease_next(worker_id="worker-a", lease_seconds=60, now=_dt(3))
+        too_early = store.lease_next(worker_id="worker-a", lease_seconds=60, now=_dt(1))
+        retry_lease = store.lease_next(worker_id="worker-a", lease_seconds=60, now=_dt(3))
+        self.assertIsNone(too_early)
+        self.assertIsNotNone(retry_lease)
         final_failure = store.fail_retryable(
             job.job_id,
             worker_id="worker-a",
@@ -140,11 +143,71 @@ class NoticeIngestQueueStoreTest(unittest.TestCase):
             now=_dt(4),
         )
 
-        self.assertEqual(first_failure.status, "queued")
+        self.assertEqual(first_failure.status, "failed_retryable")
         self.assertEqual(first_failure.attempt_count, 1)
+        self.assertEqual(first_failure.next_retry_after, _dt(2))
         self.assertEqual(final_failure.status, "dead_letter")
         self.assertEqual(final_failure.attempt_count, 2)
         self.assertEqual(store.list_status_counts()["dead_letter"], 1)
+
+    def test_retryable_failure_can_delay_next_lease_until_retry_after(self) -> None:
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job("muc_internal_portal:355512", content_hash="sha256-a", priority=50)
+        store.enqueue(job, max_attempts=3, now=_dt(0))
+        store.lease_next(worker_id="worker-a", lease_seconds=60, now=_dt(1))
+
+        failure = store.fail_retryable(
+            job.job_id,
+            worker_id="worker-a",
+            error_code="temporary",
+            error_message="wait before retry",
+            retry_after_seconds=30,
+            now=_dt(2),
+        )
+        too_early = store.lease_next(worker_id="worker-b", lease_seconds=60, now=_dt(20))
+        due = store.lease_next(worker_id="worker-b", lease_seconds=60, now=_dt(33))
+
+        self.assertEqual(failure.status, "failed_retryable")
+        self.assertEqual(failure.next_retry_after, _dt(32))
+        self.assertIsNone(too_early)
+        self.assertIsNotNone(due)
+        self.assertEqual(due.leased_by, "worker-b")
+
+    def test_manual_review_block_and_cancel_states_are_visible(self) -> None:
+        store = InMemoryNoticeIngestQueueStore()
+        review_job = _job("muc_internal_portal:355512", content_hash="sha256-a", priority=50)
+        blocked_job = _job("muc_internal_portal:355513", content_hash="sha256-b", priority=50)
+        cancelled_job = _job("muc_internal_portal:355514", content_hash="sha256-c", priority=50)
+        store.enqueue_many((review_job, blocked_job, cancelled_job), now=_dt(0))
+
+        store.lease_next(worker_id="worker-a", lease_seconds=60, now=_dt(1))
+        review = store.manual_review(
+            review_job.job_id,
+            worker_id="worker-a",
+            error_code="media_gate_failed",
+            error_message="strict audit requires operator review",
+            now=_dt(2),
+        )
+        blocked = store.block(
+            blocked_job.job_id,
+            error_code="missing_repair_ledger",
+            error_message="local-only artifact requires repair ledger",
+            now=_dt(3),
+        )
+        cancelled = store.cancel(
+            cancelled_job.job_id,
+            error_code="operator_cancelled",
+            error_message="superseded run",
+            now=_dt(4),
+        )
+
+        self.assertEqual(review.status, "manual_review")
+        self.assertEqual(blocked.status, "blocked")
+        self.assertEqual(cancelled.status, "cancelled")
+        counts = store.list_status_counts()
+        self.assertEqual(counts["manual_review"], 1)
+        self.assertEqual(counts["blocked"], 1)
+        self.assertEqual(counts["cancelled"], 1)
 
     def test_terminal_failure_and_status_counts_are_visible(self) -> None:
         store = InMemoryNoticeIngestQueueStore()
@@ -170,6 +233,9 @@ class NoticeIngestQueueStoreTest(unittest.TestCase):
             "failed_retryable",
             "failed_terminal",
             "dead_letter",
+            "manual_review",
+            "blocked",
+            "cancelled",
         ):
             self.assertIn(status, counts)
 

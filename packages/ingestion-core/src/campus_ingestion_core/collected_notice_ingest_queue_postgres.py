@@ -118,6 +118,10 @@ class PostgresNoticeIngestQueueStore:
                     (
                         status = 'queued'
                         or (
+                        status = 'failed_retryable'
+                        and (next_retry_after is null or next_retry_after <= now())
+                        )
+                        or (
                         status = 'leased'
                         and (lease_expires_at is null or lease_expires_at < now())
                         )
@@ -132,6 +136,7 @@ class PostgresNoticeIngestQueueStore:
                 status = 'leased',
                 leased_by = %s,
                 lease_expires_at = now() + (%s * interval '1 second'),
+                next_retry_after = null,
                 updated_at = now()
             from candidate
             where queue.job_id = candidate.job_id
@@ -187,6 +192,7 @@ class PostgresNoticeIngestQueueStore:
                 status = 'succeeded',
                 leased_by = null,
                 lease_expires_at = null,
+                next_retry_after = null,
                 last_error_code = null,
                 last_error_message = null,
                 updated_at = now()
@@ -205,6 +211,7 @@ class PostgresNoticeIngestQueueStore:
         worker_id: str,
         error_code: str,
         error_message: str,
+        retry_after_seconds: int = 0,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord:
         del now
@@ -215,10 +222,14 @@ class PostgresNoticeIngestQueueStore:
                 attempt_count = attempt_count + 1,
                 status = case
                     when attempt_count + 1 >= max_attempts then 'dead_letter'
-                    else 'queued'
+                    else 'failed_retryable'
                 end,
                 leased_by = null,
                 lease_expires_at = null,
+                next_retry_after = case
+                    when attempt_count + 1 >= max_attempts then null
+                    else now() + (%s * interval '1 second')
+                end,
                 last_error_code = %s,
                 last_error_message = %s,
                 updated_at = now()
@@ -230,7 +241,13 @@ class PostgresNoticeIngestQueueStore:
         """
         return self._update_owned_job(
             query,
-            (str(error_code), str(error_message or ""), str(job_id), str(worker_id)),
+            (
+                int(retry_after_seconds),
+                str(error_code),
+                str(error_message or ""),
+                str(job_id),
+                str(worker_id),
+            ),
             job_id=str(job_id),
         )
 
@@ -251,6 +268,7 @@ class PostgresNoticeIngestQueueStore:
                 status = 'failed_terminal',
                 leased_by = null,
                 lease_expires_at = null,
+                next_retry_after = null,
                 last_error_code = %s,
                 last_error_message = %s,
                 updated_at = now()
@@ -282,6 +300,7 @@ class PostgresNoticeIngestQueueStore:
                 status = 'dead_letter',
                 leased_by = null,
                 lease_expires_at = null,
+                next_retry_after = null,
                 last_error_code = coalesce(%s, last_error_code),
                 last_error_message = coalesce(%s, last_error_message),
                 updated_at = now()
@@ -294,6 +313,71 @@ class PostgresNoticeIngestQueueStore:
         if row is None:
             raise NoticeIngestQueueNotFoundError(f"notice ingest job not found: {job_id}")
         return _record_from_row(row)
+
+    def manual_review(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        del now
+        table_sql = _qualified_table_sql(self.table_name)
+        query = f"""
+            update {table_sql}
+            set
+                status = 'manual_review',
+                leased_by = null,
+                lease_expires_at = null,
+                next_retry_after = null,
+                last_error_code = %s,
+                last_error_message = %s,
+                updated_at = now()
+            where job_id = %s
+                and status = 'leased'
+                and leased_by = %s
+                and (lease_expires_at is null or lease_expires_at > now())
+            returning {self._returning_columns()}
+        """
+        return self._update_owned_job(
+            query,
+            (str(error_code), str(error_message or ""), str(job_id), str(worker_id)),
+            job_id=str(job_id),
+        )
+
+    def block(
+        self,
+        job_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        del now
+        return self._set_unowned_terminal_status(
+            job_id,
+            status="blocked",
+            error_code=error_code,
+            error_message=error_message,
+        )
+
+    def cancel(
+        self,
+        job_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        del now
+        return self._set_unowned_terminal_status(
+            job_id,
+            status="cancelled",
+            error_code=error_code,
+            error_message=error_message,
+        )
 
     def list_status_counts(self) -> dict[str, int]:
         table_sql = _qualified_table_sql(self.table_name)
@@ -332,6 +416,7 @@ class PostgresNoticeIngestQueueStore:
                     max_attempts integer not null default 3,
                     leased_by text,
                     lease_expires_at timestamptz,
+                    next_retry_after timestamptz,
                     last_error_code text,
                     last_error_message text,
                     created_at timestamptz not null,
@@ -347,7 +432,10 @@ class PostgresNoticeIngestQueueStore:
                         'succeeded',
                         'failed_retryable',
                         'failed_terminal',
-                        'dead_letter'
+                        'dead_letter',
+                        'manual_review',
+                        'blocked',
+                        'cancelled'
                     ))
                 )
                 """
@@ -356,7 +444,7 @@ class PostgresNoticeIngestQueueStore:
                 f"""
                 create index if not exists idx_{suffix}_lease_candidates
                 on {table_sql} (status, priority, created_at, job_id)
-                where status in ('queued', 'leased')
+                where status in ('queued', 'leased', 'failed_retryable')
                 """
             )
             cursor.execute(
@@ -374,7 +462,8 @@ class PostgresNoticeIngestQueueStore:
                 source_identity, capture_id, capture_manifest_object_ref,
                 source_object_refs, content_hash, run_id, enqueue_source,
                 replay_batch_id, priority, status, attempt_count, max_attempts,
-                leased_by, lease_expires_at, last_error_code, last_error_message,
+                leased_by, lease_expires_at, next_retry_after,
+                last_error_code, last_error_message,
                 created_at, updated_at, job_payload
             )
             values (
@@ -382,7 +471,7 @@ class PostgresNoticeIngestQueueStore:
                 %s, %s, %s::jsonb,
                 %s::jsonb, %s, %s, %s,
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
                 %s, %s, %s::jsonb
             )
             on conflict (idempotency_key) do nothing
@@ -414,6 +503,7 @@ class PostgresNoticeIngestQueueStore:
             "max_attempts",
             "leased_by",
             "lease_expires_at",
+            "next_retry_after",
             "last_error_code",
             "last_error_message",
             "created_at",
@@ -438,6 +528,35 @@ class PostgresNoticeIngestQueueStore:
             raise NoticeIngestQueueLeaseError(
                 f"notice ingest job is not currently leased by this worker: {job_id}"
             )
+        return _record_from_row(row)
+
+    def _set_unowned_terminal_status(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        error_code: str,
+        error_message: str,
+    ) -> NoticeIngestQueueRecord:
+        table_sql = _qualified_table_sql(self.table_name)
+        query = f"""
+            update {table_sql}
+            set
+                status = %s,
+                leased_by = null,
+                lease_expires_at = null,
+                next_retry_after = null,
+                last_error_code = %s,
+                last_error_message = %s,
+                updated_at = now()
+            where job_id = %s
+            returning {self._returning_columns()}
+        """
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, (status, str(error_code), str(error_message or ""), str(job_id)))
+            row = cursor.fetchone()
+        if row is None:
+            raise NoticeIngestQueueNotFoundError(f"notice ingest job not found: {job_id}")
         return _record_from_row(row)
 
 
@@ -495,6 +614,7 @@ def _insert_params(record: NoticeIngestQueueRecord) -> tuple[object, ...]:
         record.max_attempts,
         record.leased_by,
         record.lease_expires_at,
+        record.next_retry_after,
         record.last_error_code,
         record.last_error_message,
         record.created_at,
@@ -504,7 +624,7 @@ def _insert_params(record: NoticeIngestQueueRecord) -> tuple[object, ...]:
 
 
 def _record_from_row(row: tuple[object, ...]) -> NoticeIngestQueueRecord:
-    payload = _coerce_json_payload(row[23])
+    payload = _coerce_json_payload(row[24])
     return NoticeIngestQueueRecord(
         job=notice_ingest_job_from_payload(payload),
         status=str(row[14]),
@@ -512,10 +632,11 @@ def _record_from_row(row: tuple[object, ...]) -> NoticeIngestQueueRecord:
         max_attempts=int(row[16]),
         leased_by=None if row[17] is None else str(row[17]),
         lease_expires_at=row[18],
-        last_error_code=None if row[19] is None else str(row[19]),
-        last_error_message=None if row[20] is None else str(row[20]),
-        created_at=row[21],
-        updated_at=row[22],
+        next_retry_after=row[19],
+        last_error_code=None if row[20] is None else str(row[20]),
+        last_error_message=None if row[21] is None else str(row[21]),
+        created_at=row[22],
+        updated_at=row[23],
     )
 
 

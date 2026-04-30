@@ -1,0 +1,207 @@
+---
+doc_type: roadmap
+status: active
+created: 2026-05-01
+updated: 2026-05-01
+---
+
+<!-- markdownlint-disable MD013 -->
+
+# Roadmap: Authenticated Notice Ingest Queue E2E Automation
+
+## Phase Status
+
+- [x] **Phase 1: Queue Contract And Lifecycle Freeze** — froze authenticated-notice run-level queue payload, lifecycle states, idempotency, retry/manual-review semantics, and docs.
+- [ ] **Phase 2: Manual Historical Enqueue And Repair Ledger** — enqueue already collected content through verified run ledger or repair/synthetic ledger rows.
+- [ ] **Phase 3: Collector Verified-Run Auto-Enqueue** — make collector or its scheduler enqueue only after source bucket upload and run ledger verification.
+- [ ] **Phase 4: Run-Level Queue Consumer** — claim queue jobs by lease and execute source-object verification plus source-truth/import from `run_id`.
+- [ ] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
+- [ ] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
+- [ ] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
+- [ ] **Phase 8: Unattended Captured-Content E2E Smoke** — prove queue-to-downstream chain over already collected content with no manual artifact stitching.
+
+## Phase 1: Queue Contract And Lifecycle Freeze
+
+Goal: separate the new run-level ingestion queue contract from the existing per-notice replay/searchable projection helper while preserving reusable store mechanics.
+
+Result:
+
+- Added `authenticated_notice_ingest_job.v1` and `authenticated_notice_ingest` run-level job builder.
+- Added run-level idempotency from source channel, source surface, site id, run id, bundle hash, and manifest hash.
+- Extended forbidden payload fields to reject local paths as well as body/html/OCR/bytes payloads.
+- Added `failed_retryable` retry scheduling with `next_retry_after`.
+- Added queue states `manual_review`, `blocked`, and `cancelled`.
+- Updated in-memory and Postgres queue stores to expose retry-after leasing and operator terminal states.
+- Documented queue as scheduling truth in the ingestion worker runbook.
+
+Deliverables:
+
+- `authenticated_notice_ingest_job.v1` or compatible schema extension that is run-level, not per-notice.
+- Required fields for `job_id`, `run_id`, `source_channel`, `source_surface`, `site_id`, source bucket, bundle/manifest object keys, hashes, byte sizes, enqueue source, priority, idempotency key, retry policy, status, lease owner, lease expiry, attempt count, `next_retry_after`, failure reason, created/updated timestamps, and provenance.
+- Forbidden payload fields for body/html/OCR/attachment bytes/local paths.
+- Lifecycle state model including queued, leased/running, succeeded, retryable failure, terminal failure, dead-letter, manual review/blocked, and cancelled.
+- Store-level tests for lifecycle transitions and idempotency.
+- Architecture/runbook docs clarifying queue as scheduling truth only.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_ingest_queue \
+  tests.ingestion.test_collected_notice_ingest_queue_store \
+  tests.ingestion.test_collected_notice_ingest_queue_postgres -q
+pnpm docs:lint
+git diff --check
+```
+
+## Phase 2: Manual Historical Enqueue And Repair Ledger
+
+Goal: make already collected content enter the same queue contract without preserving a privileged manual path.
+
+Deliverables:
+
+- CLI to enqueue by existing verified run ledger `run_id`.
+- CLI or mode to upload local-only bundle/manifest/source objects to source bucket, verify hash/size, and create repair/synthetic run ledger row with provenance.
+- Dry-run report that lists accepted jobs, rejected inputs, missing object refs, hash mismatches, duplicate idempotency keys, and repair actions.
+- Execution report that records inserted/existing queue rows and ledger repair evidence.
+- Tests that prove local paths never enter production queue payload.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_historical_enqueue \
+  tests.ingestion.test_enqueue_collected_notice_historical_inventory_worker -q
+uv run --all-packages ruff check \
+  packages/ingestion-core/src/campus_ingestion_core \
+  apps/ingestion-worker/src/campus_ingestion_worker
+```
+
+## Phase 3: Collector Verified-Run Auto-Enqueue
+
+Goal: connect collector success to ingest queue without letting collector own downstream ingestion.
+
+Deliverables:
+
+- collector-side handoff emitter or scheduler-side enqueue command that runs after run ledger verification.
+- enqueue retry/report artifact for queue write failures.
+- config that can disable enqueue for local/debug runs while preserving production default.
+- tests proving enqueue is skipped for failed/unverified runs and idempotent for repeated verified runs.
+- docs update for live path and selected/backfill behavior.
+
+Verification:
+
+```bash
+pnpm --dir apps/authenticated-notice-collector test
+pnpm --dir apps/authenticated-notice-collector typecheck
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_ingest_queue -q
+```
+
+## Phase 4: Run-Level Queue Consumer
+
+Goal: make ingestion worker consume a run-level job and execute source-truth/import through object-native `run_id` handoff.
+
+Deliverables:
+
+- worker command to claim queue jobs with lease and optional `--run-id` / `--limit` filters.
+- resolver that reads run ledger object refs and verifies source bucket existence/hash/size before import.
+- orchestration that calls existing authenticated notice importer with object-native refs and no local path fallback.
+- queue result transitions for success, retryable object-store failures, terminal contract failures, manual-review failures, and dead-letter.
+- trace artifact under deterministic operations prefix.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_queue_consumer \
+  tests.ingestion.test_consume_collected_notice_ingest_queue_worker \
+  tests.ingestion.test_authenticated_notice_closeout_worker -q
+```
+
+## Phase 5: Consumer-Owned Media Gate And Promotion Evidence
+
+Goal: remove manual artifact stitching between import/closeout and media gate promotion.
+
+Deliverables:
+
+- consumer-generated candidate inventory, attempt ledger, closeout inventory, target admission manifest, cleanup dry-run, live source-object verification report, and strict audit report.
+- operations prefix convention for all generated media gate evidence.
+- promotion command receives only same-run strict audit artifact.
+- gate failure maps to terminal/manual-review queue state with reason codes.
+- tests proving promotion is blocked without passed strict audit and matching candidate inventory hash.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_media_closeout_state_machine_audit \
+  tests.ingestion.test_collected_notice_media_extraction_closeout \
+  tests.ingestion.test_authenticated_notice_closeout_async_verification_and_promotion_suite \
+  tests.ingestion.test_on_demand_batch_runner -q
+```
+
+## Phase 6: Downstream Materialization And Read-Model Rebuild
+
+Goal: make promoted results automatically enter admitted downstream materializers and read models.
+
+Deliverables:
+
+- target admission dispatcher for regulation, transport schedule, service status, and notice-level query surfaces that are already explicitly admitted.
+- read-model rebuild or refresh step after promotion.
+- result artifact linking queue job, promotion id, downstream materialization ids, and read-model counts.
+- fail-closed handling for missing required fact groups and unresolved target-blocking media.
+- tests for downstream rows produced only from admitted target manifests.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_regulation_admission \
+  tests.ingestion.test_official_transport_baseline_preview \
+  tests.ingestion.test_authenticated_notice_state_machine_audit \
+  tests.ingestion.test_registry_scope_release -q
+```
+
+## Phase 7: Cleanup Lifecycle Integration
+
+Goal: turn quarantine cleanup into a guarded automatic lifecycle stage without making deletion the default proof path.
+
+Deliverables:
+
+- cleanup dry-run generated for each consumer run.
+- policy switch for destructive cleanup, default off for local/dev.
+- destructive cleanup guard that requires fresh passed strict audit and matching candidate inventory hash.
+- deletion evidence artifact with object refs, reasons, retention class, and audit hash.
+- tests proving target-blocking pending/manual-review candidates protect quarantine bytes.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_authenticated_notice_attachment_key_cleanup \
+  tests.ingestion.test_collected_notice_media_closeout_state_machine_audit -q
+```
+
+## Phase 8: Unattended Captured-Content E2E Smoke
+
+Goal: prove the production-like path over already collected authenticated notice content without requiring live portal auth.
+
+Deliverables:
+
+- smoke command that seeds or selects queue rows from verified/repair ledger entries.
+- deterministic captured-content sample including notice `355867` where schedule facts are image-carried.
+- assertions for source object verification, import counts, media gate verdict, promotion result, downstream materialization/read-model counts, cleanup posture, and queue final states.
+- medium-or-higher finding taxonomy and report.
+- CI/local acceptance documentation.
+
+Verification:
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e \
+  --captured-content \
+  --sample-id 355867
+uv run --all-packages python -m unittest discover -s tests -t .
+pnpm docs:lint
+git diff --check
+```
