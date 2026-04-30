@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-04-11
+updated: 2026-05-01
 ---
 # Index Release Runbook
 
@@ -159,6 +159,11 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - release acceptance cases 是 alias publish 的硬门槛，只承载 doc-level smoke、关键
   wrong-document guard 和 backlink/traceability 这类必须在发布前关闭的问题；不要把 full
   formal benchmark、no-hit 阈值调优或 stale version-id 回归样本直接塞进 publish gate
+- 默认 query-enabled scope 发布 alias 时还必须通过 qrels coverage gate；缺少 declared
+  scenario denominator、required coverage class 或 required scenario 时 fail closed
+- chunk quality gate 使用当前 collection/profile 的 token budget，而不是全局固定阈值；超过
+  budget、缺 traceability metadata、出现 attachment-ref chunk 或 regulation heading-only
+  chunk 都不得发布 query-serving alias
 - `regulations/student_rules` 的 alias publish gate 使用：
   `packages/evals/fixtures/student_rules_release_acceptance.v1.json`
 - `regulations/student_rules` 的 formal qrels 与调参仍使用：
@@ -297,6 +302,18 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   - `rrf_dense_weight`
   - `rrf_sparse_weight`
   - `embedding_query_instruction_hash`
+  - `hybrid_query_profile_hash`
+  - `profile_identity_hash`
+  - `quality_gate_status`
+  - `chunk_quality_status`
+  - `qrels_coverage_status`
+  - `release_metadata_consistency_status`
+
+这些字段必须与当前 `runtime-profile.json`、retrieval env 和 release manifest 一致。
+runtime drift guard 会在查询 alias 前抽样 collection metadata / point payload；缺字段、profile
+identity 不一致、quality gate 非 `passed`、或 sampled payload 混入不同 release/profile 时
+query path fail closed。旧 release 如果缺 `profile_identity_hash` 或质量状态字段，需要重新
+走 registry-scope release 后再作为 query-serving alias 使用。
 
 ### Object Storage
 
@@ -304,6 +321,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 - `{corpus}/releases/{collection}/{release_id}/index-release.json`
 - `{corpus}/releases/{collection}/{release_id}/validation-summary.json`
+- `{corpus}/releases/{collection}/{release_id}/quality-gate-summary.json`
+- 若执行 query-serving alias publish，还应有 retrieval acceptance summary artifact
 
 说明：
 
@@ -336,12 +355,20 @@ uv run --all-packages python -m campus_evals.retrieval_tuning \
 
 - 发布前确认默认 query-enabled qrels fixture 覆盖完整：
   `campus_evals.benchmark.validate_default_query_enabled_qrels_coverage()`
-- 发布前抽查 chunk 输出质量：
-  `campus_evals.retrieval_chunk_quality.evaluate_chunk_quality()`；输入应来自本次
-  release 的 chunk JSONL 或等价 in-memory chunk payload
+- 发布前 release path 会自动执行 chunk quality gate 和 qrels coverage gate；operator
+  仍可用同一批 chunk / qrels artifact 做离线复核，但离线复核不能替代 registry-scope
+  release gate
 - 发布后把 no-hit、low confidence、forbidden hit、authz filtered、version mismatch 与
   release metadata drift observation 汇总成候选 backlog：
   `campus_evals.retrieval_monitoring.build_retrieval_monitoring_backlog()`
+
+如果 runtime 已注入 retrieval observation sink，可以从 JSONL 生成 backlog：
+
+```bash
+uv run --all-packages python -m campus_evals.retrieval_monitoring_cli \
+  --observations <retrieval-runtime-observations.jsonl> \
+  --output <retrieval-monitoring-backlog.json>
+```
 
 这些检查只产生 release evidence、tuning recommendation 或 backlog candidate；不得直接改写
 runtime profile、canonical qrels 或 serving alias。

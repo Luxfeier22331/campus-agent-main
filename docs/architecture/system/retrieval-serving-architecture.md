@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-23
+updated: 2026-05-01
 ---
 # Retrieval Serving Architecture
 
@@ -138,13 +138,17 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 query-enabled collection 的 release / serving hardening 固定包含以下层次：
 
 - alias publish 前的 deterministic retrieval acceptance gate
-- alias publish 前的 chunk quality gate；缺 traceability metadata、超过 chunk token budget
-  或 release metadata 不完整时 query-serving publish fail closed
-- release manifest / point payload 中的 dense、sparse、hybrid、chunk、cleaning 与 query
-  instruction provenance，以及 quality gate / chunk quality / qrels coverage /
-  release metadata consistency status
+- alias publish 前的 chunk quality gate；缺 traceability metadata、超过当前
+  collection/profile chunk token budget、出现不可直接 query-serving 的 attachment-ref chunk
+  或 regulation heading-only chunk 时，query-serving publish fail closed
+- alias publish 前的 qrels coverage gate；默认 query-enabled scope 必须有 declared scenario
+  denominator，缺 fixture、缺 required class 或缺 required scenario 都 fail closed
+- release manifest / point payload 中的 dense、sparse、hybrid、chunk、cleaning、
+  query instruction provenance、profile identity hash，以及 quality gate / chunk
+  quality / qrels coverage / release metadata consistency status
 - runtime 查询 alias 前的 release drift guard；profile / release metadata 不一致或 sampled
-  point payload 混入不同 release/profile metadata 时 fail closed
+  point payload 混入不同 release/profile metadata 时 fail closed；guard cache key 必须包含
+  collection 与 profile identity，profile 变更不得复用旧 guard 结果
 - `packages/evals` 持有的 per-collection qrels scenario denominator、retrieval tuning
   report 与 sanitized runtime observation backlog intake
 
@@ -154,6 +158,8 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - tuning 不自动修改 `runtime-profile.json`
 - tuning 不扩大 query-enabled scope
 - supplemental judge / RAGAS 指标只能做诊断，不作为 alias publish 或 profile patch 的唯一通过依据
+- runtime retrieval 可以把 request/step outcome 发给显式注入的 observation sink；observation
+  只作为 eval/backlog intake，不反向改变 release manifest、runtime profile 或 serving alias
 - projection-derived scope 如果没有静态 `split-manifest.v1.json`，可以使用同目录
   `retrieval-eval-manifest.v1.json` 作为 qrels anchoring manifest；它不替代 registry、
   release manifest 或 current pointer truth

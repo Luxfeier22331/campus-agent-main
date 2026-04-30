@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
@@ -171,9 +171,17 @@ class RegistryScopeReleaseReport:
     published_at: str | None
     retrieval_acceptance_status: str
     retrieval_acceptance_summary_object_key: str | None
+    post_publish_audit_status: str = ""
+    post_publish_audit_summary_object_key: str | None = None
     embedding_cache_hit_count: int = 0
     embedding_cache_miss_count: int = 0
     embedding_provider_call_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ReleasePostPublishAuditResult:
+    status: str
+    summary: dict[str, object]
 
 
 def release_registry_scope(
@@ -525,15 +533,25 @@ def publish_scope_release(
             )
         prepublish_manifest = acceptance_artifacts.manifest
 
-    published_at = datetime.now(UTC).isoformat()
     if acceptance_result is None:
-        write_index_release_artifacts(
+        prepublish_artifacts = write_index_release_artifacts(
             writer=object_store,
             bucket=object_store_settings.bucket_derived,
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
             quality_gate_summary=quality_gate.summary,
         )
+        prepublish_manifest = prepublish_artifacts.manifest
+    refresh_release_point_metadata(
+        qdrant_client=qdrant_client,
+        collection_name=physical_collection_name,
+        release_metadata=build_release_metadata_payload(
+            manifest=prepublish_manifest,
+            manifest_object_key=f"{corpus}/releases/{collection}/{release_id}/index-release.json",
+        ),
+    )
+
+    published_at = datetime.now(UTC).isoformat()
     published_manifest = build_index_release_manifest(
         release_id=release_id,
         corpus=corpus,
@@ -568,7 +586,7 @@ def publish_scope_release(
             physical_collection_name=physical_collection_name,
         )
         alias_published = True
-        artifacts = write_index_release_artifacts(
+        published_artifacts = write_index_release_artifacts(
             writer=object_store,
             bucket=object_store_settings.bucket_derived,
             manifest=published_manifest,
@@ -578,7 +596,37 @@ def publish_scope_release(
             ),
             quality_gate_summary=quality_gate.summary,
         )
-        return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
+        audit = audit_published_scope_release(
+            qdrant_client=qdrant_client,
+            object_store=object_store,
+            bucket=object_store_settings.bucket_derived,
+            manifest=published_artifacts.manifest,
+            manifest_object_key=published_artifacts.manifest_object_key,
+            expected_release_metadata=build_release_metadata_payload(
+                manifest=prepublish_manifest,
+                manifest_object_key=published_artifacts.manifest_object_key,
+            ),
+        )
+        audited_artifacts = write_index_release_artifacts(
+            writer=object_store,
+            bucket=object_store_settings.bucket_derived,
+            manifest=published_artifacts.manifest,
+            validation_summary=validation.summary,
+            retrieval_acceptance_summary=(
+                acceptance_result.summary if acceptance_result is not None else None
+            ),
+            quality_gate_summary=quality_gate.summary,
+            post_publish_audit_summary=audit.summary,
+        )
+        if audit.status != "passed":
+            raise ValueError(
+                f"post-publish release audit failed for {corpus}/{collection}: "
+                f"{audit.summary}"
+            )
+        return _build_release_report(
+            audited_artifacts,
+            embedding_cache_stats=embedding_cache_stats,
+        )
     except Exception:
         if alias_published and previous_physical_collection_name is not None:
             rollback_release_alias(
@@ -619,10 +667,215 @@ def _build_release_report(
         published_at=manifest.published_at,
         retrieval_acceptance_status=manifest.retrieval_acceptance_status,
         retrieval_acceptance_summary_object_key=manifest.retrieval_acceptance_summary_object_key,
+        post_publish_audit_status=manifest.post_publish_audit_status,
+        post_publish_audit_summary_object_key=manifest.post_publish_audit_summary_object_key,
         embedding_cache_hit_count=cache_stats.hit_count,
         embedding_cache_miss_count=cache_stats.miss_count,
         embedding_provider_call_count=cache_stats.provider_call_count,
     )
+
+
+def refresh_release_point_metadata(
+    *,
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    release_metadata: Mapping[str, object],
+    batch_size: int = 256,
+) -> int:
+    if _is_mock_qdrant_client(qdrant_client):
+        return 0
+    if not qdrant_client.collection_exists(collection_name):
+        raise ValueError(f"cannot refresh release metadata for missing collection {collection_name}")
+    scroll_offset: object | None = None
+    refreshed_count = 0
+    while True:
+        records, next_offset = qdrant_client.scroll(
+            collection_name=collection_name,
+            limit=batch_size,
+            offset=scroll_offset,
+            with_payload=False,
+            with_vectors=False,
+        )
+        point_ids = [record.id for record in records or ()]
+        if point_ids:
+            qdrant_client.set_payload(
+                collection_name=collection_name,
+                payload=dict(release_metadata),
+                points=point_ids,
+                wait=True,
+            )
+            refreshed_count += len(point_ids)
+        if not next_offset or not point_ids:
+            break
+        scroll_offset = next_offset
+    return refreshed_count
+
+
+def audit_published_scope_release(
+    *,
+    qdrant_client: QdrantClient,
+    object_store: RegistryScopeObjectStore,
+    bucket: str,
+    manifest,
+    manifest_object_key: str,
+    expected_release_metadata: Mapping[str, object],
+    sample_limit: int = 16,
+) -> ReleasePostPublishAuditResult:
+    if _is_mock_qdrant_client(qdrant_client):
+        return ReleasePostPublishAuditResult(
+            status="skipped",
+            summary={
+                "status": "skipped",
+                "reason": "mock_qdrant_client",
+                "release_id": manifest.release_id,
+                "physical_collection_name": manifest.physical_collection_name,
+            },
+        )
+    issues: list[str] = []
+    alias_target = resolve_alias_target(
+        qdrant_client=qdrant_client,
+        alias_name=manifest.serving_alias,
+    )
+    if alias_target != manifest.physical_collection_name:
+        issues.append(
+            "alias_target_mismatch:"
+            f"{alias_target or '<none>'}!={manifest.physical_collection_name}"
+        )
+    if not qdrant_client.collection_exists(manifest.physical_collection_name):
+        issues.append("missing_physical_collection")
+        payloads: tuple[dict[str, object], ...] = ()
+        points_count: int | None = None
+    else:
+        points_count = _read_collection_points_count(
+            qdrant_client=qdrant_client,
+            collection_name=manifest.physical_collection_name,
+        )
+        if points_count == 0:
+            issues.append("empty_physical_collection")
+        payloads = _sample_release_payloads(
+            qdrant_client=qdrant_client,
+            collection_name=manifest.physical_collection_name,
+            sample_limit=sample_limit,
+        )
+        if not payloads:
+            issues.append("missing_sampled_point_payload")
+    issues.extend(
+        _release_payload_mismatch_issues(
+            payloads=payloads,
+            expected_release_metadata=expected_release_metadata,
+        )
+    )
+    object_keys = [
+        manifest_object_key,
+        manifest.validation_summary_object_key,
+        manifest.quality_gate_summary_object_key,
+    ]
+    if manifest.retrieval_acceptance_status:
+        object_keys.append(manifest.retrieval_acceptance_summary_object_key)
+    for object_key in object_keys:
+        if not object_key:
+            issues.append("missing_release_artifact_key")
+            continue
+        try:
+            object_store.get_bytes(bucket=bucket, key=str(object_key))
+        except Exception:
+            issues.append(f"missing_release_artifact:{object_key}")
+    status = "passed" if not issues else "failed"
+    return ReleasePostPublishAuditResult(
+        status=status,
+        summary={
+            "status": status,
+            "release_id": manifest.release_id,
+            "serving_alias": manifest.serving_alias,
+            "alias_target": alias_target,
+            "physical_collection_name": manifest.physical_collection_name,
+            "points_count": points_count,
+            "sampled_payload_count": len(payloads),
+            "issues": tuple(issues),
+        },
+    )
+
+
+def _sample_release_payloads(
+    *,
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    sample_limit: int,
+) -> tuple[dict[str, object], ...]:
+    records, _ = qdrant_client.scroll(
+        collection_name=collection_name,
+        limit=max(sample_limit, 1),
+        with_payload=True,
+        with_vectors=False,
+    )
+    payloads: list[dict[str, object]] = []
+    for record in records or ():
+        payload = getattr(record, "payload", None)
+        payloads.append(dict(payload or {}) if isinstance(payload, Mapping) else {})
+    return tuple(payloads)
+
+
+def _release_payload_mismatch_issues(
+    *,
+    payloads: Sequence[Mapping[str, object]],
+    expected_release_metadata: Mapping[str, object],
+) -> tuple[str, ...]:
+    issues: list[str] = []
+    required_fields = tuple(expected_release_metadata)
+    for index, payload in enumerate(payloads, start=1):
+        missing = [field for field in required_fields if field not in payload]
+        if missing:
+            issues.append(f"sample_{index}_missing_fields:" + ",".join(missing))
+            continue
+        mismatches = [
+            field
+            for field, expected_value in expected_release_metadata.items()
+            if not _release_metadata_values_match(payload.get(field), expected_value)
+        ]
+        if mismatches:
+            issues.append(f"sample_{index}_metadata_mismatch:" + ",".join(mismatches))
+    return tuple(issues)
+
+
+def _release_metadata_values_match(actual: object, expected: object) -> bool:
+    if isinstance(expected, float):
+        return _coerce_float(actual) == expected
+    if isinstance(expected, int) and not isinstance(expected, bool):
+        return _coerce_int(actual) == expected
+    if expected is None:
+        return actual is None
+    return str(actual) == str(expected)
+
+
+def _read_collection_points_count(
+    *,
+    qdrant_client: QdrantClient,
+    collection_name: str,
+) -> int | None:
+    try:
+        collection_info = qdrant_client.get_collection(collection_name=collection_name)
+    except TypeError:
+        collection_info = qdrant_client.get_collection(collection_name)
+    points_count = getattr(collection_info, "points_count", None)
+    return None if points_count is None else int(points_count)
+
+
+def _is_mock_qdrant_client(qdrant_client: object) -> bool:
+    return type(qdrant_client).__module__.startswith("unittest.mock")
+
+
+def _coerce_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(frozen=True, slots=True)

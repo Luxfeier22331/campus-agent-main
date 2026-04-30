@@ -15,6 +15,7 @@ from campus_ingestion_core.qdrant_backup import (
     SnapshotBackupManifest,
     SnapshotBackupRequest,
     SnapshotRestoreRequest,
+    _load_index_release_manifest,
     check_snapshot_gc_eligibility,
     create_snapshot_backup,
     restore_snapshot_backup,
@@ -115,6 +116,8 @@ def _seed_release_manifest(
     previous_physical_collection_name: str | None,
     serving_alias: str,
     validation_summary_key: str | None = None,
+    post_publish_audit_status: str = "",
+    post_publish_audit_summary_key: str | None = None,
 ) -> str:
     manifest_key = build_index_release_artifact_key(
         corpus=corpus,
@@ -140,6 +143,8 @@ def _seed_release_manifest(
         "document_units_keys_hash": "units-hash",
         "validation_status": "passed",
         "validation_summary_object_key": validation_summary_key,
+        "post_publish_audit_status": post_publish_audit_status,
+        "post_publish_audit_summary_object_key": post_publish_audit_summary_key,
         "documents": [],
     }
     object_store.put_bytes(
@@ -234,6 +239,37 @@ class QdrantBackupTest(unittest.TestCase):
             manifest.snapshot_sha256,
             hashlib.sha256(object_store.objects[(DERIVED_BUCKET, snapshot_key)]).hexdigest(),
         )
+
+    def test_load_index_release_manifest_preserves_post_publish_audit_metadata(self) -> None:
+        object_store = _FakeBackupObjectStore()
+        audit_summary_key = build_index_release_artifact_key(
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260331_120000",
+            filename="post-publish-audit-summary.json",
+        )
+        _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260331_120000",
+            physical_collection_name="student_rules__r20260331_120000",
+            previous_physical_collection_name="student_rules__r20260330_120000",
+            serving_alias="student_rules",
+            post_publish_audit_status="passed",
+            post_publish_audit_summary_key=audit_summary_key,
+        )
+
+        manifest = _load_index_release_manifest(
+            object_store=object_store,
+            bucket=DERIVED_BUCKET,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260331_120000",
+        )
+
+        self.assertEqual(manifest.post_publish_audit_status, "passed")
+        self.assertEqual(manifest.post_publish_audit_summary_object_key, audit_summary_key)
 
     def test_restore_snapshot_backup_restores_snapshot_and_writes_restore_report(self) -> None:
         object_store = _FakeBackupObjectStore()

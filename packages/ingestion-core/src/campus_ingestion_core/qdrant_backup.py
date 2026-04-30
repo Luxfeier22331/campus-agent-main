@@ -643,6 +643,12 @@ def _load_index_release_manifest(
         release_metadata_consistency_status=str(
             payload.get("release_metadata_consistency_status") or ""
         ),
+        post_publish_audit_status=str(payload.get("post_publish_audit_status") or ""),
+        post_publish_audit_summary_object_key=(
+            None
+            if payload.get("post_publish_audit_summary_object_key") is None
+            else str(payload["post_publish_audit_summary_object_key"])
+        ),
     )
 
 

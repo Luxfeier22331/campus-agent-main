@@ -103,6 +103,8 @@ class IndexReleaseManifest:
     chunk_quality_status: str = ""
     qrels_coverage_status: str = "not_applicable"
     release_metadata_consistency_status: str = ""
+    post_publish_audit_status: str = ""
+    post_publish_audit_summary_object_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -361,6 +363,7 @@ def write_index_release_artifacts(
     validation_summary: dict[str, object] | None,
     retrieval_acceptance_summary: dict[str, object] | None = None,
     quality_gate_summary: dict[str, object] | None = None,
+    post_publish_audit_summary: dict[str, object] | None = None,
 ) -> IndexReleaseArtifacts:
     validation_summary_object_key: str | None = None
     if validation_summary is not None:
@@ -410,18 +413,42 @@ def write_index_release_artifacts(
             ),
             content_type="application/json",
         )
+    post_publish_audit_summary_object_key: str | None = None
+    if post_publish_audit_summary is not None:
+        post_publish_audit_summary_object_key = build_index_release_artifact_key(
+            corpus=manifest.corpus,
+            collection=manifest.collection,
+            release_id=manifest.release_id,
+            filename="post-publish-audit-summary.json",
+        )
+        writer.put_bytes(
+            bucket=bucket,
+            key=post_publish_audit_summary_object_key,
+            data=(
+                json.dumps(post_publish_audit_summary, ensure_ascii=False, indent=2) + "\n"
+            ).encode("utf-8"),
+            content_type="application/json",
+        )
     runtime_manifest = manifest
     if (
         validation_summary_object_key != manifest.validation_summary_object_key
         or retrieval_acceptance_summary_object_key
         != manifest.retrieval_acceptance_summary_object_key
         or quality_gate_summary_object_key != manifest.quality_gate_summary_object_key
+        or post_publish_audit_summary_object_key
+        != manifest.post_publish_audit_summary_object_key
     ):
         runtime_manifest = replace(
             manifest,
             validation_summary_object_key=validation_summary_object_key,
             retrieval_acceptance_summary_object_key=retrieval_acceptance_summary_object_key,
             quality_gate_summary_object_key=quality_gate_summary_object_key,
+            post_publish_audit_summary_object_key=post_publish_audit_summary_object_key,
+            post_publish_audit_status=(
+                str(post_publish_audit_summary.get("status") or "")
+                if post_publish_audit_summary is not None
+                else manifest.post_publish_audit_status
+            ),
         )
     manifest_object_key = build_index_release_artifact_key(
         corpus=runtime_manifest.corpus,

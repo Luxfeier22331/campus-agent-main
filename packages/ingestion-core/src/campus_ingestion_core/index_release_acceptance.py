@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -101,6 +101,16 @@ class ReleaseQualityGateResult:
     qrels_coverage_status: str
     release_metadata_consistency_status: str
     summary: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class _ChunkQualityRow:
+    chunk_id: str
+    document_key: tuple[str, str, str, str]
+    root_unit_id: str
+    chunk_order: int | None
+    segment_index: int | None
+    segment_total: int | None
 
 
 class ReleaseRetrievalAcceptanceExecutor(Protocol):
@@ -304,6 +314,7 @@ def evaluate_release_chunk_quality(
 ) -> ReleaseQualityGateResult:
     issues_by_chunk_id: dict[str, tuple[str, ...]] = {}
     seen_chunk_ids: set[str] = set()
+    chunk_rows: list[_ChunkQualityRow] = []
     unit_type_budgets = dict(max_token_count_by_unit_type or {})
     for index, chunk in enumerate(chunks, start=1):
         chunk_id = _required_text(_chunk_value(chunk, "chunk_id")) or f"row-{index}"
@@ -332,6 +343,12 @@ def evaluate_release_chunk_quality(
                 or _has_value(anchor.get(metadata_field))
             ):
                 issues.append(f"missing_{metadata_field}")
+        root_unit_id = (
+            _required_text(_chunk_value(chunk, "root_unit_id"))
+            or _required_text(metadata.get("root_unit_id"))
+            or _required_text(anchor.get("root_unit_id"))
+            or ""
+        )
         token_count = _coerce_int(metadata.get("final_token_count"))
         if token_count is None:
             token_count = _count_tokens(str(_chunk_value(chunk, "text") or ""))
@@ -348,8 +365,35 @@ def evaluate_release_chunk_quality(
             token_count=token_count,
         ):
             issues.append("heading_only_chunk")
+        display_text = _required_text(metadata.get("display_text"))
+        if display_text and not _contains_normalized_text(
+            haystack=str(_chunk_value(chunk, "text") or ""),
+            needle=display_text,
+        ):
+            issues.append("display_text_not_in_chunk_text")
+        if _is_table_chunk_missing_context_or_header(metadata=metadata, anchor=anchor):
+            issues.append("missing_table_context_or_header")
+        chunk_rows.append(
+            _ChunkQualityRow(
+                chunk_id=chunk_id,
+                document_key=(
+                    str(_chunk_value(chunk, "corpus") or ""),
+                    str(_chunk_value(chunk, "collection") or ""),
+                    str(_chunk_value(chunk, "document_id") or ""),
+                    str(_chunk_value(chunk, "version_id") or ""),
+                ),
+                root_unit_id=root_unit_id,
+                chunk_order=_coerce_int(_chunk_value(chunk, "chunk_order")),
+                segment_index=_coerce_int(metadata.get("segment_index")),
+                segment_total=_coerce_int(metadata.get("segment_total")),
+            )
+        )
         if issues:
             issues_by_chunk_id[chunk_id] = tuple(dict.fromkeys(issues))
+    _add_cross_chunk_quality_issues(
+        issues_by_chunk_id=issues_by_chunk_id,
+        chunk_rows=tuple(chunk_rows),
+    )
 
     chunk_issue_count = sum(len(issues) for issues in issues_by_chunk_id.values())
     qrels_issues = tuple(str(issue) for issue in qrels_coverage_issues if str(issue).strip())
@@ -484,7 +528,7 @@ def _chunk_value(chunk: object, field_name: str) -> object:
 
 
 def _mapping_value(value: object) -> dict[str, object]:
-    return dict(value) if isinstance(value, dict) else {}
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def _count_tokens(text: str) -> int:
@@ -529,6 +573,151 @@ def _is_heading_only_regulation_chunk(
         return False
     section_path = tuple(str(item).strip() for item in anchor.get("section_path") or ())
     return bool(section_path and text == section_path[-1])
+
+
+def _contains_normalized_text(*, haystack: str, needle: str) -> bool:
+    normalized_haystack = _normalize_match_text(haystack)
+    normalized_needle = _normalize_match_text(needle)
+    return bool(normalized_needle and normalized_needle in normalized_haystack)
+
+
+def _normalize_match_text(value: object) -> str:
+    return re.sub(r"\s+", "", str(value or "")).strip()
+
+
+def _is_table_chunk_missing_context_or_header(
+    *,
+    metadata: Mapping[str, object],
+    anchor: Mapping[str, object],
+) -> bool:
+    unit_type = str(metadata.get("unit_type") or "")
+    if unit_type not in {"table", "table_row", "table_unit"}:
+        return False
+    return not (
+        _has_value(anchor.get("table_context"))
+        or _has_value(metadata.get("table_context"))
+        or _has_value(anchor.get("table_headers"))
+        or _has_value(metadata.get("table_headers"))
+        or _has_value(anchor.get("table_header_cells"))
+        or _has_value(metadata.get("table_header_cells"))
+        or _has_value(anchor.get("header_cells"))
+        or _has_value(metadata.get("header_cells"))
+        or _has_value(anchor.get("table_columns"))
+        or _has_value(metadata.get("table_columns"))
+    )
+
+
+def _add_cross_chunk_quality_issues(
+    *,
+    issues_by_chunk_id: dict[str, tuple[str, ...]],
+    chunk_rows: Sequence[_ChunkQualityRow],
+) -> None:
+    rows_by_document: dict[tuple[str, str, str, str], list[_ChunkQualityRow]] = {}
+    rows_by_root: dict[tuple[str, str, str, str, str], list[_ChunkQualityRow]] = {}
+    for row in chunk_rows:
+        rows_by_document.setdefault(row.document_key, []).append(row)
+        if row.root_unit_id:
+            rows_by_root.setdefault((*row.document_key, row.root_unit_id), []).append(row)
+    for rows in rows_by_document.values():
+        _add_chunk_order_issues(issues_by_chunk_id=issues_by_chunk_id, rows=tuple(rows))
+    for rows in rows_by_root.values():
+        _add_segment_coverage_issues(issues_by_chunk_id=issues_by_chunk_id, rows=tuple(rows))
+
+
+def _add_chunk_order_issues(
+    *,
+    issues_by_chunk_id: dict[str, tuple[str, ...]],
+    rows: Sequence[_ChunkQualityRow],
+) -> None:
+    ordered_rows = tuple(row for row in rows if row.chunk_order is not None)
+    if not ordered_rows:
+        return
+    orders = [int(row.chunk_order) for row in ordered_rows if row.chunk_order is not None]
+    if len(set(orders)) != len(orders):
+        for row in ordered_rows:
+            _append_chunk_quality_issue(
+                issues_by_chunk_id=issues_by_chunk_id,
+                chunk_id=row.chunk_id,
+                issue="duplicate_chunk_order",
+            )
+    if sorted(orders) != list(range(1, max(orders) + 1)):
+        for row in ordered_rows:
+            _append_chunk_quality_issue(
+                issues_by_chunk_id=issues_by_chunk_id,
+                chunk_id=row.chunk_id,
+                issue="chunk_order_gap",
+            )
+
+
+def _add_segment_coverage_issues(
+    *,
+    issues_by_chunk_id: dict[str, tuple[str, ...]],
+    rows: Sequence[_ChunkQualityRow],
+) -> None:
+    segmented_rows = tuple(
+        row for row in rows if row.segment_index is not None or row.segment_total is not None
+    )
+    if not segmented_rows:
+        return
+    invalid_rows = tuple(
+        row
+        for row in segmented_rows
+        if row.segment_index is None
+        or row.segment_total is None
+        or row.segment_index <= 0
+        or row.segment_total <= 0
+        or row.segment_index > row.segment_total
+    )
+    for row in invalid_rows:
+        _append_chunk_quality_issue(
+            issues_by_chunk_id=issues_by_chunk_id,
+            chunk_id=row.chunk_id,
+            issue="invalid_segment_metadata",
+        )
+    valid_rows = tuple(row for row in segmented_rows if row not in invalid_rows)
+    if not valid_rows:
+        return
+    segment_totals = {int(row.segment_total) for row in valid_rows if row.segment_total is not None}
+    if len(segment_totals) != 1:
+        for row in valid_rows:
+            _append_chunk_quality_issue(
+                issues_by_chunk_id=issues_by_chunk_id,
+                chunk_id=row.chunk_id,
+                issue="segment_total_mismatch",
+            )
+        return
+    segment_total = next(iter(segment_totals))
+    if segment_total <= 1:
+        return
+    segment_indexes = [
+        int(row.segment_index) for row in valid_rows if row.segment_index is not None
+    ]
+    if len(set(segment_indexes)) != len(segment_indexes):
+        for row in valid_rows:
+            _append_chunk_quality_issue(
+                issues_by_chunk_id=issues_by_chunk_id,
+                chunk_id=row.chunk_id,
+                issue="duplicate_segment_index",
+            )
+    if sorted(set(segment_indexes)) != list(range(1, segment_total + 1)):
+        for row in valid_rows:
+            _append_chunk_quality_issue(
+                issues_by_chunk_id=issues_by_chunk_id,
+                chunk_id=row.chunk_id,
+                issue="segment_coverage_gap",
+            )
+
+
+def _append_chunk_quality_issue(
+    *,
+    issues_by_chunk_id: dict[str, tuple[str, ...]],
+    chunk_id: str,
+    issue: str,
+) -> None:
+    current = issues_by_chunk_id.get(chunk_id, ())
+    if issue in current:
+        return
+    issues_by_chunk_id[chunk_id] = (*current, issue)
 
 
 __all__ = [

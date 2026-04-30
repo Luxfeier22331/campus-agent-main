@@ -16,6 +16,7 @@ from campus_ingestion_core.index_release_acceptance import (
     load_release_retrieval_acceptance_cases,
     run_release_retrieval_acceptance,
 )
+from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.process_indexing import index_chunks_to_qdrant
@@ -34,6 +35,10 @@ _STUDENT_RULES_RELEASE_ACCEPTANCE_PATH = (
 class _FakeObjectStore:
     def __init__(self) -> None:
         self.uploads: list[dict[str, object]] = []
+        self.objects: dict[tuple[str, str], bytes] = {}
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        return self.objects[(bucket, key)]
 
     def put_bytes(
         self,
@@ -51,6 +56,7 @@ class _FakeObjectStore:
                 "content_type": content_type,
             }
         )
+        self.objects[(bucket, key)] = data
 
 
 class _FakeAcceptanceExecutor(ReleaseRetrievalAcceptanceExecutor):
@@ -454,6 +460,130 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
             any(key.endswith("retrieval-acceptance-summary.json") for key in upload_keys)
         )
 
+    def test_publish_scope_release_refreshes_qdrant_payload_with_final_acceptance_metadata(
+        self,
+    ) -> None:
+        record = _make_record()
+        object_store = _FakeObjectStore()
+        qdrant_client = QdrantClient(location=":memory:")
+
+        report = publish_scope_release(
+            corpus="regulations",
+            collection="student_rules",
+            records=(record,),
+            chunks=(_make_chunk(record=record),),
+            object_store=object_store,
+            qdrant_client=qdrant_client,
+            object_store_settings=_object_store_settings(),
+            runtime_profile=load_runtime_profile("regulations", "student_rules"),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+            publish_alias=True,
+            upsert_batch_size=128,
+            qrels_coverage_issues=(),
+            acceptance_case_path=str(
+                _write_cases(
+                    {
+                        "cases": [
+                            {
+                                "case_id": "expected-hit",
+                                "corpus": "regulations",
+                                "collection": "student_rules",
+                                "query": "学生手册",
+                                "expected_document_ids": [record.document_id],
+                            }
+                        ]
+                    }
+                )
+            ),
+            retrieval_settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+        )
+
+        points, _ = qdrant_client.scroll(
+            collection_name=report.physical_collection_name,
+            limit=1,
+            with_payload=True,
+            with_vectors=False,
+        )
+        payload = points[0].payload or {}
+
+        self.assertEqual(payload["retrieval_acceptance_status"], "passed")
+        self.assertIsInstance(payload["retrieval_acceptance_summary_object_key"], str)
+        self.assertTrue(
+            str(payload["retrieval_acceptance_summary_object_key"]).endswith(
+                "retrieval-acceptance-summary.json"
+            )
+        )
+        self.assertEqual(payload["quality_gate_status"], "passed")
+        self.assertIsInstance(payload["quality_gate_summary_object_key"], str)
+
+    def test_publish_scope_release_rolls_back_alias_when_post_publish_audit_fails(
+        self,
+    ) -> None:
+        class _MissingManifestObjectStore(_FakeObjectStore):
+            def put_bytes(
+                self,
+                *,
+                bucket: str,
+                key: str,
+                data: bytes,
+                content_type: str,
+            ) -> None:
+                super().put_bytes(bucket=bucket, key=key, data=data, content_type=content_type)
+                if key.endswith("index-release.json"):
+                    self.objects.pop((bucket, key), None)
+
+        record = _make_record()
+        object_store = _MissingManifestObjectStore()
+        qdrant_client = QdrantClient(location=":memory:")
+
+        with self.assertRaisesRegex(ValueError, "post-publish release audit failed"):
+            publish_scope_release(
+                corpus="regulations",
+                collection="student_rules",
+                records=(record,),
+                chunks=(_make_chunk(record=record),),
+                object_store=object_store,
+                qdrant_client=qdrant_client,
+                object_store_settings=_object_store_settings(),
+                runtime_profile=load_runtime_profile("regulations", "student_rules"),
+                sparse_embedding_model=build_mock_sparse_embedding_model(),
+                publish_alias=True,
+                upsert_batch_size=128,
+                qrels_coverage_issues=(),
+                acceptance_case_path=str(
+                    _write_cases(
+                        {
+                            "cases": [
+                                {
+                                    "case_id": "expected-hit",
+                                    "corpus": "regulations",
+                                    "collection": "student_rules",
+                                    "query": "学生手册",
+                                    "expected_document_ids": [record.document_id],
+                                }
+                            ]
+                        }
+                    )
+                ),
+                retrieval_settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    embedding_provider="mock",
+                    embedding_model="mock-embedding-8d",
+                    embedding_dimensions=3,
+                    sparse_provider="mock",
+                ),
+            )
+
+        self.assertIsNone(
+            resolve_alias_target(qdrant_client=qdrant_client, alias_name="student_rules")
+        )
+
     def test_publish_scope_release_blocks_query_serving_alias_when_chunk_quality_fails(
         self,
     ) -> None:
@@ -703,6 +833,108 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
         self.assertIn(
             "heading_only_chunk",
             report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-heading-only"],
+        )
+
+    def test_evaluate_release_chunk_quality_rejects_context_only_chunk_text(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    chunk_id="student_rules:handbook:chunk-context-only",
+                    text="第一章 总则",
+                    metadata={
+                        "unit_type": "section_text",
+                        "root_unit_id": "student_rules:handbook:root-context-only",
+                        "display_text": "学生应当按学校规定办理注册手续。",
+                        "contextualized_text": True,
+                        "header_token_count": 4,
+                        "final_token_count": 8,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "display_text_not_in_chunk_text",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-context-only"],
+        )
+
+    def test_evaluate_release_chunk_quality_rejects_incomplete_segment_coverage(self) -> None:
+        record = _make_record()
+        first = replace(
+            _make_chunk(record=record),
+            chunk_id="student_rules:handbook:chunk-segment-1",
+            chunk_order=1,
+            metadata={
+                "unit_type": "section_text",
+                "root_unit_id": "student_rules:handbook:root-segmented",
+                "segment_index": 1,
+                "segment_total": 3,
+                "final_token_count": 32,
+                "chunk_policy_version": "student_rules_semantic_v3",
+            },
+        )
+        third = replace(
+            _make_chunk(record=record),
+            chunk_id="student_rules:handbook:chunk-segment-3",
+            chunk_order=2,
+            metadata={
+                "unit_type": "section_text",
+                "root_unit_id": "student_rules:handbook:root-segmented",
+                "segment_index": 3,
+                "segment_total": 3,
+                "final_token_count": 32,
+                "chunk_policy_version": "student_rules_semantic_v3",
+            },
+        )
+
+        report = evaluate_release_chunk_quality(
+            chunks=(first, third),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "segment_coverage_gap",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-segment-1"],
+        )
+        self.assertIn(
+            "segment_coverage_gap",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-segment-3"],
+        )
+
+    def test_evaluate_release_chunk_quality_rejects_table_chunks_without_context_or_header(
+        self,
+    ) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    chunk_id="student_rules:handbook:chunk-table",
+                    text="本科生 | 按学期注册",
+                    metadata={
+                        "unit_type": "table_unit",
+                        "root_unit_id": "student_rules:handbook:table-0001",
+                        "table_group_id": "student_rules:handbook:table-0001",
+                        "table_row_count": 1,
+                        "table_row_lines": ["本科生 | 按学期注册"],
+                        "final_token_count": 16,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "missing_table_context_or_header",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-table"],
         )
 
 
