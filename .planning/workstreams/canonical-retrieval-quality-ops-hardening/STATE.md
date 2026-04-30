@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -11,15 +11,13 @@ updated: 2026-05-01
 
 ## Current Status
 
-- status: `active`
-- current slice: Phase 0 completed; Phase 1 is next
+- status: `completed`
+- current slice: Phase 0-6 completed on 2026-05-01
 - owner: current Codex session
-- active implementation: Phase 1 qrels denominator policy / fixture validator expansion next
-- latest completed phase: Phase 0 `Scope And Denominator Freeze`
-- next phase: Phase 1 `Qrels And Acceptance Expansion`
-- status note: `gsd-sdk workstream.status` reports any phase directory with `PLAN.md` and no
-  `SUMMARY.md` as `in_progress`; ROADMAP `Status:` lines remain the human execution truth for
-  planned-but-not-started phases in this workstream.
+- active implementation: none; workstream closed
+- latest completed phase: Phase 6 `Gate Separation And Closeout`
+- next phase: none
+- status note: all planned phases have `SUMMARY.md`; reopening requires the reopen rule below.
 
 ## Captured Context
 
@@ -71,9 +69,9 @@ updated: 2026-05-01
 
 ## Blockers
 
-- No external blocker for Phase 0 planning and denominator freeze.
-- Later phases may require real Qdrant / object store / embedding provider credentials for
-  benchmark and smoke evidence.
+- No implementation blocker remains for focused workstream completion.
+- Real Qdrant / object store / embedding provider credentials are still required for non-dry-run
+  benchmark and production smoke evidence.
 - Repo-wide validation is currently expected to remain noisy because unrelated workstreams have
   dirty files; this workstream must use focused gates until integration cleanup.
 
@@ -93,6 +91,34 @@ pnpm exec markdownlint-cli2 \
 
 Phase implementation gates will be recorded in the phase summaries as they are executed.
 
+Focused closeout gate:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.evals.retrieval_qrels_policy_suite \
+  tests.evals.retrieval_tuning_suite \
+  tests.evals.retrieval_release_benchmark_suite \
+  tests.evals.retrieval_monitoring_suite \
+  tests.evals.retrieval_rerank_eval_suite \
+  tests.ingestion.test_index_release_acceptance \
+  tests.ingestion.test_corpus_runtime_profile \
+  tests.ingestion.test_index_release \
+  tests.retrieval.retrieval_service_replan_execution_suite \
+  tests.retrieval.retrieval_service_live_lookup_and_fail_close_suite \
+  tests.retrieval.backend_qdrant_release_guard_suite
+```
+
+Observed result: `Ran 104 tests ... OK`.
+
+Focused Python lint/format:
+
+```bash
+uv run --all-packages ruff check <workstream Python files>
+uv run --all-packages ruff format --check <workstream Python files>
+```
+
+Observed result: `All checks passed!` and `24 files already formatted`.
+
 ## Continuity Notes
 
 - Do not reopen or edit `canonical-retrieval-release-hardening` unless its explicit reopen rule is hit.
@@ -100,3 +126,11 @@ Phase implementation gates will be recorded in the phase summaries as they are e
   campus-services tools, public web UI, or unrelated CI cleanup.
 - Treat runtime observations as eval/backlog intake only; they do not mutate release truth.
 - Keep raw query text disabled by default in any production observation path.
+
+## Reopen Rule
+
+Reopen this workstream only if a new default query-enabled scope lacks denominator policy or release
+acceptance coverage; release benchmark schema / dry-run posture drifts; runtime observation stops
+emitting sanitized durable events; reranker can run without deterministic adoption evidence,
+runtime-profile opt-in or degraded fallback observation; freshness/live branches leak into default
+`current` retrieval; or focused/repo-wide gate separation becomes ambiguous again.
