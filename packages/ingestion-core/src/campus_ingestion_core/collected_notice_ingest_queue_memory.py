@@ -62,10 +62,12 @@ class InMemoryNoticeIngestQueueStore:
         worker_id: str,
         lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
         replay_batch_id: str | None = None,
+        run_id: str | None = None,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord | None:
         timestamp = now or utc_now_dt()
         normalized_replay_batch_id = str(replay_batch_id or "").strip()
+        normalized_run_id = str(run_id or "").strip()
         with self._lock:
             candidates = [
                 record
@@ -81,6 +83,10 @@ class InMemoryNoticeIngestQueueStore:
                     record
                     for record in candidates
                     if record.replay_batch_id == normalized_replay_batch_id
+                ]
+            if normalized_run_id:
+                candidates = [
+                    record for record in candidates if record.run_id == normalized_run_id
                 ]
             if not candidates:
                 return None
@@ -107,6 +113,19 @@ class InMemoryNoticeIngestQueueStore:
         with self._lock:
             record = self._require(job_id)
             updated = record.heartbeat(worker_id=worker_id, lease_seconds=lease_seconds, now=now)
+            self._records_by_job_id[updated.job_id] = updated
+            return updated
+
+    def release(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        with self._lock:
+            record = self._require(job_id)
+            updated = record.release(worker_id=worker_id, now=now)
             self._records_by_job_id[updated.job_id] = updated
             return updated
 

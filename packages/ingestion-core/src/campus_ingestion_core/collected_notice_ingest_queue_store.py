@@ -147,6 +147,23 @@ class NoticeIngestQueueRecord:
             updated_at=timestamp,
         )
 
+    def release(
+        self,
+        *,
+        worker_id: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        timestamp = _coerce_datetime(now) or utc_now_dt()
+        self.require_lease_owner(worker_id=worker_id, now=timestamp)
+        return replace(
+            self,
+            status="queued",
+            leased_by=None,
+            lease_expires_at=None,
+            next_retry_after=None,
+            updated_at=timestamp,
+        )
+
     def complete(
         self,
         *,
@@ -356,6 +373,7 @@ class NoticeIngestQueueStore(Protocol):
         worker_id: str,
         lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
         replay_batch_id: str | None = None,
+        run_id: str | None = None,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord | None: ...
 
@@ -365,6 +383,14 @@ class NoticeIngestQueueStore(Protocol):
         *,
         worker_id: str,
         lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord: ...
+
+    def release(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord: ...
 

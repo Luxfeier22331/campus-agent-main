@@ -99,16 +99,22 @@ class PostgresNoticeIngestQueueStore:
         worker_id: str,
         lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
         replay_batch_id: str | None = None,
+        run_id: str | None = None,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord | None:
         del now
         table_sql = _qualified_table_sql(self.table_name)
         replay_filter = ""
+        run_filter = ""
         params: list[object] = []
         normalized_replay_batch_id = str(replay_batch_id or "").strip()
         if normalized_replay_batch_id:
             replay_filter = "and replay_batch_id = %s"
             params.append(normalized_replay_batch_id)
+        normalized_run_id = str(run_id or "").strip()
+        if normalized_run_id:
+            run_filter = "and run_id = %s"
+            params.append(normalized_run_id)
         params.extend((str(worker_id), int(lease_seconds)))
         query = f"""
             with candidate as (
@@ -127,6 +133,7 @@ class PostgresNoticeIngestQueueStore:
                         )
                     )
                     {replay_filter}
+                    {run_filter}
                 order by priority asc, created_at asc, job_id asc
                 limit 1
                 for update skip locked
@@ -176,6 +183,31 @@ class PostgresNoticeIngestQueueStore:
             (int(lease_seconds), str(job_id), str(worker_id)),
             job_id=str(job_id),
         )
+
+    def release(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        del now
+        table_sql = _qualified_table_sql(self.table_name)
+        query = f"""
+            update {table_sql}
+            set
+                status = 'queued',
+                leased_by = null,
+                lease_expires_at = null,
+                next_retry_after = null,
+                updated_at = now()
+            where job_id = %s
+                and status = 'leased'
+                and leased_by = %s
+                and (lease_expires_at is null or lease_expires_at > now())
+            returning {self._returning_columns()}
+        """
+        return self._update_owned_job(query, (str(job_id), str(worker_id)), job_id=str(job_id))
 
     def complete(
         self,

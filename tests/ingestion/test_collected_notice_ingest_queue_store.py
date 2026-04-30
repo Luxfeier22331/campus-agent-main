@@ -118,6 +118,19 @@ class NoticeIngestQueueStoreTest(unittest.TestCase):
         self.assertEqual(still_leased.status, "leased")
         self.assertEqual(still_leased.leased_by, "worker-a")
 
+    def test_release_returns_owned_lease_to_queued(self) -> None:
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job("muc_internal_portal:355512", content_hash="sha256-a", priority=50)
+        store.enqueue(job, now=_dt(0))
+        store.lease_next(worker_id="worker-a", lease_seconds=60, now=_dt(1))
+
+        released = store.release(job.job_id, worker_id="worker-a", now=_dt(2))
+
+        self.assertEqual(released.status, "queued")
+        self.assertIsNone(released.leased_by)
+        self.assertIsNone(released.lease_expires_at)
+        self.assertEqual(store.list_status_counts()["queued"], 1)
+
     def test_retryable_failures_dead_letter_after_max_attempts(self) -> None:
         store = InMemoryNoticeIngestQueueStore()
         job = _job("muc_internal_portal:355512", content_hash="sha256-a", priority=50)

@@ -14,7 +14,7 @@ updated: 2026-05-01
 - [x] **Phase 1: Queue Contract And Lifecycle Freeze** — froze authenticated-notice run-level queue payload, lifecycle states, idempotency, retry/manual-review semantics, and docs.
 - [x] **Phase 2: Manual Historical Enqueue And Repair Ledger** — enqueue already collected content through verified run ledger or repair/synthetic ledger rows.
 - [x] **Phase 3: Collector Verified-Run Auto-Enqueue** — make collector or its scheduler enqueue only after source bucket upload and run ledger verification.
-- [ ] **Phase 4: Run-Level Queue Consumer** — claim queue jobs by lease and execute source-object verification plus source-truth/import from `run_id`.
+- [x] **Phase 4: Run-Level Queue Consumer** — claim queue jobs by lease and execute source-object verification plus source-truth/import from `run_id`.
 - [ ] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
 - [ ] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
 - [ ] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
@@ -118,6 +118,15 @@ uv run --all-packages python -m unittest \
 ## Phase 4: Run-Level Queue Consumer
 
 Goal: make ingestion worker consume a run-level job and execute source-truth/import through object-native `run_id` handoff.
+
+Result:
+
+- Added run-level consumer `campus_ingestion_core.authenticated_notice_run_queue_consumer`.
+- Added worker CLI `campus_ingestion_worker.consume_authenticated_notice_ingest_queue`.
+- Consumer leases only `authenticated_notice_ingest_job.v1` jobs and supports store-level `--run-id` filtering.
+- Consumer re-resolves verified collector run ledger refs, checks queue payload refs match ledger refs, verifies source object hash/size, and calls `import_authenticated_notice_export` with object refs only.
+- Queue result transitions now cover success, retryable source-object/object-store failures with `next_retry_after`, terminal contract failures, and manual-review gate failures.
+- Added lease release so dry-run consumers do not leave queue rows stuck in `leased`.
 
 Deliverables:
 
