@@ -37,6 +37,9 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import
     _normalize_prompt_runtime_transport,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
+    _build_responses_multimodal_input as _build_responses_multimodal_input,
+)
+from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
     _detect_curriculum_course_map_regions_async as _runtime_detect_curriculum_course_map_regions_async,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
@@ -63,9 +66,15 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
     _run_curriculum_course_map_probe_runs_async as _runtime_run_curriculum_course_map_probe_runs_async,
 )
+from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
+    _to_responses_multimodal_content as _to_responses_multimodal_content,
+)
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime_support import (
     _build_probe_config,
     _validate_resume_probe_config,
+)
+from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime_support import (
+    _is_retryable_probe_exception as _is_retryable_probe_exception,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (
     CURRICULUM_COURSE_MAP_GOLD_MANIFEST_VERSION,

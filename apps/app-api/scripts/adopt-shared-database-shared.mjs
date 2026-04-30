@@ -3,7 +3,14 @@ import { fileURLToPath } from "node:url";
 
 export const APP_API_MIGRATIONS_SCHEMA = "drizzle";
 export const APP_API_MIGRATIONS_TABLE = "app_api_migrations";
-export const APP_API_KNOWN_SCHEMAS = ["runtime", "operator", "official_web"];
+export const APP_API_KNOWN_SCHEMAS = [
+	"docs",
+	"official_web",
+	"operator",
+	"profile",
+	"runtime",
+	"wechat_official_account",
+];
 
 export const CREATE_SCHEMA_RE = /^CREATE SCHEMA IF NOT EXISTS "([^"]+)";?$/i;
 export const CREATE_TABLE_RE = /^CREATE TABLE "([^"]+)"\."([^"]+)" \(/i;

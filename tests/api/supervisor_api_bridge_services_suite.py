@@ -166,7 +166,12 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
             "/internal/query/campus-services/transport-schedule",
         )
         self.assertEqual(query_requests[0]["auth"], "query-secret")
-        self.assertEqual(query_requests[0]["body"]["intent"], "schedule_snapshot_metadata")
+        payload = query_requests[0]["body"]["payload"]
+        self.assertEqual(payload["intent"], "schedule_snapshot_metadata")
+        self.assertEqual(
+            query_requests[0]["body"]["access_context"]["actor"]["user_id"],
+            "student@example.edu",
+        )
 
     def test_bridge_answer_uses_go_preplanned_structured_handoff_without_python_routing(
         self,
@@ -250,5 +255,6 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["target"], "campus-services-agent")
         self.assertEqual(len(query_requests), 1)
-        self.assertEqual(query_requests[0]["intent"], "first_departure")
-        self.assertEqual(query_requests[0]["service_time_query"]["date_mode"], "tomorrow")
+        payload = query_requests[0]["payload"]
+        self.assertEqual(payload["intent"], "first_departure")
+        self.assertEqual(payload["service_time_query"]["date_mode"], "tomorrow")

@@ -1465,3 +1465,7 @@ main.rp-doc-layout__doc-container {
 		font-size: 0.7rem;
 	}
 }
+
+.rspress-doc .document-meta-details:not([open]) dl {
+	display: none;
+}

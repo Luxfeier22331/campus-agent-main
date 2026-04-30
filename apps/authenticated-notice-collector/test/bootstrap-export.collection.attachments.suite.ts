@@ -429,7 +429,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 
 	it("keeps inline image refs reference-only when default visual capture is disabled", async () => {
 		let downloadCalls = 0;
-		const storedObjects: Array<unknown> = [];
+		const storedObjects: unknown[] = [];
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
@@ -528,7 +528,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 
 	it("does not store non-visual bytes from default inline visual capture", async () => {
 		let downloadCalls = 0;
-		const storedObjects: Array<unknown> = [];
+		const storedObjects: unknown[] = [];
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",

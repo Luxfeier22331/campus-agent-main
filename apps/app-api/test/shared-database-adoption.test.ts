@@ -253,6 +253,46 @@ DROP COLUMN "actor_groups_json";`),
 		).toBe(false);
 	});
 
+	it("does not create transient indexes that are already dropped by the latest snapshot", () => {
+		const inventory = makeInventory({
+			schemas: ["docs"],
+			tables: [
+				buildTableFromExpected("docs.collections"),
+				buildTableFromExpected("docs.documents"),
+				buildTableFromExpected("docs.document_versions"),
+				buildTableFromExpected("docs.reader_assets"),
+				buildTableFromExpected("docs.search_units"),
+			],
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "docs.search_units@docs_search_units_search_text_idx",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey === "docs.search_units@docs_search_units_version_search_text_idx",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "docs@docs_search_units_search_text_idx",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "docs@docs_search_units_version_search_text_idx",
+			),
+		).toBe(false);
+	});
+
 	it("allows add-column migrations to reconcile legacy official_web tables without a journal", () => {
 		const inventory = makeInventory({
 			schemas: ["official_web", "operator"],

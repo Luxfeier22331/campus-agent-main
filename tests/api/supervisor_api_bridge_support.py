@@ -25,6 +25,7 @@ def _bridge_v6_payload(
     trace_id: str = "trace-001",
     effective_capability: str = "knowledge",
     lane: str = "rag",
+    actor: dict[str, object] | None = None,
     context: dict[str, object] | None = None,
     version_query: dict[str, object] | None = None,
     preplan_delegate: bool = True,
@@ -42,6 +43,8 @@ def _bridge_v6_payload(
                 },
             },
         }
+    if actor is None:
+        actor = dict(context.get("actor", {})) if isinstance(context.get("actor"), dict) else {}
     if version_query is None:
         version_query = {"mode": "current"}
     body: dict[str, object] = {
@@ -54,9 +57,11 @@ def _bridge_v6_payload(
         "requested_capability": effective_capability,
         "effective_capability": effective_capability,
         "lane": lane,
+        "actor": actor,
         "context": context,
         "version_query": version_query,
         "runtime_decisions": {
+            "schema_version": "supervisor-runtime-decisions-v1",
             "effective_capability": effective_capability,
             "lane": lane,
             "scope_gate": {
@@ -82,6 +87,7 @@ def _bridge_v6_payload(
                 "policy_version": "runtime-policy-v1",
             },
             "runtime_decision_summary": {
+                "schema_version": "runtime-decision-summary-v1",
                 "scope_gate_decision": "in_scope",
                 "policy_gate_decision": "delegate",
                 "context_preflight_state": "not_follow_up",
@@ -144,6 +150,7 @@ def _handoff_fields_for_capability(
     if effective_capability == "campus_services":
         return {
             "runtime_decision_summary": {
+                "schema_version": "runtime-decision-summary-v1",
                 "scope_gate_decision": "in_scope",
                 "policy_gate_decision": "delegate",
                 "context_preflight_state": "not_follow_up",
@@ -174,6 +181,7 @@ def _handoff_fields_for_capability(
     if effective_capability == "notice":
         return {
             "runtime_decision_summary": {
+                "schema_version": "runtime-decision-summary-v1",
                 "scope_gate_decision": "in_scope",
                 "policy_gate_decision": "delegate",
                 "context_preflight_state": "not_follow_up",
@@ -202,6 +210,7 @@ def _handoff_fields_for_capability(
         }
     return {
         "runtime_decision_summary": {
+            "schema_version": "runtime-decision-summary-v1",
             "scope_gate_decision": "in_scope",
             "policy_gate_decision": "delegate",
             "context_preflight_state": "not_follow_up",
@@ -292,6 +301,7 @@ def _bridge_v6_payload_with_handoff(
         context=context,
     )
     body["runtime_decisions"] = {
+        "schema_version": "supervisor-runtime-decisions-v1",
         "effective_capability": effective_capability,
         "lane": lane,
         "scope_gate": {
@@ -347,6 +357,7 @@ def _bridge_v6_payload_with_handoff(
             "ambiguity_reason": "",
         },
         "runtime_decision_summary": {
+            "schema_version": "runtime-decision-summary-v1",
             "scope_gate_decision": "in_scope",
             "policy_gate_decision": "delegate",
             "context_preflight_state": "not_follow_up",

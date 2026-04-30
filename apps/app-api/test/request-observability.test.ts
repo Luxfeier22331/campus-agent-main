@@ -341,6 +341,8 @@ describe("request observability", () => {
 					},
 					selectedTarget: "campus-services-agent",
 					selectedTools: ["transport_schedule_lookup"],
+					traceSteps: [],
+					toolCallSummaries: [],
 					toolArgumentSummary: {
 						payload_kind: "transport_schedule_lookup",
 					},

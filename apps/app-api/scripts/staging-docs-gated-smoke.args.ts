@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.args";
 import {
 	DEFAULT_STAGING_APP_API_READYZ_URL,
@@ -5,19 +8,25 @@ import {
 } from "./staging-chat-smoke.args";
 
 export const DEFAULT_STAGING_DOCS_BASE_URL = "https://campus-docs-staging.ayafeed.com";
-export const DEFAULT_STAGING_GATED_COLLECTION_NAVIGATION_PATH =
-	"/api/docs/collections/regulations/scoped_rules/navigation";
-export const DEFAULT_STAGING_GATED_READER_PATH =
-	"/_gated-docs/curriculum/curriculum_plan/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%A4%A7%E5%AD%A6%E7%94%9F%E7%A4%BE%E4%BC%9A%E5%AE%9E%E8%B7%B5%E7%8E%AF%E8%8A%82%E5%AE%9E%E6%96%BD%E6%96%B9%E6%A1%88/2022-current/reader.json";
+export const DEFAULT_GATED_NAVIGATION_UNAUTHENTICATED_STATUS = 404;
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(scriptDir, "../../..");
+export const DEFAULT_PUBLIC_DOCS_SYNC_MANIFEST_PATH = resolve(
+	repoRoot,
+	"var/public-docs-sync-manifest.json",
+);
 
 export interface StagingDocsGatedSmokeArgs {
 	appApiReadyzUrl: string;
 	chatBaseUrl: string;
 	docsBaseUrl: string;
 	email: string;
-	gatedCollectionNavigationPath: string;
-	gatedReaderPath: string;
+	gatedCollectionNavigationPath: string | null;
+	gatedCollectionNavigationUnauthenticatedStatus: 200 | 404;
+	gatedReaderPath: string | null;
 	name: string;
+	publicDocsSyncManifestPath: string;
 	smokeAuthSecret: string;
 }
 
@@ -34,6 +43,110 @@ function normalizePath(value: string): string {
 	return value.startsWith("/") ? value : `/${value}`;
 }
 
+interface PublishedReaderSmokeManifestEntry {
+	collection: string;
+	corpus: string;
+	deliveryMode: string;
+	targetObjects: Record<string, string>;
+}
+
+interface PublishedReaderSmokeManifest {
+	entries: PublishedReaderSmokeManifestEntry[];
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		!Array.isArray(value) &&
+		Object.values(value).every((item) => typeof item === "string")
+	);
+}
+
+function normalizeManifestEntry(value: unknown): PublishedReaderSmokeManifestEntry {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new Error("public docs sync manifest entry must be an object");
+	}
+	const entry = value as Partial<PublishedReaderSmokeManifestEntry>;
+	if (!entry.corpus?.trim()) {
+		throw new Error("public docs sync manifest entry requires corpus");
+	}
+	if (!entry.collection?.trim()) {
+		throw new Error("public docs sync manifest entry requires collection");
+	}
+	if (!entry.deliveryMode?.trim()) {
+		throw new Error("public docs sync manifest entry requires deliveryMode");
+	}
+	if (!isStringRecord(entry.targetObjects)) {
+		throw new Error("public docs sync manifest entry requires targetObjects");
+	}
+	return {
+		collection: entry.collection,
+		corpus: entry.corpus,
+		deliveryMode: entry.deliveryMode,
+		targetObjects: entry.targetObjects,
+	};
+}
+
+function loadPublicDocsSyncManifest(path: string): PublishedReaderSmokeManifest {
+	const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<PublishedReaderSmokeManifest>;
+	if (!Array.isArray(parsed.entries)) {
+		throw new Error("public docs sync manifest must contain entries[]");
+	}
+	return {
+		entries: parsed.entries.map(normalizeManifestEntry),
+	};
+}
+
+function buildCollectionNavigationPath(entry: PublishedReaderSmokeManifestEntry): string {
+	return `/api/docs/collections/${encodeURIComponent(entry.corpus)}/${encodeURIComponent(entry.collection)}/navigation`;
+}
+
+function normalizeReaderTargetPath(entry: PublishedReaderSmokeManifestEntry): string {
+	const reader = normalizeOptionalValue(entry.targetObjects.reader);
+	if (!reader) {
+		throw new Error(
+			`gated public docs sync manifest entry ${entry.corpus}/${entry.collection} is missing targetObjects.reader`,
+		);
+	}
+	return normalizePath(reader);
+}
+
+export function resolveStagingDocsGatedSmokeTargets(
+	args: StagingDocsGatedSmokeArgs,
+): StagingDocsGatedSmokeArgs & {
+	gatedCollectionNavigationPath: string;
+	gatedReaderPath: string;
+} {
+	if (args.gatedCollectionNavigationPath && args.gatedReaderPath) {
+		return {
+			...args,
+			gatedCollectionNavigationPath: args.gatedCollectionNavigationPath,
+			gatedReaderPath: args.gatedReaderPath,
+		};
+	}
+
+	const manifest = loadPublicDocsSyncManifest(args.publicDocsSyncManifestPath);
+	const gatedEntry = manifest.entries.find((entry) => entry.deliveryMode === "gated_asset");
+	if (!gatedEntry) {
+		throw new Error("public docs sync manifest must contain at least one gated_asset entry.");
+	}
+	const collectionHasPublicEntry = manifest.entries.some(
+		(entry) =>
+			entry.corpus === gatedEntry.corpus &&
+			entry.collection === gatedEntry.collection &&
+			entry.deliveryMode === "public_static_asset",
+	);
+
+	return {
+		...args,
+		gatedCollectionNavigationPath:
+			args.gatedCollectionNavigationPath ?? buildCollectionNavigationPath(gatedEntry),
+		gatedCollectionNavigationUnauthenticatedStatus: collectionHasPublicEntry ? 200 : 404,
+		gatedReaderPath: args.gatedReaderPath ?? normalizeReaderTargetPath(gatedEntry),
+	};
+}
+
 export function parseStagingDocsGatedSmokeArgs(
 	argv: string[],
 	env: NodeJS.ProcessEnv = process.env,
@@ -43,8 +156,11 @@ export function parseStagingDocsGatedSmokeArgs(
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_BASE_URL;
 	let appApiReadyzUrl = DEFAULT_STAGING_APP_API_READYZ_URL;
 	let docsBaseUrl = DEFAULT_STAGING_DOCS_BASE_URL;
-	let gatedCollectionNavigationPath = DEFAULT_STAGING_GATED_COLLECTION_NAVIGATION_PATH;
-	let gatedReaderPath = DEFAULT_STAGING_GATED_READER_PATH;
+	let gatedCollectionNavigationPath: string | null = null;
+	let gatedReaderPath: string | null = null;
+	let publicDocsSyncManifestPath =
+		normalizeOptionalValue(env.PUBLIC_DOCS_SYNC_MANIFEST_PATH) ??
+		DEFAULT_PUBLIC_DOCS_SYNC_MANIFEST_PATH;
 	let smokeAuthSecret =
 		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
 		normalizeOptionalValue(env.STAGING_APP_API_SMOKE_AUTH_SECRET) ??
@@ -118,6 +234,15 @@ export function parseStagingDocsGatedSmokeArgs(
 			index += 1;
 			continue;
 		}
+		if (token === "--public-docs-sync-manifest-path") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--public-docs-sync-manifest-path requires a non-empty value.");
+			}
+			publicDocsSyncManifestPath = value;
+			index += 1;
+			continue;
+		}
 		if (token === "--smoke-auth-secret") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -142,8 +267,10 @@ export function parseStagingDocsGatedSmokeArgs(
 		docsBaseUrl,
 		email,
 		gatedCollectionNavigationPath,
+		gatedCollectionNavigationUnauthenticatedStatus: DEFAULT_GATED_NAVIGATION_UNAUTHENTICATED_STATUS,
 		gatedReaderPath,
 		name,
+		publicDocsSyncManifestPath,
 		smokeAuthSecret,
 	};
 }

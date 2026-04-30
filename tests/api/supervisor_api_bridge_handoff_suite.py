@@ -56,6 +56,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             lane="rag",
         )
         body["runtime_decisions"] = {
+            "schema_version": "supervisor-runtime-decisions-v1",
             "effective_capability": "knowledge",
             "lane": "rag",
             "scope_gate": {
@@ -81,6 +82,7 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
                 "policy_version": "runtime-policy-v1",
             },
             "runtime_decision_summary": {
+                "schema_version": "runtime-decision-summary-v1",
                 "scope_gate_decision": "out_of_scope",
                 "policy_gate_decision": "out_of_scope",
                 "context_preflight_state": "not_follow_up",
@@ -156,8 +158,13 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
             request_id="req-missing-runtime-frame",
         )
         body["runtime_decisions"] = {
+            "schema_version": "supervisor-runtime-decisions-v1",
             "effective_capability": "knowledge",
             "lane": "rag",
+            "runtime_decision_summary": {
+                "schema_version": "runtime-decision-summary-v1",
+                "planning_outcome": "not_preplanned",
+            },
         }
 
         response = app.handle(

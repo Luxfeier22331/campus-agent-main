@@ -45,14 +45,16 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
         public_docs_readme = (REPO_ROOT / "apps" / "public-docs" / "README.md").read_text(
             encoding="utf-8"
         )
-        handbook_index = (
-            REPO_ROOT / "apps" / "public-docs" / "docs" / "student-handbook" / "index.md"
-        ).read_text(encoding="utf-8")
-        curriculum_index = (
-            REPO_ROOT / "apps" / "public-docs" / "docs" / "curriculum-plan" / "index.md"
-        ).read_text(encoding="utf-8")
+        docs_root = REPO_ROOT / "apps" / "public-docs" / "docs"
+        checked_in_docs = tuple(
+            path.read_text(encoding="utf-8")
+            for path in sorted(docs_root.rglob("*"))
+            if path.suffix in {".md", ".mdx"}
+        )
 
-        for text in (public_docs_readme, handbook_index, curriculum_index):
+        self.assertNotEqual(checked_in_docs, ())
+
+        for text in (public_docs_readme, *checked_in_docs):
             self.assertNotIn("campus-rag-derived", text)
             self.assertNotIn("canonical.md", text)
             self.assertNotIn("document-units.jsonl", text)

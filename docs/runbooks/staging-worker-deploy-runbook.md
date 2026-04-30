@@ -87,6 +87,9 @@ truth，而不是这些旧值的继续合法化。
   - `env.staging.vars.APP_API_BASE_URL=<https://app-api.internal`>
 - `apps/public-chat-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
+  - staging build 会通过 repo-owned `scripts/run-worker-staging-build.mjs`
+    为缺失的 runtime-only Worker secrets 注入构建期占位值；wrapper 会在 build
+    后删除生成的 `dist/**/.dev.vars`，并拒绝任何占位值进入其余 build artifact
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
     worker-staging-public-chat-web`、Cloudflare secret presence、staging build 与
     built config verification
@@ -104,6 +107,9 @@ truth，而不是这些旧值的继续合法化。
     `ACCESS_POLICY_AUD` 不再硬编码在 repo
 - `apps/protected-panel-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
+  - staging build 会通过 repo-owned `scripts/run-worker-staging-build.mjs`
+    为缺失的 runtime-only Worker secrets 注入构建期占位值；wrapper 会在 build
+    后删除生成的 `dist/**/.dev.vars`，并拒绝任何占位值进入其余 build artifact
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
     worker-staging-protected-panel-web`、Cloudflare secret presence、staging build
     与 built config verification
@@ -302,6 +308,9 @@ wrangler secret put SENTRY_DSN --env staging
 - `ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` 不写回 repo，也不再要求硬编码在 `wrangler.toml`
 - staging publish 时通过 shell env `STAGING_ACCESS_TEAM_DOMAIN` /
   `STAGING_ACCESS_POLICY_AUD` 注入当前真实 Access 配置
+- staging service-token smoke 使用 ignored shell env
+  `STAGING_PANEL_ACCESS_CLIENT_ID` / `STAGING_PANEL_ACCESS_CLIENT_SECRET`；它们只用于
+  Cloudflare Access envelope smoke，不代表 human operator identity
 
 ## Cross-App Invariants
 
@@ -368,6 +377,13 @@ pnpm --dir apps/app-api chat:smoke:staging
 pnpm --dir apps/app-api docs:gated:smoke:staging
 ```
 
+- `docs:gated:smoke:staging` 默认读取
+  `PUBLIC_DOCS_SYNC_MANIFEST_PATH`，未设置时使用 repo-root
+  `var/public-docs-sync-manifest.json`；它从 manifest 中选择第一个
+  `gated_asset` reader，不再维护硬编码 gated reader path
+- gated collection navigation 的匿名期望状态也由同一 manifest 推导：如果同一
+  `corpus/collection` 同时存在 `public_static_asset`，匿名 navigation 应为 `200`；
+  如果该 collection 只有 gated entry，匿名 navigation 应为 `404`
 - 这些命令会在 shell 内生成临时随机密码，通过部署态 `app-api-staging`
   `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
   staging session cookie，然后真实请求 `campus-chat-staging` 或
@@ -498,6 +514,23 @@ pnpm --dir apps/protected-panel-web deploy:staging
 
 - `<https://campus-panel-staging.ayafeed.com/healthz`>
 - `<https://campus-panel-staging.ayafeed.com/readyz`>
+
+Access service-token envelope smoke:
+
+```bash
+STAGING_PANEL_ACCESS_CLIENT_ID=<access-service-token-client-id> \
+STAGING_PANEL_ACCESS_CLIENT_SECRET=<access-service-token-client-secret> \
+pnpm --dir apps/protected-panel-web access:smoke:staging
+```
+
+该 smoke 的预期是：
+
+- 不带 service token 的 `/readyz` 返回 Cloudflare Access redirect
+- 带 service token 的 `/healthz` 与 `/readyz` 返回 `200`
+- 带 service token 的 `/api/overview` 仍返回 `401 Invalid Access JWT.`
+
+最后一条是当前边界：Access service token 只证明 protected panel envelope
+可由 automation 到达，不被投射为 human operator identity。
 
 ## Post-Deploy Verification
 

@@ -29,7 +29,7 @@
 			"max_lines": 820
 		},
 		"apps/public-chat-web/test/worker.test.ts": {
-			"max_lines": 1767
+			"max_lines": 1799
 		},
 		"apps/supervisor-api/internal/structuredquery/notice_test.go": {
 			"max_lines": 808
@@ -89,7 +89,7 @@
 			"max_lines": 895
 		},
 		"tests/agent/test_campus_services_agent.py": {
-			"max_lines": 1012
+			"max_lines": 1041
 		},
 		"tests/ingestion/authenticated_notice_import_export_suite.py": {
 			"max_lines": 1037

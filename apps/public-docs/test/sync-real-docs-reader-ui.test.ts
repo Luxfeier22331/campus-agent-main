@@ -1,6 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ensurePublicDocsScaffold } from "../scripts/ensure-docs-scaffold";
 import { buildRspressSidebarConfig } from "../scripts/rspress-sidebar";
 import { sanitizePreservedHtmlForMdx } from "../scripts/sync-real-docs/html-table";
 import {
@@ -51,22 +53,26 @@ describe("public-docs reader UI contracts", () => {
 	});
 
 	it("builds an explicit sidebar when the top navigation is disabled", () => {
-		const sidebar = buildRspressSidebarConfig(join(process.cwd(), "docs"));
+		const docsRoot = mkdtempSync(join(tmpdir(), "public-docs-sidebar-"));
+		try {
+			ensurePublicDocsScaffold({ docsRoot });
+			const sidebar = buildRspressSidebarConfig(docsRoot);
 
-		expect(sidebar["/"][0]).toMatchObject({
-			text: "文档首页",
-			link: "/",
-		});
-		expect(sidebar["/"][1]).toMatchObject({
-			text: "公开文档",
-			link: "/docs/",
-			collapsed: false,
-			collapsible: true,
-		});
-		expect(JSON.stringify(sidebar)).toContain("中央民族大学学生考勤管理办法");
-		expect(JSON.stringify(sidebar)).toContain(
-			"/docs/curriculum/curriculum_plan/计算机类本科人才培养方案",
-		);
+			expect(sidebar["/"][0]).toMatchObject({
+				text: "文档首页",
+				link: "/",
+			});
+			expect(sidebar["/"][1]).toMatchObject({
+				text: "公开文档",
+				link: "/docs/",
+				collapsed: false,
+				collapsible: true,
+			});
+			expect(JSON.stringify(sidebar)).toContain("/docs/regulations/student_rules/");
+			expect(JSON.stringify(sidebar)).toContain("/docs/curriculum/curriculum_plan/");
+		} finally {
+			rmSync(docsRoot, { recursive: true, force: true });
+		}
 	});
 
 	it("normalizes Rspress search input attributes through a runtime helper", () => {
