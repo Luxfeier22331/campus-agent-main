@@ -3,14 +3,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import signal
 import subprocess
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
+
+STRUCTURED_DIRECT_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +67,7 @@ def build_process_smoke_plan(
         "SUPERVISOR_AGENT_WORKER_HOST": worker_host,
         "SUPERVISOR_AGENT_WORKER_PORT": str(worker_port),
     }
+    profile_api_env = _profile_api_env(profile)
     api_env = {
         **common_env,
         "API_AUTH_MODE": "trusted-worker",
@@ -73,6 +78,7 @@ def build_process_smoke_plan(
         "SUPERVISOR_API_OTEL_ENABLED": "false",
         "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED": "false",
         "SUPERVISOR_API_OPEN_CAPABILITIES": os.getenv("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
+        **profile_api_env,
     }
     answer_payload, expected_status, expected_body_tokens = _profile_answer_expectation(profile)
     return ProcessSmokePlan(
@@ -163,7 +169,34 @@ def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, t
             200,
             ("workflow_trace_summary", "agent_execution_projection", "agent_plan"),
         )
+    if profile == "structured_direct_opened":
+        return (
+            {
+                "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
+                "request_id": "process-smoke-structured-direct-opened",
+                "requested_capability": "campus_services",
+                "context": context,
+            },
+            200,
+            (
+                "campus-services-agent",
+                "transport_schedule_lookup",
+                "resolved_current",
+                "direct_runtime",
+                "agent_execution_projection",
+                "result_guardrail",
+            ),
+        )
     raise ValueError(f"unsupported process smoke profile: {profile}")
+
+
+def _profile_api_env(profile: str) -> dict[str, str]:
+    if profile != "structured_direct_opened":
+        return {}
+    return {
+        "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
+        "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (STRUCTURED_DIRECT_OPENED_TRUSTED_TIME),
+    }
 
 
 def run_process_smoke(
@@ -173,8 +206,14 @@ def run_process_smoke(
     started: list[subprocess.Popen[bytes]] = []
     log_files = []
     process_logs = {}
+    runtime_preparation: _RuntimePreparation | None = None
     try:
-        for process_spec in plan.processes:
+        runtime_preparation = _prepare_process_smoke_runtime(plan, timeout_seconds=timeout_seconds)
+        processes = _processes_with_env_overlay(
+            plan.processes,
+            runtime_preparation.process_env_overlay if runtime_preparation is not None else {},
+        )
+        for process_spec in processes:
             log_file = process_spec.log_path.open("ab")
             log_files.append(log_file)
             process_logs[process_spec.label] = str(process_spec.log_path)
@@ -192,7 +231,7 @@ def run_process_smoke(
             expected_statuses={200},
             timeout_seconds=timeout_seconds,
             headers={
-                "x-supervisor-bridge-auth": plan.processes[0].env[
+                "x-supervisor-bridge-auth": processes[0].env[
                     "SUPERVISOR_AGENT_WORKER_SHARED_SECRET"
                 ]
             },
@@ -207,7 +246,7 @@ def run_process_smoke(
         answer_status, answer_body = _post_json(
             f"{plan.api_base_url}/api/v1/answer",
             plan.answer_payload,
-            headers={"x-worker-origin-auth": plan.processes[1].env["API_WORKER_SHARED_SECRET"]},
+            headers={"x-worker-origin-auth": processes[1].env["API_WORKER_SHARED_SECRET"]},
             timeout_seconds=timeout_seconds,
         )
         answer_text = json.dumps(answer_body, ensure_ascii=False)
@@ -224,8 +263,11 @@ def run_process_smoke(
             "passed": passed,
             "api_base_url": plan.api_base_url,
             "worker_base_url": plan.worker_base_url,
-            "processes": [process_spec_to_artifact(process) for process in plan.processes],
+            "processes": [process_spec_to_artifact(process) for process in processes],
             "process_logs": process_logs,
+            "runtime_preparation": (
+                runtime_preparation.artifact if runtime_preparation is not None else {}
+            ),
             "probes": {
                 "worker_healthz_status": worker_healthz,
                 "api_healthz_status": api_healthz,
@@ -251,11 +293,201 @@ def run_process_smoke(
         _terminate_processes(started)
         for log_file in log_files:
             log_file.close()
+        if runtime_preparation is not None:
+            runtime_preparation.cleanup()
     (plan.output_dir / "process-smoke-summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
     return summary
+
+
+@dataclass(frozen=True, slots=True)
+class _RuntimePreparation:
+    process_env_overlay: dict[str, str]
+    artifact: dict[str, object]
+    cleanup: Callable[[], None]
+
+
+def _prepare_process_smoke_runtime(
+    plan: ProcessSmokePlan,
+    *,
+    timeout_seconds: float,
+) -> _RuntimePreparation | None:
+    if plan.profile != "structured_direct_opened":
+        return None
+    base_database_url = _process_smoke_base_postgres_url(plan.repo_root)
+    if not base_database_url:
+        raise RuntimeError(
+            "structured_direct_opened process smoke requires CAMPUS_SHARED_POSTGRES_URL "
+            "in the shell environment or repo root .env"
+        )
+    database_name = _temporary_process_smoke_database_name()
+    management_url = _postgres_url_with_database(base_database_url, "postgres")
+    runtime_database_url = _postgres_url_with_database(base_database_url, database_name)
+    seed_log_path = plan.output_dir / "structured-projection-seed.log"
+    cleanup = _create_temporary_postgres_database(management_url, database_name)
+    try:
+        _seed_structured_projection_smoke(
+            repo_root=plan.repo_root,
+            runtime_database_url=runtime_database_url,
+            log_path=seed_log_path,
+            timeout_seconds=timeout_seconds,
+        )
+    except Exception:
+        cleanup()
+        raise
+    return _RuntimePreparation(
+        process_env_overlay={
+            "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
+            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+            ),
+        },
+        artifact={
+            "kind": "temporary_postgres_structured_projection",
+            "database_name": database_name,
+            "seed_log_path": str(seed_log_path),
+            "trusted_time": STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        },
+        cleanup=cleanup,
+    )
+
+
+def _process_smoke_base_postgres_url(repo_root: Path) -> str:
+    value = os.getenv("CAMPUS_SHARED_POSTGRES_URL", "").strip()
+    if value:
+        return value
+    return _root_env_value(repo_root, "CAMPUS_SHARED_POSTGRES_URL")
+
+
+def _root_env_value(repo_root: Path, key: str) -> str:
+    env_path = repo_root / ".env"
+    if not env_path.exists():
+        return ""
+    prefix = f"{key}="
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or not line.startswith(prefix):
+            continue
+        value = line[len(prefix) :].strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            return value[1:-1]
+        return value
+    return ""
+
+
+def _temporary_process_smoke_database_name() -> str:
+    suffix = f"{int(time.time() * 1000)}_{os.getpid()}"
+    return _sanitize_postgres_database_name(f"campus_agent_process_smoke_{suffix}")
+
+
+def _sanitize_postgres_database_name(value: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9_]", "_", value).lower().strip("_")
+    if not normalized:
+        normalized = "campus_agent_process_smoke"
+    if not re.match(r"^[a-z_]", normalized):
+        normalized = f"smoke_{normalized}"
+    return normalized[:63]
+
+
+def _postgres_url_with_database(database_url: str, database_name: str) -> str:
+    parsed = urlparse(database_url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise ValueError("CAMPUS_SHARED_POSTGRES_URL must be a postgres/postgresql URL")
+    return urlunparse(parsed._replace(path=f"/{database_name}"))
+
+
+def _create_temporary_postgres_database(management_url: str, database_name: str):
+    try:
+        import psycopg
+        from psycopg import sql
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("psycopg is required for structured_direct_opened smoke") from exc
+
+    with (
+        psycopg.connect(management_url, autocommit=True) as connection,
+        connection.cursor() as cursor,
+    ):
+        _drop_temporary_postgres_database(cursor, database_name, sql)
+        cursor.execute(sql.SQL("create database {}").format(sql.Identifier(database_name)))
+
+    cleaned = False
+
+    def cleanup() -> None:
+        nonlocal cleaned
+        if cleaned:
+            return
+        cleaned = True
+        try:
+            with (
+                psycopg.connect(management_url, autocommit=True) as connection,
+                connection.cursor() as cursor,
+            ):
+                _drop_temporary_postgres_database(cursor, database_name, sql)
+        except Exception:
+            return
+
+    return cleanup
+
+
+def _drop_temporary_postgres_database(cursor: object, database_name: str, sql: object) -> None:
+    cursor.execute(
+        """
+        select pg_terminate_backend(pid)
+        from pg_stat_activity
+        where datname = %s and pid <> pg_backend_pid()
+        """,
+        (database_name,),
+    )
+    cursor.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(database_name)))
+
+
+def _seed_structured_projection_smoke(
+    *,
+    repo_root: Path,
+    runtime_database_url: str,
+    log_path: Path,
+    timeout_seconds: float,
+) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("ab") as log_file:
+        subprocess.run(
+            (
+                "uv",
+                "run",
+                "--all-packages",
+                "campus-ingestion-smoke-structured-projection-postgres",
+                "--release-id",
+                "supervisor-runtime-process-smoke",
+                "--generated-at",
+                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+            ),
+            cwd=repo_root,
+            env={**os.environ, "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url},
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            check=True,
+            timeout=max(10.0, timeout_seconds),
+        )
+
+
+def _processes_with_env_overlay(
+    processes: tuple[ProcessCommandSpec, ...],
+    env_overlay: dict[str, str],
+) -> tuple[ProcessCommandSpec, ...]:
+    if not env_overlay:
+        return processes
+    return tuple(
+        ProcessCommandSpec(
+            label=process.label,
+            command=process.command,
+            cwd=process.cwd,
+            env={**process.env, **env_overlay},
+            log_path=process.log_path,
+        )
+        for process in processes
+    )
 
 
 def process_spec_to_artifact(process: ProcessCommandSpec) -> dict[str, object]:
@@ -273,7 +505,17 @@ def process_spec_to_artifact(process: ProcessCommandSpec) -> dict[str, object]:
 
 def _artifact_env_value(key: str, value: str) -> str:
     normalized = key.strip().upper()
-    if any(token in normalized for token in ("SECRET", "TOKEN", "API_KEY", "ACCESS_KEY")):
+    if any(
+        token in normalized
+        for token in (
+            "SECRET",
+            "TOKEN",
+            "API_KEY",
+            "ACCESS_KEY",
+            "DATABASE_URL",
+            "POSTGRES_URL",
+        )
+    ):
         return "<redacted>"
     return value
 

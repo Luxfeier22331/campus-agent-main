@@ -49,13 +49,28 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
         )
 
-        artifact = process_spec_to_artifact(plan.processes[1])
+        process = plan.processes[1]
+        artifact = process_spec_to_artifact(
+            process.__class__(
+                label=process.label,
+                command=process.command,
+                cwd=process.cwd,
+                env={
+                    **process.env,
+                    "CAMPUS_SHARED_POSTGRES_URL": (
+                        "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent"
+                    ),
+                },
+                log_path=process.log_path,
+            )
+        )
 
         self.assertEqual(artifact["env"]["API_WORKER_SHARED_SECRET"], "<redacted>")
         self.assertEqual(
             artifact["env"]["SUPERVISOR_AGENT_WORKER_SHARED_SECRET"],
             "<redacted>",
         )
+        self.assertEqual(artifact["env"]["CAMPUS_SHARED_POSTGRES_URL"], "<redacted>")
         self.assertEqual(
             artifact["env"]["SUPERVISOR_AGENT_WORKER_BASE_URL"],
             "http://127.0.0.1:18081",
@@ -77,6 +92,11 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             profile="rag_delegate",
         )
+        structured_open = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="structured_direct_opened",
+        )
 
         self.assertEqual(closed.expected_status, 503)
         self.assertIn("structured_runtime_closed", closed.expected_body_tokens)
@@ -88,6 +108,22 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("agent_execution_projection", rag.expected_body_tokens)
         self.assertIn("agent_plan", rag.expected_body_tokens)
         self.assertEqual(rag.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(structured_open.expected_status, 200)
+        self.assertEqual(
+            structured_open.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "campus_services",
+        )
+        self.assertEqual(
+            structured_open.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            "2026-04-24T20:30:00+08:00",
+        )
+        self.assertIn("direct_runtime", structured_open.expected_body_tokens)
+        self.assertIn("agent_execution_projection", structured_open.expected_body_tokens)
+        self.assertIn("result_guardrail", structured_open.expected_body_tokens)
+        self.assertEqual(
+            structured_open.answer_payload["requested_capability"],
+            "campus_services",
+        )
 
     def test_answer_probe_uses_process_smoke_timeout_budget(self) -> None:
         import inspect
@@ -97,6 +133,43 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         parameters = inspect.signature(_post_json).parameters
 
         self.assertIn("timeout_seconds", parameters)
+
+    def test_structured_open_profile_uses_temporary_postgres_overlay(self) -> None:
+        from scripts.supervisor_runtime_process_smoke import (
+            STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+            _postgres_url_with_database,
+            _processes_with_env_overlay,
+        )
+
+        plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="structured_direct_opened",
+        )
+        runtime_database_url = _postgres_url_with_database(
+            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+            "campus_agent_process_smoke_test",
+        )
+
+        processes = _processes_with_env_overlay(
+            plan.processes,
+            {
+                "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
+                "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                    STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+                ),
+            },
+        )
+
+        self.assertEqual(
+            processes[1].env["CAMPUS_SHARED_POSTGRES_URL"],
+            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_test",
+        )
+        self.assertEqual(
+            processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        )
+        self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", plan.processes[1].env)
 
 
 if __name__ == "__main__":
