@@ -50,6 +50,25 @@ updated: 2026-05-01
   collection policies should become machine-checkable planning / eval truth rather than duplicated
   hard-coded release constants.
 
+2026-05-01 current opened-content verification:
+
+- Operator scope for this verification explicitly excluded `official_web/*`; this does not mutate
+  the repo-level default query-enabled policy, it only records the current execution boundary.
+- Verified opened non-official scopes: `regulations/student_rules`,
+  `regulations/institutional_rules`, and `curriculum/curriculum_plan`.
+- Excluded from this verification: `official_web/stable_reference`, `regulations/scoped_rules`
+  because it is not default query-enabled, `campus_services/*`, and
+  `campus_notices/internal_notice`.
+- Evidence:
+  - `uv run --all-packages python -m unittest tests.evals.retrieval_benchmark_qrels_module_and_handbook_suite tests.evals.retrieval_benchmark_qrels_curriculum_suite tests.evals.retrieval_benchmark_qrels_alias_validation_suite -q` -> `41 tests OK`
+  - `uv run --all-packages python -m unittest tests.agent.rag_agent_request_prompt_suite tests.agent.rag_agent_request_prompt_contract_suite tests.agent.rag_agent_request_prompt_grounding_suite tests.agent.rag_agent_request_prompt_fallback_suite tests.agent.rag_agent_answer_grounding_suite tests.agent.rag_agent_curriculum_resolution_suite tests.agent.rag_agent_curriculum_resolution_initial_suite tests.agent.rag_agent_curriculum_resolution_followup_suite tests.agent.rag_agent_curriculum_resolution_bias_suite tests.agent.rag_agent_curriculum_structured_lookup_suite tests.agent.rag_agent_curriculum_structured_lookup_access_suite tests.agent.rag_agent_curriculum_structured_lookup_query_suite tests.agent.rag_agent_curriculum_structured_lookup_named_document_suite tests.agent.rag_agent_curriculum_semester_answering_suite tests.agent.rag_agent_curriculum_semester_selection_suite tests.agent.rag_agent_curriculum_planning_suite tests.supervisor.agent_dispatch_suite tests.supervisor.agent_dispatch_response_suite tests.supervisor.agent_handoff_suite tests.contracts.contract_models_request_and_retrieval_suite -q` -> `180 tests OK`
+  - `uv run --all-packages python -m unittest tests.evals.retrieval_benchmark_qrels_module_and_handbook_suite tests.evals.retrieval_benchmark_qrels_curriculum_suite tests.evals.retrieval_benchmark_qrels_alias_validation_suite tests.evals.retrieval_tuning_suite tests.evals.retrieval_release_benchmark_suite tests.retrieval.retrieval_service_backend_and_request_projection_suite tests.retrieval.retrieval_service_replan_execution_suite tests.retrieval.backend_qdrant_policy_suite tests.retrieval.backend_qdrant_curriculum_ranking_suite tests.retrieval.backend_qdrant_curriculum_ranking_metadata_suite tests.retrieval.backend_qdrant_curriculum_ranking_prioritization_suite tests.retrieval.test_curriculum_query_resolution -q` -> `138 tests OK`
+  - scoped local policy check for the three non-official opened scopes -> `opened_non_official_profiles=3`, `opened_non_official_qrels=3`, `coverage_issues=0`
+- An accidental run of `tests.retrieval.retrieval_service_live_lookup_and_fail_close_suite`
+  failed in `official_web/stable_reference` / `official_web/fresh_news`
+  freshness/live-assisted cases. Those failures are outside this verification scope and are not
+  counted as blockers for current opened non-official content consumption.
+
 ## Blockers
 
 - No external blocker for Phase 0 planning and denominator freeze.
