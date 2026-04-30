@@ -121,6 +121,8 @@ func finalizeAgentBridgeResponse(
 	if err != nil || hasForbiddenWorkflowTraceKey(agentObservability) {
 		return nil, errInvalidAgentResponse
 	}
+	selectedTool := finalizerSelectedTool(target, result, agentObservability, context)
+	context.SelectedTool = selectedTool
 	response := map[string]any{
 		"selected_target":        target,
 		"status":                 status,
@@ -129,11 +131,27 @@ func finalizeAgentBridgeResponse(
 		"confidence":             confidence,
 		"result":                 result,
 		"error":                  errorBody,
-		"observability":          buildSupervisorObservability(target, status, result, context.SelectedTool),
+		"observability":          buildSupervisorObservability(target, status, result, selectedTool),
 		"workflow_trace_summary": buildWorkflowTraceSummary(context, target, status, result, agentObservability),
 		"trace_id":               traceID,
 	}
 	return response, nil
+}
+
+func finalizerSelectedTool(
+	target string,
+	result map[string]any,
+	agentObservability map[string]any,
+	context supervisorFinalizerContext,
+) string {
+	selectedTool := defaultString(
+		stringValue(agentObservability["selected_tool"]),
+		defaultString(context.SelectedTool, context.RuntimeDecisions.SelectedTool),
+	)
+	if selectedTool == "" {
+		selectedTool = inferSelectedTool(target, result)
+	}
+	return selectedTool
 }
 
 func optionalAgentResponseString(agentResponse map[string]any, field string) (string, error) {

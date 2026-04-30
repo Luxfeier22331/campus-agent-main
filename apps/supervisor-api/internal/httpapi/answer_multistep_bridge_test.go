@@ -113,6 +113,10 @@ func TestAnswerExecutesRecordedMultiStepWorkflow(t *testing.T) {
 		t.Fatalf("rag user_goal did not include notice step context: %q", ragUserGoal)
 	}
 	body := decodeBody(t, response)
+	observability := expectRecord(t, body["observability"], "observability")
+	if observability["selected_tool"] != "retrieval.query" {
+		t.Fatalf("observability.selected_tool = %v, want retrieval.query", observability["selected_tool"])
+	}
 	traceSummary := expectRecord(t, body["workflow_trace_summary"], "workflow_trace_summary")
 	if traceSummary["workflow_mode"] != "multi_step" {
 		t.Fatalf("workflow_mode = %v, want multi_step", traceSummary["workflow_mode"])
