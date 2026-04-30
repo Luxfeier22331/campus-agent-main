@@ -143,7 +143,10 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         )
         notice_processes = {process.label: process for process in notice_get.processes}
         self.assertEqual(notice_get.answer_payload["requested_capability"], "notice")
-        self.assertEqual(notice_get.answer_payload["context"]["session"]["selected_notice_ref"]["notice_id"], "notice:smoke:001")  # type: ignore[index]
+        self.assertEqual(
+            notice_get.answer_payload["context"]["session"]["selected_notice_ref"]["notice_id"],
+            "notice:smoke:001",
+        )  # type: ignore[index]
         self.assertEqual(
             notice_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
             "notice",

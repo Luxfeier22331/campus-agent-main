@@ -33,8 +33,11 @@ class ProcessSmokePlan:
     profile: str
     api_base_url: str
     worker_base_url: str
+    answer_path: str
+    answer_response_kind: str
     answer_payload: dict[str, object]
     expected_status: int
+    expected_readyz_statuses: tuple[int, ...]
     expected_body_tokens: tuple[str, ...]
     processes: tuple[ProcessCommandSpec, ...]
 
@@ -48,6 +51,8 @@ def build_process_smoke_plan(
     api_port: int = 18080,
     worker_host: str = "127.0.0.1",
     worker_port: int = 18081,
+    object_store_host: str = "127.0.0.1",
+    object_store_port: int = 18082,
 ) -> ProcessSmokePlan:
     api_secret = os.getenv("API_WORKER_SHARED_SECRET", "supervisor-api-local-placeholder")
     bridge_secret = os.getenv(
@@ -67,7 +72,8 @@ def build_process_smoke_plan(
         "SUPERVISOR_AGENT_WORKER_HOST": worker_host,
         "SUPERVISOR_AGENT_WORKER_PORT": str(worker_port),
     }
-    profile_api_env = _profile_api_env(profile)
+    object_store_base_url = f"http://{object_store_host}:{object_store_port}"
+    profile_api_env = _profile_api_env(profile, object_store_base_url=object_store_base_url)
     api_env = {
         **common_env,
         "API_AUTH_MODE": "trusted-worker",
@@ -80,43 +86,82 @@ def build_process_smoke_plan(
         "SUPERVISOR_API_OPEN_CAPABILITIES": os.getenv("SUPERVISOR_API_OPEN_CAPABILITIES", ""),
         **profile_api_env,
     }
-    answer_payload, expected_status, expected_body_tokens = _profile_answer_expectation(profile)
-    return ProcessSmokePlan(
-        repo_root=repo_root,
-        output_dir=output_dir,
-        profile=profile,
-        api_base_url=api_base_url,
-        worker_base_url=worker_base_url,
-        answer_payload=answer_payload,
-        expected_status=expected_status,
-        expected_body_tokens=expected_body_tokens,
-        processes=(
+    (
+        answer_payload,
+        expected_status,
+        expected_body_tokens,
+        answer_path,
+        answer_response_kind,
+        expected_readyz_statuses,
+    ) = _profile_answer_expectation(profile)
+    processes = (
+        ProcessCommandSpec(
+            label="supervisor-agent-worker",
+            command=(
+                "uv",
+                "run",
+                "--all-packages",
+                "python",
+                "-m",
+                "campus_supervisor_agent_worker.bridge_server",
+            ),
+            cwd=repo_root,
+            env=worker_env,
+            log_path=output_dir / "supervisor-agent-worker.log",
+        ),
+        ProcessCommandSpec(
+            label="supervisor-api",
+            command=("go", "run", "./cmd/supervisor-api"),
+            cwd=repo_root / "apps" / "supervisor-api",
+            env=api_env,
+            log_path=output_dir / "supervisor-api.log",
+        ),
+    )
+    if _profile_requires_object_store(profile):
+        processes = (
+            processes[0],
             ProcessCommandSpec(
-                label="supervisor-agent-worker",
+                label="s3-smoke-object-store",
                 command=(
                     "uv",
                     "run",
                     "--all-packages",
                     "python",
                     "-m",
-                    "campus_supervisor_agent_worker.bridge_server",
+                    "scripts.smoke_s3_object_store",
+                    "--host",
+                    object_store_host,
+                    "--port",
+                    str(object_store_port),
                 ),
                 cwd=repo_root,
-                env=worker_env,
-                log_path=output_dir / "supervisor-agent-worker.log",
+                env={
+                    "SMOKE_S3_BUCKET": "campus-rag-derived",
+                    "SMOKE_S3_RESPONSE_BODY": _notice_smoke_body(),
+                },
+                log_path=output_dir / "s3-smoke-object-store.log",
             ),
-            ProcessCommandSpec(
-                label="supervisor-api",
-                command=("go", "run", "./cmd/supervisor-api"),
-                cwd=repo_root / "apps" / "supervisor-api",
-                env=api_env,
-                log_path=output_dir / "supervisor-api.log",
-            ),
-        ),
+            processes[1],
+        )
+    return ProcessSmokePlan(
+        repo_root=repo_root,
+        output_dir=output_dir,
+        profile=profile,
+        api_base_url=api_base_url,
+        worker_base_url=worker_base_url,
+        answer_path=answer_path,
+        answer_response_kind=answer_response_kind,
+        answer_payload=answer_payload,
+        expected_status=expected_status,
+        expected_readyz_statuses=expected_readyz_statuses,
+        expected_body_tokens=expected_body_tokens,
+        processes=processes,
     )
 
 
-def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, tuple[str, ...]]:
+def _profile_answer_expectation(
+    profile: str,
+) -> tuple[dict[str, object], int, tuple[str, ...], str, str, tuple[int, ...]]:
     context = {
         "actor": {
             "user_id": "smoke-student",
@@ -142,6 +187,9 @@ def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, t
             },
             503,
             ("structured_runtime_closed",),
+            "/api/v1/answer",
+            "json",
+            (200,),
         )
     if profile == "terminal_fail_close":
         return (
@@ -153,6 +201,9 @@ def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, t
             },
             200,
             ("product_scope_boundary",),
+            "/api/v1/answer",
+            "json",
+            (200,),
         )
     if profile == "rag_delegate":
         return (
@@ -168,6 +219,9 @@ def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, t
             },
             200,
             ("workflow_trace_summary", "agent_execution_projection", "agent_plan"),
+            "/api/v1/answer",
+            "json",
+            (200,),
         )
     if profile == "structured_direct_opened":
         return (
@@ -186,17 +240,107 @@ def _profile_answer_expectation(profile: str) -> tuple[dict[str, object], int, t
                 "agent_execution_projection",
                 "result_guardrail",
             ),
+            "/api/v1/answer",
+            "json",
+            (200,),
+        )
+    if profile == "structured_direct_opened_stream":
+        return (
+            {
+                "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
+                "request_id": "process-smoke-structured-direct-opened-stream",
+                "requested_capability": "campus_services",
+                "context": context,
+            },
+            200,
+            (
+                "event: execution.completed",
+                "campus-services-agent",
+                "transport_schedule_lookup",
+                "resolved_current",
+                "direct_runtime",
+                "agent_execution_projection",
+                "result_guardrail",
+            ),
+            "/api/v1/answer/stream",
+            "sse",
+            (200,),
+        )
+    if profile == "notice_get_direct_opened":
+        notice_context = {
+            **context,
+            "session": {
+                "selected_notice_ref": {
+                    "notice_id": "notice:smoke:001",
+                    "source_family": "wechat_public_notice",
+                    "title": "烟雾测试通知",
+                },
+                "turn_count": 2,
+            },
+        }
+        return (
+            {
+                "user_goal": "这条通知详情",
+                "request_id": "process-smoke-notice-get-direct-opened",
+                "requested_capability": "notice",
+                "context": notice_context,
+            },
+            200,
+            (
+                "notice-agent",
+                "campus_notice_get",
+                "resolved_current",
+                "烟雾测试通知",
+                "direct_runtime",
+                "agent_execution_projection",
+                "result_guardrail",
+            ),
+            "/api/v1/answer",
+            "json",
+            (200,),
         )
     raise ValueError(f"unsupported process smoke profile: {profile}")
 
 
-def _profile_api_env(profile: str) -> dict[str, str]:
-    if profile != "structured_direct_opened":
-        return {}
-    return {
-        "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
-        "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (STRUCTURED_DIRECT_OPENED_TRUSTED_TIME),
-    }
+def _profile_api_env(profile: str, *, object_store_base_url: str) -> dict[str, str]:
+    if profile in {"structured_direct_opened", "structured_direct_opened_stream"}:
+        return {
+            "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
+            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+            ),
+        }
+    if profile == "notice_get_direct_opened":
+        return {
+            "SUPERVISOR_API_OPEN_CAPABILITIES": "notice",
+            "OBJECT_STORE_ENDPOINT": object_store_base_url,
+            "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+            "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+        }
+    return {}
+
+
+def _profile_requires_object_store(profile: str) -> bool:
+    return profile == "notice_get_direct_opened"
+
+
+def _profile_requires_structured_projection(profile: str) -> bool:
+    return profile in {"structured_direct_opened", "structured_direct_opened_stream"}
+
+
+def _profile_requires_notice_read_model(profile: str) -> bool:
+    return profile == "notice_get_direct_opened"
+
+
+def _profile_requires_temporary_postgres(profile: str) -> bool:
+    return _profile_requires_structured_projection(profile) or _profile_requires_notice_read_model(
+        profile
+    )
+
+
+def _notice_smoke_body() -> str:
+    return "# 烟雾测试通知\n\n这是一条用于 notice-agent direct runtime smoke 的通知正文。\n"
 
 
 def run_process_smoke(
@@ -213,6 +357,7 @@ def run_process_smoke(
             plan.processes,
             runtime_preparation.process_env_overlay if runtime_preparation is not None else {},
         )
+        process_by_label = {process.label: process for process in processes}
         for process_spec in processes:
             log_file = process_spec.log_path.open("ab")
             log_files.append(log_file)
@@ -231,7 +376,7 @@ def run_process_smoke(
             expected_statuses={200},
             timeout_seconds=timeout_seconds,
             headers={
-                "x-supervisor-bridge-auth": processes[0].env[
+                "x-supervisor-bridge-auth": process_by_label["supervisor-agent-worker"].env[
                     "SUPERVISOR_AGENT_WORKER_SHARED_SECRET"
                 ]
             },
@@ -241,18 +386,28 @@ def run_process_smoke(
             expected_statuses={200},
             timeout_seconds=timeout_seconds,
         )
-        readyz = _request_json(f"{plan.api_base_url}/readyz")
+        readyz = _wait_for_json_status(
+            f"{plan.api_base_url}/readyz",
+            expected_statuses=set(plan.expected_readyz_statuses),
+            timeout_seconds=timeout_seconds,
+        )
         metrics_status = _request_status(f"{plan.api_base_url}/metrics")
-        answer_status, answer_body = _post_json(
-            f"{plan.api_base_url}/api/v1/answer",
+        answer_status, answer_body = _post_answer_probe(
+            f"{plan.api_base_url}{plan.answer_path}",
             plan.answer_payload,
-            headers={"x-worker-origin-auth": processes[1].env["API_WORKER_SHARED_SECRET"]},
+            response_kind=plan.answer_response_kind,
+            headers={
+                "x-worker-origin-auth": process_by_label["supervisor-api"].env[
+                    "API_WORKER_SHARED_SECRET"
+                ]
+            },
             timeout_seconds=timeout_seconds,
         )
         answer_text = json.dumps(answer_body, ensure_ascii=False)
         passed = (
             worker_healthz == 200
             and api_healthz == 200
+            and readyz[0] in plan.expected_readyz_statuses
             and metrics_status == 200
             and answer_status == plan.expected_status
             and all(token in answer_text for token in plan.expected_body_tokens)
@@ -272,9 +427,12 @@ def run_process_smoke(
                 "worker_healthz_status": worker_healthz,
                 "api_healthz_status": api_healthz,
                 "readyz_status": readyz[0],
+                "expected_readyz_statuses": plan.expected_readyz_statuses,
                 "metrics_status": metrics_status,
                 "answer_status": answer_status,
                 "expected_answer_status": plan.expected_status,
+                "answer_path": plan.answer_path,
+                "answer_response_kind": plan.answer_response_kind,
                 "expected_body_tokens": plan.expected_body_tokens,
             },
             "answer": answer_body,
@@ -314,12 +472,12 @@ def _prepare_process_smoke_runtime(
     *,
     timeout_seconds: float,
 ) -> _RuntimePreparation | None:
-    if plan.profile != "structured_direct_opened":
+    if not _profile_requires_temporary_postgres(plan.profile):
         return None
     base_database_url = _process_smoke_base_postgres_url(plan.repo_root)
     if not base_database_url:
         raise RuntimeError(
-            "structured_direct_opened process smoke requires CAMPUS_SHARED_POSTGRES_URL "
+            f"{plan.profile} process smoke requires CAMPUS_SHARED_POSTGRES_URL "
             "in the shell environment or repo root .env"
         )
     database_name = _temporary_process_smoke_database_name()
@@ -327,28 +485,50 @@ def _prepare_process_smoke_runtime(
     runtime_database_url = _postgres_url_with_database(base_database_url, database_name)
     seed_log_path = plan.output_dir / "structured-projection-seed.log"
     cleanup = _create_temporary_postgres_database(management_url, database_name)
+    env_overlay: dict[str, str] = {}
+    artifacts: list[dict[str, object]] = []
     try:
-        _seed_structured_projection_smoke(
-            repo_root=plan.repo_root,
-            runtime_database_url=runtime_database_url,
-            log_path=seed_log_path,
-            timeout_seconds=timeout_seconds,
-        )
+        if _profile_requires_structured_projection(plan.profile):
+            _seed_structured_projection_smoke(
+                repo_root=plan.repo_root,
+                runtime_database_url=runtime_database_url,
+                log_path=seed_log_path,
+                timeout_seconds=timeout_seconds,
+            )
+            env_overlay["CAMPUS_SHARED_POSTGRES_URL"] = runtime_database_url
+            env_overlay["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
+                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+            )
+            artifacts.append(
+                {
+                    "kind": "temporary_postgres_structured_projection",
+                    "seed_log_path": str(seed_log_path),
+                    "trusted_time": STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+                }
+            )
+        if _profile_requires_notice_read_model(plan.profile):
+            notice_seed_log_path = plan.output_dir / "notice-read-model-seed.log"
+            _seed_notice_read_model_smoke(
+                runtime_database_url=runtime_database_url,
+                log_path=notice_seed_log_path,
+            )
+            env_overlay["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"] = runtime_database_url
+            artifacts.append(
+                {
+                    "kind": "temporary_postgres_notice_read_model",
+                    "seed_log_path": str(notice_seed_log_path),
+                    "notice_id": "notice:smoke:001",
+                }
+            )
     except Exception:
         cleanup()
         raise
     return _RuntimePreparation(
-        process_env_overlay={
-            "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
-            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
-                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
-            ),
-        },
+        process_env_overlay=env_overlay,
         artifact={
-            "kind": "temporary_postgres_structured_projection",
+            "kind": "temporary_postgres_runtime",
             "database_name": database_name,
-            "seed_log_path": str(seed_log_path),
-            "trusted_time": STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+            "seed_artifacts": artifacts,
         },
         cleanup=cleanup,
     )
@@ -472,6 +652,61 @@ def _seed_structured_projection_smoke(
         )
 
 
+def _seed_notice_read_model_smoke(
+    *,
+    runtime_database_url: str,
+    log_path: Path,
+) -> None:
+    from campus_ingestion_core.internal_notice_read_model import (
+        InternalNoticeReadModelEntry,
+        PostgresInternalNoticeReadModelStore,
+    )
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    store = PostgresInternalNoticeReadModelStore(runtime_database_url)
+    record = InternalNoticeReadModelEntry(
+        source_family="wechat_public_notice",
+        source_corpus="campus_notices",
+        source_collection="internal_notice",
+        source_notice_id="notice:smoke:001",
+        unit_id="notice_unit:smoke:001:body",
+        primary_role="notice_window",
+        target_surface="notice_level_query",
+        consumption_status="ready",
+        queryable=True,
+        title="烟雾测试通知",
+        visibility_level="public",
+        entitlement_groups=(),
+        policy_projection_version="phase1-authorization-projection-v1",
+        published_at="2026-04-24T20:00:00+08:00",
+        source_url="https://example.invalid/notices/smoke",
+        canonical_url="https://example.invalid/notices/smoke",
+        canonical_document_id="doc:smoke-notice",
+        canonical_markdown_object_key=(
+            "campus_notices/documents/wechat_public_notice/smoke/canonical.md"
+        ),
+        body_excerpt="烟雾测试通知正文摘要。",
+        search_text="烟雾测试通知 通知详情 原文",
+        projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+    )
+    store.upsert_many((record,))
+    log_path.write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "table": store.table_name,
+                "notice_id": record.source_notice_id,
+                "source_family": record.source_family,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _processes_with_env_overlay(
     processes: tuple[ProcessCommandSpec, ...],
     env_overlay: dict[str, str],
@@ -558,6 +793,37 @@ def _request_json(url: str) -> tuple[int, object]:
         return int(exc.code), json.loads(exc.read().decode("utf-8") or "{}")
 
 
+def _wait_for_json_status(
+    url: str,
+    *,
+    expected_statuses: set[int],
+    timeout_seconds: float,
+) -> tuple[int, object]:
+    deadline = time.monotonic() + timeout_seconds
+    last_response: tuple[int, object] = (0, {})
+    while time.monotonic() < deadline:
+        last_response = _request_json(url)
+        if last_response[0] in expected_statuses:
+            return last_response
+        time.sleep(0.5)
+    raise RuntimeError(f"timed out waiting for {url}; last_status={last_response[0]}")
+
+
+def _post_answer_probe(
+    url: str,
+    payload: dict[str, object],
+    *,
+    response_kind: str,
+    headers: dict[str, str],
+    timeout_seconds: float,
+) -> tuple[int, object]:
+    if response_kind == "sse":
+        return _post_sse(url, payload, headers=headers, timeout_seconds=timeout_seconds)
+    if response_kind == "json":
+        return _post_json(url, payload, headers=headers, timeout_seconds=timeout_seconds)
+    raise ValueError(f"unsupported answer response kind: {response_kind}")
+
+
 def _post_json(
     url: str,
     payload: dict[str, object],
@@ -576,6 +842,62 @@ def _post_json(
             return int(response.status), json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         return int(exc.code), json.loads(exc.read().decode("utf-8") or "{}")
+
+
+def _post_sse(
+    url: str,
+    payload: dict[str, object],
+    *,
+    headers: dict[str, str],
+    timeout_seconds: float,
+) -> tuple[int, object]:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"content-type": "application/json", **headers},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            return int(response.status), _parse_sse_response(response.read())
+    except urllib.error.HTTPError as exc:
+        return int(exc.code), _parse_sse_response(exc.read())
+
+
+def _parse_sse_response(raw_body: bytes) -> dict[str, object]:
+    body_text = raw_body.decode("utf-8", errors="replace")
+    events: list[dict[str, object]] = []
+    event_name = "message"
+    data_lines: list[str] = []
+    for line in body_text.splitlines():
+        if line == "":
+            if data_lines:
+                events.append(_sse_event(event_name, "\n".join(data_lines)))
+            event_name = "message"
+            data_lines = []
+            continue
+        if line.startswith("event:"):
+            event_name = line.removeprefix("event:").strip() or "message"
+        elif line.startswith("data:"):
+            data_lines.append(line.removeprefix("data:").strip())
+    if data_lines:
+        events.append(_sse_event(event_name, "\n".join(data_lines)))
+    return {
+        "kind": "sse",
+        "body_text": body_text,
+        "events": events,
+    }
+
+
+def _sse_event(event_name: str, data_text: str) -> dict[str, object]:
+    try:
+        data: object = json.loads(data_text)
+    except json.JSONDecodeError:
+        data = data_text
+    return {
+        "event": event_name,
+        "data": data,
+    }
 
 
 def _terminate_processes(processes: list[subprocess.Popen[bytes]]) -> None:

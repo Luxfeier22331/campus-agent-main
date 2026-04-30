@@ -197,6 +197,14 @@ Evaluation helpers for campus-agent v2.
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
   dry-run artifact。`multi-agent-product-path` 暂保留为 deprecated alias；真实产品路径 E2E 使用
   `public-chat-product-path --collect-runtime` 和后续 public chat acceptance lane。
+- `multi-agent-live-smoke` 是本地 direct-process live gate，入口为：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  multi-agent-live-smoke`；它顺序启动 `supervisor-agent-worker`、`supervisor-api`
+  以及 notice profile 需要的本地最小 S3-compatible smoke endpoint，不启动 Docker /
+  Wrangler。该 gate 覆盖 closed structured gate、terminal fail-close、RAG delegate、
+  opened structured direct runtime、opened structured stream runtime 与 notice direct
+  runtime，并把真实 supervisor response 中的 `workflow_trace_summary` 回放成 report-only
+  trace replay artifact。
 - `multi-agent-runtime-contract` 额外固定 cross-language supervisor execution fixture
   matrix：`tests/fixtures/supervisor_execution_contract/` 的 valid / invalid 样本必须同时被
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来

@@ -8,6 +8,7 @@ from campus_evals.workflow_trace_gate import (
     WorkflowTraceExpectation,
     attach_workflow_trace_gate,
     evaluate_workflow_trace_case,
+    load_process_smoke_workflow_trace_summaries,
     load_workflow_trace_cases,
     validate_workflow_trace_case_set,
 )
@@ -378,6 +379,77 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
 
         self.assertFalse(results.trace_projection_completeness.passed)
         self.assertIn("tool_call_summaries", results.trace_projection_completeness.reason)
+
+    def test_loads_workflow_trace_summary_from_process_smoke_artifact(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            report_path = Path(temp_dir) / "process-smoke-summary.json"
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "supervisor_runtime_process_smoke.v1",
+                        "profile": "structured_direct_opened",
+                        "passed": True,
+                        "answer": {
+                            "workflow_trace_summary": {
+                                "routing_frame": {"scope_gate_decision": "allow"},
+                                "context_resolution": {"state": "ok"},
+                                "planning_outcome": "preplanned",
+                                "direct_vs_delegate_branch": "direct",
+                                "workflow_mode": "direct_runtime",
+                                "handoff": {"target": "campus-services-agent"},
+                                "handoff_chain": [],
+                                "selected_target": "campus-services-agent",
+                                "selected_tools": ["transport_schedule_lookup"],
+                                "tool_argument_summary": {
+                                    "payload_kind": "transport_schedule_lookup"
+                                },
+                                "trace_steps": [
+                                    {
+                                        "step_id": "runtime_policy",
+                                        "span_kind": "runtime_policy",
+                                        "parent_step_id": "",
+                                        "outcome": "delegate",
+                                    },
+                                    {
+                                        "step_id": "tool_call",
+                                        "span_kind": "tool_call",
+                                        "parent_step_id": "runtime_policy",
+                                        "tool_name": "transport_schedule_lookup",
+                                        "outcome": "completed",
+                                        "result_status": "completed",
+                                        "retry_count": 0,
+                                    },
+                                ],
+                                "tool_call_summaries": [
+                                    {
+                                        "tool_name": "transport_schedule_lookup",
+                                        "result_status": "completed",
+                                        "source_ids": [],
+                                    }
+                                ],
+                                "guardrail_outcomes": {"scope_gate": "allow"},
+                                "fail_close_reason": "",
+                                "runtime_versions": {"workflow_trace_summary": "test"},
+                                "policy_artifact_versions": {"intent_policy": "test"},
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            summaries = load_process_smoke_workflow_trace_summaries(
+                (report_path,),
+                profile_case_ids={
+                    "structured_direct_opened": "workflow-transport-schedule-direct",
+                },
+            )
+
+        self.assertIn("workflow-transport-schedule-direct", summaries)
+        self.assertEqual(
+            summaries["workflow-transport-schedule-direct"].selected_tools,
+            ("transport_schedule_lookup",),
+        )
 
     def test_fails_trace_projection_completeness_when_steps_lack_timeline_fields(
         self,
