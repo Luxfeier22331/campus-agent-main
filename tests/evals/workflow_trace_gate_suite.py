@@ -151,13 +151,15 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
             {
                 "workflow-direct-structured-service-status",
                 "workflow-service-guide-direct",
+                "workflow-contact-directory-direct",
                 "workflow-transport-schedule-direct",
                 "workflow-notice-discover-direct",
                 "workflow-notice-detail-direct",
                 "workflow-knowledge-delegate",
                 "workflow-curriculum-delegate",
                 "workflow-ambiguous-follow-up-clarification",
-                "workflow-transactional-service-fail-close",
+                "workflow-product-scope-fail-close",
+                "workflow-transactional-approval-required",
                 "workflow-service-guide-no-result",
             }.issubset(case_ids)
         )

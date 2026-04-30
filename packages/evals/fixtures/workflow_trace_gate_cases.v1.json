@@ -18,7 +18,8 @@
 				"handoff_chain": [],
 				"tool_argument_summary": {
 					"payload_kind": "service_status_lookup",
-					"service_key": "campus_card"
+					"selected_tool": "service_status_lookup",
+					"temporal_query_mode": "current"
 				},
 				"tool_call_summaries": [
 					{
@@ -26,13 +27,14 @@
 						"result_status": "completed",
 						"argument_summary": {
 							"payload_kind": "service_status_lookup",
-							"service_key": "campus_card"
+							"selected_tool": "service_status_lookup",
+							"temporal_query_mode": "current"
 						},
 						"source_ids": []
 					}
 				],
 				"guardrail_outcomes": {
-					"scope_gate": "allow"
+					"scope_gate": "in_scope"
 				},
 				"fail_close_expected": false
 			}
@@ -52,8 +54,8 @@
 				"handoff_chain": [],
 				"tool_argument_summary": {
 					"payload_kind": "transport_schedule_lookup",
-					"service_key": "transport_commute",
-					"time_scope": "current"
+					"selected_tool": "transport_schedule_lookup",
+					"snapshot_query_mode": "current"
 				},
 				"tool_call_summaries": [
 					{
@@ -61,14 +63,14 @@
 						"result_status": "completed",
 						"argument_summary": {
 							"payload_kind": "transport_schedule_lookup",
-							"service_key": "transport_commute",
-							"time_scope": "current"
+							"selected_tool": "transport_schedule_lookup",
+							"snapshot_query_mode": "current"
 						},
 						"source_ids": []
 					}
 				],
 				"guardrail_outcomes": {
-					"scope_gate": "allow"
+					"scope_gate": "in_scope"
 				},
 				"fail_close_expected": false
 			}
@@ -88,7 +90,10 @@
 				"handoff_chain": [],
 				"tool_argument_summary": {
 					"payload_kind": "service_guide_lookup",
-					"guide_key": "medical_reimbursement"
+					"selected_tool": "service_guide_lookup",
+					"guide_focus": "required_materials",
+					"temporal_query_mode": "current",
+					"audience": "unknown"
 				},
 				"tool_call_summaries": [
 					{
@@ -96,13 +101,56 @@
 						"result_status": "completed",
 						"argument_summary": {
 							"payload_kind": "service_guide_lookup",
-							"guide_key": "medical_reimbursement"
+							"selected_tool": "service_guide_lookup",
+							"guide_focus": "required_materials",
+							"temporal_query_mode": "current",
+							"audience": "unknown"
 						},
 						"source_ids": []
 					}
 				],
 				"guardrail_outcomes": {
-					"scope_gate": "allow"
+					"scope_gate": "in_scope"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
+			"case_id": "workflow-contact-directory-direct",
+			"family": "workflow_trace",
+			"description": "campus services contact directory direct structured branch",
+			"expectation": {
+				"direct_vs_delegate_branch": "direct",
+				"workflow_mode": "direct_runtime",
+				"selected_target": "campus-services-agent",
+				"selected_tools": ["contact_directory_lookup"],
+				"handoff": {
+					"target": "campus-services-agent"
+				},
+				"handoff_chain": [],
+				"tool_argument_summary": {
+					"payload_kind": "contact_directory_lookup",
+					"selected_tool": "contact_directory_lookup",
+					"contact_focus": "phone",
+					"temporal_query_mode": "current",
+					"audience": "unknown"
+				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "contact_directory_lookup",
+						"result_status": "completed",
+						"argument_summary": {
+							"payload_kind": "contact_directory_lookup",
+							"selected_tool": "contact_directory_lookup",
+							"contact_focus": "phone",
+							"temporal_query_mode": "current",
+							"audience": "unknown"
+						},
+						"source_ids": []
+					}
+				],
+				"guardrail_outcomes": {
+					"scope_gate": "in_scope"
 				},
 				"fail_close_expected": false
 			}
@@ -122,7 +170,8 @@
 				"handoff_chain": [],
 				"tool_argument_summary": {
 					"payload_kind": "campus_notice_discover",
-					"query_kind": "title_url_card"
+					"selected_tool": "campus_notice_discover",
+					"temporal_query_mode": "current"
 				},
 				"tool_call_summaries": [
 					{
@@ -130,13 +179,14 @@
 						"result_status": "completed",
 						"argument_summary": {
 							"payload_kind": "campus_notice_discover",
-							"query_kind": "title_url_card"
+							"selected_tool": "campus_notice_discover",
+							"temporal_query_mode": "current"
 						},
 						"source_ids": []
 					}
 				],
 				"guardrail_outcomes": {
-					"scope_gate": "allow"
+					"scope_gate": "in_scope"
 				},
 				"fail_close_expected": false
 			}
@@ -156,7 +206,8 @@
 				"handoff_chain": [],
 				"tool_argument_summary": {
 					"payload_kind": "campus_notice_get",
-					"source_family": "public_notice_detail"
+					"selected_tool": "campus_notice_get",
+					"source_family": "wechat_public_notice"
 				},
 				"tool_call_summaries": [
 					{
@@ -164,13 +215,14 @@
 						"result_status": "completed",
 						"argument_summary": {
 							"payload_kind": "campus_notice_get",
-							"source_family": "public_notice_detail"
+							"selected_tool": "campus_notice_get",
+							"source_family": "wechat_public_notice"
 						},
 						"source_ids": []
 					}
 				],
 				"guardrail_outcomes": {
-					"scope_gate": "allow"
+					"scope_gate": "in_scope"
 				},
 				"fail_close_expected": false
 			}
@@ -207,7 +259,7 @@
 					}
 				],
 				"guardrail_outcomes": {
-					"scope_gate": "allow"
+					"scope_gate": "in_scope"
 				},
 				"fail_close_expected": false
 			}
@@ -271,9 +323,9 @@
 			}
 		},
 		{
-			"case_id": "workflow-transactional-service-fail-close",
+			"case_id": "workflow-product-scope-fail-close",
 			"family": "workflow_trace",
-			"description": "transactional service request is outside medium-term product scope",
+			"description": "non-campus product-scope request fails closed at terminal branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "fail_close",
 				"workflow_mode": "terminal",
@@ -281,15 +333,33 @@
 				"selected_tools": [],
 				"handoff": {},
 				"handoff_chain": [],
-				"tool_argument_summary": {
-					"requested_action": "submit_application"
-				},
+				"tool_argument_summary": {},
 				"guardrail_outcomes": {
-					"scope_gate": "deny",
-					"capability_status": "closed"
+					"policy_gate": "out_of_scope",
+					"scope_gate": "out_of_scope"
 				},
 				"fail_close_expected": true,
-				"fail_close_reason": "transactional_action_not_supported"
+				"fail_close_reason": "product_scope_boundary"
+			}
+		},
+		{
+			"case_id": "workflow-transactional-approval-required",
+			"family": "workflow_trace",
+			"description": "transactional request requires explicit approval and remains terminal",
+			"expectation": {
+				"direct_vs_delegate_branch": "fail_close",
+				"workflow_mode": "terminal",
+				"selected_target": "none",
+				"selected_tools": [],
+				"handoff": {},
+				"handoff_chain": [],
+				"tool_argument_summary": {},
+				"guardrail_outcomes": {
+					"policy_gate": "approval_required",
+					"scope_gate": "out_of_scope"
+				},
+				"fail_close_expected": true,
+				"fail_close_reason": "approval_required"
 			}
 		},
 		{

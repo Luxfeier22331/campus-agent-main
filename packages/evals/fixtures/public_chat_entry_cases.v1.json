@@ -1,28 +1,28 @@
 {
-  "schema_version": 1,
-  "case_family": "public_chat_entry_e2e.v1",
-  "cases": [
-    {
-      "case_id": "public-entry-campus-card-loss-guide",
-      "user_goal": "校园卡丢了怎么办",
-      "split": "smoke",
-      "expected_terminal_outcome": "completed",
-      "expected_response_contract": {
-        "answer_text_present": true,
-        "source_url_present": true,
-        "cards_present": true
-      }
-    },
-    {
-      "case_id": "public-entry-notice-title-url",
-      "user_goal": "最近有哪些班车调整通知",
-      "split": "release_gate",
-      "expected_terminal_outcome": "completed",
-      "expected_response_contract": {
-        "answer_text_present": true,
-        "source_url_present": true,
-        "cards_present": true
-      }
-    }
-  ]
+	"schema_version": 1,
+	"case_family": "public_chat_entry_e2e.v1",
+	"cases": [
+		{
+			"case_id": "public-entry-campus-card-loss-guide",
+			"user_goal": "校园卡丢了怎么办",
+			"split": "smoke",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": true
+			}
+		},
+		{
+			"case_id": "public-entry-notice-title-url",
+			"user_goal": "最近有哪些班车调整通知",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": true
+			}
+		}
+	]
 }

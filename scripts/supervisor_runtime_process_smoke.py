@@ -4,17 +4,35 @@ import argparse
 import json
 import os
 import re
-import signal
 import subprocess
+import sys
 import time
-import urllib.error
-import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+from scripts.supervisor_runtime_process_smoke_http import (
+    _request_status,
+    post_answer_probe,
+    terminate_processes,
+    wait_for_json_status,
+    wait_for_status,
+)
+from scripts.supervisor_runtime_process_smoke_profiles import profile_answer_expectation
+
 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
+CAMPUS_SERVICES_DIRECT_OPENED_PROFILES = {
+    "structured_direct_opened",
+    "structured_direct_opened_stream",
+    "service_status_direct_opened",
+    "service_guide_direct_opened",
+    "contact_directory_direct_opened",
+}
+NOTICE_DIRECT_OPENED_PROFILES = {
+    "notice_discover_direct_opened",
+    "notice_get_direct_opened",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +82,11 @@ def build_process_smoke_plan(
     common_env = {
         "AGENT_RUNTIME_PROVIDER": os.getenv("AGENT_RUNTIME_PROVIDER", "mock-runtime"),
         "PROMPT_RUNTIME_PROVIDER": os.getenv("PROMPT_RUNTIME_PROVIDER", "mock-runtime"),
+        "PROMPT_RUNTIME_MODEL": os.getenv("PROMPT_RUNTIME_MODEL", "gpt-5.5"),
+        "PROMPT_RUNTIME_API_KEY": os.getenv(
+            "PROMPT_RUNTIME_API_KEY",
+            "process-smoke-prompt-key",
+        ),
         "PROMPT_STRICT_STRUCTURED_OUTPUTS": os.getenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "true"),
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": bridge_secret,
     }
@@ -93,7 +116,7 @@ def build_process_smoke_plan(
         answer_path,
         answer_response_kind,
         expected_readyz_statuses,
-    ) = _profile_answer_expectation(profile)
+    ) = profile_answer_expectation(profile)
     processes = (
         ProcessCommandSpec(
             label="supervisor-agent-worker",
@@ -159,178 +182,41 @@ def build_process_smoke_plan(
     )
 
 
-def _profile_answer_expectation(
-    profile: str,
-) -> tuple[dict[str, object], int, tuple[str, ...], str, str, tuple[int, ...]]:
-    context = {
-        "actor": {
-            "user_id": "smoke-student",
-            "principal_id": "smoke-student",
-            "principal_type": "student",
-            "roles": ["student"],
-        },
-        "authorization": {
-            "retrieval_filter": {
-                "entitlement_groups": [],
-                "visibility_level": "public",
-                "policy_projection_version": "phase1-authorization-projection-v1",
-            }
-        },
-    }
-    if profile == "closed_gate":
-        return (
-            {
-                "user_goal": "campus shuttle schedule",
-                "request_id": "process-smoke-structured-runtime-closed",
-                "requested_capability": "campus_services",
-                "context": context,
-            },
-            503,
-            ("structured_runtime_closed",),
-            "/api/v1/answer",
-            "json",
-            (200,),
-        )
-    if profile == "terminal_fail_close":
-        return (
-            {
-                "user_goal": "解释一下 AI",
-                "request_id": "process-smoke-terminal-fail-close",
-                "requested_capability": "knowledge",
-                "context": context,
-            },
-            200,
-            ("product_scope_boundary",),
-            "/api/v1/answer",
-            "json",
-            (200,),
-        )
-    if profile == "rag_delegate":
-        return (
-            {
-                "user_goal": "学生证补办要求是什么",
-                "request_id": "process-smoke-rag-delegate",
-                "requested_capability": "knowledge",
-                "requested_scope": {
-                    "corpus": "regulations",
-                    "collection": "student_rules",
-                },
-                "context": context,
-            },
-            200,
-            ("workflow_trace_summary", "agent_execution_projection", "agent_plan"),
-            "/api/v1/answer",
-            "json",
-            (200,),
-        )
-    if profile == "structured_direct_opened":
-        return (
-            {
-                "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
-                "request_id": "process-smoke-structured-direct-opened",
-                "requested_capability": "campus_services",
-                "context": context,
-            },
-            200,
-            (
-                "campus-services-agent",
-                "transport_schedule_lookup",
-                "resolved_current",
-                "direct_runtime",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
-            (200,),
-        )
-    if profile == "structured_direct_opened_stream":
-        return (
-            {
-                "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
-                "request_id": "process-smoke-structured-direct-opened-stream",
-                "requested_capability": "campus_services",
-                "context": context,
-            },
-            200,
-            (
-                "event: execution.completed",
-                "campus-services-agent",
-                "transport_schedule_lookup",
-                "resolved_current",
-                "direct_runtime",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer/stream",
-            "sse",
-            (200,),
-        )
-    if profile == "notice_get_direct_opened":
-        notice_context = {
-            **context,
-            "session": {
-                "selected_notice_ref": {
-                    "notice_id": "notice:smoke:001",
-                    "source_family": "wechat_public_notice",
-                    "title": "烟雾测试通知",
-                },
-                "turn_count": 2,
-            },
-        }
-        return (
-            {
-                "user_goal": "这条通知详情",
-                "request_id": "process-smoke-notice-get-direct-opened",
-                "requested_capability": "notice",
-                "context": notice_context,
-            },
-            200,
-            (
-                "notice-agent",
-                "campus_notice_get",
-                "resolved_current",
-                "烟雾测试通知",
-                "direct_runtime",
-                "agent_execution_projection",
-                "result_guardrail",
-            ),
-            "/api/v1/answer",
-            "json",
-            (200,),
-        )
-    raise ValueError(f"unsupported process smoke profile: {profile}")
-
-
 def _profile_api_env(profile: str, *, object_store_base_url: str) -> dict[str, str]:
-    if profile in {"structured_direct_opened", "structured_direct_opened_stream"}:
+    if profile in CAMPUS_SERVICES_DIRECT_OPENED_PROFILES:
         return {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
             "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
             ),
         }
-    if profile == "notice_get_direct_opened":
-        return {
+    if profile in NOTICE_DIRECT_OPENED_PROFILES:
+        env = {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "notice",
-            "OBJECT_STORE_ENDPOINT": object_store_base_url,
-            "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-            "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
-            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
         }
+        if _profile_requires_object_store(profile):
+            env.update(
+                {
+                    "OBJECT_STORE_ENDPOINT": object_store_base_url,
+                    "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
+                    "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                }
+            )
+        return env
     return {}
 
 
 def _profile_requires_object_store(profile: str) -> bool:
-    return profile == "notice_get_direct_opened"
+    return profile in NOTICE_DIRECT_OPENED_PROFILES
 
 
 def _profile_requires_structured_projection(profile: str) -> bool:
-    return profile in {"structured_direct_opened", "structured_direct_opened_stream"}
+    return profile in CAMPUS_SERVICES_DIRECT_OPENED_PROFILES
 
 
 def _profile_requires_notice_read_model(profile: str) -> bool:
-    return profile == "notice_get_direct_opened"
+    return profile in NOTICE_DIRECT_OPENED_PROFILES
 
 
 def _profile_requires_temporary_postgres(profile: str) -> bool:
@@ -369,9 +255,10 @@ def run_process_smoke(
                     env={**os.environ, **process_spec.env},
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
+                    start_new_session=True,
                 )
             )
-        worker_healthz = _wait_for_status(
+        worker_healthz = wait_for_status(
             f"{plan.worker_base_url}/internal/bridge/healthz",
             expected_statuses={200},
             timeout_seconds=timeout_seconds,
@@ -381,18 +268,18 @@ def run_process_smoke(
                 ]
             },
         )
-        api_healthz = _wait_for_status(
+        api_healthz = wait_for_status(
             f"{plan.api_base_url}/healthz",
             expected_statuses={200},
             timeout_seconds=timeout_seconds,
         )
-        readyz = _wait_for_json_status(
+        readyz = wait_for_json_status(
             f"{plan.api_base_url}/readyz",
             expected_statuses=set(plan.expected_readyz_statuses),
             timeout_seconds=timeout_seconds,
         )
         metrics_status = _request_status(f"{plan.api_base_url}/metrics")
-        answer_status, answer_body = _post_answer_probe(
+        answer_status, answer_body = post_answer_probe(
             f"{plan.api_base_url}{plan.answer_path}",
             plan.answer_payload,
             response_kind=plan.answer_response_kind,
@@ -448,7 +335,7 @@ def run_process_smoke(
             "error": str(exc),
         }
     finally:
-        _terminate_processes(started)
+        terminate_processes(started)
         for log_file in log_files:
             log_file.close()
         if runtime_preparation is not None:
@@ -634,10 +521,9 @@ def _seed_structured_projection_smoke(
     with log_path.open("ab") as log_file:
         subprocess.run(
             (
-                "uv",
-                "run",
-                "--all-packages",
-                "campus-ingestion-smoke-structured-projection-postgres",
+                sys.executable,
+                "-m",
+                "campus_ingestion_worker.smoke_structured_projection_postgres",
                 "--release-id",
                 "supervisor-runtime-process-smoke",
                 "--generated-at",
@@ -755,163 +641,6 @@ def _artifact_env_value(key: str, value: str) -> str:
     ):
         return "<redacted>"
     return value
-
-
-def _wait_for_status(
-    url: str,
-    *,
-    expected_statuses: set[int],
-    timeout_seconds: float,
-    headers: dict[str, str] | None = None,
-) -> int:
-    deadline = time.monotonic() + timeout_seconds
-    last_status = 0
-    while time.monotonic() < deadline:
-        last_status = _request_status(url, headers=headers)
-        if last_status in expected_statuses:
-            return last_status
-        time.sleep(0.5)
-    raise RuntimeError(f"timed out waiting for {url}; last_status={last_status}")
-
-
-def _request_status(url: str, *, headers: dict[str, str] | None = None) -> int:
-    try:
-        request = urllib.request.Request(url, headers=headers or {})
-        with urllib.request.urlopen(request, timeout=2) as response:
-            return int(response.status)
-    except urllib.error.HTTPError as exc:
-        return int(exc.code)
-    except OSError:
-        return 0
-
-
-def _request_json(url: str) -> tuple[int, object]:
-    try:
-        with urllib.request.urlopen(url, timeout=3) as response:
-            return int(response.status), json.loads(response.read().decode("utf-8") or "{}")
-    except urllib.error.HTTPError as exc:
-        return int(exc.code), json.loads(exc.read().decode("utf-8") or "{}")
-
-
-def _wait_for_json_status(
-    url: str,
-    *,
-    expected_statuses: set[int],
-    timeout_seconds: float,
-) -> tuple[int, object]:
-    deadline = time.monotonic() + timeout_seconds
-    last_response: tuple[int, object] = (0, {})
-    while time.monotonic() < deadline:
-        last_response = _request_json(url)
-        if last_response[0] in expected_statuses:
-            return last_response
-        time.sleep(0.5)
-    raise RuntimeError(f"timed out waiting for {url}; last_status={last_response[0]}")
-
-
-def _post_answer_probe(
-    url: str,
-    payload: dict[str, object],
-    *,
-    response_kind: str,
-    headers: dict[str, str],
-    timeout_seconds: float,
-) -> tuple[int, object]:
-    if response_kind == "sse":
-        return _post_sse(url, payload, headers=headers, timeout_seconds=timeout_seconds)
-    if response_kind == "json":
-        return _post_json(url, payload, headers=headers, timeout_seconds=timeout_seconds)
-    raise ValueError(f"unsupported answer response kind: {response_kind}")
-
-
-def _post_json(
-    url: str,
-    payload: dict[str, object],
-    *,
-    headers: dict[str, str],
-    timeout_seconds: float,
-) -> tuple[int, object]:
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={"content-type": "application/json", **headers},
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            return int(response.status), json.loads(response.read().decode("utf-8") or "{}")
-    except urllib.error.HTTPError as exc:
-        return int(exc.code), json.loads(exc.read().decode("utf-8") or "{}")
-
-
-def _post_sse(
-    url: str,
-    payload: dict[str, object],
-    *,
-    headers: dict[str, str],
-    timeout_seconds: float,
-) -> tuple[int, object]:
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={"content-type": "application/json", **headers},
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            return int(response.status), _parse_sse_response(response.read())
-    except urllib.error.HTTPError as exc:
-        return int(exc.code), _parse_sse_response(exc.read())
-
-
-def _parse_sse_response(raw_body: bytes) -> dict[str, object]:
-    body_text = raw_body.decode("utf-8", errors="replace")
-    events: list[dict[str, object]] = []
-    event_name = "message"
-    data_lines: list[str] = []
-    for line in body_text.splitlines():
-        if line == "":
-            if data_lines:
-                events.append(_sse_event(event_name, "\n".join(data_lines)))
-            event_name = "message"
-            data_lines = []
-            continue
-        if line.startswith("event:"):
-            event_name = line.removeprefix("event:").strip() or "message"
-        elif line.startswith("data:"):
-            data_lines.append(line.removeprefix("data:").strip())
-    if data_lines:
-        events.append(_sse_event(event_name, "\n".join(data_lines)))
-    return {
-        "kind": "sse",
-        "body_text": body_text,
-        "events": events,
-    }
-
-
-def _sse_event(event_name: str, data_text: str) -> dict[str, object]:
-    try:
-        data: object = json.loads(data_text)
-    except json.JSONDecodeError:
-        data = data_text
-    return {
-        "event": event_name,
-        "data": data,
-    }
-
-
-def _terminate_processes(processes: list[subprocess.Popen[bytes]]) -> None:
-    for process in reversed(processes):
-        if process.poll() is None:
-            process.send_signal(signal.SIGTERM)
-    deadline = time.monotonic() + 8
-    for process in reversed(processes):
-        remaining = max(0.1, deadline - time.monotonic())
-        try:
-            process.wait(timeout=remaining)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=2)
 
 
 def build_parser() -> argparse.ArgumentParser:

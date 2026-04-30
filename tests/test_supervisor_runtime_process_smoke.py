@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import signal
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.supervisor_runtime_process_smoke import (
     build_process_smoke_plan,
@@ -76,6 +79,78 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "http://127.0.0.1:18081",
         )
 
+    def test_process_smoke_configures_go_readyz_prompt_gate_for_mock_runtime(self) -> None:
+        plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+        )
+
+        process_by_label = {process.label: process for process in plan.processes}
+        api_env = process_by_label["supervisor-api"].env
+
+        self.assertEqual(api_env["PROMPT_RUNTIME_PROVIDER"], "mock-runtime")
+        self.assertEqual(api_env["PROMPT_RUNTIME_MODEL"], "gpt-5.5")
+        self.assertEqual(api_env["PROMPT_RUNTIME_API_KEY"], "process-smoke-prompt-key")
+        self.assertEqual(api_env["PROMPT_STRICT_STRUCTURED_OUTPUTS"], "true")
+
+    def test_run_process_smoke_starts_processes_in_isolated_process_sessions(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        class FakeProcess:
+            pid = 4321
+
+            def poll(self) -> int:
+                return 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        popen_kwargs: list[dict[str, object]] = []
+
+        def fake_popen(*args: object, **kwargs: object) -> FakeProcess:
+            popen_kwargs.append(dict(kwargs))
+            return FakeProcess()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = build_process_smoke_plan(
+                repo_root=Path("/repo"),
+                output_dir=Path(tmpdir),
+            )
+            with (
+                patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None),
+                patch.object(smoke.subprocess, "Popen", side_effect=fake_popen),
+                patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
+                patch.object(smoke, "wait_for_json_status", return_value=(200, {})),
+                patch.object(smoke, "_request_status", return_value=200),
+                patch.object(
+                    smoke,
+                    "post_answer_probe",
+                    return_value=(503, {"failure_kind": "structured_runtime_closed"}),
+                ),
+            ):
+                summary = smoke.run_process_smoke(plan, timeout_seconds=1)
+
+        self.assertTrue(summary["passed"])
+        self.assertEqual(len(popen_kwargs), 2)
+        self.assertTrue(all(kwargs.get("start_new_session") is True for kwargs in popen_kwargs))
+
+    def test_terminate_processes_signals_process_groups(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        class FakeProcess:
+            pid = 9876
+
+            def poll(self) -> None:
+                return None
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        with patch.object(smoke.os, "killpg") as killpg:
+            smoke.terminate_processes([FakeProcess()])  # type: ignore[list-item]
+
+        killpg.assert_called_once_with(9876, signal.SIGTERM)
+
     def test_profiles_select_distinct_answer_payloads_and_expectations(self) -> None:
         closed = build_process_smoke_plan(
             repo_root=Path("/repo"),
@@ -102,10 +177,35 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             profile="structured_direct_opened_stream",
         )
+        service_status = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="service_status_direct_opened",
+        )
+        service_guide = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="service_guide_direct_opened",
+        )
+        contact_directory = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="contact_directory_direct_opened",
+        )
+        notice_discover = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="notice_discover_direct_opened",
+        )
         notice_get = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
             profile="notice_get_direct_opened",
+        )
+        transactional = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="transactional_approval_required",
         )
 
         self.assertEqual(closed.expected_status, 503)
@@ -141,6 +241,54 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             structured_stream.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
             "campus_services",
         )
+        self.assertEqual(service_status.expected_status, 200)
+        self.assertEqual(
+            service_status.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "campus_services",
+        )
+        self.assertEqual(
+            service_status.answer_payload["requested_capability"],
+            "campus_services",
+        )
+        self.assertIn("service_status_lookup", service_status.expected_body_tokens)
+        self.assertIn("direct_runtime", service_status.expected_body_tokens)
+        self.assertEqual(service_guide.expected_status, 200)
+        self.assertEqual(
+            service_guide.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "campus_services",
+        )
+        self.assertEqual(
+            service_guide.answer_payload["requested_capability"],
+            "campus_services",
+        )
+        self.assertIn("service_guide_lookup", service_guide.expected_body_tokens)
+        self.assertIn("agent_execution_projection", service_guide.expected_body_tokens)
+        self.assertEqual(contact_directory.expected_status, 200)
+        self.assertEqual(
+            contact_directory.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "campus_services",
+        )
+        self.assertEqual(
+            contact_directory.answer_payload["requested_capability"],
+            "campus_services",
+        )
+        self.assertIn("contact_directory_lookup", contact_directory.expected_body_tokens)
+        self.assertIn("result_guardrail", contact_directory.expected_body_tokens)
+        notice_discover_processes = {
+            process.label: process for process in notice_discover.processes
+        }
+        self.assertEqual(notice_discover.answer_payload["requested_capability"], "notice")
+        self.assertEqual(
+            notice_discover_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "notice",
+        )
+        self.assertIn("s3-smoke-object-store", notice_discover_processes)
+        self.assertEqual(
+            notice_discover_processes["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
+            "http://127.0.0.1:18082",
+        )
+        self.assertIn("campus_notice_discover", notice_discover.expected_body_tokens)
+        self.assertIn("direct_runtime", notice_discover.expected_body_tokens)
         notice_processes = {process.label: process for process in notice_get.processes}
         self.assertEqual(notice_get.answer_payload["requested_capability"], "notice")
         self.assertEqual(
@@ -157,18 +305,27 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "http://127.0.0.1:18082",
         )
         self.assertIn("campus_notice_get", notice_get.expected_body_tokens)
+        self.assertEqual(transactional.expected_status, 200)
+        self.assertEqual(transactional.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(
+            transactional.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "",
+        )
+        self.assertIn("approval_required", transactional.expected_body_tokens)
+        self.assertIn("workflow_trace_summary", transactional.expected_body_tokens)
+        self.assertIn("selected_target", transactional.expected_body_tokens)
 
     def test_answer_probe_uses_process_smoke_timeout_budget(self) -> None:
         import inspect
 
-        from scripts.supervisor_runtime_process_smoke import _post_json
+        from scripts.supervisor_runtime_process_smoke_http import _post_json
 
         parameters = inspect.signature(_post_json).parameters
 
         self.assertIn("timeout_seconds", parameters)
 
     def test_sse_answer_probe_preserves_event_stream_text(self) -> None:
-        from scripts.supervisor_runtime_process_smoke import _parse_sse_response
+        from scripts.supervisor_runtime_process_smoke_http import _parse_sse_response
 
         payload = _parse_sse_response(
             b'event: execution.completed\ndata: {"status":"completed"}\n\n'
@@ -186,36 +343,44 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             _processes_with_env_overlay,
         )
 
-        plan = build_process_smoke_plan(
-            repo_root=Path("/repo"),
-            output_dir=Path("/tmp/smoke"),
-            profile="structured_direct_opened",
-        )
-        runtime_database_url = _postgres_url_with_database(
-            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
-            "campus_agent_process_smoke_test",
-        )
+        for profile in (
+            "structured_direct_opened",
+            "structured_direct_opened_stream",
+            "service_status_direct_opened",
+            "service_guide_direct_opened",
+            "contact_directory_direct_opened",
+        ):
+            with self.subTest(profile=profile):
+                plan = build_process_smoke_plan(
+                    repo_root=Path("/repo"),
+                    output_dir=Path("/tmp/smoke"),
+                    profile=profile,
+                )
+                runtime_database_url = _postgres_url_with_database(
+                    "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+                    "campus_agent_process_smoke_test",
+                )
 
-        processes = _processes_with_env_overlay(
-            plan.processes,
-            {
-                "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
-                "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
-                    STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
-                ),
-            },
-        )
+                processes = _processes_with_env_overlay(
+                    plan.processes,
+                    {
+                        "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url,
+                        "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                            STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+                        ),
+                    },
+                )
 
-        self.assertEqual(
-            processes[1].env["CAMPUS_SHARED_POSTGRES_URL"],
-            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_test",
-        )
-        self.assertEqual(
-            processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
-            STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-        )
-        self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", plan.processes[1].env)
-        self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", processes[0].env)
+                self.assertEqual(
+                    processes[1].env["CAMPUS_SHARED_POSTGRES_URL"],
+                    "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_test",
+                )
+                self.assertEqual(
+                    processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+                    STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+                )
+                self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", plan.processes[1].env)
+                self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", processes[0].env)
 
     def test_notice_open_profile_uses_temporary_notice_read_model_overlay(self) -> None:
         from scripts.supervisor_runtime_process_smoke import (
@@ -223,36 +388,41 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             _processes_with_env_overlay,
         )
 
-        plan = build_process_smoke_plan(
-            repo_root=Path("/repo"),
-            output_dir=Path("/tmp/smoke"),
-            profile="notice_get_direct_opened",
-        )
-        runtime_database_url = _postgres_url_with_database(
-            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
-            "campus_agent_process_smoke_notice",
-        )
+        for profile in ("notice_discover_direct_opened", "notice_get_direct_opened"):
+            with self.subTest(profile=profile):
+                plan = build_process_smoke_plan(
+                    repo_root=Path("/repo"),
+                    output_dir=Path("/tmp/smoke"),
+                    profile=profile,
+                )
+                runtime_database_url = _postgres_url_with_database(
+                    "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+                    "campus_agent_process_smoke_notice",
+                )
 
-        processes = _processes_with_env_overlay(
-            plan.processes,
-            {
-                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": runtime_database_url,
-            },
-        )
-        process_by_label = {process.label: process for process in processes}
+                processes = _processes_with_env_overlay(
+                    plan.processes,
+                    {
+                        "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": runtime_database_url,
+                    },
+                )
+                process_by_label = {process.label: process for process in processes}
 
-        self.assertEqual(
-            process_by_label["supervisor-api"].env["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"],
-            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_notice",
-        )
-        self.assertNotIn(
-            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
-            process_by_label["supervisor-agent-worker"].env,
-        )
-        self.assertNotIn(
-            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
-            process_by_label["s3-smoke-object-store"].env,
-        )
+                self.assertEqual(
+                    process_by_label["supervisor-api"].env[
+                        "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"
+                    ],
+                    "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_notice",
+                )
+                self.assertNotIn(
+                    "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+                    process_by_label["supervisor-agent-worker"].env,
+                )
+                if "s3-smoke-object-store" in process_by_label:
+                    self.assertNotIn(
+                        "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+                        process_by_label["s3-smoke-object-store"].env,
+                    )
 
 
 if __name__ == "__main__":

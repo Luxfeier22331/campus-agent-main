@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from campus_evals.workflow_trace_gate import (
@@ -24,14 +24,24 @@ DEFAULT_PROCESS_SMOKE_PROFILES = (
     "rag_delegate",
     "structured_direct_opened",
     "structured_direct_opened_stream",
+    "service_status_direct_opened",
+    "service_guide_direct_opened",
+    "contact_directory_direct_opened",
+    "notice_discover_direct_opened",
     "notice_get_direct_opened",
+    "transactional_approval_required",
 )
 PROFILE_WORKFLOW_TRACE_CASE_IDS = {
-    "terminal_fail_close": "workflow-transactional-service-fail-close",
+    "terminal_fail_close": "workflow-product-scope-fail-close",
     "rag_delegate": "workflow-knowledge-delegate",
     "structured_direct_opened": "workflow-transport-schedule-direct",
     "structured_direct_opened_stream": "workflow-transport-schedule-direct",
+    "service_status_direct_opened": "workflow-direct-structured-service-status",
+    "service_guide_direct_opened": "workflow-service-guide-direct",
+    "contact_directory_direct_opened": "workflow-contact-directory-direct",
+    "notice_discover_direct_opened": "workflow-notice-discover-direct",
     "notice_get_direct_opened": "workflow-notice-detail-direct",
+    "transactional_approval_required": "workflow-transactional-approval-required",
 }
 
 
@@ -66,14 +76,27 @@ def run_multi_agent_live_smoke_gate(
     passed_profiles = [
         profile for profile in profiles if smoke_by_profile.get(profile, {}).get("passed") is True
     ]
+    workflow_trace_replay = _workflow_trace_replay(report_paths)
+    workflow_replay_failures = (
+        list(workflow_trace_replay.get("failed_case_ids") or [])
+        + list(workflow_trace_replay.get("missing_case_ids") or [])
+        + list(workflow_trace_replay.get("unknown_case_ids") or [])
+    )
     payload = {
         "schema_version": DEFAULT_SCHEMA_VERSION,
         "gate_id": "multi_agent_live_smoke",
-        "passed": len(passed_profiles) == len(profiles),
+        "passed": len(passed_profiles) == len(profiles) and not workflow_replay_failures,
         "summary": {
             "total_profiles": len(profiles),
             "passed_profiles": len(passed_profiles),
             "failed_profiles": len(profiles) - len(passed_profiles),
+            "workflow_trace_failed_cases": len(workflow_trace_replay.get("failed_case_ids") or []),
+            "workflow_trace_missing_cases": len(
+                workflow_trace_replay.get("missing_case_ids") or []
+            ),
+            "workflow_trace_unknown_cases": len(
+                workflow_trace_replay.get("unknown_case_ids") or []
+            ),
         },
         "scope": {
             "runtime": "direct_local_processes",
@@ -89,13 +112,16 @@ def run_multi_agent_live_smoke_gate(
                 "supervisor-api /api/v1/answer RAG delegate",
                 "supervisor-api /api/v1/answer opened structured direct runtime",
                 "supervisor-api /api/v1/answer/stream opened structured direct runtime",
+                "supervisor-api /api/v1/answer opened campus-services direct runtime",
+                "supervisor-api /api/v1/answer opened notice discover direct runtime",
                 "supervisor-api /api/v1/answer opened notice direct runtime",
+                "supervisor-api /api/v1/answer terminal approval-required guardrail",
             ],
         },
         "process_smoke": smoke_summaries[0] if len(smoke_summaries) == 1 else None,
         "process_smoke_profiles": smoke_summaries,
         "process_smoke_by_profile": smoke_by_profile,
-        "workflow_trace_replay": _workflow_trace_replay(report_paths),
+        "workflow_trace_replay": workflow_trace_replay,
     }
     (output_dir / DEFAULT_REPORT_NAME).write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n",
@@ -106,12 +132,22 @@ def run_multi_agent_live_smoke_gate(
 
 def _workflow_trace_replay(report_paths: Sequence[Path]) -> dict[str, object]:
     case_set = load_workflow_trace_cases()
+    profile_case_ids = _profile_case_ids_from_reports(report_paths)
+    expected_case_ids = _unique_case_ids(case_id for _, case_id in profile_case_ids)
     summaries = load_process_smoke_workflow_trace_summaries(
         report_paths,
         profile_case_ids=PROFILE_WORKFLOW_TRACE_CASE_IDS,
     )
     cases_by_id = {case.case_id: case for case in case_set.cases}
-    evaluated_case_ids = tuple(case_id for case_id in summaries if case_id in cases_by_id)
+    unknown_case_ids = [case_id for case_id in expected_case_ids if case_id not in cases_by_id]
+    missing_case_ids = [
+        case_id
+        for case_id in expected_case_ids
+        if case_id in cases_by_id and case_id not in summaries
+    ]
+    evaluated_case_ids = tuple(
+        case_id for case_id in expected_case_ids if case_id in cases_by_id and case_id in summaries
+    )
     results = evaluate_workflow_trace_cases(
         (cases_by_id[case_id] for case_id in evaluated_case_ids),
         summaries,
@@ -133,14 +169,36 @@ def _workflow_trace_replay(report_paths: Sequence[Path]) -> dict[str, object]:
     return {
         "case_family": case_set.case_family,
         "evaluated_profiles": [
-            profile
-            for profile, case_id in PROFILE_WORKFLOW_TRACE_CASE_IDS.items()
-            if case_id in evaluated_case_ids
+            profile for profile, case_id in profile_case_ids if case_id in evaluated_case_ids
         ],
         "evaluated_case_ids": list(evaluated_case_ids),
         "failed_case_ids": failed_case_ids,
-        "report_only": True,
+        "missing_case_ids": missing_case_ids,
+        "unknown_case_ids": unknown_case_ids,
+        "report_only": False,
     }
+
+
+def _profile_case_ids_from_reports(report_paths: Sequence[Path]) -> list[tuple[str, str]]:
+    profile_case_ids: list[tuple[str, str]] = []
+    for report_path in report_paths:
+        payload = json.loads(Path(report_path).read_text(encoding="utf-8"))
+        profile = str(payload.get("profile") or "").strip()
+        case_id = PROFILE_WORKFLOW_TRACE_CASE_IDS.get(profile, "")
+        if case_id:
+            profile_case_ids.append((profile, case_id))
+    return profile_case_ids
+
+
+def _unique_case_ids(case_ids: Iterable[str]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    unique = []
+    for case_id in case_ids:
+        if not case_id or case_id in seen:
+            continue
+        seen.add(case_id)
+        unique.append(case_id)
+    return tuple(unique)
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -202,9 +202,10 @@ Evaluation helpers for campus-agent v2.
   multi-agent-live-smoke`；它顺序启动 `supervisor-agent-worker`、`supervisor-api`
   以及 notice profile 需要的本地最小 S3-compatible smoke endpoint，不启动 Docker /
   Wrangler。该 gate 覆盖 closed structured gate、terminal fail-close、RAG delegate、
-  opened structured direct runtime、opened structured stream runtime 与 notice direct
-  runtime，并把真实 supervisor response 中的 `workflow_trace_summary` 回放成 report-only
-  trace replay artifact。
+  opened structured direct runtime、opened structured stream runtime、campus-services
+  direct runtime、notice discover/detail direct runtime 与 terminal approval-required
+  guardrail，并把真实 supervisor response 中的 `workflow_trace_summary` 回放到
+  blocking workflow trace replay；process smoke 或 trace replay 任一失败都会使 gate 失败。
 - `multi-agent-runtime-contract` 额外固定 cross-language supervisor execution fixture
   matrix：`tests/fixtures/supervisor_execution_contract/` 的 valid / invalid 样本必须同时被
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
