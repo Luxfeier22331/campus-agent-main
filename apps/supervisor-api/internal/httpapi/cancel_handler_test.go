@@ -87,7 +87,7 @@ func TestCancelEndpointCancelsActiveExecution(t *testing.T) {
 func TestCancelEndpointPropagatesCooperativeCancelToPythonBridge(t *testing.T) {
 	bridgeStarted := make(chan struct{})
 	cancelSeen := make(chan bridge.CancelRequest, 1)
-	auditEvents := make(chan map[string]any, 1)
+	auditEvents := make(chan map[string]any, 8)
 	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		var body map[string]any
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
@@ -181,13 +181,23 @@ func TestCancelEndpointPropagatesCooperativeCancelToPythonBridge(t *testing.T) {
 		t.Fatal("timed out waiting for cooperative bridge cancel")
 	}
 
-	select {
-	case event := <-auditEvents:
-		if event["bridge_cancel_status"] != "accepted" {
-			t.Fatalf("audit bridge_cancel_status = %v, want accepted", event["bridge_cancel_status"])
+	waitForCancelAudit := func() map[string]any {
+		deadline := time.After(time.Second)
+		for {
+			select {
+			case event := <-auditEvents:
+				if event["event_type"] == "execution.cancel_requested" {
+					return event
+				}
+			case <-deadline:
+				t.Fatal("timed out waiting for cancel audit event")
+				return nil
+			}
 		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for cancel audit event")
+	}
+	cancelAuditEvent := waitForCancelAudit()
+	if cancelAuditEvent["bridge_cancel_status"] != "accepted" {
+		t.Fatalf("audit bridge_cancel_status = %v, want accepted", cancelAuditEvent["bridge_cancel_status"])
 	}
 
 	select {
