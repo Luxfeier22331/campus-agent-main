@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 import time
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from threading import Lock
 
 from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, PersonalizationHint
@@ -33,6 +36,7 @@ from campus_retrieval_core.settings import RetrievalSettings
 
 _RUNTIME_BACKEND_CACHE: dict[RetrievalSettings, QdrantRetrievalBackend] = {}
 _RUNTIME_BACKEND_CACHE_LOCK = Lock()
+_LOGGER = logging.getLogger(__name__)
 ExecutableRetrievalRequestFn = Callable[[RetrievalRequest], EvidenceBundle]
 ExecutableLiveLookupFn = Callable[[RetrievalStep], EvidenceBundle]
 RetrievalObservationSink = Callable[[dict[str, object]], None]
@@ -59,6 +63,24 @@ def build_retrieval_backend(
         raise RetrievalBackendError("failed to initialize retrieval backend") from exc
 
 
+def build_jsonl_retrieval_observation_sink(path: str | Path) -> RetrievalObservationSink:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    write_lock = Lock()
+
+    def sink(observation: dict[str, object]) -> None:
+        line = json.dumps(
+            observation,
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+        with write_lock, output_path.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+
+    return sink
+
+
 def retrieve_sources(
     query: str,
     *,
@@ -75,6 +97,9 @@ def retrieve_sources(
     personalization_hint: PersonalizationHint | None = None,
     top_k: int | None = None,
     backend: QdrantRetrievalBackend | None = None,
+    observation_sink: RetrievalObservationSink | None = None,
+    observation_request_id: str = "",
+    include_observation_query_text: bool = False,
 ) -> EvidenceBundle:
     runtime_top_k = (
         top_k if top_k is not None else load_runtime_profile(corpus, collection).retrieval_top_k
@@ -100,6 +125,9 @@ def retrieve_sources(
         authorized_filter=authorized_filter,
         personalization_hint=personalization_hint,
         backend=runtime_backend,
+        observation_sink=observation_sink,
+        observation_request_id=observation_request_id,
+        include_observation_query_text=include_observation_query_text,
     )
     return execution.merged_evidence
 
@@ -115,6 +143,7 @@ def execute_retrieval_plan(
     replan_callback: ReplanStepCallback | None = None,
     observation_sink: RetrievalObservationSink | None = None,
     observation_request_id: str = "",
+    include_observation_query_text: bool = False,
 ) -> RetrievalExecutionResult:
     runtime_backend = backend
     needs_indexed_executor = any(step.step_type == "indexed_lookup" for step in plan.steps)
@@ -176,7 +205,30 @@ def execute_retrieval_plan(
                 personalization_hint=personalization_hint,
             )
             started_at = time.perf_counter()
-            evidence = request_executor(request)
+            try:
+                evidence = request_executor(request)
+            except Exception as exc:
+                result = build_failed_step_result(
+                    step,
+                    failure_kind=_classify_retrieval_exception_failure_kind(exc),
+                    message=str(exc),
+                )
+                executed_steps.append(step)
+                step_results.append(result)
+                completed_step_ids.add(step.step_id)
+                if observation_sink is not None:
+                    _emit_retrieval_observations(
+                        execution=_build_execution_result(
+                            plan=plan,
+                            executed_steps=tuple(executed_steps),
+                            step_results=tuple(step_results),
+                            replan_count=replan_count,
+                        ),
+                        observation_sink=observation_sink,
+                        request_id=observation_request_id,
+                        include_query_text=include_observation_query_text,
+                    )
+                raise
             latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
             result = build_succeeded_step_result(step, evidence=evidence, latency_ms=latency_ms)
 
@@ -240,17 +292,10 @@ def execute_retrieval_plan(
                 replan_count += 1
         step_index += 1
 
-    execution = RetrievalExecutionResult(
+    execution = _build_execution_result(
         plan=plan,
+        executed_steps=tuple(executed_steps),
         step_results=tuple(step_results),
-        merged_evidence=filter_merged_evidence_by_source_trust_policy(
-            merge_step_evidence(
-                executed_steps=tuple(executed_steps),
-                step_results=tuple(step_results),
-            ),
-            query_mode=plan.query_mode,
-            minimum_tier=plan.source_trust_policy.minimum_tier,
-        ),
         replan_count=replan_count,
     )
     if observation_sink is not None:
@@ -258,8 +303,44 @@ def execute_retrieval_plan(
             execution=execution,
             observation_sink=observation_sink,
             request_id=observation_request_id,
+            include_query_text=include_observation_query_text,
         )
     return execution
+
+
+def _classify_retrieval_exception_failure_kind(exc: Exception) -> str:
+    message = str(exc).lower()
+    if (
+        "release metadata" in message
+        or "profile_identity_hash" in message
+        or "quality_gate_status" in message
+        or "chunk_quality_status" in message
+        or "qrels_coverage_status" in message
+    ):
+        return "release_metadata_drift"
+    return "executor_error"
+
+
+def _build_execution_result(
+    *,
+    plan: RetrievalPlan,
+    executed_steps: tuple[RetrievalStep, ...],
+    step_results: tuple[RetrievalStepResult, ...],
+    replan_count: int,
+) -> RetrievalExecutionResult:
+    return RetrievalExecutionResult(
+        plan=plan,
+        step_results=step_results,
+        merged_evidence=filter_merged_evidence_by_source_trust_policy(
+            merge_step_evidence(
+                executed_steps=executed_steps,
+                step_results=step_results,
+            ),
+            query_mode=plan.query_mode,
+            minimum_tier=plan.source_trust_policy.minimum_tier,
+        ),
+        replan_count=replan_count,
+    )
 
 
 def _emit_retrieval_observations(
@@ -267,17 +348,26 @@ def _emit_retrieval_observations(
     execution: RetrievalExecutionResult,
     observation_sink: RetrievalObservationSink,
     request_id: str,
+    include_query_text: bool,
 ) -> None:
     for index, result in enumerate(execution.step_results, start=1):
         if result.activity is None:
             continue
-        observation_sink(
-            _build_retrieval_observation(
-                execution=execution,
-                result=result,
-                request_id=request_id or f"{execution.plan.plan_id}:step-{index}",
-            )
+        observation = _build_retrieval_observation(
+            execution=execution,
+            result=result,
+            request_id=request_id or f"{execution.plan.plan_id}:step-{index}",
+            include_query_text=include_query_text,
         )
+        try:
+            observation_sink(observation)
+        except Exception:
+            _LOGGER.warning(
+                "retrieval observation sink failed for request_id=%s step_id=%s",
+                observation.get("request_id"),
+                observation.get("step_id"),
+                exc_info=True,
+            )
 
 
 def _build_retrieval_observation(
@@ -285,18 +375,18 @@ def _build_retrieval_observation(
     execution: RetrievalExecutionResult,
     result: RetrievalStepResult,
     request_id: str,
+    include_query_text: bool,
 ) -> dict[str, object]:
     activity = result.activity
     if activity is None:
         raise ValueError("retrieval step activity is required to build monitoring observation")
     scores = [float(source.score) for source in result.references if source.score is not None]
     top_score = scores[0] if scores else None
-    return {
+    observation: dict[str, object] = {
         "schema_version": "retrieval-runtime-observation-v1",
         "request_id": request_id,
         "plan_id": execution.plan.plan_id,
         "step_id": activity.step_id,
-        "query": activity.query_text,
         "query_sha256": hashlib.sha256(activity.query_text.encode("utf-8")).hexdigest(),
         "scope": {"corpus": activity.corpus, "collection": activity.collection},
         "terminal_state": "failed_closed"
@@ -312,6 +402,9 @@ def _build_retrieval_observation(
         "target_version_ids": activity.target_version_ids,
         "latency_ms": activity.latency_ms,
     }
+    if include_query_text:
+        observation["query"] = activity.query_text
+    return observation
 
 
 def _score_gap(scores: Sequence[float]) -> float | None:

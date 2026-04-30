@@ -19,6 +19,7 @@ from campus_retrieval_core.models import (
     RetrievalStepResult,
 )
 from campus_retrieval_core.service import (
+    build_jsonl_retrieval_observation_sink,
     build_retrieval_backend,
     execute_retrieval_plan,
     retrieve_sources,
@@ -43,6 +44,7 @@ __all__ = [
     "RetrievalStepBudget",
     "RetrievalStepFailure",
     "RetrievalStepResult",
+    "build_jsonl_retrieval_observation_sink",
     "build_retrieval_backend",
     "execute_retrieval_plan",
     "retrieve_sources",

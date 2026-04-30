@@ -13,7 +13,7 @@ updated: 2026-05-01
 
 All phases have `PLAN.md` files so the generic `gsd-sdk workstream.status` helper reports
 them as `in_progress`. For this workstream, execution truth is the explicit `Status:` line in
-this roadmap plus `STATE.md`: Phases 0-9 are complete.
+this roadmap plus `STATE.md`: Phases 0-10 are complete.
 
 ## Phase 0: Scope And Truth Alignment
 
@@ -180,3 +180,24 @@ this roadmap plus `STATE.md`: Phases 0-9 are complete.
   CLI。
 
 **Evidence:** `STATE.md` Phase 9 focused gate。
+
+## Phase 10: Runtime Eval Intake And Filter Audit Closeout
+
+**Status:** completed.
+
+**Goal:** 将 review 后剩余的 runtime observation wiring、operator chunk report、payload
+filter index audit 与 rerank before/after eval branch 收敛为可执行口径。
+
+**Scope:**
+
+- supervisor-agent-worker 通过 `SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 显式接入
+  retrieval observation JSONL sink。
+- `packages/evals` 提供 chunk quality JSON report CLI，用于离线 release evidence 复核。
+- Qdrant retrieval filter payload index 定义集中，并接入 post-publish audit fail-close。
+- `packages/evals` 提供 deterministic rerank before/after branch，只产出 qrels-backed 证据，
+  不改生产 profile / alias / runtime path。
+- 修复后续 review loop 发现的 medium 风险：payload index upsert 顺序、observation sink
+  fail-safe、chunk quality CLI 失败退出码、runtime observation raw query 默认落盘、
+  backend fail-closed observation 缺失与 release drift 分类。
+
+**Evidence:** `STATE.md` Phase 10 focused gate。

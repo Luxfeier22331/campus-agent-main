@@ -43,6 +43,7 @@ from .service_versioning_response import (
 )
 
 Retriever = Callable[..., object]
+RetrievalObservationSink = Callable[[dict[str, object]], None]
 
 
 def delegate_to_rag_agent(
@@ -50,12 +51,16 @@ def delegate_to_rag_agent(
     *,
     retriever: Retriever = retrieve_sources,
     prompt_executor: RagPromptExecutor | None = None,
+    retrieval_observation_sink: RetrievalObservationSink | None = None,
+    include_retrieval_observation_query_text: bool = False,
 ) -> AgentResponse:
     return with_rag_agent_observability(
         _build_rag_agent_response(
             request,
             retriever=retriever,
             prompt_executor=prompt_executor,
+            retrieval_observation_sink=retrieval_observation_sink,
+            include_retrieval_observation_query_text=include_retrieval_observation_query_text,
         )
     )
 
@@ -65,6 +70,8 @@ def _build_rag_agent_response(
     *,
     retriever: Retriever = retrieve_sources,
     prompt_executor: RagPromptExecutor | None = None,
+    retrieval_observation_sink: RetrievalObservationSink | None = None,
+    include_retrieval_observation_query_text: bool = False,
 ) -> AgentResponse:
     if request.target != "rag-agent":
         raise ValueError("delegate_to_rag_agent only accepts target='rag-agent'")
@@ -136,6 +143,8 @@ def _build_rag_agent_response(
             personalization_hint=personalization_hint,
             retriever=retriever,
             retrieval_context=retrieval_context,
+            retrieval_observation_sink=retrieval_observation_sink,
+            include_retrieval_observation_query_text=include_retrieval_observation_query_text,
         )
         evidence = retrieval_result.evidence
         retrieval_execution_result = retrieval_result.execution_result

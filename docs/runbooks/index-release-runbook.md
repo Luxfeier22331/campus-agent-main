@@ -164,6 +164,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - chunk quality gate 使用当前 collection/profile 的 token budget，而不是全局固定阈值；超过
   budget、缺 traceability metadata、出现 attachment-ref chunk 或 regulation heading-only
   chunk 都不得发布 query-serving alias
+- Qdrant payload index 必须在 physical collection 创建后、points upsert 前建立；release
+  path 不得等到写入 points 后才补建 filter index
 - `regulations/student_rules` 的 alias publish gate 使用：
   `packages/evals/fixtures/student_rules_release_acceptance.v1.json`
 - `regulations/student_rules` 的 formal qrels 与调参仍使用：
@@ -279,6 +281,10 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - serving alias 存在
 - alias 指向新的 physical collection
 - points count 大于 0
+- query-time filter 字段已建 payload index；post-publish audit 会检查
+  `document_id`、`revision_track`、`version_id`、`corpus`、`collection`、entity id、
+  authz / visibility、`status`、`source_channel`、`is_current` 等字段，缺失或 schema 不一致
+  都视为失败
 - payload 含：
   - `index_release_id`
   - `index_validation_status`
@@ -358,9 +364,39 @@ uv run --all-packages python -m campus_evals.retrieval_tuning \
 - 发布前 release path 会自动执行 chunk quality gate 和 qrels coverage gate；operator
   仍可用同一批 chunk / qrels artifact 做离线复核，但离线复核不能替代 registry-scope
   release gate
+- 需要离线产出 chunk quality report 时，使用同一套 evaluator：
+
+```bash
+uv run --all-packages python -m campus_evals.retrieval_chunk_quality_cli \
+  --chunks <chunks.jsonl> \
+  --max-tokens <runtime-profile-max-token-budget> \
+  --output <chunk-quality-report.json>
+```
+
+该 CLI 在 report `status=passed` 时返回 `0`；发现 chunk quality issue 时返回 `2`，可直接作为
+operator gate 使用。
+
 - 发布后把 no-hit、low confidence、forbidden hit、authz filtered、version mismatch 与
   release metadata drift observation 汇总成候选 backlog：
   `campus_evals.retrieval_monitoring.build_retrieval_monitoring_backlog()`
+
+supervisor-agent-worker 可通过 `SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 显式注入
+retrieval observation JSONL sink。该 sink 只写 sanitized retrieval observation，用于
+eval / backlog intake，不反向改变 release manifest、runtime profile 或 serving alias；sink
+写入失败只记录 warning，不得让在线 retrieval answer path 失败。
+
+默认 observation 只写 `query_sha256`，不写原始 query text。只有 operator 明确需要把 runtime
+no-hit / low-confidence 样本转成 qrels 候选时，才临时打开：
+
+```bash
+SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=true
+```
+
+该开关不得作为常驻生产默认值。
+
+indexed lookup backend fail-closed 时，runtime 会在重新抛出错误前写入 failed observation。
+其中 release metadata drift 会使用 `failure_kind=release_metadata_drift`，让 monitoring
+backlog 进入 release metadata repair，而不是被误归为普通 executor error。
 
 如果 runtime 已注入 retrieval observation sink，可以从 JSONL 生成 backlog：
 
@@ -369,6 +405,10 @@ uv run --all-packages python -m campus_evals.retrieval_monitoring_cli \
   --observations <retrieval-runtime-observations.jsonl> \
   --output <retrieval-monitoring-backlog.json>
 ```
+
+二阶段排序或 reranker 只能先进入 deterministic eval branch。使用
+`campus_evals.retrieval_rerank_eval.evaluate_deterministic_rerank_branch()` 对同一
+qrels/run 输出 before/after 指标；它是调参证据，不是生产 reranker 开关。
 
 这些检查只产生 release evidence、tuning recommendation 或 backlog candidate；不得直接改写
 runtime profile、canonical qrels 或 serving alias。

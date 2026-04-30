@@ -11,6 +11,7 @@ from typing import Any
 class RetrievalMonitoringCandidate:
     request_id: str
     query: str
+    query_sha256: str
     scope_key: str
     failure_class: str
     recommended_action: str
@@ -46,6 +47,7 @@ def build_retrieval_monitoring_backlog(
                 request_id=_text(observation.get("request_id"))
                 or f"observation-{observation_count}",
                 query=_text(observation.get("query")) or "",
+                query_sha256=_text(observation.get("query_sha256")) or "",
                 scope_key=_scope_key(observation.get("scope")),
                 failure_class=failure_class,
                 recommended_action=_recommended_action(failure_class),
@@ -87,6 +89,7 @@ def retrieval_monitoring_backlog_to_dict(
             {
                 "request_id": candidate.request_id,
                 "query": candidate.query,
+                "query_sha256": candidate.query_sha256,
                 "scope_key": candidate.scope_key,
                 "failure_class": candidate.failure_class,
                 "recommended_action": candidate.recommended_action,

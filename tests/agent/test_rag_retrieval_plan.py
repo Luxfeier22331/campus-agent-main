@@ -177,6 +177,48 @@ class RagRetrievalPlanTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.diagnostics.semantic_outcome, "compare_grounded_answer")
 
+    def test_delegate_to_rag_agent_emits_sanitized_retrieval_observation(self) -> None:
+        observations: list[dict[str, object]] = []
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=query,
+                corpus=str(kwargs["corpus"]),
+                collection=str(kwargs["collection"]),
+                sources=(
+                    _make_source(
+                        chunk_id="v2:national-scholarship:chunk-1",
+                        version_id="v2:national-scholarship",
+                        snippet="国家奖学金评审办法正文",
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="国奖怎么办",
+                request_id="req-rag-observation",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                    version_query=VersionQuery(mode="current"),
+                ),
+            ),
+            retriever=fake_retriever,
+            retrieval_observation_sink=observations.append,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["request_id"], "req-rag-observation")
+        self.assertNotIn("query", observations[0])
+        self.assertIn("query_sha256", observations[0])
+        self.assertEqual(
+            observations[0]["scope"],
+            {"corpus": "regulations", "collection": "student_rules"},
+        )
+        self.assertEqual(observations[0]["candidate_count"], 1)
+
     def test_delegate_to_rag_agent_uses_freshness_gate_and_skips_retriever_when_local_surface_is_not_fresh(
         self,
     ) -> None:

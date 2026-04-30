@@ -12,14 +12,14 @@ updated: 2026-05-01
 ## Current Status
 
 **Status:** completed
-**Current Phase:** Phase 9 `Post-Review Release-Quality Closeout`
-**Last Activity:** 2026-05-01 post-review release-quality closeout completed
+**Current Phase:** Phase 10 `Runtime Eval Intake And Filter Audit Closeout`
+**Last Activity:** 2026-05-01 runtime eval intake and filter audit closeout completed
 
 - status: `completed`
-- current slice: Workstream closed after Phase 9 post-review closeout
+- current slice: Workstream closed after Phase 10 runtime eval/filter audit closeout
 - owner: current Codex session
 - active implementation: none
-- latest completed phase: Phase 9 `Post-Review Release-Quality Closeout`
+- latest completed phase: Phase 10 `Runtime Eval Intake And Filter Audit Closeout`
 - next phase: none
 - status note: `gsd-sdk workstream.status` reports any phase directory with `PLAN.md` and no
   `SUMMARY.md` as `in_progress`; ROADMAP `Status:` lines remain the human execution truth for
@@ -52,6 +52,22 @@ updated: 2026-05-01
     not only class/count coverage.
   - Retrieval monitoring can load sanitized runtime observation JSONL and emit deterministic
     backlog JSON.
+- Gaps closed in Phase 10:
+  - supervisor-agent-worker can inject a JSONL retrieval observation sink via
+    `SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH`.
+  - `packages/evals` has an offline chunk quality JSON report CLI for release evidence.
+  - Qdrant payload indexes used by retrieval filters are centralized and post-publish audit now
+    fail-closes missing or mismatched filter indexes.
+  - `packages/evals` has a deterministic rerank before/after branch for qrels-backed candidate
+    evaluation before any production reranker adoption.
+- 2026-05-01 repair loop follow-up:
+  - payload indexes are now created before points upsert on release indexing.
+  - retrieval observation sink failures warn and do not fail the online answer path.
+  - chunk quality CLI returns non-zero when the generated report fails.
+  - sanitized retrieval observations no longer write raw query text by default; they retain
+    `query_sha256`, with raw text allowed only through an explicit operator debug switch.
+  - indexed lookup backend fail-closed exceptions now emit sanitized failed observations before
+    reraising, and release metadata drift is classified for monitoring backlog repair.
 
 ## Blockers
 
@@ -138,13 +154,44 @@ uv run --all-packages python -m unittest \
 
 Result: `Ran 296 tests ... OK`.
 
-Docs gate:
+Phase 10 focused gate result:
 
 ```bash
-pnpm docs:lint
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_index_release_acceptance \
+  tests.ingestion.test_index_release \
+  tests.ingestion.test_registry_scope_release \
+  tests.ingestion.test_qdrant_backup \
+  tests.ingestion.test_qdrant_backup_worker \
+  tests.retrieval.backend_qdrant_release_guard_suite \
+  tests.retrieval.backend_qdrant_client_settings_suite \
+  tests.retrieval.retrieval_service_replan_execution_suite \
+  tests.retrieval.test_backend_qdrant \
+  tests.retrieval.test_service \
+  tests.evals.test_retrieval_benchmark \
+  tests.evals.test_retrieval_tuning \
+  tests.evals.retrieval_rerank_eval_suite \
+  tests.agent.test_rag_retrieval_plan \
+  tests.api.supervisor_api_settings_and_health_suite.SupervisorApiSettingsAndHealthTest.test_api_settings_from_env_reads_retrieval_observation_settings \
+  tests.api.supervisor_api_settings_and_health_suite.SupervisorApiSettingsAndHealthTest.test_rag_delegate_wires_jsonl_retrieval_observation_sink_when_configured
+```
+
+Result: `Ran 342 tests ... OK`.
+
+Targeted docs gate:
+
+```bash
+pnpm exec markdownlint-cli2 \
+  docs/architecture/system/retrieval-serving-architecture.md \
+  docs/runbooks/index-release-runbook.md \
+  .planning/workstreams/canonical-retrieval-release-hardening/STATE.md \
+  .planning/workstreams/canonical-retrieval-release-hardening/ROADMAP.md
 ```
 
 Result: `Summary: 0 error(s)`.
+
+Repo-wide `pnpm docs:lint` is currently blocked by an unrelated authenticated-notice long line in
+`docs/data/authenticated-notice-source-truth-schema.md`.
 
 ## Continuity Notes
 

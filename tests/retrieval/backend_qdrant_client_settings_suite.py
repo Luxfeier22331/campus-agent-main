@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from campus_ingestion_core.process_indexing import audit_payload_indexes
+
 from tests.retrieval.backend_qdrant_test_support import (
     STUDENT_HANDBOOK_QDRANT_COLLECTION,
     ChunkProfile,
@@ -35,6 +37,60 @@ from tests.retrieval.backend_qdrant_test_support import (
 
 
 class BackendQdrantClientSettingsTest(unittest.TestCase):
+    def test_payload_index_audit_fails_on_missing_or_mismatched_filter_indexes(self) -> None:
+        class _CollectionInfo:
+            payload_schema = {
+                "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "is_current": qdrant_models.PayloadSchemaType.KEYWORD,
+            }
+
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_collection.return_value = _CollectionInfo()
+
+        report = audit_payload_indexes(
+            qdrant_client=qdrant_client,
+            collection_name="student_rules__r20260501",
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn("version_id", report.missing_indexes)
+        self.assertIn("is_current", report.mismatched_indexes)
+        self.assertEqual(report.summary["collection_name"], "student_rules__r20260501")
+
+    def test_payload_index_audit_passes_when_required_filter_indexes_exist(self) -> None:
+        class _CollectionInfo:
+            payload_schema = {
+                "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "revision_track": qdrant_models.PayloadSchemaType.KEYWORD,
+                "version_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "corpus": qdrant_models.PayloadSchemaType.KEYWORD,
+                "collection": qdrant_models.PayloadSchemaType.KEYWORD,
+                "canonical_course_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "canonical_course_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "canonical_program_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "visibility_scope": qdrant_models.PayloadSchemaType.KEYWORD,
+                "entitlement_groups": qdrant_models.PayloadSchemaType.KEYWORD,
+                "visibility_level": qdrant_models.PayloadSchemaType.KEYWORD,
+                "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
+                "status": qdrant_models.PayloadSchemaType.KEYWORD,
+                "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                "is_current": qdrant_models.PayloadSchemaType.BOOL,
+            }
+
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_collection.return_value = _CollectionInfo()
+
+        report = audit_payload_indexes(
+            qdrant_client=qdrant_client,
+            collection_name="student_rules__r20260501",
+        )
+
+        self.assertEqual(report.status, "passed")
+        self.assertEqual(report.missing_indexes, ())
+        self.assertEqual(report.mismatched_indexes, ())
+
     def test_index_chunks_to_qdrant_skips_payload_indexes_for_local_backend(self) -> None:
         record = _make_registry_record(
             document_id="handbook:test-001",
@@ -86,10 +142,24 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             embedding_model=embedding_model,
         )
         qdrant_client = QdrantClient(location=":memory:")
-        qdrant_client.collection_exists = Mock(side_effect=[False, True])  # type: ignore[method-assign]
-        qdrant_client.create_collection = Mock()  # type: ignore[method-assign]
-        qdrant_client.upsert = Mock()  # type: ignore[method-assign]
-        qdrant_client.create_payload_index = Mock()  # type: ignore[method-assign]
+        events: list[str] = []
+
+        def collection_exists(_collection_name: str) -> bool:
+            return "create_collection" in events
+
+        def create_collection(**_kwargs: object) -> None:
+            events.append("create_collection")
+
+        def create_payload_index(**kwargs: object) -> None:
+            events.append(f"payload_index:{kwargs['field_name']}")
+
+        def upsert(**_kwargs: object) -> None:
+            events.append("upsert")
+
+        qdrant_client.collection_exists = Mock(side_effect=collection_exists)  # type: ignore[method-assign]
+        qdrant_client.create_collection = Mock(side_effect=create_collection)  # type: ignore[method-assign]
+        qdrant_client.upsert = Mock(side_effect=upsert)  # type: ignore[method-assign]
+        qdrant_client.create_payload_index = Mock(side_effect=create_payload_index)  # type: ignore[method-assign]
         with patch("campus_ingestion_core.process._is_local_qdrant_backend", return_value=False):
             ids = index_chunks_to_qdrant(
                 chunks=chunks,
@@ -104,6 +174,10 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         self.assertIn("dense", create_kwargs["vectors_config"])
         self.assertIn("sparse", create_kwargs["sparse_vectors_config"])
         qdrant_client.upsert.assert_called_once()
+        first_payload_index_event = next(
+            index for index, event in enumerate(events) if event.startswith("payload_index:")
+        )
+        self.assertLess(first_payload_index_event, events.index("upsert"))
         point = qdrant_client.upsert.call_args.kwargs["points"][0]
         self.assertIn("dense", point.vector)
         self.assertIn("sparse", point.vector)

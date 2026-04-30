@@ -4,18 +4,21 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.index_release import resolve_alias_target
+from campus_ingestion_core.index_release import IndexReleaseManifest, resolve_alias_target
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.registry_scope_release import (
+    audit_published_scope_release,
     publish_scope_release,
     release_registry_scope,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 from qdrant_client import QdrantClient
+from qdrant_client.http import models as qdrant_models
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
@@ -46,6 +49,7 @@ class _FakeObjectStore:
                 "content_type": content_type,
             }
         )
+        self.objects[(bucket, key)] = data
 
 
 class _OrderedObjectStore(_FakeObjectStore):
@@ -157,6 +161,74 @@ def _make_indexable_chunk(
 
 
 class RegistryScopeReleaseTest(unittest.TestCase):
+    def test_post_publish_audit_includes_payload_filter_index_audit(self) -> None:
+        class _FakeRemoteQdrant:
+            def get_aliases(self):
+                return SimpleNamespace(
+                    aliases=[
+                        SimpleNamespace(
+                            alias_name="student_rules",
+                            collection_name="student_rules__r20260501",
+                        )
+                    ]
+                )
+
+            def collection_exists(self, _collection_name: str) -> bool:
+                return True
+
+            def get_collection(self, collection_name: str):
+                return SimpleNamespace(
+                    points_count=1,
+                    payload_schema={
+                        "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "is_current": qdrant_models.PayloadSchemaType.KEYWORD,
+                    },
+                )
+
+            def scroll(self, **_kwargs):
+                return [SimpleNamespace(payload={"release_id": "r20260501"})], None
+
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", "manifest.json"): b"{}",
+                ("campus-rag-derived", "validation.json"): b"{}",
+                ("campus-rag-derived", "quality.json"): b"{}",
+            }
+        )
+        manifest = IndexReleaseManifest(
+            release_id="r20260501",
+            corpus="regulations",
+            collection="student_rules",
+            serving_alias="student_rules",
+            physical_collection_name="student_rules__r20260501",
+            previous_physical_collection_name=None,
+            cleaning_policy_version="cleaning-v1",
+            chunk_policy_version="chunk-v1",
+            embedding_model="mock-embedding",
+            indexed_at="2026-05-01T00:00:00+00:00",
+            published_at="2026-05-01T00:01:00+00:00",
+            document_count=1,
+            point_count=1,
+            document_version_ids_hash="hash",
+            document_units_keys_hash="hash",
+            validation_status="passed",
+            validation_summary_object_key="validation.json",
+            quality_gate_summary_object_key="quality.json",
+        )
+
+        audit = audit_published_scope_release(
+            qdrant_client=_FakeRemoteQdrant(),
+            object_store=object_store,
+            bucket="campus-rag-derived",
+            manifest=manifest,
+            manifest_object_key="manifest.json",
+            expected_release_metadata={"release_id": "r20260501"},
+        )
+
+        self.assertEqual(audit.status, "failed")
+        self.assertIn("payload_index_missing:version_id", audit.summary["issues"])
+        self.assertIn("payload_index_schema_mismatch:is_current", audit.summary["issues"])
+
     def test_publish_scope_release_writes_prepublish_manifest_before_alias(self) -> None:
         events: list[tuple[str, str | None]] = []
         object_store = _OrderedObjectStore(events=events)

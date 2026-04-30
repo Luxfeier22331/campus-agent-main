@@ -21,6 +21,7 @@ class RetrievalMonitoringBacklogTest(unittest.TestCase):
                 {
                     "request_id": "req-no-hit",
                     "query": "校内宇宙签证办理处",
+                    "query_sha256": "query-hash-no-hit",
                     "scope": {"corpus": "official_web", "collection": "stable_reference"},
                     "terminal_state": "completed",
                     "candidate_count": 0,
@@ -28,7 +29,7 @@ class RetrievalMonitoringBacklogTest(unittest.TestCase):
                 },
                 {
                     "request_id": "req-low-score",
-                    "query": "校园卡丢了怎么办",
+                    "query_sha256": "query-hash-low-score",
                     "scope": {"corpus": "regulations", "collection": "student_rules"},
                     "terminal_state": "completed",
                     "candidate_count": 3,
@@ -55,6 +56,8 @@ class RetrievalMonitoringBacklogTest(unittest.TestCase):
             ["no_hit", "low_confidence", "drift_guard_failure"],
         )
         self.assertEqual(report.candidates[0].recommended_action, "qrels_no_hit_candidate")
+        self.assertEqual(report.candidates[1].query, "")
+        self.assertEqual(report.candidates[1].query_sha256, "query-hash-low-score")
         self.assertEqual(report.candidates[2].recommended_action, "release_metadata_repair")
 
     def test_loads_sanitized_runtime_observation_jsonl_for_backlog_export(self) -> None:
@@ -67,7 +70,7 @@ class RetrievalMonitoringBacklogTest(unittest.TestCase):
                             {
                                 "request_id": "req-low-score",
                                 "timestamp": "2026-05-01T00:00:00+00:00",
-                                "query": "校园卡丢了怎么办",
+                                "query_sha256": "query-hash-low-score",
                                 "scope": {
                                     "corpus": "regulations",
                                     "collection": "student_rules",
@@ -96,6 +99,7 @@ class RetrievalMonitoringBacklogTest(unittest.TestCase):
 
         self.assertEqual(payload["observation_count"], 1)
         self.assertEqual(payload["candidates"][0]["request_id"], "req-low-score")
+        self.assertEqual(payload["candidates"][0]["query_sha256"], "query-hash-low-score")
         self.assertEqual(payload["candidates"][0]["failure_class"], "low_confidence")
 
     def test_monitoring_cli_writes_backlog_json_from_runtime_observations(self) -> None:

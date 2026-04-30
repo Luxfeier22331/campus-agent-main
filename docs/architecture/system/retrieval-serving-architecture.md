@@ -149,8 +149,14 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - runtime 查询 alias 前的 release drift guard；profile / release metadata 不一致或 sampled
   point payload 混入不同 release/profile metadata 时 fail closed；guard cache key 必须包含
   collection 与 profile identity，profile 变更不得复用旧 guard 结果
+- 发布后 audit 必须检查 query-time filter 字段的 Qdrant payload indexes；缺
+  `document_id` / `version_id` / authz / visibility / current-version 等必要 index
+  或 schema 不匹配时，post-publish audit fail closed
+- payload indexes 必须在 collection 创建后、points upsert 前建立；filterable HNSW
+  不应等到 points 写入后才补建
 - `packages/evals` 持有的 per-collection qrels scenario denominator、retrieval tuning
-  report 与 sanitized runtime observation backlog intake
+  report、deterministic rerank branch report 与 sanitized runtime observation
+  backlog intake
 
 固定规则：
 
@@ -160,6 +166,13 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - supplemental judge / RAGAS 指标只能做诊断，不作为 alias publish 或 profile patch 的唯一通过依据
 - runtime retrieval 可以把 request/step outcome 发给显式注入的 observation sink；observation
   只作为 eval/backlog intake，不反向改变 release manifest、runtime profile 或 serving alias
+- observation sink 是 best-effort runtime intake；sink 写入失败必须记录 warning，但不得让
+  retrieval answer path 失败
+- sanitized runtime observation 默认不写入原始 query text，只写 `query_sha256`；只有显式
+  operator 调试开关打开时，才允许把 query text 写入 JSONL observation
+- indexed lookup backend fail-closed exception 必须在重新抛出前写入 sanitized failed
+  observation；release metadata drift 必须保留可分类的 failure kind，供 monitoring backlog
+  归入 release repair 而不是普通 no-hit
 - projection-derived scope 如果没有静态 `split-manifest.v1.json`，可以使用同目录
   `retrieval-eval-manifest.v1.json` 作为 qrels anchoring manifest；它不替代 registry、
   release manifest 或 current pointer truth

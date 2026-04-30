@@ -3,6 +3,7 @@ from __future__ import annotations
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
 from campus_rag_agent.service import delegate_to_rag_agent
+from campus_retrieval_core import build_jsonl_retrieval_observation_sink
 from campus_services_agent import CampusServicesHTTPQueryService, delegate_to_campus_services_agent
 
 from campus_supervisor_agent_worker.agent_dispatch import (
@@ -27,6 +28,7 @@ def bind_agent_handler(
     campus_services_query_service = _build_campus_services_query_service(settings)
     notice_query_service = _build_notice_query_service(settings)
     agent_delegates = _build_agent_delegates(
+        settings=settings,
         rag_prompt_executor=rag_prompt_executor,
         campus_services_query_service=campus_services_query_service,
         notice_query_service=notice_query_service,
@@ -41,14 +43,24 @@ def bind_agent_handler(
 
 def _build_agent_delegates(
     *,
+    settings: ApiSettings,
     rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
     campus_services_query_service: CampusServicesHTTPQueryService | None,
     notice_query_service: NoticeHTTPQueryService | None,
 ) -> dict[str, AgentDelegate]:
+    retrieval_observation_sink = (
+        build_jsonl_retrieval_observation_sink(settings.retrieval_observation_jsonl_path)
+        if settings.retrieval_observation_jsonl_path
+        else None
+    )
     agent_delegates: dict[str, AgentDelegate] = {
         "rag-agent": lambda agent_request: delegate_to_rag_agent(
             agent_request,
             prompt_executor=rag_prompt_executor,
+            retrieval_observation_sink=retrieval_observation_sink,
+            include_retrieval_observation_query_text=(
+                settings.retrieval_observation_include_query_text
+            ),
         ),
         "navigation-agent": delegate_to_navigation_agent,
         "campus-services-agent": delegate_to_campus_services_agent,

@@ -43,6 +43,7 @@ RetrievalFailureKind = Literal[
     "executor_error",
     "unsupported_step_type",
     "missing_dependency",
+    "release_metadata_drift",
 ]
 
 ALLOWED_RETRIEVAL_QUERY_MODES = (
@@ -79,6 +80,7 @@ ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "executor_error",
     "unsupported_step_type",
     "missing_dependency",
+    "release_metadata_drift",
 )
 
 

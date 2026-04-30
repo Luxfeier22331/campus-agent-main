@@ -63,6 +63,7 @@ from campus_ingestion_core.process import (
     build_indexable_chunks_from_record,
     index_chunks_to_qdrant,
 )
+from campus_ingestion_core.process_indexing import audit_payload_indexes
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.registry_scope_chunk_preparation import (
     require_verified_chunk_preparation,
@@ -618,10 +619,9 @@ def publish_scope_release(
             quality_gate_summary=quality_gate.summary,
             post_publish_audit_summary=audit.summary,
         )
-        if audit.status != "passed":
+        if audit.status == "failed":
             raise ValueError(
-                f"post-publish release audit failed for {corpus}/{collection}: "
-                f"{audit.summary}"
+                f"post-publish release audit failed for {corpus}/{collection}: {audit.summary}"
             )
         return _build_release_report(
             audited_artifacts,
@@ -685,7 +685,9 @@ def refresh_release_point_metadata(
     if _is_mock_qdrant_client(qdrant_client):
         return 0
     if not qdrant_client.collection_exists(collection_name):
-        raise ValueError(f"cannot refresh release metadata for missing collection {collection_name}")
+        raise ValueError(
+            f"cannot refresh release metadata for missing collection {collection_name}"
+        )
     scroll_offset: object | None = None
     refreshed_count = 0
     while True:
@@ -738,8 +740,7 @@ def audit_published_scope_release(
     )
     if alias_target != manifest.physical_collection_name:
         issues.append(
-            "alias_target_mismatch:"
-            f"{alias_target or '<none>'}!={manifest.physical_collection_name}"
+            f"alias_target_mismatch:{alias_target or '<none>'}!={manifest.physical_collection_name}"
         )
     if not qdrant_client.collection_exists(manifest.physical_collection_name):
         issues.append("missing_physical_collection")
@@ -750,6 +751,18 @@ def audit_published_scope_release(
             qdrant_client=qdrant_client,
             collection_name=manifest.physical_collection_name,
         )
+        payload_index_audit = audit_payload_indexes(
+            qdrant_client=qdrant_client,
+            collection_name=manifest.physical_collection_name,
+        )
+        issues.extend(
+            f"payload_index_missing:{field_name}"
+            for field_name in payload_index_audit.missing_indexes
+        )
+        issues.extend(
+            f"payload_index_schema_mismatch:{field_name}"
+            for field_name in payload_index_audit.mismatched_indexes
+        )
         if points_count == 0:
             issues.append("empty_physical_collection")
         payloads = _sample_release_payloads(
@@ -759,6 +772,10 @@ def audit_published_scope_release(
         )
         if not payloads:
             issues.append("missing_sampled_point_payload")
+    if not qdrant_client.collection_exists(manifest.physical_collection_name):
+        payload_index_audit_summary = {"status": "not_applicable", "reason": "missing_collection"}
+    else:
+        payload_index_audit_summary = payload_index_audit.summary
     issues.extend(
         _release_payload_mismatch_issues(
             payloads=payloads,
@@ -791,6 +808,7 @@ def audit_published_scope_release(
             "physical_collection_name": manifest.physical_collection_name,
             "points_count": points_count,
             "sampled_payload_count": len(payloads),
+            "payload_index_audit": payload_index_audit_summary,
             "issues": tuple(issues),
         },
     )

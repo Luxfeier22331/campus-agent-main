@@ -46,6 +46,7 @@ from .service_versioning_context import (
 )
 
 Retriever = Callable[..., object]
+RetrievalObservationSink = Callable[[dict[str, object]], None]
 CorpusQueryDisabledError = _CorpusQueryDisabledError
 RestrictedDocumentAccessDeniedError = _RestrictedDocumentAccessDeniedError
 RetrievalBackendError = _RetrievalBackendError
@@ -184,6 +185,8 @@ def execute_rag_retrieval_context(
     personalization_hint,
     retriever: Retriever,
     retrieval_context: RagRetrievalContext,
+    retrieval_observation_sink: RetrievalObservationSink | None = None,
+    include_retrieval_observation_query_text: bool = False,
 ) -> RagRetrievalResult:
     runtime_profile = load_runtime_profile(
         effective_scope.corpus, retrieval_context.retrieval_collection
@@ -220,6 +223,9 @@ def execute_rag_retrieval_context(
             retriever,
             retrieval_request,
         ),
+        observation_sink=retrieval_observation_sink,
+        observation_request_id=request.request_id,
+        include_observation_query_text=include_retrieval_observation_query_text,
     )
     evidence = execution_result.merged_evidence
     evidence = _with_query_text(

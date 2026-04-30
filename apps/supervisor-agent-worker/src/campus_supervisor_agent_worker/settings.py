@@ -96,6 +96,8 @@ class ApiSettings:
     structured_query_base_url: str = ""
     structured_query_shared_secret: str = ""
     structured_query_timeout_seconds: float = 1.0
+    retrieval_observation_jsonl_path: str = ""
+    retrieval_observation_include_query_text: bool = False
     cancel_flag_ttl_seconds: float = 900.0
 
     def __post_init__(self) -> None:
@@ -233,6 +235,14 @@ class ApiSettings:
             structured_query_timeout_seconds=_read_float(
                 "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
                 default=1.0,
+            ),
+            retrieval_observation_jsonl_path=os.getenv(
+                "SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH",
+                "",
+            ).strip(),
+            retrieval_observation_include_query_text=_read_bool(
+                "SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT",
+                default=False,
             ),
             cancel_flag_ttl_seconds=_read_positive_float(
                 "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS",
