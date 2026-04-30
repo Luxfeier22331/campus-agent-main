@@ -16,6 +16,7 @@ updated: 2026-04-30
 - [x] **Phase 3: Sample State Machine Audit** — current code replays 338 captured units, produces 60 downstream multimodal candidates, generates 0 fetch requests, and passes state-machine audit with 0 findings.
 - [x] **Phase 4: Media Extraction Semantics Repair** — current readiness output now uses OCR/text-extraction-first media extraction semantics while preserving legacy multimodal filenames for compatibility.
 - [x] **Phase 5: Media Extraction Closeout Lane** — schedule OCR and owner-text execution outputs now emit canonical closeout result manifests, and a dry-run closeout CLI updates media extraction candidate inventory terminal states.
+- [x] **Phase 6: Offline Closeout Verification** — selected notice `355867` proves readiness -> OCR post-run closeout -> cleanup gate behavior, including low-confidence non-terminal preservation and manual terminal release.
 
 ## Phase 1: Operator Manifest Builder And Docs Wiring
 
@@ -147,6 +148,52 @@ uv run --all-packages python -m unittest \
   tests.ingestion.test_collected_notice_schedule_image_ocr_mini_batch \
   tests.ingestion.test_preview_schedule_image_ocr_mini_batch_worker \
   tests.ingestion.test_collected_notice_regulation_owner_text_execution
+```
+
+## Phase 6: Offline Closeout Verification
+
+Goal: prove the Phase 5 closeout lane and quarantine cleanup gate against the
+real selected notice `355867` without depending on refreshed live portal auth.
+
+Deliverables:
+
+- current-code media extraction readiness evidence for selected notice `355867`.
+- schedule OCR post-run preview against captured OCR outputs.
+- closeout merge evidence proving terminal candidates clear `target_blocking`.
+- quarantine cleanup dry-run evidence for pending, OCR post-run closeout, and
+  manual terminal closeout states.
+- phase summary documenting the low-confidence image behavior explicitly.
+
+Result:
+
+- readiness: 3 `schedule_image_ocr` candidates, all `target_blocking=true`.
+- OCR post-run: 32 extracted transport schedule rows; 2 candidates completed, 1
+  low-confidence image remained non-terminal and blocking.
+- cleanup pending state: `blocked_by_media_extraction_count=3`,
+  `dry_run_count=0`.
+- cleanup OCR post-run closeout state: `blocked_by_media_extraction_count=1`,
+  `dry_run_count=2`.
+- cleanup manual terminal state: `blocked_by_media_extraction_count=0`,
+  `dry_run_count=3`.
+
+Evidence:
+
+- `evidence/phase-06-offline-closeout-verification/current-readiness/media-extraction-candidate-inventory.json`
+- `evidence/phase-06-offline-closeout-verification/schedule-ocr-post-run-preview/media-extraction-closeout-result-manifest.json`
+- `evidence/phase-06-offline-closeout-verification/post-run-closeout/media-extraction-closeout-report.json`
+- `evidence/phase-06-offline-closeout-verification/manual-terminal-closeout/media-extraction-closeout-report.json`
+- `evidence/phase-06-offline-closeout-verification/cleanup-pending/quarantine-summary.json`
+- `evidence/phase-06-offline-closeout-verification/cleanup-post-run-closeout/quarantine-summary.json`
+- `evidence/phase-06-offline-closeout-verification/cleanup-manual-terminal-closeout/quarantine-summary.json`
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_media_extraction_closeout \
+  tests.ingestion.test_authenticated_notice_attachment_key_cleanup \
+  tests.ingestion.test_collected_notice_schedule_image_ocr_mini_batch \
+  tests.ingestion.test_preview_schedule_image_ocr_mini_batch_worker -q
 ```
 
 ## Phase 4: Media Extraction Semantics Repair

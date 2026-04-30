@@ -6,14 +6,18 @@ updated: 2026-04-30
 
 # Project State
 
+<!-- markdownlint-disable MD013 -->
+
 ## Current Position
+
 **Status:** Active
-**Current Phase:** Phase 5 completed
+**Current Phase:** Phase 6 completed
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Added media extraction closeout lane. Schedule image OCR post-run previews and regulation owner-text execution reports now emit canonical closeout result manifests; the new dry-run closeout worker merges those results into media extraction candidate inventory and clears target-blocking for terminal candidates.
+**Last Activity Description:** Ran offline closeout verification for selected notice `355867`. Current-code readiness produced 3 target-blocking `schedule_image_ocr` candidates; OCR post-run closeout terminalized 2 and preserved 1 low-confidence image as blocking; a manual terminal override then cleared the final blocker and allowed quarantine cleanup dry-run to release all 3 candidate objects.
 
 ## Progress
-**Phases Complete:** 5
+
+**Phases Complete:** 6
 **Current Plan:** `ROADMAP.md`
 
 ## Phase 1 Result
@@ -39,8 +43,18 @@ updated: 2026-04-30
 
 ## Next Slice
 
-Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine, media-readiness, cleanup gate, and closeout lane acceptance are currently clean.
+Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine, media-readiness, closeout lane, and cleanup gate acceptance are currently clean.
+
+## Phase 6 Result
+
+- Rebuilt current-code media extraction readiness for selected notice `355867`; output contains 3 `schedule_image_ocr` candidates with `target_blocking=true`.
+- Schedule OCR post-run preview from captured OCR outputs extracted 32 transport schedule rows and emitted `notice_media_extraction_closeout_result_manifest.v1`.
+- OCR closeout result: 2 candidates `completed`, 1 candidate `failed` with `low_confidence`; the failed non-terminal candidate remains target-blocking.
+- Cleanup dry-run with pending inventory blocks all 3 quarantine objects.
+- Cleanup dry-run after OCR post-run closeout releases 2 quarantine objects and blocks the low-confidence image.
+- Manual terminal override marks the low-confidence image `failed_terminal`; cleanup dry-run then releases all 3 quarantine objects.
 
 ## Session Continuity
-**Stopped At:** Phase 5 media extraction closeout lane complete; live collector proof remains auth-dependent
+
+**Stopped At:** Phase 6 offline closeout verification complete; live collector proof remains auth-dependent
 **Resume File:** None

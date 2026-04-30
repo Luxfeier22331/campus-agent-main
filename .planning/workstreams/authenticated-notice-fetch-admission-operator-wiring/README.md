@@ -15,7 +15,7 @@ fetch admission 能力接到 repo-owned operator / ingestion-worker 工作流。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 4 completed; live collector proof auth-blocked`
+- current phase: `Phase 6 completed; live collector proof auth-blocked`
 - baseline: `86695c4b feat: 完成通知附件 fetch admission 收口`
 
 ## Problem
