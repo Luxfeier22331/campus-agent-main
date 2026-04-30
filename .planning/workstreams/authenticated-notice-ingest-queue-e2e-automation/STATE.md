@@ -11,13 +11,13 @@ updated: 2026-05-01
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Phase 6 next
+**Current Phase:** Phase 7 next
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed Phase 5 consumer-owned media gate evidence manifest and strict audit gate integration.
+**Last Activity Description:** Completed Phase 6 downstream materialization/read-model trace and missing-result guard.
 
 ## Progress
 
-**Phases Complete:** 5
+**Phases Complete:** 6
 **Current Plan:** `ROADMAP.md`
 
 ## Baseline Code Facts
@@ -31,6 +31,7 @@ updated: 2026-05-01
 - Run-level authenticated notice queue consumer can lease `authenticated_notice_ingest` jobs, filter by `run_id`, verify collector run ledger object refs, verify source object hash/size, call object-native authenticated notice import, and map success/retryable/terminal/manual-review outcomes back to queue state.
 - Consumer-owned media gate evidence manifest now validates candidate inventory, attempt ledger, closeout inventory, target admission manifest, cleanup dry-run, object verification report, and strict audit hashes under one operations directory.
 - On-demand closeout can build media gate evidence after strict audit and before promotion.
+- Run-level consumer records downstream projection/read-model materialization evidence and prevents queue success when downstream materialization was requested but no projection/read-model evidence was returned.
 - Legacy collected-notice queue consumer can lease jobs and project them into source-truth/searchable evidence.
 - Authenticated notice `run_id` ledger resolver already requires `status=success` and `verification_status=verified`.
 - On-demand closeout runner can chain closeout worker, optional media source-object verification, strict media audit, and promotion when artifact paths are provided.
@@ -39,15 +40,14 @@ updated: 2026-05-01
 ## Current Gaps
 
 - Local-only collected content still needs repair/synthetic ledger upload before enqueue.
-- Downstream materialization/read-model rebuild is not automatically triggered after promotion.
 - Cleanup lifecycle is guarded but not integrated as an automatic stage.
 - No unattended captured-content E2E smoke proves queue-to-downstream behavior with zero manual artifact stitching.
 
 ## Next Slice
 
-Start Phase 6 by making downstream materialization/read-model results explicit in queue consume trace and blocking silent success when downstream materialization was requested but produced no admitted projection/read-model evidence.
+Start Phase 7 by integrating cleanup dry-run / destructive cleanup eligibility as a guarded lifecycle stage tied to fresh strict media gate evidence.
 
 ## Session Continuity
 
-**Stopped At:** Phase 5 complete; Phase 6 downstream materialization/read-model result tracing is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
+**Stopped At:** Phase 6 complete; Phase 7 cleanup lifecycle integration is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
 **Resume File:** None
