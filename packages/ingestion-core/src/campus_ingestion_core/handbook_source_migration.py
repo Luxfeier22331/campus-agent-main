@@ -151,7 +151,7 @@ def migrate_student_handbook_source_faithful(
             source_pdf=canonical_raw_filename,
             reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
             index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
-            publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True),
+            publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=False),
         ),
         object_store=runtime_object_store,
         qdrant_admin=qdrant_admin,

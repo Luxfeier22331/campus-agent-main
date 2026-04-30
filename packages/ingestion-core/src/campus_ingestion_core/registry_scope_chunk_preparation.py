@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
@@ -19,7 +19,7 @@ from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runti
 from campus_ingestion_core.index_release import IndexReleaseValidationResult, validate_scope_release
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_operations_artifact_key
-from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_record
+from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.registry_scope_common import (
     record_label,
@@ -56,6 +56,7 @@ class RegistryScopeChunkPreparationDocumentRef:
     revision_track: str
     version_id: str
     document_units_object_key: str | None
+    document_units_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +87,9 @@ class RegistryScopeChunkPreparationManifest:
     validation_summary_object_key: str | None
     document_report_object_key: str | None
     documents: tuple[RegistryScopeChunkPreparationDocumentRef, ...] = field(default_factory=tuple)
+    document_units_content_hash: str = ""
+    chunk_profile_hash: str = ""
+    chunk_fingerprint_hash: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,12 +159,21 @@ def prepare_registry_scope_chunks(
     chunks: list[IndexableChunk] = []
     document_reports: list[RegistryScopeChunkPreparationDocumentReport] = []
     documents_without_chunks: list[str] = []
+    document_units_sha256_by_record_key: dict[tuple[str, str, str], str] = {}
     for record in records:
         try:
-            document_chunks = build_indexable_chunks_from_record(
-                record=record,
-                object_store=runtime_object_store,
+            if not record.document_units_object_key:
+                raise ValueError("document_units_object_key is required to build indexable chunks")
+            document_units_bytes = runtime_object_store.get_bytes(
                 bucket=object_store_settings.bucket_derived,
+                key=record.document_units_object_key,
+            )
+            document_units_sha256_by_record_key[_record_key(record)] = hashlib.sha256(
+                document_units_bytes
+            ).hexdigest()
+            document_chunks = build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=document_units_bytes,
             )
         except Exception as exc:
             raise ValueError(
@@ -191,6 +204,12 @@ def prepare_registry_scope_chunks(
         chunks=tuple(chunks),
         validation=validation,
         prepared_at=prepared_at,
+        document_units_sha256_by_record_key={
+            _record_key(manifest_record): document_units_sha256_by_record_key[
+                _record_key(processing_record)
+            ]
+            for processing_record, manifest_record in zip(records, manifest_records, strict=True)
+        },
     )
     artifacts = write_chunk_preparation_artifacts(
         writer=runtime_object_store,
@@ -217,15 +236,20 @@ def build_chunk_preparation_manifest(
     chunks: Sequence[IndexableChunk],
     validation: IndexReleaseValidationResult,
     prepared_at: str,
+    document_units_sha256_by_record_key: Mapping[tuple[str, str, str], str] | None = None,
 ) -> RegistryScopeChunkPreparationManifest:
     if not chunks:
         raise ValueError("chunks must not be empty")
+    runtime_document_units_sha256_by_record_key = dict(document_units_sha256_by_record_key or {})
     document_refs = tuple(
         RegistryScopeChunkPreparationDocumentRef(
             document_id=record.document_id,
             revision_track=record.revision_track,
             version_id=record.version_id,
             document_units_object_key=record.document_units_object_key,
+            document_units_sha256=runtime_document_units_sha256_by_record_key.get(
+                _record_key(record)
+            ),
         )
         for record in sorted(
             records, key=lambda item: (item.document_id, item.revision_track, item.version_id)
@@ -252,6 +276,14 @@ def build_chunk_preparation_manifest(
         validation_summary_object_key=None,
         document_report_object_key=None,
         documents=document_refs,
+        document_units_content_hash=_hash_values(
+            f"{item.document_id}|{item.revision_track}|{item.version_id}|{item.document_units_sha256 or ''}"
+            for item in document_refs
+        )
+        if runtime_document_units_sha256_by_record_key
+        else "",
+        chunk_profile_hash=_hash_chunk_profile(corpus=corpus, collection=collection),
+        chunk_fingerprint_hash=_hash_chunk_fingerprint(chunks),
     )
 
 
@@ -314,6 +346,9 @@ def write_chunk_preparation_artifacts(
         validation_summary_object_key=validation_summary_object_key,
         document_report_object_key=document_report_object_key,
         documents=manifest.documents,
+        document_units_content_hash=manifest.document_units_content_hash,
+        chunk_profile_hash=manifest.chunk_profile_hash,
+        chunk_fingerprint_hash=manifest.chunk_fingerprint_hash,
     )
     manifest_object_key = _build_preparation_artifact_key(
         corpus=runtime_manifest.corpus,
@@ -394,9 +429,17 @@ def load_chunk_preparation_manifest(
                     if item.get("document_units_object_key") is not None
                     else None
                 ),
+                document_units_sha256=(
+                    str(item.get("document_units_sha256"))
+                    if item.get("document_units_sha256") is not None
+                    else None
+                ),
             )
             for item in list(payload.get("documents") or [])
         ),
+        document_units_content_hash=str(payload.get("document_units_content_hash") or ""),
+        chunk_profile_hash=str(payload.get("chunk_profile_hash") or ""),
+        chunk_fingerprint_hash=str(payload.get("chunk_fingerprint_hash") or ""),
     )
 
 
@@ -496,7 +539,56 @@ def require_verified_chunk_preparation(
             "chunk preparation document-units hash does not match current registry scope for "
             f"{corpus}/{collection}"
         )
+    if requires_preparation:
+        if not manifest.document_units_content_hash:
+            raise ValueError(
+                "chunk preparation document-units content hash is missing for "
+                f"{corpus}/{collection} run {preparation_run_id}"
+            )
+        if not manifest.chunk_profile_hash:
+            raise ValueError(
+                "chunk preparation chunk profile hash is missing for "
+                f"{corpus}/{collection} run {preparation_run_id}"
+            )
+        if not manifest.chunk_fingerprint_hash:
+            raise ValueError(
+                "chunk preparation chunk fingerprint hash is missing for "
+                f"{corpus}/{collection} run {preparation_run_id}"
+            )
+    expected_document_units_content_hash = _hash_values(
+        f"{record.document_id}|{record.revision_track}|{record.version_id}|{_hash_document_units_bytes(object_store=object_store, bucket=bucket, record=record)}"
+        for record in records
+    )
+    if (
+        manifest.document_units_content_hash
+        and manifest.document_units_content_hash != expected_document_units_content_hash
+    ):
+        raise ValueError(
+            "chunk preparation document-units content hash does not match current artifacts for "
+            f"{corpus}/{collection}"
+        )
+    expected_chunk_profile_hash = _hash_chunk_profile(corpus=corpus, collection=collection)
+    if manifest.chunk_profile_hash and manifest.chunk_profile_hash != expected_chunk_profile_hash:
+        raise ValueError(
+            "chunk preparation chunk profile hash does not match current config for "
+            f"{corpus}/{collection}"
+        )
     return manifest
+
+
+def verify_prepared_chunks_match_manifest(
+    *,
+    manifest: RegistryScopeChunkPreparationManifest | None,
+    chunks: Sequence[IndexableChunk],
+) -> None:
+    if manifest is None or not manifest.chunk_fingerprint_hash:
+        return
+    actual_hash = _hash_chunk_fingerprint(chunks)
+    if manifest.chunk_fingerprint_hash != actual_hash:
+        raise ValueError(
+            "chunk preparation fingerprint hash does not match release chunks for "
+            f"{manifest.corpus}/{manifest.collection}"
+        )
 
 
 def _validate_prepared_scope(
@@ -641,6 +733,44 @@ def _hash_values(values: Sequence[str] | Any) -> str:
     return digest.hexdigest()
 
 
+def _hash_document_units_bytes(
+    *,
+    object_store: RegistryScopePreparationObjectStore,
+    bucket: str,
+    record: DocumentRegistryRecord,
+) -> str:
+    if not record.document_units_object_key:
+        return ""
+    return hashlib.sha256(
+        object_store.get_bytes(bucket=bucket, key=record.document_units_object_key)
+    ).hexdigest()
+
+
+def _hash_chunk_profile(*, corpus: str, collection: str) -> str:
+    profile = load_chunk_profile(corpus, collection)
+    return hashlib.sha256(
+        json.dumps(asdict(profile), ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _hash_chunk_fingerprint(chunks: Sequence[IndexableChunk]) -> str:
+    digest = hashlib.sha256()
+    for chunk in sorted(chunks, key=lambda item: item.chunk_id):
+        payload = {
+            "chunk_id": chunk.chunk_id,
+            "document_id": chunk.document_id,
+            "revision_track": chunk.revision_track,
+            "version_id": chunk.version_id,
+            "chunk_order": chunk.chunk_order,
+            "source_chunk_id": chunk.source_chunk_id,
+            "text_sha256": hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+            "metadata": chunk.metadata,
+        }
+        digest.update(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
 __all__ = [
     "MANDATORY_PREPARATION_SCOPES",
     "REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION",
@@ -653,5 +783,6 @@ __all__ = [
     "load_chunk_preparation_manifest",
     "prepare_registry_scope_chunks",
     "require_verified_chunk_preparation",
+    "verify_prepared_chunks_match_manifest",
     "write_chunk_preparation_artifacts",
 ]

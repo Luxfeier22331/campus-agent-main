@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     publish_group = parser.add_mutually_exclusive_group()
     publish_group.add_argument("--publish-alias", dest="publish_alias", action="store_true")
     publish_group.add_argument("--no-publish-alias", dest="publish_alias", action="store_false")
-    parser.set_defaults(publish_alias=True)
+    parser.set_defaults(publish_alias=False)
     return parser
 
 

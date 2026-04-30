@@ -596,9 +596,22 @@ def _load_index_release_manifest(
                     if item.get("document_units_object_key") is None
                     else str(item["document_units_object_key"])
                 ),
+                document_units_sha256=(
+                    None
+                    if item.get("document_units_sha256") is None
+                    else str(item["document_units_sha256"])
+                ),
             )
             for item in payload.get("documents") or ()
         ),
+        embedding_provider=str(payload.get("embedding_provider") or ""),
+        embedding_dimensions=(
+            None
+            if payload.get("embedding_dimensions") is None
+            else int(payload["embedding_dimensions"])
+        ),
+        document_units_content_hash=str(payload.get("document_units_content_hash") or ""),
+        chunk_fingerprint_hash=str(payload.get("chunk_fingerprint_hash") or ""),
     )
 
 

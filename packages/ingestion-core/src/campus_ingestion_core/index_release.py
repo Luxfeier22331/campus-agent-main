@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -46,6 +47,7 @@ class IndexReleaseDocumentRef:
     revision_track: str
     version_id: str
     document_units_object_key: str | None
+    document_units_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +76,10 @@ class IndexReleaseManifest:
     validation_status: str
     validation_summary_object_key: str | None
     documents: tuple[IndexReleaseDocumentRef, ...] = field(default_factory=tuple)
+    embedding_provider: str = ""
+    embedding_dimensions: int | None = None
+    document_units_content_hash: str = ""
+    chunk_fingerprint_hash: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +91,7 @@ class IndexReleaseArtifacts:
 
 def default_release_id(*, now: datetime | None = None) -> str:
     runtime_now = now or datetime.now(UTC)
-    return runtime_now.strftime("r%Y%m%d_%H%M%S")
+    return f"{runtime_now.strftime('r%Y%m%d_%H%M%S_%f')}_{uuid.uuid4().hex[:8]}"
 
 
 def resolve_alias_target(
@@ -199,15 +205,24 @@ def build_index_release_manifest(
     indexed_at: str,
     published_at: str | None,
     validation_summary_object_key: str | None,
+    embedding_provider: str = "",
+    embedding_dimensions: int | None = None,
+    document_units_sha256_by_key: dict[str, str] | None = None,
 ) -> IndexReleaseManifest:
     if not chunks:
         raise ValueError("chunks must not be empty")
+    runtime_document_units_sha256_by_key = dict(document_units_sha256_by_key or {})
     document_refs = tuple(
         IndexReleaseDocumentRef(
             document_id=record.document_id,
             revision_track=record.revision_track,
             version_id=record.version_id,
             document_units_object_key=record.document_units_object_key,
+            document_units_sha256=(
+                runtime_document_units_sha256_by_key.get(record.document_units_object_key or "")
+                if record.document_units_object_key
+                else None
+            ),
         )
         for record in sorted(
             records, key=lambda item: (item.document_id, item.revision_track, item.version_id)
@@ -222,7 +237,7 @@ def build_index_release_manifest(
         previous_physical_collection_name=previous_physical_collection_name,
         cleaning_policy_version=str(chunks[0].metadata.get("cleaning_policy_version") or ""),
         chunk_policy_version=str(chunks[0].metadata.get("chunk_policy_version") or ""),
-        embedding_model=chunks[0].embedding_model,
+        embedding_model=_single_embedding_model(chunks),
         indexed_at=indexed_at,
         published_at=published_at,
         document_count=len(document_refs),
@@ -236,6 +251,19 @@ def build_index_release_manifest(
         validation_status=validation.status,
         validation_summary_object_key=validation_summary_object_key,
         documents=document_refs,
+        embedding_provider=embedding_provider,
+        embedding_dimensions=(
+            embedding_dimensions
+            if embedding_dimensions is not None
+            else _resolve_chunk_embedding_dimensions(chunks)
+        ),
+        document_units_content_hash=_hash_values(
+            f"{item.document_id}|{item.revision_track}|{item.version_id}|{item.document_units_sha256 or ''}"
+            for item in document_refs
+        )
+        if runtime_document_units_sha256_by_key
+        else "",
+        chunk_fingerprint_hash=_hash_chunk_fingerprint(chunks),
     )
 
 
@@ -283,6 +311,10 @@ def write_index_release_artifacts(
             validation_status=manifest.validation_status,
             validation_summary_object_key=validation_summary_object_key,
             documents=manifest.documents,
+            embedding_provider=manifest.embedding_provider,
+            embedding_dimensions=manifest.embedding_dimensions,
+            document_units_content_hash=manifest.document_units_content_hash,
+            chunk_fingerprint_hash=manifest.chunk_fingerprint_hash,
         )
     manifest_object_key = build_index_release_artifact_key(
         corpus=runtime_manifest.corpus,
@@ -318,6 +350,11 @@ def build_release_metadata_payload(
         "chunk_policy_version": manifest.chunk_policy_version,
         "cleaning_policy_version": manifest.cleaning_policy_version,
         "index_validation_status": manifest.validation_status,
+        "embedding_provider": manifest.embedding_provider,
+        "embedding_model": manifest.embedding_model,
+        "embedding_dimensions": manifest.embedding_dimensions,
+        "document_units_content_hash": manifest.document_units_content_hash,
+        "chunk_fingerprint_hash": manifest.chunk_fingerprint_hash,
     }
 
 
@@ -558,5 +595,42 @@ def _hash_values(values: Sequence[str] | Any) -> str:
     digest = hashlib.sha256()
     for value in sorted(str(item) for item in values):
         digest.update(value.encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _single_embedding_model(chunks: Sequence[IndexableChunk]) -> str:
+    models = {chunk.embedding_model for chunk in chunks if chunk.embedding_model.strip()}
+    if not models:
+        return ""
+    if len(models) != 1:
+        raise ValueError("index release chunks must use a single embedding model")
+    return next(iter(models))
+
+
+def _resolve_chunk_embedding_dimensions(chunks: Sequence[IndexableChunk]) -> int | None:
+    dimensions = {len(chunk.embedding) for chunk in chunks if chunk.embedding is not None}
+    if not dimensions:
+        return None
+    if len(dimensions) != 1:
+        raise ValueError("index release chunks must use one dense embedding dimension")
+    return next(iter(dimensions))
+
+
+def _hash_chunk_fingerprint(chunks: Sequence[IndexableChunk]) -> str:
+    digest = hashlib.sha256()
+    for chunk in sorted(chunks, key=lambda item: item.chunk_id):
+        payload = {
+            "chunk_id": chunk.chunk_id,
+            "document_id": chunk.document_id,
+            "revision_track": chunk.revision_track,
+            "version_id": chunk.version_id,
+            "chunk_order": chunk.chunk_order,
+            "source_chunk_id": chunk.source_chunk_id,
+            "text_sha256": hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+            "embedding_model": chunk.embedding_model,
+            "metadata": chunk.metadata,
+        }
+        digest.update(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8"))
         digest.update(b"\n")
     return digest.hexdigest()

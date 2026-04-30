@@ -5,208 +5,22 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry_scope_chunk_preparation import prepare_registry_scope_chunks
 from campus_ingestion_core.registry_scope_release import release_registry_scope
 from qdrant_client import QdrantClient
 
+from tests.ingestion.internal_notice_scope_chunk_pipeline_support import (
+    CloseoutOnlyRegistry,
+    FakeCloseoutStore,
+    FakeObjectStore,
+    build_staged_document,
+    make_internal_notice_attachment_record,
+    make_internal_notice_document_units_bytes,
+    make_internal_notice_record,
+    make_verified_closeout_run,
+)
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
-
-
-class _FakeObjectStore:
-    def __init__(self, *, objects: dict[tuple[str, str], bytes] | None = None) -> None:
-        self.objects = dict(objects or {})
-        self.reads: list[tuple[str, str]] = []
-        self.uploads: list[dict[str, object]] = []
-
-    def get_bytes(self, *, bucket: str, key: str) -> bytes:
-        self.reads.append((bucket, key))
-        return self.objects[(bucket, key)]
-
-    def put_bytes(
-        self,
-        *,
-        bucket: str,
-        key: str,
-        data: bytes,
-        content_type: str,
-    ) -> None:
-        self.objects[(bucket, key)] = data
-        self.uploads.append(
-            {
-                "bucket": bucket,
-                "key": key,
-                "data": data,
-                "content_type": content_type,
-            }
-        )
-
-
-class _CloseoutOnlyRegistry(InMemoryDocumentRegistry):
-    def list_by_scope(
-        self,
-        corpus: str,
-        collection: str | None = None,
-    ) -> tuple[DocumentRegistryRecord, ...]:
-        raise AssertionError("closeout-run preparation must not scan current registry scope")
-
-
-class _FakeCloseoutStore:
-    def __init__(self, *, run, staged_documents: tuple[dict[str, object], ...]) -> None:
-        self.run = run
-        self.staged_documents = staged_documents
-
-    def get_run(self, run_id: str):
-        if self.run is None or self.run.run_id != run_id:
-            return None
-        return self.run
-
-    def get_staged_documents(self, run_id: str) -> tuple[dict[str, object], ...]:
-        if self.run is None or self.run.run_id != run_id:
-            return ()
-        return self.staged_documents
-
-
-def _make_internal_notice_record(*, object_key: str) -> DocumentRegistryRecord:
-    return DocumentRegistryRecord(
-        document_id="notice:muc_internal_portal:355119",
-        revision_track="source-faithful",
-        version_id="sha256:test-version",
-        source_uri="https://portal.example.edu/notice/355119",
-        content_hash="sha256:test-content",
-        corpus="campus_notices",
-        collection="internal_notice",
-        cleaning_policy_version="authenticated_notice_projection_v1",
-        entitlement_groups=("campus_members",),
-        visibility_scope="campus",
-        visibility_level="restricted",
-        ingestion_timestamp="2026-04-06T00:00:00+00:00",
-        parser_version="authenticated_notice_import_v1",
-        embedding_model="Qwen3-Embedding-4B",
-        source_channel="authenticated_notice_portal",
-        is_current=True,
-        document_units_object_key=object_key,
-        processed_object_keys=(object_key,),
-        import_source="authenticated_notice_source_projection",
-    )
-
-
-def _make_internal_notice_attachment_record(*, object_key: str) -> DocumentRegistryRecord:
-    return DocumentRegistryRecord(
-        document_id="notice_attachment:muc_internal_portal:355119:attachment-0001",
-        revision_track="source-faithful",
-        version_id="sha256:test-attachment-version",
-        source_uri="https://portal.example.edu/notice/355119/attachments/1",
-        content_hash="sha256:test-attachment-content",
-        corpus="campus_notices",
-        collection="internal_notice",
-        cleaning_policy_version="authenticated_notice_projection_v1",
-        entitlement_groups=("campus_members",),
-        visibility_scope="campus",
-        visibility_level="restricted",
-        ingestion_timestamp="2026-04-06T00:00:00+00:00",
-        parser_version="authenticated_notice_import_v1",
-        embedding_model="Qwen3-Embedding-4B",
-        source_channel="authenticated_notice_portal",
-        is_current=True,
-        document_units_object_key=object_key,
-        processed_object_keys=(object_key,),
-        import_source="authenticated_notice_source_projection",
-    )
-
-
-def _make_verified_closeout_run(*, run_id: str):
-    from campus_ingestion_core.authenticated_notice_closeout import CloseoutRun
-
-    return (
-        CloseoutRun(
-            run_id=run_id,
-            bundle_path="/tmp/not-used.json",
-            manifest_path=None,
-            expected_notice_count=1,
-            expected_document_count=1,
-            operations_prefix=f"campus_notices/operations/authenticated-notice-closeout/{run_id}",
-            corpus="campus_notices",
-            collection="internal_notice",
-        )
-        .mark_planned()
-        .mark_running()
-        .mark_verifying()
-        .mark_verified({"staged_document_count": 1})
-    )
-
-
-def _build_staged_document(
-    *,
-    record: DocumentRegistryRecord,
-    staged_document_units_key: str,
-) -> dict[str, object]:
-    return {
-        "document": {
-            "document_id": record.document_id,
-            "revision_track": record.revision_track,
-            "version_id": record.version_id,
-            "source_label": record.source_uri,
-            "metadata": {
-                "document_id": record.document_id,
-                "version_id": record.version_id,
-                "source_url": record.source_uri,
-                "entitlement_groups": list(record.entitlement_groups),
-                "visibility_scope": record.visibility_scope,
-                "visibility_level": record.visibility_level,
-                "policy_projection_version": record.policy_projection_version,
-            },
-            "import_source": record.import_source,
-            "source_channel": record.source_channel,
-            "is_current": record.is_current,
-            "corpus": record.corpus,
-            "collection": record.collection,
-            "visibility_scope": record.visibility_scope,
-            "status": record.status,
-            "raw_source_uri": record.source_uri,
-            "raw_asset_id": None,
-            "raw_version_id": None,
-            "provider_response_object_key": record.provider_response_object_key,
-            "layout_elements_object_key": record.layout_elements_object_key,
-            "additional_processed_object_keys": [],
-            "processed_object_keys": list(record.processed_object_keys),
-            "title": record.document_id,
-            "year": None,
-            "parser_version": record.parser_version,
-            "embedding_model": record.embedding_model,
-            "cleaning_policy_version": record.cleaning_policy_version,
-        },
-        "staged_object_keys": {"document_units": staged_document_units_key},
-        "final_object_keys": {"document_units": str(record.document_units_object_key)},
-        "content_hash": record.content_hash,
-        "staged_object_metadata": {
-            "document_units": {"sha256": record.content_hash, "content_length": 256}
-        },
-    }
-
-
-def _make_internal_notice_document_units_bytes(
-    *,
-    document_id: str,
-    version_id: str,
-) -> bytes:
-    row = {
-        "doc_id": document_id,
-        "version_id": version_id,
-        "chunk_id": "body-001",
-        "root_unit_id": "body-001",
-        "unit_type": "paragraph",
-        "clean_text": "请同学们于4月10日前完成报名，并按照通知要求提交材料。",
-        "anchor": {
-            "source_uri": f"https://portal.example.edu/notice/{document_id.split(':')[-1]}",
-        },
-        "metadata": {
-            "title": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知",
-            "block_role": "paragraph",
-        },
-    }
-    return (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
 
 
 class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
@@ -228,11 +42,11 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                 "campus_notices/documents/internal_notice/"
                 "notice-355119/source-faithful/2026/document-units.jsonl"
             )
-            record = _make_internal_notice_record(object_key=object_key)
+            record = make_internal_notice_record(object_key=object_key)
             registry = InMemoryDocumentRegistry((record,), backing_path=root / "registry.json")
-            object_store = _FakeObjectStore(
+            object_store = FakeObjectStore(
                 objects={
-                    ("campus-rag-derived", object_key): _make_internal_notice_document_units_bytes(
+                    ("campus-rag-derived", object_key): make_internal_notice_document_units_bytes(
                         document_id=record.document_id,
                         version_id=record.version_id,
                     ),
@@ -259,6 +73,12 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertIn(report.manifest_object_key, upload_keys)
         self.assertIn(str(report.validation_summary_object_key), upload_keys)
         self.assertIn(str(report.document_report_object_key), upload_keys)
+        manifest_bytes = object_store.objects[("campus-rag-derived", report.manifest_object_key)]
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+        self.assertRegex(manifest["document_units_content_hash"], r"^[0-9a-f]{64}$")
+        self.assertRegex(manifest["chunk_profile_hash"], r"^[0-9a-f]{64}$")
+        self.assertRegex(manifest["chunk_fingerprint_hash"], r"^[0-9a-f]{64}$")
+        self.assertRegex(manifest["documents"][0]["document_units_sha256"], r"^[0-9a-f]{64}$")
 
     def test_prepare_registry_scope_chunks_can_use_verified_closeout_run_without_current_scope(
         self,
@@ -272,23 +92,23 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             "campus_notices/operations/authenticated-notice-closeout/"
             f"{closeout_run_id}/staging/batches/batch-0001/documents/notice-355119/document-units.jsonl"
         )
-        record = _make_internal_notice_record(object_key=final_object_key)
-        closeout_store = _FakeCloseoutStore(
-            run=_make_verified_closeout_run(run_id=closeout_run_id),
+        record = make_internal_notice_record(object_key=final_object_key)
+        closeout_store = FakeCloseoutStore(
+            run=make_verified_closeout_run(run_id=closeout_run_id),
             staged_documents=(
-                _build_staged_document(
+                build_staged_document(
                     record=record,
                     staged_document_units_key=staged_object_key,
                 ),
             ),
         )
-        registry = _CloseoutOnlyRegistry((record,))
-        object_store = _FakeObjectStore(
+        registry = CloseoutOnlyRegistry((record,))
+        object_store = FakeObjectStore(
             objects={
                 (
                     "campus-rag-derived",
                     staged_object_key,
-                ): _make_internal_notice_document_units_bytes(
+                ): make_internal_notice_document_units_bytes(
                     document_id=record.document_id,
                     version_id=record.version_id,
                 ),
@@ -321,7 +141,7 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         )
 
     def test_internal_notice_parent_chunks_use_notice_body_lane_strategy(self) -> None:
-        record = _make_internal_notice_record(
+        record = make_internal_notice_record(
             object_key=(
                 "campus_notices/documents/internal_notice/"
                 "notice-355119/source-faithful/2026/document-units.jsonl"
@@ -386,7 +206,7 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         )
 
     def test_internal_notice_notice_body_avoids_short_token_guardrail_tail_chunks(self) -> None:
-        record = _make_internal_notice_record(
+        record = make_internal_notice_record(
             object_key=(
                 "campus_notices/documents/internal_notice/"
                 "notice-241275/source-faithful/2026/document-units.jsonl"
@@ -467,7 +287,7 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertEqual(short_guardrail_chunks, [])
 
     def test_internal_notice_attachment_text_chunks_use_text_lane_strategy(self) -> None:
-        record = _make_internal_notice_attachment_record(
+        record = make_internal_notice_attachment_record(
             object_key=(
                 "campus_notices/documents/internal_notice/"
                 "notice-355119-attachment-0001/source-faithful/2026/document-units.jsonl"
@@ -562,7 +382,7 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         )
 
     def test_internal_notice_attachment_ocr_chunks_use_ocr_lane_budget(self) -> None:
-        record = _make_internal_notice_attachment_record(
+        record = make_internal_notice_attachment_record(
             object_key=(
                 "campus_notices/documents/internal_notice/"
                 "notice-355119-attachment-0001/source-faithful/2026/document-units-ocr.jsonl"
@@ -660,11 +480,11 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                 "campus_notices/documents/internal_notice/"
                 "notice-355119/source-faithful/2026/document-units.jsonl"
             )
-            record = _make_internal_notice_record(object_key=object_key)
+            record = make_internal_notice_record(object_key=object_key)
             registry = InMemoryDocumentRegistry((record,), backing_path=root / "registry.json")
-            object_store = _FakeObjectStore(
+            object_store = FakeObjectStore(
                 objects={
-                    ("campus-rag-derived", object_key): _make_internal_notice_document_units_bytes(
+                    ("campus-rag-derived", object_key): make_internal_notice_document_units_bytes(
                         document_id=record.document_id,
                         version_id=record.version_id,
                     ),
@@ -694,11 +514,11 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                 "campus_notices/documents/internal_notice/"
                 "notice-355119/source-faithful/2026/document-units.jsonl"
             )
-            record = _make_internal_notice_record(object_key=object_key)
+            record = make_internal_notice_record(object_key=object_key)
             registry = InMemoryDocumentRegistry((record,), backing_path=root / "registry.json")
-            object_store = _FakeObjectStore(
+            object_store = FakeObjectStore(
                 objects={
-                    ("campus-rag-derived", object_key): _make_internal_notice_document_units_bytes(
+                    ("campus-rag-derived", object_key): make_internal_notice_document_units_bytes(
                         document_id=record.document_id,
                         version_id=record.version_id,
                     ),
@@ -735,6 +555,59 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertEqual(report.document_count, 1)
         self.assertGreater(report.point_count, 0)
 
+    def test_release_registry_scope_rejects_modified_document_units_after_preparation(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_key = (
+                "campus_notices/documents/internal_notice/"
+                "notice-355119/source-faithful/2026/document-units.jsonl"
+            )
+            record = make_internal_notice_record(object_key=object_key)
+            registry = InMemoryDocumentRegistry((record,), backing_path=root / "registry.json")
+            object_store = FakeObjectStore(
+                objects={
+                    ("campus-rag-derived", object_key): make_internal_notice_document_units_bytes(
+                        document_id=record.document_id,
+                        version_id=record.version_id,
+                    ),
+                }
+            )
+
+            prepare_registry_scope_chunks(
+                corpus="campus_notices",
+                collection="internal_notice",
+                preparation_run_id="prep-20260406-0003",
+                env=self._env(),
+                registry=registry,
+                object_store=object_store,
+            )
+            object_store.objects[("campus-rag-derived", object_key)] = (
+                make_internal_notice_document_units_bytes(
+                    document_id=record.document_id,
+                    version_id=record.version_id,
+                )
+                + b'{"doc_id":"notice:muc_internal_portal:355119","version_id":"sha256:test-version","chunk_id":"extra","clean_text":"extra"}\n'
+            )
+
+            with self.assertRaisesRegex(ValueError, "document-units content hash"):
+                release_registry_scope(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                    preparation_run_id="prep-20260406-0003",
+                    env={
+                        **self._env(),
+                        "EMBEDDING_PROVIDER": "mock",
+                        "EMBEDDING_MODEL": "mock-embedding-8d",
+                        "SPARSE_PROVIDER": "mock",
+                    },
+                    registry=registry,
+                    object_store=object_store,
+                    qdrant_client=QdrantClient(location=":memory:"),
+                    publish_alias=False,
+                )
+
     def test_prepare_registry_scope_chunks_reports_record_context_on_structured_mismatch(
         self,
     ) -> None:
@@ -744,11 +617,11 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                 "campus_notices/documents/internal_notice/"
                 "notice-355119/source-faithful/2026/document-units.jsonl"
             )
-            record = _make_internal_notice_record(object_key=object_key)
+            record = make_internal_notice_record(object_key=object_key)
             registry = InMemoryDocumentRegistry((record,), backing_path=root / "registry.json")
-            object_store = _FakeObjectStore(
+            object_store = FakeObjectStore(
                 objects={
-                    ("campus-rag-derived", object_key): _make_internal_notice_document_units_bytes(
+                    ("campus-rag-derived", object_key): make_internal_notice_document_units_bytes(
                         document_id="notice_attachment:muc_internal_portal:355119:attachment-0001",
                         version_id=record.version_id,
                     ),

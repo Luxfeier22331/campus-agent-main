@@ -43,6 +43,13 @@ from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     infer_authenticated_notice_year,
     resolve_authenticated_notice_attachment_object_key,
 )
+from campus_ingestion_core.collected_notice_classification import (
+    resolve_collected_notice_target_candidates,
+)
+from campus_ingestion_core.internal_notice_schedule_body import (
+    ScheduleNoticeBody,
+    extract_schedule_from_notice_body,
+)
 
 
 def prepare_authenticated_notice_source_material(
@@ -85,6 +92,7 @@ def prepare_authenticated_notice_source_material(
     )
     source_retention_decision = _build_source_retention_decision(
         bundle_record=bundle_record,
+        content_blocks=content_blocks,
         attachment_refs=attachment_refs,
         notice_family_config=notice_family_config,
     )
@@ -322,6 +330,7 @@ def _build_source_truth_artifacts(
 def _build_source_retention_decision(
     *,
     bundle_record: dict[str, Any],
+    content_blocks: tuple[dict[str, Any], ...],
     attachment_refs: tuple[dict[str, Any], ...],
     notice_family_config: AuthenticatedNoticeNoticeFamilyConfig,
 ):
@@ -329,12 +338,153 @@ def _build_source_retention_decision(
         bundle_record,
         config=notice_family_config,
     )
+    notice_capture_route = resolve_authenticated_notice_capture_route(
+        suggested_consumption_route=routing_sample.suggested_consumption_route,
+    )
     return build_authenticated_notice_source_retention_decision(
-        notice_capture_route=resolve_authenticated_notice_capture_route(
-            suggested_consumption_route=routing_sample.suggested_consumption_route,
+        notice_capture_route=notice_capture_route,
+        attachment_refs=attachment_refs,
+        missing_fact_attachment_ref_ids=_missing_fact_attachment_ref_ids(
+            bundle_record=bundle_record,
+            content_blocks=content_blocks,
+            attachment_refs=attachment_refs,
+            routing_sample=routing_sample,
+            notice_capture_route=notice_capture_route,
         ),
+    )
+
+
+def _missing_fact_attachment_ref_ids(
+    *,
+    bundle_record: dict[str, Any],
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+    routing_sample,
+    notice_capture_route: str,
+) -> tuple[str, ...]:
+    if notice_capture_route != "candidate_service_fact":
+        return ()
+    target_candidates = resolve_collected_notice_target_candidates(
+        notice_family=routing_sample.notice_family,
+        primary_route=routing_sample.suggested_consumption_route,
+        title=routing_sample.notice_title,
+    )
+    if "transport_schedule" not in target_candidates:
+        return ()
+    return _missing_transport_schedule_attachment_ref_ids(
+        bundle_record=bundle_record,
+        content_blocks=content_blocks,
         attachment_refs=attachment_refs,
     )
+
+
+def _missing_transport_schedule_attachment_ref_ids(
+    *,
+    bundle_record: dict[str, Any],
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> tuple[str, ...]:
+    notice = _notice_payload(bundle_record)
+    body_text = _content_blocks_text(content_blocks)
+    extraction = extract_schedule_from_notice_body(
+        ScheduleNoticeBody(
+            notice_id=str(notice.get("notice_id") or bundle_record.get("notice_id") or ""),
+            notice_title=str(notice.get("notice_title") or ""),
+            release_time=str(notice.get("notice_release_time") or ""),
+            organization=str(notice.get("organization_name") or ""),
+            context_before=body_text,
+            context_after="",
+        )
+    )
+    if extraction.rows:
+        return ()
+    if not _has_transport_schedule_attachment_fact_signal(
+        title=str(notice.get("notice_title") or ""),
+        body_text=body_text,
+    ):
+        return ()
+    return tuple(
+        str(ref.get("attachment_ref_id") or "")
+        for ref in attachment_refs
+        if str(ref.get("attachment_ref_id") or "")
+        and _is_candidate_fact_carrier_attachment_ref(ref)
+    )
+
+
+def _content_blocks_text(content_blocks: tuple[dict[str, Any], ...]) -> str:
+    return "\n".join(
+        str(block.get("text_normalized") or block.get("text_raw") or "").strip()
+        for block in content_blocks
+        if str(block.get("block_role") or "") != "title"
+        and str(block.get("text_normalized") or block.get("text_raw") or "").strip()
+    )
+
+
+def _has_transport_schedule_attachment_fact_signal(*, title: str, body_text: str) -> bool:
+    text = f"{title}\n{body_text}"
+    return (
+        any(term in text for term in ("班车", "通勤车", "校车", "接驳车", "专车"))
+        and any(term in text for term in ("安排", "班次", "运行", "运营", "发车", "时刻表"))
+        and any(term in text for term in ("如下", "下表", "图片", "安排", "具体"))
+    )
+
+
+def _is_candidate_fact_carrier_attachment_ref(ref: dict[str, Any]) -> bool:
+    if _looks_reservation_or_qr_only(ref):
+        return False
+    role = str(ref.get("resource_role") or "").lower()
+    content_kind = str(ref.get("content_kind") or "").lower()
+    mime_type = str(ref.get("mime_type") or "").lower()
+    filename = str(ref.get("original_filename") or ref.get("source_url") or "").lower()
+    return (
+        role == "inline_image"
+        or content_kind == "inline_image"
+        or mime_type.startswith("image/")
+        or mime_type == "application/pdf"
+        or any(
+            token in mime_type
+            for token in (
+                "msword",
+                "officedocument",
+                "ms-excel",
+                "ms-powerpoint",
+                "spreadsheet",
+                "presentation",
+                "wordprocessing",
+            )
+        )
+        or filename.endswith(
+            (
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".gif",
+                ".bmp",
+                ".pdf",
+                ".doc",
+                ".docx",
+                ".xls",
+                ".xlsx",
+                ".ppt",
+                ".pptx",
+            )
+        )
+    )
+
+
+def _looks_reservation_or_qr_only(ref: dict[str, Any]) -> bool:
+    text = " ".join(
+        str(ref.get(field) or "")
+        for field in (
+            "anchor_text",
+            "original_filename",
+            "source_url",
+            "normalized_source_url",
+            "final_url",
+        )
+    )
+    return any(term in text for term in ("二维码", "扫码", "扫一扫", "预约"))
 
 
 def _attachment_refs_with_source_retention(

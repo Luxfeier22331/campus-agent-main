@@ -41,6 +41,7 @@ class RebuildLocalDataWorkerCliTest(unittest.TestCase):
         self.assertEqual(request.collection, "student_rules")
         self.assertEqual(request.raw_version_id, "sha256:test-001")
         self.assertTrue(request.index_qdrant)
+        self.assertFalse(request.publish_qdrant_alias)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["import_result"]["status"], "ok")
 

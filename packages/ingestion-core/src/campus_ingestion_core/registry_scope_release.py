@@ -10,7 +10,11 @@ from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
-from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.embed import (
+    EmbeddingSettings,
+    build_embedding_model,
+    validate_ingestion_retrieval_embedding_env_alignment,
+)
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
     build_release_metadata_payload,
@@ -31,6 +35,7 @@ from campus_ingestion_core.process import (
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.registry_scope_chunk_preparation import (
     require_verified_chunk_preparation,
+    verify_prepared_chunks_match_manifest,
 )
 from campus_ingestion_core.registry_scope_common import (
     record_label,
@@ -107,13 +112,15 @@ def release_registry_scope(
             qdrant_client=runtime_qdrant_client,
             binding=runtime_profile.qdrant_index_binding,
         )
+    if publish_alias:
+        validate_ingestion_retrieval_embedding_env_alignment(source)
     records = select_releasable_registry_records(
         records=runtime_registry.list_by_scope(corpus, collection),
         runtime_profile=runtime_profile,
     )
     if not records:
         raise ValueError(f"no releasable registry records found for {corpus}/{collection}")
-    require_verified_chunk_preparation(
+    preparation_manifest = require_verified_chunk_preparation(
         corpus=corpus,
         collection=collection,
         preparation_run_id=preparation_run_id,
@@ -122,7 +129,8 @@ def release_registry_scope(
         bucket=object_store_settings.bucket_derived,
     )
 
-    embedding_model = build_embedding_model(EmbeddingSettings.from_env(source))
+    embedding_settings = EmbeddingSettings.from_env(source)
+    embedding_model = build_embedding_model(embedding_settings)
     sparse_embedding_model = build_sparse_embedding_model(SparseEmbeddingSettings.from_env(source))
     chunks: list[IndexableChunk] = []
     empty_chunk_documents: list[str] = []
@@ -143,6 +151,8 @@ def release_registry_scope(
         raise ValueError(
             "registry document " + "; ".join(empty_chunk_documents) + " produced no chunks"
         )
+    _validate_chunk_embedding_runtime_identity(chunks=tuple(chunks), settings=embedding_settings)
+    verify_prepared_chunks_match_manifest(manifest=preparation_manifest, chunks=tuple(chunks))
 
     return publish_scope_release(
         corpus=corpus,
@@ -154,6 +164,9 @@ def release_registry_scope(
         object_store_settings=object_store_settings,
         runtime_profile=runtime_profile,
         sparse_embedding_model=sparse_embedding_model,
+        embedding_provider=embedding_settings.provider,
+        embedding_dimensions=embedding_settings.dimensions,
+        document_units_sha256_by_key=_document_units_sha256_by_key(preparation_manifest),
         publish_alias=publish_alias,
         upsert_batch_size=_read_qdrant_upsert_batch_size(source),
     )
@@ -172,6 +185,9 @@ def publish_scope_release(
     sparse_embedding_model,
     publish_alias: bool,
     upsert_batch_size: int,
+    embedding_provider: str = "",
+    embedding_dimensions: int | None = None,
+    document_units_sha256_by_key: dict[str, str] | None = None,
 ) -> RegistryScopeReleaseReport:
     if not records:
         raise ValueError(f"records must not be empty for {corpus}/{collection}")
@@ -200,6 +216,9 @@ def publish_scope_release(
         indexed_at=indexed_at,
         published_at=None,
         validation_summary_object_key=None,
+        embedding_provider=embedding_provider,
+        embedding_dimensions=embedding_dimensions,
+        document_units_sha256_by_key=document_units_sha256_by_key,
     )
     release_metadata = build_release_metadata_payload(
         manifest=prepublish_manifest,
@@ -260,6 +279,12 @@ def publish_scope_release(
         return _build_release_report(artifacts)
 
     published_at = datetime.now(UTC).isoformat()
+    write_index_release_artifacts(
+        writer=object_store,
+        bucket=object_store_settings.bucket_derived,
+        manifest=prepublish_manifest,
+        validation_summary=validation.summary,
+    )
     published_manifest = build_index_release_manifest(
         release_id=release_id,
         corpus=corpus,
@@ -273,6 +298,9 @@ def publish_scope_release(
         indexed_at=indexed_at,
         published_at=published_at,
         validation_summary_object_key=None,
+        embedding_provider=embedding_provider,
+        embedding_dimensions=embedding_dimensions,
+        document_units_sha256_by_key=document_units_sha256_by_key,
     )
     alias_published = False
     try:
@@ -323,6 +351,37 @@ def _build_release_report(artifacts) -> RegistryScopeReleaseReport:
         indexed_at=manifest.indexed_at,
         published_at=manifest.published_at,
     )
+
+
+def _validate_chunk_embedding_runtime_identity(
+    *,
+    chunks: Sequence[IndexableChunk],
+    settings: EmbeddingSettings,
+) -> None:
+    chunk_models = {chunk.embedding_model for chunk in chunks if chunk.embedding_model.strip()}
+    if chunk_models and chunk_models != {settings.model}:
+        raise ValueError(
+            "release chunk embedding model mismatch: "
+            f"expected {settings.model}, got {', '.join(sorted(chunk_models))}"
+        )
+    if settings.dimensions is None:
+        return
+    chunk_dimensions = {len(chunk.embedding) for chunk in chunks if chunk.embedding is not None}
+    if chunk_dimensions and chunk_dimensions != {settings.dimensions}:
+        raise ValueError(
+            "release chunk embedding dimensions mismatch: "
+            f"expected {settings.dimensions}, got {', '.join(str(item) for item in sorted(chunk_dimensions))}"
+        )
+
+
+def _document_units_sha256_by_key(manifest) -> dict[str, str] | None:
+    if manifest is None:
+        return None
+    values: dict[str, str] = {}
+    for document in manifest.documents:
+        if document.document_units_object_key and document.document_units_sha256:
+            values[document.document_units_object_key] = document.document_units_sha256
+    return values or None
 
 
 def _build_qdrant_client(

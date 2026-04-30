@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import json
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
-from campus_ingestion_core.index_release import resolve_alias_target, validate_scope_release
-from campus_ingestion_core.process import IndexableChunk
+from campus_ingestion_core.index_release import (
+    build_index_release_manifest,
+    default_release_id,
+    resolve_alias_target,
+    validate_scope_release,
+)
+from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
+from campus_ingestion_core.scope_catalog import QdrantIndexBinding
 
 
 def _make_chunk(
@@ -55,6 +64,124 @@ def _make_chunk(
 
 
 class IndexReleaseValidationTest(unittest.TestCase):
+    def test_default_release_id_is_unique_within_same_second(self) -> None:
+        now = datetime(2026, 4, 30, 12, 0, 0, tzinfo=UTC)
+
+        first = default_release_id(now=now)
+        second = default_release_id(now=now)
+
+        self.assertNotEqual(first, second)
+        self.assertTrue(first.startswith("r20260430_120000"))
+        self.assertTrue(second.startswith("r20260430_120000"))
+
+    def test_chunk_embedding_model_uses_actual_runtime_embedding_model(self) -> None:
+        record = DocumentRegistryRecord(
+            document_id="official_web:muc_public_pages:news-001",
+            revision_track="source-faithful",
+            version_id="owver:news-001",
+            source_uri="https://www.muc.edu.cn/news-001.htm",
+            content_hash="sha256:news-001",
+            corpus="official_web",
+            collection="muc_public_pages",
+            cleaning_policy_version="official_web_cleaning_v1",
+            status="active",
+            ingestion_timestamp="2026-04-02T10:00:00+00:00",
+            parser_version="official_web_projection_v1",
+            embedding_model="stale-registry-model",
+            source_channel="official_web",
+            is_current=True,
+            document_units_object_key="official_web/news-001/document-units.jsonl",
+            processed_object_keys=("official_web/news-001/document-units.jsonl",),
+            import_source="official_web_sync",
+        )
+        row = {
+            "doc_id": record.document_id,
+            "version_id": record.version_id,
+            "chunk_id": "news-001:legacy:0001",
+            "clean_text": "中央民族大学官网新闻正文。",
+            "anchor": {"section_path": ["Official Web", "News"]},
+            "acl": {"level": "public", "allow_groups": []},
+            "metadata": {
+                "page_family": "article_detail",
+                "unit_type": "page_content",
+                "serving_intent": "promotable",
+                "content_role": "primary_content",
+            },
+        }
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=(json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8"),
+            embedding_model=_NamedEmbeddingModel(model_name="actual-runtime-model"),
+        )
+
+        self.assertTrue(chunks)
+        self.assertEqual({chunk.embedding_model for chunk in chunks}, {"actual-runtime-model"})
+
+    def test_index_release_manifest_records_runtime_embedding_identity(self) -> None:
+        manifest = build_index_release_manifest(
+            release_id="r20260430_120000_abcd",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            binding=QdrantIndexBinding(
+                alias_name="curriculum_plan",
+                collection_prefix="curriculum_plan",
+            ),
+            physical_collection_name="curriculum_plan__r20260430_120000_abcd",
+            previous_physical_collection_name=None,
+            records=(
+                DocumentRegistryRecord(
+                    document_id="curriculum:test",
+                    revision_track="source-faithful",
+                    version_id="sha256:test",
+                    source_uri="https://campus.example/curriculum:test",
+                    content_hash="sha256:test",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    status="active",
+                    ingestion_timestamp="2026-04-30T00:00:00+00:00",
+                    parser_version="test_parser_v1",
+                    embedding_model="stale-registry-model",
+                    source_channel="pdf_ocr",
+                    is_current=True,
+                    document_units_object_key="curriculum/test/document-units.jsonl",
+                    processed_object_keys=("curriculum/test/document-units.jsonl",),
+                    import_source="test",
+                ),
+            ),
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="课程简介正文。",
+                    section_path=["课程简介"],
+                    tokens=32,
+                    document_id="curriculum:test",
+                    extra_metadata={"chunk_policy_version": "curriculum_semantic_v1"},
+                ),
+            ),
+            validation=validate_scope_release(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                chunks=(
+                    _make_chunk(
+                        chunk_id="chunk-0001",
+                        text="课程简介正文。",
+                        section_path=["课程简介"],
+                        tokens=32,
+                        document_id="curriculum:test",
+                    ),
+                ),
+            ),
+            indexed_at="2026-04-30T00:00:00+00:00",
+            published_at=None,
+            validation_summary_object_key=None,
+            embedding_provider="mock",
+            embedding_dimensions=3,
+        )
+
+        self.assertEqual(manifest.embedding_provider, "mock")
+        self.assertEqual(manifest.embedding_dimensions, 3)
+
     def test_resolve_alias_target_does_not_fall_back_to_same_named_collection(self) -> None:
         qdrant_client = Mock()
         qdrant_client.get_aliases.return_value.aliases = []
@@ -381,3 +508,11 @@ class IndexReleaseValidationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _NamedEmbeddingModel:
+    def __init__(self, *, model_name: str) -> None:
+        self.model_name = model_name
+
+    def get_text_embedding_batch(self, texts: list[str]) -> list[list[float]]:
+        return [[0.1, 0.2, 0.3] for _ in texts]
