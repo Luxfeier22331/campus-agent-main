@@ -54,7 +54,8 @@ def classify_notice_media_roles(
 
 
 def has_pending_unit_media(unit: Mapping[str, Any]) -> bool:
-    return str(unit.get("multimodal_status") or "") in {"pending", "failed"}
+    status = str(unit.get("media_text_status") or unit.get("multimodal_status") or "")
+    return status in {"pending", "failed"}
 
 
 def _candidate_rows_for_unit(
@@ -77,7 +78,9 @@ def _candidate_rows_for_unit(
         attachment_rows.append(
             {
                 "unit_id": unit_id,
-                "status": str(unit.get("multimodal_status") or "pending"),
+                "status": str(
+                    unit.get("media_text_status") or unit.get("multimodal_status") or "pending"
+                ),
                 "media_kind": _attachment_media_kind(attachment),
                 "media_ref_id": _attachment_ref_id(attachment, index=index),
                 "attachment_ref": dict(attachment),
@@ -105,11 +108,11 @@ def _media_state(
         text_fact_complete=text_fact_complete,
     )
     media_state = _media_state_from_status(status)
-    target_blocking = media_state in {"ocr_pending", "failed_retryable"} and media_role in {
-        MEDIA_ROLE_OWNER_DOCUMENT,
-        MEDIA_ROLE_SCHEDULE_TABLE_CARRIER,
-        MEDIA_ROLE_VISUAL_TEXT_ONLY,
-    }
+    target_blocking = _target_blocking(
+        candidate=candidate,
+        media_role=media_role,
+        media_state=media_state,
+    )
     return {
         "candidate_id": str(candidate.get("candidate_id") or ""),
         "unit_id": str(unit.get("unit_id") or ""),
@@ -137,6 +140,9 @@ def _media_role(
     processing_family: str,
     text_fact_complete: bool,
 ) -> str:
+    candidate_role = str(candidate.get("media_role") or "").strip()
+    if candidate_role:
+        return candidate_role
     policy_text = _policy_text(unit=unit, candidate=candidate)
     if target == _REGULATION_TARGET or media_kind in _OWNER_DOCUMENT_MEDIA_KINDS:
         return MEDIA_ROLE_OWNER_DOCUMENT
@@ -164,6 +170,21 @@ def _media_role(
     if media_kind in _IMAGE_MEDIA_KINDS:
         return MEDIA_ROLE_VISUAL_TEXT_ONLY
     return MEDIA_ROLE_UNKNOWN
+
+
+def _target_blocking(
+    *,
+    candidate: Mapping[str, Any],
+    media_role: str,
+    media_state: str,
+) -> bool:
+    if "target_blocking" in candidate:
+        return bool(candidate.get("target_blocking"))
+    return media_state in {"ocr_pending", "failed_retryable"} and media_role in {
+        MEDIA_ROLE_OWNER_DOCUMENT,
+        MEDIA_ROLE_SCHEDULE_TABLE_CARRIER,
+        MEDIA_ROLE_VISUAL_TEXT_ONLY,
+    }
 
 
 def _media_state_from_status(status: str) -> str:
