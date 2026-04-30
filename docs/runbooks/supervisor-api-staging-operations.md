@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-05-01
 ---
 # Supervisor API Staging Operations
 
@@ -130,6 +130,20 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   导入这些变量，再通过 `infra/local/docker-compose.supervisor-runtime.yml` 注入容器
 - 如果 registry Postgres URL 指向 `127.0.0.1` 或 `localhost`，启动脚本会为 Docker
   orchestrator 改写成 `host.docker.internal`；compose 通过 `host-gateway` 解析回宿主机
+- 当 compose project 尚未运行、启动脚本需要 `docker compose up -d --build` 时，
+  `start-supervisor-api-staging.sh` 会先执行
+  `infra/local/staging/preflight-supervisor-api-staging.sh`
+- preflight 会检查 Docker daemon、Docker Compose v2、compose 文件存在性，以及当前 staging
+  Dockerfile 依赖的 base image registry 可达性：
+  - `golang:1.26.2-bookworm`
+  - `debian:bookworm-slim`
+  - `python:3.12-slim-bookworm`
+  - `ghcr.io/astral-sh/uv:0.8.22-python3.12-bookworm-slim`
+- registry preflight 默认使用 `docker manifest inspect`；设置
+  `SUPERVISOR_API_STAGING_PREFLIGHT_PULL=1` 时改用 `docker pull`
+- 如果 staging host 已经预拉取 base image 且处于受控离线/代理故障窗口，可设置
+  `SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY=1` 跳过 registry 检查；这只应作为本机
+  环境绕过，不表示 registry 依赖已恢复
 
 计划任务层状态：
 
@@ -179,6 +193,16 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 - 先看：
   - `.tmp/supervisor-api-staging/logs/supervisor-api.log`
   - `.tmp/supervisor-api-staging/logs/supervisor-agent-worker.log`
+- 如果 `start-supervisor-api-staging.sh` 在 build 前失败，先直接运行：
+
+```bash
+infra/local/staging/preflight-supervisor-api-staging.sh
+```
+
+- preflight 在 `docker manifest inspect ...` 或 `docker pull ...` 阶段失败，通常是 Docker
+  Desktop registry/proxy 配置或到 Docker Hub/GHCR 的网络不可达；先修 Docker registry 访问，
+  或确认 base images 已经缓存后临时设置
+  `SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY=1`
 - 再直接执行：
 
 ```bash

@@ -14,6 +14,7 @@ RUN go mod download
 COPY apps/supervisor-api ./
 COPY configs/runtime/intent-policy.v1.json /src/configs/runtime/intent-policy.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /src/configs/runtime/query-serving-scopes.v1.json
+COPY tests/fixtures/supervisor_execution_contract /src/tests/fixtures/supervisor_execution_contract
 
 RUN go test ./... \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/supervisor-api ./cmd/supervisor-api

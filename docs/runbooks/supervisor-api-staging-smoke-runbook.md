@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-05-01
 ---
 # Supervisor API Staging Smoke Runbook
 
@@ -123,6 +123,12 @@ curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/readyz
 ```bash
 pnpm --dir apps/app-api chat:smoke:staging
 ```
+
+`chat:smoke:staging` 与 `docs:gated:smoke:staging` 都通过
+`apps/app-api/scripts/run-with-staging-smoke-env.mjs` 加载 staging smoke env。
+该 runner 会使用 repo-local `.tmp/staging-smoke.lock` 串行化命令，避免两个
+smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要绕过 runner
+并行执行会重置 `help_bot@outlook.com` 的 staging smoke 脚本。
 
 这条命令会：
 

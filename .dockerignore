@@ -17,6 +17,10 @@
 !configs/ingestion/**
 !configs/runtime/
 !configs/runtime/query-serving-scopes.v1.json
+!tests/
+!tests/fixtures/
+!tests/fixtures/supervisor_execution_contract/
+!tests/fixtures/supervisor_execution_contract/**
 !packages/campus-services-agent/
 !packages/campus-services-agent/**
 !packages/contracts/

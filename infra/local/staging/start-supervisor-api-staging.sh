@@ -23,6 +23,7 @@ supervisor_api_staging_adopt_existing_process \
 if supervisor_api_staging_compose_project_running; then
   echo "supervisor-api staging runtime already running (${supervisor_api_staging_compose_project_name})"
 else
+  "${script_dir}/preflight-supervisor-api-staging.sh"
   supervisor_api_staging_compose up -d --build
 fi
 
