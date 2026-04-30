@@ -11,11 +11,19 @@ updated: 2026-04-30
 
 ## Current Status
 
+**Status:** active
+**Current Phase:** Phase 6 `Embedding Cache And Cost Control`
+**Last Activity:** 2026-04-30 Phase 5 completed
+
 - status: `active`
-- current slice: planning complete; Phase 0 ready to start
+- current slice: Phase 5 retrieval runtime drift guard complete; Phase 6 ready to start
 - owner: current Codex session
 - active implementation: none yet
-- next phase: Phase 0 `Scope And Truth Alignment`
+- latest completed phase: Phase 5 `Retrieval Runtime Drift Guard`
+- next phase: Phase 6 `Embedding Cache And Cost Control`
+- status note: `gsd-sdk workstream.status` reports any phase directory with `PLAN.md` and no
+  `SUMMARY.md` as `in_progress`; ROADMAP `Status:` lines remain the human execution truth for
+  planned-but-not-started phases in this workstream.
 
 ## Captured Context
 
@@ -27,23 +35,22 @@ updated: 2026-04-30
 - Existing implementation already has chunk preparation manifest, release manifest,
   dense+sparse Qdrant indexing, Qdrant alias publish, metadata/authz filters, RRF
   retrieval, release id hardening, and provider replay no-alias boundary.
+- Phase 0 evidence is captured at
+  `evidence/phase-00-current-inventory.md`.
 - Current gaps:
-  - query-enabled truth is inconsistent across docs/runtime config/policy.
-  - release validation does not yet run retrieval acceptance before alias publish.
-  - retrieval runtime does not yet compare current settings/profile against alias release
-    manifest.
-  - sparse/hybrid provenance is not fully captured.
-  - tokenizer/chunker implementation provenance is not fully captured.
   - embedding cache is not implemented.
   - retrieval tuning is not yet qrels-driven per collection.
 
 ## Blockers
 
-- No external blocker for Phase 0.
-- Phase 2 needs a small deterministic qrels fixture set per opened collection.
-- Phase 3 needs object-store access posture for retrieval runtime manifest loading, or an
-  accepted alternative using indexed point metadata only.
-- Phase 6 needs cache storage decision: object store only, Postgres metadata pointer, or both.
+- No external blocker for Phase 1.
+- Phase 2 must create or require a small deterministic acceptance fixture set before any
+  query-serving alias publish can pass; missing fixtures fail closed.
+- Phase 5 runtime drift guard posture is frozen: online query path uses Qdrant point payload /
+  current release metadata; object-store manifest is audit / offline fallback only.
+- Phase 6 needs cache storage decision: object store only, Postgres metadata pointer, or both;
+  this is cost/stability hardening and can run after provenance if rebuild cost becomes the
+  active blocker.
 
 ## Verification Plan
 
@@ -89,3 +96,4 @@ failures. Use focused gates for this workstream and report repo-wide residual fa
   supervisor/rag-agent admission selects a scope.
 - Do not put object bytes in Postgres; release artifacts stay in S3-compatible object storage.
 - Do not use eval tuning to silently expand query-enabled scopes.
+- Do not let missing release acceptance fixtures count as a passed query-serving publish gate.

@@ -20,6 +20,9 @@ canonical retrieval hardening workstream.
 - Identify release / replay / backup / retrieval runtime entrypoints.
 - Confirm which gaps are correctness blockers versus quality/cost hardening.
 - Produce a short evidence inventory under this workstream.
+- Freeze online runtime manifest posture: request path reads Qdrant payload / current release
+  metadata, while object-store manifest remains audit / offline fallback.
+- Define the minimum acceptance case denominator required before query-serving alias publish.
 - Do not change runtime behavior in Phase 0.
 
 ## Implementation Tasks
@@ -43,6 +46,9 @@ canonical retrieval hardening workstream.
    - List current facts.
    - List confirmed gaps.
    - List deferred/non-goal items.
+   - Record the fixed phase order: provenance before runtime drift guard.
+   - Record the fail-closed rule for missing query-serving acceptance cases.
+   - Record the runtime metadata source decision.
 
 5. Update `STATE.md`.
    - Set current phase evidence.

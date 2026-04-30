@@ -26,6 +26,11 @@ follow-up triggers.
 
 1. Run final focused verification.
    - ingestion release tests.
+   - release acceptance gate tests.
+   - sparse/hybrid provenance tests.
+   - chunker/tokenizer provenance tests.
+   - runtime drift guard tests.
+   - embedding cache tests.
    - retrieval backend/service tests.
    - qdrant backup tests.
    - eval runner tests.
@@ -53,12 +58,14 @@ follow-up triggers.
 uv run --all-packages python -m unittest \
   tests.ingestion.test_embed \
   tests.ingestion.test_corpus_runtime_profile \
+  tests.ingestion.test_index_release_acceptance \
   tests.ingestion.test_registry_scope_release \
   tests.ingestion.test_index_release \
   tests.ingestion.test_qdrant_backup \
   tests.ingestion.test_qdrant_backup_worker \
   tests.retrieval.test_backend_qdrant \
-  tests.retrieval.test_service
+  tests.retrieval.test_service \
+  tests.evals
 pnpm docs:lint
 ```
 

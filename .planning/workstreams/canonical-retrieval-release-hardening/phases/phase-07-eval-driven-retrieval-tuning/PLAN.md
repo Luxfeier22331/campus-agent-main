@@ -29,15 +29,16 @@ Make dense/sparse/RRF/no-hit settings evidence-backed per collection.
      version context.
 
 2. Add eval runner.
-   - Suggested location: `packages/evals` if shared, or `packages/ingestion-core` only if tightly
-     coupled to release acceptance.
+   - Owner location: `packages/evals`.
+   - `packages/ingestion-core` may consume deterministic reports or shared schemas, but must not
+     own shared qrels/tuning runner logic.
    - Output deterministic JSON report.
 
 3. Add collection mini-sets.
    - `regulations/student_rules`.
    - `regulations/institutional_rules`.
    - `curriculum/curriculum_plan`.
-   - `official_web/stable_reference` if default query-enabled remains true.
+   - `official_web/stable_reference` only if Phase 1 keeps it default query-enabled.
 
 4. Add tuning sweeps.
    - dense/sparse prefetch limits.

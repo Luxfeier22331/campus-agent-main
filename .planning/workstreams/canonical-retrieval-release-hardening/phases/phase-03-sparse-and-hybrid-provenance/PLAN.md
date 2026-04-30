@@ -7,7 +7,7 @@ updated: 2026-04-30
 
 <!-- markdownlint-disable MD013 -->
 
-# Plan: Phase 4 Sparse And Hybrid Provenance
+# Plan: Phase 3 Sparse And Hybrid Provenance
 
 ## Goal
 
@@ -19,6 +19,7 @@ Make release manifest and point payload fully describe dense, sparse, and hybrid
 - Release manifest records hybrid query profile: dense/sparse vector names, prefetch limits,
   RRF k/weights, and embedding query instruction hash.
 - Point payload carries enough metadata for runtime drift guard and backup validation.
+- These fields are prerequisites for Phase 5 runtime drift guard.
 - Qdrant backup loader remains backward-compatible with older manifests.
 
 ## Implementation Tasks

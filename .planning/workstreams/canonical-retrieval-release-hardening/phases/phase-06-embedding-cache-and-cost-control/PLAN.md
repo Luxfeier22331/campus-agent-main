@@ -23,6 +23,9 @@ rebuild cost observable.
 - Cache miss calls provider and writes cache.
 - Release report records hit/miss/provider-call counts.
 - Cache corruption fails closed for the affected chunk and does not publish alias.
+- This phase is cost/stability hardening. It may move earlier after Phase 3/4 if repeated
+  acceptance builds make provider cost the active blocker, but it is not a substitute for the
+  Phase 2 release acceptance gate.
 
 ## Implementation Tasks
 

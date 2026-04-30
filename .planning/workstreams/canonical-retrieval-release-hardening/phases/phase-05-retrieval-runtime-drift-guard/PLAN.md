@@ -7,7 +7,7 @@ updated: 2026-04-30
 
 <!-- markdownlint-disable MD013 -->
 
-# Plan: Phase 3 Retrieval Runtime Drift Guard
+# Plan: Phase 5 Retrieval Runtime Drift Guard
 
 ## Goal
 
@@ -20,7 +20,9 @@ current retrieval settings and runtime profile.
 - Runtime validates dense embedding model/dimensions, sparse settings, chunk/cleaning policy,
   collection alias, and validation status.
 - Mismatch fails closed with a clear retrieval backend error.
-- Manifest lookup is cached with bounded TTL.
+- Online request path reads Qdrant point payload / current release metadata only; object-store
+  manifest is audit / offline fallback and must not become request-path dependency.
+- Alias release validation result is cached with bounded TTL / invalidation.
 - Tests do not require a live object store.
 
 ## Implementation Tasks
@@ -30,13 +32,15 @@ current retrieval settings and runtime profile.
      chunk policy mismatch, missing manifest metadata, and cache behavior.
 
 2. Add release metadata discovery.
-   - Preferred path: read `index_release_manifest_key` from a point payload in the alias.
-   - Fallback path: use point metadata only for fields already stored there.
+   - Preferred path: read required release identity fields from a point payload in the alias.
+   - Allow a manifest key only as diagnostic/audit metadata, not as a request-path fetch
+     requirement.
    - Do not scan arbitrary object-store prefixes during online query.
 
-3. Add manifest reader interface.
+3. Add runtime metadata reader interface.
    - Inject test fake reader.
-   - Production reader uses existing object-store settings only if accepted by runtime env.
+   - Production reader uses Qdrant payload/current metadata only.
+   - Object-store manifest readers, if needed, stay in offline validation or operator tooling.
 
 4. Add validation.
    - Compare against `RetrievalSettings`, `SparseEmbeddingSettings`, and
@@ -60,5 +64,5 @@ uv run --all-packages ruff format <touched-python-files> --check
 ## Done Criteria
 
 - Runtime drift is detected before returning evidence.
-- Matching release metadata does not add repeated object-store reads per request.
+- Matching release metadata does not add object-store reads per request.
 - Fail-closed behavior is covered by tests.

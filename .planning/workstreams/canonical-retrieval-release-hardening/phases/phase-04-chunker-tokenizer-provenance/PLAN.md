@@ -7,7 +7,7 @@ updated: 2026-04-30
 
 <!-- markdownlint-disable MD013 -->
 
-# Plan: Phase 5 Chunker And Tokenizer Provenance
+# Plan: Phase 4 Chunker And Tokenizer Provenance
 
 ## Goal
 
@@ -19,6 +19,8 @@ changes.
 - Preparation manifest records tokenizer identity and chunker implementation identity.
 - Release gate rejects preparation truth produced by stale tokenizer/chunker/normalizer identity
   when the collection requires preparation.
+- Required chunk/cleaning provenance must be present before Phase 5 runtime drift guard attempts
+  full chunk-policy validation.
 - Existing mandatory preparation scopes stay mandatory.
 - Non-mandatory scopes remain backward-compatible.
 

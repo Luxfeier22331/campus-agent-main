@@ -17,9 +17,10 @@ release-safe、runtime-safe、可审计、可回放、可调优的生产级 retr
 ## In Scope
 
 - query-enabled serving truth 的 repo-wide 一致性。
-- registry-scope release 前的 physical collection retrieval acceptance gate。
-- retrieval runtime 对 alias release manifest / point metadata / env settings 的 drift
-  guard。
+- registry-scope alias publish 前的 physical collection retrieval acceptance gate；缺
+  acceptance cases 时 query-serving publish 必须 fail closed。
+- retrieval runtime 对 alias point payload / current release metadata / env settings 的
+  drift guard；object-store manifest 不作为 online request-path 强依赖。
 - dense embedding、sparse embedding、hybrid query profile、chunk profile、
   tokenizer/chunker implementation 的 release provenance。
 - provider-response replay 与 registry-scope release 的边界校验。
@@ -43,7 +44,7 @@ release-safe、runtime-safe、可审计、可回放、可调优的生产级 retr
 ## Success Criteria
 
 1. `docs/architecture/current-architecture.md`、`docs/architecture/system/retrieval-serving-architecture.md`、`.planning/PROJECT.md`、runtime profiles 与 `configs/runtime/query-serving-scopes.v1.json` 对默认 query-enabled scope 的描述完全一致。
-2. registry-scope alias publish 前必须通过 release acceptance gate；gate 至少覆盖 positive qrels、hard negative/no-hit、authz filter、current-only/version filter 与 evidence back-link。
+2. registry-scope query-serving alias publish 前必须通过 release acceptance gate；gate 至少覆盖 positive qrels、hard negative/no-hit、authz filter、current-only/version filter 与 evidence back-link；缺少 case fixture 不得视为通过。
 3. retrieval runtime 查询 alias 时可以确认当前 release metadata 与自身 embedding/sparse/hybrid/runtime profile 一致；不一致时 fail closed，而不是静默低召回。
 4. release manifest 与 Qdrant point payload 记录 dense embedding、sparse embedding、hybrid RRF profile、chunk/cleaning policy、document-units content hash 与 chunk fingerprint。
 5. chunk preparation manifest 记录 tokenizer / chunker / normalizer / document-units schema provenance；实现或 tokenizer 漂移时 release gate 能阻断。

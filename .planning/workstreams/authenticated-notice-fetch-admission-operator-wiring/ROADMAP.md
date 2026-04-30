@@ -12,7 +12,7 @@ updated: 2026-04-30
 ## Phase Status
 
 - [x] **Phase 1: Operator Manifest Builder And Docs Wiring** — add ingestion-worker CLI, tests, collector README/runbook updates, and workstream registration.
-- [ ] **Phase 2: Selected Notice E2E Smoke Evidence** — use real source-truth inventory/object store sample to generate manifest, run selected collector export, and preserve operator evidence.
+- [ ] **Phase 2: Selected Notice E2E Smoke Evidence** — source-truth import and fetch request manifest are proven for real notice `355867`; selected collector export is blocked by expired authenticated portal session.
 
 ## Phase 1: Operator Manifest Builder And Docs Wiring
 
@@ -55,9 +55,23 @@ Goal: prove the full operator handoff with a real selected notice and current so
 Deliverables:
 
 - evidence directory with generated manifest.
-- selected collector export summary.
-- run ledger excerpt showing required/admitted owner byte verification behavior.
+- selected source-truth-only import evidence.
+- selected collector export summary after refreshed portal auth.
+- run ledger excerpt showing required/admitted owner byte verification behavior after collector export succeeds.
 - import smoke or equivalent source-bucket handoff validation.
+
+Current evidence:
+
+- `evidence/phase-02-selected-notice-e2e-smoke/355867/import-plan.stdout.json`
+- `evidence/phase-02-selected-notice-e2e-smoke/355867/import-admit-source-truth-only.stdout.json`
+- `evidence/phase-02-selected-notice-e2e-smoke/355867/fetch-request-manifest.json`
+- `evidence/phase-02-selected-notice-e2e-smoke/355867/fetch-request-manifest.stdout.json`
+- `evidence/phase-02-selected-notice-e2e-smoke/auth-check.stdout.json`
+- `evidence/phase-02-selected-notice-e2e-smoke/355867/selected-collector-export.stdout.json`
+
+Blocked item:
+
+- `pnpm --dir apps/authenticated-notice-collector auth:check` currently fails with `auth-expired: getNoticeByPage failed: session invalid`; selected collector export cannot complete until operator cookies/storage state are refreshed.
 
 Verification:
 

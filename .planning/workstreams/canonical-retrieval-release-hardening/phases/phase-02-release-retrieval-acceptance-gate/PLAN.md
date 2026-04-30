@@ -20,8 +20,9 @@ acceptance.
 - Gate supports per-collection case fixtures.
 - Gate covers positive qrels, hard negative/no-hit, authz, current-only/version filters, and
   evidence back-link.
-- Gate is optional for dry-run preview but mandatory for publishing query-serving aliases once
-  cases exist for the collection.
+- Gate is optional only for dry-run/no-alias preview.
+- Publishing a query-serving alias without case fixtures fails closed; missing fixtures are not
+  treated as an empty passing suite.
 - Failure writes artifacts and does not publish alias.
 
 ## Implementation Tasks
@@ -35,6 +36,7 @@ acceptance.
    - Suggested module: `campus_ingestion_core.index_release_acceptance`.
    - Fields: case id, corpus, collection, query, expected document/version/chunk ids,
      allowed visibility, target revision/version, negative expected no-hit, top_k threshold.
+   - Mark case fixtures as required for query-serving publish.
 
 3. Add physical collection executor.
    - Use retrieval-core backend with collection-name override or a bounded release-time
@@ -45,6 +47,8 @@ acceptance.
    - `release_registry_scope(..., acceptance_case_path=...)`.
    - Worker CLI `release_registry_scope.py` gains `--acceptance-case-path`.
    - `publish_scope_release` evaluates before alias publish.
+   - Query-serving publish fails before alias mutation when `acceptance_case_path` is missing
+     or empty.
 
 5. Write acceptance artifacts.
    - Store summary under the release operation prefix or release prefix before alias publish.
@@ -65,5 +69,6 @@ uv run --all-packages ruff format <touched-python-files> --check
 ## Done Criteria
 
 - Publishing alias can be blocked by failed retrieval acceptance.
+- Publishing query-serving alias is blocked by missing acceptance fixtures.
 - Preview/no-alias release remains possible for operator inspection.
 - Acceptance artifacts are durable and linked from release report or manifest.
