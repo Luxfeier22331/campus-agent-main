@@ -224,8 +224,9 @@ Evaluation helpers for campus-agent v2.
   并新增受 gate 保护的首条 `multi_step` profile：selected notice context + knowledge
   follow-through，执行 `notice-agent campus_notice_get -> rag-agent retrieval.query`。
   workflow trace gate 会拒绝把单个 handoff projection 伪装成 `multi_step`；completed
-  `multi_step` 至少需要两段 handoff chain。resume 与 semantic retry/replan 仍需独立 eval
-  denominator。
+  `multi_step` 至少需要两段 handoff chain，并且需要 cross-step context 的路径必须提供
+  `workflow_trace_summary.context_projections` sanitized summary。resume 与 semantic
+  retry/replan 仍需独立 eval denominator。
 - eval profile registry 固定在 `campus_evals.profile_registry`。`scripts.eval_gate audit`
   会校验 registry runner、GitHub Actions dispatch choices、operations policy、denominator
   registry、tool-family fixture coverage 与 profile fixture smoke；新增 profile 时必须同步这些

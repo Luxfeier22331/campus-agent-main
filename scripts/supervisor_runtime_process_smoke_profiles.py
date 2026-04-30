@@ -253,6 +253,8 @@ def profile_answer_expectation(
             (
                 "workflow_trace_summary",
                 "multi_step",
+                "context_projections",
+                "notice_context",
                 "notice-agent",
                 "campus_notice_get",
                 "rag-agent",

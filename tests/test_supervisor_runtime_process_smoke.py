@@ -343,6 +343,8 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         )
         self.assertIn("s3-smoke-object-store", multi_step_processes)
         self.assertIn("multi_step", multi_step_notice.expected_body_tokens)
+        self.assertIn("context_projections", multi_step_notice.expected_body_tokens)
+        self.assertIn("notice_context", multi_step_notice.expected_body_tokens)
         self.assertIn("campus_notice_get", multi_step_notice.expected_body_tokens)
         self.assertIn("retrieval.query", multi_step_notice.expected_body_tokens)
         self.assertIn("已读取的通知上下文", multi_step_notice.expected_body_tokens)

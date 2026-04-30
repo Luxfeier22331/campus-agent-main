@@ -322,6 +322,7 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 					target: "rag-agent",
 				},
 				handoffChain: [],
+				contextProjections: [],
 				planningOutcome: "preplanned",
 				policyArtifactVersions: {
 					"intent-policy": "v1",

@@ -127,9 +127,11 @@ Docker-side Go runtime control plane 长期负责：
   structured runtime，`single_handoff` 表示 supervisor 只委派给一个 domain-agent。
   `multi_step` 已有 gated runtime path，但默认关闭；当前只覆盖 selected notice context +
   knowledge follow-through 的两步链路：`notice-agent campus_notice_get -> rag-agent
-  retrieval.query`。第一步 notice 结果会作为有长度上限的内部 workflow context projection
-  输入第二步 RAG bridge payload；该 projection 不进入 shared contract。不得把单 handoff
-  trace 包装成 `multi_step`
+  retrieval.query`。第一步 notice 结果会先落成 repo-owned canonical
+  `StepOutputProjection`，再以有长度上限的 `notice_context` 输入第二步 RAG bridge
+  payload；operator / eval 可见的 `workflow_trace_summary.context_projections`
+  只暴露 projection id、source step、kind、content hash 与 safety summary，不暴露正文 payload。
+  不得把单 handoff trace 包装成 `multi_step`
 - `runtime_decisions.workflow_plan` 是 Go planner 的 canonical safe projection，当前
   `schema_version=workflow-plan-v1`，用于显式记录 `single_handoff` plan、step kind、
   selected target / payload kind / allowed tools、terminal policy、resume policy 与
@@ -137,11 +139,11 @@ Docker-side Go runtime control plane 长期负责：
   `AgentRequest`；`workflow_plan` 不复制完整 payload，也不替代 bridge request
 - `apps/supervisor-api/internal/execution` 已有 repo-owned `WorkflowRunStore`
   接口、in-memory 实现与 PostgreSQL backend，用于约束 run id、state、step timeline
-  与 handoff chain 的内部 run-state shape。生产打开 `multi_step` 必须配置
+  与 handoff chain、context projections 的内部 run-state shape。生产打开 `multi_step` 必须配置
   `SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL` 并安装 `runtime.workflow_runs` schema；
   `SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE=true` 只适合 local/dev 或明确允许启动迁移的环境。
-  completed `multi_step` 至少包含两个有序 handoff / tool execution step，否则 store 与 eval
-  gate 均拒绝
+  completed `multi_step` 至少包含两个有序 handoff / tool execution step；需要 cross-step
+  context 的 edge 必须声明 `required_projection_kind`，projection 缺失时 fail-closed
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，
@@ -323,7 +325,7 @@ trace 直接写入 shared contracts。
   `semantic_retry_policy`
 - broader `multi_step` admission denominator：当前只开放 selected notice context + knowledge
   follow-through 的两步链路；新增链路必须先补 handoff chain fixture、store invariant 与
-  sanitized `workflow_trace_summary` projection
+  sanitized `workflow_trace_summary.context_projections` projection
 - eval denominator：继续覆盖 resume、semantic retry/replan、agent-owned clarification
   与 fail-close provenance，避免把固定两步链路误当完整通用 agent graph
 

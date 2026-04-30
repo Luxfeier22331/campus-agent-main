@@ -328,6 +328,7 @@ describe("request observability", () => {
 						target: "campus-services-agent",
 					},
 					handoffChain: [],
+					contextProjections: [],
 					planningOutcome: "preplanned",
 					policyArtifactVersions: {
 						"intent-policy": "v1",

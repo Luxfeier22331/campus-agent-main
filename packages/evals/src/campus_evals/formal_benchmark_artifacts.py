@@ -235,6 +235,7 @@ def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary
         return None
     selected_tools = payload.get("selected_tools")
     handoff_chain = payload.get("handoff_chain")
+    context_projections = payload.get("context_projections")
     trace_steps = payload.get("trace_steps")
     tool_call_summaries = payload.get("tool_call_summaries")
     return WorkflowTraceSummary(
@@ -250,6 +251,9 @@ def _deserialize_workflow_trace_summary(payload: object) -> WorkflowTraceSummary
         selected_target=str(payload.get("selected_target") or ""),
         selected_tools=tuple(str(item) for item in selected_tools)
         if isinstance(selected_tools, list)
+        else (),
+        context_projections=tuple(dict(item) for item in context_projections)
+        if isinstance(context_projections, list)
         else (),
         tool_argument_summary=dict(payload.get("tool_argument_summary") or {}),
         trace_steps=tuple(dict(item) for item in trace_steps)

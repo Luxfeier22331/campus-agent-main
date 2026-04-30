@@ -114,10 +114,12 @@ terminal policy、resume policy 与 semantic retry policy；真实 delegate payl
 `terminal`、`direct_runtime`、`single_handoff`，以及受 gate 保护的 `multi_step`。
 首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
 `notice-agent campus_notice_get -> rag-agent retrieval.query`。notice step 输出会被
-`supervisor-api` 投影成有长度上限的内部 workflow context，再输入后续 RAG step；这个内部
-projection 不改变 shared `AgentRequest` schema。该 path 必须配置 workflow run store；
-completed `multi_step` trace 至少包含两个 handoff。semantic retry/replan 与 resumable resume
-仍不是当前 public contract 承诺。
+`supervisor-api` 投影成 canonical `StepOutputProjection`，再输入后续 RAG step；
+`workflow_plan.edges[].required_projection_kind` 声明跨 step 输入要求。operator / eval
+可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
+`projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
+notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace 至少
+包含两个 handoff。semantic retry/replan 与 resumable resume 仍不是当前 public contract 承诺。
 
 ## 设计原则
 

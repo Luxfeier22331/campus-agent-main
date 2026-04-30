@@ -125,6 +125,9 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
         return None
     selected_tools = _optional_list(_record_value(record, "selected_tools", "selectedTools"))
     handoff_chain = _optional_list(_record_value(record, "handoff_chain", "handoffChain"))
+    context_projections = _optional_list(
+        _record_value(record, "context_projections", "contextProjections")
+    )
     return WorkflowTraceSummary(
         routing_frame=_optional_record(_record_value(record, "routing_frame", "routingFrame"))
         or {},
@@ -147,6 +150,9 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
         selected_target=_optional_string(_record_value(record, "selected_target", "selectedTarget"))
         or "",
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
+        context_projections=tuple(
+            dict(item) for item in context_projections if isinstance(item, dict)
+        ),
         tool_argument_summary=_optional_record(
             _record_value(record, "tool_argument_summary", "toolArgumentSummary")
         )
