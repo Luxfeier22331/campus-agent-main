@@ -1,7 +1,10 @@
 import process from "node:process";
 
 import { readJsonResponse } from "./smoke-auth-runtime";
-import { parseStagingDocsGatedSmokeArgs } from "./staging-docs-gated-smoke.args";
+import {
+	parseStagingDocsGatedSmokeArgs,
+	resolveStagingDocsGatedSmokeTargets,
+} from "./staging-docs-gated-smoke.args";
 import { buildSmokePassword, fetchReadyz, mintStagingSmokeSession } from "./staging-smoke-support";
 
 function buildGatedReaderUrl(input: { docsBaseUrl: string; gatedReaderPath: string }): string {
@@ -145,7 +148,7 @@ function assertExpectedGatedNavigationResponse(input: {
 }
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
-	const args = parseStagingDocsGatedSmokeArgs(argv, env);
+	const args = resolveStagingDocsGatedSmokeTargets(parseStagingDocsGatedSmokeArgs(argv, env));
 	const gatedReaderUrl = buildGatedReaderUrl(args);
 	const gatedCollectionNavigationUrl = buildGatedCollectionNavigationUrl(args);
 	const smokePassword = buildSmokePassword();
@@ -183,7 +186,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 	});
 	assertExpectedGatedNavigationResponse({
 		body: unauthenticatedNavigation.body,
-		expectedStatus: 404,
+		expectedStatus: args.gatedCollectionNavigationUnauthenticatedStatus,
 		label: "Unauthenticated gated collection navigation request",
 		response: unauthenticatedNavigation.response,
 	});

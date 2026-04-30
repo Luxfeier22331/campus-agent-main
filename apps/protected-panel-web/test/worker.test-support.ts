@@ -13,6 +13,7 @@ export const packageManifest = JSON.parse(packageManifestRaw) as {
 export { createApp as createAppApi } from "../../app-api/src/app";
 export { default as deployStagingSource } from "../scripts/deploy-staging.mjs?raw";
 export { default as localAccessSmokeServerSource } from "../scripts/local-access-smoke-server.mjs?raw";
+export { default as stagingAccessServiceTokenSmokeSource } from "../scripts/staging-access-service-token-smoke.mjs?raw";
 export { default as worker } from "../src/index";
 export { default as viteConfigSource } from "../vite.config.ts?raw";
 export { default as wranglerLocalSmokeConfig } from "../wrangler.local-smoke.toml?raw";
