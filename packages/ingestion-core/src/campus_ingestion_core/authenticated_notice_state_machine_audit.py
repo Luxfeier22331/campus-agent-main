@@ -263,9 +263,8 @@ def _unit_findings(
                     detail="office media must use office text extraction before multimodal fallback",
                 )
             )
-        if (
-            str(candidate.get("status") or "") == "pending"
-            and not candidate.get("source_object_ref")
+        if str(candidate.get("status") or "") == "pending" and not candidate.get(
+            "source_object_ref"
         ):
             findings.append(
                 _finding(
