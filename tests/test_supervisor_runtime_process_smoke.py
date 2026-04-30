@@ -97,6 +97,16 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             profile="structured_direct_opened",
         )
+        structured_stream = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="structured_direct_opened_stream",
+        )
+        notice_get = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="notice_get_direct_opened",
+        )
 
         self.assertEqual(closed.expected_status, 503)
         self.assertIn("structured_runtime_closed", closed.expected_body_tokens)
@@ -124,6 +134,26 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             structured_open.answer_payload["requested_capability"],
             "campus_services",
         )
+        self.assertEqual(structured_stream.answer_path, "/api/v1/answer/stream")
+        self.assertEqual(structured_stream.answer_response_kind, "sse")
+        self.assertIn("event: execution.completed", structured_stream.expected_body_tokens)
+        self.assertEqual(
+            structured_stream.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "campus_services",
+        )
+        notice_processes = {process.label: process for process in notice_get.processes}
+        self.assertEqual(notice_get.answer_payload["requested_capability"], "notice")
+        self.assertEqual(notice_get.answer_payload["context"]["session"]["selected_notice_ref"]["notice_id"], "notice:smoke:001")  # type: ignore[index]
+        self.assertEqual(
+            notice_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "notice",
+        )
+        self.assertIn("s3-smoke-object-store", notice_processes)
+        self.assertEqual(
+            notice_processes["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
+            "http://127.0.0.1:18082",
+        )
+        self.assertIn("campus_notice_get", notice_get.expected_body_tokens)
 
     def test_answer_probe_uses_process_smoke_timeout_budget(self) -> None:
         import inspect
@@ -133,6 +163,18 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         parameters = inspect.signature(_post_json).parameters
 
         self.assertIn("timeout_seconds", parameters)
+
+    def test_sse_answer_probe_preserves_event_stream_text(self) -> None:
+        from scripts.supervisor_runtime_process_smoke import _parse_sse_response
+
+        payload = _parse_sse_response(
+            b'event: execution.completed\ndata: {"status":"completed"}\n\n'
+        )
+
+        self.assertEqual(payload["kind"], "sse")
+        self.assertIn("event: execution.completed", payload["body_text"])
+        self.assertEqual(payload["events"][0]["event"], "execution.completed")
+        self.assertEqual(payload["events"][0]["data"]["status"], "completed")
 
     def test_structured_open_profile_uses_temporary_postgres_overlay(self) -> None:
         from scripts.supervisor_runtime_process_smoke import (
@@ -170,6 +212,44 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
         )
         self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", plan.processes[1].env)
+        self.assertNotIn("CAMPUS_SHARED_POSTGRES_URL", processes[0].env)
+
+    def test_notice_open_profile_uses_temporary_notice_read_model_overlay(self) -> None:
+        from scripts.supervisor_runtime_process_smoke import (
+            _postgres_url_with_database,
+            _processes_with_env_overlay,
+        )
+
+        plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="notice_get_direct_opened",
+        )
+        runtime_database_url = _postgres_url_with_database(
+            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+            "campus_agent_process_smoke_notice",
+        )
+
+        processes = _processes_with_env_overlay(
+            plan.processes,
+            {
+                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL": runtime_database_url,
+            },
+        )
+        process_by_label = {process.label: process for process in processes}
+
+        self.assertEqual(
+            process_by_label["supervisor-api"].env["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"],
+            "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent_process_smoke_notice",
+        )
+        self.assertNotIn(
+            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+            process_by_label["supervisor-agent-worker"].env,
+        )
+        self.assertNotIn(
+            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+            process_by_label["s3-smoke-object-store"].env,
+        )
 
 
 if __name__ == "__main__":

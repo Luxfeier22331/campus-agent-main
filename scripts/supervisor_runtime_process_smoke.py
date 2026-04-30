@@ -475,15 +475,17 @@ def _seed_structured_projection_smoke(
 def _processes_with_env_overlay(
     processes: tuple[ProcessCommandSpec, ...],
     env_overlay: dict[str, str],
+    target_labels: tuple[str, ...] = ("supervisor-api",),
 ) -> tuple[ProcessCommandSpec, ...]:
     if not env_overlay:
         return processes
+    targets = set(target_labels)
     return tuple(
         ProcessCommandSpec(
             label=process.label,
             command=process.command,
             cwd=process.cwd,
-            env={**process.env, **env_overlay},
+            env={**process.env, **env_overlay} if process.label in targets else process.env,
             log_path=process.log_path,
         )
         for process in processes
