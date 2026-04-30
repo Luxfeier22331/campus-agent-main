@@ -5,6 +5,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from campus_ingestion_core.authenticated_notice_attachment_bytes import (
+    has_collected_attachment_bytes,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeAttachmentSourceRetentionDecision:
@@ -89,7 +93,7 @@ def _build_attachment_decision(
         )
     if notice_capture_route == "candidate_service_fact":
         if attachment_ref_id in missing_fact_attachment_refs:
-            has_collected_bytes = _has_collected_attachment_bytes(attachment_ref)
+            has_collected_bytes = has_collected_attachment_bytes(attachment_ref)
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_to_quarantine",
@@ -107,7 +111,7 @@ def _build_attachment_decision(
         )
     if notice_capture_route == "candidate_document_owner":
         if attachment_ref_id in source_truth_required_attachment_refs:
-            has_collected_bytes = _has_collected_attachment_bytes(attachment_ref)
+            has_collected_bytes = has_collected_attachment_bytes(attachment_ref)
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_required_for_source_truth",
@@ -125,7 +129,7 @@ def _build_attachment_decision(
         )
     if notice_capture_route == "candidate_requires_attachment_routing":
         if attachment_ref_id in missing_fact_attachment_refs:
-            has_collected_bytes = _has_collected_attachment_bytes(attachment_ref)
+            has_collected_bytes = has_collected_attachment_bytes(attachment_ref)
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_to_quarantine",
@@ -165,21 +169,6 @@ def _require_attachment_ref_id(attachment_ref: Mapping[str, object]) -> str:
     if not isinstance(attachment_ref_id, str) or not attachment_ref_id:
         raise ValueError("attachment_ref must include a non-empty attachment_ref_id")
     return attachment_ref_id
-
-
-def _has_collected_attachment_bytes(attachment_ref: Mapping[str, Any]) -> bool:
-    object_key = _optional_text(attachment_ref.get("object_key"))
-    content_sha256 = _optional_text(
-        attachment_ref.get("content_sha256") or attachment_ref.get("sha256")
-    )
-    storage_provider = _optional_text(attachment_ref.get("storage_provider"))
-    ingest_status = _optional_text(attachment_ref.get("ingest_status"))
-    return (
-        object_key is not None
-        and content_sha256 is not None
-        and storage_provider not in {None, "reference_only"}
-        and ingest_status in {"downloaded", "uploaded"}
-    )
 
 
 def _optional_text(value: object) -> str | None:

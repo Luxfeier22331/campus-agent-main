@@ -5,9 +5,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
-    DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE,
-)
 from campus_ingestion_core.internal_notice_schedule_image_ocr import (
     DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_TABLE,
 )
@@ -37,6 +34,9 @@ PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE = (
 OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE = (
     "ingestion_projection.collected_notice_office_text_extraction_attempt"
 )
+IMAGE_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE = (
+    "ingestion_projection.collected_notice_image_ocr_text_extraction_attempt"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +63,7 @@ def source_attempt_tables() -> dict[str, dict[str, Any]]:
             "status_mapping": {
                 "stored": "completed",
                 "processed": "completed",
-                "failed": "failed",
+                "failed": "failed_retryable",
             },
             "normalized_output_fields": [
                 "provider_response_key",
@@ -83,8 +83,8 @@ def source_attempt_tables() -> dict[str, dict[str, Any]]:
             ],
             "status_mapping": {
                 "owner_text_ready": "completed",
-                "failed": "pending",
-                "failed_terminal": "failed",
+                "failed": "failed_retryable",
+                "failed_terminal": "failed_terminal",
                 "no_extractable_text": "skipped",
             },
             "normalized_output_fields": [
@@ -106,8 +106,8 @@ def source_attempt_tables() -> dict[str, dict[str, Any]]:
             ],
             "status_mapping": {
                 "owner_text_ready": "completed",
-                "failed": "pending",
-                "failed_terminal": "failed",
+                "failed": "failed_retryable",
+                "failed_terminal": "failed_terminal",
                 "no_extractable_text": "skipped",
             },
             "normalized_output_fields": [
@@ -129,8 +129,8 @@ def source_attempt_tables() -> dict[str, dict[str, Any]]:
             ],
             "status_mapping": {
                 "owner_text_ready": "completed",
-                "failed": "pending",
-                "failed_terminal": "failed",
+                "failed": "failed_retryable",
+                "failed_terminal": "failed_terminal",
                 "no_extractable_text": "skipped",
             },
             "normalized_output_fields": [
@@ -140,27 +140,28 @@ def source_attempt_tables() -> dict[str, dict[str, Any]]:
                 "searchable_merge_input",
             ],
         },
-        DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE: {
-            "processing_family": "multimodal_fallback",
-            "legacy_processing_family": "internal_notice_multimodal",
+        IMAGE_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE: {
+            "processing_family": "image_ocr_text_extraction",
             "join_key_fields": [
                 "source_corpus",
                 "source_collection",
                 "source_notice_id",
                 "unit_id",
+                "media_ref_id",
                 "attempt_number",
             ],
             "status_mapping": {
-                "processed": "completed",
-                "processed_guarded": "completed",
-                "failed": "pending",
-                "failed_terminal": "failed",
-                "no_adoption": "skipped",
+                "ocr_text_ready": "completed",
+                "failed": "failed_retryable",
+                "failed_terminal": "failed_terminal",
+                "no_extractable_text": "skipped",
+                "low_confidence": "manual_review",
             },
             "normalized_output_fields": [
-                "decision_action",
-                "reasons",
-                "record.extracted_text",
+                "provider_response",
+                "plain_text",
+                "layout_elements",
+                "searchable_merge_input",
             ],
         },
         DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_TABLE: {
@@ -176,8 +177,8 @@ def source_attempt_tables() -> dict[str, dict[str, Any]]:
             "status_mapping": {
                 "admitted": "completed",
                 "no_extractable_text": "skipped",
-                "fetch_failed": "failed",
-                "ocr_failed": "failed",
+                "fetch_failed": "failed_retryable",
+                "ocr_failed": "failed_retryable",
                 "pending": "pending",
             },
             "normalized_output_fields": [
@@ -203,8 +204,12 @@ def merge_status(candidates: Sequence[Mapping[str, Any]]) -> str:
     statuses = {str(item.get("status") or "") for item in candidates}
     if "pending" in statuses:
         return "pending"
-    if "failed" in statuses:
-        return "failed"
+    if "manual_review" in statuses:
+        return "manual_review"
+    if "failed_retryable" in statuses:
+        return "failed_retryable"
+    if "failed_terminal" in statuses:
+        return "failed_terminal"
     if statuses == {"skipped"}:
         return "skipped"
     if "completed" in statuses:
@@ -224,6 +229,7 @@ def mapping_rows(value: object) -> tuple[Mapping[str, Any], ...]:
 
 __all__ = [
     "DEFAULT_PHASE_05_ADMISSION_BATCH_ID",
+    "IMAGE_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE",
     "MEDIA_EXTRACTION_CANDIDATE_INVENTORY_SCHEMA_VERSION",
     "MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION",
     "MULTIMODAL_CANDIDATE_INVENTORY_SCHEMA_VERSION",

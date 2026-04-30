@@ -490,6 +490,10 @@ source objects 分开：
   `target_blocking=true` candidate 的 `source_object_ref` 引用、且 candidate 尚未进入
   `completed`、`skipped` 或 `failed_terminal` 的 object-backed quarantine bytes，即使
   `retention_expires_at` 已过期也不得删除。
+- target admission 必须由 fact-state / candidate inventory 驱动；unit 级
+  `media_text_status=pending` 或 `multimodal_status=pending` 只能作为 preview 汇总与候选输入，
+  不能直接生成下游 `needs_multimodal`。`manual_review` 是人工复核状态，不得回落为自动 OCR
+  pending work。
 
 ## Bootstrap Import Ownership
 

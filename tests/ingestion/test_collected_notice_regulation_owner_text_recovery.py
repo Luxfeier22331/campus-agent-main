@@ -288,6 +288,35 @@ class CollectedNoticeRegulationOwnerTextRecoveryTests(unittest.TestCase):
         self.assertEqual(gaps["201"]["reason_codes"], ["missing_source_object_ref"])
         self.assertTrue(gaps["201"]["candidate_id"])
 
+    def test_routes_retryable_and_manual_review_candidates_separately(self) -> None:
+        preview = build_collected_notice_regulation_owner_text_recovery_preview(
+            regulation_admission_manifest={
+                "entries": [
+                    _admission_entry(notice_id="300"),
+                    _admission_entry(notice_id="301"),
+                ]
+            },
+            multimodal_candidate_inventory={
+                "candidates": [
+                    _candidate(notice_id="300", status="failed_retryable"),
+                    _candidate(notice_id="301", status="manual_review"),
+                ]
+            },
+            limit=10,
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        self.assertEqual(preview.batch_manifest["counts"]["selected_attempt_count"], 1)
+        attempt = preview.attempt_plan["attempts"][0]
+        self.assertEqual(attempt["source_notice_id"], "300")
+        self.assertEqual(attempt["state"], "retry_planned")
+        self.assertEqual(attempt["action"], "retry_regulation_owner_text")
+        gaps = {
+            row["source_notice_id"]: row["reason_codes"]
+            for row in preview.readiness_gap_report["gaps"]
+        }
+        self.assertEqual(gaps["301"], ["manual_review_required"])
+
     def test_preview_to_output_files_uses_phase_evidence_filenames(self) -> None:
         preview = build_collected_notice_regulation_owner_text_recovery_preview(
             regulation_admission_manifest={"entries": []},

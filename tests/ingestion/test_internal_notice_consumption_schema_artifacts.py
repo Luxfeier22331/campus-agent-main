@@ -21,6 +21,10 @@ class InternalNoticeConsumptionSchemaArtifactsTest(unittest.TestCase):
             "ingestion_projection.internal_notice_consumption_admission_event",
             "ingestion_projection.internal_notice_multimodal_attempt",
             "ingestion_projection.internal_notice_schedule_image_ocr_attempt",
+            "ingestion_projection.collected_notice_released_file_text_extraction_attempt",
+            "ingestion_projection.collected_notice_pdf_ocr_text_extraction_attempt",
+            "ingestion_projection.collected_notice_office_text_extraction_attempt",
+            "ingestion_projection.collected_notice_image_ocr_text_extraction_attempt",
         ):
             self.assertIn(table_name, sql)
 
@@ -33,9 +37,30 @@ class InternalNoticeConsumptionSchemaArtifactsTest(unittest.TestCase):
             "provider_response_key",
             "layout_elements_key",
             "ocr_manifest_key",
+            "media_ref_id",
+            "plain_text_key",
+            "searchable_merge_input_key",
             "search_vector",
         ):
             self.assertIn(required_column, sql)
+
+        for constraint_name in (
+            "collected_notice_released_file_text_extraction_attempt_status_check",
+            "collected_notice_pdf_ocr_text_extraction_attempt_status_check",
+            "collected_notice_office_text_extraction_attempt_status_check",
+            "collected_notice_image_ocr_text_extraction_attempt_status_check",
+        ):
+            self.assertIn(constraint_name, sql)
+
+        for status in (
+            "'pending'",
+            "'completed'",
+            "'skipped'",
+            "'manual_review'",
+            "'failed_retryable'",
+            "'failed_terminal'",
+        ):
+            self.assertIn(status, sql)
 
 
 if __name__ == "__main__":

@@ -104,7 +104,12 @@ def ocr_batch_manifest(
         "candidate_count": len(candidates),
         "pending_attempt_count": len(pending),
         "skipped_count": sum(1 for item in candidates if item.get("status") == "skipped"),
-        "failed_count": sum(1 for item in candidates if item.get("status") == "failed"),
+        "failed_retryable_count": sum(
+            1 for item in candidates if item.get("status") == "failed_retryable"
+        ),
+        "failed_terminal_count": sum(
+            1 for item in candidates if item.get("status") == "failed_terminal"
+        ),
         "counts_by_processing_family": counter(pending, "processing_family"),
         "counts_by_media_kind": counter(pending, "media_kind"),
         "counts_by_priority": counter(pending, "priority"),
@@ -227,7 +232,7 @@ def gap_report(
         status = str(candidate.get("status") or "")
         if status == "skipped":
             continue
-        if status in {"pending", "failed"}:
+        if status in {"pending", "manual_review", "failed_retryable"}:
             gaps.append(
                 {
                     "candidate_id": candidate["candidate_id"],
@@ -260,7 +265,12 @@ def gap_report(
         "pending_without_output_count": sum(
             1 for item in candidates if item.get("status") == "pending"
         ),
-        "failed_candidate_count": sum(1 for item in candidates if item.get("status") == "failed"),
+        "failed_retryable_candidate_count": sum(
+            1 for item in candidates if item.get("status") == "failed_retryable"
+        ),
+        "manual_review_candidate_count": sum(
+            1 for item in candidates if item.get("status") == "manual_review"
+        ),
         "missing_processable_media_count": sum(
             1
             for item in candidates
@@ -339,8 +349,11 @@ Candidate states:
 - `pending`: processable media exists and no normalized output is available yet.
 - `completed`: a terminal attempt produced searchable normalized output.
 - `skipped`: policy intentionally excludes the media, with skip reason.
-- `failed`: processing cannot proceed without source repair or unsupported media
-  handling.
+- `manual_review`: normalized output exists but needs operator review before
+  target admission.
+- `failed_retryable`: processing cannot proceed until source repair or retry.
+- `failed_terminal`: processing is terminally exhausted and no longer blocks
+  source cleanup.
 
 High-value `transport_schedule`, `service_status`, and `regulation` media must
 not be skipped by low-value poster policy.
@@ -351,8 +364,8 @@ Existing attempt tables map into the unified lifecycle:
 
 - `ingestion_projection.internal_notice_schedule_image_ocr_attempt`
   maps schedule image OCR attempts.
-- `ingestion_projection.internal_notice_multimodal_attempt`
-  maps internal notice image/PDF/Office multimodal attempts.
+- `ingestion_projection.collected_notice_image_ocr_text_extraction_attempt`
+  maps non-schedule image OCR/text extraction attempts.
 - `ingestion_projection.wechat_public_notice_multimodal_attempt`
   maps WeChat public notice inline image attempts.
 

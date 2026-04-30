@@ -144,9 +144,6 @@ def _reimport_plan(
     source_artifact_object_count = sum(
         len(candidate["source_truth_artifact_refs"]) for candidate in source_truth_candidates
     )
-    needs_multimodal_units = [
-        unit for unit in searchable_units if unit["multimodal_status"] in {"pending", "failed"}
-    ]
     admission_entries = [_admission_entry(unit) for unit in searchable_units]
     report_id = _report_id(selected_run_refs, searchable_units)
     return {
@@ -179,15 +176,7 @@ def _reimport_plan(
             *list(duplicate_skips),
         ],
         "planned_defers": list(invalid_defer_multimodal_report.get("deferred_units") or ()),
-        "planned_blocks": [
-            {
-                "unit_id": unit["unit_id"],
-                "source_notice_id": unit["source_notice_id"],
-                "source_surface": unit["source_surface"],
-                "reason_codes": unit["reason_codes"],
-            }
-            for unit in needs_multimodal_units
-        ],
+        "planned_blocks": [],
         "counts": {
             "selected_run_count": len(selected_run_refs),
             "source_truth_candidate_count": len(source_truth_candidates),
@@ -354,9 +343,6 @@ def _weak_keyword_targets(item: PreparedPreviewItem) -> list[str]:
 
 
 def _admission_entry(unit: Mapping[str, Any]) -> dict[str, Any]:
-    consumption_class = (
-        "needs_multimodal" if unit["multimodal_status"] == "pending" else "search_only"
-    )
     return {
         "entry_id": f"notice:{unit['site_id']}:{unit['source_notice_id']}",
         "source_channel": unit["source_channel"],
@@ -369,7 +355,7 @@ def _admission_entry(unit: Mapping[str, Any]) -> dict[str, Any]:
         "source_url": unit["source_url"],
         "run_id": unit["run_provenance"]["run_id"],
         "source_object_refs": unit["source_object_refs"],
-        "consumption_class": consumption_class,
+        "consumption_class": "search_only",
         "target": None,
         "target_surface": None,
         "target_hints": unit["target_hints"],
@@ -377,9 +363,7 @@ def _admission_entry(unit: Mapping[str, Any]) -> dict[str, Any]:
         if unit["multimodal_status"] == "pending"
         else "not_required",
         "reason_codes": unit["reason_codes"],
-        "preconditions": ["phase5_multimodal_output"]
-        if consumption_class == "needs_multimodal"
-        else [],
+        "preconditions": [],
         "searchable_unit_id": unit["unit_id"],
     }
 

@@ -137,30 +137,18 @@ def _target_hints(unit: Mapping[str, Any]) -> list[str]:
     return [str(value).strip() for value in values if str(value).strip()]
 
 
-def _multimodal_not_ready(
-    unit: Mapping[str, Any],
-    multimodal_candidate_inventory: Mapping[str, Any],
-) -> bool:
-    if _owner_text_status(unit) == "ready":
-        return False
-    if _multimodal_policy(unit) in {"pending", "failed"}:
-        return True
-    unit_id = str(unit.get("unit_id") or "")
-    for row in multimodal_candidate_inventory.get("candidates") or ():
-        if not isinstance(row, Mapping):
-            continue
-        if str(row.get("unit_id") or "") != unit_id:
-            continue
-        if str(row.get("status") or "") in {"pending", "failed"}:
-            return True
-    return False
-
-
 def _multimodal_policy(unit: Mapping[str, Any]) -> str:
     if _owner_text_status(unit) == "ready":
         return "completed"
     status = str(unit.get("multimodal_status") or "").strip()
-    if status in {"not_required", "pending", "completed", "failed"}:
+    if status in {
+        "not_required",
+        "pending",
+        "completed",
+        "failed",
+        "manual_review",
+        "failed_retryable",
+    }:
         return status
     return "not_required"
 
@@ -433,7 +421,6 @@ __all__ = [
     "_looks_like_regulation_candidate",
     "_looks_like_wrapper_notice",
     "_mapping_rows",
-    "_multimodal_not_ready",
     "_multimodal_policy",
     "_owner_text_status",
     "_policy_text",

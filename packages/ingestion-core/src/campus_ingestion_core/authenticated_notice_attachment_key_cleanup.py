@@ -10,6 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, TextIO
 
+from campus_ingestion_core.collected_notice_media_lifecycle import (
+    is_media_lifecycle_cleanup_blocking,
+)
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -368,7 +371,7 @@ def _load_media_extraction_cleanup_blockers(
         if not bool(candidate.get("target_blocking")):
             continue
         status = str(candidate.get("status") or "").strip()
-        if status in MEDIA_EXTRACTION_CLEANUP_TERMINAL_STATUSES:
+        if not is_media_lifecycle_cleanup_blocking(status):
             continue
         source_ref = candidate.get("source_object_ref")
         if not isinstance(source_ref, Mapping):

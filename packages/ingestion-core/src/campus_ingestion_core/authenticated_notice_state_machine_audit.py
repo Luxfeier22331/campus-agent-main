@@ -6,6 +6,12 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from campus_ingestion_core.collected_notice_media_lifecycle import (
+    MEDIA_LIFECYCLE_NONTERMINAL_STATUSES,
+    MEDIA_LIFECYCLE_STATUSES,
+    MEDIA_LIFECYCLE_TERMINAL_STATUSES,
+)
+
 AUDIT_SCHEMA_VERSION = "authenticated_notice_state_machine_audit.v1"
 
 FINDING_HIGH = "high"
@@ -47,6 +53,7 @@ def build_authenticated_notice_state_machine_audit(
     candidates = tuple(_mapping_rows(multimodal_candidate_inventory.get("candidates")))
     candidates_by_unit_id = _candidates_by_unit_id(candidates)
     fetch_requests = tuple(_mapping_rows((fetch_request_manifest or {}).get("requests")))
+    unit_ids = {str(unit.get("unit_id") or "") for unit in units if str(unit.get("unit_id") or "")}
 
     matrix = [
         _matrix_row(unit, candidates_by_unit_id.get(str(unit.get("unit_id") or ""), ()))
@@ -60,6 +67,7 @@ def build_authenticated_notice_state_machine_audit(
                 candidates=candidates_by_unit_id.get(str(unit.get("unit_id") or ""), ()),
             )
         )
+    findings.extend(_global_candidate_findings(candidates=candidates, unit_ids=unit_ids))
     findings.extend(_fetch_manifest_findings(fetch_requests))
     findings = sorted(
         findings,
@@ -275,7 +283,156 @@ def _unit_findings(
                     detail="pending media extraction candidate must carry source_object_ref",
                 )
             )
+        findings.extend(
+            _candidate_lifecycle_findings(
+                candidate=candidate,
+                source_notice_id=source_notice_id,
+                title=title,
+            )
+        )
     return tuple(findings)
+
+
+def _candidate_lifecycle_findings(
+    *,
+    candidate: Mapping[str, Any],
+    source_notice_id: str,
+    title: str,
+) -> tuple[dict[str, Any], ...]:
+    findings: list[dict[str, Any]] = []
+    candidate_id = str(candidate.get("candidate_id") or "")
+    status = str(candidate.get("status") or "").strip()
+    raw_target_blocking = candidate.get("target_blocking")
+    target_blocking = raw_target_blocking if isinstance(raw_target_blocking, bool) else False
+    if not isinstance(candidate.get("target_blocking"), bool):
+        findings.append(
+            _finding(
+                severity=FINDING_HIGH,
+                code="candidate_target_blocking_not_boolean",
+                source_notice_id=source_notice_id,
+                title=title,
+                detail="media extraction candidate target_blocking must be a boolean",
+            )
+        )
+    if status == "failed":
+        findings.append(
+            _finding(
+                severity=FINDING_HIGH,
+                code="legacy_candidate_status_failed",
+                source_notice_id=source_notice_id,
+                title=title,
+                detail="candidate status must use failed_retryable or failed_terminal, not failed",
+            )
+        )
+    elif status not in MEDIA_LIFECYCLE_STATUSES:
+        findings.append(
+            _finding(
+                severity=FINDING_HIGH,
+                code="unsupported_candidate_status",
+                source_notice_id=source_notice_id,
+                title=title,
+                detail=f"candidate has unsupported media lifecycle status: {status}",
+            )
+        )
+    if target_blocking and not _candidate_has_source_object_ref(candidate):
+        findings.append(
+            _finding(
+                severity=FINDING_HIGH,
+                code="target_blocking_candidate_missing_source_object_ref",
+                source_notice_id=source_notice_id,
+                title=title,
+                detail="target_blocking media candidate must carry source_object_ref",
+            )
+        )
+    if target_blocking and status in MEDIA_LIFECYCLE_TERMINAL_STATUSES:
+        findings.append(
+            _finding(
+                severity=FINDING_HIGH,
+                code="terminal_candidate_still_target_blocking",
+                source_notice_id=source_notice_id,
+                title=title,
+                detail="terminal media candidate must release target_blocking",
+            )
+        )
+    if not target_blocking and status in MEDIA_LIFECYCLE_NONTERMINAL_STATUSES:
+        media_role = str(candidate.get("media_role") or "")
+        if media_role in {
+            "owner_document",
+            "schedule_table_carrier",
+            "visual_text_only",
+        }:
+            findings.append(
+                _finding(
+                    severity=FINDING_MEDIUM,
+                    code="nonterminal_required_media_not_target_blocking",
+                    source_notice_id=source_notice_id,
+                    title=title,
+                    detail=(
+                        "nonterminal owner/schedule/status media candidate should be "
+                        "target_blocking until closeout"
+                    ),
+                )
+            )
+    if not candidate_id:
+        findings.append(
+            _finding(
+                severity=FINDING_HIGH,
+                code="candidate_missing_id",
+                source_notice_id=source_notice_id,
+                title=title,
+                detail="media extraction candidate is missing candidate_id",
+            )
+        )
+    return tuple(findings)
+
+
+def _global_candidate_findings(
+    *,
+    candidates: Sequence[Mapping[str, Any]],
+    unit_ids: set[str],
+) -> tuple[dict[str, Any], ...]:
+    findings: list[dict[str, Any]] = []
+    seen_candidate_ids: set[str] = set()
+    duplicate_candidate_ids: set[str] = set()
+    for candidate in candidates:
+        candidate_id = str(candidate.get("candidate_id") or "").strip()
+        if candidate_id:
+            if candidate_id in seen_candidate_ids and candidate_id not in duplicate_candidate_ids:
+                duplicate_candidate_ids.add(candidate_id)
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="duplicate_candidate_id",
+                        source_notice_id=str(candidate.get("source_notice_id") or ""),
+                        title=str(candidate.get("title") or ""),
+                        candidate_id=candidate_id,
+                        detail="media extraction candidate inventory contains duplicate candidate_id",
+                    )
+                )
+            seen_candidate_ids.add(candidate_id)
+
+        unit_id = str(candidate.get("unit_id") or "").strip()
+        if unit_id and unit_id not in unit_ids:
+            findings.append(
+                _finding(
+                    severity=FINDING_HIGH,
+                    code="orphan_media_candidate",
+                    source_notice_id=str(candidate.get("source_notice_id") or ""),
+                    title=str(candidate.get("title") or ""),
+                    candidate_id=candidate_id,
+                    detail="media extraction candidate references a unit_id missing from searchable preview",
+                )
+            )
+    return tuple(findings)
+
+
+def _candidate_has_source_object_ref(candidate: Mapping[str, Any]) -> bool:
+    source_ref = candidate.get("source_object_ref")
+    if not isinstance(source_ref, Mapping):
+        return False
+    return bool(
+        str(source_ref.get("bucket") or "").strip() and str(source_ref.get("key") or "").strip()
+    )
 
 
 def _fetch_manifest_findings(
@@ -322,6 +479,7 @@ def _finding(
     title: str,
     detail: str,
     attachment_ref_id: str | None = None,
+    candidate_id: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "severity": severity,
@@ -332,6 +490,8 @@ def _finding(
     }
     if attachment_ref_id:
         payload["attachment_ref_id"] = attachment_ref_id
+    if candidate_id:
+        payload["candidate_id"] = candidate_id
     return payload
 
 

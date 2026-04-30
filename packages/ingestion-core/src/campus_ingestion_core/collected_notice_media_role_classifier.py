@@ -3,6 +3,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from campus_ingestion_core.collected_notice_media_lifecycle import (
+    MEDIA_LIFECYCLE_FAILED_RETRYABLE,
+    MEDIA_LIFECYCLE_MANUAL_REVIEW,
+    MEDIA_LIFECYCLE_PENDING,
+    normalize_media_lifecycle_status,
+)
+
 MEDIA_ROLE_OWNER_DOCUMENT = "owner_document"
 MEDIA_ROLE_QR_OR_RESERVATION_INSTRUCTION = "qr_or_reservation_instruction"
 MEDIA_ROLE_SCHEDULE_TABLE_CARRIER = "schedule_table_carrier"
@@ -12,7 +19,10 @@ MEDIA_ROLE_VISUAL_TEXT_ONLY = "visual_text_only"
 
 _IMAGE_MEDIA_KINDS = frozenset(("image", "inline_image"))
 _OWNER_DOCUMENT_MEDIA_KINDS = frozenset(("pdf", "office", "document"))
-_PENDING_STATES = frozenset(("pending", "failed", "failed_retryable"))
+_BLOCKING_MEDIA_STATES = frozenset(
+    (MEDIA_LIFECYCLE_PENDING, MEDIA_LIFECYCLE_MANUAL_REVIEW, MEDIA_LIFECYCLE_FAILED_RETRYABLE)
+)
+_PENDING_UNIT_MEDIA_STATUSES = frozenset(("pending", "failed", "failed_retryable", "manual_review"))
 _SCHEDULE_TARGET = "transport_schedule"
 _SERVICE_STATUS_TARGET = "service_status"
 _REGULATION_TARGET = "regulation"
@@ -55,7 +65,7 @@ def classify_notice_media_roles(
 
 def has_pending_unit_media(unit: Mapping[str, Any]) -> bool:
     status = str(unit.get("media_text_status") or unit.get("multimodal_status") or "")
-    return status in {"pending", "failed"}
+    return status in _PENDING_UNIT_MEDIA_STATUSES
 
 
 def _candidate_rows_for_unit(
@@ -71,22 +81,7 @@ def _candidate_rows_for_unit(
     ]
     if rows:
         return rows
-    attachment_rows = []
-    for index, attachment in enumerate(unit.get("attachment_refs") or (), start=1):
-        if not isinstance(attachment, Mapping):
-            continue
-        attachment_rows.append(
-            {
-                "unit_id": unit_id,
-                "status": str(
-                    unit.get("media_text_status") or unit.get("multimodal_status") or "pending"
-                ),
-                "media_kind": _attachment_media_kind(attachment),
-                "media_ref_id": _attachment_ref_id(attachment, index=index),
-                "attachment_ref": dict(attachment),
-            }
-        )
-    return attachment_rows
+    return []
 
 
 def _media_state(
@@ -179,8 +174,11 @@ def _target_blocking(
     media_state: str,
 ) -> bool:
     if "target_blocking" in candidate:
-        return bool(candidate.get("target_blocking"))
-    return media_state in {"ocr_pending", "failed_retryable"} and media_role in {
+        target_blocking = candidate.get("target_blocking")
+        if not isinstance(target_blocking, bool):
+            raise ValueError("target_blocking must be a boolean")
+        return target_blocking
+    return media_state in _BLOCKING_MEDIA_STATES and media_role in {
         MEDIA_ROLE_OWNER_DOCUMENT,
         MEDIA_ROLE_SCHEDULE_TABLE_CARRIER,
         MEDIA_ROLE_VISUAL_TEXT_ONLY,
@@ -188,16 +186,7 @@ def _target_blocking(
 
 
 def _media_state_from_status(status: str) -> str:
-    normalized = str(status or "")
-    if normalized in {"completed", "ready", "succeeded"}:
-        return "ocr_ready"
-    if normalized in {"low_confidence", "review"}:
-        return "ocr_low_confidence"
-    if normalized == "skipped":
-        return "not_required"
-    if normalized in _PENDING_STATES:
-        return "failed_retryable" if normalized.startswith("failed") else "ocr_pending"
-    return "ocr_pending"
+    return normalize_media_lifecycle_status(status)
 
 
 def _reason_codes(
@@ -209,7 +198,7 @@ def _reason_codes(
     reason_codes = [media_role]
     if target_blocking:
         reason_codes.append("required_media_pending")
-    elif media_state == "ocr_pending":
+    elif media_state in _BLOCKING_MEDIA_STATES:
         reason_codes.append("supplemental_media_pending")
     return reason_codes
 
@@ -232,15 +221,6 @@ def _attachment_media_kind(attachment: Mapping[str, Any]) -> str:
     if filename.endswith((".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx")):
         return "office"
     return str(attachment.get("media_kind") or attachment.get("kind") or "unknown")
-
-
-def _attachment_ref_id(attachment: Mapping[str, Any], *, index: int) -> str:
-    return str(
-        attachment.get("media_ref_id")
-        or attachment.get("attachment_id")
-        or attachment.get("filename")
-        or f"attachment-{index}"
-    )
 
 
 def _policy_text(*, unit: Mapping[str, Any], candidate: Mapping[str, Any]) -> str:

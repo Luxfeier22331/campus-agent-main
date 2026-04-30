@@ -449,6 +449,13 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
 
         self.assertEqual(preview.invalid_defer_multimodal_report["invalid_capture_count"], 1)
         self.assertEqual(preview.invalid_defer_multimodal_report["needs_multimodal_count"], 1)
+        self.assertEqual(preview.reimport_plan["planned_blocks"], [])
+        self.assertEqual(
+            preview.reimport_plan["write_manifest_candidate"]["consumer_admission_candidates"][0][
+                "consumption_class"
+            ],
+            "search_only",
+        )
         unit = preview.searchable_notice_preview["units"][0]
         self.assertEqual(unit["source_notice_id"], "355867")
         self.assertEqual(unit["multimodal_status"], "pending")

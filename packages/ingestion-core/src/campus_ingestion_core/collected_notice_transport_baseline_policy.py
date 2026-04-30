@@ -165,7 +165,7 @@ def requires_schedule_image_ocr(
     )
     if any(
         row.get("media_role") == MEDIA_ROLE_SCHEDULE_TABLE_CARRIER
-        and row.get("media_state") in {"ocr_pending", "failed_retryable"}
+        and row.get("media_state") in {"pending", "manual_review", "failed_retryable"}
         for row in media_states
     ):
         return True

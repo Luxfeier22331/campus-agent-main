@@ -386,6 +386,7 @@ consumer admission manifest 决定。
 
 `retention_class` 第一版允许：
 
+- `permanent_source_truth`
 - `metadata_only`
 - `quarantine_candidate`
 - `admitted_source_bytes`
@@ -425,6 +426,45 @@ consumer admission manifest 决定。
 - `attachment_promotion_state=promoted` 必须携带 `promotion_owner` 与
   `promotion_decision_id`，用于证明 bytes 是由哪个 target materializer 或 admission
   decision 接收，而不是 collector 默认永久保留。
+
+media extraction candidate inventory 与 closeout result manifest 的 media lifecycle
+只允许使用以下 contract-facing 状态：
+
+- `pending`
+- `completed`
+- `skipped`
+- `manual_review`
+- `failed_retryable`
+- `failed_terminal`
+
+约束：
+
+- `pending`、`manual_review` 与 `failed_retryable` 是非终态；如果 candidate
+  `target_blocking=true`，这些状态必须继续阻塞 quarantine cleanup 与 target admission。
+  其中 `pending` / `failed_retryable` 对应 target admission 的 `needs_multimodal`，
+  `manual_review` 对应 target admission 的 `manual_review`，不得伪装成可自动 OCR 的
+  pending work。
+- `completed`、`skipped` 与 `failed_terminal` 是终态；它们可以解除对应 candidate 的
+  `target_blocking`。
+- collector / OCR / preview 的非 contract 状态只能在明确的边界被规范化，例如 `ready` /
+  `succeeded` 归一为 `completed`，`low_confidence` / `review` 归一为
+  `manual_review`。candidate inventory、closeout result manifest 与 fact-state 主链路不得继续接受
+  legacy `failed`；如历史数据存在该状态，必须先进入 audit / repair lane 并显式迁移为
+  `failed_retryable` 或 `failed_terminal`。
+- target admission 不得只因为 unit 级 `media_text_status=pending` 或
+  `multimodal_status=pending` 就进入 `needs_multimodal`；必须存在明确的
+  media extraction candidate，且该 candidate 对目标事实 `target_blocking=true`。
+- Phase 4 reimport preview 可以继续报告 unit 级 `needs_multimodal_units` 作为 media
+  extraction candidate 生成输入，但其 write manifest 中的 generic consumer admission
+  candidate 不得直接把 unit 级 pending 转成下游 `needs_multimodal`；typed downstream
+  replay 必须重新消费 fact-state / candidate inventory 后再判定。
+- media extraction candidate 只能由显式 source retention / downstream admission policy
+  产生。第一版允许 `fetch_to_quarantine`、`fetch_required_for_source_truth` 与
+  `fetch_required_for_admitted_owner`；缺少 `attachment_capture_policy` 的历史
+  attachment ref 不得靠 `attachment_refs` fallback 自动进入处理。
+- stale object ref 不等于 bytes 可用。只有同时具备 `object_key`、`content_sha256` /
+  `sha256`、非 `reference_only` 的 `storage_provider`，以及 `downloaded` 或 `uploaded`
+  `ingest_status` 时，attachment bytes 才能被视为已采集。
 
 ## Collection Extension Fields
 

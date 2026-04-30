@@ -11,13 +11,13 @@ updated: 2026-04-30
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Phase 6 completed
+**Current Phase:** Phase 7 completed; Phase 8 next
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Ran offline closeout verification for selected notice `355867`. Current-code readiness produced 3 target-blocking `schedule_image_ocr` candidates; OCR post-run closeout terminalized 2 and preserved 1 low-confidence image as blocking; a manual terminal override then cleared the final blocker and allowed quarantine cleanup dry-run to release all 3 candidate objects.
+**Last Activity Description:** Hardened the media extraction state machine contract. Fact readiness now admits target multimodal only from explicit `target_blocking` candidates, media lifecycle uses canonical `pending` / `completed` / `skipped` / `manual_review` / `failed_retryable` / `failed_terminal` states, closeout preserves result manifest provenance, and attachment fetch admission now treats stale object refs without upload state as bytes-missing.
 
 ## Progress
 
-**Phases Complete:** 6
+**Phases Complete:** 7
 **Current Plan:** `ROADMAP.md`
 
 ## Phase 1 Result
@@ -43,18 +43,42 @@ updated: 2026-04-30
 
 ## Next Slice
 
-Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine, media-readiness, closeout lane, and cleanup gate acceptance are currently clean.
+Run captured-content smoke against already collected authenticated notice content.
+This is higher priority than fresh selected collector smoke because it validates
+the state machine we just changed: notice routing, fetch omission, media
+readiness, fact readiness, closeout, cleanup gate, and downstream admission over
+existing source-truth/searchable replay evidence.
+
+Fresh selected collector export remains a secondary auth-dependent
+manifest-consumption proof; it should not block captured-content state-machine
+acceptance.
 
 ## Phase 6 Result
 
 - Rebuilt current-code media extraction readiness for selected notice `355867`; output contains 3 `schedule_image_ocr` candidates with `target_blocking=true`.
 - Schedule OCR post-run preview from captured OCR outputs extracted 32 transport schedule rows and emitted `notice_media_extraction_closeout_result_manifest.v1`.
-- OCR closeout result: 2 candidates `completed`, 1 candidate `failed` with `low_confidence`; the failed non-terminal candidate remains target-blocking.
+- OCR closeout result after Phase 7 normalization: 2 candidates `completed`, 1
+  candidate `manual_review` with low confidence; the non-terminal candidate
+  remains target-blocking.
 - Cleanup dry-run with pending inventory blocks all 3 quarantine objects.
 - Cleanup dry-run after OCR post-run closeout releases 2 quarantine objects and blocks the low-confidence image.
 - Manual terminal override marks the low-confidence image `failed_terminal`; cleanup dry-run then releases all 3 quarantine objects.
 
 ## Session Continuity
 
-**Stopped At:** Phase 6 offline closeout verification complete; live collector proof remains auth-dependent
+**Stopped At:** Phase 7 state-machine contract hardening complete; Phase 8 captured-content smoke should run next
 **Resume File:** None
+
+## Phase 7 Result
+
+- Removed whole-unit `media_text_status=pending` / `multimodal_status=pending`
+  fallback from target admission when no explicit blocking candidate exists.
+- Canonicalized contract-facing media lifecycle states to `pending`,
+  `completed`, `skipped`, `manual_review`, `failed_retryable`, and
+  `failed_terminal`.
+- Preserved closeout result manifest provenance on updated candidates.
+- Added fail-fast validation for candidate inventory `candidate_id`, `status`,
+  `target_blocking`, and required source object refs for blocking candidates.
+- Unified attachment bytes availability with source retention: object key and
+  hash alone are insufficient without non-reference storage provider and
+  uploaded/downloaded ingest state.

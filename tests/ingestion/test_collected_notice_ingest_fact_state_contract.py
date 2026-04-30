@@ -25,7 +25,7 @@ class CollectedNoticeIngestFactStateContractTests(unittest.TestCase):
             "media_states": [
                 {
                     "media_role": "supplemental_location_visual",
-                    "media_state": "ocr_pending",
+                    "media_state": "pending",
                     "target_blocking": False,
                 }
             ],
@@ -54,6 +54,64 @@ class CollectedNoticeIngestFactStateContractTests(unittest.TestCase):
                     "provenance": {},
                 }
             )
+
+    def test_contract_rejects_needs_multimodal_without_blocking_media(self) -> None:
+        payload = _payload(
+            fact_readiness_state="blocked_by_required_media",
+            target_admission_state="needs_multimodal",
+            media_states=[
+                {
+                    "media_role": "schedule_table_carrier",
+                    "media_state": "pending",
+                    "target_blocking": False,
+                }
+            ],
+            blocking_media=[],
+        )
+
+        with self.assertRaisesRegex(ValueError, "needs_multimodal requires blocking_media"):
+            validate_fact_state_payload(payload)
+
+    def test_contract_rejects_stage_ready_with_blocking_media(self) -> None:
+        blocking_media = [
+            {
+                "media_role": "schedule_table_carrier",
+                "media_state": "pending",
+                "target_blocking": True,
+            }
+        ]
+        payload = _payload(
+            fact_readiness_state="ready_from_text",
+            target_admission_state="stage_ready",
+            media_states=blocking_media,
+            blocking_media=blocking_media,
+        )
+
+        with self.assertRaisesRegex(ValueError, "stage_ready must not include blocking_media"):
+            validate_fact_state_payload(payload)
+
+
+def _payload(
+    *,
+    fact_readiness_state: str,
+    target_admission_state: str,
+    media_states: list[dict[str, object]],
+    blocking_media: list[dict[str, object]],
+) -> dict[str, object]:
+    return {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": fact_readiness_state,
+        "target_admission_state": target_admission_state,
+        "required_fact_groups": ["route", "service_window", "departure_time"],
+        "ready_fact_groups": [],
+        "missing_fact_groups": ["route", "service_window", "departure_time"],
+        "reason_codes": ["required_media_pending"],
+        "media_states": media_states,
+        "blocking_media": blocking_media,
+        "provenance": {"source_notice_id": "355867"},
+    }
 
 
 if __name__ == "__main__":

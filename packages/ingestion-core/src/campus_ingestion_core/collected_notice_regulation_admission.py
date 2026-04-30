@@ -31,7 +31,6 @@ from campus_ingestion_core.collected_notice_regulation_admission_support import 
     _looks_like_regulation_candidate,
     _looks_like_wrapper_notice,
     _mapping_rows,
-    _multimodal_not_ready,
     _multimodal_policy,
     _owner_text_status,
     _preconditions,
@@ -366,7 +365,19 @@ def _initial_decision(
             queue_trace_row=queue_trace_row,
             fact_readiness=fact_readiness,
         )
-    if _multimodal_not_ready(unit, multimodal_candidate_inventory):
+    if fact_readiness.get("target_admission_state") == REGULATION_CLASS_MANUAL_REVIEW:
+        return _decision(
+            unit=unit,
+            regulation_admission_class=REGULATION_CLASS_MANUAL_REVIEW,
+            consumption_class="defer",
+            reason_codes=("required_media_manual_review",),
+            regulation_title=title,
+            issuing_org=issuing_org,
+            target_collection=_target_collection_for_text(unit),
+            queue_trace_row=queue_trace_row,
+            fact_readiness=fact_readiness,
+        )
+    if fact_readiness.get("target_admission_state") == "needs_multimodal":
         return _decision(
             unit=unit,
             regulation_admission_class=REGULATION_CLASS_NEEDS_MULTIMODAL,

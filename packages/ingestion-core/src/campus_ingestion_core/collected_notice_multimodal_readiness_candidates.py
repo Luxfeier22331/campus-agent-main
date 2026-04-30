@@ -9,7 +9,13 @@ from typing import Any
 from campus_ingestion_core.collected_notice_classification import (
     classification_target_candidates,
 )
+from campus_ingestion_core.collected_notice_media_lifecycle import (
+    MEDIA_LIFECYCLE_FAILED_RETRYABLE,
+    MEDIA_LIFECYCLE_MANUAL_REVIEW,
+    MEDIA_LIFECYCLE_PENDING,
+)
 from campus_ingestion_core.collected_notice_multimodal_readiness_shared import (
+    IMAGE_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE,
     MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION,
     OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE,
     PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE,
@@ -19,9 +25,6 @@ from campus_ingestion_core.collected_notice_multimodal_readiness_shared import (
 from campus_ingestion_core.internal_notice_consumption_projection_multimodal import (
     NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
     looks_like_low_value_ephemeral_event_poster,
-)
-from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
-    DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE,
 )
 from campus_ingestion_core.internal_notice_schedule_image_ocr import (
     DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_TABLE,
@@ -59,7 +62,7 @@ _PROCESSING_FAMILY_SCHEDULE_IMAGE_OCR = "schedule_image_ocr"
 _PROCESSING_FAMILY_RELEASED_FILE_TEXT_EXTRACTION = "released_file_text_extraction"
 _PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION = "pdf_ocr_text_extraction"
 _PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION = "office_text_extraction"
-_PROCESSING_FAMILY_MULTIMODAL_FALLBACK = "multimodal_fallback"
+_PROCESSING_FAMILY_IMAGE_OCR_TEXT_EXTRACTION = "image_ocr_text_extraction"
 _MEDIA_ROLE_OWNER_DOCUMENT = "owner_document"
 _MEDIA_ROLE_SCHEDULE_TABLE_CARRIER = "schedule_table_carrier"
 _MEDIA_ROLE_VISUAL_TEXT_ONLY = "visual_text_only"
@@ -70,6 +73,13 @@ _TARGET_BLOCKING_ROLES = frozenset(
         _MEDIA_ROLE_OWNER_DOCUMENT,
         _MEDIA_ROLE_SCHEDULE_TABLE_CARRIER,
         _MEDIA_ROLE_VISUAL_TEXT_ONLY,
+    )
+)
+_PROCESSABLE_ATTACHMENT_POLICIES = frozenset(
+    (
+        "fetch_to_quarantine",
+        "fetch_required_for_source_truth",
+        "fetch_required_for_admitted_owner",
     )
 )
 
@@ -92,7 +102,11 @@ def selected_units(
         if requested_unit_ids:
             if unit_id in requested_unit_ids:
                 units.append(dict(row))
-        elif media_text_status in {"pending", "failed"}:
+        elif media_text_status in {
+            MEDIA_LIFECYCLE_PENDING,
+            MEDIA_LIFECYCLE_MANUAL_REVIEW,
+            MEDIA_LIFECYCLE_FAILED_RETRYABLE,
+        }:
             units.append(dict(row))
     return tuple(sorted(units, key=lambda item: str(item.get("unit_id") or "")))
 
@@ -120,13 +134,7 @@ def candidate_records(
 
 def _is_processable_attachment_ref(attachment: Mapping[str, Any]) -> bool:
     policy = str(attachment.get("attachment_capture_policy") or "").strip()
-    if policy == "metadata_only":
-        return False
-    return not (
-        attachment.get("byte_fetch_required") is False
-        and not bool(attachment.get("required_source_object"))
-        and str(attachment.get("retention_class") or "").strip() == "metadata_only"
-    )
+    return policy in _PROCESSABLE_ATTACHMENT_POLICIES
 
 
 def _media_candidate(
@@ -146,15 +154,15 @@ def _media_candidate(
         target_hints=target_hints,
     )
     object_ref = _source_object_ref(unit, attachment)
-    status = "pending"
+    status = MEDIA_LIFECYCLE_PENDING
     policy_action = "process"
     skip_reason = ""
     if not object_ref:
-        status = "failed"
+        status = MEDIA_LIFECYCLE_FAILED_RETRYABLE
         policy_action = "fail"
         reason_codes.append("missing_source_object_ref")
     elif media_kind in {"archive", "unknown"}:
-        status = "failed"
+        status = MEDIA_LIFECYCLE_FAILED_RETRYABLE
         policy_action = "fail"
         reason_codes.append("unsupported_media_kind")
     elif (
@@ -171,7 +179,15 @@ def _media_candidate(
         processing_family=processing_family,
         target_hints=target_hints,
     )
-    target_blocking = status in {"pending", "failed"} and media_role in _TARGET_BLOCKING_ROLES
+    target_blocking = (
+        status
+        in {
+            MEDIA_LIFECYCLE_PENDING,
+            MEDIA_LIFECYCLE_MANUAL_REVIEW,
+            MEDIA_LIFECYCLE_FAILED_RETRYABLE,
+        }
+        and media_role in _TARGET_BLOCKING_ROLES
+    )
     candidate_id = _candidate_id(
         unit_id=str(unit.get("unit_id") or ""),
         media_ref_id=media_ref_id,
@@ -258,7 +274,7 @@ def _source_body_repair_candidate(unit: Mapping[str, Any]) -> dict[str, Any]:
         "processing_family": processing_family,
         "target_blocking": False,
         "priority": _priority(unit, media_kind="source_body", target_hints=_target_hints(unit)),
-        "status": "failed",
+        "status": MEDIA_LIFECYCLE_FAILED_RETRYABLE,
         "policy_action": "fail",
         "skip_reason": "",
         "reason_codes": reason_codes,
@@ -305,6 +321,7 @@ def _attempt_ledger(
         _PROCESSING_FAMILY_RELEASED_FILE_TEXT_EXTRACTION,
         _PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION,
         _PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION,
+        _PROCESSING_FAMILY_IMAGE_OCR_TEXT_EXTRACTION,
     }:
         table = {
             _PROCESSING_FAMILY_RELEASED_FILE_TEXT_EXTRACTION: (
@@ -312,6 +329,7 @@ def _attempt_ledger(
             ),
             _PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION: PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE,
             _PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION: OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE,
+            _PROCESSING_FAMILY_IMAGE_OCR_TEXT_EXTRACTION: IMAGE_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE,
         }[processing_family]
         identity = {
             "source_corpus": str(unit.get("source_corpus") or ""),
@@ -329,15 +347,6 @@ def _attempt_ledger(
             "source_notice_id": str(unit.get("source_notice_id") or ""),
             "unit_id": str(unit.get("unit_id") or ""),
             "media_ref_id": media_ref_id,
-            "attempt_number": 1,
-        }
-    elif processing_family == _PROCESSING_FAMILY_MULTIMODAL_FALLBACK:
-        table = DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE
-        identity = {
-            "source_corpus": str(unit.get("source_corpus") or ""),
-            "source_collection": str(unit.get("source_collection") or ""),
-            "source_notice_id": str(unit.get("source_notice_id") or ""),
-            "unit_id": str(unit.get("unit_id") or ""),
             "attempt_number": 1,
         }
     else:
@@ -448,8 +457,8 @@ def _processing_family(
         return _PROCESSING_FAMILY_PDF_OCR_TEXT_EXTRACTION
     if media_kind == "office":
         return _PROCESSING_FAMILY_OFFICE_TEXT_EXTRACTION
-    if media_kind in {"image", "archive", "unknown"}:
-        return _PROCESSING_FAMILY_MULTIMODAL_FALLBACK
+    if media_kind == "image":
+        return _PROCESSING_FAMILY_IMAGE_OCR_TEXT_EXTRACTION
     return "source_capture_repair"
 
 

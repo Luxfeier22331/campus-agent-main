@@ -43,9 +43,12 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
             multimodal_candidate_inventory={
                 "candidates": [
                     {
+                        "candidate_id": "candidate-metadata-only",
                         "unit_id": unit["unit_id"],
                         "source_notice_id": "355881",
                         "processing_family": "schedule_image_ocr",
+                        "status": "skipped",
+                        "target_blocking": False,
                     }
                 ]
             },
@@ -126,11 +129,13 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
             multimodal_candidate_inventory={
                 "candidates": [
                     {
+                        "candidate_id": "candidate-legacy-pdf",
                         "unit_id": unit["unit_id"],
                         "source_notice_id": "477",
                         "media_kind": "pdf",
                         "processing_family": "internal_notice_multimodal",
                         "status": "pending",
+                        "target_blocking": True,
                         "source_object_ref": {
                             "bucket": "campus-rag-source",
                             "key": "authenticated_notice_portal/file-release-477/capture/source.pdf",
@@ -145,6 +150,140 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
             audit["finding_counts_by_code"],
             {"pdf_candidate_uses_multimodal_fallback": 1},
         )
+
+    def test_explicit_candidate_inventory_rejects_legacy_failed_status(self) -> None:
+        unit = _unit(
+            notice_id="355867",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="fetch_to_quarantine",
+            attachment_state="uploaded_quarantine",
+            retention_class="quarantine_candidate",
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": unit["unit_id"],
+                        "candidate_id": "candidate-legacy-failed",
+                        "source_notice_id": "355867",
+                        "media_kind": "image",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "failed",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/355867.png",
+                        },
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(audit["finding_counts_by_code"], {"legacy_candidate_status_failed": 1})
+
+    def test_target_blocking_candidate_requires_nonterminal_status_and_source_ref(self) -> None:
+        unit = _unit(
+            notice_id="355867",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="fetch_to_quarantine",
+            attachment_state="uploaded_quarantine",
+            retention_class="quarantine_candidate",
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": unit["unit_id"],
+                        "candidate_id": "candidate-completed-blocking",
+                        "source_notice_id": "355867",
+                        "media_kind": "image",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "completed",
+                        "target_blocking": True,
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {
+                "target_blocking_candidate_missing_source_object_ref": 1,
+                "terminal_candidate_still_target_blocking": 1,
+            },
+        )
+
+    def test_orphan_and_duplicate_candidates_are_high_findings(self) -> None:
+        unit = _unit(
+            notice_id="355867",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="fetch_to_quarantine",
+            attachment_state="uploaded_quarantine",
+            retention_class="quarantine_candidate",
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": unit["unit_id"],
+                        "candidate_id": "candidate:duplicate",
+                        "source_notice_id": "355867",
+                        "media_kind": "image",
+                        "media_role": "schedule_table_carrier",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "pending",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/355867.png",
+                        },
+                    },
+                    {
+                        "unit_id": unit["unit_id"],
+                        "candidate_id": "candidate:duplicate",
+                        "source_notice_id": "355867",
+                        "media_kind": "image",
+                        "media_role": "schedule_table_carrier",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "pending",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/355867-copy.png",
+                        },
+                    },
+                    {
+                        "unit_id": "searchable:notice:muc_internal_portal:missing",
+                        "candidate_id": "candidate:orphan",
+                        "source_notice_id": "missing",
+                        "media_kind": "image",
+                        "media_role": "schedule_table_carrier",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "pending",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/missing.png",
+                        },
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(audit["finding_counts_by_code"]["duplicate_candidate_id"], 1)
+        self.assertEqual(audit["finding_counts_by_code"]["orphan_media_candidate"], 1)
 
 
 def _unit(

@@ -125,6 +125,8 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
                     "source_url": "https://portal.example.edu/download?id=schedule-image",
                     "object_key": "authenticated_notice_portal/attachment-a/capture/table.png",
                     "content_sha256": "a" * 64,
+                    "storage_provider": "object_store",
+                    "ingest_status": "uploaded",
                     "retention_class": "quarantine_candidate",
                     "required_source_object": False,
                     "byte_fetch_required": False,
@@ -136,6 +138,30 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
         self.assertEqual(manifest["fetch_request_count"], 0)
         self.assertEqual(manifest["required_source_object_count"], 0)
         self.assertEqual(manifest["requests"], [])
+
+    def test_stale_object_ref_without_upload_state_still_requires_fetch(self) -> None:
+        manifest = build_authenticated_notice_attachment_fetch_request_manifest(
+            notice_manifest={
+                "site_id": "muc_internal_portal",
+                "notice_id": "355867",
+                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:355867",
+                "raw_version_id": "sha256:schedule-version",
+            },
+            attachment_refs=(
+                {
+                    "attachment_ref_id": "attachment-0001",
+                    "attachment_capture_policy": "fetch_to_quarantine",
+                    "source_url": "https://portal.example.edu/download?id=schedule-image",
+                    "object_key": "authenticated_notice_portal/attachment-a/capture/table.png",
+                    "content_sha256": "a" * 64,
+                    "retention_class": "quarantine_candidate",
+                    "required_source_object": False,
+                },
+            ),
+        )
+
+        self.assertEqual(manifest["fetch_request_count"], 1)
+        self.assertEqual(manifest["requests"][0]["attachment_ref_id"], "attachment-0001")
 
 
 if __name__ == "__main__":

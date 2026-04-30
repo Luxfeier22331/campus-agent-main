@@ -15,21 +15,29 @@ fetch admission 能力接到 repo-owned operator / ingestion-worker 工作流。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 6 completed; live collector proof auth-blocked`
+- current phase: `Phase 7 completed; captured-content smoke next`
 - baseline: `86695c4b feat: 完成通知附件 fetch admission 收口`
 
 ## Problem
 
 Phase 9 已让 collector 默认不下载 notice attachments，并支持读取
-`AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH`。剩余缺口是 operator
-侧没有稳定命令从 source-truth inventory 与 `attachment-refs.jsonl` 生成 collector 可消费的
-fetch request manifest；README / runbook 也仍有“配置对象存储即 materialize attachments”的旧说法。
+`AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH`。operator / ingestion
+contract 已补齐 media lifecycle、target-blocking admission、closeout provenance 与
+attachment bytes availability guard。
+
+当前优先级不是等待 live portal auth 做 fresh collector export，而是先用已采集内容证明
+新状态机不会错误分流、错误保留 bytes、错误清理 target-blocking media，或把只应 search 的
+notice 推进下游。
 
 ## Target Shape
 
-固定 operator 链路：
+固定 operator 链路仍然成立：
 
 `source-truth inventory + attachment-refs.jsonl -> fetch request manifest -> selected collector export -> run ledger verification -> import smoke`
+
+但当前 next slice 固定为已采集内容 smoke：
+
+`captured source-truth/searchable replay -> fetch request recompute -> media readiness -> fact readiness -> closeout -> cleanup gate -> downstream replay/admission report`
 
 边界：
 
@@ -41,6 +49,8 @@ fetch request manifest；README / runbook 也仍有“配置对象存储即 mate
 - quarantine cleanup 删除过期 bytes 前必须检查 media extraction candidate inventory；
   `target_blocking=true` 且未进入 `completed` / `skipped` / `failed_terminal` 的 candidate
   仍引用该 object 时不得删除。
+- fresh selected collector export 是 auth 可用后的 manifest-consumption proof；它不应阻塞
+  当前已采集内容的状态机验收。
 
 ## Native Planning Truth
 

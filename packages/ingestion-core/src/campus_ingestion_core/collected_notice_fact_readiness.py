@@ -5,6 +5,7 @@ from typing import Any
 
 from campus_ingestion_core.collected_notice_fact_state_contract import (
     FACT_STATE_SCHEMA_VERSION,
+    validate_fact_state_payload,
 )
 from campus_ingestion_core.collected_notice_media_role_classifier import (
     classify_notice_media_roles,
@@ -118,7 +119,8 @@ def _build_fact_readiness(
 ) -> dict[str, Any]:
     blocking_media = tuple(row for row in media_states if row.get("target_blocking"))
     pending_nonblocking_media = any(
-        row.get("media_state") == "ocr_pending" and not row.get("target_blocking")
+        row.get("media_state") in {"pending", "manual_review", "failed_retryable"}
+        and not row.get("target_blocking")
         for row in media_states
     ) or (text_fact_complete and has_pending_unit_media(unit) and not blocking_media)
     if text_fact_complete:
@@ -137,7 +139,22 @@ def _build_fact_readiness(
             blocking_media=(),
             reason_codes=tuple(reason_codes),
         )
-    if blocking_media or has_pending_unit_media(unit):
+    if blocking_media:
+        if any(row.get("media_state") == "manual_review" for row in blocking_media):
+            return _payload(
+                unit=unit,
+                target=target,
+                fact_readiness_state="review_required",
+                target_admission_state="manual_review",
+                required_fact_groups=required_fact_groups,
+                ready_fact_groups=ready_fact_groups,
+                missing_fact_groups=tuple(
+                    item for item in required_fact_groups if item not in set(ready_fact_groups)
+                ),
+                media_states=media_states,
+                blocking_media=blocking_media,
+                reason_codes=("required_media_manual_review",),
+            )
         return _payload(
             unit=unit,
             target=target,
@@ -181,7 +198,7 @@ def _payload(
     blocking_media: tuple[dict[str, Any], ...],
     reason_codes: tuple[str, ...],
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "schema_version": FACT_STATE_SCHEMA_VERSION,
         "target": target,
         "source_unit_state": "searchable_ready" if unit.get("unit_id") else "invalid_capture",
@@ -198,6 +215,8 @@ def _payload(
             "searchable_unit_id": str(unit.get("unit_id") or ""),
         },
     }
+    validate_fact_state_payload(payload)
+    return payload
 
 
 __all__ = [

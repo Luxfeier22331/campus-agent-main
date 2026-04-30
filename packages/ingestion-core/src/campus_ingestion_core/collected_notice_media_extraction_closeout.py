@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.collected_notice_media_lifecycle import (
+    MEDIA_LIFECYCLE_STATUSES,
+    MEDIA_LIFECYCLE_TERMINAL_STATUSES,
+    normalize_media_lifecycle_status,
+)
 
 MEDIA_EXTRACTION_CLOSEOUT_RESULT_MANIFEST_SCHEMA_VERSION = (
     "notice_media_extraction_closeout_result_manifest.v1"
@@ -15,7 +20,11 @@ MEDIA_EXTRACTION_CLOSEOUT_REPORT_SCHEMA_VERSION = "notice_media_extraction_close
 MEDIA_EXTRACTION_CLOSEOUT_INVENTORY_SCHEMA_VERSION = (
     "notice_media_extraction_candidate_inventory.v1"
 )
-MEDIA_EXTRACTION_CLOSEOUT_TERMINAL_STATUSES = frozenset({"completed", "skipped", "failed_terminal"})
+MEDIA_EXTRACTION_CLOSEOUT_TERMINAL_STATUSES = MEDIA_LIFECYCLE_TERMINAL_STATUSES
+MEDIA_EXTRACTION_CLOSEOUT_ACTIVE_STATUSES = frozenset(
+    {"pending", "manual_review", "failed_retryable"}
+)
+MEDIA_EXTRACTION_CLOSEOUT_STATUSES = MEDIA_LIFECYCLE_STATUSES
 
 
 def apply_media_extraction_closeout_result_manifests_from_paths(
@@ -43,11 +52,12 @@ def apply_media_extraction_closeout_result_manifests(
     ),
 ) -> dict[str, Any]:
     timestamp = generated_at or utc_now()
+    candidate_rows = _validated_candidate_rows(candidate_inventory)
     result_by_candidate_id = _result_by_candidate_id(result_manifests)
     updated_candidates = []
     updated_count = 0
     terminalized_count = 0
-    for candidate in _mapping_rows(candidate_inventory.get("candidates")):
+    for candidate in candidate_rows:
         candidate_id = str(candidate.get("candidate_id") or "")
         result = result_by_candidate_id.get(candidate_id)
         if result is None:
@@ -59,10 +69,7 @@ def apply_media_extraction_closeout_result_manifests(
         if str(updated.get("status") or "") in MEDIA_EXTRACTION_CLOSEOUT_TERMINAL_STATUSES:
             terminalized_count += 1
 
-    known_candidate_ids = {
-        str(candidate.get("candidate_id") or "")
-        for candidate in _mapping_rows(candidate_inventory.get("candidates"))
-    }
+    known_candidate_ids = {str(candidate.get("candidate_id") or "") for candidate in candidate_rows}
     orphan_results = [
         result
         for candidate_id, result in sorted(result_by_candidate_id.items())
@@ -115,7 +122,7 @@ def build_schedule_image_ocr_media_extraction_closeout_result_manifest(
             status = "pending"
             reason_codes = ["ocr_output_missing"]
         elif key in rejected_by_key:
-            status = "failed"
+            status = "manual_review"
             reason_codes = [
                 "ocr_admission_rejected",
                 str(rejected_by_key[key].get("admission_reason") or "").strip(),
@@ -159,7 +166,7 @@ def build_owner_text_media_extraction_closeout_result_manifest(
             closeout_status = "pending"
             reason_codes = ["attempt_not_executed"]
         else:
-            closeout_status = "failed"
+            closeout_status = "failed_retryable"
             reason_codes = ["owner_text_not_ready", str(item.get("error") or "").strip()]
         results.append(
             _result_row(
@@ -228,7 +235,15 @@ def _result_by_candidate_id(
         for row in _mapping_rows(manifest.get("results")):
             candidate_id = str(row.get("candidate_id") or "").strip()
             if candidate_id:
-                result[candidate_id] = row
+                if candidate_id in result:
+                    raise ValueError(f"duplicate result candidate_id: {candidate_id}")
+                result[candidate_id] = {
+                    **dict(row),
+                    "result_schema_version": str(manifest.get("schema_version") or ""),
+                    "result_source_kind": str(manifest.get("source_kind") or ""),
+                    "result_generated_at": str(manifest.get("generated_at") or ""),
+                    "result_generated_by": str(manifest.get("generated_by") or ""),
+                }
     return result
 
 
@@ -239,7 +254,7 @@ def _apply_result_to_candidate(
     status = _normalize_status(str(result.get("status") or result.get("media_text_status") or ""))
     updated = dict(candidate)
     updated["status"] = status
-    updated["media_text_status"] = str(result.get("media_text_status") or status)
+    updated["media_text_status"] = status
     updated["target_blocking"] = (
         bool(candidate.get("target_blocking"))
         and status not in MEDIA_EXTRACTION_CLOSEOUT_TERMINAL_STATUSES
@@ -257,7 +272,12 @@ def _apply_result_to_candidate(
         updated["completed_output_refs"] = dict(output_refs)
     updated["closeout"] = {
         "result_status": status,
-        "result_schema_version": str(result.get("schema_version") or ""),
+        "result_schema_version": str(
+            result.get("result_schema_version") or result.get("schema_version") or ""
+        ),
+        "result_source_kind": str(result.get("result_source_kind") or ""),
+        "result_generated_at": str(result.get("result_generated_at") or ""),
+        "result_generated_by": str(result.get("result_generated_by") or ""),
     }
     return updated
 
@@ -323,10 +343,61 @@ def _closeout_report(
 
 
 def _normalize_status(status: str) -> str:
-    normalized = status.strip()
-    if normalized in {"completed", "skipped", "failed", "failed_terminal", "pending"}:
-        return normalized
-    return "pending"
+    try:
+        return normalize_media_lifecycle_status(status)
+    except ValueError as exc:
+        normalized = str(status or "").strip()
+        raise ValueError(f"status has unsupported value: {normalized}") from exc
+
+
+def _validated_candidate_rows(
+    candidate_inventory: Mapping[str, Any],
+) -> tuple[Mapping[str, Any], ...]:
+    raw_candidates = candidate_inventory.get("candidates")
+    if not isinstance(raw_candidates, list | tuple):
+        raise ValueError("candidate inventory candidates must be a sequence")
+    candidates = _mapping_rows(raw_candidates)
+    if len(candidates) != len(raw_candidates):
+        raise ValueError("candidate inventory candidates must be objects")
+    validated = []
+    for index, candidate in enumerate(candidates):
+        _validate_candidate(candidate, index=index)
+        validated.append(_canonical_candidate(candidate))
+    return tuple(validated)
+
+
+def _validate_candidate(candidate: Mapping[str, Any], *, index: int) -> None:
+    candidate_id = str(candidate.get("candidate_id") or "").strip()
+    if not candidate_id:
+        raise ValueError(f"candidates[{index}].candidate_id is required")
+    if not isinstance(candidate.get("target_blocking"), bool):
+        raise ValueError(f"candidates[{index}].target_blocking must be a boolean")
+    status = str(candidate.get("status") or "").strip()
+    if _normalize_status(status) != status:
+        raise ValueError(f"candidates[{index}].status has unsupported value: {status}")
+    if candidate.get("target_blocking") and not _has_source_object_ref(candidate):
+        raise ValueError(
+            f"candidates[{index}].source_object_ref is required for target_blocking candidates"
+        )
+
+
+def _has_source_object_ref(candidate: Mapping[str, Any]) -> bool:
+    source_object_ref = candidate.get("source_object_ref")
+    if not isinstance(source_object_ref, Mapping):
+        return False
+    return bool(
+        str(source_object_ref.get("bucket") or "").strip()
+        and str(source_object_ref.get("key") or "").strip()
+    )
+
+
+def _canonical_candidate(candidate: Mapping[str, Any]) -> dict[str, Any]:
+    row = dict(candidate)
+    status = _normalize_status(str(row.get("status") or ""))
+    row["status"] = status
+    if "media_text_status" in row:
+        row["media_text_status"] = _normalize_status(str(row.get("media_text_status") or status))
+    return row
 
 
 def _clean_reason_codes(values: Sequence[object]) -> list[str]:
