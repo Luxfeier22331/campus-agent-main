@@ -13,7 +13,7 @@ updated: 2026-05-01
 
 - [x] **Phase 1: Queue Contract And Lifecycle Freeze** — froze authenticated-notice run-level queue payload, lifecycle states, idempotency, retry/manual-review semantics, and docs.
 - [x] **Phase 2: Manual Historical Enqueue And Repair Ledger** — enqueue already collected content through verified run ledger or repair/synthetic ledger rows.
-- [ ] **Phase 3: Collector Verified-Run Auto-Enqueue** — make collector or its scheduler enqueue only after source bucket upload and run ledger verification.
+- [x] **Phase 3: Collector Verified-Run Auto-Enqueue** — make collector or its scheduler enqueue only after source bucket upload and run ledger verification.
 - [ ] **Phase 4: Run-Level Queue Consumer** — claim queue jobs by lease and execute source-object verification plus source-truth/import from `run_id`.
 - [ ] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
 - [ ] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
@@ -89,6 +89,14 @@ uv run --all-packages ruff check \
 ## Phase 3: Collector Verified-Run Auto-Enqueue
 
 Goal: connect collector success to ingest queue without letting collector own downstream ingestion.
+
+Result:
+
+- Added collector config flags `AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_ON_SUCCESS` and `AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_OUTPUT_DIR`.
+- Added `ingest-queue-enqueue.ts` to build and run the repo-owned ingestion-worker enqueue command.
+- `runBootstrapExport` now calls the enqueue hook only after a successful verified ledger record.
+- The collector still does not write queue internals, source-truth, projections, read models, chunks, indexes, or downstream state.
+- README documents that auto-enqueue is a verified `run_id` handoff only.
 
 Deliverables:
 

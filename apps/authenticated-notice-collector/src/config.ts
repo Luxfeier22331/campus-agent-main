@@ -27,6 +27,8 @@ export interface CollectorConfig {
 	collectorRunLeaseDatabaseUrl: string | null;
 	collectorRunLeaseDisabled: boolean;
 	collectorRunLeaseTtlSeconds: number;
+	ingestQueueEnqueueOnSuccess: boolean;
+	ingestQueueEnqueueOutputDir: string | null;
 	exportsDir: string;
 	historicalBackfillMaxPagesPerType: number | null;
 	noticeTypeAllowlist: string[] | null;
@@ -110,6 +112,13 @@ export function resolveCollectorConfig(
 		collectorRunLeaseTtlSeconds: parsePositiveInteger(
 			source.AUTHENTICATED_NOTICE_COLLECTOR_LEASE_TTL_SECONDS,
 			3600,
+		),
+		ingestQueueEnqueueOnSuccess: parseBooleanFlag(
+			source.AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_ON_SUCCESS,
+			false,
+		),
+		ingestQueueEnqueueOutputDir: normalizeOptionalPath(
+			source.AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_OUTPUT_DIR,
 		),
 		exportsDir: path.join(runtimeDir, "exports"),
 		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(

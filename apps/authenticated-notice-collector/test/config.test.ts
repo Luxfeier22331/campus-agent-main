@@ -36,6 +36,8 @@ describe("authenticated notice collector config", () => {
 		expect(config.collectorRunLeaseDatabaseUrl).toBeNull();
 		expect(config.collectorRunLeaseDisabled).toBe(false);
 		expect(config.collectorRunLeaseTtlSeconds).toBe(3600);
+		expect(config.ingestQueueEnqueueOnSuccess).toBe(false);
+		expect(config.ingestQueueEnqueueOutputDir).toBeNull();
 		expect(config.historicalBackfillMaxPagesPerType).toBeNull();
 		expect(config.writeLocalExports).toBe(false);
 	});
@@ -63,6 +65,9 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL: "postgresql://lease.example/postgres",
 			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE: "true",
 			AUTHENTICATED_NOTICE_COLLECTOR_LEASE_TTL_SECONDS: "120",
+			AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_ON_SUCCESS: "true",
+			AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_OUTPUT_DIR:
+				"/tmp/authenticated-notice-enqueue",
 			AUTHENTICATED_NOTICE_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE: "500",
 			AUTHENTICATED_NOTICE_NOTICE_TYPE_ALLOWLIST: "9982, 6,9982",
 			AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES: "5",
@@ -94,6 +99,8 @@ describe("authenticated notice collector config", () => {
 		expect(config.collectorRunLeaseDatabaseUrl).toBe("postgresql://lease.example/postgres");
 		expect(config.collectorRunLeaseDisabled).toBe(true);
 		expect(config.collectorRunLeaseTtlSeconds).toBe(120);
+		expect(config.ingestQueueEnqueueOnSuccess).toBe(true);
+		expect(config.ingestQueueEnqueueOutputDir).toBe("/tmp/authenticated-notice-enqueue");
 		expect(config.historicalBackfillMaxPagesPerType).toBe(500);
 		expect(config.bypassProxyForPortal).toBe(false);
 		expect(config.portalProxyServer).toBeNull();

@@ -182,6 +182,13 @@ Notice export note:
   export writes `started` then `success` / `failed` source-channel run ledger
   state with collection mode, selected notices, attachment outcome counts,
   verified source-bucket artifact refs, hash/size summary, and failure reason
+- when `AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_ON_SUCCESS=true`,
+  `bootstrap:export` invokes the repo-owned ingestion-worker enqueue command
+  only after the collector run ledger row is `success` and `verified`. The
+  collector does not write source-truth, projection, read model, chunk, index,
+  or queue internals; it only hands off the verified `run_id`.
+- `AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_OUTPUT_DIR` optionally sets the
+  enqueue evidence directory for that worker command.
 - when `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` is configured and
   `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE` is not true, `bootstrap:export`
   acquires a `notice` run lease before writing artifacts; a live holder causes
