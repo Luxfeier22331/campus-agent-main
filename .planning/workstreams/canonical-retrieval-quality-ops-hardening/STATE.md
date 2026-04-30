@@ -28,13 +28,21 @@ updated: 2026-05-01
 - Current release-managed retrieval path already has release acceptance, chunk quality, qrels
   coverage, release provenance, runtime drift guard, embedding cache identity, payload index audit,
   JSONL observation sink and deterministic rerank eval branch.
-- Remaining gaps are quality and operations maturity:
+- At creation, remaining gaps were quality and operations maturity:
   - qrels / acceptance fixtures are still bootstrap-sized.
   - real-scale release cost / latency / capacity evidence is not yet captured.
   - runtime observation is still JSONL-first instead of a durable production intake.
   - reranker is eval-only, not governed by a production opt-in gate.
   - `freshness_sensitive` / `live_assisted` remain target/deferred branches.
   - focused workstream gates and repo-wide dirty-worktree gates need clearer separation.
+
+2026-05-01 closeout context:
+
+- Qrels denominator policy, release acceptance expansion, dry-run release benchmark, durable
+  observation event seam, reranker adoption gate, freshness/live explicit branch contract and
+  focused gate separation are implemented.
+- Real provider/Qdrant benchmark and production observation storage rollout remain explicit
+  non-blocking operational follow-ups, not implementation ambiguity in this workstream.
 
 2026-05-01 Phase 0 context:
 

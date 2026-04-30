@@ -48,6 +48,21 @@ uv run --all-packages ruff format --check <workstream Python files>
 
 Observed result: `All checks passed!` and `24 files already formatted`.
 
+```bash
+pnpm exec markdownlint-cli2 \
+  .planning/WORKSTREAMS.md \
+  .planning/workstreams/canonical-retrieval-quality-ops-hardening/README.md \
+  .planning/workstreams/canonical-retrieval-quality-ops-hardening/REQUIREMENTS.md \
+  .planning/workstreams/canonical-retrieval-quality-ops-hardening/ROADMAP.md \
+  .planning/workstreams/canonical-retrieval-quality-ops-hardening/STATE.md \
+  '.planning/workstreams/canonical-retrieval-quality-ops-hardening/**/*.md' \
+  docs/architecture/system/retrieval-serving-architecture.md \
+  docs/runbooks/index-release-runbook.md \
+  docs/reference/runtime-serving-and-index-terms.md
+```
+
+Observed result: `Summary: 0 error(s)`.
+
 ## Remaining Non-Blocking Work
 
 - Real provider / real Qdrant benchmark and production smoke require explicit credentials,
