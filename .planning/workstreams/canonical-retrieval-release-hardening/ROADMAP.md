@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -13,7 +13,7 @@ updated: 2026-04-30
 
 All phases have `PLAN.md` files so the generic `gsd-sdk workstream.status` helper reports
 them as `in_progress`. For this workstream, execution truth is the explicit `Status:` line in
-this roadmap plus `STATE.md`: Phases 0-7 are complete; Phase 8 is ready to start.
+this roadmap plus `STATE.md`: Phases 0-8 are complete.
 
 ## Phase 0: Scope And Truth Alignment
 
@@ -145,7 +145,7 @@ this roadmap plus `STATE.md`: Phases 0-7 are complete; Phase 8 is ready to start
 
 ## Phase 8: Acceptance, Docs And Closeout
 
-**Status:** planned.
+**Status:** completed.
 
 **Goal:** 完成全链路验收、文档同步、runbook 更新与 workstream closeout。
 
@@ -155,3 +155,5 @@ this roadmap plus `STATE.md`: Phases 0-7 are complete; Phase 8 is ready to start
 - 运行 focused ingestion + retrieval + backup + eval gates。
 - 记录未解决的真实 smoke 或 data-volume blockers。
 - 将 workstream 标记 completed 或留下明确 follow-up trigger。
+
+**Evidence:** `./phases/phase-08-acceptance-docs-and-closeout/SUMMARY.md`.

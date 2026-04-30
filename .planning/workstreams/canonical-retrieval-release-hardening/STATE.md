@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -11,16 +11,16 @@ updated: 2026-04-30
 
 ## Current Status
 
-**Status:** active
+**Status:** completed
 **Current Phase:** Phase 8 `Acceptance, Docs And Closeout`
-**Last Activity:** 2026-04-30 Phase 7 completed
+**Last Activity:** 2026-04-30 Phase 8 completed
 
-- status: `active`
-- current slice: Phase 7 eval-driven retrieval tuning complete; Phase 8 ready to start
+- status: `completed`
+- current slice: workstream complete
 - owner: current Codex session
 - active implementation: none yet
-- latest completed phase: Phase 7 `Eval-Driven Retrieval Tuning`
-- next phase: Phase 8 `Acceptance, Docs And Closeout`
+- latest completed phase: Phase 8 `Acceptance, Docs And Closeout`
+- next phase: none
 - status note: `gsd-sdk workstream.status` reports any phase directory with `PLAN.md` and no
   `SUMMARY.md` as `in_progress`; ROADMAP `Status:` lines remain the human execution truth for
   planned-but-not-started phases in this workstream.
@@ -38,7 +38,7 @@ updated: 2026-04-30
 - Phase 0 evidence is captured at
   `evidence/phase-00-current-inventory.md`.
 - Current gaps:
-  - final acceptance/docs/closeout is not yet complete.
+  - none for the closed workstream scope.
 
 ## Blockers
 
