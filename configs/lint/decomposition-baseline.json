@@ -16,9 +16,6 @@
 		"apps/authenticated-notice-collector/src/file-release-export-core.ts": {
 			"max_lines": 836
 		},
-		"apps/authenticated-notice-collector/test/bootstrap-export.collection.attachments.suite.ts": {
-			"max_lines": 911
-		},
 		"apps/authenticated-notice-collector/test/file-release-export.test.ts": {
 			"max_lines": 825
 		},
