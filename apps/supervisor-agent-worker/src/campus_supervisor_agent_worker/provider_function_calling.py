@@ -63,7 +63,9 @@ class ResponsesFunctionToolProvider:
         payload: dict[str, object] = {
             "model": self._model_name,
             "stream": False,
-            "input": list(request.input_items) if request.input_items else _initial_input_items(request.user_goal),
+            "input": list(request.input_items)
+            if request.input_items
+            else _initial_input_items(request.user_goal),
             "tools": list(request.tools),
             "tool_choice": request.tool_choice,
             "parallel_tool_calls": request.parallel_tool_calls,

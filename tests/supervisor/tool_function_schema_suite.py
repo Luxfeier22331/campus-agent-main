@@ -73,6 +73,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
             expected,
         )
 
+
 def _assert_strict_object(schema: dict[str, object]) -> None:
     if schema.get("type") == "object":
         properties = schema.get("properties")
@@ -83,7 +84,9 @@ def _assert_strict_object(schema: dict[str, object]) -> None:
                     f"strict object required={self_required!r} must match properties={properties!r}"
                 )
             if schema.get("additionalProperties") is not False:
-                raise AssertionError(f"strict object missing additionalProperties=false: {schema!r}")
+                raise AssertionError(
+                    f"strict object missing additionalProperties=false: {schema!r}"
+                )
             for nested in properties.values():
                 if isinstance(nested, dict):
                     _assert_strict_object(nested)

@@ -199,9 +199,8 @@ def _nullable_schema(schema: dict[str, Any]) -> dict[str, Any]:
     schema_type = nullable.get("type")
     if isinstance(schema_type, str):
         nullable["type"] = [schema_type, "null"]
-    elif isinstance(schema_type, list):
-        if "null" not in schema_type:
-            nullable["type"] = [*schema_type, "null"]
+    elif isinstance(schema_type, list) and "null" not in schema_type:
+        nullable["type"] = [*schema_type, "null"]
     if "enum" in nullable and None not in nullable["enum"]:
         nullable["enum"] = [*nullable["enum"], None]
     return nullable

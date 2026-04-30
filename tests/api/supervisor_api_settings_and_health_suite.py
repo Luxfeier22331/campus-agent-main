@@ -319,7 +319,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                         ),
                         "call_id": "call-provider-selected",
                     }
-                ]
+                ],
             }
 
         delegates = _build_agent_delegates(
@@ -352,7 +352,9 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             [tool["name"] for tool in captured_provider_request.tools],
             ["campus_notice_get"],
         )
-        self.assertEqual(captured_provider_requests[1].input_items[-1]["call_id"], "call-provider-selected")
+        self.assertEqual(
+            captured_provider_requests[1].input_items[-1]["call_id"], "call-provider-selected"
+        )
         self.assertIsNotNone(query_service.last_get_query)
         assert query_service.last_get_query is not None
         self.assertEqual(query_service.last_get_query.payload.notice_id, "notice:provider-selected")

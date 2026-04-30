@@ -8,10 +8,10 @@ from campus_shared import PromptRuntimeProviderConfig
 from campus_supervisor_agent_worker.provider_function_calling import (
     ProviderFunctionToolAdmissionError,
     ProviderFunctionToolRequest,
-    ResponsesFunctionToolProvider,
     ProviderToolLoopResult,
-    run_required_provider_tool_loop,
+    ResponsesFunctionToolProvider,
     plan_required_provider_function_call,
+    run_required_provider_tool_loop,
 )
 
 
@@ -203,7 +203,7 @@ def _responses_function_call(
                 "arguments": json.dumps(arguments, ensure_ascii=False),
                 "call_id": call_id,
             }
-        ]
+        ],
     }
 
 

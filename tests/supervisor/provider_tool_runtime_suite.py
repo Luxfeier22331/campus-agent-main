@@ -220,7 +220,7 @@ def _responses_function_call(
                 "arguments": json.dumps(arguments, ensure_ascii=False),
                 "call_id": call_id,
             }
-        ]
+        ],
     }
 
 
