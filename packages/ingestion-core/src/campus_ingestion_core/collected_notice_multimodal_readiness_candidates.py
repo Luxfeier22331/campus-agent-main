@@ -6,6 +6,9 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from campus_ingestion_core.authenticated_notice_attachment_bytes import (
+    has_collected_attachment_bytes,
+)
 from campus_ingestion_core.collected_notice_classification import (
     classification_target_candidates,
 )
@@ -126,6 +129,12 @@ def candidate_records(
             candidates.append(_source_body_repair_candidate(unit))
             continue
         if not attachments:
+            candidates.extend(
+                _source_attachment_capture_repair_candidates(
+                    unit=unit,
+                    attachments=raw_attachments,
+                )
+            )
             continue
         for index, attachment in enumerate(attachments, start=1):
             candidates.append(_media_candidate(unit, attachment, image_index=index))
@@ -134,7 +143,60 @@ def candidate_records(
 
 def _is_processable_attachment_ref(attachment: Mapping[str, Any]) -> bool:
     policy = str(attachment.get("attachment_capture_policy") or "").strip()
-    return policy in _PROCESSABLE_ATTACHMENT_POLICIES
+    return policy in _PROCESSABLE_ATTACHMENT_POLICIES and has_collected_attachment_bytes(attachment)
+
+
+def _source_attachment_capture_repair_candidates(
+    *,
+    unit: Mapping[str, Any],
+    attachments: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    if not _unit_needs_attachment_fact_capture(unit):
+        return ()
+    repair_candidates: list[dict[str, Any]] = []
+    for index, attachment in enumerate(attachments, start=1):
+        if not _requires_source_capture_repair(attachment):
+            continue
+        repair_candidates.append(
+            _source_attachment_repair_candidate(
+                unit=unit,
+                attachment=attachment,
+                image_index=index,
+            )
+        )
+    return tuple(repair_candidates)
+
+
+def _requires_source_capture_repair(attachment: Mapping[str, Any]) -> bool:
+    policy = str(attachment.get("attachment_capture_policy") or "").strip()
+    if policy not in _PROCESSABLE_ATTACHMENT_POLICIES:
+        return False
+    if str(attachment.get("attachment_capture_state") or "").strip() == "terminal_missing":
+        return False
+    if str(attachment.get("last_error_class") or "").strip() == "terminal_unavailable":
+        return False
+    if str(attachment.get("terminal_reason") or "").strip():
+        return False
+    return not has_collected_attachment_bytes(attachment)
+
+
+def _unit_needs_attachment_fact_capture(unit: Mapping[str, Any]) -> bool:
+    target_hints = _target_hints(unit)
+    if _HIGH_VALUE_TARGETS.intersection(target_hints):
+        return True
+    if any(
+        reason
+        for reason in _reason_codes(unit)
+        if reason
+        in {
+            "image_attachment_pending_text_extraction",
+            "pdf_attachment_pending_text_extraction",
+            "office_attachment_pending_text_extraction",
+            "missing_processable_media",
+        }
+    ):
+        return True
+    return _priority(unit, media_kind="source_body", target_hints=target_hints) == "high"
 
 
 def _media_candidate(
@@ -301,6 +363,79 @@ def _source_body_repair_candidate(unit: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _source_attachment_repair_candidate(
+    unit: Mapping[str, Any],
+    attachment: Mapping[str, Any],
+    *,
+    image_index: int,
+) -> dict[str, Any]:
+    media_ref_id = _media_ref_id(attachment, image_index=image_index)
+    processing_family = "source_capture_repair"
+    media_kind = _media_kind(attachment)
+    reason_codes = list(
+        dict.fromkeys(
+            (
+                *_reason_codes(unit),
+                *_candidate_reason_codes(media_kind),
+                "source_capture_pending",
+                "missing_collected_attachment_bytes",
+            )
+        )
+    )
+    candidate_id = _candidate_id(
+        unit_id=str(unit.get("unit_id") or ""),
+        media_ref_id=media_ref_id,
+        source_object_key="",
+        processing_family=processing_family,
+    )
+    return {
+        "schema_version": MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION,
+        "candidate_id": candidate_id,
+        "unit_id": str(unit.get("unit_id") or ""),
+        "source_channel": str(unit.get("source_channel") or ""),
+        "source_surface": str(unit.get("source_surface") or ""),
+        "source_corpus": str(unit.get("source_corpus") or ""),
+        "source_collection": str(unit.get("source_collection") or ""),
+        "site_id": str(unit.get("site_id") or ""),
+        "source_notice_id": str(unit.get("source_notice_id") or ""),
+        "source_document_id": str(unit.get("source_document_id") or ""),
+        "title": str(unit.get("title") or ""),
+        "published_at": str(unit.get("published_at") or ""),
+        "source_url": str(unit.get("source_url") or ""),
+        "media_ref_id": media_ref_id,
+        "image_index": image_index if media_kind == "image" else None,
+        "media_kind": media_kind,
+        "media_role": _MEDIA_ROLE_SOURCE_CAPTURE_REPAIR,
+        "processing_family": processing_family,
+        "target_blocking": False,
+        "priority": _priority(unit, media_kind=media_kind, target_hints=_target_hints(unit)),
+        "status": MEDIA_LIFECYCLE_FAILED_RETRYABLE,
+        "policy_action": "fail",
+        "skip_reason": "",
+        "reason_codes": reason_codes,
+        "target_hints": _target_hints(unit),
+        "classification": dict(unit.get("classification") or {}),
+        "source_object_ref": None,
+        "attachment_ref": _attachment_projection(attachment),
+        "attempt_ledger": _attempt_ledger(
+            processing_family=processing_family,
+            unit=unit,
+            media_ref_id=media_ref_id,
+            image_index=image_index,
+        ),
+        "normalized_output_refs": _normalized_output_refs(
+            candidate_id=candidate_id,
+            unit=unit,
+            object_key="",
+        ),
+        "provenance": {
+            "phase4_searchable_unit_id": str(unit.get("unit_id") or ""),
+            "phase4_admission_batch_id": str(unit.get("admission_batch_id") or ""),
+            "run_provenance": dict(unit.get("run_provenance") or {}),
+        },
+    }
+
+
 def _attempt_ledger(
     *,
     processing_family: str,
@@ -437,6 +572,10 @@ def _attachment_projection(attachment: Mapping[str, Any]) -> dict[str, Any]:
         "mime_type",
         "byte_size",
         "ingest_status",
+        "attachment_capture_policy",
+        "attachment_capture_state",
+        "byte_fetch_required",
+        "retention_class",
     )
     return {key: attachment.get(key) for key in keys if attachment.get(key) not in {None, ""}}
 

@@ -150,7 +150,7 @@ export async function materializeBundleAttachments(
 			const relation = relationByAttachmentId.get(clonedAttachment.attachment_id);
 			const shouldFetch =
 				Boolean(fetchAdmission) ||
-				(input.defaultInlineVisualCapture !== false &&
+				(input.defaultInlineVisualCapture === true &&
 					isDefaultInlineVisualCaptureCandidate({
 						attachment: clonedAttachment,
 						relation,
@@ -257,6 +257,10 @@ async function materializeSingleAttachment(input: {
 		return {
 			attachment: {
 				...input.attachment,
+				provenance_status: "terminal_unavailable",
+				ingest_status: "terminal_unavailable",
+				terminal_reason: terminalStatus.terminalReason,
+				last_http_status: terminalStatus.lastHttpStatus,
 				last_error: message,
 				updated_at: input.observedAt,
 			},

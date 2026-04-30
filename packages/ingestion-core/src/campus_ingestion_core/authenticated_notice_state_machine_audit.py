@@ -162,6 +162,40 @@ def _unit_findings(
         retention_class = str(attachment.get("retention_class") or "")
         ref_id = str(attachment.get("attachment_ref_id") or "")
         has_object_bytes = _has_object_bytes(attachment)
+        if _is_terminal_unavailable_attachment(attachment):
+            if (
+                policy != "terminal_unavailable"
+                or state != "terminal_missing"
+                or retention_class != "metadata_only"
+                or attachment.get("byte_fetch_required") is not False
+                or bool(attachment.get("required_source_object"))
+                or not str(attachment.get("terminal_reason") or "").strip()
+            ):
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="terminal_unavailable_state_mismatch",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        attachment_ref_id=ref_id,
+                        detail=(
+                            "terminal_unavailable attachment must use terminal_missing, "
+                            "metadata_only retention, byte_fetch_required=false, "
+                            "required_source_object=false, and terminal_reason"
+                        ),
+                    )
+                )
+            if candidates:
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="terminal_attachment_generated_candidate",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        attachment_ref_id=ref_id,
+                        detail="terminal_unavailable attachment must not generate media candidates",
+                    )
+                )
         if policy == "metadata_only":
             if candidates:
                 findings.append(
@@ -457,6 +491,22 @@ def _fetch_manifest_findings(
             )
         seen.add(key)
         policy = str(request.get("attachment_capture_policy") or "")
+        if (
+            str(request.get("attachment_capture_state") or "") == "terminal_missing"
+            or str(request.get("terminal_reason") or "").strip()
+            or str(request.get("last_error_class") or "") == "terminal_unavailable"
+            or policy == "terminal_unavailable"
+        ):
+            findings.append(
+                _finding(
+                    severity=FINDING_HIGH,
+                    code="fetch_request_for_terminal_attachment",
+                    source_notice_id=notice_id,
+                    attachment_ref_id=ref_id,
+                    title="",
+                    detail="fetch request manifest must not request terminal_unavailable attachments",
+                )
+            )
         if policy not in _FETCH_POLICIES:
             findings.append(
                 _finding(
@@ -501,6 +551,15 @@ def _has_object_bytes(attachment: Mapping[str, Any]) -> bool:
         and str(attachment.get("content_sha256") or attachment.get("sha256") or "").strip()
         and str(attachment.get("storage_provider") or "").strip() != "reference_only"
         and str(attachment.get("ingest_status") or "").strip() in {"downloaded", "uploaded"}
+    )
+
+
+def _is_terminal_unavailable_attachment(attachment: Mapping[str, Any]) -> bool:
+    return (
+        str(attachment.get("attachment_capture_policy") or "") == "terminal_unavailable"
+        or str(attachment.get("attachment_capture_state") or "") == "terminal_missing"
+        or str(attachment.get("last_error_class") or "") == "terminal_unavailable"
+        or bool(str(attachment.get("terminal_reason") or "").strip())
     )
 
 

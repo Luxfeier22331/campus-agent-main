@@ -4,6 +4,9 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from campus_ingestion_core.authenticated_notice_attachment_bytes import (
+    has_collected_attachment_bytes,
+)
 from campus_ingestion_core.authenticated_notice_file_release_import import (
     FILE_RELEASE_SOURCE_SURFACE,
 )
@@ -91,6 +94,15 @@ def _file_release_required_attachment_ref(
     file_release_id: str,
     released_file_ref: Mapping[str, Any],
 ) -> dict[str, Any]:
+    byte_ref = dict(released_file_ref)
+    if (
+        _optional_text(byte_ref.get("storage_provider")) == "object_store"
+        and _optional_text(byte_ref.get("object_key")) is not None
+        and _optional_text(byte_ref.get("content_sha256")) is not None
+        and _optional_text(byte_ref.get("ingest_status")) is None
+    ):
+        byte_ref["ingest_status"] = "uploaded"
+    has_bytes = has_collected_attachment_bytes(byte_ref)
     return {
         "schema_version": "file_release_source_ref_preview.v1",
         "attachment_ref_id": f"file_release:{file_release_id}",
@@ -103,10 +115,12 @@ def _file_release_required_attachment_ref(
         "object_key": released_file_ref.get("object_key"),
         "content_sha256": released_file_ref.get("content_sha256"),
         "bucket": released_file_ref.get("bucket"),
+        "storage_provider": byte_ref.get("storage_provider"),
+        "ingest_status": byte_ref.get("ingest_status"),
         "notice_capture_route": "candidate_document_owner",
         "attachment_capture_policy": "fetch_required_for_source_truth",
-        "attachment_capture_state": "uploaded_required",
-        "byte_fetch_required": True,
+        "attachment_capture_state": "uploaded_required" if has_bytes else "not_attempted",
+        "byte_fetch_required": not has_bytes,
         "byte_fetch_required_reason": "file_release_source_truth",
         "required_source_object": True,
         "source_object_role": "file_release_released_source_bytes",

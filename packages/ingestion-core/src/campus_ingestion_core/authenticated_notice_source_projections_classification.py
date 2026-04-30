@@ -62,6 +62,12 @@ def _classify_attachment_ref(
     object_store_settings: ObjectStoreSettings | None = None,
     attachment_context_by_ref_id: dict[str, str] | None = None,
 ) -> AuthenticatedNoticeAttachmentClassificationResult:
+    if _normalize_optional_text(attachment_ref.get("last_error_class")) == "terminal_unavailable":
+        return AuthenticatedNoticeAttachmentClassificationResult("terminal_unavailable")
+    if _normalize_optional_text(attachment_ref.get("attachment_capture_policy")) == (
+        "terminal_unavailable"
+    ):
+        return AuthenticatedNoticeAttachmentClassificationResult("terminal_unavailable")
     if (
         _normalize_optional_text(attachment_ref.get("object_key")) is None
         or _normalize_optional_text(attachment_ref.get("content_sha256")) is None
@@ -410,8 +416,11 @@ def build_authenticated_notice_attachment_routing_records(
             record["attachment_content_sha256"] = attachment_content_sha256
         if classification_result.review_reason is not None:
             record["review_reason"] = classification_result.review_reason
-        if classification in {"reference_only", "unsupported_binary"}:
+        if classification in {"reference_only", "unsupported_binary", "terminal_unavailable"}:
             record["terminal_outcome"] = classification
+            terminal_reason = _normalize_optional_text(attachment_ref.get("terminal_reason"))
+            if terminal_reason is not None:
+                record["terminal_reason"] = terminal_reason
             attachment_object_key = _normalize_optional_text(attachment_ref.get("object_key"))
             if attachment_object_key is not None:
                 record["attachment_object_key"] = attachment_object_key

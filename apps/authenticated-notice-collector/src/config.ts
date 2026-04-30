@@ -85,7 +85,7 @@ export function resolveCollectorConfig(
 		),
 		defaultInlineVisualCapture: parseBooleanFlag(
 			source.AUTHENTICATED_NOTICE_DEFAULT_INLINE_VISUAL_CAPTURE,
-			true,
+			false,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authCookieHeader: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER),

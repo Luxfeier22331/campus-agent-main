@@ -114,6 +114,8 @@ def _attachment_capture_policy(attachment_ref: Mapping[str, Any]) -> str:
 
 
 def _requires_collector_fetch(attachment_ref: Mapping[str, Any]) -> bool:
+    if _is_terminal_unavailable_ref(attachment_ref):
+        return False
     if _attachment_capture_policy(attachment_ref) not in FETCH_REQUEST_POLICIES:
         return False
     if _explicit_false(attachment_ref.get("byte_fetch_required")):
@@ -122,6 +124,14 @@ def _requires_collector_fetch(attachment_ref: Mapping[str, Any]) -> bool:
         return False
     state = _optional_text(attachment_ref.get("attachment_capture_state"))
     return state not in {"uploaded_quarantine", "uploaded_required"}
+
+
+def _is_terminal_unavailable_ref(attachment_ref: Mapping[str, Any]) -> bool:
+    if _optional_text(attachment_ref.get("terminal_reason")) is not None:
+        return True
+    if _optional_text(attachment_ref.get("last_error_class")) == "terminal_unavailable":
+        return True
+    return _optional_text(attachment_ref.get("attachment_capture_state")) == "terminal_missing"
 
 
 def _explicit_false(value: Any) -> bool:

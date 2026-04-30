@@ -142,7 +142,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 		]);
 	});
 
-	it("materializes allowlisted external inline image refs by default", async () => {
+	it("materializes allowlisted external inline image refs when visual capture is explicitly enabled", async () => {
 		const externalFetch = vi.fn(
 			async (url: string) =>
 				new Response(Buffer.from(url.includes("mmbiz.qpic.cn") ? "wechat-image" : "other"), {
@@ -182,6 +182,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 					};
 				},
 			},
+			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => {

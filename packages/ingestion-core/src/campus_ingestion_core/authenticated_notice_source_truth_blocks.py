@@ -38,6 +38,10 @@ _HTML_ATTR_RE = re.compile(
     r"""([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))"""
 )
 _WHITESPACE_RE = re.compile(r"\s+")
+_TERMINAL_UNAVAILABLE_STATUSES = {
+    404: "http_404",
+    410: "http_410",
+}
 
 
 def build_authenticated_notice_notice_document_artifacts(
@@ -156,6 +160,7 @@ def _build_attachment_refs(
 ) -> tuple[dict[str, Any], ...]:
     rows: list[dict[str, Any]] = []
     for index, (attachment, relation) in enumerate(_joined_attachments(bundle_record), start=1):
+        terminal_reason, last_error_class = _terminal_fetch_outcome(attachment)
         rows.append(
             {
                 "schema_version": AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA,
@@ -185,6 +190,8 @@ def _build_attachment_refs(
                 "byte_size": attachment.get("byte_size"),
                 "storage_provider": _optional_text(attachment.get("storage_provider")),
                 "ingest_status": _optional_text(attachment.get("ingest_status")),
+                "terminal_reason": terminal_reason,
+                "last_error_class": last_error_class,
             }
         )
     seen_urls: set[str] = set()
@@ -225,10 +232,40 @@ def _build_attachment_refs(
                 "byte_size": None,
                 "storage_provider": None,
                 "ingest_status": "reference_only",
+                "terminal_reason": None,
+                "last_error_class": None,
             }
         )
         seen_urls.update(fallback_keys)
     return tuple(rows)
+
+
+def _terminal_fetch_outcome(attachment: dict[str, Any]) -> tuple[str | None, str | None]:
+    terminal_reason = _optional_text(attachment.get("terminal_reason"))
+    if terminal_reason in set(_TERMINAL_UNAVAILABLE_STATUSES.values()):
+        return terminal_reason, "terminal_unavailable"
+    last_error = _optional_text(attachment.get("last_error"))
+    provenance_status = _optional_text(attachment.get("provenance_status"))
+    ingest_status = _optional_text(attachment.get("ingest_status"))
+    for status, terminal_reason in _TERMINAL_UNAVAILABLE_STATUSES.items():
+        if _text_mentions_http_status(last_error or "", status):
+            return terminal_reason, "terminal_unavailable"
+        if last_error == f"terminal_unavailable:{terminal_reason}":
+            return terminal_reason, "terminal_unavailable"
+    if provenance_status == "terminal_unavailable" or ingest_status == "terminal_unavailable":
+        return "portal_file_missing", "terminal_unavailable"
+    return None, None
+
+
+def _text_mentions_http_status(value: str, status: int) -> bool:
+    if not value:
+        return False
+    return (
+        f" {status}" in value
+        or f":{status}" in value
+        or f"_{status}" in value
+        or value.strip().endswith(str(status))
+    )
 
 
 def _html_inline_image_refs(html_value: str) -> tuple[dict[str, str], ...]:

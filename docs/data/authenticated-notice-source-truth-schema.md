@@ -423,6 +423,13 @@ consumer admission manifest 决定。
 - `skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 是 typed terminal
   outcome；必须记录 `skip_reason` 或 `terminal_reason`，不能靠无限重试或 silent
   missing 表达。
+- `terminal_unavailable` attachment ref 必须满足
+  `attachment_capture_policy=terminal_unavailable`、`attachment_capture_state=terminal_missing`、
+  `retention_class=metadata_only`、`byte_fetch_required=false`、
+  `required_source_object=false`，且不得生成 fetch request 或 media extraction candidate。
+- collector 新写入的 terminal handoff 必须携带 typed fields：
+  `provenance_status=terminal_unavailable`、`ingest_status=terminal_unavailable`、
+  `terminal_reason` 与可选 `last_http_status`；`last_error` 只保留 legacy/debug 语义。
 - `attachment_promotion_state=promoted` 必须携带 `promotion_owner` 与
   `promotion_decision_id`，用于证明 bytes 是由哪个 target materializer 或 admission
   decision 接收，而不是 collector 默认永久保留。
@@ -454,6 +461,11 @@ media extraction candidate inventory 与 closeout result manifest 的 media life
 - target admission 不得只因为 unit 级 `media_text_status=pending` 或
   `multimodal_status=pending` 就进入 `needs_multimodal`；必须存在明确的
   media extraction candidate，且该 candidate 对目标事实 `target_blocking=true`。
+- 如果高价值 target unit 的 attachment policy 要求 quarantine/required bytes，但当前 ref
+  仍没有 object-backed bytes，candidate inventory 必须产出
+  `processing_family=source_capture_repair`、`reason_codes` 包含
+  `source_capture_pending` 和 `missing_collected_attachment_bytes`，
+  并标记为非 target-blocking gap。
 - Phase 4 reimport preview 可以继续报告 unit 级 `needs_multimodal_units` 作为 media
   extraction candidate 生成输入，但其 write manifest 中的 generic consumer admission
   candidate 不得直接把 unit 级 pending 转成下游 `needs_multimodal`；typed downstream

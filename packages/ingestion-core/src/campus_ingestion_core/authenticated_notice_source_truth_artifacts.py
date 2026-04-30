@@ -506,6 +506,31 @@ def _attachment_refs_with_source_retention(
         if decision is None:
             rows.append(dict(attachment_ref))
             continue
+        terminal_reason = _optional_text(attachment_ref.get("terminal_reason"))
+        last_error_class = _optional_text(attachment_ref.get("last_error_class"))
+        if terminal_reason is not None and last_error_class == "terminal_unavailable":
+            rows.append(
+                {
+                    **dict(attachment_ref),
+                    "notice_capture_route": source_retention_decision.notice_capture_route,
+                    "attachment_capture_policy": "terminal_unavailable",
+                    "attachment_capture_state": "terminal_missing",
+                    "byte_fetch_required": False,
+                    "byte_fetch_required_reason": terminal_reason,
+                    "required_source_object": False,
+                    "source_object_role": None,
+                    "retention_class": "metadata_only",
+                    "retention_expires_at": None,
+                    "promotion_owner": None,
+                    "attachment_promotion_state": "not_applicable",
+                    "promotion_decision_id": None,
+                    "promotion_reason_codes": [],
+                    "skip_reason": None,
+                    "terminal_reason": terminal_reason,
+                    "last_error_class": last_error_class,
+                }
+            )
+            continue
         rows.append(
             {
                 **dict(attachment_ref),
@@ -532,8 +557,8 @@ def _attachment_refs_with_source_retention(
                 "promotion_decision_id": None,
                 "promotion_reason_codes": [],
                 "skip_reason": None,
-                "terminal_reason": None,
-                "last_error_class": None,
+                "terminal_reason": terminal_reason,
+                "last_error_class": last_error_class,
             }
         )
     return tuple(rows)

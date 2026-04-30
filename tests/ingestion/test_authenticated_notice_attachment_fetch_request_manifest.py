@@ -163,6 +163,31 @@ class AuthenticatedNoticeAttachmentFetchRequestManifestTest(unittest.TestCase):
         self.assertEqual(manifest["fetch_request_count"], 1)
         self.assertEqual(manifest["requests"][0]["attachment_ref_id"], "attachment-0001")
 
+    def test_terminal_unavailable_refs_never_generate_fetch_requests(self) -> None:
+        manifest = build_authenticated_notice_attachment_fetch_request_manifest(
+            notice_manifest={
+                "site_id": "muc_internal_portal",
+                "notice_id": "186977",
+                "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:186977",
+                "raw_version_id": "sha256:terminal-version",
+            },
+            attachment_refs=(
+                {
+                    "attachment_ref_id": "attachment-0001",
+                    "attachment_capture_policy": "fetch_required_for_source_truth",
+                    "attachment_capture_state": "terminal_missing",
+                    "source_url": "https://portal.example.edu/download?id=missing",
+                    "required_source_object": True,
+                    "terminal_reason": "http_404",
+                    "last_error_class": "terminal_unavailable",
+                },
+            ),
+        )
+
+        self.assertEqual(manifest["fetch_request_count"], 0)
+        self.assertEqual(manifest["required_source_object_count"], 0)
+        self.assertEqual(manifest["requests"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

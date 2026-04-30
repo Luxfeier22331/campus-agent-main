@@ -390,12 +390,17 @@ policy，不能反向驱动整条 notice 进入 OCR、附件保留或 downstream
    - 在 notice route 已确定后，对每个 attachment ref 单独决定是否只保留 metadata、
      quarantine bytes、要求 source-truth bytes，或跳过。
 3. byte availability / fetch request
-   - collector 默认只捕获页面可见 inline visual fact carriers；普通附件不因“附件存在”
-     而默认下载。
+   - collector 默认不下载普通附件或 inline visual bytes；它只记录 relation truth、URL 与可观测
+     metadata。
+   - 页面可见 inline visual fact carrier 只有在显式 selected smoke / proof 开关或 ingest
+     生成的 fetch request/admission 下才允许抓取；普通 live collect 不得靠 collector
+     default 扩张 source bytes。
    - 如果 policy 要求 quarantine/required bytes 且 ref 已有 object key，则复用已有 bytes，不生成
      fetch request。
    - 如果 policy 要求 quarantine/required bytes 且 ref 仍是 reference-only，才生成
      collector fetch request。
+   - `terminal_unavailable`、`terminal_missing`、`terminal_reason` 或
+     `last_error_class=terminal_unavailable` 的 ref 不得再次进入 fetch request。
 4. source-truth import
    - 写入 notice manifest、content blocks 与 attachment refs；metadata-only attachment
      relation 也是 source truth。
@@ -482,6 +487,10 @@ source objects 分开：
   `admitted_source_bytes` 的附件 bytes，才计入 required source object verification。
 - `metadata_only`、`skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 不得因为缺少
   `object_key` 而导致 source-truth import 失败。
+- `terminal_unavailable` 必须是 typed handoff：collector/source-truth 需要保留
+  `provenance_status=terminal_unavailable`、`ingest_status=terminal_unavailable`、
+  `terminal_reason` 与可选 `last_http_status`；`last_error=terminal_unavailable:*`
+  只能作为 legacy compatibility signal，不能作为新链路唯一状态。
 - `fetch_to_quarantine` 的 bytes 可以有 object key，但在未 admission 前只能按 quarantine
   lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。已有 object-backed bytes 必须
   进入 `uploaded_quarantine`，下游 OCR/materializer 直接消费 object key；只有
@@ -494,6 +503,9 @@ source objects 分开：
   `media_text_status=pending` 或 `multimodal_status=pending` 只能作为 preview 汇总与候选输入，
   不能直接生成下游 `needs_multimodal`。`manual_review` 是人工复核状态，不得回落为自动 OCR
   pending work。
+- 高价值 target unit 如果存在 attachment refs 但没有可处理 object-backed bytes，candidate
+  inventory 必须暴露 `source_capture_repair` / `source_capture_pending` gap，而不是静默无候选或直接进入
+  OCR/multimodal pending。
 
 ## Bootstrap Import Ownership
 
@@ -1029,10 +1041,17 @@ query-serving。
 - live-historical reconcile report 在 coverage 基础上额外暴露 body-declared
   attachment owner-expectation mismatch，避免把“正文写了附件但 payload 未返回附件实体/ref”
   静默写成“无附件”
+- attachment fetch-status row 的正常非下载态必须显式写为 `reference_only`；只有真实重试中的失败才写
+  `transient_failed`，稳定 404 / 410 等不可用结果写 `terminal_unavailable`
 - reference-only explanation report 区分 terminal portal misses、object-backed inline
   images 与真正 action-required gaps
-- visual reference audit report 只用于发现真实 portal 样本中的图片引用形态，并为后续 selected export
-  smoke 提供候选，不替代 collector bundle、manifest 或 import smoke summary
+- state-machine audit 是 source-truth projection、fetch manifest 与 candidate
+  inventory 写入下游之前的 fail-closed gate；它必须拒绝 terminal ref 重新 fetch、
+  terminal ref 生成候选、required object 状态不一致，以及缺 bytes 的高价值
+  target 被静默吞掉。
+- visual reference audit report 只用于发现真实 portal 样本中的图片引用形态，并为后续
+  selected export smoke 提供候选，不替代 collector bundle、manifest 或 import
+  smoke summary
 - bounded operator status 只聚合 source-truth inventory、fetch-status coverage、reference-only
   explanation、unsupported binary count、multimodal count 与 latest collector run ledger
 

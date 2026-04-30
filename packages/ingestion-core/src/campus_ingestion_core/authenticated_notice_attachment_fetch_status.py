@@ -23,6 +23,7 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models i
 )
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
     FETCH_STATUS_COLLECTED_INTERNAL,
+    FETCH_STATUS_REFERENCE_ONLY,
     FETCH_STATUS_TERMINAL_UNAVAILABLE,
     FETCH_STATUS_TRANSIENT_FAILED,
     TERMINAL_REASON_HTTP_404,
@@ -351,6 +352,8 @@ def _classify_attachment_fetch_status(
             return FETCH_STATUS_TERMINAL_UNAVAILABLE, TERMINAL_REASON_HTTP_404, 404
         if _error_mentions_status(last_error, 410):
             return FETCH_STATUS_TERMINAL_UNAVAILABLE, TERMINAL_REASON_HTTP_410, 410
+    if storage_provider == "reference_only" and ingest_status == "reference_only":
+        return FETCH_STATUS_REFERENCE_ONLY, None, None
     return FETCH_STATUS_TRANSIENT_FAILED, None, None
 
 
@@ -548,6 +551,8 @@ def _reference_only_explanation_reason(
     missing_artifact: bool,
 ) -> tuple[str, bool]:
     if fetch_status is not None:
+        if fetch_status.fetch_status == FETCH_STATUS_REFERENCE_ONLY:
+            return "reference_only", False
         if fetch_status.fetch_status == FETCH_STATUS_TERMINAL_UNAVAILABLE:
             return "terminal_unavailable", False
         if fetch_status.fetch_status == FETCH_STATUS_TRANSIENT_FAILED:
@@ -573,6 +578,7 @@ __all__ = [
     "DEFAULT_ATTACHMENT_FETCH_STATUS_SCHEMA",
     "DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE",
     "FETCH_STATUS_COLLECTED_INTERNAL",
+    "FETCH_STATUS_REFERENCE_ONLY",
     "FETCH_STATUS_TERMINAL_UNAVAILABLE",
     "FETCH_STATUS_TRANSIENT_FAILED",
     "TERMINAL_REASON_HTTP_404",

@@ -27,7 +27,7 @@ describe("authenticated notice collector config", () => {
 		expect(config.attachmentFetchStatusDatabaseUrl).toBeNull();
 		expect(config.attachmentFetchStatusDisabled).toBe(false);
 		expect(config.attachmentFetchRequestManifestPath).toBeNull();
-		expect(config.defaultInlineVisualCapture).toBe(true);
+		expect(config.defaultInlineVisualCapture).toBe(false);
 		expect(config.authJsessionId).toBeNull();
 		expect(config.authNginxCookie).toBeNull();
 		expect(config.collectionMode).toBe("incremental");

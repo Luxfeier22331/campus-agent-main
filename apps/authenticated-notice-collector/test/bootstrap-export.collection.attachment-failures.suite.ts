@@ -351,7 +351,9 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			object_key: null,
 			original_filename: "missing.pdf",
 			last_error: "terminal_unavailable:http_404",
-			ingest_status: "reference_only",
+			ingest_status: "terminal_unavailable",
+			provenance_status: "terminal_unavailable",
+			terminal_reason: "http_404",
 		});
 	});
 }

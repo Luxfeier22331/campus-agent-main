@@ -297,6 +297,52 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         self.assertEqual(preview.candidate_inventory["candidate_count"], 0)
         self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
 
+    def test_fetch_to_quarantine_attachment_without_collected_bytes_emits_source_capture_gap(
+        self,
+    ) -> None:
+        attachment = {
+            **_attachment(
+                attachment_ref_id="attachment-0001",
+                filename="班车安排.png",
+                mime_type="image/png",
+                role="inline_image",
+            ),
+            "object_key": None,
+            "content_sha256": None,
+            "storage_provider": "reference_only",
+            "ingest_status": "reference_only",
+            "attachment_capture_policy": "fetch_to_quarantine",
+            "attachment_capture_state": "not_attempted",
+            "byte_fetch_required": True,
+            "retention_class": "quarantine_candidate",
+        }
+        unit = _unit(
+            notice_id="355867",
+            title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+            attachments=[attachment],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["transport_schedule"],
+        )
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        self.assertEqual(preview.candidate_inventory["candidate_count"], 1)
+        candidate = preview.candidate_inventory["candidates"][0]
+        self.assertEqual(candidate["processing_family"], "source_capture_repair")
+        self.assertEqual(candidate["status"], "failed_retryable")
+        self.assertEqual(candidate["policy_action"], "fail")
+        self.assertFalse(candidate["target_blocking"])
+        self.assertEqual(candidate["attachment_ref"]["attachment_ref_id"], "attachment-0001")
+        self.assertIn("source_capture_pending", candidate["reason_codes"])
+        self.assertIn("missing_collected_attachment_bytes", candidate["reason_codes"])
+        self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
+
     def test_marks_low_value_posters_skipped_and_missing_media_as_failed_gap(self) -> None:
         low_value = _unit(
             notice_id="354276",

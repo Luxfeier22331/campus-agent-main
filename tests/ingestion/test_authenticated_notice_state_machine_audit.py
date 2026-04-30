@@ -109,6 +109,63 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
         self.assertEqual(audit["findings"][0]["code"], "non_fetch_policy_in_manifest")
         self.assertEqual(audit["findings"][0]["severity"], "high")
 
+    def test_terminal_unavailable_attachment_requires_terminal_state_tuple(self) -> None:
+        unit = _unit(
+            notice_id="186977",
+            primary_route="regulation_candidate",
+            target_candidates=("regulation",),
+            attachment_policy="terminal_unavailable",
+            attachment_state="not_attempted",
+            retention_class="quarantine_candidate",
+        )
+        attachment = unit["attachment_refs"][0]
+        attachment["byte_fetch_required"] = True
+        attachment["required_source_object"] = True
+        attachment["terminal_reason"] = "http_404"
+        attachment["last_error_class"] = "terminal_unavailable"
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "candidate_id": "candidate-terminal",
+                        "unit_id": unit["unit_id"],
+                        "source_notice_id": "186977",
+                        "media_kind": "pdf",
+                        "processing_family": "pdf_ocr_text_extraction",
+                        "status": "pending",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/missing.pdf",
+                        },
+                    }
+                ]
+            },
+            fetch_request_manifest={
+                "requests": [
+                    {
+                        "notice_id": "186977",
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_capture_policy": "fetch_required_for_source_truth",
+                        "attachment_capture_state": "terminal_missing",
+                        "terminal_reason": "http_404",
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {
+                "fetch_request_for_terminal_attachment": 1,
+                "terminal_attachment_generated_candidate": 1,
+                "terminal_unavailable_state_mismatch": 1,
+            },
+        )
+
     def test_pdf_candidate_using_legacy_multimodal_family_is_high_finding(self) -> None:
         unit = _unit(
             notice_id="477",

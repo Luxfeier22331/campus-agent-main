@@ -100,6 +100,8 @@ def resolve_authenticated_notice_attachment_object_key(
     object_key = _optional_text(attachment.get("object_key"))
     if object_key is None:
         return None
+    if _optional_text(attachment.get("storage_provider")) == "object_store":
+        return object_key
     content_sha256 = _optional_text(attachment.get("sha256"))
     if content_sha256 is None:
         return object_key
