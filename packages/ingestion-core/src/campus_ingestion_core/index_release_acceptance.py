@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -185,7 +186,7 @@ class QdrantPhysicalCollectionAcceptanceExecutor:
             limit=max(top_k, self.runtime_profile.retrieval_top_k),
             with_payload=True,
             with_vectors=False,
-            timeout=self.settings.qdrant_timeout_seconds,
+            timeout=_qdrant_http_timeout_seconds(self.settings.qdrant_timeout_seconds),
         )
         return EvidenceBundle(
             query_text=query,
@@ -359,6 +360,12 @@ def _tuple_field(value: object) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
         raise ValueError("acceptance case list fields must be strings or lists")
     return tuple(str(item).strip() for item in value if str(item).strip())
+
+
+def _qdrant_http_timeout_seconds(value: float | int | None) -> int | None:
+    if value is None:
+        return None
+    return max(math.ceil(float(value)), 1)
 
 
 __all__ = [

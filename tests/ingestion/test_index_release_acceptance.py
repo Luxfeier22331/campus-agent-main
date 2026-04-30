@@ -23,6 +23,11 @@ from campus_ingestion_core.sparse import build_mock_sparse_embedding_model
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_STUDENT_RULES_RELEASE_ACCEPTANCE_PATH = (
+    _REPO_ROOT / "packages/evals/fixtures/student_rules_release_acceptance.v1.json"
+)
+
 
 class _FakeObjectStore:
     def __init__(self) -> None:
@@ -70,7 +75,48 @@ class _FakeAcceptanceExecutor(ReleaseRetrievalAcceptanceExecutor):
         return self.bundles[query]
 
 
+class _FakeEmbeddingModel:
+    def get_query_embedding(self, _query: str) -> tuple[float, float, float]:
+        return (0.1, 0.2, 0.3)
+
+
+class _FakeQdrantQueryResponse:
+    points: tuple[()] = ()
+
+
+class _FakeRemoteQdrantClient:
+    def __init__(self) -> None:
+        self.timeout: object | None = None
+
+    def query_points(self, **kwargs: object) -> _FakeQdrantQueryResponse:
+        self.timeout = kwargs.get("timeout")
+        return _FakeQdrantQueryResponse()
+
+
 class IndexReleaseAcceptanceTest(unittest.TestCase):
+    def test_student_rules_release_acceptance_fixture_loads_for_alias_publish(self) -> None:
+        cases = load_release_retrieval_acceptance_cases(
+            _STUDENT_RULES_RELEASE_ACCEPTANCE_PATH,
+            corpus="regulations",
+            collection="student_rules",
+        )
+
+        self.assertGreaterEqual(len(cases), 15)
+        case_by_id = {case.case_id: case for case in cases}
+        self.assertEqual(
+            case_by_id["policy-title-medical"].expected_document_ids,
+            ("handbook:b85de1cb327a26dc63488e247403ae3126d524be",),
+        )
+        self.assertEqual(
+            case_by_id["policy-title-medical"].expected_version_ids,
+            (),
+        )
+        self.assertEqual(
+            case_by_id["policy-title-national-encouragement-scholarship"].forbidden_document_ids,
+            ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+        self.assertNotIn("no-hit-impossible-query", case_by_id)
+
     def test_load_release_retrieval_acceptance_cases_rejects_empty_case_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
             case_path = Path(temp_dir) / "cases.json"
@@ -253,6 +299,40 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
         )
 
         self.assertEqual([source.chunk_id for source in bundle.sources], [chunk.chunk_id])
+
+    def test_physical_collection_executor_normalizes_float_qdrant_timeout(self) -> None:
+        qdrant_client = _FakeRemoteQdrantClient()
+        executor = QdrantPhysicalCollectionAcceptanceExecutor(
+            qdrant_client=qdrant_client,  # type: ignore[arg-type]
+            settings=RetrievalSettings(
+                qdrant_url="https://qdrant.example",
+                qdrant_timeout_seconds=10.0,
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+            runtime_profile=load_runtime_profile("regulations", "student_rules"),
+            embedding_model=_FakeEmbeddingModel(),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+        )
+
+        executor.retrieve(
+            physical_collection_name="student_rules__r20260430_acceptance",
+            corpus="regulations",
+            collection="student_rules",
+            query="学生手册",
+            top_k=3,
+            target_document_ids=(),
+            target_version_ids=(),
+            target_revision_track="",
+            entitlement_groups=(),
+            visibility_level="public",
+            visibility_scope=None,
+        )
+
+        self.assertIsInstance(qdrant_client.timeout, int)
+        self.assertEqual(qdrant_client.timeout, 10)
 
 
 class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
