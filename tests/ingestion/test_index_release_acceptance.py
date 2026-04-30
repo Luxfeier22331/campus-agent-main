@@ -20,7 +20,10 @@ from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.process_indexing import index_chunks_to_qdrant
-from campus_ingestion_core.registry_scope_release import publish_scope_release
+from campus_ingestion_core.registry_scope_release import (
+    publish_scope_release,
+    _validate_default_qrels_coverage_for_scope,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import build_mock_sparse_embedding_model
 from campus_retrieval_core.settings import RetrievalSettings
@@ -29,6 +32,16 @@ from qdrant_client import QdrantClient
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _STUDENT_RULES_RELEASE_ACCEPTANCE_PATH = (
     _REPO_ROOT / "packages/evals/fixtures/student_rules_release_acceptance.v1.json"
+)
+_QUERY_ENABLED_RELEASE_ACCEPTANCE_FIXTURES = (
+    ("regulations", "student_rules", "student_rules_release_acceptance.v1.json"),
+    ("regulations", "institutional_rules", "institutional_rules_release_acceptance.v1.json"),
+    ("curriculum", "curriculum_plan", "curriculum_plan_release_acceptance.v1.json"),
+    (
+        "official_web",
+        "stable_reference",
+        "official_web_stable_reference_release_acceptance.v1.json",
+    ),
 )
 
 
@@ -102,6 +115,66 @@ class _FakeRemoteQdrantClient:
 
 
 class IndexReleaseAcceptanceTest(unittest.TestCase):
+    def test_default_qrels_coverage_uses_denominator_policy_fixture(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            qrels_path = root / "qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "baseline": {},
+                        "coverage_scenarios": {"no_hit": ["missing"]},
+                        "cases": [
+                            {
+                                "case_id": "missing",
+                                "split": "smoke",
+                                "query": "校内宇宙签证办理处",
+                                "expected_sources": [],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            policy_path = root / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "retrieval-qrels-denominator-policy-v1",
+                        "normalized_denominator_classes": ["no_hit"],
+                        "scopes": {
+                            "regulations/student_rules": {
+                                "fixture": str(qrels_path),
+                                "min_case_count": 1,
+                                "required_classes": ["no_hit"],
+                                "required_scenarios": ["no_hit"],
+                                "scenario_denominator_classes": {},
+                            }
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with patch(
+                "campus_ingestion_core.registry_scope_release._default_qrels_denominator_policy_path",
+                return_value=policy_path,
+            ):
+                issues = _validate_default_qrels_coverage_for_scope(
+                    corpus="regulations",
+                    collection="student_rules",
+                )
+
+        self.assertIn(
+            "regulations/student_rules: qrels scenario no_hit has no denominator class mapping",
+            issues,
+        )
+
     def test_student_rules_release_acceptance_fixture_loads_for_alias_publish(self) -> None:
         cases = load_release_retrieval_acceptance_cases(
             _STUDENT_RULES_RELEASE_ACCEPTANCE_PATH,
@@ -123,7 +196,20 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
             case_by_id["policy-title-national-encouragement-scholarship"].forbidden_document_ids,
             ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
         )
-        self.assertNotIn("no-hit-impossible-query", case_by_id)
+        self.assertTrue(case_by_id["no-hit-impossible-query"].expected_no_hit)
+
+    def test_default_query_enabled_release_acceptance_fixtures_load(self) -> None:
+        for corpus, collection, fixture_name in _QUERY_ENABLED_RELEASE_ACCEPTANCE_FIXTURES:
+            with self.subTest(scope=f"{corpus}/{collection}"):
+                cases = load_release_retrieval_acceptance_cases(
+                    _REPO_ROOT / "packages/evals/fixtures" / fixture_name,
+                    corpus=corpus,
+                    collection=collection,
+                )
+
+                self.assertGreaterEqual(len(cases), 5)
+                self.assertTrue(any(case.expected_no_hit for case in cases), fixture_name)
+                self.assertTrue(any(case.expected_document_ids for case in cases), fixture_name)
 
     def test_load_release_retrieval_acceptance_cases_rejects_empty_case_file(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -19,6 +19,10 @@ from campus_evals.benchmark_models import (
     RetrievalQrelsDataset,
     RetrievalRunCase,
 )
+from campus_evals.retrieval_qrels_policy import (
+    default_query_enabled_retrieval_qrels_paths,
+    validate_default_query_enabled_qrels_coverage,
+)
 
 RETRIEVAL_TUNING_REPORT_SCHEMA_VERSION = "retrieval-tuning-report-v1"
 RETRIEVAL_TUNING_CANDIDATE_RUN_SCHEMA_VERSION = "retrieval-tuning-candidate-run-v1"
@@ -32,68 +36,6 @@ TUNABLE_RETRIEVAL_PROFILE_FIELDS = (
     "no_hit_min_top_score",
     "no_hit_min_score_gap",
 )
-_DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES = {
-    "regulations/student_rules": "student_handbook_retrieval_qrels.json",
-    "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
-    "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
-    "official_web/stable_reference": "official_web_stable_reference_retrieval_qrels.json",
-}
-_DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY = {
-    "regulations/student_rules": {
-        "min_case_count": 15,
-        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
-        "required_scenarios": (
-            "policy_title_exact_match",
-            "article_number_exact_match",
-            "semantic_service_process",
-            "hard_negative",
-            "no_hit",
-            "version_locked",
-        ),
-    },
-    "regulations/institutional_rules": {
-        "min_case_count": 5,
-        "required_classes": (
-            "positive",
-            "no_hit",
-            "forbidden",
-            "version_locked",
-            "authz",
-        ),
-        "required_scenarios": (
-            "institutional_policy_title",
-            "effective_date",
-            "authz_denied",
-            "version_locked",
-            "no_hit",
-        ),
-    },
-    "curriculum/curriculum_plan": {
-        "min_case_count": 20,
-        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
-        "required_scenarios": (
-            "program_title",
-            "program_variant_disambiguation",
-            "academic_years",
-            "credit_total",
-            "course_table",
-            "semester_course_list",
-            "no_hit",
-        ),
-    },
-    "official_web/stable_reference": {
-        "min_case_count": 10,
-        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
-        "required_scenarios": (
-            "school_profile",
-            "leadership",
-            "education_office",
-            "organization_profile",
-            "no_hit",
-            "hard_negative",
-        ),
-    },
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,46 +96,6 @@ def load_retrieval_tuning_candidate_run(path: str | Path) -> RetrievalTuningCand
         run=_load_run_payload(run_payload),
         source_path=str(source_path),
     )
-
-
-def default_query_enabled_retrieval_qrels_paths(
-    *, repo_root: str | Path | None = None
-) -> dict[str, Path]:
-    root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[4]
-    fixture_root = root / "packages" / "evals" / "fixtures"
-    return {
-        scope_key: fixture_root / fixture_name
-        for scope_key, fixture_name in _DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES.items()
-    }
-
-
-def validate_default_query_enabled_qrels_coverage(
-    qrels_paths: dict[str, Path] | None = None,
-) -> tuple[str, ...]:
-    paths = qrels_paths or default_query_enabled_retrieval_qrels_paths()
-    issues: list[str] = []
-    for scope_key, policy in _DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY.items():
-        qrels_path = paths.get(scope_key)
-        if qrels_path is None:
-            issues.append(f"{scope_key}: missing qrels fixture")
-            continue
-        dataset = load_retrieval_qrels_dataset(qrels_path)
-        case_count = len(dataset.cases)
-        min_case_count = int(policy["min_case_count"])
-        if case_count < min_case_count:
-            issues.append(
-                f"{scope_key}: qrels case count {case_count} below minimum {min_case_count}"
-            )
-        coverage_classes = _qrels_coverage_classes(dataset)
-        for required_class in policy["required_classes"]:
-            if required_class not in coverage_classes:
-                issues.append(f"{scope_key}: missing qrels coverage class {required_class}")
-        declared_scenarios, scenario_issues = _declared_qrels_scenarios(qrels_path, dataset)
-        issues.extend(f"{scope_key}: {issue}" for issue in scenario_issues)
-        for required_scenario in policy.get("required_scenarios", ()):
-            if required_scenario not in declared_scenarios:
-                issues.append(f"{scope_key}: missing qrels scenario {required_scenario}")
-    return tuple(issues)
 
 
 def build_retrieval_tuning_report(
@@ -477,58 +379,6 @@ def _select_tunable_profile_fields(payload: object) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError("retrieval tuning profile must be a JSON object")
     return {key: payload[key] for key in TUNABLE_RETRIEVAL_PROFILE_FIELDS if key in payload}
-
-
-def _qrels_coverage_classes(dataset: RetrievalQrelsDataset) -> set[str]:
-    coverage: set[str] = set()
-    for case in dataset.cases:
-        if case.expected_sources:
-            coverage.add("positive")
-        else:
-            coverage.add("no_hit")
-        if case.forbidden_sources:
-            coverage.add("forbidden")
-        if any(source.version_id for source in case.expected_sources):
-            coverage.add("version_locked")
-        if case.request_overrides:
-            coverage.add("authz")
-    return coverage
-
-
-def _declared_qrels_scenarios(
-    path: str | Path,
-    dataset: RetrievalQrelsDataset,
-) -> tuple[set[str], tuple[str, ...]]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    raw_scenarios = payload.get("coverage_scenarios")
-    if not isinstance(raw_scenarios, dict):
-        return set(), ("missing qrels coverage_scenarios",)
-    case_ids = {case.case_id for case in dataset.cases}
-    scenarios: set[str] = set()
-    issues: list[str] = []
-    for scenario_id, raw_case_ids in raw_scenarios.items():
-        normalized_scenario_id = str(scenario_id).strip()
-        if not normalized_scenario_id:
-            issues.append("empty qrels scenario id")
-            continue
-        if not isinstance(raw_case_ids, list | tuple):
-            issues.append(f"qrels scenario {normalized_scenario_id} must list case ids")
-            continue
-        scenario_case_ids = tuple(
-            str(case_id).strip() for case_id in raw_case_ids if str(case_id).strip()
-        )
-        if not scenario_case_ids:
-            issues.append(f"qrels scenario {normalized_scenario_id} has no cases")
-            continue
-        missing_case_ids = sorted(set(scenario_case_ids) - case_ids)
-        if missing_case_ids:
-            issues.append(
-                f"qrels scenario {normalized_scenario_id} references missing cases: "
-                + ", ".join(missing_case_ids)
-            )
-            continue
-        scenarios.add(normalized_scenario_id)
-    return scenarios, tuple(issues)
 
 
 def _build_profile_patch(

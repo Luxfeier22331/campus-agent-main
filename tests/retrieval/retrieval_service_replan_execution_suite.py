@@ -5,6 +5,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
 from campus_contracts import (
     EvidenceBundle,
@@ -21,6 +22,7 @@ from campus_retrieval_core.models import (
 from campus_retrieval_core.service import (
     RetrievalBackendError,
     build_jsonl_retrieval_observation_sink,
+    build_retrieval_observation_event_sink,
     execute_retrieval_plan,
 )
 
@@ -276,6 +278,26 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
         self.assertEqual(rows[0]["top_source_ids"], ["doc-1", "doc-2"])
         self.assertEqual(rows[1]["top_source_ids"], [])
 
+    def test_event_observation_sink_wraps_observation_as_durable_event(self) -> None:
+        events: list[tuple[str, dict[str, object]]] = []
+        sink = build_retrieval_observation_event_sink(
+            lambda event_name, payload: events.append((event_name, payload))
+        )
+
+        sink(
+            {
+                "schema_version": "retrieval-runtime-observation-v1",
+                "request_id": "req-1",
+                "query_sha256": "abc123",
+                "scope": {"corpus": "regulations", "collection": "student_rules"},
+            }
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0][0], "retrieval.runtime_observation")
+        self.assertEqual(events[0][1]["request_id"], "req-1")
+        self.assertNotIn("query", events[0][1])
+
     def test_execute_retrieval_plan_does_not_fail_when_observation_sink_raises(self) -> None:
         plan = RetrievalPlan(
             plan_id="official_web:stable_reference:observation-sink-failure",
@@ -385,6 +407,97 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
 
         self.assertEqual(observations[0]["terminal_state"], "failed_closed")
         self.assertEqual(observations[0]["failure_kind"], "release_metadata_drift")
+
+    def test_execute_retrieval_plan_skips_reranker_without_runtime_profile_opt_in(self) -> None:
+        rerank_calls: list[RetrievalRequest] = []
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:reranker-opt-out",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="校园卡丢了怎么办",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        with patch(
+            "campus_retrieval_core.service.load_runtime_profile",
+            return_value=Mock(reranker_enabled_by_default=False),
+        ):
+            result = execute_retrieval_plan(
+                plan,
+                retrieve_step=lambda request: EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="campus-card:chunk-1",
+                            version_id="v2:campus-card",
+                            snippet="校园卡丢失后可自助补卡。",
+                        ),
+                    ),
+                ),
+                rerank_step=lambda request, evidence: (
+                    rerank_calls.append(request) or evidence
+                ),
+            )
+
+        self.assertEqual(rerank_calls, [])
+        self.assertEqual(result.step_results[0].status, "succeeded")
+        self.assertEqual(len(result.merged_evidence.sources), 1)
+
+    def test_execute_retrieval_plan_falls_back_to_baseline_when_reranker_degrades(self) -> None:
+        observations: list[dict[str, object]] = []
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:reranker-degraded",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="校园卡丢了怎么办",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        with patch(
+            "campus_retrieval_core.service.load_runtime_profile",
+            return_value=Mock(reranker_enabled_by_default=True, reranker_top_n=20),
+        ):
+            result = execute_retrieval_plan(
+                plan,
+                retrieve_step=lambda request: EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="campus-card:chunk-1",
+                            version_id="v2:campus-card",
+                            snippet="校园卡丢失后可自助补卡。",
+                        ),
+                    ),
+                ),
+                rerank_step=lambda _request, _evidence: (_ for _ in ()).throw(
+                    TimeoutError("reranker timed out")
+                ),
+                observation_sink=observations.append,
+                observation_request_id="req-reranker-degraded",
+            )
+
+        self.assertEqual(result.step_results[0].status, "succeeded")
+        self.assertEqual(len(result.merged_evidence.sources), 1)
+        self.assertEqual(observations[0]["failure_kind"], "reranker_degraded")
+        self.assertEqual(observations[0]["reranker_degraded"], True)
 
     def test_execute_retrieval_plan_fail_closes_when_replan_drops_existing_version_filter(
         self,

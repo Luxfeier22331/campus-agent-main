@@ -60,6 +60,28 @@ class RetrievalMonitoringBacklogTest(unittest.TestCase):
         self.assertEqual(report.candidates[1].query_sha256, "query-hash-low-score")
         self.assertEqual(report.candidates[2].recommended_action, "release_metadata_repair")
 
+    def test_build_retrieval_monitoring_backlog_classifies_reranker_degraded(
+        self,
+    ) -> None:
+        report = build_retrieval_monitoring_backlog(
+            observations=[
+                {
+                    "request_id": "req-reranker",
+                    "query_sha256": "abc123",
+                    "scope": {"corpus": "regulations", "collection": "student_rules"},
+                    "candidate_count": 3,
+                    "failure_kind": "reranker_degraded",
+                    "reranker_degraded": True,
+                }
+            ],
+            low_score_threshold=0.6,
+            low_score_gap_threshold=0.1,
+        )
+
+        self.assertEqual(report.candidate_count, 1)
+        self.assertEqual(report.candidates[0].failure_class, "reranker_degraded")
+        self.assertEqual(report.candidates[0].recommended_action, "reranker_gate_review")
+
     def test_loads_sanitized_runtime_observation_jsonl_for_backlog_export(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "observations.jsonl"

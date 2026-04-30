@@ -40,6 +40,7 @@ _LOGGER = logging.getLogger(__name__)
 ExecutableRetrievalRequestFn = Callable[[RetrievalRequest], EvidenceBundle]
 ExecutableLiveLookupFn = Callable[[RetrievalStep], EvidenceBundle]
 RetrievalObservationSink = Callable[[dict[str, object]], None]
+RetrievalObservationEventEmitter = Callable[[str, dict[str, object]], None]
 ReplanStepCallback = Callable[
     [RetrievalPlan, tuple[RetrievalStepResult, ...], RetrievalStepResult], Sequence[RetrievalStep]
 ]
@@ -77,6 +78,15 @@ def build_jsonl_retrieval_observation_sink(path: str | Path) -> RetrievalObserva
         )
         with write_lock, output_path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
+
+    return sink
+
+
+def build_retrieval_observation_event_sink(
+    emit_event: RetrievalObservationEventEmitter,
+) -> RetrievalObservationSink:
+    def sink(observation: dict[str, object]) -> None:
+        emit_event("retrieval.runtime_observation", dict(observation))
 
     return sink
 

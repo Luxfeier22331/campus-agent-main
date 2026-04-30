@@ -1,0 +1,55 @@
+{
+  "schema_version": "curriculum_plan_release_acceptance_v1",
+  "source_fixture": "curriculum_plan_retrieval_qrels.json",
+  "corpus": "curriculum",
+  "collection": "curriculum_plan",
+  "gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in curriculum_plan_retrieval_qrels.json",
+  "cases": [
+    {
+      "case_id": "ethnology-plan-title",
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
+      "query": "民族学本科人才培养方案",
+      "top_k": 3,
+      "expected_document_ids": ["curriculum:民族学本科人才培养方案"]
+    },
+    {
+      "case_id": "history-strong-base-title",
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
+      "query": "历史学强基计划本科人才培养方案",
+      "top_k": 3,
+      "expected_document_ids": ["curriculum:历史学（强基计划）本科人才培养方案"],
+      "forbidden_document_ids": ["curriculum:历史学本科人才培养方案"]
+    },
+    {
+      "case_id": "ethnology-total-credits",
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
+      "query": "民族学本科人才培养方案总学分要求是多少",
+      "top_k": 5,
+      "expected_document_ids": ["curriculum:民族学本科人才培养方案"]
+    },
+    {
+      "case_id": "law-ethnic-class-fourth-semester-courses",
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
+      "query": "法学民族班培养方案里大二下有什么课",
+      "top_k": 5,
+      "expected_document_ids": ["curriculum:法学（民族实验班）本科人才培养方案"],
+      "forbidden_document_ids": [
+        "curriculum:法学本科人才培养方案",
+        "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+        "curriculum:计算机科学与技术（民族实验班）本科人才培养方案"
+      ]
+    },
+    {
+      "case_id": "no-hit-impossible-query",
+      "corpus": "curriculum",
+      "collection": "curriculum_plan",
+      "query": "火星校区飞船停靠规则",
+      "top_k": 3,
+      "expected_no_hit": true
+    }
+  ]
+}

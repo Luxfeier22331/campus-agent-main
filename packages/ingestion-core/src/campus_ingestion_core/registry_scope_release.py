@@ -78,68 +78,7 @@ from campus_ingestion_core.sparse import SparseEmbeddingSettings, build_sparse_e
 
 DEFAULT_QDRANT_UPSERT_BATCH_SIZE = 128
 DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS = 60.0
-_DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES = {
-    "regulations/student_rules": "student_handbook_retrieval_qrels.json",
-    "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
-    "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
-    "official_web/stable_reference": "official_web_stable_reference_retrieval_qrels.json",
-}
-_DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY = {
-    "regulations/student_rules": {
-        "min_case_count": 15,
-        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
-        "required_scenarios": (
-            "policy_title_exact_match",
-            "article_number_exact_match",
-            "semantic_service_process",
-            "hard_negative",
-            "no_hit",
-            "version_locked",
-        ),
-    },
-    "regulations/institutional_rules": {
-        "min_case_count": 5,
-        "required_classes": (
-            "positive",
-            "no_hit",
-            "forbidden",
-            "version_locked",
-            "authz",
-        ),
-        "required_scenarios": (
-            "institutional_policy_title",
-            "effective_date",
-            "authz_denied",
-            "version_locked",
-            "no_hit",
-        ),
-    },
-    "curriculum/curriculum_plan": {
-        "min_case_count": 20,
-        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
-        "required_scenarios": (
-            "program_title",
-            "program_variant_disambiguation",
-            "academic_years",
-            "credit_total",
-            "course_table",
-            "semester_course_list",
-            "no_hit",
-        ),
-    },
-    "official_web/stable_reference": {
-        "min_case_count": 10,
-        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
-        "required_scenarios": (
-            "school_profile",
-            "leadership",
-            "education_office",
-            "organization_profile",
-            "no_hit",
-            "hard_negative",
-        ),
-    },
-}
+_QRELS_DENOMINATOR_POLICY_SCHEMA_VERSION = "retrieval-qrels-denominator-policy-v1"
 
 
 class RegistryScopeObjectStore(Protocol):
@@ -995,16 +934,22 @@ def _resolve_release_qrels_coverage_issues(
 
 def _validate_default_qrels_coverage_for_scope(*, corpus: str, collection: str) -> tuple[str, ...]:
     scope_key = f"{corpus}/{collection}"
-    fixture_name = _DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES.get(scope_key)
-    policy = _DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY.get(scope_key)
-    if fixture_name is None or policy is None:
+    policy_path = _default_qrels_denominator_policy_path()
+    policy_payload = _load_json_object(policy_path)
+    policy_issues = _validate_qrels_denominator_policy_payload(policy_payload, scope_key=scope_key)
+    scopes = policy_payload.get("scopes") if isinstance(policy_payload.get("scopes"), dict) else {}
+    policy = scopes.get(scope_key) if isinstance(scopes, dict) else None
+    if not isinstance(policy, dict):
         return (f"{scope_key}: missing qrels coverage policy",)
-    qrels_path = _repo_root() / "packages" / "evals" / "fixtures" / fixture_name
+    qrels_path = _resolve_qrels_fixture_path(
+        fixture=str(policy.get("fixture") or ""),
+        policy_path=policy_path,
+    )
     if not qrels_path.exists():
         return (f"{scope_key}: missing qrels fixture {qrels_path}",)
     payload = _load_json_object(qrels_path)
     cases = tuple(item for item in payload.get("cases") or () if isinstance(item, dict))
-    issues: list[str] = []
+    issues: list[str] = list(policy_issues)
     case_count = len(cases)
     min_case_count = int(policy["min_case_count"])
     if case_count < min_case_count:
@@ -1018,6 +963,19 @@ def _validate_default_qrels_coverage_for_scope(*, corpus: str, collection: str) 
     for required_scenario in policy["required_scenarios"]:
         if required_scenario not in declared_scenarios:
             issues.append(f"{scope_key}: missing qrels scenario {required_scenario}")
+    scenario_denominator_classes = policy.get("scenario_denominator_classes")
+    if not isinstance(scenario_denominator_classes, dict):
+        scenario_denominator_classes = {}
+    for scenario_id in declared_scenarios:
+        denominator_classes = tuple(
+            str(item).strip()
+            for item in scenario_denominator_classes.get(scenario_id, ())
+            if str(item).strip()
+        )
+        if not denominator_classes:
+            issues.append(
+                f"{scope_key}: qrels scenario {scenario_id} has no denominator class mapping"
+            )
     return tuple(issues)
 
 
@@ -1028,6 +986,73 @@ def _load_json_object(path) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError(f"qrels fixture must be a JSON object: {path}")
     return payload
+
+
+def _default_qrels_denominator_policy_path():
+    return (
+        _repo_root()
+        / "packages"
+        / "evals"
+        / "fixtures"
+        / "retrieval_qrels_denominator_policy.v1.json"
+    )
+
+
+def _resolve_qrels_fixture_path(*, fixture: str, policy_path):
+    from pathlib import Path
+
+    path = Path(fixture)
+    if path.is_absolute():
+        return path
+    fixture_root = _repo_root() / "packages" / "evals" / "fixtures"
+    direct_path = fixture_root / path
+    if direct_path.exists():
+        return direct_path
+    return Path(policy_path).parent / path
+
+
+def _validate_qrels_denominator_policy_payload(
+    payload: dict[str, object],
+    *,
+    scope_key: str,
+) -> tuple[str, ...]:
+    issues: list[str] = []
+    if payload.get("schema_version") != _QRELS_DENOMINATOR_POLICY_SCHEMA_VERSION:
+        issues.append(
+            "retrieval qrels denominator policy schema_version must be "
+            f"{_QRELS_DENOMINATOR_POLICY_SCHEMA_VERSION}"
+        )
+    normalized_classes = {
+        str(item).strip()
+        for item in payload.get("normalized_denominator_classes") or ()
+        if str(item).strip()
+    }
+    scopes = payload.get("scopes") if isinstance(payload.get("scopes"), dict) else {}
+    scope_policy = scopes.get(scope_key) if isinstance(scopes, dict) else None
+    if not isinstance(scope_policy, dict):
+        return tuple(issues)
+    scenario_classes = scope_policy.get("scenario_denominator_classes")
+    if not isinstance(scenario_classes, dict):
+        scenario_classes = {}
+    for scenario_id in tuple(
+        str(item).strip()
+        for item in scope_policy.get("required_scenarios") or ()
+        if str(item).strip()
+    ):
+        denominator_classes = tuple(
+            str(item).strip() for item in scenario_classes.get(scenario_id, ()) if str(item).strip()
+        )
+        if not denominator_classes:
+            issues.append(
+                f"{scope_key}: required scenario {scenario_id} has no denominator class mapping"
+            )
+        for denominator_class in denominator_classes:
+            if denominator_class not in normalized_classes:
+                issues.append(
+                    f"{scope_key}: scenario {scenario_id} references unknown denominator class "
+                    f"{denominator_class}"
+                )
+    return tuple(issues)
 
 
 def _raw_qrels_coverage_classes(cases: Sequence[dict[str, object]]) -> set[str]:

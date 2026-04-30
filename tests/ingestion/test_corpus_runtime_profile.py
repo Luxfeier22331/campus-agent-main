@@ -276,6 +276,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.requires_freshness_gate)
         self.assertFalse(profile.requires_explicit_history_intent)
         self.assertFalse(profile.duplicate_collapse_required)
+        self.assertFalse(profile.reranker_enabled_by_default)
         self.assertTrue(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")

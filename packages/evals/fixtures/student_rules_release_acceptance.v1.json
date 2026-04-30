@@ -135,6 +135,14 @@
 			"top_k": 6,
 			"expected_document_ids": ["handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8"],
 			"forbidden_document_ids": ["handbook:9350d885657d7409e524e73666b828b826f07191"]
+		},
+		{
+			"case_id": "no-hit-impossible-query",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "校内宇宙签证办理处",
+			"top_k": 3,
+			"expected_no_hit": true
 		}
 	]
 }
