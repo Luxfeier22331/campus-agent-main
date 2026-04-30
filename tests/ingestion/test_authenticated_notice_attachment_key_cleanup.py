@@ -289,6 +289,88 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
         self.assertEqual(deleted_rows[0]["attachment_ref_id"], "attachment-0001")
         self.assertEqual(deleted_rows[0]["object_key"], expired_key)
 
+    def test_quarantine_cleanup_blocks_pending_target_media_extraction_refs(self) -> None:
+        cleanup_module = _load_cleanup_module()
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            attachment_refs_path = root / "attachment-refs.jsonl"
+            candidate_inventory_path = root / "media-extraction-candidate-inventory.json"
+            output_dir = root / "output"
+            expired_key = (
+                "authenticated_notice_portal/attachment-expired/2026/sha256/"
+                + "c" * 64
+                + "/capture/schedule.png"
+            )
+            _write_jsonl(
+                attachment_refs_path,
+                [
+                    {
+                        "attachment_ref_id": "attachment-0003",
+                        "object_key": expired_key,
+                        "content_sha256": "c" * 64,
+                        "retention_class": "quarantine_candidate",
+                        "retention_expires_at": "2026-04-15T00:00:00+08:00",
+                        "attachment_promotion_state": "candidate",
+                        "required_source_object": False,
+                    }
+                ],
+            )
+            candidate_inventory_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "notice_media_extraction_candidate_inventory.v1",
+                        "candidates": [
+                            {
+                                "candidate_id": "candidate-0003",
+                                "status": "pending",
+                                "target_blocking": True,
+                                "source_object_ref": {
+                                    "bucket": "campus-rag-source",
+                                    "key": expired_key,
+                                },
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            object_store = _FakeCleanupObjectStore()
+            object_store.put_bytes(
+                bucket="campus-rag-source",
+                key=expired_key,
+                data=b"pending schedule image",
+                content_type="image/png",
+            )
+
+            summary = cleanup_module.cleanup_authenticated_notice_quarantine_attachment_keys(
+                request=cleanup_module.AuthenticatedNoticeQuarantineAttachmentCleanupRequest(
+                    attachment_refs_path=attachment_refs_path,
+                    media_extraction_candidate_inventory_path=candidate_inventory_path,
+                    output_dir=output_dir,
+                    now="2026-04-30T00:00:00+08:00",
+                ),
+                env=_object_store_env(),
+                object_store=object_store,
+            )
+
+            blocked_rows = [
+                json.loads(line)
+                for line in (output_dir / "blocked-quarantine-objects.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(summary["candidate_count"], 0)
+        self.assertEqual(summary["blocked_by_media_extraction_count"], 1)
+        self.assertIn(("campus-rag-source", expired_key), object_store.objects)
+        self.assertEqual(object_store.deleted, [])
+        self.assertEqual(blocked_rows[0]["object_key"], expired_key)
+        self.assertEqual(blocked_rows[0]["blocking_media_candidate_ids"], ["candidate-0003"])
+
     def test_cli_renders_cleanup_summary(self) -> None:
         cleanup_worker = _load_cleanup_worker()
         cleanup_module = _load_cleanup_module()
@@ -334,8 +416,10 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             attachment_refs_path = root / "attachment-refs.jsonl"
+            candidate_inventory_path = root / "media-extraction-candidate-inventory.json"
             output_dir = root / "output"
             attachment_refs_path.write_text("", encoding="utf-8")
+            candidate_inventory_path.write_text('{"candidates":[]}\n', encoding="utf-8")
 
             with (
                 patch(
@@ -352,13 +436,15 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                         "deleted_count": 1,
                         "already_absent_count": 0,
                     },
-                ),
+                ) as cleanup_mock,
                 patch("sys.stdout", new_callable=io.StringIO) as stdout,
             ):
                 cleanup_worker.main(
                     [
                         "--quarantine-attachment-refs-path",
                         str(attachment_refs_path),
+                        "--media-extraction-candidate-inventory-path",
+                        str(candidate_inventory_path),
                         "--output-dir",
                         str(output_dir),
                         "--now",
@@ -371,6 +457,11 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
         self.assertEqual(payload["input_row_count"], 3)
         self.assertEqual(payload["candidate_count"], 1)
         self.assertEqual(payload["deleted_count"], 1)
+        request = cleanup_mock.call_args.kwargs["request"]
+        self.assertEqual(request.attachment_refs_path, attachment_refs_path)
+        self.assertEqual(
+            request.media_extraction_candidate_inventory_path, candidate_inventory_path
+        )
 
 
 if __name__ == "__main__":

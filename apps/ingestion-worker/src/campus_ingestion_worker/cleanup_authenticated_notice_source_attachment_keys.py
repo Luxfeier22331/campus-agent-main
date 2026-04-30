@@ -21,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--unreferenced-inventory-path")
     parser.add_argument("--quarantine-attachment-refs-path")
+    parser.add_argument("--media-extraction-candidate-inventory-path")
     parser.add_argument("--now")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--dry-run", action="store_true")
@@ -44,6 +45,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         result = cleanup_authenticated_notice_quarantine_attachment_keys(
             request=AuthenticatedNoticeQuarantineAttachmentCleanupRequest(
                 attachment_refs_path=Path(args.quarantine_attachment_refs_path),
+                media_extraction_candidate_inventory_path=(
+                    Path(args.media_extraction_candidate_inventory_path)
+                    if args.media_extraction_candidate_inventory_path
+                    else None
+                ),
                 output_dir=Path(args.output_dir),
                 now=str(args.now),
                 dry_run=bool(args.dry_run),

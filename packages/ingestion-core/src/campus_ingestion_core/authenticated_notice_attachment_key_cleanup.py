@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 LEGACY_ATTACHMENT_OBJECT_KEY_RE = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{64}/[^/]+$")
+MEDIA_EXTRACTION_CLEANUP_TERMINAL_STATUSES = frozenset({"completed", "skipped", "failed_terminal"})
 
 
 class AuthenticatedNoticeAttachmentKeyCleanupObjectStore(Protocol):
@@ -54,10 +56,17 @@ class AuthenticatedNoticeQuarantineAttachmentCleanupRequest:
     output_dir: Path
     now: str
     dry_run: bool = False
+    media_extraction_candidate_inventory_path: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "attachment_refs_path", Path(self.attachment_refs_path))
         object.__setattr__(self, "output_dir", Path(self.output_dir))
+        if self.media_extraction_candidate_inventory_path is not None:
+            object.__setattr__(
+                self,
+                "media_extraction_candidate_inventory_path",
+                Path(self.media_extraction_candidate_inventory_path),
+            )
 
 
 def cleanup_authenticated_notice_source_attachment_keys(
@@ -166,13 +175,23 @@ def cleanup_authenticated_notice_quarantine_attachment_keys(
     )
     log_output = stderr if stderr is not None else sys.stderr
     rows = _load_jsonl_rows(request.attachment_refs_path)
-    candidates = _load_quarantine_cleanup_candidates(rows, now=request.now)
+    blockers = _load_media_extraction_cleanup_blockers(
+        request.media_extraction_candidate_inventory_path,
+        default_bucket=settings.bucket_source,
+    )
+    candidates, blocked_rows = _load_quarantine_cleanup_candidates(
+        rows,
+        now=request.now,
+        default_bucket=settings.bucket_source,
+        media_extraction_blockers=blockers,
+    )
 
     output_dir = request.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     deleted_path = output_dir / "deleted-quarantine-objects.jsonl"
     already_absent_path = output_dir / "already-absent-quarantine-objects.jsonl"
     dry_run_path = output_dir / "dry-run-quarantine-objects.jsonl"
+    blocked_path = output_dir / "blocked-quarantine-objects.jsonl"
     summary_path = output_dir / "quarantine-summary.json"
 
     deleted_rows: list[dict[str, Any]] = []
@@ -222,19 +241,27 @@ def cleanup_authenticated_notice_quarantine_attachment_keys(
     _write_jsonl(deleted_path, deleted_rows_sorted)
     _write_jsonl(already_absent_path, already_absent_rows_sorted)
     _write_jsonl(dry_run_path, dry_run_rows_sorted)
+    _write_jsonl(blocked_path, blocked_rows)
     summary = {
         "attachment_refs_path": str(request.attachment_refs_path),
+        "media_extraction_candidate_inventory_path": (
+            str(request.media_extraction_candidate_inventory_path)
+            if request.media_extraction_candidate_inventory_path
+            else ""
+        ),
         "output_dir": str(output_dir),
         "now": request.now,
         "dry_run": request.dry_run,
         "input_row_count": len(rows),
         "candidate_count": len(candidates),
+        "blocked_by_media_extraction_count": len(blocked_rows),
         "deleted_count": len(deleted_rows_sorted),
         "already_absent_count": len(already_absent_rows_sorted),
         "dry_run_count": len(dry_run_rows_sorted),
         "deleted_inventory_path": str(deleted_path),
         "already_absent_inventory_path": str(already_absent_path),
         "dry_run_inventory_path": str(dry_run_path),
+        "blocked_quarantine_inventory_path": str(blocked_path),
     }
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
@@ -266,9 +293,12 @@ def _load_quarantine_cleanup_candidates(
     rows: tuple[dict[str, Any], ...],
     *,
     now: str,
-) -> tuple[dict[str, Any], ...]:
+    default_bucket: str,
+    media_extraction_blockers: Mapping[tuple[str, str], tuple[dict[str, str], ...]],
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
     now_dt = _parse_timestamp(now, label="now")
     candidates: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
     seen: set[tuple[str | None, str]] = set()
     for row in rows:
         if _normalize_optional_text(row.get("retention_class")) != "quarantine_candidate":
@@ -287,23 +317,76 @@ def _load_quarantine_cleanup_candidates(
         if _parse_timestamp(expires_at, label="retention_expires_at") > now_dt:
             continue
         bucket = _normalize_optional_text(row.get("bucket"))
+        effective_bucket = bucket or default_bucket
         dedupe_key = (bucket, object_key)
         if dedupe_key in seen:
             continue
         seen.add(dedupe_key)
-        candidates.append(
+        candidate = {
+            "attachment_ref_id": _normalize_optional_text(row.get("attachment_ref_id")),
+            "bucket": bucket,
+            "object_key": object_key,
+            "content_sha256": _normalize_optional_text(
+                row.get("content_sha256") or row.get("sha256")
+            ),
+            "retention_expires_at": expires_at,
+            "attachment_promotion_state": promotion_state,
+        }
+        blocking_candidates = media_extraction_blockers.get((effective_bucket, object_key), ())
+        if blocking_candidates:
+            blocked.append(
+                {
+                    **candidate,
+                    "bucket": effective_bucket,
+                    "blocked_by": "media_extraction_candidate",
+                    "blocking_media_candidate_ids": [
+                        str(item["candidate_id"]) for item in blocking_candidates
+                    ],
+                    "blocking_media_candidate_statuses": [
+                        str(item["status"]) for item in blocking_candidates
+                    ],
+                }
+            )
+            continue
+        candidates.append(candidate)
+    return (
+        tuple(sorted(candidates, key=lambda item: str(item["object_key"]))),
+        tuple(sorted(blocked, key=lambda item: str(item["object_key"]))),
+    )
+
+
+def _load_media_extraction_cleanup_blockers(
+    path: Path | None,
+    *,
+    default_bucket: str,
+) -> dict[tuple[str, str], tuple[dict[str, str], ...]]:
+    if path is None:
+        return {}
+    payload = _load_json_object(path)
+    blockers: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for candidate in _mapping_rows(payload.get("candidates")):
+        if not bool(candidate.get("target_blocking")):
+            continue
+        status = str(candidate.get("status") or "").strip()
+        if status in MEDIA_EXTRACTION_CLEANUP_TERMINAL_STATUSES:
+            continue
+        source_ref = candidate.get("source_object_ref")
+        if not isinstance(source_ref, Mapping):
+            continue
+        object_key = _normalize_optional_text(source_ref.get("key"))
+        if object_key is None:
+            continue
+        bucket = _normalize_optional_text(source_ref.get("bucket")) or default_bucket
+        blockers.setdefault((bucket, object_key), []).append(
             {
-                "attachment_ref_id": _normalize_optional_text(row.get("attachment_ref_id")),
-                "bucket": bucket,
-                "object_key": object_key,
-                "content_sha256": _normalize_optional_text(
-                    row.get("content_sha256") or row.get("sha256")
-                ),
-                "retention_expires_at": expires_at,
-                "attachment_promotion_state": promotion_state,
+                "candidate_id": _normalize_optional_text(candidate.get("candidate_id")) or "",
+                "status": status,
             }
         )
-    return tuple(sorted(candidates, key=lambda item: str(item["object_key"])))
+    return {
+        key: tuple(sorted(value, key=lambda item: str(item["candidate_id"])))
+        for key, value in blockers.items()
+    }
 
 
 def _cleanup_candidate(
@@ -389,6 +472,19 @@ def _load_jsonl_rows(path: Path) -> tuple[dict[str, Any], ...]:
     return tuple(rows)
 
 
+def _load_json_object(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"JSON object expected at {path}")
+    return dict(payload)
+
+
+def _mapping_rows(value: object) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
+
+
 def _write_jsonl(path: Path, rows: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> None:
     if not rows:
         path.write_text("", encoding="utf-8")
@@ -456,6 +552,7 @@ def _is_missing_object_error(exc: Exception) -> bool:
 
 __all__ = [
     "LEGACY_ATTACHMENT_OBJECT_KEY_RE",
+    "MEDIA_EXTRACTION_CLEANUP_TERMINAL_STATUSES",
     "AuthenticatedNoticeAttachmentKeyCleanupRequest",
     "AuthenticatedNoticeAttachmentKeyCleanupS3ObjectStore",
     "AuthenticatedNoticeQuarantineAttachmentCleanupRequest",
