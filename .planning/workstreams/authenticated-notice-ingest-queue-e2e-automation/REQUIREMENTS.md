@@ -16,6 +16,7 @@ updated: 2026-05-01
 - Provide a safe manual enqueue / repair path for already collected content without bypassing object storage or run ledger truth.
 - Make ingestion worker consume queue jobs by `run_id` and execute the complete import -> media gate -> promotion -> downstream chain without human artifact stitching.
 - Add deterministic unattended smoke that prioritizes already collected content and includes image-carried schedule facts such as notice `355867`.
+- Formalize parent ingest job -> child task / attempt evidence so OCR, multimodal, target admission, downstream materialization, cleanup, and smoke outcomes are explainable without reading raw artifacts.
 
 ## Functional Requirements
 
@@ -32,6 +33,11 @@ updated: 2026-05-01
 - Destructive cleanup must remain policy-gated and require non-stale strict audit evidence plus matching candidate inventory hash.
 - Downstream materialization/read-model rebuild must run after promotion for explicitly admitted targets only.
 - Smoke must validate the full chain from queue row to downstream read model, not just collector or single CLI success.
+- Child task state must cover source-unit import, media candidate evaluation, OCR/table extraction, multimodal enrichment, fact readiness evaluation, target admission, downstream materialization, cleanup evaluation, and smoke assertion.
+- Child task lifecycle must cover pending, running, completed, skipped, retryable failure, terminal failure, manual review, and cancelled semantics.
+- Processor profiles must make OCR/table extraction the first processor for schedule/table image facts and reserve generic multimodal for explicit escalation.
+- Progress events must be append-only and operator-safe, with parent job id, run id, child task id, stage, transition, reason code, input hash refs, and output refs.
+- Retry, timeout, concurrency, and resource budgets must be profile-level configuration rather than hidden per-script behavior.
 
 ## Non-Goals
 
@@ -54,6 +60,8 @@ updated: 2026-05-01
 - Destructive cleanup is impossible unless the cleanup input matches a fresh passed audit and configured policy.
 - Captured-content smoke passes for a deterministic sample set including notice `355867` and reports zero medium-or-higher chain findings.
 - Operator status can answer: queued/running/succeeded/failed/dead-letter counts, current job, last failure reason, promotion result, downstream materialization result, and smoke verdict.
+- Parent queue success is derived from child task evidence, including requested downstream materialization and read-model evidence when downstream work is requested.
+- Operator status can identify the blocked child task, selected processor profile, retry posture, and reason code without exposing raw notice content or OCR payloads.
 
 ## Required Verification Lanes
 
@@ -61,6 +69,7 @@ updated: 2026-05-01
 - Worker CLI tests for enqueue, consume, show, and smoke commands.
 - In-memory and Postgres store tests for lease/retry behavior.
 - Captured-content smoke over existing authenticated notice artifacts, not fresh collector smoke.
+- Child task contract tests and processor profile routing tests, including OCR-first routing for notice `355867`.
 - `uv run --all-packages ruff check .`
 - `uv run --all-packages ruff format . --check`
 - `uv run --all-packages python -m unittest discover -s tests -t .`
