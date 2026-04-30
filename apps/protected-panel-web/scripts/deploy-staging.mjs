@@ -1,11 +1,14 @@
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
 const PLACEHOLDER_ACCESS_POLICY_AUD = "panel-audience";
 const PLACEHOLDER_ACCESS_TEAM_DOMAIN = "https://team.cloudflareaccess.com";
+
+loadRepoEnvFile(import.meta.url, "../../..");
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function fail(message) {

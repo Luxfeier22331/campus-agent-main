@@ -88,6 +88,8 @@ export function registerWorkerRuntimeConfigSuite() {
 			"check_worker_secret_presence.py",
 		);
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
+		expect(deployStagingSource).toContain("loadRepoEnvFile");
+		expect(deployStagingSource).toContain('loadRepoEnvFile(import.meta.url, "../../..")');
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);

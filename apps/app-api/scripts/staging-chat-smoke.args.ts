@@ -1,4 +1,8 @@
 import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.args";
+import {
+	parseStagingChatSmokeExpectedResultKind,
+	type StagingChatSmokeExpectedResultKind,
+} from "./staging-chat-smoke.result-kind";
 
 export const DEFAULT_STAGING_CHAT_SMOKE_PROMPT = "中央民族大学本科学生国家奖学金评审办法";
 export const DEFAULT_STAGING_CHAT_BASE_URL = "https://campus-chat-staging.ayafeed.com";
@@ -10,6 +14,7 @@ export interface StagingChatSmokeArgs {
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string;
+	expectResultKind: StagingChatSmokeExpectedResultKind;
 	name: string;
 	prompt: string;
 	smokeAuthSecret: string;
@@ -34,6 +39,7 @@ export function parseStagingChatSmokeArgs(
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_BASE_URL;
 	let appApiReadyzUrl = DEFAULT_STAGING_APP_API_READYZ_URL;
 	let execReadyzUrl = DEFAULT_STAGING_EXEC_READYZ_URL;
+	let expectResultKind: StagingChatSmokeExpectedResultKind = "answer";
 	let smokeAuthSecret =
 		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
 		normalizeOptionalValue(env.STAGING_APP_API_SMOKE_AUTH_SECRET) ??
@@ -98,6 +104,15 @@ export function parseStagingChatSmokeArgs(
 			index += 1;
 			continue;
 		}
+		if (token === "--expect-result-kind") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--expect-result-kind requires a non-empty value.");
+			}
+			expectResultKind = parseStagingChatSmokeExpectedResultKind(value);
+			index += 1;
+			continue;
+		}
 		if (token === "--smoke-auth-secret") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -121,6 +136,7 @@ export function parseStagingChatSmokeArgs(
 		chatBaseUrl,
 		email,
 		execReadyzUrl,
+		expectResultKind,
 		name,
 		prompt,
 		smokeAuthSecret,

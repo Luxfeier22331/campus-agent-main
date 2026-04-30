@@ -138,6 +138,8 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 1. 带着拿到的 session cookie 真实请求
    `https://campus-chat-staging.ayafeed.com/api/chat/requests`
 1. 再检查 `api/me` 与 `api/chat/conversations`，确认会话有效且新会话进入 history
+1. 默认要求 `request.resultKind = "answer"`；如果 supervisor 返回 typed
+   error outcome，脚本会退出非零并在错误里带上 `requestId` 与 `traceId`
 
 它要求当前 shell 有：
 
@@ -159,10 +161,13 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 通过标准：
 
 - `chat:smoke:staging` 返回 `0`
-- 它输出的 `request.resultKind` 是 typed outcome
+- 它输出的 `request.resultKind` 是 `answer`
 - `POST /api/chat/requests` 返回 `200`
 - `api/chat/conversations` 在请求后包含新 `conversationId`
 - 不能出现 transport error、Worker proxy error、upstream unreachable
+
+只有在明确做 transport-only 调试时，才允许临时追加
+`-- --expect-result-kind any`，该模式不作为 staging closeout gate。
 
 ## Step 5. 记录链路证据
 

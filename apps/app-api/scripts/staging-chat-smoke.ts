@@ -2,6 +2,7 @@ import process from "node:process";
 
 import { expectJsonResponse } from "./smoke-auth-runtime";
 import { parseStagingChatSmokeArgs } from "./staging-chat-smoke.args";
+import { assertExpectedStagingChatSmokeResultKind } from "./staging-chat-smoke.result-kind";
 import { buildSmokePassword, fetchReadyz, mintStagingSmokeSession } from "./staging-smoke-support";
 
 async function fetchJsonWithCookie<T>(input: {
@@ -101,6 +102,18 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 		url: new URL("/api/chat/requests", args.chatBaseUrl).toString(),
 	});
 	const conversationId = requestResult.payload.answer.conversation.id;
+	const resultKind = requestResult.payload.answer.result.kind;
+	const requestId =
+		requestResult.response.headers.get("x-request-id") ??
+		requestResult.payload.answer.result.requestId;
+	const traceId =
+		requestResult.response.headers.get("x-trace-id") ?? requestResult.payload.answer.result.traceId;
+	assertExpectedStagingChatSmokeResultKind({
+		actual: resultKind,
+		expected: args.expectResultKind,
+		requestId,
+		traceId,
+	});
 	const afterConversations = await fetchJsonWithCookie<{
 		conversations: Array<{ id: string; title: string }>;
 	}>({
@@ -131,13 +144,9 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 					historyCountBefore: beforeConversations.payload.conversations.length,
 					historyHasConversation,
 					prompt: args.prompt,
-					requestId:
-						requestResult.response.headers.get("x-request-id") ??
-						requestResult.payload.answer.result.requestId,
-					resultKind: requestResult.payload.answer.result.kind,
-					traceId:
-						requestResult.response.headers.get("x-trace-id") ??
-						requestResult.payload.answer.result.traceId,
+					requestId,
+					resultKind,
+					traceId,
 				},
 				session: meResult.payload.session,
 				surfaceChecks: {

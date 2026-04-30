@@ -3,6 +3,7 @@ import stagingPreflightSource from "../../../scripts/run-worker-staging-prefligh
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
+import stagingChatSmokeSource from "../scripts/staging-chat-smoke.ts?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
@@ -140,7 +141,7 @@ describe("app-api worker foundation", () => {
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
-		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "15000"');
+		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "30000"');
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
@@ -159,6 +160,8 @@ describe("app-api worker foundation", () => {
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
+		expect(stagingChatSmokeSource).toContain("assertExpectedStagingChatSmokeResultKind");
+		expect(stagingChatSmokeSource).toContain("expectResultKind");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
