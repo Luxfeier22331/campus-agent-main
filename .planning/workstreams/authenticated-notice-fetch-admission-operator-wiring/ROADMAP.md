@@ -12,7 +12,8 @@ updated: 2026-04-30
 ## Phase Status
 
 - [x] **Phase 1: Operator Manifest Builder And Docs Wiring** — add ingestion-worker CLI, tests, collector README/runbook updates, and workstream registration.
-- [ ] **Phase 2: Selected Notice E2E Smoke Evidence** — source-truth import and fetch request manifest are proven for real notice `355867`; selected collector export is blocked by expired authenticated portal session.
+- [x] **Phase 2: Selected Notice E2E Smoke Evidence** — selected notice `355867` is replayed through repaired local source-truth, fetch omission, multimodal readiness, and schedule OCR mini-batch evidence.
+- [x] **Phase 3: Sample State Machine Audit** — current code replays 338 captured units, produces 60 downstream multimodal candidates, generates 0 fetch requests, and passes state-machine audit with 0 findings.
 
 ## Phase 1: Operator Manifest Builder And Docs Wiring
 
@@ -81,4 +82,41 @@ AUTHENTICATED_NOTICE_COLLECTION_MODE=selected \
 AUTHENTICATED_NOTICE_SELECTED_NOTICES=<notice_id>:<notice_type> \
 AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH=<manifest> \
 pnpm --dir apps/authenticated-notice-collector bootstrap:export
+```
+
+## Phase 3: Sample State Machine Audit
+
+Goal: prove the repaired attachment state machine across the captured notice/file-release replay
+cohort without relying on live portal auth.
+
+Deliverables:
+
+- current-code reimport preview from captured runs inventory.
+- current-code multimodal readiness preview.
+- aggregate fetch request manifest from current source-truth preview.
+- state-machine audit report with matrix and findings.
+- tests for metadata-only downstream suppression and audit findings.
+
+Evidence:
+
+- `evidence/phase-03-sample-state-machine-audit/reimport-preview-current/reimport-plan.dry-run.json`
+- `evidence/phase-03-sample-state-machine-audit/multimodal-readiness-current/multimodal-candidate-inventory.json`
+- `evidence/phase-03-sample-state-machine-audit/fetch-request-manifest-current/fetch-request-manifest.from-source-truth-preview.json`
+- `evidence/phase-03-sample-state-machine-audit/state-machine-audit-current-with-fetch/state-machine-audit.json`
+
+Result:
+
+- 338 searchable units replayed.
+- 58 units still need multimodal after discover-only suppression.
+- 60 downstream multimodal candidates generated.
+- 0 fetch requests generated because current sampled refs either have bytes or are metadata-only.
+- 0 medium/high audit findings.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_reimport_preview \
+  tests.ingestion.test_collected_notice_multimodal_readiness \
+  tests.ingestion.test_authenticated_notice_state_machine_audit
 ```

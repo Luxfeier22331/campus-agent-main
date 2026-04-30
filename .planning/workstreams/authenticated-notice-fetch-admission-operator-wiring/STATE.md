@@ -8,12 +8,12 @@ updated: 2026-04-30
 
 ## Current Position
 **Status:** Active
-**Current Phase:** Phase 2 post-repair validated
+**Current Phase:** Phase 3 completed
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Replayed selected notice `355867` from local collector evidence after attachment-flow repair; existing inline image bytes are retained as 3 `uploaded_quarantine` refs, fetch request manifest is empty, and downstream multimodal/schedule OCR preview selects all 3 images.
+**Last Activity Description:** Completed current-code sample state-machine audit across 338 captured units; discover-only notices no longer enter downstream multimodal, fetch manifest is empty, and audit reports 0 findings.
 
 ## Progress
-**Phases Complete:** 1
+**Phases Complete:** 3
 **Current Plan:** `ROADMAP.md`
 
 ## Phase 1 Result
@@ -39,8 +39,8 @@ updated: 2026-04-30
 
 ## Next Slice
 
-Use the post-repair evidence to validate a larger sampled notice cohort, focusing on service-fact notices with inline images, ordinary notice-discover-only notices, and source-owner attachments.
+Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine acceptance is currently clean.
 
 ## Session Continuity
-**Stopped At:** Phase 2 selected fixture validated through reimport preview, fetch omission, multimodal readiness, and schedule OCR mini-batch dry run
+**Stopped At:** Phase 3 audit complete; live collector proof remains auth-dependent
 **Resume File:** None
