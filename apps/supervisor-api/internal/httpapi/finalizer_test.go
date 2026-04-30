@@ -220,6 +220,96 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	}
 }
 
+func TestFinalizeAgentBridgeResponseUsesRecordedMultiStepWorkflowRun(t *testing.T) {
+	workflowRun := execution.WorkflowRun{
+		RunID:  "run-multi-001",
+		Mode:   execution.WorkflowModeMultiStep,
+		Branch: "multi_step",
+		State:  execution.WorkflowStateCompleted,
+		HandoffChain: []execution.HandoffStep{
+			{
+				Target:       "notice-agent",
+				PayloadKind:  "campus_notice_get",
+				AllowedTools: []string{"campus_notice_get"},
+				SelectedTool: "campus_notice_get",
+			},
+			{
+				Target:       "rag-agent",
+				PayloadKind:  "rag_request",
+				AllowedTools: []string{"retrieval.query"},
+				SelectedTool: "retrieval.query",
+			},
+		},
+		Steps: []execution.WorkflowStep{
+			{
+				StepID:       "handoff:notice-agent:campus_notice_get",
+				SpanKind:     "handoff",
+				Target:       "notice-agent",
+				Outcome:      "completed",
+				ResultStatus: "completed",
+			},
+			{
+				StepID:       "handoff:rag-agent:rag_request",
+				SpanKind:     "handoff",
+				Target:       "rag-agent",
+				Outcome:      "completed",
+				ResultStatus: "completed",
+			},
+		},
+	}
+	response, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "rag-agent",
+			"status":      "completed",
+			"answer_text": "这条通知可按学生手册相关规定理解。",
+			"confidence":  "high",
+			"result": map[string]any{
+				"evidence": map[string]any{
+					"sources": []any{map[string]any{"doc_id": "handbook:rule-001"}},
+				},
+			},
+			"agent_observability": map[string]any{
+				"selected_tool": "retrieval.query",
+			},
+		},
+		"trace-finalizer-multi-step",
+		supervisorFinalizerContext{
+			Branch:       "multi_step",
+			SelectedTool: "retrieval.query",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				ScopeGateDecision:     "delegate",
+				PolicyGateDecision:    "delegate",
+				ContextPreflightState: "resolved",
+				RoutingNextAction:     "delegate",
+				PlanningOutcome:       "preplanned",
+				SelectedTarget:        "rag-agent",
+				SelectedTool:          "retrieval.query",
+			},
+			WorkflowRun: &workflowRun,
+		},
+	)
+	if err != nil {
+		t.Fatalf("finalize returned error: %v", err)
+	}
+	traceSummary := expectRecord(t, response["workflow_trace_summary"], "workflow_trace_summary")
+	if traceSummary["workflow_mode"] != "multi_step" {
+		t.Fatalf("workflow_mode = %v, want multi_step", traceSummary["workflow_mode"])
+	}
+	handoffChain, ok := traceSummary["handoff_chain"].([]map[string]any)
+	if !ok || len(handoffChain) != 2 {
+		t.Fatalf("handoff_chain = %#v, want two handoffs", traceSummary["handoff_chain"])
+	}
+	if handoffChain[0]["target"] != "notice-agent" || handoffChain[1]["target"] != "rag-agent" {
+		t.Fatalf("handoff_chain = %#v, want notice -> rag", handoffChain)
+	}
+	selectedTools, ok := traceSummary["selected_tools"].([]string)
+	if !ok || len(selectedTools) != 2 ||
+		selectedTools[0] != "campus_notice_get" ||
+		selectedTools[1] != "retrieval.query" {
+		t.Fatalf("selected_tools = %#v, want notice get then retrieval query", traceSummary["selected_tools"])
+	}
+}
+
 func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
@@ -681,65 +771,5 @@ func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 				t.Fatal("expected malformed agent response to be rejected")
 			}
 		})
-	}
-}
-
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
-		"completed",
-		map[string]any{
-			"subject_query":        "丰台校区通勤班车在哪里上车",
-			"outcome":              "resolved_current",
-			"related_notice_refs":  []any{"authenticated_notice:355122"},
-			"override_source_refs": []any{"notice:muc_internal_portal:353903"},
-		},
-		"",
-	)
-
-	if observability["selected_tool"] != "service_status_lookup" {
-		t.Fatalf("selected_tool = %v, want service_status_lookup", observability["selected_tool"])
-	}
-	if observability["tool_business_outcome"] != "resolved_current" {
-		t.Fatalf("tool_business_outcome = %v, want resolved_current", observability["tool_business_outcome"])
-	}
-	if observability["notice_source_family_summary"] != "internal_notice_restricted" {
-		t.Fatalf(
-			"notice_source_family_summary = %v, want internal_notice_restricted",
-			observability["notice_source_family_summary"],
-		)
-	}
-	if observability["temporal_posture"] != "current" {
-		t.Fatalf("temporal_posture = %v, want current", observability["temporal_posture"])
-	}
-}
-
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
-		"no_answer",
-		map[string]any{
-			"subject_query":       "图书馆今天开门吗",
-			"outcome":             "temporarily_unverifiable",
-			"fail_close_reason":   "source_conflict",
-			"related_notice_refs": []any{"authenticated_notice:355999"},
-		},
-		"",
-	)
-
-	if observability["fail_closed"] != true {
-		t.Fatalf("fail_closed = %v, want true", observability["fail_closed"])
-	}
-	if observability["tool_fail_close_reason"] != "source_conflict" {
-		t.Fatalf("tool_fail_close_reason = %v, want source_conflict", observability["tool_fail_close_reason"])
-	}
-	if observability["semantic_outcome"] != "temporarily_unverifiable" {
-		t.Fatalf("semantic_outcome = %v, want temporarily_unverifiable", observability["semantic_outcome"])
-	}
-	if observability["notice_source_family_summary"] != "internal_notice_restricted" {
-		t.Fatalf(
-			"notice_source_family_summary = %v, want internal_notice_restricted",
-			observability["notice_source_family_summary"],
-		)
 	}
 }

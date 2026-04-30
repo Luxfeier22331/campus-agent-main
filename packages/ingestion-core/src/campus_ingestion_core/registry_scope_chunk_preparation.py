@@ -15,13 +15,20 @@ from campus_ingestion_core.authenticated_notice_closeout_store import (
     CloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
 )
-from campus_ingestion_core.chunking_tokenizers import DEFAULT_TOKENIZER_NAME
 from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.index_release import IndexReleaseValidationResult, validate_scope_release
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
+from campus_ingestion_core.registry_scope_chunk_provenance import (
+    hash_bytes,
+    hash_chunk_fingerprint,
+    hash_chunk_preparation_provenance,
+    hash_chunk_profile,
+    resolve_chunk_preparation_provenance,
+    verify_chunk_preparation_provenance,
+)
 from campus_ingestion_core.registry_scope_common import (
     record_label,
     select_releasable_registry_records,
@@ -36,7 +43,6 @@ MANDATORY_PREPARATION_SCOPES = frozenset(
         ("regulations", "scoped_rules"),
     }
 )
-CHUNKER_IMPLEMENTATION_VERSION = "registry_scope_chunker_v1"
 
 
 class RegistryScopePreparationObjectStore(Protocol):
@@ -176,9 +182,9 @@ def prepare_registry_scope_chunks(
                 bucket=object_store_settings.bucket_derived,
                 key=record.document_units_object_key,
             )
-            document_units_sha256_by_record_key[_record_key(record)] = hashlib.sha256(
+            document_units_sha256_by_record_key[_record_key(record)] = hash_bytes(
                 document_units_bytes
-            ).hexdigest()
+            )
             document_chunks = build_indexable_chunks_from_jsonl(
                 record=record,
                 structured_jsonl_bytes=document_units_bytes,
@@ -263,7 +269,7 @@ def build_chunk_preparation_manifest(
             records, key=lambda item: (item.document_id, item.revision_track, item.version_id)
         )
     )
-    provenance = _resolve_chunk_preparation_provenance(corpus=corpus, collection=collection)
+    provenance = resolve_chunk_preparation_provenance(corpus=corpus, collection=collection)
     return RegistryScopeChunkPreparationManifest(
         preparation_run_id=preparation_run_id,
         corpus=corpus,
@@ -291,14 +297,14 @@ def build_chunk_preparation_manifest(
         )
         if runtime_document_units_sha256_by_record_key
         else "",
-        chunk_profile_hash=_hash_chunk_profile(corpus=corpus, collection=collection),
-        chunk_fingerprint_hash=_hash_chunk_fingerprint(chunks),
+        chunk_profile_hash=hash_chunk_profile(corpus=corpus, collection=collection),
+        chunk_fingerprint_hash=hash_chunk_fingerprint(chunks),
         tokenizer_name=provenance["tokenizer_name"],
         tokenizer_package_version=provenance["tokenizer_package_version"],
         chunker_implementation_version=provenance["chunker_implementation_version"],
         normalizer_version=provenance["normalizer_version"],
         document_units_schema_version=provenance["document_units_schema_version"],
-        chunk_preparation_provenance_hash=_hash_chunk_preparation_provenance(provenance),
+        chunk_preparation_provenance_hash=hash_chunk_preparation_provenance(provenance),
     )
 
 
@@ -584,7 +590,7 @@ def require_verified_chunk_preparation(
                 "chunk preparation chunk fingerprint hash is missing for "
                 f"{corpus}/{collection} run {preparation_run_id}"
             )
-        _verify_chunk_preparation_provenance(manifest)
+        verify_chunk_preparation_provenance(manifest)
     expected_document_units_content_hash = _hash_values(
         f"{record.document_id}|{record.revision_track}|{record.version_id}|{_hash_document_units_bytes(object_store=object_store, bucket=bucket, record=record)}"
         for record in records
@@ -597,7 +603,7 @@ def require_verified_chunk_preparation(
             "chunk preparation document-units content hash does not match current artifacts for "
             f"{corpus}/{collection}"
         )
-    expected_chunk_profile_hash = _hash_chunk_profile(corpus=corpus, collection=collection)
+    expected_chunk_profile_hash = hash_chunk_profile(corpus=corpus, collection=collection)
     if manifest.chunk_profile_hash and manifest.chunk_profile_hash != expected_chunk_profile_hash:
         raise ValueError(
             "chunk preparation chunk profile hash does not match current config for "
@@ -613,7 +619,7 @@ def verify_prepared_chunks_match_manifest(
 ) -> None:
     if manifest is None or not manifest.chunk_fingerprint_hash:
         return
-    actual_hash = _hash_chunk_fingerprint(chunks)
+    actual_hash = hash_chunk_fingerprint(chunks)
     if manifest.chunk_fingerprint_hash != actual_hash:
         raise ValueError(
             "chunk preparation fingerprint hash does not match release chunks for "
@@ -771,91 +777,7 @@ def _hash_document_units_bytes(
 ) -> str:
     if not record.document_units_object_key:
         return ""
-    return hashlib.sha256(
-        object_store.get_bytes(bucket=bucket, key=record.document_units_object_key)
-    ).hexdigest()
-
-
-def _hash_chunk_profile(*, corpus: str, collection: str) -> str:
-    profile = load_chunk_profile(corpus, collection)
-    return hashlib.sha256(
-        json.dumps(asdict(profile), ensure_ascii=False, sort_keys=True).encode("utf-8")
-    ).hexdigest()
-
-
-def _resolve_chunk_preparation_provenance(*, corpus: str, collection: str) -> dict[str, str]:
-    profile = load_chunk_profile(corpus, collection)
-    return {
-        "tokenizer_name": DEFAULT_TOKENIZER_NAME,
-        "tokenizer_package_version": "",
-        "chunker_implementation_version": CHUNKER_IMPLEMENTATION_VERSION,
-        "normalizer_version": profile.cleaning_policy_version,
-        "document_units_schema_version": profile.structured_input,
-    }
-
-
-def _hash_chunk_preparation_provenance(provenance: Mapping[str, str]) -> str:
-    return hashlib.sha256(
-        json.dumps(dict(provenance), ensure_ascii=False, sort_keys=True).encode("utf-8")
-    ).hexdigest()
-
-
-def _verify_chunk_preparation_provenance(
-    manifest: RegistryScopeChunkPreparationManifest,
-) -> None:
-    expected = _resolve_chunk_preparation_provenance(
-        corpus=manifest.corpus,
-        collection=manifest.collection,
-    )
-    if not manifest.tokenizer_name:
-        raise ValueError(
-            "chunk preparation tokenizer identity is missing for "
-            f"{manifest.corpus}/{manifest.collection} run {manifest.preparation_run_id}"
-        )
-    if manifest.tokenizer_name != expected["tokenizer_name"]:
-        raise ValueError(
-            "chunk preparation tokenizer identity does not match current runtime for "
-            f"{manifest.corpus}/{manifest.collection}"
-        )
-    if manifest.chunker_implementation_version != expected["chunker_implementation_version"]:
-        raise ValueError(
-            "chunk preparation chunker implementation identity does not match current runtime for "
-            f"{manifest.corpus}/{manifest.collection}"
-        )
-    if manifest.normalizer_version != expected["normalizer_version"]:
-        raise ValueError(
-            "chunk preparation normalizer identity does not match current runtime for "
-            f"{manifest.corpus}/{manifest.collection}"
-        )
-    if manifest.document_units_schema_version != expected["document_units_schema_version"]:
-        raise ValueError(
-            "chunk preparation document-units schema identity does not match current runtime for "
-            f"{manifest.corpus}/{manifest.collection}"
-        )
-    expected_hash = _hash_chunk_preparation_provenance(expected)
-    if manifest.chunk_preparation_provenance_hash != expected_hash:
-        raise ValueError(
-            "chunk preparation provenance hash does not match current runtime for "
-            f"{manifest.corpus}/{manifest.collection}"
-        )
-
-
-def _hash_chunk_fingerprint(chunks: Sequence[IndexableChunk]) -> str:
-    digest = hashlib.sha256()
-    for chunk in sorted(chunks, key=lambda item: item.chunk_id):
-        payload = {
-            "chunk_id": chunk.chunk_id,
-            "document_id": chunk.document_id,
-            "revision_track": chunk.revision_track,
-            "version_id": chunk.version_id,
-            "chunk_order": chunk.chunk_order,
-            "source_chunk_id": chunk.source_chunk_id,
-            "text_sha256": hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
-            "metadata": chunk.metadata,
-        }
-        digest.update(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8"))
-        digest.update(b"\n")
-    return digest.hexdigest()
+    return hash_bytes(object_store.get_bytes(bucket=bucket, key=record.document_units_object_key))
 
 
 __all__ = [
