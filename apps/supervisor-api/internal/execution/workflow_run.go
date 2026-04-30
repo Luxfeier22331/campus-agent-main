@@ -6,6 +6,7 @@ const (
 	WorkflowModeTerminal      WorkflowMode = "terminal"
 	WorkflowModeSingleHandoff WorkflowMode = "single_handoff"
 	WorkflowModeDirectRuntime WorkflowMode = "direct_runtime"
+	WorkflowModeMultiStep     WorkflowMode = "multi_step"
 )
 
 type WorkflowState string
@@ -20,6 +21,10 @@ const (
 )
 
 type WorkflowRun struct {
+	RunID        string
+	RequestID    string
+	TraceID      string
+	PlanID       string
 	Mode         WorkflowMode
 	Branch       string
 	State        WorkflowState
@@ -49,7 +54,7 @@ type WorkflowStep struct {
 }
 
 func (run WorkflowRun) HandoffChainMaps() []map[string]any {
-	if run.Mode != WorkflowModeSingleHandoff {
+	if run.Mode != WorkflowModeSingleHandoff && run.Mode != WorkflowModeMultiStep {
 		return []map[string]any{}
 	}
 	items := make([]map[string]any, 0, len(run.HandoffChain))
@@ -63,7 +68,7 @@ func (handoff HandoffStep) Map() map[string]any {
 	item := map[string]any{
 		"target":        handoff.Target,
 		"payload_kind":  handoff.PayloadKind,
-		"allowed_tools": append([]string(nil), handoff.AllowedTools...),
+		"allowed_tools": append([]string{}, handoff.AllowedTools...),
 	}
 	if handoff.SelectedTool != "" {
 		item["selected_tool"] = handoff.SelectedTool

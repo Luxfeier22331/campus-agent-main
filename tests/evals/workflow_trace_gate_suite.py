@@ -292,6 +292,48 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
         self.assertTrue(terminal_results.handoff_correctness.passed)
         self.assertTrue(terminal_results.trace_projection_completeness.passed)
 
+    def test_multi_step_trace_requires_more_than_single_handoff_projection(self) -> None:
+        multi_step_case = _workflow_case(
+            direct_vs_delegate_branch="delegate",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=(
+                {"target": "rag-agent", "selected_tool": "retrieval.query"},
+                {"target": "notice-agent", "selected_tool": "campus_notice_get"},
+            ),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+        )
+        single_handoff_projection = _trace_summary(
+            workflow_mode="multi_step",
+            direct_vs_delegate_branch="delegate",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff={"target": "rag-agent"},
+            handoff_chain=({"target": "rag-agent", "selected_tool": "retrieval.query"},),
+            tool_argument_summary={"collection": "student_rules"},
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "completed",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+        )
+
+        results = evaluate_workflow_trace_case(multi_step_case, single_handoff_projection)
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn("handoff_chain.multi_step", results.trace_projection_completeness.reason)
+
     def test_fails_wrong_branch_target_tools_arguments_guardrails_and_fail_close(self) -> None:
         results = evaluate_workflow_trace_case(
             _workflow_case(fail_close_expected=True, fail_close_reason="policy_unavailable"),

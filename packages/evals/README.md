@@ -215,10 +215,15 @@ Evaluation helpers for campus-agent v2.
   direct/delegate/clarification/fail-close branch 与 fail-close reason 是否和产品路径 observation
   一致；panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
   provider / prompt key 做非暴露断言。
-- `multi-agent-runtime-contract` denominator 当前覆盖 10 条 workflow trace case、28 条
+- `multi-agent-runtime-contract` denominator 当前覆盖 12 条 workflow trace case、28 条
   tool-family case 与 10 条 public-chat product-path case。知识类 student_rules /
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
   可直接调用的 flat tool。
+- `workflow_trace_summary.workflow_mode` 现在是 canonical enum：
+  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。当前 live runtime 只验证前三种；
+  `multi_step` 是前向 contract value，只有真实 run state、handoff chain、semantic
+  retry/replan 与 resume 语义落地后才能进入 live profile。workflow trace gate 会拒绝把单个
+  handoff projection 伪装成 `multi_step`。
 - eval profile registry 固定在 `campus_evals.profile_registry`。`scripts.eval_gate audit`
   会校验 registry runner、GitHub Actions dispatch choices、operations policy、denominator
   registry、tool-family fixture coverage 与 profile fixture smoke；新增 profile 时必须同步这些
@@ -236,6 +241,9 @@ shape，而是把更多真实产品路径和 domain-specific case 扩编进这�
 - `workflow_trace`
   - 已有 shared gate；当前覆盖 direct structured、campus-services handoff、notice handoff、
     knowledge delegate、ambiguous follow-up、fail-close 与 no-result 产品路径
+  - `workflow_mode` 只接受 `terminal`、`direct_runtime`、`single_handoff`、`multi_step`；
+    `multi_step` trace 必须至少有两段 handoff chain，避免把当前单 handoff projection
+    冒充成多步 workflow
 - `direct_vs_delegate`
   - 验证 Go structured runtime / non-delegate terminal / Python delegate 三类分支是否命中
     expected truth

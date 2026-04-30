@@ -367,7 +367,14 @@ func TestPlanGoldenCases(t *testing.T) {
 			if err != nil {
 				t.Fatalf("load intent policy: %v", err)
 			}
-			handoff := PlanWithPolicy(tt.request, policy)
+			plan := PlanWithPolicy(tt.request, policy)
+			if plan == nil {
+				t.Fatal("expected preplanned workflow plan")
+			}
+			if plan.WorkflowMode != WorkflowModeSingleHandoff {
+				t.Fatalf("workflow mode = %q, want single_handoff", plan.WorkflowMode)
+			}
+			handoff := plan.SelectedHandoff()
 			if handoff == nil {
 				t.Fatal("expected preplanned handoff")
 			}
@@ -403,10 +410,64 @@ func TestPlanSkipsTransactionalStructuredRequests(t *testing.T) {
 			UserGoal:            "帮我发邮件给国际合作处",
 		},
 	} {
-		handoff := PlanWithPolicy(request, policy)
-		if handoff != nil {
-			t.Fatalf("transactional request must not be preplanned for %q: %#v", request.UserGoal, handoff)
+		plan := PlanWithPolicy(request, policy)
+		if plan != nil {
+			t.Fatalf("transactional request must not be preplanned for %q: %#v", request.UserGoal, plan)
 		}
+	}
+}
+
+func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load intent policy: %v", err)
+	}
+
+	plan := PlanWithPolicy(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "学生手册请假制度怎么规定？",
+		HasRequestedScope:   true,
+		RequestedScope: Scope{
+			Corpus:     "regulations",
+			Collection: "student_rules",
+		},
+	}, policy)
+
+	if plan == nil {
+		t.Fatal("expected workflow plan")
+	}
+	if plan.SchemaVersion != WorkflowPlanSchemaVersion {
+		t.Fatalf("schema version = %q, want %q", plan.SchemaVersion, WorkflowPlanSchemaVersion)
+	}
+	if plan.WorkflowMode != WorkflowModeSingleHandoff {
+		t.Fatalf("workflow mode = %q, want single_handoff", plan.WorkflowMode)
+	}
+	if plan.PlanID == "" {
+		t.Fatal("plan id must not be empty")
+	}
+	if len(plan.Steps) != 1 {
+		t.Fatalf("step count = %d, want 1", len(plan.Steps))
+	}
+	step := plan.Steps[0]
+	if step.StepKind != WorkflowStepKindHandoff || step.Target != "rag-agent" {
+		t.Fatalf("step = %#v, want rag handoff", step)
+	}
+	if step.SelectedTool != "retrieval.query" {
+		t.Fatalf("selected tool = %q, want retrieval.query", step.SelectedTool)
+	}
+	if len(plan.Edges) != 0 {
+		t.Fatalf("edges = %#v, want none for single handoff", plan.Edges)
+	}
+	if plan.SemanticRetryPolicy.MaxReplans != 0 {
+		t.Fatalf("semantic retry max replans = %d, want 0", plan.SemanticRetryPolicy.MaxReplans)
+	}
+	projection := plan.Map()
+	if projection["workflow_mode"] != "single_handoff" {
+		t.Fatalf("projection workflow_mode = %v, want single_handoff", projection["workflow_mode"])
+	}
+	steps, ok := projection["steps"].([]map[string]any)
+	if !ok || len(steps) != 1 || steps[0]["target"] != "rag-agent" {
+		t.Fatalf("projection steps = %#v, want typed rag step", projection["steps"])
 	}
 }
 
@@ -417,11 +478,12 @@ func TestPlanWithPolicyUsesIntentPolicyArtifactSignals(t *testing.T) {
 	}
 	policy.SignalGroups["structured_transport"] = []string{"摆渡车"}
 
-	handoff := PlanWithPolicy(Request{
+	plan := PlanWithPolicy(Request{
 		EffectiveCapability: "campus_services",
 		UserGoal:            "摆渡车最早几点",
 	}, policy)
 
+	handoff := plan.SelectedHandoff()
 	if handoff == nil {
 		t.Fatal("expected policy-backed transport signal to produce handoff")
 	}

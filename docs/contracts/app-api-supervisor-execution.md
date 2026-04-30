@@ -107,6 +107,14 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - 更新共享 fixture matrix 中的 canonical valid / invalid 样本
 - 更新 `multi-agent-runtime-contract` gate 或对应 targeted tests
 
+`runtime_decisions.workflow_plan` 是 planner 的 safe projection，当前
+`schema_version=workflow-plan-v1`。它只记录 workflow mode、step / edge skeleton、
+terminal policy、resume policy 与 semantic retry policy；真实 delegate payload 仍只通过
+`runtime_decisions.handoff.agent_request` 进入 Python bridge。当前 runtime 可发出
+`terminal`、`direct_runtime` 与 `single_handoff`；`multi_step` 只是 forward enum，只有当
+durable `WorkflowRun` backend、handoff chain、semantic retry/replan 与 resume 语义落地后才能
+出现在 live response trace 中。
+
 ## 设计原则
 
 长期执行链路固定为：

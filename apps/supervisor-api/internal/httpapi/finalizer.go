@@ -216,7 +216,7 @@ func buildWorkflowTraceSummaryWire(
 		},
 		PlanningOutcome:        defaultString(decisions.PlanningOutcome, "not_preplanned"),
 		DirectVsDelegateBranch: branch,
-		WorkflowMode:           workflowMode,
+		WorkflowMode:           contractsv1.WorkflowMode(workflowMode),
 		Handoff:                handoff,
 		HandoffChain:           run.HandoffChainMaps(),
 		SelectedTarget:         &selectedTarget,
@@ -253,7 +253,7 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"context_resolution":        wire.ContextResolution,
 		"planning_outcome":          wire.PlanningOutcome,
 		"direct_vs_delegate_branch": wire.DirectVsDelegateBranch,
-		"workflow_mode":             wire.WorkflowMode,
+		"workflow_mode":             string(wire.WorkflowMode),
 		"handoff":                   wire.Handoff,
 		"handoff_chain":             wire.HandoffChain,
 		"selected_target":           selectedTarget,
@@ -368,7 +368,7 @@ func workflowHandoffSummary(
 	return map[string]any{
 		"target":        defaultString(handoff.Target, target),
 		"payload_kind":  handoff.PayloadKind,
-		"allowed_tools": append([]string(nil), handoff.AllowedTools...),
+		"allowed_tools": append([]string{}, handoff.AllowedTools...),
 	}
 }
 
@@ -399,7 +399,7 @@ func workflowTraceRun(
 		run.HandoffChain = append(run.HandoffChain, execution.HandoffStep{
 			Target:       defaultString(handoff.Target, target),
 			PayloadKind:  handoff.PayloadKind,
-			AllowedTools: append([]string(nil), handoff.AllowedTools...),
+			AllowedTools: append([]string{}, handoff.AllowedTools...),
 			SelectedTool: selectedTool,
 		})
 	}

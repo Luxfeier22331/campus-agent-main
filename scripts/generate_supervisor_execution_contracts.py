@@ -115,6 +115,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
     supervisor_statuses = _enum(contract, "SupervisorStatus")
+    workflow_modes = _enum(contract, "WorkflowMode")
     return (
         f"/* {HEADER}. Do not edit by hand. */\n\n"
         "export const SUPERVISOR_EXECUTION_CONTRACT = {\n"
@@ -130,12 +131,14 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         + _ts_const_array("CONFIDENCE_LEVELS", confidence_levels)
         + _ts_const_array("DELEGATE_STATUSES", delegate_statuses)
         + _ts_const_array("SUPERVISOR_STATUSES", supervisor_statuses)
+        + _ts_const_array("WORKFLOW_MODES", workflow_modes)
         + "\n"
         "export type AgentTarget = (typeof AGENT_TARGETS)[number];\n"
         "export type RequestedCapability = (typeof REQUESTED_CAPABILITIES)[number];\n"
         "export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];\n"
         "export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];\n"
         "export type SupervisorStatus = (typeof SUPERVISOR_STATUSES)[number];\n\n"
+        "export type WorkflowMode = (typeof WORKFLOW_MODES)[number];\n\n"
         "export type SafeRecord = Record<string, unknown>;\n\n"
         "export interface RuntimeDecisionSummaryWire {\n"
         "\tschema_version: typeof SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;\n"
@@ -151,6 +154,29 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\truntime_versions?: SafeRecord;\n"
         "\tpolicy_artifact_versions?: SafeRecord;\n"
         "}\n\n"
+        "export interface WorkflowPlanStepWire {\n"
+        "\tstep_id: string;\n"
+        "\tstep_kind: string;\n"
+        "\ttarget?: string;\n"
+        "\tpayload_kind?: string;\n"
+        "\tallowed_tools?: string[];\n"
+        "\tselected_tool?: string;\n"
+        "}\n\n"
+        "export interface WorkflowPlanEdgeWire {\n"
+        "\tfrom_step_id: string;\n"
+        "\tto_step_id: string;\n"
+        "\tcondition: string;\n"
+        "}\n\n"
+        "export interface WorkflowPlanWire {\n"
+        '\tschema_version: "workflow-plan-v1";\n'
+        "\tplan_id: string;\n"
+        "\tworkflow_mode: WorkflowMode;\n"
+        "\tsteps: WorkflowPlanStepWire[];\n"
+        "\tedges: WorkflowPlanEdgeWire[];\n"
+        "\tterminal_policy: SafeRecord;\n"
+        "\tresume_policy: SafeRecord;\n"
+        "\tsemantic_retry_policy: SafeRecord;\n"
+        "}\n\n"
         "export interface RuntimeDecisionsWire {\n"
         "\tschema_version: typeof SUPERVISOR_EXECUTION_CONTRACT.runtimeDecisionsSchemaVersion;\n"
         "\teffective_capability: RequestedCapability;\n"
@@ -162,6 +188,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tcontext_preflight?: SafeRecord;\n"
         "\ttool_policy?: SafeRecord;\n"
         "\thandoff?: SafeRecord;\n"
+        "\tworkflow_plan?: WorkflowPlanWire;\n"
         "\tterminal_envelope?: SafeRecord;\n"
         "\t[key: string]: unknown;\n"
         "}\n\n"
@@ -197,7 +224,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tcontext_resolution: SafeRecord;\n"
         "\tplanning_outcome: string;\n"
         "\tdirect_vs_delegate_branch: string;\n"
-        "\tworkflow_mode: string;\n"
+        "\tworkflow_mode: WorkflowMode;\n"
         "\thandoff: SafeRecord;\n"
         "\thandoff_chain: SafeRecord[];\n"
         "\tselected_target: AgentTarget | string | null;\n"
@@ -232,6 +259,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
     supervisor_statuses = _enum(contract, "SupervisorStatus")
+    workflow_modes = _enum(contract, "WorkflowMode")
     return _gofmt(
         f"// {HEADER}. Do not edit by hand.\n\n"
         "package contracts\n\n"
@@ -255,6 +283,7 @@ def _generate_go(contract: dict[str, Any]) -> str:
         + _go_string_type("ConfidenceLevel", confidence_levels)
         + _go_string_type("DelegateStatus", delegate_statuses)
         + _go_string_type("SupervisorStatus", supervisor_statuses)
+        + _go_string_type("WorkflowMode", workflow_modes)
         + """
 type RuntimeDecisionSummaryWire struct {
 \tSchemaVersion string `json:"schema_version"`
@@ -271,6 +300,32 @@ type RuntimeDecisionSummaryWire struct {
 \tPolicyArtifactVersions map[string]any `json:"policy_artifact_versions,omitempty"`
 }
 
+type WorkflowPlanStepWire struct {
+\tStepID string `json:"step_id"`
+\tStepKind string `json:"step_kind"`
+\tTarget string `json:"target,omitempty"`
+\tPayloadKind string `json:"payload_kind,omitempty"`
+\tAllowedTools []string `json:"allowed_tools,omitempty"`
+\tSelectedTool string `json:"selected_tool,omitempty"`
+}
+
+type WorkflowPlanEdgeWire struct {
+\tFromStepID string `json:"from_step_id"`
+\tToStepID string `json:"to_step_id"`
+\tCondition string `json:"condition"`
+}
+
+type WorkflowPlanWire struct {
+\tSchemaVersion string `json:"schema_version"`
+\tPlanID string `json:"plan_id"`
+\tWorkflowMode WorkflowMode `json:"workflow_mode"`
+\tSteps []WorkflowPlanStepWire `json:"steps"`
+\tEdges []WorkflowPlanEdgeWire `json:"edges"`
+\tTerminalPolicy map[string]any `json:"terminal_policy"`
+\tResumePolicy map[string]any `json:"resume_policy"`
+\tSemanticRetryPolicy map[string]any `json:"semantic_retry_policy"`
+}
+
 type RuntimeDecisionsWire struct {
 \tSchemaVersion string `json:"schema_version"`
 \tEffectiveCapability RequestedCapability `json:"effective_capability"`
@@ -282,6 +337,7 @@ type RuntimeDecisionsWire struct {
 \tContextPreflight map[string]any `json:"context_preflight,omitempty"`
 \tToolPolicy map[string]any `json:"tool_policy,omitempty"`
 \tHandoff map[string]any `json:"handoff,omitempty"`
+\tWorkflowPlan *WorkflowPlanWire `json:"workflow_plan,omitempty"`
 \tTerminalEnvelope map[string]any `json:"terminal_envelope,omitempty"`
 }
 
@@ -308,7 +364,7 @@ type WorkflowTraceSummaryWire struct {
 \tContextResolution map[string]any `json:"context_resolution"`
 \tPlanningOutcome string `json:"planning_outcome"`
 \tDirectVsDelegateBranch string `json:"direct_vs_delegate_branch"`
-\tWorkflowMode string `json:"workflow_mode"`
+\tWorkflowMode WorkflowMode `json:"workflow_mode"`
 \tHandoff map[string]any `json:"handoff"`
 \tHandoffChain []map[string]any `json:"handoff_chain"`
 \tSelectedTarget *string `json:"selected_target"`
@@ -432,6 +488,11 @@ func (wire RuntimeDecisionsWire) Validate() error {
 \tif err := wire.RuntimeDecisionSummary.Validate(); err != nil {
 \t\treturn fmt.Errorf("runtime_decision_summary: %w", err)
 \t}
+\tif wire.WorkflowPlan != nil {
+\t\tif err := wire.WorkflowPlan.Validate(); err != nil {
+\t\t\treturn fmt.Errorf("workflow_plan: %w", err)
+\t\t}
+\t}
 \treturn nil
 }
 
@@ -441,6 +502,53 @@ func (wire RuntimeDecisionSummaryWire) Validate() error {
 \t}
 \tif wire.PlanningOutcome == "" {
 \t\treturn fmt.Errorf("planning_outcome is required")
+\t}
+\treturn nil
+}
+
+func (wire WorkflowPlanWire) Validate() error {
+\tif wire.SchemaVersion != "workflow-plan-v1" {
+\t\treturn fmt.Errorf("schema_version must be workflow-plan-v1")
+\t}
+\tif wire.PlanID == "" {
+\t\treturn fmt.Errorf("plan_id is required")
+\t}
+\tif !wire.WorkflowMode.Valid() {
+\t\treturn fmt.Errorf("workflow_mode is invalid")
+\t}
+\tif wire.Steps == nil {
+\t\treturn fmt.Errorf("steps is required")
+\t}
+\tif wire.Edges == nil {
+\t\treturn fmt.Errorf("edges is required")
+\t}
+\tif wire.TerminalPolicy == nil {
+\t\treturn fmt.Errorf("terminal_policy is required")
+\t}
+\tif wire.ResumePolicy == nil {
+\t\treturn fmt.Errorf("resume_policy is required")
+\t}
+\tif wire.SemanticRetryPolicy == nil {
+\t\treturn fmt.Errorf("semantic_retry_policy is required")
+\t}
+\tfor index, step := range wire.Steps {
+\t\tif step.StepID == "" {
+\t\t\treturn fmt.Errorf("steps[%d].step_id is required", index)
+\t\t}
+\t\tif step.StepKind == "" {
+\t\t\treturn fmt.Errorf("steps[%d].step_kind is required", index)
+\t\t}
+\t}
+\tfor index, edge := range wire.Edges {
+\t\tif edge.FromStepID == "" {
+\t\t\treturn fmt.Errorf("edges[%d].from_step_id is required", index)
+\t\t}
+\t\tif edge.ToStepID == "" {
+\t\t\treturn fmt.Errorf("edges[%d].to_step_id is required", index)
+\t\t}
+\t\tif edge.Condition == "" {
+\t\t\treturn fmt.Errorf("edges[%d].condition is required", index)
+\t\t}
 \t}
 \treturn nil
 }
@@ -460,6 +568,9 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 \t}
 \tif wire.WorkflowMode == "" {
 \t\treturn fmt.Errorf("workflow_mode is required")
+\t}
+\tif !wire.WorkflowMode.Valid() {
+\t\treturn fmt.Errorf("workflow_mode is invalid")
 \t}
 \tif wire.Handoff == nil {
 \t\treturn fmt.Errorf("handoff is required")
@@ -561,6 +672,15 @@ func (value SupervisorStatus) Valid() bool {
 \t\treturn false
 \t}
 }
+
+func (value WorkflowMode) Valid() bool {
+\tswitch value {
+\tcase WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
+\t\treturn true
+\tdefault:
+\t\treturn false
+\t}
+}
 """
 
 
@@ -575,6 +695,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
     confidence_levels = _enum(contract, "ConfidenceLevel")
     delegate_statuses = _enum(contract, "DelegateStatus")
     supervisor_statuses = _enum(contract, "SupervisorStatus")
+    workflow_modes = _enum(contract, "WorkflowMode")
     return (
         f"# {HEADER}. Do not edit by hand.\n\n"
         "from __future__ import annotations\n\n"
@@ -591,6 +712,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         f"ConfidenceLevel = {_py_literal(confidence_levels)}\n"
         f"DelegateStatus = {_py_literal(delegate_statuses)}\n"
         f"SupervisorStatus = {_py_literal(supervisor_statuses)}\n\n\n"
+        f"WorkflowMode = {_py_literal(workflow_modes)}\n\n\n"
         "class RuntimeDecisionSummaryWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
         "    schema_version: Literal[RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION]\n"
@@ -605,6 +727,29 @@ def _generate_py(contract: dict[str, Any]) -> str:
         '    fail_close_reason: str = ""\n'
         "    runtime_versions: dict[str, Any] = Field(default_factory=dict)\n"
         "    policy_artifact_versions: dict[str, Any] = Field(default_factory=dict)\n\n\n"
+        "class WorkflowPlanStepWire(BaseModel):\n"
+        '    model_config = ConfigDict(extra="forbid")\n\n'
+        "    step_id: str\n"
+        "    step_kind: str\n"
+        '    target: str = ""\n'
+        '    payload_kind: str = ""\n'
+        "    allowed_tools: list[str] = Field(default_factory=list)\n"
+        '    selected_tool: str = ""\n\n\n'
+        "class WorkflowPlanEdgeWire(BaseModel):\n"
+        '    model_config = ConfigDict(extra="forbid")\n\n'
+        "    from_step_id: str\n"
+        "    to_step_id: str\n"
+        "    condition: str\n\n\n"
+        "class WorkflowPlanWire(BaseModel):\n"
+        '    model_config = ConfigDict(extra="forbid")\n\n'
+        '    schema_version: Literal["workflow-plan-v1"]\n'
+        "    plan_id: str\n"
+        "    workflow_mode: WorkflowMode\n"
+        "    steps: list[WorkflowPlanStepWire]\n"
+        "    edges: list[WorkflowPlanEdgeWire]\n"
+        "    terminal_policy: dict[str, Any]\n"
+        "    resume_policy: dict[str, Any]\n"
+        "    semantic_retry_policy: dict[str, Any]\n\n\n"
         "class RuntimeDecisionsWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="allow")\n\n'
         "    schema_version: Literal[RUNTIME_DECISIONS_SCHEMA_VERSION]\n"
@@ -617,6 +762,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    context_preflight: dict[str, Any] = Field(default_factory=dict)\n"
         "    tool_policy: dict[str, Any] = Field(default_factory=dict)\n"
         "    handoff: dict[str, Any] | None = None\n"
+        "    workflow_plan: WorkflowPlanWire | None = None\n"
         "    terminal_envelope: dict[str, Any] | None = None\n\n\n"
         "class BridgeV6RequestWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
@@ -651,7 +797,7 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    context_resolution: dict[str, Any]\n"
         "    planning_outcome: str\n"
         "    direct_vs_delegate_branch: str\n"
-        "    workflow_mode: str\n"
+        "    workflow_mode: WorkflowMode\n"
         "    handoff: dict[str, Any]\n"
         "    handoff_chain: list[dict[str, Any]]\n"
         "    selected_target: str | None\n"

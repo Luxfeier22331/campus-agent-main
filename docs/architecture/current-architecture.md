@@ -146,6 +146,9 @@ model`
 - 拥有 deterministic structured planner；当前实现位于
   `apps/supervisor-api/internal/structuredplanning`，`internal/execution`
   仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
+- `runtime_decisions.workflow_plan` 已作为 planner 的 canonical safe projection
+  落入 bridge contract；当前 runtime 只发出 `single_handoff` plan，`multi_step`
+  仍是 forward enum，不是当前 merged runtime behavior
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope

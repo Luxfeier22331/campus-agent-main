@@ -22,6 +22,15 @@ func TestDecodeBridgeV6RequestWireJSONAcceptsCanonicalFixture(t *testing.T) {
 			wire.RuntimeDecisions.RuntimeDecisionSummary.PlanningOutcome,
 		)
 	}
+	if wire.RuntimeDecisions.WorkflowPlan == nil {
+		t.Fatal("workflow_plan is nil, want canonical plan projection")
+	}
+	if wire.RuntimeDecisions.WorkflowPlan.WorkflowMode != WorkflowModeSingleHandoff {
+		t.Fatalf(
+			"workflow mode = %q, want single_handoff",
+			wire.RuntimeDecisions.WorkflowPlan.WorkflowMode,
+		)
+	}
 }
 
 func TestDecodeBridgeV6RequestWireJSONRejectsInvalidFixtures(t *testing.T) {
@@ -40,10 +49,10 @@ func TestDecodeBridgeV6RequestWireJSONRejectsInvalidFixtures(t *testing.T) {
 
 func TestDecodeSupervisorResponseWireJSONAcceptsTerminalFixtures(t *testing.T) {
 	expectedStatusByFixture := map[string]SupervisorStatus{
-		"response_cancelled_null_target.valid.json":          SupervisorStatusCancelled,
-		"response_completed_delegate.valid.json":             SupervisorStatusCompleted,
-		"response_error_bridge_unavailable.valid.json":       SupervisorStatusError,
-		"response_timeout.valid.json":                        SupervisorStatusError,
+		"response_cancelled_null_target.valid.json":    SupervisorStatusCancelled,
+		"response_completed_delegate.valid.json":       SupervisorStatusCompleted,
+		"response_error_bridge_unavailable.valid.json": SupervisorStatusError,
+		"response_timeout.valid.json":                  SupervisorStatusError,
 	}
 
 	for fixtureName, expectedStatus := range expectedStatusByFixture {

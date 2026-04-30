@@ -536,6 +536,14 @@ func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 		t.Fatalf("finalize returned error: %v", err)
 	}
 	traceSummary := response["workflow_trace_summary"].(map[string]any)
+	handoff := traceSummary["handoff"].(map[string]any)
+	allowedTools, ok := handoff["allowed_tools"].([]string)
+	if !ok {
+		t.Fatalf("handoff allowed_tools = %#v, want string array", handoff["allowed_tools"])
+	}
+	if allowedTools == nil {
+		t.Fatal("handoff allowed_tools is nil, want empty array projection")
+	}
 	toolSummary, ok := traceSummary["tool_argument_summary"].(map[string]any)
 	if !ok {
 		t.Fatalf("tool_argument_summary = %#v, want object", traceSummary["tool_argument_summary"])
@@ -549,6 +557,24 @@ func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 	observability := response["observability"].(map[string]any)
 	if observability["selected_tool"] != "retrieval.query" {
 		t.Fatalf("observability selected_tool = %v, want retrieval.query", observability["selected_tool"])
+	}
+}
+
+func TestWorkflowHandoffSummaryProjectsNilAllowedToolsAsEmptyArray(t *testing.T) {
+	summary := workflowHandoffSummary(&execution.RuntimeHandoff{
+		Target:      "rag-agent",
+		PayloadKind: "rag_request",
+	}, "rag-agent", "retrieval.query")
+
+	allowedTools, ok := summary["allowed_tools"].([]string)
+	if !ok {
+		t.Fatalf("allowed_tools = %#v, want string array", summary["allowed_tools"])
+	}
+	if allowedTools == nil {
+		t.Fatal("allowed_tools is nil, want empty array projection")
+	}
+	if len(allowedTools) != 0 {
+		t.Fatalf("allowed_tools = %#v, want empty array", allowedTools)
 	}
 }
 

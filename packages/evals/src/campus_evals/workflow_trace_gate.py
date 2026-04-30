@@ -16,6 +16,7 @@ from campus_evals.models import (
 WORKFLOW_TRACE_GATE_CASES_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "workflow_trace_gate_cases.v1.json"
 )
+SUPPORTED_WORKFLOW_MODES = frozenset(("terminal", "direct_runtime", "single_handoff", "multi_step"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -524,12 +525,16 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         missing.append("direct_vs_delegate_branch")
     if not summary.workflow_mode:
         missing.append("workflow_mode")
+    elif summary.workflow_mode not in SUPPORTED_WORKFLOW_MODES:
+        missing.append("workflow_mode.supported")
     if not summary.selected_target:
         missing.append("selected_target")
     if summary.workflow_mode == "terminal" and summary.selected_target != "none":
         missing.append("selected_target.none_sentinel")
     if summary.workflow_mode == "single_handoff" and not summary.handoff_chain:
         missing.append("handoff_chain")
+    if summary.workflow_mode == "multi_step" and len(summary.handoff_chain) < 2:
+        missing.append("handoff_chain.multi_step")
     if (
         not summary.selected_tools
         and not summary.fail_close_reason

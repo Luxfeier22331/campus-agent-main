@@ -87,6 +87,81 @@ components:
         - rejected
         - approval_required
         - cancelled
+    WorkflowMode:
+      type: string
+      enum:
+        - terminal
+        - direct_runtime
+        - single_handoff
+        - multi_step
+    WorkflowPlanStep:
+      type: object
+      additionalProperties: false
+      required:
+        - step_id
+        - step_kind
+      properties:
+        step_id:
+          type: string
+        step_kind:
+          type: string
+        target:
+          type: string
+        payload_kind:
+          type: string
+        allowed_tools:
+          type: array
+          items:
+            type: string
+        selected_tool:
+          type: string
+    WorkflowPlanEdge:
+      type: object
+      additionalProperties: false
+      required:
+        - from_step_id
+        - to_step_id
+        - condition
+      properties:
+        from_step_id:
+          type: string
+        to_step_id:
+          type: string
+        condition:
+          type: string
+    WorkflowPlan:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - plan_id
+        - workflow_mode
+        - steps
+        - edges
+        - terminal_policy
+        - resume_policy
+        - semantic_retry_policy
+      properties:
+        schema_version:
+          const: workflow-plan-v1
+        plan_id:
+          type: string
+        workflow_mode:
+          $ref: "#/components/schemas/WorkflowMode"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowPlanStep"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowPlanEdge"
+        terminal_policy:
+          $ref: "#/components/schemas/SafeObject"
+        resume_policy:
+          $ref: "#/components/schemas/SafeObject"
+        semantic_retry_policy:
+          $ref: "#/components/schemas/SafeObject"
     SafeObject:
       type: object
       additionalProperties: true
@@ -245,6 +320,8 @@ components:
           $ref: "#/components/schemas/SafeObject"
         handoff:
           $ref: "#/components/schemas/SafeObject"
+        workflow_plan:
+          $ref: "#/components/schemas/WorkflowPlan"
         terminal_envelope:
           $ref: "#/components/schemas/SafeObject"
         runtime_decision_summary:
@@ -397,7 +474,7 @@ components:
         direct_vs_delegate_branch:
           type: string
         workflow_mode:
-          type: string
+          $ref: "#/components/schemas/WorkflowMode"
         handoff:
           $ref: "#/components/schemas/SafeObject"
         handoff_chain:

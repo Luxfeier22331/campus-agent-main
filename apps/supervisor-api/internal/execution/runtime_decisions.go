@@ -67,9 +67,9 @@ func runtimeDecisions(
 		"tool_policy":          policyDecision.ToolPolicy.Map(),
 		"routing_frame":        policyDecision.RoutingFrame.Map(),
 	}
-	var handoff *structuredplanning.Handoff
+	var plan *structuredplanning.WorkflowPlan
 	if policyAvailable {
-		handoff = structuredplanning.PlanWithPolicy(structuredplanning.Request{
+		plan = structuredplanning.PlanWithPolicy(structuredplanning.Request{
 			EffectiveCapability: effectiveCapability,
 			UserGoal:            userGoal,
 			HasRequestedScope:   hasRequestedScope,
@@ -90,6 +90,7 @@ func runtimeDecisions(
 			},
 		}, intentPolicy)
 	}
+	handoff := plan.SelectedHandoff()
 	if policyDecision.RoutingFrame.SuggestedNextAction == "delegate" && handoff != nil {
 		summary.PlanningOutcome = "preplanned"
 		summary.SelectedTarget = handoff.Target
@@ -100,12 +101,12 @@ func runtimeDecisions(
 			Target:       handoff.Target,
 			PayloadKind:  handoff.PayloadKind,
 			Payload:      handoff.Payload,
-			AllowedTools: append([]string(nil), handoff.AllowedTools...),
+			AllowedTools: append([]string{}, handoff.AllowedTools...),
 		}
 		decisions["handoff"] = map[string]any{
 			"planning_outcome": "preplanned",
 			"target":           handoff.Target,
-			"allowed_tools":    handoff.AllowedTools,
+			"allowed_tools":    append([]string{}, handoff.AllowedTools...),
 			"agent_request": agentRequestProjection(
 				handoff,
 				userGoal,
@@ -117,6 +118,7 @@ func runtimeDecisions(
 				context,
 			),
 		}
+		decisions["workflow_plan"] = plan.Map()
 		decisions["runtime_decision_summary"] = summary.Map()
 		return decisions, summary, runtimeHandoff, nil
 	}
@@ -190,7 +192,7 @@ func agentRequestProjection(
 			"kind":    handoff.PayloadKind,
 			"payload": handoff.Payload,
 		},
-		"allowed_tools": handoff.AllowedTools,
+		"allowed_tools": append([]string{}, handoff.AllowedTools...),
 	}
 }
 
