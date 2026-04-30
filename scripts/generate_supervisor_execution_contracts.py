@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from supervisor_execution_go_decode_helpers import go_decode_helpers
+from scripts.supervisor_execution_go_decode_helpers import go_decode_helpers
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPENAPI_PATH = REPO_ROOT / "docs/contracts/schemas/supervisor-execution.openapi.yaml"
