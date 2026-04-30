@@ -12,15 +12,15 @@ updated: 2026-04-30
 ## Current Status
 
 **Status:** active
-**Current Phase:** Phase 6 `Embedding Cache And Cost Control`
-**Last Activity:** 2026-04-30 Phase 5 completed
+**Current Phase:** Phase 8 `Acceptance, Docs And Closeout`
+**Last Activity:** 2026-04-30 Phase 7 completed
 
 - status: `active`
-- current slice: Phase 5 retrieval runtime drift guard complete; Phase 6 ready to start
+- current slice: Phase 7 eval-driven retrieval tuning complete; Phase 8 ready to start
 - owner: current Codex session
 - active implementation: none yet
-- latest completed phase: Phase 5 `Retrieval Runtime Drift Guard`
-- next phase: Phase 6 `Embedding Cache And Cost Control`
+- latest completed phase: Phase 7 `Eval-Driven Retrieval Tuning`
+- next phase: Phase 8 `Acceptance, Docs And Closeout`
 - status note: `gsd-sdk workstream.status` reports any phase directory with `PLAN.md` and no
   `SUMMARY.md` as `in_progress`; ROADMAP `Status:` lines remain the human execution truth for
   planned-but-not-started phases in this workstream.
@@ -38,8 +38,7 @@ updated: 2026-04-30
 - Phase 0 evidence is captured at
   `evidence/phase-00-current-inventory.md`.
 - Current gaps:
-  - embedding cache is not implemented.
-  - retrieval tuning is not yet qrels-driven per collection.
+  - final acceptance/docs/closeout is not yet complete.
 
 ## Blockers
 

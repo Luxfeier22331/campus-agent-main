@@ -13,8 +13,7 @@ updated: 2026-04-30
 
 All phases have `PLAN.md` files so the generic `gsd-sdk workstream.status` helper reports
 them as `in_progress`. For this workstream, execution truth is the explicit `Status:` line in
-this roadmap plus `STATE.md`: Phases 0-5 are complete; Phase 6 is ready to start; Phases 7-8
-remain planned until their summaries/evidence are written.
+this roadmap plus `STATE.md`: Phases 0-7 are complete; Phase 8 is ready to start.
 
 ## Phase 0: Scope And Truth Alignment
 
@@ -111,7 +110,7 @@ remain planned until their summaries/evidence are written.
 
 ## Phase 6: Embedding Cache And Cost Control
 
-**Status:** planned; ready to start.
+**Status:** completed.
 
 **Goal:** 建立 deterministic embedding cache，降低 rebuild 成本并提升 replay 稳定性。
 
@@ -124,9 +123,11 @@ remain planned until their summaries/evidence are written.
 - 该 phase 是成本与稳定性 hardening，不是 Phase 2 publish safety gate 的前置条件；如
   release rebuild 成本成为阻塞，可在 Phase 3/4 provenance 后提前执行。
 
+**Evidence:** `./phases/phase-06-embedding-cache-and-cost-control/SUMMARY.md`.
+
 ## Phase 7: Eval-Driven Retrieval Tuning
 
-**Status:** planned.
+**Status:** completed.
 
 **Goal:** 让 dense/sparse/RRF/no-hit 参数由 per-collection eval 证据驱动。
 
@@ -139,6 +140,8 @@ remain planned until their summaries/evidence are written.
   authz restricted cases。
 - 输出 tuning report 与 profile patch recommendation。
 - 只接受 deterministic gate；supplemental judge 仅做诊断。
+
+**Evidence:** `./phases/phase-07-eval-driven-retrieval-tuning/SUMMARY.md`.
 
 ## Phase 8: Acceptance, Docs And Closeout
 

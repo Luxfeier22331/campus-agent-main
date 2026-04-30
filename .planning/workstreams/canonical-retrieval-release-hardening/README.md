@@ -17,14 +17,14 @@ provenance、成本控制与 retrieval acceptance gate。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 6` ready
+- current phase: `Phase 8` ready
 - active implementation: not started
 - current posture: 基础链路已经存在；chunk preparation / release manifest / dense+sparse
   hybrid retrieval / metadata filter 已具备，query-enabled truth 已与 runtime profile /
   policy 收敛；registry-scope release 已支持 alias publish 前 deterministic retrieval
   acceptance gate；sparse/hybrid release provenance 已补齐；chunker/tokenizer preparation
-  provenance 已补齐；retrieval runtime drift guard 已落地；embedding cache 与 eval-driven
-  retrieval tuning 仍未完整收口。
+  provenance 已补齐；retrieval runtime drift guard 已落地；embedding cache / cost counters
+  已落地；eval-driven retrieval tuning runner 与默认 query-enabled qrels denominator 已落地。
   runtime drift guard 必须在
   release/point payload provenance 补齐后执行，不能校验尚未落盘的字段。
 
