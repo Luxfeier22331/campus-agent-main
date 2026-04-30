@@ -16,9 +16,9 @@ updated: 2026-04-30
 **Last Activity:** 2026-04-30 Phase 8 completed
 
 - status: `completed`
-- current slice: workstream complete
+- current slice: Workstream closed after Phase 8 acceptance/docs/closeout
 - owner: current Codex session
-- active implementation: none yet
+- active implementation: none
 - latest completed phase: Phase 8 `Acceptance, Docs And Closeout`
 - next phase: none
 - status note: `gsd-sdk workstream.status` reports any phase directory with `PLAN.md` and no
@@ -42,14 +42,13 @@ updated: 2026-04-30
 
 ## Blockers
 
-- No external blocker for Phase 1.
-- Phase 2 must create or require a small deterministic acceptance fixture set before any
+- No external blocker.
+- Phase 2 created and requires a small deterministic acceptance fixture set before any
   query-serving alias publish can pass; missing fixtures fail closed.
 - Phase 5 runtime drift guard posture is frozen: online query path uses Qdrant point payload /
   current release metadata; object-store manifest is audit / offline fallback only.
-- Phase 6 needs cache storage decision: object store only, Postgres metadata pointer, or both;
-  this is cost/stability hardening and can run after provenance if rebuild cost becomes the
-  active blocker.
+- Phase 6 embedding cache uses deterministic provider/model/dimension identity; cache key
+  changes must invalidate stale vectors.
 
 ## Verification Plan
 
@@ -88,6 +87,33 @@ Repo-wide unittest is currently not clean in this dirty worktree due unrelated s
 protected-panel import, curriculum multimodal probe, public-docs missing file, and process-smoke
 failures. Use focused gates for this workstream and report repo-wide residual failures separately.
 
+Phase 8 focused gate result:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_embed \
+  tests.ingestion.test_corpus_runtime_profile \
+  tests.ingestion.test_index_release_acceptance \
+  tests.ingestion.test_registry_scope_release \
+  tests.ingestion.test_index_release \
+  tests.ingestion.test_qdrant_backup \
+  tests.ingestion.test_qdrant_backup_worker \
+  tests.retrieval.test_backend_qdrant \
+  tests.retrieval.test_service \
+  tests.evals.test_retrieval_benchmark \
+  tests.evals.test_retrieval_tuning
+```
+
+Result: `Ran 279 tests ... OK`.
+
+Docs gate:
+
+```bash
+pnpm docs:lint
+```
+
+Result: `Summary: 0 error(s)`.
+
 ## Continuity Notes
 
 - Do not publish query-serving alias from provider-response replay.
@@ -96,3 +122,13 @@ failures. Use focused gates for this workstream and report repo-wide residual fa
 - Do not put object bytes in Postgres; release artifacts stay in S3-compatible object storage.
 - Do not use eval tuning to silently expand query-enabled scopes.
 - Do not let missing release acceptance fixtures count as a passed query-serving publish gate.
+
+## Reopen Rule
+
+Reopen only if one of these happens:
+
+- a query-enabled scope is added without qrels / release acceptance coverage
+- release manifest / point payload provenance drifts from runtime profile fields
+- runtime drift guard fails to catch a release/profile mismatch
+- embedding cache changes provider/model/dimension identity without invalidating cache keys
+- retrieval tuning starts mutating production profiles without deterministic passing evidence

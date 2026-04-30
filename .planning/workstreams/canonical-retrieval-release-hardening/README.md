@@ -9,7 +9,7 @@ updated: 2026-04-30
 
 # Workstream: Canonical Retrieval Release Hardening
 
-这是 `canonical-retrieval-release-hardening` 的 native active workstream 入口。
+这是 `canonical-retrieval-release-hardening` 的 native completed workstream 入口。
 它承接 `canonical document artifacts -> document-units -> chunks -> embedding ->
 Qdrant release -> retrieval evidence` 这条链路的发布安全、运行时漂移防护、
 provenance、成本控制与 retrieval acceptance gate。
@@ -18,7 +18,7 @@ provenance、成本控制与 retrieval acceptance gate。
 
 - status: `completed`
 - current phase: `Phase 8` completed
-- active implementation: not started
+- active implementation: none
 - current posture: 基础链路已经存在；chunk preparation / release manifest / dense+sparse
   hybrid retrieval / metadata filter 已具备，query-enabled truth 已与 runtime profile /
   policy 收敛；registry-scope release 已支持 alias publish 前 deterministic retrieval
