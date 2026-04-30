@@ -18,7 +18,7 @@ updated: 2026-05-01
 
 ## Execution Chain
 
-当前与长期都遵循：
+当前主路径遵循：
 
 `app-api -> supervisor-api -> supervisor-agent-worker private bridge ->
 agent -> retrieval-core -> evidence -> supervisor response`
@@ -27,6 +27,16 @@ agent -> retrieval-core -> evidence -> supervisor response`
 
 `app-api -> supervisor-api -> Go structured runtime -> supervisor-style response`
 
+长期目标态在同一 governance boundary 内扩展为：
+
+`app-api -> supervisor-api -> workflow plan -> one or more domain agents ->
+typed step output projections -> Go supervisor finalization`
+
+这表示 repo 采用 supervisor-led governed multi-agent，而不是无中心 peer
+agent mesh。Go `apps/supervisor-api` 保留 deterministic workflow ownership；
+Python `apps/supervisor-agent-worker` 与 package-owned domain agents 承接 bounded
+semantic execution。
+
 边界固定如下：
 
 - Go `apps/supervisor-api` 负责 Docker-side execution runtime control plane
@@ -34,6 +44,8 @@ agent -> retrieval-core -> evidence -> supervisor response`
   assembly 与默认 agent delegate map 装配；worker 内部 `AgentDispatcher` 消费
   Go preplanned `AgentRequest` handoff，并调用注入的 agent delegate
 - agent 负责能力边界内的 planning / evidence consumption / answer shaping
+- multi-agent path 只能通过 Go-owned `WorkflowPlan` admission 打开；agent 之间不得通过
+  raw prompt transcript、raw provider trace 或 unbounded evidence dump 直接互相调用
 - `packages/retrieval-core` 负责 evidence retrieval kernel、target-state retrieval
   execution 与 query activity，不负责顶层产品编排
 
@@ -44,6 +56,8 @@ supervisor 长期负责：
 - admission / guardrails
 - capability routing
 - handoff shaping
+- workflow plan ownership
+- allowed agent / allowed tool / step budget policy
 - response finalization
 - fail-close terminal semantics
 
@@ -58,11 +72,14 @@ supervisor 不负责：
 - collection-specific ingestion logic
 - product-layer auth/session ownership
 - 将 agent 降级成扁平 tool bundle
+- 在 prompt 内隐式决定跨 agent 协作顺序
 
 补充约束：
 
 - supervisor 是 neutral capability router，不是默认的 knowledge / `rag-agent` router
 - `public chat` 当前 knowledge-only 只是 surface posture，不反向定义 supervisor 的长期角色
+- supervisor 是 multi-agent manager，不是 peer agent；它保留最终回复 ownership，
+  除非 workflow plan 显式采用 specialist handoff ownership transfer
 
 ## Supervisor Runtime Kernel
 
@@ -242,12 +259,14 @@ Python semantic orchestration 长期继续负责：
 
 长期 execution path 固定采用：
 
-`surface intake -> admission / guardrails -> capability routing -> agent
-handoff -> agent-owned execution -> Go supervisor finalization`
+`surface intake -> admission / guardrails -> capability routing -> workflow
+planning -> agent-owned execution -> Go supervisor finalization`
 
 固定规则：
 
 - 顶层先判 capability family，再判 family 内部 execution path
+- capability family 决策之后，supervisor 可以选择 `terminal`、`direct_runtime`、
+  `single_handoff` 或 admitted `multi_step` workflow
 - `requested_scope` 只属于 knowledge-family path，不是顶层所有请求共享的默认字段
 - `routing clarification` 由 supervisor 拥有，`agent clarification` 由 agent 拥有
 - 当前 merged truth 仍可以保持“公开主路径以 knowledge 为主”，但这不表示长期入口必须 `RAG-first`
@@ -289,6 +308,53 @@ agent 是稳定能力边界，不等于某个底层框架对象。
 - 当前 shared contract seam 使用 `AgentRequest` / `AgentResponse` 作为 private
   bridge 的 canonical DTO 名称。
 
+## Governed Multi-Agent Target
+
+长期 multi-agent 默认采用 manager-style orchestration：
+
+`Go supervisor-api -> WorkflowPlan -> bounded specialist agent calls ->
+StepOutputProjection -> next step / finalizer`
+
+固定 owner 如下：
+
+- Go `apps/supervisor-api`
+  - 拥有 workflow mode、allowed agents、allowed tools、step order、parallelism、
+    timeout / budget、retry / replan posture、terminal fail-close policy 与 finalization
+- Python `apps/supervisor-agent-worker`
+  - 拥有 bounded domain-agent runtime、provider adapter、agent loop execution 与
+    step-local guardrail / tool result consumption
+- domain agent
+  - 拥有 family 内部 reasoning、tool sequencing、clarification 与 answer shaping
+- `packages/evals`
+  - 拥有 multi-agent step selection、handoff correctness、context projection completeness
+    与 final answer grounding 的 denominator
+
+两种协作模式必须显式区分：
+
+- manager-style agents-as-tools
+  - 默认模式；supervisor / workflow manager 保持最终回复 ownership
+  - specialist agent 只返回 bounded typed output，例如 schedule baseline、notice
+    change set、place context 或 evidence bundle
+- specialist handoff
+  - 只在 specialist 应该接管下一轮回复 ownership 时使用
+  - 必须携带显式 handoff target、allowed tools、history filter / context projection 与
+    eval denominator
+
+跨 agent 传递内容必须使用 bounded typed artifact。推荐长期 artifact family 包括：
+
+- `ScheduleBaseline`
+- `NoticeChangeSet`
+- `CanonicalNoticeContext`
+- `PlaceContext`
+- `ServiceGuideFacts`
+- `EvidenceBundle`
+- `GroundingVerdict`
+
+这些 artifact 可以映射为 `StepOutputProjection` 或其后续版本。它们进入下一步 prompt、
+workflow trace、operator projection 或 eval artifact 前，必须经过长度、来源、hash、
+safety summary 与 visibility posture 裁剪。不得把 provider raw response、完整上游答案、
+raw snippets、raw source HTML 或未裁剪附件 OCR dump 直接作为 cross-agent context。
+
 ## Agent Framework / Agents SDK Boundary
 
 agent framework 是 domain-agent 内部实现 substrate，不是 repo-level orchestration owner。
@@ -301,6 +367,16 @@ Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-age
 - run / trace capture，便于投影到 repo-owned `workflow_trace_summary`
 - agent 内部 guardrail / approval checkpoint 的实现 ergonomics
 - resumable state 或 next-turn surface 的局部实现
+
+框架级 handoff / agents-as-tools 的使用必须服从 repo-owned workflow plan：
+
+- 默认优先采用 agents-as-tools / manager-style bounded specialist calls，让 Go
+  supervisor 保持最终回复 ownership
+- 只有当某个 specialist 的 instructions、tools、policy 或 next-turn state 必须接管用户回复时，
+  才采用 explicit handoff
+- 框架生成的 run state、handoff trace、tool schema 与 raw model output 只能作为内部
+  debug / adapter input；对外仍以 repo-owned `AgentResponse`、`StepOutputProjection`
+  与 `workflow_trace_summary` 为准
 
 但它不能替代以下 repo-owned truth：
 
@@ -386,6 +462,11 @@ provider tool loop pilot / open runtime。schema 可用不等于 runtime 已开�
 Provider-native function calling 只能由 ToolSpec 生成的 strict schema 驱动。agent framework
 或 provider SDK 可以承担调用循环、arguments validation ergonomics 与 trace capture，但 trace
 进入 app-api、panel、eval 或 workflow summary 前必须经过 repo-owned bounded projection。
+
+并行 tool / agent fanout 默认由 Go `WorkflowPlan` 显式表达，而不是交给 provider 在单轮
+function calling 中自由并发。provider-native parallel tool call 只有在 ToolSpec、
+runtime_posture、eval denominator 与 result merge policy 都明确允许时才可打开；否则
+domain-agent adapter 应保持 single-call loop 或 serial loop。
 
 当前 Python worker 已有 repo-owned provider function-call adapter 与 gated provider
 tool loop：它只接收 Go `allowed_tools` 对应的 provider schema 子集，通过 injectable

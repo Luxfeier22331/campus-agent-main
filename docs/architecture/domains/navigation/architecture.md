@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-23
+updated: 2026-05-01
 ---
 # Navigation And Wayfinding Architecture
 
@@ -38,6 +38,11 @@ updated: 2026-04-23
 
 `web surface -> app-api -> supervisor-api -> supervisor-agent-worker -> navigation-agent
 -> spatial truth / provider adapters -> supervisor response`
+
+在长期 multi-agent workflow 中，`navigation-agent` 也可以作为 bounded spatial
+specialist 被调用，向其它 domain agent 或 Go finalizer 提供 `PlaceContext`、
+`StopContext`、route summary 或 accessibility warning projection。它不因此拥有
+timetable truth、service-status truth、notice truth 或 retrieval evidence truth。
 
 ## Product Goal
 
@@ -114,6 +119,8 @@ updated: 2026-04-23
 - navigation answer shaping
 - provider fallback orchestration inside the agent boundary
 - transport pickup/dropoff point ref 的消费与路线侧整合
+- manager-style workflow 中的 bounded `PlaceContext` / `StopContext` step output
+  projection
 
 长期不负责：
 
@@ -122,6 +129,8 @@ updated: 2026-04-23
 - product-facing HTTP transport
 - commuter bus / metro shuttle 的 timetable truth
 - service-status truth，例如图书馆/澡堂/窗口当前开放状态
+- notice temporal override truth
+- retrieval answer-bearing evidence selection
 
 ### `apps/app-api`
 

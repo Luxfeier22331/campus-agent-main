@@ -26,7 +26,8 @@ updated: 2026-05-01
 
 `campus-agent` 的目标形态是：
 
-- supervisor-led `hybrid orchestration`
+- supervisor-led governed multi-agent architecture
+- deterministic governance + bounded semantic agent execution
 - capability-neutral supervisor routing
 - domain agent 作为稳定能力边界
 - shared app runtime 与 execution engine 分层
@@ -36,13 +37,20 @@ updated: 2026-05-01
 - planner-first `agentic retrieval` target，且仍保持 bounded campus scope
 - repo-owned tool orchestration，provider-native function calling 只作为
   domain-agent 内部 adapter
+- cross-agent context 通过 typed artifact / projection 传递，而不是通过 prompt
+  自由文本或 provider raw trace 传递
 
 长期主链路固定为：
 
 `client/channel -> web surface -> shared app-api surface policy/context
 projection -> execution engine -> supervisor core admission/routing ->
-capability agent -> family-specific planning/execution -> supervisor
-finalization -> response`
+workflow plan -> one or more capability agents -> family-specific planning/execution
+-> typed step output projection -> supervisor finalization -> response`
+
+这里的 multi-agent 不是无中心 peer swarm。长期默认是 manager-style
+multi-agent：Go `apps/supervisor-api` 保持 workflow / policy / budget / finalization
+ownership，domain agents 作为受控 specialist 参与执行；只有当某个 specialist
+需要拥有后续回复 ownership 时，才使用 explicit handoff。
 
 长期摄入链路固定为：
 
@@ -53,6 +61,10 @@ raw/source-truth/projection/document/chunk/index`
 
 - 不退回 `campusRAG` 式的扁平 tool-adapter 顶层路径
 - supervisor 保持唯一顶层协调入口，不演化成无中心 peer mesh
+- supervisor 不得退化成只负责 HTTP 转发的被动 proxy；它必须继续拥有 deterministic
+  governance、workflow admission、budget 与 finalization
+- domain agent 不得退化成只有名称的 thin function wrapper；它必须在自己的能力边界内拥有
+  planning、tool/result consumption、clarification 或 answer shaping 中至少一种稳定语义职责
 - `admission / guardrails` 与 `capability routing` 必须分层，不得重新混成一个模糊 knowledge gate
 - runtime / transport 逻辑留在 `apps/*`
 - stable capability boundary 留在 `packages/*`
@@ -72,6 +84,8 @@ raw/source-truth/projection/document/chunk/index`
   observability truth
 - tool output 不得以 provider 原始 trace、raw function response 或未裁剪正文形式进入
   app-api、panel、eval canonical asset 或 downstream prompt context
+- cross-agent handoff / context projection 必须使用 bounded typed artifact；不得把上一步
+  agent 的完整自然语言解释、raw evidence dump 或 provider trace 直接塞进下一步 prompt
 
 ## 长期产品/runtime 形态
 
@@ -110,6 +124,9 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor 负责 admission / guardrails、capability routing、handoff、response
   finalization
 - supervisor 长期必须是 neutral capability router，而不是默认把所有请求先压成 `rag-agent`
+- supervisor 长期拥有 workflow plan ownership：它决定本次请求是 terminal、
+  direct structured runtime、single-agent execution 还是 multi-agent workflow，并显式限制
+  allowed agents、allowed tools、step budget、timeout 与 fail-close terminal policy
 - supervisor runtime control plane 长期由 Docker-side Go runtime 承接 deterministic
   execution lifecycle、cancel、timeout、queue、per-lane budget、runtime metrics、audit
   writer 与 fail-close envelope
@@ -117,6 +134,8 @@ raw/source-truth/projection/document/chunk/index`
   Python `apps/supervisor-agent-worker` 只保留 private bridge worker、prompt runtime
   assembly 与 agent dispatch，不再单独保留 `packages/supervisor-core`
 - domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
+- domain agent 可以作为 manager-style workflow 中的 bounded specialist；其输出必须先收敛为
+  `StepOutputProjection` 或同等 bounded result projection，才能供后续 agent 或 finalizer 消费
 - `campus-services-agent` 长期承接只读校园服务结构化查询，包括 transport
   schedule、service status、service guide、temporary override 与 later-wave contact
   directory 等结构化校园服务真相；其中 `service_guide_lookup` 只回答办理指南、材料、
@@ -128,6 +147,9 @@ raw/source-truth/projection/document/chunk/index`
   `packages/navigation-agent`
 - `rag-agent` 长期拆成 scope resolution、retrieval planning、answer
   synthesis、grounding validation 等内部角色；当前 runtime package 为 `packages/rag-agent`
+- `rag-agent` 不再作为所有 campus 请求的默认 fallback；它是 knowledge / retrieval /
+  grounding specialist，可以消费 notice、service、navigation step 产生的 bounded context，
+  但不能代持这些 domain capability 的 source truth
 - `retrieval-core` 长期负责 retrieval execution、rerank / merge / dedupe、query
   activity 与 candidate-set shaping
 - retrieval backend、vector infra、framework 选择隐藏在 agent / retrieval boundary 之后
@@ -145,6 +167,22 @@ raw/source-truth/projection/document/chunk/index`
 - 对 structured projection capability，长期 online consumption 固定为 PostgreSQL
   release catalog / current pointer / typed read model；对象存储保存 immutable release
   artifacts，Redis 只能作为 cache / invalidation adjunct，不拥有 current truth
+
+典型 multi-agent campus workflow 的长期形态包括：
+
+- transport / schedule answer
+  - `campus-services-agent` 读取 current schedule baseline
+  - `notice-agent` 读取近期 override / change notice
+  - `navigation-agent` 补充 stop / pickup point context
+  - `rag-agent` 或 grounding validator 校验证据是否足以回答
+- service handling answer
+  - `campus-services-agent` 读取 guide / contact / status projection
+  - `navigation-agent` 补充办理地点
+  - `rag-agent` 补充稳定制度依据
+- notice explanation answer
+  - `notice-agent` 读取 canonical notice
+  - `rag-agent` 读取相关制度 / reference evidence
+  - supervisor 统一 finalization 与 fail-close semantics
 
 如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 agent 接入，并拥有单独的
 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。
@@ -164,6 +202,9 @@ repo-owned internal query service -> sanitized result projection`
   terminal semantics
 - domain-agent 可以在自己的能力边界内使用 provider-native function calling 或
   agent framework tool loop，但只能消费 Go handoff 中允许的 tool 子集
+- provider function calling 默认用于 domain-agent 内部的 bounded tool loop 或
+  agents-as-tools style specialist call；它不是顶层 routing engine，也不拥有跨 family
+  permission expansion
 - provider-native function calling 是 implementation substrate，不是 repo-level
   orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
   capability family

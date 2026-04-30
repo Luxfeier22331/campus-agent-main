@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-04-27
+updated: 2026-05-01
 ---
 # Campus Services Runtime Architecture
 
@@ -46,6 +46,9 @@ app-api -> supervisor-api -> supervisor-agent-worker -> campus-services-agent
 - internal query service 只读 projection / normalized truth
 - `campus-services-agent` 不在 query time 回扫 raw source bundle、notice HTML 或通用 chunk
 - `navigation-agent` 可消费 point refs，但不拥有 timetable truth 或 service-status truth
+- 在长期 multi-agent workflow 中，`campus-services-agent` 可以产出 bounded service /
+  schedule facts 供 `notice-agent`、`navigation-agent` 或 `rag-agent` 消费，但不得把 raw
+  read model rows、raw notice text 或 unbounded source evidence 直接传给下游 agent
 
 ## Capability Boundary
 
@@ -86,6 +89,9 @@ later-wave 已冻结方向包括：
 - `campus-services-agent`
   - 拥有 campus-services family 内的 tool selection、service-specific clarification、
     structured answer shaping 与 fail-close policy
+  - 在 manager-style multi-agent workflow 中产出 `ScheduleBaseline`、
+    `ServiceGuideFacts`、`ServiceStatusFacts`、`ContactFacts` 等 bounded step output
+    projection
 - thin tool adapter
   - 只负责 typed request/response glue，不拥有业务语义
 - internal query service
@@ -187,6 +193,10 @@ workflow。
   source-channel retrieval 可以并存，但不能互相冒充
 - 如果某个问题需要 canonical notice 正文或公告发现，应明确切到 `notice-agent`
 - 如果某个问题只需要地点引用或路线展示，应明确切到 `navigation-agent`
+- 如果某个问题同时需要稳定班次基底与近期临时通知，应由 supervisor workflow plan 显式串联
+  `campus-services-agent` 与 `notice-agent`，再把 bounded `ScheduleBaseline` /
+  `NoticeChangeSet` 交给 finalizer 或 `rag-agent` grounding step；不得让任一 agent 在
+  query time 回扫对方的 raw source
 
 ## Opening Gate
 

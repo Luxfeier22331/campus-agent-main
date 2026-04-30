@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-29
+updated: 2026-05-01
 ---
 # Operator Observability Architecture
 
@@ -299,6 +299,36 @@ truth 已开放。
 
 这些 summary 必须继续是 observability-safe typed projection，不得把 raw prompt、 raw snippet
 dump 或 raw vendor payload 直接暴露给 panel。
+
+## Governed Multi-Agent Workflow Monitoring Extension
+
+长期 multi-agent workflow 至少还要补以下 operator-facing summary truth：
+
+- `workflow_plan_summary`
+  - workflow mode、planner version、selected step sequence、allowed agents /
+    allowed tools、budget posture 与 terminal policy
+- `agent_step_summary`
+  - 每个 step 的 agent family、step input projection kind、step output projection kind、
+    latency、status、business outcome 与 fail-close reason
+- `cross_agent_context_summary`
+  - context projection id、source step、target step、projection kind、content hash、
+    visibility posture 与 safety summary
+- `handoff_ownership_summary`
+  - 本次是 manager-style bounded specialist call，还是 specialist handoff ownership
+    transfer；如果是 handoff，必须记录 handoff target 与 filtered context posture
+- `guardrail_summary`
+  - input / tool / output guardrail outcome、human review interruption 或
+    blocked reason
+
+固定约束：
+
+- operator surface 可以展示 agent sequence 与 projection summary，但不得展示 raw provider
+  response、完整上游 prompt、raw source HTML、raw OCR dump 或 unrestricted evidence payload
+- repo-owned `workflow_trace_summary` 仍是 canonical projection；OpenAI Agents SDK
+  tracing 或其他外部 trace 只能作为 debug / grader input
+- 对 `single_handoff` 不能包装成 `multi_step`；对 direct structured runtime 不能伪造 agent
+  collaboration trace
+- 需要区分“multi-agent 规划正确但某个 step 证据不足”和“顶层 routing / workflow plan 错误”
 
 ## Plan-Level And Step-Level Metrics
 

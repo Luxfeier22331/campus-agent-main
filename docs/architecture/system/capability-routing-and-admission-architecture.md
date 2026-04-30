@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-05-01
 ---
 # Capability Routing And Admission Architecture
 
@@ -38,15 +38,19 @@ supporting architecture，不得把它误读成“public chat 当前已经不是
 而是：
 
 `surface intake -> admission / guardrails -> capability routing ->
-agent-owned execution -> supervisor finalization`
+workflow planning -> agent-owned execution -> supervisor finalization`
 
 其中固定规则如下：
 
 - 顶层默认先判定 `capability family`，而不是先判定 retrieval `scope`
+- capability family 判定之后，supervisor 再决定本次请求是 terminal、
+  direct structured runtime、single-agent execution，还是 admitted multi-agent workflow
 - `requested_scope` 只属于 knowledge-family path，不是所有请求共享的顶层默认字段
 - `admission` 与 `routing` 必须分层，避免把 authz、surface policy、approval-required 与
   domain reasoning 混在一起
 - `rag-agent` 仍是核心 capability family，但不再被默认等同于整个产品入口语义
+- multi-agent 不是默认自由展开；它必须由 typed workflow plan、allowed agents、
+  allowed tools、step budget 与 eval denominator admission
 
 ## Current Truth Vs Forward Truth
 
@@ -68,11 +72,12 @@ agent-owned execution -> supervisor finalization`
 
 ## Layered Execution Shape
 
-长期产品执行路径固定拆成五层：
+长期产品执行路径固定拆成六层：
 
 1. `surface intake`
 1. `admission / guardrails`
 1. `capability routing`
+1. `workflow planning`
 1. `agent-owned execution`
 1. `supervisor finalization`
 
@@ -142,7 +147,25 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 
 如果未来明确接受新的 capability，它必须先以 repo-owned family label 入场，而不是作为 hidden fallback。
 
-### 4. Agent-Owned Execution
+### 4. Workflow Planning
+
+`workflow planning` 是 supervisor-owned 的 deterministic governance 层。它长期只负责回答：
+
+- 本次请求是否只需要一个 agent
+- 是否需要多个 bounded specialist agent 串行或并行参与
+- 哪些 agent / tools 被允许
+- 每一步的 input projection、output projection、timeout、budget 与 fail-close 条件是什么
+- 哪些 cross-step context 可以进入下一步 prompt 或 finalization
+
+固定规则：
+
+- `workflow_plan` 不复制完整 prompt payload，不替代 bridge request
+- multi-agent path 必须有 ordered step truth、context projection truth 与 trace denominator
+- 并行 fanout 必须由 workflow plan 显式声明；不得让 provider 自由并发调用全局工具全集
+- routing clarification 仍发生在 workflow planning 之前；agent clarification 只能发生在已选定
+  family / step 内部
+
+### 5. Agent-Owned Execution
 
 一旦 capability family 已确定，后续执行 truth 归对应 agent 拥有。
 
@@ -158,7 +181,11 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - `navigation-agent`
   - place lookup，与 future route/wayfinding expansion 保持同一 family
 
-### 5. Supervisor Finalization
+在 multi-agent workflow 中，agent-owned execution 不等于 agent 之间自由互调。每个 agent step
+只消费 workflow plan 允许的 typed input projection，并只返回 bounded typed output，例如
+`StepOutputProjection`、evidence summary、change set、place context 或 grounding verdict。
+
+### 6. Supervisor Finalization
 
 supervisor 长期继续统一负责：
 
@@ -226,6 +253,8 @@ supervisor 长期继续统一负责：
 它至少应显式表达：
 
 - admitted capability family
+- workflow mode
+- allowed agents / allowed tools summary
 - task kind
 - next action
 - risk level
@@ -249,6 +278,8 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 
 - requested capability hint
 - finalized selected target
+- workflow mode 与 selected step sequence
+- cross-step context projection summary
 - routing / agent clarification 区分
 - policy / scope / approval 分支
 - requested scope 与 resolved scope 的分层

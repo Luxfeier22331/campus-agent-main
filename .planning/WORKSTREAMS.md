@@ -5,6 +5,8 @@ created: 2026-04-19
 updated: 2026-05-01
 ---
 
+<!-- markdownlint-disable MD013 MD060 -->
+
 # Workstreams
 
 `WORKSTREAMS.md` 是 repo 级 workstream registry。
@@ -40,6 +42,7 @@ updated: 2026-05-01
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5B blocked` | `Phase 1-5A`、Phase 6 workflow trace runtime gate、Phase 7 observed regression review workflow 与 Phase 8-13 deterministic eval seams 已完成；5B 因 domain 数据补全阻塞；当前没有独立编号的 Phase 14，Total Phases=14 来自 Phase 5A/5B 拆分 |
+| `canonical retrieval quality ops hardening` | `canonical-retrieval-quality-ops-hardening` | `yes` | `.planning/workstreams/canonical-retrieval-quality-ops-hardening/README.md` | `Phase 0 next` | 接续已完成的 canonical retrieval release hardening；补 qrels denominator、large-scale benchmark、production observation、reranker adoption gate、freshness/live branch 与 gate separation |
 | `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 7` | 类型化 chat 来源列表已本地实现；app-api/public-chat 定向验证与仓库级 `web:lint` 已通过 |
 | `official web collection restart closeout` | `official-web-collection-restart-closeout` | `yes` | `.planning/workstreams/official-web-collection-restart-closeout/README.md` | `Phase 2` | Fresh university-core 与 `law.muc.edu.cn` single-host evidence 已补；crawl / validator / QC 通过，fixed projection validator / chunk audit 通过；后续收口 scheduler/preflight/repeated-run/retention/alert 与 import/promote handoff |
 | `authenticated notice fetch admission operator wiring` | `authenticated-notice-fetch-admission-operator-wiring` | `yes` | `.planning/workstreams/authenticated-notice-fetch-admission-operator-wiring/README.md` | `Phase 8 next` | 状态机 contract hardening 已完成；下一步优先对已采集 authenticated notice 内容跑 captured-content smoke，验证分流、fetch omission、media readiness、closeout、cleanup 与下游 admission。fresh collector smoke 降级为 auth 可用后的 manifest-consumption proof |
@@ -89,6 +92,7 @@ updated: 2026-05-01
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `governed multi-agent workflow runtime` | `governed-multi-agent-workflow-runtime` | `yes` | `.planning/workstreams/governed-multi-agent-workflow-runtime/README.md` | 等待 `transport_schedule_lookup`、`campus_notice_discover/get`、`navigation-agent` place/stop context、`rag-agent` bounded context grounding、workflow trace denominator 与 operator-safe projection readiness 全部具备 current evidence 后恢复；恢复时先做 readiness matrix，不直接实施 runtime |
 | `curriculum course-map docs presentation refinement` | `curriculum-course-map-docs-presentation-refinement` | `yes` | `.planning/workstreams/curriculum-course-map-docs-presentation-refinement/README.md` | 当前 docs 课程地图展示可先保留 baseline；当产品范围决定继续打磨课程地图在文档站中的真实显示效果时恢复 |
 | `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `.planning/workstreams/restricted-document-rollout-verification/README.md` | 只有在产品范围显式决定打开 restricted 用户可见 surface、发布 restricted collection/query serving alias，或推进 authenticated document center / restricted reader / restricted retrieval 到真实用户路径时恢复 |
 

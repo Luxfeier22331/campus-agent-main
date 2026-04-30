@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-04-21
+updated: 2026-05-01
 ---
 # Agentic Retrieval Architecture
 
@@ -48,6 +48,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 - 让 retrieval backend 自行决定产品 scope 的自治代理
 - 把 service status、transport schedule、canonical notice reading 这类结构化当前状态问题强行塞进
   retrieval planner
+- 把 `rag-agent` 重新变成所有 campus capability 的默认 fallback 或 hidden mega-agent
 
 ## Why Agentic Retrieval Exists Here
 
@@ -68,6 +69,8 @@ architecture，不得把它误读成当前已开放产品 truth。
   t` 这类结构化 runtime capability 不属于 agentic retrieval 本身
 - 它们应通过 projection-backed internal query service + domain-agent tool adapter
   提供，而不是伪装成 retrieval step
+- `rag-agent` 可以消费这些 domain-agent 产出的 bounded context projection，但不能代持它们的
+  source truth、temporal semantics 或 opening gate
 
 ## Long-Term Execution Shape
 
@@ -83,6 +86,17 @@ grounding validation -> supervisor finalization`
 - supervisor 负责 capability / policy / top-level routing admission
 - `rag-agent` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
+
+当 retrieval 处于 multi-agent workflow 中时，长期片段固定为：
+
+`upstream domain-agent StepOutputProjection -> rag-agent context framing ->
+typed retrieval plan -> retrieval-core executor -> supporting evidence ->
+grounding validation -> supervisor finalization`
+
+允许进入 `rag-agent` 的 upstream context 必须是 bounded projection，例如
+`CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
+或 `PlaceContext`。这些 projection 只能作为 retrieval framing / evidence comparison
+input，不得绕过 query-enabled surface、authz filter、freshness gate 或 source-trust gate。
 
 ## Ownership Model
 
