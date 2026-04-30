@@ -18,7 +18,7 @@ updated: 2026-05-01
 - [x] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
 - [x] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
 - [x] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
-- [ ] **Phase 8: Unattended Captured-Content E2E Smoke** — prove queue-to-downstream chain over already collected content with no manual artifact stitching.
+- [x] **Phase 8: Unattended Captured-Content E2E Smoke** — prove queue-to-downstream chain over already collected content with no manual artifact stitching.
 
 ## Phase 1: Queue Contract And Lifecycle Freeze
 
@@ -234,6 +234,13 @@ uv run --all-packages python -m unittest \
 ## Phase 8: Unattended Captured-Content E2E Smoke
 
 Goal: prove the production-like path over already collected authenticated notice content without requiring live portal auth.
+
+Result:
+
+- Added worker CLI `campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e`.
+- Dry-run mode proves verified collector run ledger resolution and run-level enqueue plan without mutating queue state.
+- Execute mode reuses the same enqueue and run-level queue consumer path with optional media gate, downstream materialization, and cleanup guard flags.
+- Smoke report includes planned path, enqueue plan, consume summary, findings, medium-or-higher finding count, and verdict.
 
 Deliverables:
 

@@ -11,13 +11,13 @@ updated: 2026-05-01
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Phase 8 next
+**Current Phase:** Verification
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed Phase 7 cleanup lifecycle trace and destructive cleanup guard.
+**Last Activity Description:** Completed Phase 8 unattended captured-content E2E smoke harness.
 
 ## Progress
 
-**Phases Complete:** 7
+**Phases Complete:** 8
 **Current Plan:** `ROADMAP.md`
 
 ## Baseline Code Facts
@@ -33,6 +33,7 @@ updated: 2026-05-01
 - On-demand closeout can build media gate evidence after strict audit and before promotion.
 - Run-level consumer records downstream projection/read-model materialization evidence and prevents queue success when downstream materialization was requested but no projection/read-model evidence was returned.
 - Run-level consumer records cleanup dry-run posture and blocks destructive cleanup unless fresh passed media gate evidence is present.
+- Captured-content smoke harness can dry-run verified ledger to queue plan and execute the same queue consumer path with optional media/downstream/cleanup gates.
 - Legacy collected-notice queue consumer can lease jobs and project them into source-truth/searchable evidence.
 - Authenticated notice `run_id` ledger resolver already requires `status=success` and `verification_status=verified`.
 - On-demand closeout runner can chain closeout worker, optional media source-object verification, strict media audit, and promotion when artifact paths are provided.
@@ -41,13 +42,13 @@ updated: 2026-05-01
 ## Current Gaps
 
 - Local-only collected content still needs repair/synthetic ledger upload before enqueue.
-- No unattended captured-content E2E smoke proves queue-to-downstream behavior with zero manual artifact stitching.
+- Full live execute smoke still depends on real Postgres/object-store credentials and verified captured run rows being available in the operator environment.
 
 ## Next Slice
 
-Start Phase 8 by adding an unattended captured-content E2E smoke harness that selects/enqueues verified collected content and consumes it through the run-level queue path without manual artifact stitching.
+Run verification for the Phase 1-8 implementation and fix any medium-or-higher findings before closing the workstream.
 
 ## Session Continuity
 
-**Stopped At:** Phase 7 complete; Phase 8 unattended captured-content E2E smoke is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
+**Stopped At:** Phase 8 implementation complete; verification loop is next. Local-only repair/synthetic ledger upload remains incomplete unless a verified ledger row already exists.
 **Resume File:** None
