@@ -36,6 +36,11 @@ NOTICE_DIRECT_OPENED_PROFILES = {
 MULTI_STEP_WORKFLOW_PROFILES = {
     "multi_step_notice_knowledge_followthrough",
 }
+RAG_RETRIEVAL_PROFILES = {
+    "rag_delegate",
+    *MULTI_STEP_WORKFLOW_PROFILES,
+}
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 180.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,15 +296,27 @@ def _notice_smoke_body() -> str:
 
 
 def run_process_smoke(
-    plan: ProcessSmokePlan, *, timeout_seconds: float = 45.0
+    plan: ProcessSmokePlan,
+    *,
+    timeout_seconds: float = 45.0,
+    startup_timeout_seconds: float | None = None,
 ) -> dict[str, object]:
     plan.output_dir.mkdir(parents=True, exist_ok=True)
     started: list[subprocess.Popen[bytes]] = []
     log_files = []
     process_logs = {}
     runtime_preparation: _RuntimePreparation | None = None
+    startup_timeout = max(
+        timeout_seconds,
+        startup_timeout_seconds
+        if startup_timeout_seconds is not None
+        else DEFAULT_STARTUP_TIMEOUT_SECONDS,
+    )
     try:
-        runtime_preparation = _prepare_process_smoke_runtime(plan, timeout_seconds=timeout_seconds)
+        runtime_preparation = _prepare_process_smoke_runtime(
+            plan,
+            timeout_seconds=startup_timeout,
+        )
         processes = _processes_with_env_overlay(
             plan.processes,
             runtime_preparation.process_env_overlay if runtime_preparation is not None else {},
@@ -322,7 +339,7 @@ def run_process_smoke(
         worker_healthz = wait_for_status(
             f"{plan.worker_base_url}/internal/bridge/healthz",
             expected_statuses={200},
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=startup_timeout,
             headers={
                 "x-supervisor-bridge-auth": process_by_label["supervisor-agent-worker"].env[
                     "SUPERVISOR_AGENT_WORKER_SHARED_SECRET"
@@ -332,12 +349,12 @@ def run_process_smoke(
         api_healthz = wait_for_status(
             f"{plan.api_base_url}/healthz",
             expected_statuses={200},
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=startup_timeout,
         )
         readyz = wait_for_json_status(
             f"{plan.api_base_url}/readyz",
             expected_statuses=set(plan.expected_readyz_statuses),
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=startup_timeout,
         )
         metrics_status = _request_status(f"{plan.api_base_url}/metrics")
         answer_status, answer_body = post_answer_probe(
@@ -352,6 +369,7 @@ def run_process_smoke(
             timeout_seconds=timeout_seconds,
         )
         answer_text = json.dumps(answer_body, ensure_ascii=False)
+        forbidden_body_tokens = _forbidden_body_tokens(plan.profile)
         passed = (
             worker_healthz == 200
             and api_healthz == 200
@@ -359,6 +377,7 @@ def run_process_smoke(
             and metrics_status == 200
             and answer_status == plan.expected_status
             and all(token in answer_text for token in plan.expected_body_tokens)
+            and not any(token in answer_text for token in forbidden_body_tokens)
         )
         summary = {
             "schema_version": "supervisor_runtime_process_smoke.v1",
@@ -381,7 +400,10 @@ def run_process_smoke(
                 "expected_answer_status": plan.expected_status,
                 "answer_path": plan.answer_path,
                 "answer_response_kind": plan.answer_response_kind,
+                "startup_timeout_seconds": startup_timeout,
+                "answer_timeout_seconds": timeout_seconds,
                 "expected_body_tokens": plan.expected_body_tokens,
+                "forbidden_body_tokens": forbidden_body_tokens,
             },
             "answer": answer_body,
         }
@@ -406,6 +428,14 @@ def run_process_smoke(
         encoding="utf-8",
     )
     return summary
+
+
+def _forbidden_body_tokens(profile: str) -> tuple[str, ...]:
+    if profile == "rag_delegate":
+        return ("retrieval_failed", '"status": "no_answer"')
+    if profile in RAG_RETRIEVAL_PROFILES:
+        return ("retrieval_failed",)
+    return ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -722,6 +752,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-port", type=int, default=18080)
     parser.add_argument("--worker-port", type=int, default=18081)
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
+    parser.add_argument(
+        "--startup-timeout-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Maximum time to wait for local processes and /readyz. "
+            "Defaults to at least 180 seconds so cold go run builds do not "
+            "fail the runtime path smoke."
+        ),
+    )
     return parser
 
 
@@ -735,7 +775,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         api_port=args.api_port,
         worker_port=args.worker_port,
     )
-    summary = run_process_smoke(plan, timeout_seconds=args.timeout_seconds)
+    summary = run_process_smoke(
+        plan,
+        timeout_seconds=args.timeout_seconds,
+        startup_timeout_seconds=args.startup_timeout_seconds,
+    )
     print(json.dumps(summary, ensure_ascii=False, default=str))
     return 0 if summary.get("passed") is True else 1
 

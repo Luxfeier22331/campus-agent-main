@@ -22,6 +22,7 @@ DEFAULT_PROCESS_SMOKE_PROFILES = (
     "closed_gate",
     "terminal_fail_close",
     "rag_delegate",
+    "multi_step_notice_knowledge_followthrough",
     "structured_direct_opened",
     "structured_direct_opened_stream",
     "service_status_direct_opened",
@@ -34,6 +35,9 @@ DEFAULT_PROCESS_SMOKE_PROFILES = (
 PROFILE_WORKFLOW_TRACE_CASE_IDS = {
     "terminal_fail_close": "workflow-product-scope-fail-close",
     "rag_delegate": "workflow-knowledge-delegate",
+    "multi_step_notice_knowledge_followthrough": (
+        "workflow-notice-knowledge-followthrough-multistep"
+    ),
     "structured_direct_opened": "workflow-transport-schedule-direct",
     "structured_direct_opened_stream": "workflow-transport-schedule-direct",
     "service_status_direct_opened": "workflow-direct-structured-service-status",
@@ -110,6 +114,7 @@ def run_multi_agent_live_smoke_gate(
                 "supervisor-api /metrics",
                 "supervisor-api /api/v1/answer closed structured gate",
                 "supervisor-api /api/v1/answer RAG delegate",
+                "supervisor-api /api/v1/answer notice context + RAG multi-step workflow",
                 "supervisor-api /api/v1/answer opened structured direct runtime",
                 "supervisor-api /api/v1/answer/stream opened structured direct runtime",
                 "supervisor-api /api/v1/answer opened campus-services direct runtime",

@@ -107,6 +107,7 @@ class MultiAgentProductPathEvalGateProfileTest(unittest.TestCase):
                 "closed_gate",
                 "terminal_fail_close",
                 "rag_delegate",
+                "multi_step_notice_knowledge_followthrough",
                 "structured_direct_opened",
                 "structured_direct_opened_stream",
                 "service_status_direct_opened",
@@ -116,6 +117,12 @@ class MultiAgentProductPathEvalGateProfileTest(unittest.TestCase):
                 "notice_get_direct_opened",
                 "transactional_approval_required",
             },
+        )
+        self.assertEqual(
+            multi_agent_live_smoke_gate.PROFILE_WORKFLOW_TRACE_CASE_IDS[
+                "multi_step_notice_knowledge_followthrough"
+            ],
+            "workflow-notice-knowledge-followthrough-multistep",
         )
 
     def test_multi_agent_live_smoke_workflow_replay_is_blocking(self) -> None:
@@ -280,6 +287,97 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             },
             guardrail_scope="in_scope",
         )
+    if profile == "multi_step_notice_knowledge_followthrough":
+        return {
+            **base,
+            "routing_frame": {"routing_next_action": "multi_step"},
+            "context_resolution": {"state": "resolved"},
+            "direct_vs_delegate_branch": "multi_step",
+            "workflow_mode": "multi_step",
+            "handoff": {
+                "target": "notice-agent",
+                "payload_kind": "campus_notice_get",
+                "allowed_tools": ["campus_notice_get"],
+            },
+            "handoff_chain": [
+                {
+                    "target": "notice-agent",
+                    "payload_kind": "campus_notice_get",
+                    "selected_tool": "campus_notice_get",
+                },
+                {
+                    "target": "rag-agent",
+                    "payload_kind": "rag_request",
+                    "selected_tool": "retrieval.query",
+                },
+            ],
+            "selected_target": "rag-agent",
+            "selected_tools": ["campus_notice_get", "retrieval.query"],
+            "tool_argument_summary": {
+                "payload_kind": "campus_notice_get",
+                "selected_tool": "retrieval.query",
+                "notice_id": "notice:smoke:001",
+                "source_family": "wechat_public_notice",
+                "collection": "student_rules",
+                "corpus": "regulations",
+            },
+            "context_projections": [
+                {
+                    "projection_id": "projection:notice_context:test",
+                    "source_step_id": "handoff:notice-agent:campus_notice_get",
+                    "projection_kind": "notice_context",
+                    "content_hash": "sha256:test",
+                    "safety": {
+                        "truncated": False,
+                        "redacted": False,
+                        "max_chars": 1600,
+                        "fields_present": ["title", "body_excerpt", "source_url"],
+                    },
+                }
+            ],
+            "trace_steps": [
+                {
+                    "step_id": "handoff:notice-agent:campus_notice_get",
+                    "span_kind": "handoff",
+                    "parent_step_id": "runtime_policy",
+                    "target": "notice-agent",
+                    "tool_name": "campus_notice_get",
+                    "outcome": "completed",
+                    "result_status": "completed",
+                },
+                {
+                    "step_id": "handoff:rag-agent:rag_request",
+                    "span_kind": "handoff",
+                    "parent_step_id": "handoff:notice-agent:campus_notice_get",
+                    "target": "rag-agent",
+                    "tool_name": "retrieval.query",
+                    "outcome": "needs_clarification",
+                    "result_status": "needs_clarification",
+                },
+            ],
+            "tool_call_summaries": [
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "needs_clarification",
+                    "business_outcome": "needs_clarification",
+                    "argument_summary": {
+                        "payload_kind": "campus_notice_get",
+                        "selected_tool": "retrieval.query",
+                        "notice_id": "notice:smoke:001",
+                        "source_family": "wechat_public_notice",
+                        "collection": "student_rules",
+                        "corpus": "regulations",
+                    },
+                    "source_ids": [],
+                }
+            ],
+            "guardrail_outcomes": {
+                "context_preflight": "resolved",
+                "policy_gate": "delegate",
+                "scope_gate": "in_scope",
+            },
+            "fail_close_reason": "",
+        }
     if profile in {"structured_direct_opened", "structured_direct_opened_stream"}:
         return _tool_workflow_trace_summary(
             target="campus-services-agent",

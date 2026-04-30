@@ -134,6 +134,141 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertEqual(len(popen_kwargs), 2)
         self.assertTrue(all(kwargs.get("start_new_session") is True for kwargs in popen_kwargs))
 
+    def test_run_process_smoke_uses_separate_startup_and_answer_timeouts(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        class FakeProcess:
+            pid = 4321
+
+            def poll(self) -> int:
+                return 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = build_process_smoke_plan(
+                repo_root=Path("/repo"),
+                output_dir=Path(tmpdir),
+            )
+            with (
+                patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None) as prepare,
+                patch.object(smoke.subprocess, "Popen", return_value=FakeProcess()),
+                patch.object(smoke, "wait_for_status", side_effect=(200, 200)) as wait_status,
+                patch.object(smoke, "wait_for_json_status", return_value=(200, {})) as wait_json,
+                patch.object(smoke, "_request_status", return_value=200),
+                patch.object(
+                    smoke,
+                    "post_answer_probe",
+                    return_value=(503, {"failure_kind": "structured_runtime_closed"}),
+                ) as post_answer,
+            ):
+                summary = smoke.run_process_smoke(
+                    plan,
+                    timeout_seconds=2,
+                    startup_timeout_seconds=17,
+                )
+
+        self.assertTrue(summary["passed"])
+        self.assertEqual(prepare.call_args.kwargs["timeout_seconds"], 17)
+        self.assertEqual(
+            [call.kwargs["timeout_seconds"] for call in wait_status.call_args_list],
+            [17, 17],
+        )
+        self.assertEqual(wait_json.call_args.kwargs["timeout_seconds"], 17)
+        self.assertEqual(post_answer.call_args.kwargs["timeout_seconds"], 2)
+        self.assertEqual(summary["probes"]["startup_timeout_seconds"], 17)
+        self.assertEqual(summary["probes"]["answer_timeout_seconds"], 2)
+
+    def test_multi_step_smoke_fails_when_rag_retrieval_error_is_present(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        class FakeProcess:
+            pid = 4321
+
+            def poll(self) -> int:
+                return 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        answer_body = {
+            "workflow_trace_summary": {
+                "workflow_mode": "multi_step",
+                "context_projections": [{"projection_kind": "notice_context"}],
+            },
+            "selected_target": "rag-agent",
+            "tool": "retrieval.query",
+            "agent_execution_projection": {"selected_tool": "retrieval.query"},
+            "notice_tool": "campus_notice_get",
+            "context": "notice-agent 已读取的通知上下文",
+            "error": {
+                "code": "retrieval_failed",
+                "message": "release metadata drift for student_rules/r1",
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = build_process_smoke_plan(
+                repo_root=Path("/repo"),
+                output_dir=Path(tmpdir),
+                profile="multi_step_notice_knowledge_followthrough",
+            )
+            with (
+                patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None),
+                patch.object(smoke.subprocess, "Popen", return_value=FakeProcess()),
+                patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
+                patch.object(smoke, "wait_for_json_status", return_value=(200, {})),
+                patch.object(smoke, "_request_status", return_value=200),
+                patch.object(smoke, "post_answer_probe", return_value=(200, answer_body)),
+            ):
+                summary = smoke.run_process_smoke(plan, timeout_seconds=1)
+
+        self.assertFalse(summary["passed"])
+        self.assertEqual(summary["probes"]["forbidden_body_tokens"], ("retrieval_failed",))
+
+    def test_rag_delegate_smoke_fails_when_positive_path_returns_no_answer(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        class FakeProcess:
+            pid = 4321
+
+            def poll(self) -> int:
+                return 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        answer_body = {
+            "workflow_trace_summary": {},
+            "agent_execution_projection": {"selected_tool": "retrieval.query"},
+            "agent_plan": {"selected_tool": "retrieval.query"},
+            "status": "no_answer",
+            "result": {"diagnostics": {"semantic_outcome": "unsupported_by_evidence"}},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = build_process_smoke_plan(
+                repo_root=Path("/repo"),
+                output_dir=Path(tmpdir),
+                profile="rag_delegate",
+            )
+            with (
+                patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None),
+                patch.object(smoke.subprocess, "Popen", return_value=FakeProcess()),
+                patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
+                patch.object(smoke, "wait_for_json_status", return_value=(200, {})),
+                patch.object(smoke, "_request_status", return_value=200),
+                patch.object(smoke, "post_answer_probe", return_value=(200, answer_body)),
+            ):
+                summary = smoke.run_process_smoke(plan, timeout_seconds=1)
+
+        self.assertFalse(summary["passed"])
+        self.assertEqual(
+            summary["probes"]["forbidden_body_tokens"],
+            ("retrieval_failed", '"status": "no_answer"'),
+        )
+
     def test_terminate_processes_signals_process_groups(self) -> None:
         import scripts.supervisor_runtime_process_smoke as smoke
 
@@ -222,7 +357,10 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("workflow_trace_summary", rag.expected_body_tokens)
         self.assertIn("agent_execution_projection", rag.expected_body_tokens)
         self.assertIn("agent_plan", rag.expected_body_tokens)
+        self.assertIn("grounded_answer", rag.expected_body_tokens)
+        self.assertIn("中央民族大学学生公费医疗管理办法", rag.expected_body_tokens)
         self.assertEqual(rag.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(rag.answer_payload["user_goal"], "公费医疗报销")
         self.assertEqual(structured_open.expected_status, 200)
         self.assertEqual(
             structured_open.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],

@@ -156,6 +156,7 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
                 "workflow-notice-discover-direct",
                 "workflow-notice-detail-direct",
                 "workflow-knowledge-delegate",
+                "workflow-notice-knowledge-followthrough-multistep",
                 "workflow-curriculum-delegate",
                 "workflow-ambiguous-follow-up-clarification",
                 "workflow-product-scope-fail-close",
@@ -164,7 +165,9 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
             }.issubset(case_ids)
         )
         branches = {case.expectation.direct_vs_delegate_branch for case in case_set.cases}
-        self.assertTrue({"direct", "delegate", "clarification", "fail_close"}.issubset(branches))
+        self.assertTrue(
+            {"direct", "delegate", "multi_step", "clarification", "fail_close"}.issubset(branches)
+        )
         self.assertTrue(any(case.expectation.fail_close_expected for case in case_set.cases))
 
     def test_validation_requires_tool_call_summaries_for_selected_tools(self) -> None:

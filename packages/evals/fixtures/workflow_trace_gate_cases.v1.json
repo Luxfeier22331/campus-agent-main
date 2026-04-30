@@ -265,6 +265,70 @@
 			}
 		},
 		{
+			"case_id": "workflow-notice-knowledge-followthrough-multistep",
+			"family": "workflow_trace",
+			"description": "selected notice context is projected before knowledge follow-through",
+			"expectation": {
+				"direct_vs_delegate_branch": "multi_step",
+				"workflow_mode": "multi_step",
+				"selected_target": "rag-agent",
+				"selected_tools": ["campus_notice_get", "retrieval.query"],
+				"handoff": {
+					"target": "notice-agent",
+					"payload_kind": "campus_notice_get"
+				},
+				"handoff_chain": [
+					{
+						"target": "notice-agent",
+						"payload_kind": "campus_notice_get",
+						"selected_tool": "campus_notice_get"
+					},
+					{
+						"target": "rag-agent",
+						"payload_kind": "rag_request",
+						"selected_tool": "retrieval.query"
+					}
+				],
+				"tool_argument_summary": {
+					"payload_kind": "campus_notice_get",
+					"selected_tool": "retrieval.query",
+					"notice_id": "notice:smoke:001",
+					"source_family": "wechat_public_notice"
+				},
+				"tool_call_summaries": [
+					{
+						"tool_name": "campus_notice_get",
+						"result_status": "completed",
+						"argument_summary": {
+							"payload_kind": "campus_notice_get",
+							"notice_id": "notice:smoke:001",
+							"source_family": "wechat_public_notice"
+						},
+						"source_ids": []
+					},
+					{
+						"tool_name": "retrieval.query",
+						"result_status": "needs_clarification",
+						"business_outcome": "needs_clarification",
+						"argument_summary": {
+							"payload_kind": "campus_notice_get",
+							"selected_tool": "retrieval.query",
+							"notice_id": "notice:smoke:001",
+							"source_family": "wechat_public_notice"
+						},
+						"source_ids": []
+					}
+				],
+				"expected_tool_order": ["retrieval.query"],
+				"guardrail_outcomes": {
+					"context_preflight": "resolved",
+					"policy_gate": "delegate",
+					"scope_gate": "in_scope"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
 			"case_id": "workflow-curriculum-delegate",
 			"family": "workflow_trace",
 			"description": "curriculum plan knowledge family delegate branch",

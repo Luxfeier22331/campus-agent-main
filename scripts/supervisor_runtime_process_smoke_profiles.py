@@ -50,7 +50,7 @@ def profile_answer_expectation(
     if profile == "rag_delegate":
         return (
             {
-                "user_goal": "学生证补办要求是什么",
+                "user_goal": "公费医疗报销",
                 "request_id": "process-smoke-rag-delegate",
                 "requested_capability": "knowledge",
                 "requested_scope": {
@@ -60,7 +60,13 @@ def profile_answer_expectation(
                 "context": context,
             },
             200,
-            ("workflow_trace_summary", "agent_execution_projection", "agent_plan"),
+            (
+                "workflow_trace_summary",
+                "agent_execution_projection",
+                "agent_plan",
+                "grounded_answer",
+                "中央民族大学学生公费医疗管理办法",
+            ),
             "/api/v1/answer",
             "json",
             (200,),
