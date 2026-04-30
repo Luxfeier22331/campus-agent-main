@@ -111,9 +111,11 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 `schema_version=workflow-plan-v1`。它只记录 workflow mode、step / edge skeleton、
 terminal policy、resume policy 与 semantic retry policy；真实 delegate payload 仍只通过
 `runtime_decisions.handoff.agent_request` 进入 Python bridge。当前 runtime 可发出
-`terminal`、`direct_runtime` 与 `single_handoff`；`multi_step` 只是 forward enum，只有当
-durable `WorkflowRun` backend、handoff chain、semantic retry/replan 与 resume 语义落地后才能
-出现在 live response trace 中。
+`terminal`、`direct_runtime`、`single_handoff`，以及受 gate 保护的 `multi_step`。
+首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
+`notice-agent campus_notice_get -> rag-agent retrieval.query`。该 path 必须配置
+workflow run store；completed `multi_step` trace 至少包含两个 handoff。semantic
+retry/replan 与 resumable resume 仍不是当前 public contract 承诺。
 
 ## 设计原则
 

@@ -220,10 +220,12 @@ Evaluation helpers for campus-agent v2.
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
   可直接调用的 flat tool。
 - `workflow_trace_summary.workflow_mode` 现在是 canonical enum：
-  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。当前 live runtime 只验证前三种；
-  `multi_step` 是前向 contract value，只有真实 run state、handoff chain、semantic
-  retry/replan 与 resume 语义落地后才能进入 live profile。workflow trace gate 会拒绝把单个
-  handoff projection 伪装成 `multi_step`。
+  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。当前 live runtime 已验证前三种，
+  并新增受 gate 保护的首条 `multi_step` profile：selected notice context + knowledge
+  follow-through，执行 `notice-agent campus_notice_get -> rag-agent retrieval.query`。
+  workflow trace gate 会拒绝把单个 handoff projection 伪装成 `multi_step`；completed
+  `multi_step` 至少需要两段 handoff chain。resume 与 semantic retry/replan 仍需独立 eval
+  denominator。
 - eval profile registry 固定在 `campus_evals.profile_registry`。`scripts.eval_gate audit`
   会校验 registry runner、GitHub Actions dispatch choices、operations policy、denominator
   registry、tool-family fixture coverage 与 profile fixture smoke；新增 profile 时必须同步这些

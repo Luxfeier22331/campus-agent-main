@@ -65,7 +65,7 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 		t.Fatalf("workflow_plan.workflow_mode = %v, want single_handoff", workflowPlan["workflow_mode"])
 	}
 	if workflowPlan["workflow_mode"] == "multi_step" {
-		t.Fatalf("current runtime must not emit multi_step workflow plans: %#v", workflowPlan)
+		t.Fatalf("transport preplan must not emit multi_step workflow plans: %#v", workflowPlan)
 	}
 	planSteps, ok := workflowPlan["steps"].([]any)
 	if !ok || len(planSteps) != 1 {

@@ -122,22 +122,24 @@ Docker-side Go runtime control plane 长期负责：
   必须携带 bridge / response / runtime decision / workflow trace provenance；
   cancel / timeout / bridge unavailable 必须保留 typed fail-close reason
 - `workflow_trace_summary.workflow_mode` 是 execution wrapper 的 canonical enum，当前固定为
-  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。当前 runtime 只允许真实发出前三种：
-  `terminal` 表示未进入 agent/tool execution 的终局裁决，`direct_runtime` 表示 Go-owned
-  projection-backed structured runtime，`single_handoff` 表示 supervisor 只委派给一个
-  domain-agent。`multi_step` 已作为前向 contract value 保留，但只有当 run state、handoff
-  chain、semantic retry/replan 与 resume 语义都落地后才能由 runtime 发出；不得把单 handoff
-  trace 包装成 `multi_step`
+  `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。`terminal` 表示未进入
+  agent/tool execution 的终局裁决，`direct_runtime` 表示 Go-owned projection-backed
+  structured runtime，`single_handoff` 表示 supervisor 只委派给一个 domain-agent。
+  `multi_step` 已有 gated runtime path，但默认关闭；当前只覆盖 selected notice context +
+  knowledge follow-through 的两步链路：`notice-agent campus_notice_get -> rag-agent
+  retrieval.query`。不得把单 handoff trace 包装成 `multi_step`
 - `runtime_decisions.workflow_plan` 是 Go planner 的 canonical safe projection，当前
   `schema_version=workflow-plan-v1`，用于显式记录 `single_handoff` plan、step kind、
   selected target / payload kind / allowed tools、terminal policy、resume policy 与
   semantic retry policy。`runtime_decisions.handoff.agent_request` 仍是 bridge 真实
   `AgentRequest`；`workflow_plan` 不复制完整 payload，也不替代 bridge request
 - `apps/supervisor-api/internal/execution` 已有 repo-owned `WorkflowRunStore`
-  接口与 in-memory 实现，用于约束 run id、state、step timeline 与 handoff chain 的
-  内部 run-state shape。当前它不表示 runtime 已支持 resumable / durable
-  `multi_step`；生产打开 `multi_step` 前必须接入 durable store，并让 completed
-  `multi_step` 至少包含两个有序 handoff / tool execution step
+  接口、in-memory 实现与 PostgreSQL backend，用于约束 run id、state、step timeline
+  与 handoff chain 的内部 run-state shape。生产打开 `multi_step` 必须配置
+  `SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL` 并安装 `runtime.workflow_runs` schema；
+  `SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE=true` 只适合 local/dev 或明确允许启动迁移的环境。
+  completed `multi_step` 至少包含两个有序 handoff / tool execution step，否则 store 与 eval
+  gate 均拒绝
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，
@@ -313,14 +315,15 @@ trace 直接写入 shared contracts。
 
 引入 SDK 或其他 agent framework 之前，repo-owned workflow runtime 仍需继续补齐：
 
-- durable `WorkflowRun` backend，把当前 repo-owned `WorkflowRunStore` 接口从
-  in-memory shape 推进到可恢复的生产 store，并补齐 resume token
+- resumable workflow state：当前已有 PostgreSQL `WorkflowRun` backend 与 readiness gate，
+  但还没有可恢复 resume token / replay protocol
 - semantic retry/replan 计数与 policy execution，而不是只在 `WorkflowPlan` 中声明
   `semantic_retry_policy`
-- `multi_step` admission gate：至少两个有序 handoff / tool execution step，且每个 step
-  都能投影到 sanitized `workflow_trace_summary`
-- eval denominator：覆盖 chain、resume、semantic retry/replan、agent-owned clarification
-  与 fail-close provenance，再开放 runtime 发出 `multi_step`
+- broader `multi_step` admission denominator：当前只开放 selected notice context + knowledge
+  follow-through 的两步链路；新增链路必须先补 handoff chain fixture、store invariant 与
+  sanitized `workflow_trace_summary` projection
+- eval denominator：继续覆盖 resume、semantic retry/replan、agent-owned clarification
+  与 fail-close provenance，避免把固定两步链路误当完整通用 agent graph
 
 ## Structured Runtime Families
 
