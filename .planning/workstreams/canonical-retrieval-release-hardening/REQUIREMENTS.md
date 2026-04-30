@@ -1,6 +1,6 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---

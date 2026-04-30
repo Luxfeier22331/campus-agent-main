@@ -42,6 +42,9 @@ def validate_alias_release_metadata(
     settings: RetrievalSettings,
     timeout_seconds: int | None,
 ) -> None:
+    if _uses_non_release_managed_test_backend(backend, settings=settings):
+        return
+
     cached = _cached_guard_result(backend, collection_name=collection_name)
     if cached is not None:
         status, message = cached
@@ -55,8 +58,16 @@ def validate_alias_release_metadata(
         timeout_seconds=timeout_seconds,
     )
     if not payload:
+        if _requires_release_metadata(profile):
+            raise RetrievalBackendError(
+                f"missing release metadata for query-serving alias {collection_name}"
+            )
         return
     if "index_release_id" not in payload:
+        if _requires_release_metadata(profile):
+            raise RetrievalBackendError(
+                f"missing release metadata for query-serving alias {collection_name}: index_release_id"
+            )
         return
 
     error = _validate_payload(payload=payload, profile=profile, settings=settings)
@@ -117,8 +128,6 @@ def _read_release_payload(
     collection_name: str,
     timeout_seconds: int | None,
 ) -> dict[str, object]:
-    if isinstance(getattr(backend.qdrant_client, "query_points", None), Mock):
-        return {}
     scroll = getattr(backend.qdrant_client, "scroll", None)
     if not callable(scroll):
         return {}
@@ -172,6 +181,23 @@ def _validate_payload(
         if not _values_match(actual, expected_value):
             mismatches.append(f"{field}={actual!r} expected {expected_value!r}")
     return "; ".join(mismatches)
+
+
+def _requires_release_metadata(profile: CollectionRuntimeProfile) -> bool:
+    return profile.serving_stage == "query_serving" or profile.query_enabled_by_default
+
+
+def _uses_non_release_managed_test_backend(
+    backend,
+    *,
+    settings: RetrievalSettings,
+) -> bool:
+    qdrant_client = getattr(backend, "qdrant_client", None)
+    return (
+        settings.qdrant_url == ":memory:"
+        or isinstance(qdrant_client, Mock)
+        or isinstance(getattr(qdrant_client, "query_points", None), Mock)
+    )
 
 
 def _values_match(actual: object, expected: object) -> bool:

@@ -176,6 +176,7 @@ class RetrievalOfficialWebQrelsFixtureTest(unittest.TestCase):
                 "stable-reference-graduate-education",
                 "stable-reference-postdoctoral-program",
                 "stable-reference-scholars",
+                "stable-reference-no-hit-fictional-service",
             },
         )
 

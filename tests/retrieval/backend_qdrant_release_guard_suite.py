@@ -4,6 +4,7 @@ import hashlib
 
 from tests.retrieval.backend_qdrant_test_support import (
     InMemoryDocumentRegistry,
+    Mock,
     QdrantRetrievalBackend,
     RetrievalBackendError,
     RetrievalRequest,
@@ -106,10 +107,62 @@ class BackendQdrantReleaseGuardTest(unittest.TestCase):
 
         self.assertEqual(qdrant_client.query_calls, 0)
 
+    def test_release_guard_fails_closed_on_empty_query_serving_alias_payload(self) -> None:
+        profile = _make_runtime_profile()
+        qdrant_client = _ReleaseGuardQdrantClient({})
+        backend = _backend(qdrant_client=qdrant_client)
 
-def _settings() -> RetrievalSettings:
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "missing release metadata"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_calls, 0)
+
+    def test_release_guard_fails_closed_on_query_serving_alias_without_release_id(self) -> None:
+        profile = _make_runtime_profile()
+        qdrant_client = _ReleaseGuardQdrantClient(
+            {"chunk_policy_version": profile.chunk_profile_version}
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "missing release metadata"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_calls, 0)
+
+    def test_release_guard_skips_non_release_managed_in_memory_test_backend(self) -> None:
+        profile = _make_runtime_profile()
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(return_value=True)
+        qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
+        backend = _backend(
+            qdrant_client=qdrant_client,
+            settings=_settings(qdrant_url=":memory:"),
+        )
+
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+            return_value=profile,
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_points.call_count, 1)
+
+
+def _settings(*, qdrant_url: str = "https://qdrant.example") -> RetrievalSettings:
     return RetrievalSettings(
-        qdrant_url=":memory:",
+        qdrant_url=qdrant_url,
         embedding_provider="mock",
         embedding_model="mock-embedding-8d",
         embedding_dimensions=3,
@@ -117,9 +170,13 @@ def _settings() -> RetrievalSettings:
     )
 
 
-def _backend(*, qdrant_client: _ReleaseGuardQdrantClient) -> QdrantRetrievalBackend:
+def _backend(
+    *,
+    qdrant_client: object,
+    settings: RetrievalSettings | None = None,
+) -> QdrantRetrievalBackend:
     return QdrantRetrievalBackend(
-        settings=_settings(),
+        settings=settings or _settings(),
         registry=InMemoryDocumentRegistry(),
         qdrant_client=qdrant_client,
         embedding_model=_FakeEmbeddingModel(),

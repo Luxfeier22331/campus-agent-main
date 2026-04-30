@@ -13,7 +13,7 @@ updated: 2026-04-30
 
 **Status:** completed
 **Current Phase:** Phase 8 `Acceptance, Docs And Closeout`
-**Last Activity:** 2026-04-30 Phase 8 completed
+**Last Activity:** 2026-04-30 post-review gap hardening completed
 
 - status: `completed`
 - current slice: Workstream closed after Phase 8 acceptance/docs/closeout
@@ -39,6 +39,8 @@ updated: 2026-04-30
   `evidence/phase-00-current-inventory.md`.
 - Current gaps:
   - none for the closed workstream scope.
+  - Post-review hardening also closed qrels coverage, chunk quality audit, production
+    monitoring intake, and query-serving empty-release-metadata fail-closed gaps.
 
 ## Blockers
 
@@ -104,7 +106,7 @@ uv run --all-packages python -m unittest \
   tests.evals.test_retrieval_tuning
 ```
 
-Result: `Ran 279 tests ... OK`.
+Result: `Ran 288 tests ... OK`.
 
 Docs gate:
 

@@ -168,6 +168,13 @@
 				}
 			],
 			"notes": "stable_reference 学术名流页命中回归。"
+		},
+		{
+			"case_id": "stable-reference-no-hit-fictional-service",
+			"split": "regression_locked",
+			"query": "中央民族大学火星校区宇宙签证办理处",
+			"expected_sources": [],
+			"notes": "不存在的稳定官网服务问句应保持 no-hit，不能由学校简介或机构页面误召回。"
 		}
 	]
 }

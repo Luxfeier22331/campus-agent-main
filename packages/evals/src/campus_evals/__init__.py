@@ -64,6 +64,7 @@ from campus_evals.benchmark import (
     resolve_retrieval_fixture_manifest_path,
     retrieval_tuning_report_to_dict,
     summarize_retrieval_metrics,
+    validate_default_query_enabled_qrels_coverage,
     validate_retrieval_hybrid_query_fixture,
     validate_retrieval_qrels_fixture,
 )
@@ -254,6 +255,16 @@ from campus_evals.ragas_adapter import (
     build_ragas_projection,
     build_ragas_scorer,
     build_ragas_supplemental_adapter_from_env,
+)
+from campus_evals.retrieval_chunk_quality import (
+    RetrievalChunkQualityReport,
+    evaluate_chunk_quality,
+    load_chunks_jsonl,
+)
+from campus_evals.retrieval_monitoring import (
+    RetrievalMonitoringBacklogReport,
+    RetrievalMonitoringCandidate,
+    build_retrieval_monitoring_backlog,
 )
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
@@ -487,9 +498,12 @@ __all__ = [
     "RagasSupplementalAdapter",
     "RetrievalBenchmarkRun",
     "RetrievalCaseMetrics",
+    "RetrievalChunkQualityReport",
     "RetrievalHybridQueryCase",
     "RetrievalHybridQueryDataset",
     "RetrievalMetricSummary",
+    "RetrievalMonitoringBacklogReport",
+    "RetrievalMonitoringCandidate",
     "RetrievalObservedSource",
     "RetrievalQrelsCase",
     "RetrievalQrelsDataset",
@@ -551,6 +565,7 @@ __all__ = [
     "build_ragas_scorer",
     "build_ragas_supplemental_adapter_from_env",
     "build_refusal_rubric_adapter",
+    "build_retrieval_monitoring_backlog",
     "build_retrieval_tuning_report",
     "collect_document_quality_runtime_observations",
     "collect_public_chat_product_path_runtime_observations",
@@ -566,6 +581,7 @@ __all__ = [
     "evaluate_answer_quality_cases",
     "evaluate_authz_privacy_cases",
     "evaluate_case",
+    "evaluate_chunk_quality",
     "evaluate_document_quality_cases",
     "evaluate_eval_operations_governance",
     "evaluate_judge_gate",
@@ -587,6 +603,7 @@ __all__ = [
     "load_agentic_retrieval_plan_cases",
     "load_answer_quality_cases",
     "load_authz_privacy_cases",
+    "load_chunks_jsonl",
     "load_denominator_registry",
     "load_document_quality_cases",
     "load_eval_operations_profile_policy",
@@ -648,6 +665,7 @@ __all__ = [
     "run_tool_family_denominator_profile_gate",
     "run_tool_routing_product_path_profile",
     "summarize_retrieval_metrics",
+    "validate_default_query_enabled_qrels_coverage",
     "validate_denominator_registry",
     "validate_retrieval_hybrid_query_fixture",
     "validate_retrieval_qrels_fixture",

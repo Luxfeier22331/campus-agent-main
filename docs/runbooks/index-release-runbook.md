@@ -156,6 +156,13 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - no-alias preview 可以不传 acceptance cases，但不能因此视为 serving alias 可发布
 - provider-response replay 不发布 serving alias；query-serving alias publish 只走
   registry-scope release path
+- release acceptance cases 是 alias publish 的硬门槛，只承载 doc-level smoke、关键
+  wrong-document guard 和 backlink/traceability 这类必须在发布前关闭的问题；不要把 full
+  formal benchmark、no-hit 阈值调优或 stale version-id 回归样本直接塞进 publish gate
+- `regulations/student_rules` 的 alias publish gate 使用：
+  `packages/evals/fixtures/student_rules_release_acceptance.v1.json`
+- `regulations/student_rules` 的 formal qrels 与调参仍使用：
+  `packages/evals/fixtures/student_handbook_retrieval_qrels.json`
 
 对上游已经是 canonical `document-units` 的派生 collection，先执行 collection-specific
 materialization，再走同一个 release shell。当前实例是 `curriculum/program_semester_facts`：
@@ -244,9 +251,9 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 ```bash
 uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
-  --corpus official_web \
-  --collection muc_public_pages \
-  --acceptance-case-path <retrieval-acceptance-cases.json> \
+  --corpus <corpus> \
+  --collection <collection> \
+  --acceptance-case-path <release-acceptance-cases.json> \
   --publish-alias
 ```
 
@@ -269,11 +276,27 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - points count 大于 0
 - payload 含：
   - `index_release_id`
+  - `index_validation_status`
   - `index_release_manifest_key`
   - `index_release_alias`
   - `index_physical_collection_name`
   - `chunk_policy_version`
   - `cleaning_policy_version`
+  - `embedding_provider`
+  - `embedding_model`
+  - `embedding_dimensions`
+  - `sparse_provider`
+  - `sparse_model`
+  - `sparse_tokenizer`
+  - `sparse_language`
+  - `dense_vector_name`
+  - `sparse_vector_name`
+  - `dense_prefetch_limit`
+  - `sparse_prefetch_limit`
+  - `rrf_k`
+  - `rrf_dense_weight`
+  - `rrf_sparse_weight`
+  - `embedding_query_instruction_hash`
 
 ### Object Storage
 
@@ -308,6 +331,20 @@ uv run --all-packages python -m campus_evals.retrieval_tuning \
     configs/ingestion/regulations/student_rules/runtime-profile.json \
   --output <tuning-report.json>
 ```
+
+固定检查：
+
+- 发布前确认默认 query-enabled qrels fixture 覆盖完整：
+  `campus_evals.benchmark.validate_default_query_enabled_qrels_coverage()`
+- 发布前抽查 chunk 输出质量：
+  `campus_evals.retrieval_chunk_quality.evaluate_chunk_quality()`；输入应来自本次
+  release 的 chunk JSONL 或等价 in-memory chunk payload
+- 发布后把 no-hit、low confidence、forbidden hit、authz filtered、version mismatch 与
+  release metadata drift observation 汇总成候选 backlog：
+  `campus_evals.retrieval_monitoring.build_retrieval_monitoring_backlog()`
+
+这些检查只产生 release evidence、tuning recommendation 或 backlog candidate；不得直接改写
+runtime profile、canonical qrels 或 serving alias。
 
 ## 回滚
 

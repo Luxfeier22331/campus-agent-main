@@ -41,6 +41,7 @@ from campus_evals.benchmark_tuning import (
     load_retrieval_tuning_candidate_run,
     render_retrieval_tuning_report_text,
     retrieval_tuning_report_to_dict,
+    validate_default_query_enabled_qrels_coverage,
 )
 
 __all__ = [
@@ -76,6 +77,7 @@ __all__ = [
     "resolve_retrieval_fixture_manifest_path",
     "retrieval_tuning_report_to_dict",
     "summarize_retrieval_metrics",
+    "validate_default_query_enabled_qrels_coverage",
     "validate_retrieval_hybrid_query_fixture",
     "validate_retrieval_qrels_fixture",
 ]

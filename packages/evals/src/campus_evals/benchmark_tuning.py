@@ -38,6 +38,30 @@ _DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES = {
     "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
     "official_web/stable_reference": "official_web_stable_reference_retrieval_qrels.json",
 }
+_DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY = {
+    "regulations/student_rules": {
+        "min_case_count": 15,
+        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
+    },
+    "regulations/institutional_rules": {
+        "min_case_count": 5,
+        "required_classes": (
+            "positive",
+            "no_hit",
+            "forbidden",
+            "version_locked",
+            "authz",
+        ),
+    },
+    "curriculum/curriculum_plan": {
+        "min_case_count": 20,
+        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
+    },
+    "official_web/stable_reference": {
+        "min_case_count": 10,
+        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
+    },
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +133,30 @@ def default_query_enabled_retrieval_qrels_paths(
         scope_key: fixture_root / fixture_name
         for scope_key, fixture_name in _DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES.items()
     }
+
+
+def validate_default_query_enabled_qrels_coverage(
+    qrels_paths: dict[str, Path] | None = None,
+) -> tuple[str, ...]:
+    paths = qrels_paths or default_query_enabled_retrieval_qrels_paths()
+    issues: list[str] = []
+    for scope_key, policy in _DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY.items():
+        qrels_path = paths.get(scope_key)
+        if qrels_path is None:
+            issues.append(f"{scope_key}: missing qrels fixture")
+            continue
+        dataset = load_retrieval_qrels_dataset(qrels_path)
+        case_count = len(dataset.cases)
+        min_case_count = int(policy["min_case_count"])
+        if case_count < min_case_count:
+            issues.append(
+                f"{scope_key}: qrels case count {case_count} below minimum {min_case_count}"
+            )
+        coverage_classes = _qrels_coverage_classes(dataset)
+        for required_class in policy["required_classes"]:
+            if required_class not in coverage_classes:
+                issues.append(f"{scope_key}: missing qrels coverage class {required_class}")
+    return tuple(issues)
 
 
 def build_retrieval_tuning_report(
@@ -394,6 +442,22 @@ def _select_tunable_profile_fields(payload: object) -> dict[str, object]:
     return {key: payload[key] for key in TUNABLE_RETRIEVAL_PROFILE_FIELDS if key in payload}
 
 
+def _qrels_coverage_classes(dataset: RetrievalQrelsDataset) -> set[str]:
+    coverage: set[str] = set()
+    for case in dataset.cases:
+        if case.expected_sources:
+            coverage.add("positive")
+        else:
+            coverage.add("no_hit")
+        if case.forbidden_sources:
+            coverage.add("forbidden")
+        if any(source.version_id for source in case.expected_sources):
+            coverage.add("version_locked")
+        if case.request_overrides:
+            coverage.add("authz")
+    return coverage
+
+
 def _build_profile_patch(
     *,
     baseline_profile: dict[str, object],
@@ -449,4 +513,5 @@ __all__ = [
     "load_retrieval_tuning_candidate_run",
     "render_retrieval_tuning_report_text",
     "retrieval_tuning_report_to_dict",
+    "validate_default_query_enabled_qrels_coverage",
 ]

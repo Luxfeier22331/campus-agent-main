@@ -24,8 +24,9 @@ provenance、成本控制与 retrieval acceptance gate。
   policy 收敛；registry-scope release 已支持 alias publish 前 deterministic retrieval
   acceptance gate；sparse/hybrid release provenance 已补齐；chunker/tokenizer preparation
   provenance 已补齐；retrieval runtime drift guard 已落地；embedding cache / cost counters
-  已落地；eval-driven retrieval tuning runner 与默认 query-enabled qrels denominator 已落地；
-  acceptance docs/runbook closeout 已完成。
+  已落地；eval-driven retrieval tuning runner、默认 query-enabled qrels denominator、qrels
+  coverage gate、chunk quality audit helper 与 monitoring backlog intake 已落地；acceptance
+  docs/runbook closeout 已完成。
   runtime drift guard 必须在
   release/point payload provenance 补齐后执行，不能校验尚未落盘的字段。
 

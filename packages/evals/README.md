@@ -59,6 +59,17 @@ Evaluation helpers for campus-agent v2.
   现在同样由 preflight fast-fail
 - selected `regression_locked` retrieval qrels 现在已经开始锁到 `doc_id +
   version_id`；`chunk_id` 仍只在边界长期稳定后使用
+- 默认 query-enabled retrieval surface 的 qrels 覆盖由
+  `campus_evals.benchmark.validate_default_query_enabled_qrels_coverage()` 固定
+  检查；它要求每个公开检索 scope 至少覆盖 positive、no-hit、forbidden 与 version
+  locked 类样本，`institutional_rules` 还必须覆盖 authz case
+- chunk 质量抽查由 `campus_evals.retrieval_chunk_quality.evaluate_chunk_quality()`
+  固定表达；它检查 chunk 必备 traceability 字段、`root_unit_id` /
+  `chunk_policy_version` provenance、重复 chunk id 与 token budget
+- 生产观测回流由
+  `campus_evals.retrieval_monitoring.build_retrieval_monitoring_backlog()` 固定表达；
+  runtime observation 只生成 qrels / release metadata / authz / version 等候选 backlog，
+  不直接改写 canonical qrels truth
 - `campus_evals.scenarios` 现在同时提供 handbook / curriculum 的
   `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case
   集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked
@@ -348,6 +359,12 @@ retrieval benchmark CLI：
 - 对没有静态 `split-manifest.v1.json` 的 projection-derived scope，qrels validation
   可使用同目录 `retrieval-eval-manifest.v1.json` 作为 deterministic eval manifest；
   该 manifest 只服务 qrels anchoring，不替代 registry / release manifest truth
+- release publish acceptance 与 formal qrels 分开维护：例如
+  `regulations/student_rules` 发布 alias 时使用
+  `packages/evals/fixtures/student_rules_release_acceptance.v1.json`
+  作为 doc-level hard gate；`student_handbook_retrieval_qrels.json` 继续服务
+  formal benchmark、no-hit、forbidden hit、version-locked recall 与 tuning，不直接作为
+  alias publish gate
 
 retrieval tuning CLI：
 
