@@ -94,6 +94,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_ingestion_worker.official_web_historical_backfill",
         "backfill_historical_handoff_record",
     ),
+    "build_authenticated_notice_attachment_fetch_request_manifest_main": (
+        "campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest",
+        "main",
+    ),
     "collection_rename_registry_backfill_main": (
         "campus_ingestion_worker.collection_rename_registry_backfill",
         "main",

@@ -21,9 +21,10 @@ Current scope:
   bootstrap export; HTML discovery covers attachment anchors, `<img src>`,
   common lazy-image attributes, `srcset` / `<source>` responsive image refs, and
   inline `style=url(...)` image refs
-- when `OBJECT_STORE_*` source-bucket credentials are configured, internal
-  attachments and allowlisted external inline visual refs are downloaded and
-  uploaded into source object storage during bootstrap export
+- when `OBJECT_STORE_*` source-bucket credentials are configured,
+  `bootstrap:export` uploads bundle / manifest handoff artifacts, while notice
+  attachments remain reference-only unless an explicit attachment fetch request
+  manifest admits specific refs
 - when `OBJECT_STORE_*` source-bucket credentials are configured, released files
   from `文件发布` are also downloaded and uploaded into source object storage during
   file-release export
@@ -114,19 +115,26 @@ Auth note:
 
 Attachment note:
 
-- if `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, and
-  `OBJECT_STORE_SECRET_KEY` are configured, `bootstrap:export` materializes
-  internal portal attachments, HTML-discovered attachment anchors, inline image
-  refs, and allowlisted external inline visual refs into
-  `OBJECT_STORE_BUCKET_SOURCE` (default `campus-rag-source`)
-- allowlisted external inline visual refs are part of the default notice
-  collection surface only when they are notice-referenced visual assets; the
-  current default allowlist is `mmbiz.qpic.cn`, and those downloads use direct
-  unauthenticated fetches instead of the portal API context or campus cookies
+- `bootstrap:export` records internal portal attachments, HTML-discovered
+  attachment anchors, inline image refs, and allowlisted external inline visual
+  refs as typed attachment refs, but the default notice attachment behavior is
+  reference-only even when object-store credentials are configured.
+- specific notice attachment bytes are fetched only when
+  `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH` points to an
+  `authenticated_notice_attachment_fetch_request_manifest_v1` manifest built by
+  the ingestion/operator side from source-truth retention decisions.
+- only manifest rows with `fetch_to_quarantine`,
+  `fetch_required_for_source_truth`, or `fetch_required_for_admitted_owner`
+  become collector fetch admissions; `metadata_only` refs are not downloaded and
+  do not count as required source objects.
+- allowlisted external inline visual refs can be fetched only when explicitly
+  admitted; the current default allowlist is `mmbiz.qpic.cn`, and those
+  downloads use direct unauthenticated fetches instead of the portal API context
+  or campus cookies.
 - if object-store credentials are absent, collector stays fail-closed on
   source-bucket handoff for `bootstrap:export` / `file-release:export`; fixture
   collection helpers may still produce `reference_only` rows, but a successful
-  collector run must have verified bundle and manifest object refs
+  collector run must have verified bundle and manifest object refs.
 - collector only owns attachment byte capture and source object upload; OCR,
   attachment routing, regulation promotion, and chunk/index work remain
   downstream ingestion responsibilities
@@ -175,6 +183,9 @@ Notice export note:
   `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE` is not true, `bootstrap:export`
   acquires a `notice` run lease before writing artifacts; a live holder causes
   the run to fail closed
+- when `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH` is set,
+  `bootstrap:export` loads that manifest before collection and fetches only the
+  admitted attachment refs that appear in the selected or scanned notices
 - when source-bucket object-store credentials are configured, `bootstrap:export`
   uploads the exported bundle and manifest under
   `authenticated_notice_portal/runs/<site_id>/<timestamp>/`

@@ -191,6 +191,45 @@ uv run --package campus-ingestion-worker python -m \
     .tmp/authenticated-notice-smoke/20260404T120000/slice-50-summary.json
 ```
 
+## Selected Attachment Fetch Admission
+
+notice attachment bytes 默认不再因为 collector 配置了对象存储而自动下载。operator 若要让
+selected notice 的某些 attachment 进入 quarantine、source-truth required 或 admitted-owner
+byte path，必须先由 ingestion/operator 侧根据 source-truth retention decision 生成 fetch request
+manifest，再把该 manifest 交给 collector。
+
+生成 collector fetch request manifest：
+
+```bash
+FETCH_MANIFEST_MODULE=\
+campus_ingestion_worker.build_authenticated_notice_attachment_fetch_request_manifest
+uv run --all-packages python -m "$FETCH_MANIFEST_MODULE" \
+  --corpus campus_notices \
+  --collection internal_notice \
+  --notice-id 355867 \
+  --output-path \
+    .tmp/authenticated-notice-fetch-admission/355867/fetch-request-manifest.json
+```
+
+执行 selected collector export：
+
+```bash
+AUTHENTICATED_NOTICE_COLLECTION_MODE=selected \
+AUTHENTICATED_NOTICE_SELECTED_NOTICES=355867:5 \
+AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH=\
+.tmp/authenticated-notice-fetch-admission/355867/fetch-request-manifest.json \
+pnpm --dir apps/authenticated-notice-collector bootstrap:export
+```
+
+固定判定：
+
+- `metadata_only` attachment refs 不进入 fetch request manifest。
+- `fetch_to_quarantine` 可以下载并上传 bytes，但不计入 required source object。
+- `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 必须具备可验证
+  bytes；collector run ledger 缺失这些 required/admitted owner bytes 时应 fail closed。
+- 如果 operator 显式传入 `--notice-id` 但 source-truth inventory 缺少该 notice，manifest
+  builder 必须失败，不能静默产出空 admission。
+
 ## 通过标准
 
 smoke 输出 JSON summary，至少要求以下 checks 都为 `passed`：
