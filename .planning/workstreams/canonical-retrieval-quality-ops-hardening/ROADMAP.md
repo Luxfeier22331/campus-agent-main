@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -11,9 +11,9 @@ updated: 2026-05-01
 
 ## Status Semantics
 
-All phases have `PLAN.md` files so the generic `gsd-sdk workstream.status` helper reports them
-as `in_progress`. For this workstream, execution truth is the explicit `Status:` line in this
-roadmap plus `STATE.md`: Phase 0 is next, and Phases 1-6 are planned but not started.
+All phases are completed as of 2026-05-01. The generic `gsd-sdk workstream.status` helper may
+derive status from phase files, but execution truth for this workstream is the explicit `Status:`
+line in this roadmap plus `STATE.md`.
 
 ## Phase 0: Scope And Denominator Freeze
 
@@ -43,7 +43,7 @@ baseline external guidance 与 phase-by-phase verification plan。
 
 ## Phase 1: Qrels And Acceptance Expansion
 
-**Status:** not started.
+**Status:** completed on 2026-05-01.
 
 **Goal:** 将 qrels / release acceptance 从 bootstrap fixture 扩成 collection-level denominator，并让
 缺 case / 缺 scenario 的 publish 继续 fail closed。
@@ -65,7 +65,7 @@ baseline external guidance 与 phase-by-phase verification plan。
 
 ## Phase 2: Large-Scale Release Benchmark
 
-**Status:** not started.
+**Status:** completed on 2026-05-01.
 
 **Goal:** 建立可重复的 release rebuild / embedding / Qdrant index / query latency benchmark，证明
 规模、成本、cache 与 alias publish posture。
@@ -88,7 +88,7 @@ baseline external guidance 与 phase-by-phase verification plan。
 
 ## Phase 3: Production Retrieval Observation
 
-**Status:** not started.
+**Status:** completed on 2026-05-01.
 
 **Goal:** 将 JSONL debug sink 提升为可接入生产的 durable observation seam，同时保持隐私默认值和
 answer path fail-safe。
@@ -112,7 +112,7 @@ answer path fail-safe。
 
 ## Phase 4: Reranker Adoption Gate
 
-**Status:** not started.
+**Status:** completed on 2026-05-01.
 
 **Goal:** 把 reranker 从 eval-only branch 推进到 profile-gated runtime candidate，而不是直接全局打开。
 
@@ -133,7 +133,7 @@ answer path fail-safe。
 
 ## Phase 5: Freshness And Live-Assisted Branch Design
 
-**Status:** not started.
+**Status:** completed on 2026-05-01.
 
 **Goal:** 将 `freshness_sensitive` / `live_assisted` 作为显式 query branch 设计和受控实现入口，
 避免动态事实污染默认 current retrieval。
@@ -154,7 +154,7 @@ answer path fail-safe。
 
 ## Phase 6: Gate Separation And Closeout
 
-**Status:** not started.
+**Status:** completed on 2026-05-01.
 
 **Goal:** 固定 focused workstream gate、affected gate、repo-wide gate 与 unrelated blockers 的记录
 口径，并完成 docs/runbook/workstream closeout。
