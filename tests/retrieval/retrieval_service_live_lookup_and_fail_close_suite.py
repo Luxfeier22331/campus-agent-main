@@ -236,11 +236,13 @@ class RetrievalServiceLiveLookupAndFailCloseTest(unittest.TestCase):
         ):
             result = execute_retrieval_plan(
                 plan,
-                retrieve_live_step=lambda step: live_step_ids.append(step.step_id)
-                or EvidenceBundle(
-                    query_text=step.query_text,
-                    corpus=step.scope.corpus,
-                    collection=step.scope.collection,
+                retrieve_live_step=lambda step: (
+                    live_step_ids.append(step.step_id)
+                    or EvidenceBundle(
+                        query_text=step.query_text,
+                        corpus=step.scope.corpus,
+                        collection=step.scope.collection,
+                    )
                 ),
             )
 

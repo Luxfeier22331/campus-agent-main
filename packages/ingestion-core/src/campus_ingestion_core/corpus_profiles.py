@@ -136,9 +136,7 @@ class CollectionRuntimeProfile:
             if self.reranker_top_n is None:
                 raise ValueError("reranker_top_n is required when reranker is enabled")
             if not (self.reranker_profile_version or "").strip():
-                raise ValueError(
-                    "reranker_profile_version is required when reranker is enabled"
-                )
+                raise ValueError("reranker_profile_version is required when reranker is enabled")
             if not (self.reranker_adoption_evidence_id or "").strip():
                 raise ValueError(
                     "reranker_adoption_evidence_id is required when reranker is enabled"
@@ -290,9 +288,7 @@ def load_runtime_profile(
         reranker_enabled_by_default=bool(payload.get("reranker_enabled_by_default", False)),
         reranker_top_n=_optional_int(payload.get("reranker_top_n")),
         reranker_profile_version=_optional_text(payload.get("reranker_profile_version")),
-        reranker_adoption_evidence_id=_optional_text(
-            payload.get("reranker_adoption_evidence_id")
-        ),
+        reranker_adoption_evidence_id=_optional_text(payload.get("reranker_adoption_evidence_id")),
         document_support_limit=int(
             payload.get("document_support_limit") or DEFAULT_DOCUMENT_SUPPORT_LIMIT
         ),

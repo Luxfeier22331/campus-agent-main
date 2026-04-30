@@ -449,8 +449,7 @@ def write_index_release_artifacts(
         or retrieval_acceptance_summary_object_key
         != manifest.retrieval_acceptance_summary_object_key
         or quality_gate_summary_object_key != manifest.quality_gate_summary_object_key
-        or post_publish_audit_summary_object_key
-        != manifest.post_publish_audit_summary_object_key
+        or post_publish_audit_summary_object_key != manifest.post_publish_audit_summary_object_key
     ):
         runtime_manifest = replace(
             manifest,

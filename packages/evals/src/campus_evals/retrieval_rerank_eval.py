@@ -122,12 +122,9 @@ def evaluate_reranker_adoption_gate(
     profile_patch: Mapping[str, object] | None = None,
 ) -> RerankerAdoptionGateResult:
     runtime_thresholds = thresholds or RerankerAdoptionThresholds()
-    doc_hit_at_1_delta = (
-        report.reranked_metrics.doc_hit_at_1 - report.baseline_metrics.doc_hit_at_1
-    )
+    doc_hit_at_1_delta = report.reranked_metrics.doc_hit_at_1 - report.baseline_metrics.doc_hit_at_1
     forbidden_hit_rate_delta = (
-        report.reranked_metrics.forbidden_hit_rate
-        - report.baseline_metrics.forbidden_hit_rate
+        report.reranked_metrics.forbidden_hit_rate - report.baseline_metrics.forbidden_hit_rate
     )
     reasons: list[str] = []
     if doc_hit_at_1_delta < runtime_thresholds.min_doc_hit_at_1_delta:

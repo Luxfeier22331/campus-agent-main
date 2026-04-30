@@ -11,7 +11,9 @@ from campus_evals.retrieval_release_benchmark import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build a dry-run retrieval release benchmark report.")
+    parser = argparse.ArgumentParser(
+        description="Build a dry-run retrieval release benchmark report."
+    )
     parser.add_argument("--chunks", required=True, help="Path to chunk JSONL.")
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--collection", required=True)
@@ -32,7 +34,9 @@ def main(argv: list[str] | None = None) -> int:
         mode="dry_run",
     )
     payload = retrieval_release_benchmark_report_to_dict(report)
-    Path(args.output).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    Path(args.output).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(json.dumps(payload, ensure_ascii=False))
     return 0
 

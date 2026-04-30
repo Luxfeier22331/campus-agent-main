@@ -443,9 +443,7 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
                         ),
                     ),
                 ),
-                rerank_step=lambda request, evidence: (
-                    rerank_calls.append(request) or evidence
-                ),
+                rerank_step=lambda request, evidence: rerank_calls.append(request) or evidence,
             )
 
         self.assertEqual(rerank_calls, [])
