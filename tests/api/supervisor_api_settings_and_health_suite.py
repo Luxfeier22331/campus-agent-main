@@ -64,6 +64,19 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 "runtime_posture": "provider_loop_pilot",
             },
         )
+        self.assertEqual(
+            ready.json_body["agents_sdk_runtime"],
+            {
+                "enabled": False,
+                "admitted": False,
+                "admission_reason": "disabled",
+                "allowed_targets": [],
+                "allowed_tools": [],
+                "runtime_enabled": False,
+                "runtime_admitted": False,
+                "runtime_posture": "domain_agent_adapter_pilot",
+            },
+        )
         self.assertNotIn("transport_runtime", ready.json_body)
         self.assertFalse(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertNotIn("audit_runtime", ready.json_body)
@@ -127,6 +140,9 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "123",
             "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED": "true",
             "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "campus_notice_get",
+            "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
+            "SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS": "notice-agent",
+            "SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS": "campus_notice_get",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -152,7 +168,40 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.cancel_flag_ttl_seconds, 123)
         self.assertTrue(settings.provider_tool_runtime_enabled)
         self.assertEqual(settings.provider_tool_runtime_allowed_tools, ("campus_notice_get",))
+        self.assertTrue(settings.agents_sdk_runtime_enabled)
+        self.assertEqual(settings.agents_sdk_runtime_allowed_targets, ("notice-agent",))
+        self.assertEqual(settings.agents_sdk_runtime_allowed_tools, ("campus_notice_get",))
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
+
+    def test_bridge_readyz_degrades_when_agents_sdk_runtime_enabled_without_allowed_tool(
+        self,
+    ) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+                runtime_provider="openai-responses",
+                supervisor_prompt_model="gpt-supervisor",
+                agent_prompt_model="gpt-agent",
+                prompt_runtime_provider="openai-responses",
+                prompt_runtime_api_key="test-key",
+                prompt_runtime_base_url="https://api.openai.com/v1",
+                agents_sdk_runtime_enabled=True,
+                agents_sdk_runtime_allowed_targets=("notice-agent",),
+            )
+        )
+
+        ready = app.handle(
+            "GET",
+            "/internal/bridge/readyz",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+        )
+
+        self.assertEqual(ready.status_code, 503)
+        self.assertEqual(
+            ready.json_body["agents_sdk_runtime"]["admission_reason"],
+            "allowed_tool_missing",
+        )
+        app.close()
 
     def test_api_settings_from_env_reads_retrieval_observation_settings(self) -> None:
         env = {
