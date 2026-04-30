@@ -16,9 +16,10 @@ updated: 2026-05-01
 ## Current Status
 
 - status: `active`
-- current phase: `Verification`
+- current phase: `Phase 9 planned`
 - phases complete: `8`
 - baseline: authenticated notice run-level queue、verified ledger handoff、run consumer、consumer-owned media gate evidence manifest、downstream materialization guard、cleanup guard 与 captured-content smoke harness 已在当前 worktree 中落地。
+- current slice: Phase 9 补齐 parent job -> child task / attempt 状态合同、OCR-first processor profile、progress event、retry/resource budget 与 downstream success criteria。
 - deferred by operator decision: local-only historical content 不自动入队；后续由 operator 手动触发 verified/repair ledger enqueue。真实 Postgres/object-store full execute smoke 验收也后置，不作为本轮修复完成条件。
 
 ## Problem
@@ -55,6 +56,7 @@ updated: 2026-05-01
 9. strict audit 通过后才允许 promotion。
 10. promotion 触发 downstream materialization/read-model rebuild。
 11. smoke 从已采集内容和 queue job evidence 验证 source-truth、media gate、promotion、downstream read model 与 cleanup posture。
+12. child task evidence 明确记录每个 source unit、media candidate、processor attempt、target admission、materialization 与 cleanup stage 的状态、profile、reason code、retry posture 和 progress events。
 
 历史内容 replay path 固定为同一 contract：
 
@@ -71,6 +73,7 @@ updated: 2026-05-01
 - 本线不重新定义 media gate 语义；它只把已硬化的 gate 接入无人值守主链路。
 - 本线不打开 public query-serving surface；downstream materialization/read-model 仍受 explicit admission 控制。
 - 本线不建设 product/API scheduler；调度可由 cron/systemd/Kubernetes Job 或 repo-owned CLI 驱动。
+- 本线 Phase 9 不引入 RAGFlow runtime；只参考其 ingest task/process 设计，把本 repo 的 child task contract 和 processor profile 收口。
 
 ## Native Planning Truth
 

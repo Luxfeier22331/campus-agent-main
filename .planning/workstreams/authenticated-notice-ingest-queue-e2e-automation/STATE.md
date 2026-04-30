@@ -11,14 +11,14 @@ updated: 2026-05-01
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Verification
+**Current Phase:** Phase 9 planned
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed Phase 8 harness and tightened remaining consumer-owned lifecycle gates.
+**Last Activity Description:** Added Phase 9 plan for child task state contract, OCR-first processor profile consolidation, progress events, retry/resource budgets, and downstream success criteria.
 
 ## Progress
 
 **Phases Complete:** 8
-**Current Plan:** `ROADMAP.md`
+**Current Plan:** `ROADMAP.md` and `phases/phase-09-child-task-state-contract-and-processor-profile-consolidation/PLAN.md`
 
 ## Baseline Code Facts
 
@@ -44,7 +44,11 @@ updated: 2026-05-01
 
 ## Current Gaps
 
-- None in the current repair scope after operator decision.
+- Run-level queue success does not yet have a formal child task/attempt evidence contract.
+- OCR-first schedule/table image processing and generic multimodal escalation rules are not yet centralized as processor profiles.
+- Progress is available through reports/evidence, but not yet as a stable parent-job/child-task event stream.
+- Retry, timeout, concurrency, and resource budgets are still distributed across command arguments and scripts.
+- Downstream materialization success is guarded, but the child-task evidence behind that decision is not yet the canonical phase contract.
 
 ## Deferred By Operator Decision
 
@@ -53,9 +57,9 @@ updated: 2026-05-01
 
 ## Next Slice
 
-Run verification for the consumer-owned lifecycle implementation and fix any medium-or-higher findings before closing the workstream.
+Execute Phase 9: implement the child task state contract, processor profile consolidation, progress event stream, retry/resource budget profile, and captured-content smoke assertions before final verification.
 
 ## Session Continuity
 
-**Stopped At:** Consumer-owned lifecycle hardening implemented; verification loop is next. Local-only historical enqueue and live infra acceptance are explicit deferred operator tasks.
+**Stopped At:** Phase 9 is planned and ready. Local-only historical enqueue and live infra acceptance are explicit deferred operator tasks.
 **Resume File:** None
