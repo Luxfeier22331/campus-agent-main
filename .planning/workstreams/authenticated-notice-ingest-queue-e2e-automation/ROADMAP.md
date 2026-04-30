@@ -19,6 +19,7 @@ updated: 2026-05-01
 - [x] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
 - [x] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
 - [x] **Phase 8: Unattended Captured-Content E2E Smoke** — prove queue-to-downstream chain over already collected content with no manual artifact stitching.
+- [ ] **Phase 9: Child Task State Contract And Processor Profile Consolidation** — formalize parent job to child task/attempt state, OCR-first processor profiles, progress events, retry/resource budgets, and downstream success criteria before final verification.
 
 ## Phase 1: Queue Contract And Lifecycle Freeze
 
@@ -257,6 +258,35 @@ uv run --all-packages python -m campus_ingestion_worker.smoke_authenticated_noti
   --captured-content \
   --sample-id 355867
 uv run --all-packages python -m unittest discover -s tests -t .
+pnpm docs:lint
+git diff --check
+```
+
+## Phase 9: Child Task State Contract And Processor Profile Consolidation
+
+Goal: turn the run-level authenticated notice queue consumer into a typed unattended task chain with explicit child task states, OCR-first processor profiles, progress events, retry/resource budgets, and downstream materialization success criteria.
+
+Deliverables:
+
+- `authenticated_notice_child_task_state_contract.v1` covering parent linkage, task identity, task kind, processor profile, lifecycle state, reason code, retry posture, input refs, output refs, and progress event refs.
+- `authenticated_notice_processor_profile.v1` covering `text_notice`, `image_schedule_notice`, `attachment_owner_text_notice`, and `mixed_notice`.
+- OCR-first routing for schedule/table image facts, including notice `355867`, with generic multimodal limited to explicit escalation reasons.
+- Append-only progress event stream for parent jobs and child tasks.
+- Consumer trace summary by child task kind/state/profile and highest severity.
+- Captured-content smoke assertions for zero medium-or-higher child-task contract findings.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_authenticated_notice_child_tasks \
+  tests.ingestion.test_authenticated_notice_processor_profiles \
+  tests.ingestion.test_authenticated_notice_run_queue_consumer \
+  tests.ingestion.test_smoke_authenticated_notice_ingest_queue_e2e
+uv run --all-packages python -m campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e \
+  --captured-content \
+  --sample-id 355867 \
+  --require-child-task-contract
 pnpm docs:lint
 git diff --check
 ```
