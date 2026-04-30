@@ -275,9 +275,11 @@ def _profile_requires_workflow_run_store(profile: str) -> bool:
 
 
 def _profile_requires_temporary_postgres(profile: str) -> bool:
-    return _profile_requires_structured_projection(profile) or _profile_requires_notice_read_model(
-        profile
-    ) or _profile_requires_workflow_run_store(profile)
+    return (
+        _profile_requires_structured_projection(profile)
+        or _profile_requires_notice_read_model(profile)
+        or _profile_requires_workflow_run_store(profile)
+    )
 
 
 def _notice_smoke_body() -> str:

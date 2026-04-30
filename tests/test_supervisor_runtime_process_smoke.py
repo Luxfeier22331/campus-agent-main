@@ -310,9 +310,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "http://127.0.0.1:18082",
         )
         self.assertIn("campus_notice_get", notice_get.expected_body_tokens)
-        multi_step_processes = {
-            process.label: process for process in multi_step_notice.processes
-        }
+        multi_step_processes = {process.label: process for process in multi_step_notice.processes}
         self.assertEqual(multi_step_notice.expected_status, 200)
         self.assertEqual(multi_step_notice.answer_payload["requested_capability"], "knowledge")
         self.assertEqual(
@@ -328,9 +326,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "true",
         )
         self.assertEqual(
-            multi_step_processes["supervisor-api"].env[
-                "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE"
-            ],
+            multi_step_processes["supervisor-api"].env["SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE"],
             "true",
         )
         self.assertEqual(
