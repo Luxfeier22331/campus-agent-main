@@ -140,11 +140,7 @@ function classifyWeChatArticlePage(input: {
 	return "non_article";
 }
 
-function extractBodyBlocks(
-	$: CheerioAPI,
-	contentRoot: CheerioElementSelection,
-	html: string,
-) {
+function extractBodyBlocks($: CheerioAPI, contentRoot: CheerioElementSelection, html: string) {
 	if (contentRoot.length === 0) {
 		return splitTextBlocks(extractJsDecodeField(html, "content_noencode"));
 	}
@@ -176,11 +172,7 @@ function extractBodyBlocks(
 	return blocks;
 }
 
-function extractInlineImageUrls(
-	$: CheerioAPI,
-	contentRoot: CheerioElementSelection,
-	html: string,
-) {
+function extractInlineImageUrls($: CheerioAPI, contentRoot: CheerioElementSelection, html: string) {
 	if (contentRoot.length === 0) {
 		return extractPicturePageImageUrls(html);
 	}
@@ -273,8 +265,7 @@ function splitTextBlocks(value: string | null): string[] {
 }
 
 function extractPicturePageImageUrls(html: string): string[] {
-	const block = /picture_page_info_list\s*:\s*\[(?<body>[\s\S]*?)\n\s*\]/u.exec(html)?.groups
-		?.body;
+	const block = /picture_page_info_list\s*:\s*\[(?<body>[\s\S]*?)\n\s*\]/u.exec(html)?.groups?.body;
 	if (!block) {
 		return [];
 	}

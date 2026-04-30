@@ -177,7 +177,9 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).not.toContain("position: fixed !important;");
 		expect(css).not.toContain("right: max(16px, env(safe-area-inset-right)) !important;");
 		expect(css).not.toContain("height: calc(100dvh - var(--rp-nav-height, 64px)) !important;");
-		expect(css).toContain(".rp-doc-layout__container {\n\t\tmax-width: 100vw;\n\t\toverflow-x: clip;");
+		expect(css).toContain(
+			".rp-doc-layout__container {\n\t\tmax-width: 100vw;\n\t\toverflow-x: clip;",
+		);
 		expect(css).toContain("max-width: 100vw;\n\t\toverflow-x: clip;");
 		expect(css).toContain(".rspress-doc,\n\t.rspress-doc :where(p, blockquote, ul, ol)");
 		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item__left");
@@ -188,7 +190,9 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).toContain("padding-left: var(--docs-sidebar-item-indent, 0.25rem);");
 		expect(css).toContain("-webkit-line-clamp: 2;");
 		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item--group-item::before");
-		expect(css).toContain("body .rp-nav__right > .rp-search-button--mobile.rp-search-button--mobile");
+		expect(css).toContain(
+			"body .rp-nav__right > .rp-search-button--mobile.rp-search-button--mobile",
+		);
 		expect(css).toContain("display: inline-flex;");
 		expect(css).toContain('content: "搜索";');
 		expect(css).toContain("min-width: 4.45rem;");

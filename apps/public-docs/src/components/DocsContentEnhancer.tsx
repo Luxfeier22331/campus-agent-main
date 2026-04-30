@@ -85,7 +85,9 @@ function isUsefulMobileTableTitle(value: string): boolean {
 
 function findPreferredTitleColumn(headers: string[]): number {
 	const preferredHeaderPattern = /课程名称|课程名|项目|事项|环节|类别|模块|名称|要求|内容/;
-	const exactIndex = headers.findIndex((header) => /^(课程名称|课程名|项目|事项|环节|类别)$/.test(header));
+	const exactIndex = headers.findIndex((header) =>
+		/^(课程名称|课程名|项目|事项|环节|类别)$/.test(header),
+	);
 	if (exactIndex >= 0) {
 		return exactIndex;
 	}

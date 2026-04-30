@@ -279,6 +279,36 @@ main.rp-doc-layout__doc-container {
 	font-size: 0.92rem;
 }
 
+.rspress-doc .gated-collection-list {
+	display: grid;
+	gap: 0.55rem;
+	margin: 1.2rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.rspress-doc .gated-collection-list li {
+	border-bottom: 1px solid var(--docs-border-soft);
+	padding: 0.72rem 0;
+}
+
+.rspress-doc .gated-collection-list a {
+	color: var(--docs-ink);
+	font-weight: 640;
+	text-decoration: none;
+}
+
+.rspress-doc .gated-collection-list a:hover {
+	color: var(--docs-accent-strong);
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+
+.rspress-doc .gated-collection-empty {
+	margin-top: 1rem;
+	color: var(--rp-c-text-2);
+}
+
 .rspress-doc.docs-reader-layout-landing > ul:not([class]) {
 	display: grid;
 	gap: 0.75rem;
@@ -320,36 +350,6 @@ main.rp-doc-layout__doc-container {
 
 .rspress-doc.docs-reader-layout-landing > ul:not([class]) a:hover {
 	text-decoration: underline;
-}
-
-.rspress-doc .gated-collection-list {
-	display: grid;
-	gap: 0.55rem;
-	margin: 1.2rem 0 0;
-	padding: 0;
-	list-style: none;
-}
-
-.rspress-doc .gated-collection-list li {
-	border-bottom: 1px solid var(--docs-border-soft);
-	padding: 0.72rem 0;
-}
-
-.rspress-doc .gated-collection-list a {
-	color: var(--docs-ink);
-	font-weight: 640;
-	text-decoration: none;
-}
-
-.rspress-doc .gated-collection-list a:hover {
-	color: var(--docs-accent-strong);
-	text-decoration: underline;
-	text-underline-offset: 0.18em;
-}
-
-.rspress-doc .gated-collection-empty {
-	margin-top: 1rem;
-	color: var(--rp-c-text-2);
 }
 
 .rspress-doc .docs-home-split {
@@ -771,10 +771,6 @@ main.rp-doc-layout__doc-container {
 	z-index: 30;
 }
 
-.rspress-doc .document-meta-details:not([open]) dl {
-	display: none;
-}
-
 .rspress-doc .document-meta-details dl {
 	position: fixed;
 	top: auto;
@@ -792,6 +788,10 @@ main.rp-doc-layout__doc-container {
 	border-radius: 0.8rem;
 	background: var(--docs-surface);
 	box-shadow: 0 18px 40px rgba(28, 45, 37, 0.14);
+}
+
+.rspress-doc .document-meta-details:not([open]) dl {
+	display: none;
 }
 
 .rspress-doc .document-meta-details dd {
@@ -1268,7 +1268,7 @@ main.rp-doc-layout__doc-container {
 		gap: 0.12rem 0.54rem;
 	}
 
-	.rspress-doc .document-meta-details dl {
+	.rspress-doc .document-meta-details:is([open], :not([open])) dl {
 		top: auto;
 		right: 1rem;
 		bottom: max(1rem, env(safe-area-inset-bottom));
