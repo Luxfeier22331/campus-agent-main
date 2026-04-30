@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
@@ -216,6 +217,97 @@ class IndexReleaseValidationTest(unittest.TestCase):
         self.assertEqual(payload["dense_prefetch_limit"], runtime_profile.dense_prefetch_limit)
         self.assertEqual(payload["rrf_k"], runtime_profile.rrf_k)
         self.assertEqual(payload["profile_identity_hash"], manifest.profile_identity_hash)
+
+    def test_index_release_manifest_records_reranker_profile_identity(self) -> None:
+        runtime_profile = replace(
+            load_runtime_profile("curriculum", "curriculum_plan"),
+            reranker_enabled_by_default=True,
+            reranker_top_n=20,
+            reranker_profile_version="mock-reranker-v1",
+            reranker_adoption_evidence_id="eval:reranker:2026-05-01",
+        )
+        manifest = build_index_release_manifest(
+            release_id="r20260430_120000_rerank",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            binding=QdrantIndexBinding(
+                alias_name="curriculum_plan",
+                collection_prefix="curriculum_plan",
+            ),
+            physical_collection_name="curriculum_plan__r20260430_120000_rerank",
+            previous_physical_collection_name=None,
+            records=(
+                DocumentRegistryRecord(
+                    document_id="curriculum:test",
+                    revision_track="source-faithful",
+                    version_id="sha256:test",
+                    source_uri="https://campus.example/curriculum:test",
+                    content_hash="sha256:test",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    status="active",
+                    ingestion_timestamp="2026-04-30T00:00:00+00:00",
+                    parser_version="test_parser_v1",
+                    embedding_model="mock-embedding-8d",
+                    source_channel="pdf_ocr",
+                    is_current=True,
+                    document_units_object_key="curriculum/test/document-units.jsonl",
+                    processed_object_keys=("curriculum/test/document-units.jsonl",),
+                    import_source="test",
+                ),
+            ),
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="课程简介正文。",
+                    section_path=["课程简介"],
+                    tokens=32,
+                    document_id="curriculum:test",
+                    extra_metadata={"chunk_policy_version": "curriculum_semantic_v1"},
+                ),
+            ),
+            validation=validate_scope_release(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                chunks=(
+                    _make_chunk(
+                        chunk_id="chunk-0001",
+                        text="课程简介正文。",
+                        section_path=["课程简介"],
+                        tokens=32,
+                        document_id="curriculum:test",
+                    ),
+                ),
+            ),
+            indexed_at="2026-04-30T00:00:00+00:00",
+            published_at=None,
+            validation_summary_object_key=None,
+            embedding_provider="mock",
+            embedding_dimensions=3,
+            runtime_profile=runtime_profile,
+            sparse_settings=SparseEmbeddingSettings(provider="mock"),
+        )
+
+        self.assertTrue(manifest.reranker_enabled_by_default)
+        self.assertEqual(manifest.reranker_top_n, 20)
+        self.assertEqual(manifest.reranker_profile_version, "mock-reranker-v1")
+        self.assertEqual(
+            manifest.reranker_adoption_evidence_id,
+            "eval:reranker:2026-05-01",
+        )
+
+        payload = build_release_metadata_payload(
+            manifest=manifest,
+            manifest_object_key="curriculum/releases/curriculum_plan/r1/index-release.json",
+        )
+
+        self.assertEqual(payload["reranker_enabled_by_default"], True)
+        self.assertEqual(payload["reranker_top_n"], 20)
+        self.assertEqual(payload["reranker_profile_version"], "mock-reranker-v1")
+        self.assertEqual(
+            payload["reranker_adoption_evidence_id"],
+            "eval:reranker:2026-05-01",
+        )
 
     def test_resolve_alias_target_does_not_fall_back_to_same_named_collection(self) -> None:
         qdrant_client = Mock()

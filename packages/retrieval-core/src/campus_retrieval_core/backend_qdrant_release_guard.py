@@ -38,6 +38,13 @@ _REQUIRED_RELEASE_METADATA_FIELDS = (
     "release_metadata_consistency_status",
 )
 
+_REQUIRED_RERANKER_RELEASE_METADATA_FIELDS = (
+    "reranker_enabled_by_default",
+    "reranker_top_n",
+    "reranker_profile_version",
+    "reranker_adoption_evidence_id",
+)
+
 
 def validate_alias_release_metadata(
     backend,
@@ -249,7 +256,9 @@ def _validate_payload(
     profile: CollectionRuntimeProfile,
     settings: RetrievalSettings,
 ) -> str:
-    missing = [field for field in _REQUIRED_RELEASE_METADATA_FIELDS if field not in payload]
+    missing = [
+        field for field in _required_release_metadata_fields(profile) if field not in payload
+    ]
     if missing:
         return "missing release metadata fields: " + ", ".join(missing)
     expected: dict[str, object] = {
@@ -277,6 +286,15 @@ def _validate_payload(
         "qrels_coverage_status": "passed",
         "release_metadata_consistency_status": "passed",
     }
+    if profile.reranker_enabled_by_default:
+        expected.update(
+            {
+                "reranker_enabled_by_default": True,
+                "reranker_top_n": profile.reranker_top_n,
+                "reranker_profile_version": profile.reranker_profile_version,
+                "reranker_adoption_evidence_id": profile.reranker_adoption_evidence_id,
+            }
+        )
     mismatches: list[str] = []
     for field, expected_value in expected.items():
         actual = payload.get(field)
@@ -287,6 +305,12 @@ def _validate_payload(
 
 def _requires_release_metadata(profile: CollectionRuntimeProfile) -> bool:
     return profile.serving_stage == "query_serving" or profile.query_enabled_by_default
+
+
+def _required_release_metadata_fields(profile: CollectionRuntimeProfile) -> tuple[str, ...]:
+    if profile.reranker_enabled_by_default:
+        return _REQUIRED_RELEASE_METADATA_FIELDS + _REQUIRED_RERANKER_RELEASE_METADATA_FIELDS
+    return _REQUIRED_RELEASE_METADATA_FIELDS
 
 
 def _uses_non_release_managed_test_backend(
@@ -356,6 +380,10 @@ def _profile_identity(
         "rrf_k": profile.rrf_k,
         "rrf_dense_weight": profile.rrf_dense_weight,
         "rrf_sparse_weight": profile.rrf_sparse_weight,
+        "reranker_enabled_by_default": profile.reranker_enabled_by_default,
+        "reranker_top_n": profile.reranker_top_n,
+        "reranker_profile_version": profile.reranker_profile_version or "",
+        "reranker_adoption_evidence_id": profile.reranker_adoption_evidence_id or "",
         "embedding_query_instruction_hash": _hash_text(profile.embedding_query_instruction),
     }
     return hashlib.sha256(repr(tuple(sorted(payload.items()))).encode("utf-8")).hexdigest()

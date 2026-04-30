@@ -95,6 +95,10 @@ class IndexReleaseManifest:
     rrf_k: int = 0
     rrf_dense_weight: float = 0.0
     rrf_sparse_weight: float = 0.0
+    reranker_enabled_by_default: bool = False
+    reranker_top_n: int | None = None
+    reranker_profile_version: str = ""
+    reranker_adoption_evidence_id: str = ""
     embedding_query_instruction_hash: str = ""
     hybrid_query_profile_hash: str = ""
     profile_identity_hash: str = ""
@@ -319,6 +323,16 @@ def build_index_release_manifest(
         rrf_k=runtime_profile.rrf_k if runtime_profile else 0,
         rrf_dense_weight=runtime_profile.rrf_dense_weight if runtime_profile else 0.0,
         rrf_sparse_weight=runtime_profile.rrf_sparse_weight if runtime_profile else 0.0,
+        reranker_enabled_by_default=(
+            runtime_profile.reranker_enabled_by_default if runtime_profile else False
+        ),
+        reranker_top_n=runtime_profile.reranker_top_n if runtime_profile else None,
+        reranker_profile_version=(
+            runtime_profile.reranker_profile_version or "" if runtime_profile else ""
+        ),
+        reranker_adoption_evidence_id=(
+            runtime_profile.reranker_adoption_evidence_id or "" if runtime_profile else ""
+        ),
         embedding_query_instruction_hash=(
             _hash_text(runtime_profile.embedding_query_instruction) if runtime_profile else ""
         ),
@@ -502,6 +516,10 @@ def build_release_metadata_payload(
         "rrf_k": manifest.rrf_k,
         "rrf_dense_weight": manifest.rrf_dense_weight,
         "rrf_sparse_weight": manifest.rrf_sparse_weight,
+        "reranker_enabled_by_default": manifest.reranker_enabled_by_default,
+        "reranker_top_n": manifest.reranker_top_n,
+        "reranker_profile_version": manifest.reranker_profile_version,
+        "reranker_adoption_evidence_id": manifest.reranker_adoption_evidence_id,
         "embedding_query_instruction_hash": manifest.embedding_query_instruction_hash,
         "hybrid_query_profile_hash": manifest.hybrid_query_profile_hash,
         "profile_identity_hash": manifest.profile_identity_hash,
@@ -774,6 +792,10 @@ def _hash_hybrid_query_profile(
         "rrf_k": runtime_profile.rrf_k,
         "rrf_dense_weight": runtime_profile.rrf_dense_weight,
         "rrf_sparse_weight": runtime_profile.rrf_sparse_weight,
+        "reranker_enabled_by_default": runtime_profile.reranker_enabled_by_default,
+        "reranker_top_n": runtime_profile.reranker_top_n,
+        "reranker_profile_version": runtime_profile.reranker_profile_version or "",
+        "reranker_adoption_evidence_id": runtime_profile.reranker_adoption_evidence_id or "",
         "embedding_query_instruction_hash": _hash_text(runtime_profile.embedding_query_instruction),
         "sparse_provider": sparse_settings.provider if sparse_settings is not None else "",
         "sparse_model": sparse_settings.model if sparse_settings is not None else "",
@@ -817,6 +839,10 @@ def _hash_profile_identity(
         "rrf_k": runtime_profile.rrf_k,
         "rrf_dense_weight": runtime_profile.rrf_dense_weight,
         "rrf_sparse_weight": runtime_profile.rrf_sparse_weight,
+        "reranker_enabled_by_default": runtime_profile.reranker_enabled_by_default,
+        "reranker_top_n": runtime_profile.reranker_top_n,
+        "reranker_profile_version": runtime_profile.reranker_profile_version or "",
+        "reranker_adoption_evidence_id": runtime_profile.reranker_adoption_evidence_id or "",
         "embedding_query_instruction_hash": _hash_text(runtime_profile.embedding_query_instruction),
     }
     return hashlib.sha256(repr(tuple(sorted(payload.items()))).encode("utf-8")).hexdigest()

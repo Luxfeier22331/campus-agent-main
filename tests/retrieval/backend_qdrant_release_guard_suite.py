@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from dataclasses import replace
 
 from campus_retrieval_core.backend_qdrant_release_guard import (
     _cached_guard_result,
@@ -218,6 +219,30 @@ class BackendQdrantReleaseGuardTest(unittest.TestCase):
 
         self.assertEqual(qdrant_client.query_calls, 0)
 
+    def test_release_guard_requires_reranker_metadata_for_opt_in_profiles(self) -> None:
+        profile = replace(
+            _make_runtime_profile(),
+            reranker_enabled_by_default=True,
+            reranker_top_n=20,
+            reranker_profile_version="mock-reranker-v1",
+            reranker_adoption_evidence_id="eval:reranker:2026-05-01",
+        )
+        payload = _release_payload(profile=profile, settings=_settings())
+        del payload["reranker_profile_version"]
+        qdrant_client = _ReleaseGuardQdrantClient(payload)
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "reranker_profile_version"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_calls, 0)
+
     def test_release_guard_fails_closed_on_empty_query_serving_alias_payload(self) -> None:
         profile = _make_runtime_profile()
         qdrant_client = _ReleaseGuardQdrantClient({})
@@ -323,6 +348,10 @@ def _release_payload(*, profile, settings: RetrievalSettings) -> dict[str, objec
         "rrf_k": profile.rrf_k,
         "rrf_dense_weight": profile.rrf_dense_weight,
         "rrf_sparse_weight": profile.rrf_sparse_weight,
+        "reranker_enabled_by_default": profile.reranker_enabled_by_default,
+        "reranker_top_n": profile.reranker_top_n,
+        "reranker_profile_version": profile.reranker_profile_version,
+        "reranker_adoption_evidence_id": profile.reranker_adoption_evidence_id,
         "embedding_query_instruction_hash": hashlib.sha256(
             profile.embedding_query_instruction.encode("utf-8")
         ).hexdigest(),

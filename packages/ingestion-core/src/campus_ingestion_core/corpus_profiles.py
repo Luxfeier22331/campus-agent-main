@@ -73,6 +73,10 @@ class CollectionRuntimeProfile:
     rrf_k: int = DEFAULT_RRF_K
     rrf_dense_weight: float = DEFAULT_RRF_DENSE_WEIGHT
     rrf_sparse_weight: float = DEFAULT_RRF_SPARSE_WEIGHT
+    reranker_enabled_by_default: bool = False
+    reranker_top_n: int | None = None
+    reranker_profile_version: str | None = None
+    reranker_adoption_evidence_id: str | None = None
     document_support_limit: int = DEFAULT_DOCUMENT_SUPPORT_LIMIT
     document_support_strategy: str = DEFAULT_DOCUMENT_SUPPORT_STRATEGY
     embedding_query_instruction: str = DEFAULT_EMBEDDING_QUERY_INSTRUCTION
@@ -126,6 +130,19 @@ class CollectionRuntimeProfile:
             raise ValueError("rrf_dense_weight must be greater than zero")
         if self.rrf_sparse_weight <= 0:
             raise ValueError("rrf_sparse_weight must be greater than zero")
+        if self.reranker_top_n is not None and self.reranker_top_n <= 0:
+            raise ValueError("reranker_top_n must be greater than zero")
+        if self.reranker_enabled_by_default:
+            if self.reranker_top_n is None:
+                raise ValueError("reranker_top_n is required when reranker is enabled")
+            if not (self.reranker_profile_version or "").strip():
+                raise ValueError(
+                    "reranker_profile_version is required when reranker is enabled"
+                )
+            if not (self.reranker_adoption_evidence_id or "").strip():
+                raise ValueError(
+                    "reranker_adoption_evidence_id is required when reranker is enabled"
+                )
         if self.document_support_limit <= 0:
             raise ValueError("document_support_limit must be greater than zero")
         if self.document_support_strategy not in ALLOWED_DOCUMENT_SUPPORT_STRATEGIES:
@@ -270,6 +287,12 @@ def load_runtime_profile(
         rrf_k=int(payload.get("rrf_k") or DEFAULT_RRF_K),
         rrf_dense_weight=float(payload.get("rrf_dense_weight") or DEFAULT_RRF_DENSE_WEIGHT),
         rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or DEFAULT_RRF_SPARSE_WEIGHT),
+        reranker_enabled_by_default=bool(payload.get("reranker_enabled_by_default", False)),
+        reranker_top_n=_optional_int(payload.get("reranker_top_n")),
+        reranker_profile_version=_optional_text(payload.get("reranker_profile_version")),
+        reranker_adoption_evidence_id=_optional_text(
+            payload.get("reranker_adoption_evidence_id")
+        ),
         document_support_limit=int(
             payload.get("document_support_limit") or DEFAULT_DOCUMENT_SUPPORT_LIMIT
         ),

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 from campus_contracts import EvidenceSource
@@ -43,6 +43,25 @@ class DeterministicRerankBranchReport:
     reranked_metrics: RetrievalMetricSummary
     baseline_case_metrics: tuple[RetrievalCaseMetrics, ...]
     reranked_case_metrics: tuple[RetrievalCaseMetrics, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RerankerAdoptionThresholds:
+    min_doc_hit_at_1_delta: float = 0.0
+    max_latency_p95_ms: float = 1000.0
+    max_cost_units_per_query: float = 1.0
+    max_forbidden_hit_rate_delta: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class RerankerAdoptionGateResult:
+    status: str
+    reasons: tuple[str, ...]
+    doc_hit_at_1_delta: float
+    forbidden_hit_rate_delta: float
+    latency_p95_ms: float
+    cost_units_per_query: float
+    profile_patch: Mapping[str, object] = field(default_factory=dict)
 
 
 def evaluate_deterministic_rerank_branch(
@@ -91,6 +110,44 @@ def evaluate_deterministic_rerank_branch(
         reranked_metrics=summarize_retrieval_metrics(reranked_metrics),
         baseline_case_metrics=tuple(baseline_metrics),
         reranked_case_metrics=tuple(reranked_metrics),
+    )
+
+
+def evaluate_reranker_adoption_gate(
+    *,
+    report: DeterministicRerankBranchReport,
+    latency_p95_ms: float,
+    cost_units_per_query: float,
+    thresholds: RerankerAdoptionThresholds | None = None,
+    profile_patch: Mapping[str, object] | None = None,
+) -> RerankerAdoptionGateResult:
+    runtime_thresholds = thresholds or RerankerAdoptionThresholds()
+    doc_hit_at_1_delta = (
+        report.reranked_metrics.doc_hit_at_1 - report.baseline_metrics.doc_hit_at_1
+    )
+    forbidden_hit_rate_delta = (
+        report.reranked_metrics.forbidden_hit_rate
+        - report.baseline_metrics.forbidden_hit_rate
+    )
+    reasons: list[str] = []
+    if doc_hit_at_1_delta < runtime_thresholds.min_doc_hit_at_1_delta:
+        reasons.append("doc_hit_at_1_delta_below_threshold")
+    if latency_p95_ms > runtime_thresholds.max_latency_p95_ms:
+        reasons.append("latency_p95_above_budget")
+    if cost_units_per_query > runtime_thresholds.max_cost_units_per_query:
+        reasons.append("cost_units_per_query_above_budget")
+    if report.regressed_case_ids:
+        reasons.append("rerank_regression_cases")
+    if forbidden_hit_rate_delta > runtime_thresholds.max_forbidden_hit_rate_delta:
+        reasons.append("forbidden_hit_rate_regression")
+    return RerankerAdoptionGateResult(
+        status="fail" if reasons else "pass",
+        reasons=tuple(reasons),
+        doc_hit_at_1_delta=doc_hit_at_1_delta,
+        forbidden_hit_rate_delta=forbidden_hit_rate_delta,
+        latency_p95_ms=float(latency_p95_ms),
+        cost_units_per_query=float(cost_units_per_query),
+        profile_patch=dict(profile_patch or {}),
     )
 
 
@@ -186,7 +243,10 @@ __all__ = [
     "DeterministicRerankBranchReport",
     "RerankCandidateSource",
     "RerankRunCase",
+    "RerankerAdoptionGateResult",
+    "RerankerAdoptionThresholds",
     "deterministic_rerank_report_to_dict",
     "evaluate_deterministic_rerank_branch",
+    "evaluate_reranker_adoption_gate",
     "rerank_candidate_sources",
 ]

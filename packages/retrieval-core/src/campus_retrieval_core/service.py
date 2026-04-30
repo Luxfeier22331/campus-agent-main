@@ -5,6 +5,8 @@ import json
 import logging
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 
@@ -39,6 +41,7 @@ _RUNTIME_BACKEND_CACHE_LOCK = Lock()
 _LOGGER = logging.getLogger(__name__)
 ExecutableRetrievalRequestFn = Callable[[RetrievalRequest], EvidenceBundle]
 ExecutableLiveLookupFn = Callable[[RetrievalStep], EvidenceBundle]
+ExecutableRerankFn = Callable[[RetrievalRequest, EvidenceBundle], EvidenceBundle]
 RetrievalObservationSink = Callable[[dict[str, object]], None]
 RetrievalObservationEventEmitter = Callable[[str, dict[str, object]], None]
 ReplanStepCallback = Callable[
@@ -150,6 +153,7 @@ def execute_retrieval_plan(
     backend: QdrantRetrievalBackend | None = None,
     retrieve_step: ExecutableRetrievalRequestFn | None = None,
     retrieve_live_step: ExecutableLiveLookupFn | None = None,
+    rerank_step: ExecutableRerankFn | None = None,
     replan_callback: ReplanStepCallback | None = None,
     observation_sink: RetrievalObservationSink | None = None,
     observation_request_id: str = "",
@@ -171,6 +175,7 @@ def execute_retrieval_plan(
     executed_steps: list[RetrievalStep] = []
     step_results: list[RetrievalStepResult] = []
     replan_count = 0
+    live_lookup_count = 0
     step_index = 0
 
     while step_index < len(pending_steps):
@@ -191,6 +196,7 @@ def execute_retrieval_plan(
                 plan=plan,
                 step=step,
                 retrieve_live_step=retrieve_live_step,
+                attempted_live_lookup_count=live_lookup_count,
             )
         elif step.step_type != "indexed_lookup":
             result = build_blocked_step_result(
@@ -217,6 +223,11 @@ def execute_retrieval_plan(
             started_at = time.perf_counter()
             try:
                 evidence = request_executor(request)
+                evidence, reranker_failure_kind = _apply_profile_gated_reranker(
+                    request=request,
+                    evidence=evidence,
+                    rerank_step=rerank_step,
+                )
             except Exception as exc:
                 result = build_failed_step_result(
                     step,
@@ -240,7 +251,13 @@ def execute_retrieval_plan(
                     )
                 raise
             latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
-            result = build_succeeded_step_result(step, evidence=evidence, latency_ms=latency_ms)
+            result = build_succeeded_step_result(
+                step,
+                evidence=evidence,
+                latency_ms=latency_ms,
+                reranker_degraded=bool(reranker_failure_kind),
+                reranker_failure_kind=reranker_failure_kind,
+            )
 
         executed_steps.append(step)
         step_results.append(result)
@@ -250,6 +267,8 @@ def execute_retrieval_plan(
             "live_source_lookup",
         }:
             break
+        if step.step_type == "live_source_lookup" and result.status == "succeeded":
+            live_lookup_count += 1
 
         can_attempt_replan = (
             replan_callback is not None
@@ -397,6 +416,11 @@ def _build_retrieval_observation(
         "request_id": request_id,
         "plan_id": execution.plan.plan_id,
         "step_id": activity.step_id,
+        "query_mode": execution.plan.query_mode,
+        "retrieval_mode": _observation_retrieval_mode(
+            query_mode=execution.plan.query_mode,
+            step_type=activity.step_type,
+        ),
         "query_sha256": hashlib.sha256(activity.query_text.encode("utf-8")).hexdigest(),
         "scope": {"corpus": activity.corpus, "collection": activity.collection},
         "terminal_state": "failed_closed"
@@ -412,8 +436,29 @@ def _build_retrieval_observation(
         "target_version_ids": activity.target_version_ids,
         "latency_ms": activity.latency_ms,
     }
+    observation["canonical_index_truth"] = observation["retrieval_mode"] != "live_assisted"
+    source_timestamps = tuple(
+        str(source.anchor.get("source_timestamp") or "")
+        for source in result.references
+        if source.anchor.get("source_timestamp")
+    )
+    if source_timestamps:
+        observation["source_timestamps"] = source_timestamps
+    if execution.plan.version_query is not None and execution.plan.version_query.as_of:
+        observation["as_of"] = execution.plan.version_query.as_of
+    elif observation["retrieval_mode"] == "live_assisted":
+        as_of_values = tuple(
+            str(source.anchor.get("as_of") or "")
+            for source in result.references
+            if source.anchor.get("as_of")
+        )
+        if as_of_values:
+            observation["as_of"] = as_of_values[0]
     if include_query_text:
         observation["query"] = activity.query_text
+    if activity.reranker_degraded:
+        observation["reranker_degraded"] = True
+        observation["reranker_failure_kind"] = activity.reranker_failure_kind
     return observation
 
 
@@ -421,6 +466,60 @@ def _score_gap(scores: Sequence[float]) -> float | None:
     if len(scores) < 2:
         return None
     return scores[0] - scores[1]
+
+
+def _observation_retrieval_mode(
+    *,
+    query_mode: str,
+    step_type: str,
+) -> str:
+    if step_type == "live_source_lookup":
+        return "live_assisted"
+    return query_mode
+
+
+def _apply_profile_gated_reranker(
+    *,
+    request: RetrievalRequest,
+    evidence: EvidenceBundle,
+    rerank_step: ExecutableRerankFn | None,
+) -> tuple[EvidenceBundle, str]:
+    profile = load_runtime_profile(request.corpus, request.collection)
+    if not profile.reranker_enabled_by_default:
+        return evidence, ""
+    if rerank_step is None:
+        return evidence, "reranker_executor_unavailable"
+    try:
+        return rerank_step(
+            request,
+            _bounded_rerank_candidate_bundle(
+                evidence,
+                top_n=profile.reranker_top_n,
+            ),
+        ), ""
+    except Exception:
+        _LOGGER.warning(
+            "retrieval reranker degraded for %s/%s",
+            request.corpus,
+            request.collection,
+            exc_info=True,
+        )
+        return evidence, "reranker_degraded"
+
+
+def _bounded_rerank_candidate_bundle(
+    evidence: EvidenceBundle,
+    *,
+    top_n: int | None,
+) -> EvidenceBundle:
+    if top_n is None or len(evidence.sources) <= top_n:
+        return evidence
+    return EvidenceBundle(
+        query_text=evidence.query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=evidence.sources[:top_n],
+    )
 
 
 def _execute_freshness_gate_step(
@@ -454,8 +553,15 @@ def _execute_live_source_lookup_step(
     plan: RetrievalPlan,
     step: RetrievalStep,
     retrieve_live_step: ExecutableLiveLookupFn | None,
+    attempted_live_lookup_count: int,
 ) -> RetrievalStepResult:
     profile = load_runtime_profile(step.scope.corpus, step.scope.collection)
+    if attempted_live_lookup_count >= plan.budget.max_live_lookups:
+        return build_blocked_step_result(
+            step,
+            failure_kind="budget_exhausted",
+            message="live source lookup budget exhausted",
+        )
     if not plan.source_trust_policy.allow_live_source_lookup:
         return build_blocked_step_result(
             step,
@@ -475,6 +581,28 @@ def _execute_live_source_lookup_step(
             message="live source lookup is admitted but no live lookup executor is wired for this runtime path",
         )
     started_at = time.perf_counter()
-    evidence = retrieve_live_step(step)
+    evidence = _annotate_live_evidence(retrieve_live_step(step))
     latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
     return build_succeeded_step_result(step, evidence=evidence, latency_ms=latency_ms)
+
+
+def _annotate_live_evidence(evidence: EvidenceBundle) -> EvidenceBundle:
+    as_of = datetime.now(UTC).isoformat()
+    sources = tuple(
+        replace(
+            source,
+            anchor={
+                **source.anchor,
+                "retrieval_mode": "live_assisted",
+                "canonical_index_truth": False,
+                "as_of": source.anchor.get("as_of") or as_of,
+            },
+        )
+        for source in evidence.sources
+    )
+    return EvidenceBundle(
+        query_text=evidence.query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=sources,
+    )

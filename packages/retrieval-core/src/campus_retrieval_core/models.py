@@ -44,6 +44,7 @@ RetrievalFailureKind = Literal[
     "unsupported_step_type",
     "missing_dependency",
     "release_metadata_drift",
+    "reranker_degraded",
 ]
 
 ALLOWED_RETRIEVAL_QUERY_MODES = (
@@ -81,6 +82,7 @@ ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "unsupported_step_type",
     "missing_dependency",
     "release_metadata_drift",
+    "reranker_degraded",
 )
 
 
@@ -193,6 +195,8 @@ class RetrievalStepActivity:
     candidate_count: int = 0
     reference_count: int = 0
     failure_kind: RetrievalFailureKind | str | None = None
+    reranker_degraded: bool = False
+    reranker_failure_kind: str = ""
 
     def __post_init__(self) -> None:
         if not self.step_id.strip():

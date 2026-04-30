@@ -469,9 +469,12 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
             ),
         )
 
-        with patch(
-            "campus_retrieval_core.service.load_runtime_profile",
-            return_value=Mock(reranker_enabled_by_default=True, reranker_top_n=20),
+        with (
+            patch(
+                "campus_retrieval_core.service.load_runtime_profile",
+                return_value=Mock(reranker_enabled_by_default=True, reranker_top_n=20),
+            ),
+            self.assertLogs("campus_retrieval_core.service", level="WARNING") as logs,
         ):
             result = execute_retrieval_plan(
                 plan,
@@ -498,6 +501,7 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
         self.assertEqual(len(result.merged_evidence.sources), 1)
         self.assertEqual(observations[0]["failure_kind"], "reranker_degraded")
         self.assertEqual(observations[0]["reranker_degraded"], True)
+        self.assertIn("retrieval reranker degraded", logs.output[0])
 
     def test_execute_retrieval_plan_fail_closes_when_replan_drops_existing_version_filter(
         self,

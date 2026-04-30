@@ -101,6 +101,8 @@ def build_succeeded_step_result(
     *,
     evidence: EvidenceBundle,
     latency_ms: int,
+    reranker_degraded: bool = False,
+    reranker_failure_kind: str = "",
 ) -> RetrievalStepResult:
     status = "succeeded" if evidence.sources else "empty"
     return RetrievalStepResult(
@@ -121,6 +123,9 @@ def build_succeeded_step_result(
             latency_ms=latency_ms,
             candidate_count=len(evidence.sources),
             reference_count=len(evidence.sources),
+            failure_kind="reranker_degraded" if reranker_degraded else None,
+            reranker_degraded=reranker_degraded,
+            reranker_failure_kind=reranker_failure_kind,
         ),
     )
 
