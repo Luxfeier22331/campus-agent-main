@@ -338,6 +338,31 @@ retrieval benchmark CLI：
   "retrieved_sources": [{"doc_id": "...", "version_id": "...", "chunk_id":
   "...", "score": 0.9}]}]}`
 - 默认输出 text summary；加 `--format json` 输出 aggregate 指标与 `by_split` 汇总
+- 默认 query-enabled retrieval scopes 的 qrels denominator 由
+  `campus_evals.benchmark.default_query_enabled_retrieval_qrels_paths()` 固定：
+  `regulations/student_rules`、`regulations/institutional_rules`、
+  `curriculum/curriculum_plan` 与 `official_web/stable_reference`
+- 对没有静态 `split-manifest.v1.json` 的 projection-derived scope，qrels validation
+  可使用同目录 `retrieval-eval-manifest.v1.json` 作为 deterministic eval manifest；
+  该 manifest 只服务 qrels anchoring，不替代 registry / release manifest truth
+
+retrieval tuning CLI：
+
+- `uv run --all-packages python -m campus_evals.retrieval_tuning --qrels
+  packages/evals/fixtures/student_handbook_retrieval_qrels.json --candidate
+  <candidate-run.json> --candidate <candidate-run.json> --runtime-profile
+  configs/ingestion/regulations/student_rules/runtime-profile.json --output
+  <tuning-report.json>`
+- `candidate-run.json` 输入形状为
+  `{"schema_version": "retrieval-tuning-candidate-run-v1", "candidate_id": "...",
+  "profile": {"dense_prefetch_limit": 20, "sparse_prefetch_limit": 20,
+  "rrf_k": 60, "rrf_dense_weight": 1.0, "rrf_sparse_weight": 1.0,
+  "no_hit_min_top_score": 0.6, "no_hit_min_score_gap": 0.1}, "cases": [...]}`;
+  `cases` 与 retrieval benchmark `run-results.json` 一致
+- tuning report 会对 positive hit@3 / doc recall@5、no-hit、forbidden hit、version-locked
+  recall 做 deterministic gate，并只在候选通过 gate 时输出 `recommended_profile_patch`
+- tuning runner 只生成 evidence-backed recommendation，不会自动修改 production
+  `runtime-profile.json`，也不会扩大 query-enabled scope
 
 supplemental adapter seam：
 
