@@ -118,7 +118,10 @@ class AuthenticatedNoticeCloseoutAsyncWorkerStageTest(unittest.TestCase):
             self.assertEqual(verified["verification"]["missing_document_id_count"], 0)
             self.assertTrue(verified["verification"]["ok"])
 
-            promotion = service.promote_run("source-truth-run-1")
+            promotion = service.promote_run(
+                "source-truth-run-1",
+                media_gate_audit=_passed_media_gate_audit(),
+            )
             self.assertEqual(promotion["state"], "done")
             self.assertEqual(promotion["replaced_scope_record_count"], 3)
             records = service.document_registry.list_by_scope(
@@ -215,7 +218,10 @@ class AuthenticatedNoticeCloseoutAsyncWorkerStageTest(unittest.TestCase):
                 )
             )
 
-            promotion = service.promote_run("source-truth-run-1")
+            promotion = service.promote_run(
+                "source-truth-run-1",
+                media_gate_audit=_passed_media_gate_audit(),
+            )
             self.assertEqual(promotion["state"], "done")
             self.assertEqual(promotion["replaced_scope_record_count"], 2)
             records = service.document_registry.list_by_scope("campus_notices", "internal_notice")
@@ -388,7 +394,10 @@ class AuthenticatedNoticeCloseoutAsyncWorkerStageTest(unittest.TestCase):
             self.assertEqual(multimodal_outcome["outcome"], "multimodal_processing_required")
             self.assertEqual(multimodal_outcome["review_reason"], "spatial_visual_asset")
 
-            promotion = service.promote_run("source-truth-run-1")
+            promotion = service.promote_run(
+                "source-truth-run-1",
+                media_gate_audit=_passed_media_gate_audit(),
+            )
             self.assertEqual(promotion["state"], "done")
             self.assertEqual(promotion["replaced_scope_record_count"], 2)
 

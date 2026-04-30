@@ -50,6 +50,14 @@ def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
     )
 
 
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _quarantine_ref(attachment_ref_id: str, object_key: str, sha_prefix: str) -> dict[str, object]:
     return {
         "attachment_ref_id": attachment_ref_id,
@@ -70,6 +78,19 @@ def _blocking_candidate(candidate_id: str, object_key: str, status: str) -> dict
         "source_object_ref": {
             "bucket": "campus-rag-source",
             "key": object_key,
+        },
+    }
+
+
+def _passed_media_audit(*, candidate_inventory_path: Path) -> dict[str, object]:
+    return {
+        "schema_version": "notice_media_closeout_target_admission_state_machine_audit.v1",
+        "verdict": "passed",
+        "strict_gate": True,
+        "finding_count": 0,
+        "finding_counts_by_severity": {},
+        "input_hashes": {
+            "candidate_inventory_sha256": _sha256_file(candidate_inventory_path),
         },
     }
 
@@ -240,6 +261,8 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             attachment_refs_path = root / "attachment-refs.jsonl"
+            candidate_inventory_path = root / "media-extraction-candidate-inventory.json"
+            audit_path = root / "media-closeout-state-machine-audit.json"
             output_dir = root / "output"
             expired_key = (
                 "authenticated_notice_portal/attachment-expired/2026/sha256/"
@@ -274,6 +297,11 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                     },
                 ],
             )
+            _write_json(candidate_inventory_path, {"candidates": []})
+            _write_json(
+                audit_path,
+                _passed_media_audit(candidate_inventory_path=candidate_inventory_path),
+            )
             object_store = _FakeCleanupObjectStore()
             object_store.put_bytes(
                 bucket="campus-rag-source",
@@ -291,6 +319,8 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
             summary = cleanup_module.cleanup_authenticated_notice_quarantine_attachment_keys(
                 request=cleanup_module.AuthenticatedNoticeQuarantineAttachmentCleanupRequest(
                     attachment_refs_path=attachment_refs_path,
+                    media_extraction_candidate_inventory_path=candidate_inventory_path,
+                    media_closeout_audit_path=audit_path,
                     output_dir=output_dir,
                     now="2026-04-30T00:00:00+08:00",
                 ),
@@ -312,6 +342,97 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
         self.assertIn(("campus-rag-source", promoted_key), object_store.objects)
         self.assertEqual(deleted_rows[0]["attachment_ref_id"], "attachment-0001")
         self.assertEqual(deleted_rows[0]["object_key"], expired_key)
+
+    def test_quarantine_cleanup_requires_passed_media_audit_before_delete(self) -> None:
+        cleanup_module = _load_cleanup_module()
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            attachment_refs_path = root / "attachment-refs.jsonl"
+            candidate_inventory_path = root / "media-extraction-candidate-inventory.json"
+            output_dir = root / "output"
+            expired_key = (
+                "authenticated_notice_portal/attachment-expired/2026/sha256/"
+                + "a" * 64
+                + "/capture/schedule.png"
+            )
+            _write_jsonl(
+                attachment_refs_path,
+                [_quarantine_ref("attachment-0001", expired_key, "a")],
+            )
+            _write_json(candidate_inventory_path, {"candidates": []})
+            object_store = _FakeCleanupObjectStore()
+            object_store.put_bytes(
+                bucket="campus-rag-source",
+                key=expired_key,
+                data=b"expired",
+                content_type="image/png",
+            )
+
+            with self.assertRaisesRegex(ValueError, "media closeout audit"):
+                cleanup_module.cleanup_authenticated_notice_quarantine_attachment_keys(
+                    request=cleanup_module.AuthenticatedNoticeQuarantineAttachmentCleanupRequest(
+                        attachment_refs_path=attachment_refs_path,
+                        media_extraction_candidate_inventory_path=candidate_inventory_path,
+                        output_dir=output_dir,
+                        now="2026-04-30T00:00:00+08:00",
+                    ),
+                    env=_object_store_env(),
+                    object_store=object_store,
+                )
+
+        self.assertIn(("campus-rag-source", expired_key), object_store.objects)
+        self.assertEqual(object_store.deleted, [])
+
+    def test_quarantine_cleanup_rejects_stale_media_audit_candidate_inventory_hash(
+        self,
+    ) -> None:
+        cleanup_module = _load_cleanup_module()
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            attachment_refs_path = root / "attachment-refs.jsonl"
+            candidate_inventory_path = root / "media-extraction-candidate-inventory.json"
+            audit_path = root / "media-closeout-state-machine-audit.json"
+            output_dir = root / "output"
+            expired_key = (
+                "authenticated_notice_portal/attachment-expired/2026/sha256/"
+                + "b" * 64
+                + "/capture/schedule.png"
+            )
+            _write_jsonl(
+                attachment_refs_path,
+                [_quarantine_ref("attachment-0002", expired_key, "b")],
+            )
+            _write_json(candidate_inventory_path, {"candidates": []})
+            _write_json(
+                audit_path,
+                {
+                    **_passed_media_audit(candidate_inventory_path=candidate_inventory_path),
+                    "input_hashes": {"candidate_inventory_sha256": "0" * 64},
+                },
+            )
+            object_store = _FakeCleanupObjectStore()
+            object_store.put_bytes(
+                bucket="campus-rag-source",
+                key=expired_key,
+                data=b"expired",
+                content_type="image/png",
+            )
+
+            with self.assertRaisesRegex(ValueError, "stale media closeout audit"):
+                cleanup_module.cleanup_authenticated_notice_quarantine_attachment_keys(
+                    request=cleanup_module.AuthenticatedNoticeQuarantineAttachmentCleanupRequest(
+                        attachment_refs_path=attachment_refs_path,
+                        media_extraction_candidate_inventory_path=candidate_inventory_path,
+                        media_closeout_audit_path=audit_path,
+                        output_dir=output_dir,
+                        now="2026-04-30T00:00:00+08:00",
+                    ),
+                    env=_object_store_env(),
+                    object_store=object_store,
+                )
+
+        self.assertIn(("campus-rag-source", expired_key), object_store.objects)
+        self.assertEqual(object_store.deleted, [])
 
     def test_quarantine_cleanup_blocks_pending_target_media_extraction_refs(self) -> None:
         cleanup_module = _load_cleanup_module()
@@ -475,6 +596,7 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
             root = Path(temp_dir)
             attachment_refs_path = root / "attachment-refs.jsonl"
             candidate_inventory_path = root / "media-extraction-candidate-inventory.json"
+            audit_path = root / "media-closeout-state-machine-audit.json"
             output_dir = root / "output"
             terminal_key = (
                 "authenticated_notice_portal/attachment-terminal/2026/sha256/"
@@ -502,6 +624,10 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            _write_json(
+                audit_path,
+                _passed_media_audit(candidate_inventory_path=candidate_inventory_path),
+            )
             object_store = _FakeCleanupObjectStore()
             object_store.put_bytes(
                 bucket="campus-rag-source",
@@ -514,6 +640,7 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                 request=cleanup_module.AuthenticatedNoticeQuarantineAttachmentCleanupRequest(
                     attachment_refs_path=attachment_refs_path,
                     media_extraction_candidate_inventory_path=candidate_inventory_path,
+                    media_closeout_audit_path=audit_path,
                     output_dir=output_dir,
                     now="2026-04-30T00:00:00+08:00",
                 ),
@@ -573,9 +700,11 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
             root = Path(temp_dir)
             attachment_refs_path = root / "attachment-refs.jsonl"
             candidate_inventory_path = root / "media-extraction-candidate-inventory.json"
+            audit_path = root / "media-closeout-state-machine-audit.json"
             output_dir = root / "output"
             attachment_refs_path.write_text("", encoding="utf-8")
             candidate_inventory_path.write_text('{"candidates":[]}\n', encoding="utf-8")
+            audit_path.write_text('{"verdict":"passed"}\n', encoding="utf-8")
 
             with (
                 patch(
@@ -601,6 +730,8 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
                         str(attachment_refs_path),
                         "--media-extraction-candidate-inventory-path",
                         str(candidate_inventory_path),
+                        "--media-closeout-audit-path",
+                        str(audit_path),
                         "--output-dir",
                         str(output_dir),
                         "--now",
@@ -618,6 +749,7 @@ class AuthenticatedNoticeAttachmentKeyCleanupTest(unittest.TestCase):
         self.assertEqual(
             request.media_extraction_candidate_inventory_path, candidate_inventory_path
         )
+        self.assertEqual(request.media_closeout_audit_path, audit_path)
 
 
 if __name__ == "__main__":

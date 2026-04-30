@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -122,3 +122,103 @@ Phase 9 moved retention cleanup into live collector behavior:
 - ingestion-core emits `authenticated_notice_attachment_fetch_request_manifest_v1` rows for quarantine, source-truth-required, and admitted-owner fetches;
 - collector can read the fetch request manifest via `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH`;
 - run ledger required object verification now fails closed for required/admitted owner bytes and does not count quarantine bytes as required source objects.
+
+## Post-Completion Hardening Addendum
+
+The collect -> ingest state-machine review closed the remaining attachment-level
+fail-closed gaps:
+
+- collector now emits typed `last_error_class` for terminal unavailable and retryable
+  transient attachment failures;
+- source retention preserves retryable missing bytes as
+  `attachment_capture_state=transient_failed` with `byte_fetch_required=true`;
+- state-machine audit binds candidates to the referenced `media_ref_id` /
+  `attachment_ref_id` instead of applying unit-level candidates to every attachment;
+- fetch-required refs without bytes must have a manifest request or produce a high
+  audit finding;
+- `source_capture_repair` candidates require a media ref and closure by fetch request
+  or operator action;
+- candidate `source_object_ref` must match the referenced attachment's object-backed bytes.
+
+## Collect -> Ingest Repair Loop Addendum
+
+The follow-up repair loop regenerated current collect-to-ingest dry-run evidence and
+closed the stale `file_release` preview gap:
+
+- historical `file_release` preview artifacts could contain bucket / object-key / hash /
+  size source-byte evidence while omitting `storage_provider` and `ingest_status`;
+- ingest still treats stale object refs as unavailable unless they have provider/status,
+  but the `file_release` source-ref preview now normalizes this historical
+  object-backed shape to `object_store` + `uploaded`;
+- this normalization is limited to `file_release` released source bytes and does not
+  loosen generic notice attachment byte checks;
+- regenerated preview/candidate/audit evidence covers 338 units and 60 media
+  candidates with zero state-machine findings.
+
+## Phase 10 Addendum
+
+Phase 10 extends the state machine past candidate generation into media closeout and
+target admission gating:
+
+- added `notice_media_extraction_attempt_ledger.v1` as the normalized dry-run attempt
+  projection for schedule image OCR, released-file text extraction, PDF OCR and office
+  text extraction;
+- added `notice_media_closeout_target_admission_state_machine_audit.v1` to verify
+  attempt ledger presence, retry budget / next retry time, completed output refs,
+  manual / terminal reason fields, target admission blockers, cleanup blockers and
+  candidate source-object verification;
+- added worker CLIs to build the attempt ledger and run the media closeout state-machine
+  audit;
+- regenerated the current 60-candidate media closeout evidence with planned closeout
+  and source-object verification; audit findings are zero.
+
+## Phase 11 Addendum
+
+Phase 11 tightens the Phase 10 audit into a fail-closed full gate:
+
+- strict gate now requires attempt ledger, closeout candidate inventory, target admission
+  manifest, cleanup dry-run report and source-object verification report; missing inputs
+  fail with high findings;
+- attempt rows must belong to candidate inventory and match candidate media ref plus
+  source object bucket/key/hash;
+- completed closeout must carry output refs and attempt provenance;
+- target admission manifest must cover every media candidate unit and cannot mark
+  nonterminal target blockers ready;
+- cleanup dry-run must explicitly protect active blocking quarantine bytes;
+- source-object verification must match bucket/key/hash/size/storage provider, not just
+  object key;
+- on-demand authenticated-notice closeout can run the media gate before promotion when
+  media gate evidence paths are supplied;
+- regenerated current 60-candidate strict full-gate evidence reports zero findings.
+
+## Phase 12 Addendum
+
+Phase 12 closes the remaining medium/high bypass paths found by the collect -> ingest
+repair loop:
+
+- authenticated-notice closeout promotion now requires media gate evidence paths;
+- worker media audit CLI no longer exposes a partial-gate escape hatch;
+- source-object verification requires hash/checksum and byte size, not just verified status;
+- completed closeout attempt provenance must match a completed attempt;
+- target admission rows must match candidate target/source context;
+- cleanup protection compares bucket/key identity instead of key-only identity;
+- closeout candidate projection preserves attempt provenance from result manifests;
+- regenerated current 60-candidate strict full-gate evidence reports zero findings.
+
+## Phase 13 Addendum
+
+Phase 13 closes the remaining productionization gaps around live source-object truth and
+destructive/promotion bypasses:
+
+- added `notice_media_source_object_verification_report.v1` generation from live
+  object-store HEAD checksum, or controlled GET hash when HEAD lacks checksum;
+- strict media audit now rejects source-object verification rows that lack
+  `check_method=head_checksum|get_hash` or `live_checked_at`;
+- direct authenticated-notice closeout promotion now requires a passed strict media gate
+  audit, not only the on-demand batch wrapper;
+- on-demand closeout can generate the live source-object verification report when only a
+  candidate inventory is supplied for the media gate;
+- destructive quarantine cleanup now requires a passed strict media gate audit and checks
+  `input_hashes.candidate_inventory_sha256` against the cleanup candidate inventory;
+- target admission rows mapped to media candidate units must carry `fact_readiness_state`
+  and `required_fact_groups`.

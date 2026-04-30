@@ -191,6 +191,7 @@ export interface BundleAttachmentObservation {
 	provenance_status: "reference_only" | "collected_internal" | "terminal_unavailable";
 	ingest_status: "reference_only" | "downloaded" | "uploaded" | "terminal_unavailable";
 	terminal_reason?: "http_404" | "http_410" | "portal_file_missing" | null;
+	last_error_class?: "terminal_unavailable" | "transient_failed" | null;
 	last_http_status?: number | null;
 	local_path: string | null;
 	downloaded_at: string | null;
@@ -337,6 +338,7 @@ export interface BundleReleasedFileObservation {
 	provenance_status: "reference_only" | "collected_internal" | "terminal_unavailable";
 	ingest_status: "reference_only" | "downloaded" | "uploaded" | "terminal_unavailable";
 	terminal_reason?: "http_404" | "http_410" | "portal_file_missing" | null;
+	last_error_class?: "terminal_unavailable" | "transient_failed" | null;
 	last_http_status?: number | null;
 	local_path: string | null;
 	downloaded_at: string | null;

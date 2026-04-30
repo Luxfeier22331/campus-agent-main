@@ -239,6 +239,7 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			original_filename: "broken.pdf",
 			last_error:
 				"You did not provide the number of bytes specified by the Content-Length HTTP header.",
+			last_error_class: "transient_failed",
 			ingest_status: "reference_only",
 		});
 		expect(result.bundleRecords[0]?.links).toEqual([]);

@@ -724,6 +724,7 @@ async function materializeReleasedFiles(input: {
 						ingest_status: "terminal_unavailable",
 						terminal_reason: error.terminalReason,
 						last_http_status: error.lastHttpStatus,
+						last_error_class: "terminal_unavailable",
 						last_error: `terminal_unavailable:${error.terminalReason}`,
 						updated_at: input.observedAt,
 					},
@@ -735,6 +736,7 @@ async function materializeReleasedFiles(input: {
 				released_file: {
 					...record.released_file,
 					last_error: message,
+					last_error_class: "transient_failed",
 					updated_at: input.observedAt,
 				},
 			});

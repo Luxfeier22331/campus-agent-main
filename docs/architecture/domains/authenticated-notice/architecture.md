@@ -205,6 +205,10 @@ required object roles：
   - `file_release` 进入 `authenticated_documents/file_release_source` 前必须存在、可
     `HEAD`、hash/size 匹配
   - `reference_only` file_release 只能停在 capture evidence，不得导入 document holding
+  - 历史 preview artifact 如果已经携带 bucket / object-key / hash / size 但遗漏
+    `storage_provider` / `ingest_status`，只能在 `file_release` released source-byte
+    边界归一化为 `object_store` / `uploaded`；普通 notice attachment 不得用
+    stale object ref 推断 bytes 可用
 
 worker `--run-id` import 必须通过 Python-owned ledger resolver 读取上述字段。resolver
 不读取 TypeScript 私有类型，不从 run ledger 的 local path fallback，也不假设 collector 与
@@ -495,20 +499,47 @@ source objects 分开：
   lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。已有 object-backed bytes 必须
   进入 `uploaded_quarantine`，下游 OCR/materializer 直接消费 object key；只有
   reference-only 且 policy 仍要求 bytes 时才进入 fetch manifest。
+- collector retryable failure 必须写 typed outcome `last_error_class=transient_failed`；
+  source retention 继续保留 `attachment_capture_state=transient_failed` 与
+  `byte_fetch_required=true`，不能退回 silent `reference_only` 或只靠 `last_error` 表达。
 - `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 如果缺少有效
   object-backed bytes，必须显式进入 fetch manifest、typed terminal/skip，或 state-machine
   audit high finding；不得只靠 `source_capture_repair` 或 unit-level pending 暗示后续会处理。
 - fetch request manifest 必须反查 canonical source-truth attachment ref；request
   行自身缺少 terminal/metadata 字段不能绕过 source-truth 中的 `metadata_only`、
   `terminal_unavailable` 或 skip 状态。
+- state-machine audit 的 candidate 校验必须按 `media_ref_id` / `attachment_ref_id`
+  绑定到具体 attachment ref：metadata-only ref 不因同一 unit 的其他附件 candidate 失败；
+  target candidate 的 `source_object_ref` 必须匹配其 attachment 的有效 object-backed bytes。
 - quarantine cleanup 必须以 media extraction candidate inventory 作为保护输入；凡是被
   `target_blocking=true` candidate 的 `source_object_ref` 引用、且 candidate 尚未进入
   `completed`、`skipped` 或 `failed_terminal` 的 object-backed quarantine bytes，即使
   `retention_expires_at` 已过期也不得删除。
+- destructive quarantine cleanup 还必须消费通过的 strict media closeout audit，且 audit
+  中的 candidate inventory hash 必须匹配本次 cleanup 输入；只传 candidate inventory 或只传
+  cleanup dry-run report 不能执行删除。
 - target admission 必须由 fact-state / candidate inventory 驱动；unit 级
   `media_text_status=pending` 或 `multimodal_status=pending` 只能作为 preview 汇总与候选输入，
   不能直接生成下游 `needs_multimodal`。`manual_review` 是人工复核状态，不得回落为自动 OCR
   pending work。
+- media extraction candidate 进入执行前必须投影成统一 attempt ledger。target-blocking
+  非终态 candidate 必须有 `candidate_id`、`media_ref_id`、`attempt_number`、
+  `status`、`source_object_ref`、retry policy、retry budget 与 output ref 计划；
+  `failed_retryable` 必须携带剩余 retry budget 与 `next_retry_after`，retry budget 耗尽后
+  只能进入 `failed_terminal` 或 `manual_review`。
+- media closeout / target admission audit 是 fail-closed gate，必须同时读取 candidate
+  inventory、attempt ledger、closeout inventory、target admission manifest、cleanup
+  dry-run report 与 source-object verification report；缺任一输入都不能通过 strict gate。
+  `completed` candidate 必须有 output refs 且记录并匹配 completed attempt provenance；
+  attempt 必须属于 candidate inventory，并与 candidate 的 media ref、source object
+  bucket/key/hash 一致。非终态 target-blocking candidate 不得被 target admission 标记
+  ready；target admission manifest 必须与 candidate target/source 一致。quarantine
+  cleanup 不得选中 active blocking bytes，且 cleanup dry-run 必须按 bucket/key identity
+  显式保护 active blocking bytes。source-object verification 必须来自 live object-store
+  check，至少记录 `check_method=head_checksum` 或 `check_method=get_hash` 与
+  `live_checked_at`，并按 bucket/key/hash/size/storage provider 校验；不得只按 object key
+  或离线 artifact 通过。需要 promotion 时，worker batch path 与 direct promotion CLI
+  都必须先消费通过的 strict media gate。
 - 高价值 target unit 如果存在 attachment refs 但没有可处理 object-backed bytes，candidate
   inventory 必须暴露 `source_capture_repair` / `source_capture_pending` gap，而不是静默无候选或直接进入
   OCR/multimodal pending。该 gap 必须由 fetch request、operator action 或 audit high finding

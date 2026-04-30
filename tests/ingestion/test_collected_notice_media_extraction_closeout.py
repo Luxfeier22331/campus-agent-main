@@ -150,6 +150,8 @@ class CollectedNoticeMediaExtractionCloseoutTests(unittest.TestCase):
                             "candidate_id": "candidate:schedule",
                             "status": "completed",
                             "media_text_status": "completed",
+                            "attempt_id": "candidate:schedule:attempt:1",
+                            "attempt_number": 1,
                         }
                     ],
                 }
@@ -169,6 +171,8 @@ class CollectedNoticeMediaExtractionCloseoutTests(unittest.TestCase):
             "schedule_image_ocr_post_run_preview",
         )
         self.assertEqual(candidate["closeout"]["result_generated_by"], "test.result.builder")
+        self.assertEqual(candidate["closeout"]["attempt_id"], "candidate:schedule:attempt:1")
+        self.assertEqual(candidate["closeout"]["attempt_number"], 1)
 
     def test_closeout_rejects_legacy_candidate_missing_target_blocking(self) -> None:
         inventory = _candidate_inventory()

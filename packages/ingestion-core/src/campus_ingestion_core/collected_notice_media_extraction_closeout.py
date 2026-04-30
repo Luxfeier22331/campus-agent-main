@@ -272,6 +272,8 @@ def _apply_result_to_candidate(
         updated["completed_output_refs"] = dict(output_refs)
     updated["closeout"] = {
         "result_status": status,
+        "attempt_id": str(result.get("attempt_id") or ""),
+        "attempt_number": result.get("attempt_number"),
         "result_schema_version": str(
             result.get("result_schema_version") or result.get("schema_version") or ""
         ),

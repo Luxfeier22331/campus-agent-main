@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -60,6 +61,7 @@ class AuthenticatedNoticeQuarantineAttachmentCleanupRequest:
     now: str
     dry_run: bool = False
     media_extraction_candidate_inventory_path: Path | None = None
+    media_closeout_audit_path: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "attachment_refs_path", Path(self.attachment_refs_path))
@@ -69,6 +71,12 @@ class AuthenticatedNoticeQuarantineAttachmentCleanupRequest:
                 self,
                 "media_extraction_candidate_inventory_path",
                 Path(self.media_extraction_candidate_inventory_path),
+            )
+        if self.media_closeout_audit_path is not None:
+            object.__setattr__(
+                self,
+                "media_closeout_audit_path",
+                Path(self.media_closeout_audit_path),
             )
 
 
@@ -188,6 +196,8 @@ def cleanup_authenticated_notice_quarantine_attachment_keys(
         default_bucket=settings.bucket_source,
         media_extraction_blockers=blockers,
     )
+    if candidates and not request.dry_run:
+        _require_passed_media_closeout_audit(request)
 
     output_dir = request.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -392,6 +402,33 @@ def _load_media_extraction_cleanup_blockers(
     }
 
 
+def _require_passed_media_closeout_audit(
+    request: AuthenticatedNoticeQuarantineAttachmentCleanupRequest,
+) -> None:
+    if request.media_closeout_audit_path is None:
+        raise ValueError("media closeout audit is required before quarantine cleanup delete")
+    audit = _load_json_object(request.media_closeout_audit_path)
+    if str(audit.get("verdict") or "") != "passed":
+        raise ValueError("media closeout audit must pass before quarantine cleanup delete")
+    if not bool(audit.get("strict_gate")):
+        raise ValueError("media closeout audit must be strict before quarantine cleanup delete")
+    if int(audit.get("finding_count") or 0) != 0:
+        raise ValueError("media closeout audit must have zero findings before cleanup delete")
+    if request.media_extraction_candidate_inventory_path is None:
+        raise ValueError(
+            "media extraction candidate inventory is required with media closeout audit"
+        )
+    input_hashes = audit.get("input_hashes")
+    if not isinstance(input_hashes, Mapping):
+        raise ValueError("media closeout audit missing input hashes")
+    expected_hash = _normalize_optional_text(input_hashes.get("candidate_inventory_sha256"))
+    if expected_hash is None:
+        raise ValueError("media closeout audit missing candidate inventory hash")
+    actual_hash = _sha256_file(request.media_extraction_candidate_inventory_path)
+    if expected_hash != actual_hash:
+        raise ValueError("stale media closeout audit candidate inventory hash")
+
+
 def _cleanup_candidate(
     *,
     bucket: str,
@@ -480,6 +517,14 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"JSON object expected at {path}")
     return dict(payload)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _mapping_rows(value: object) -> tuple[Mapping[str, Any], ...]:

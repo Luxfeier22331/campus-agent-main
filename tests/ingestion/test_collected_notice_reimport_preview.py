@@ -224,6 +224,29 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
         self.assertFalse(attachment_ref["byte_fetch_required"])
         self.assertEqual(attachment_ref["required_source_object"], True)
 
+    def test_file_release_ref_infers_object_store_for_legacy_object_backed_source(
+        self,
+    ) -> None:
+        attachment_ref = _file_release_required_attachment_ref(
+            file_release_id="477",
+            released_file_ref={
+                "source_url": "https://portal.example.edu/files/477",
+                "final_url": "https://portal.example.edu/files/477",
+                "original_filename": "制度汇编.pdf",
+                "mime_type": "application/pdf",
+                "byte_size": 2048,
+                "object_key": "authenticated_notice_portal/file-release/477/source.pdf",
+                "content_sha256": "b" * 64,
+                "bucket": "campus-rag-source",
+            },
+        )
+
+        self.assertEqual(attachment_ref["storage_provider"], "object_store")
+        self.assertEqual(attachment_ref["ingest_status"], "uploaded")
+        self.assertEqual(attachment_ref["attachment_capture_state"], "uploaded_required")
+        self.assertFalse(attachment_ref["byte_fetch_required"])
+        self.assertEqual(attachment_ref["required_source_object"], True)
+
     def test_preview_builds_searchable_unit_for_valid_notice_without_writes(self) -> None:
         object_store = _ReadOnlyObjectStore()
         bucket = "campus-rag-source"

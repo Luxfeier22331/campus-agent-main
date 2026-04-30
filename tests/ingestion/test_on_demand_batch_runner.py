@@ -84,6 +84,7 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
                 {"name": "plan_closeout", "status": "succeeded"},
                 {"name": "run_closeout_workers", "status": "succeeded"},
                 {"name": "validate_chunking", "status": "succeeded"},
+                {"name": "audit_media_closeout_state_machine", "status": "succeeded"},
                 {"name": "promote_closeout", "status": "succeeded"},
             ],
         ) as run_step:
@@ -103,6 +104,12 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
                 lease_seconds=120,
                 validate_chunking=True,
                 promote=True,
+                media_gate_candidate_inventory_path="/tmp/candidates.json",
+                media_gate_attempt_ledger_path="/tmp/attempts.json",
+                media_gate_closeout_candidate_inventory_path="/tmp/closeout.json",
+                media_gate_target_admission_manifest_paths=("/tmp/admission.json",),
+                media_gate_cleanup_report_path="/tmp/cleanup.json",
+                media_gate_object_verification_report_path="/tmp/objects.json",
             )
 
         steps = [call.args[0] for call in run_step.call_args_list]
@@ -112,6 +119,7 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
                 "plan_closeout",
                 "run_closeout_workers",
                 "validate_chunking",
+                "audit_media_closeout_state_machine",
                 "promote_closeout",
             ],
         )
@@ -154,7 +162,86 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
             ),
         )
         self.assertEqual(steps[2].args, ("--closeout-run-id", "notice-20260427"))
-        self.assertEqual(steps[3].args, ("--run-id", "notice-20260427"))
+        self.assertEqual(steps[3].name, "audit_media_closeout_state_machine")
+        self.assertEqual(
+            steps[4].args,
+            (
+                "--run-id",
+                "notice-20260427",
+                "--media-gate-audit-path",
+                "/tmp/media-closeout-state-machine-audit/media-closeout-state-machine-audit.json",
+            ),
+        )
+        self.assertEqual(report["status"], "succeeded")
+
+    def test_authenticated_notice_closeout_promote_requires_media_gate(self) -> None:
+        with self.assertRaisesRegex(ValueError, "media gate"):
+            runner.run_authenticated_notice_closeout_batch(
+                run_id="notice-20260427",
+                promote=True,
+            )
+
+    def test_authenticated_notice_closeout_batch_runs_media_gate_before_promote(self) -> None:
+        with patch(
+            "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
+            side_effect=[
+                {"name": "run_closeout_workers", "status": "succeeded"},
+                {"name": "audit_media_closeout_state_machine", "status": "succeeded"},
+                {"name": "promote_closeout", "status": "succeeded"},
+            ],
+        ) as run_step:
+            report = runner.run_authenticated_notice_closeout_batch(
+                run_id="notice-20260427",
+                promote=True,
+                media_gate_candidate_inventory_path="/tmp/candidates.json",
+                media_gate_attempt_ledger_path="/tmp/attempts.json",
+                media_gate_closeout_candidate_inventory_path="/tmp/closeout.json",
+                media_gate_target_admission_manifest_paths=("/tmp/admission.json",),
+                media_gate_cleanup_report_path="/tmp/cleanup.json",
+                media_gate_object_verification_report_path="/tmp/objects.json",
+            )
+
+        steps = [call.args[0] for call in run_step.call_args_list]
+        self.assertEqual(
+            [step.name for step in steps],
+            [
+                "run_closeout_workers",
+                "audit_media_closeout_state_machine",
+                "promote_closeout",
+            ],
+        )
+        self.assertEqual(
+            steps[1].module,
+            "campus_ingestion_worker.audit_collected_notice_media_closeout_state_machine",
+        )
+        self.assertEqual(
+            steps[1].args,
+            (
+                "--candidate-inventory-path",
+                "/tmp/candidates.json",
+                "--attempt-ledger-path",
+                "/tmp/attempts.json",
+                "--closeout-candidate-inventory-path",
+                "/tmp/closeout.json",
+                "--target-admission-manifest-path",
+                "/tmp/admission.json",
+                "--cleanup-report-path",
+                "/tmp/cleanup.json",
+                "--object-verification-report-path",
+                "/tmp/objects.json",
+                "--output-dir",
+                "/tmp/media-closeout-state-machine-audit",
+            ),
+        )
+        self.assertEqual(
+            steps[2].args,
+            (
+                "--run-id",
+                "notice-20260427",
+                "--media-gate-audit-path",
+                "/tmp/media-closeout-state-machine-audit/media-closeout-state-machine-audit.json",
+            ),
+        )
         self.assertEqual(report["status"], "succeeded")
 
     def test_internal_notice_batch_passes_consumer_admission_manifest_path(self) -> None:
@@ -190,6 +277,12 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
                 parallel_workers=1,
                 worker_id="worker-a",
                 promote=True,
+                media_gate_candidate_inventory_path="/tmp/candidates.json",
+                media_gate_attempt_ledger_path="/tmp/attempts.json",
+                media_gate_closeout_candidate_inventory_path="/tmp/closeout.json",
+                media_gate_target_admission_manifest_paths=("/tmp/admission.json",),
+                media_gate_cleanup_report_path="/tmp/cleanup.json",
+                media_gate_object_verification_report_path="/tmp/objects.json",
             )
 
         self.assertEqual(run_step.call_count, 1)

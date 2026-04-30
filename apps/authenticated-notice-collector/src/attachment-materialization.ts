@@ -264,6 +264,7 @@ async function materializeSingleAttachment(input: {
 				provenance_status: "terminal_unavailable",
 				ingest_status: "terminal_unavailable",
 				terminal_reason: terminalStatus.terminalReason,
+				last_error_class: "terminal_unavailable",
 				last_http_status: terminalStatus.lastHttpStatus,
 				last_error: message,
 				updated_at: input.observedAt,
@@ -409,6 +410,7 @@ async function materializeSingleAttachment(input: {
 					provenance_status: "terminal_unavailable",
 					ingest_status: "terminal_unavailable",
 					terminal_reason: error.terminalReason,
+					last_error_class: "terminal_unavailable",
 					last_http_status: error.lastHttpStatus,
 					last_error: terminalMessage,
 					updated_at: input.observedAt,
@@ -429,6 +431,7 @@ async function materializeSingleAttachment(input: {
 			attachment: {
 				...input.attachment,
 				last_error: message,
+				last_error_class: "transient_failed",
 				updated_at: input.observedAt,
 			},
 			uploaded: false,

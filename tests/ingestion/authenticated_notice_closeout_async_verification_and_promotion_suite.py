@@ -78,7 +78,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                 uploaded_keys,
             )
 
-            promotion = service.promote_run("run-1")
+            promotion = service.promote_run("run-1", media_gate_audit=_passed_media_gate_audit())
             self.assertEqual(promotion["state"], "done")
             self.assertEqual(promotion["replaced_scope_record_count"], 3)
             self.assertEqual(
@@ -124,7 +124,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
             assert run is not None
             service.closeout_store.save_run(replace(run, state=CloseoutRunState.PROMOTING))
 
-            promotion = service.promote_run("run-1")
+            promotion = service.promote_run("run-1", media_gate_audit=_passed_media_gate_audit())
             self.assertEqual(promotion["state"], "done")
             self.assertEqual(promotion["replaced_scope_record_count"], 2)
 
@@ -222,7 +222,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     side_effect=_crashing_copy_batch,
                 ),
             ):
-                service.promote_run("run-1")
+                service.promote_run("run-1", media_gate_audit=_passed_media_gate_audit())
 
             partial = service.show_run("run-1")
             self.assertEqual(partial["state"], "promoting")
@@ -232,7 +232,7 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
             self.assertEqual(partial["promotion"]["copy_completed_batch_count"], 1)
             self.assertEqual(partial["promotion"]["copied_document_count"], 1)
 
-            resumed = service.promote_run("run-1")
+            resumed = service.promote_run("run-1", media_gate_audit=_passed_media_gate_audit())
             self.assertEqual(resumed["state"], "done")
             self.assertEqual(resumed["promotion_state"], "done")
             self.assertEqual(resumed["promotion"]["copy_completed_batch_count"], 3)
@@ -301,10 +301,42 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
             )
             self.assertEqual(verified["state"], "verified")
 
-            promotion = service.promote_run("run-1")
+            promotion = service.promote_run("run-1", media_gate_audit=_passed_media_gate_audit())
 
             self.assertEqual(promotion["state"], "done")
             self.assertEqual(raw_registry.upsert_many_calls, 1)
+
+    def test_promote_run_requires_media_gate_audit_before_registry_replace(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "bundle.json"
+            manifest_path = root / "manifest.json"
+            _write_json(bundle_path, _build_notice_bundle(1))
+            _write_json(manifest_path, _sample_export_manifest())
+            service, _object_store = _build_service(root=root)
+            service.plan_run(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
+                ),
+                run_id="run-1",
+                max_concurrency=2,
+                notice_concurrency=4,
+                object_store_concurrency=16,
+                lease_seconds=120,
+            )
+            verified = service.run_worker(
+                run_id="run-1",
+                worker_id="worker-a",
+                poll_interval=0.0,
+            )
+            self.assertEqual(verified["state"], "verified")
+
+            with self.assertRaisesRegex(ValueError, "media closeout state machine gate"):
+                service.promote_run("run-1")
 
     def test_partial_planned_run_does_not_finalize_verification(self) -> None:
         with TemporaryDirectory() as temp_dir:

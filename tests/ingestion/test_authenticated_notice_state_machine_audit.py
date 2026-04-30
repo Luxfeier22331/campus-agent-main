@@ -61,6 +61,51 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
         )
         self.assertEqual(audit["findings"][0]["severity"], "medium")
 
+    def test_metadata_only_attachment_ignores_candidate_for_different_attachment_ref(self) -> None:
+        unit = _unit(
+            notice_id="355882",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="metadata_only",
+            attachment_state="metadata_recorded",
+            retention_class="metadata_only",
+        )
+        unit["attachment_refs"].append(
+            _attachment_ref(
+                notice_id="355882",
+                attachment_ref_id="attachment-0002",
+                attachment_policy="fetch_to_quarantine",
+                attachment_state="uploaded_quarantine",
+                retention_class="quarantine_candidate",
+            )
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "candidate_id": "candidate-schedule-image",
+                        "unit_id": unit["unit_id"],
+                        "source_notice_id": "355882",
+                        "media_ref_id": "attachment-0002",
+                        "media_kind": "image",
+                        "media_role": "schedule_table_carrier",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "pending",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/355882-attachment-0002.png",
+                        },
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "passed")
+        self.assertEqual(audit["finding_count"], 0)
+
     def test_uploaded_quarantine_and_required_owner_states_pass(self) -> None:
         audit = build_authenticated_notice_state_machine_audit(
             searchable_notice_preview={
@@ -168,6 +213,34 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
             {"required_source_object_missing_bytes_without_fetch_request": 1},
         )
 
+    def test_fetch_required_ref_missing_bytes_must_have_manifest_request(self) -> None:
+        unit = _unit(
+            notice_id="355868",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="fetch_to_quarantine",
+            attachment_state="not_attempted",
+            retention_class="quarantine_candidate",
+        )
+        attachment = unit["attachment_refs"][0]
+        attachment["object_key"] = None
+        attachment["content_sha256"] = None
+        attachment["storage_provider"] = "reference_only"
+        attachment["ingest_status"] = "reference_only"
+        attachment["byte_fetch_required"] = True
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={"candidates": []},
+            fetch_request_manifest={"requests": []},
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {"fetch_policy_missing_bytes_without_fetch_request": 1},
+        )
+
     def test_source_capture_repair_requires_fetch_request_or_operator_action(self) -> None:
         unit = _unit(
             notice_id="355867",
@@ -211,6 +284,40 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
         self.assertEqual(
             audit["finding_counts_by_code"],
             {"source_capture_repair_without_fetch_request_or_operator_action": 1},
+        )
+
+    def test_source_capture_repair_without_media_ref_is_high_finding(self) -> None:
+        unit = _unit(
+            notice_id="355869",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="fetch_to_quarantine",
+            attachment_state="uploaded_quarantine",
+            retention_class="quarantine_candidate",
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "candidate_id": "candidate-repair-missing-ref",
+                        "unit_id": unit["unit_id"],
+                        "source_notice_id": "355869",
+                        "media_kind": "image",
+                        "processing_family": "source_capture_repair",
+                        "status": "failed_retryable",
+                        "target_blocking": False,
+                    }
+                ]
+            },
+            fetch_request_manifest={"requests": []},
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {"source_capture_repair_missing_media_ref": 1},
         )
 
     def test_terminal_unavailable_attachment_requires_terminal_state_tuple(self) -> None:
@@ -435,6 +542,45 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
             },
         )
 
+    def test_candidate_source_object_ref_must_match_attachment_bytes(self) -> None:
+        unit = _unit(
+            notice_id="355870",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="fetch_to_quarantine",
+            attachment_state="uploaded_quarantine",
+            retention_class="quarantine_candidate",
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": unit["unit_id"],
+                        "candidate_id": "candidate-stale-source-object",
+                        "source_notice_id": "355870",
+                        "media_ref_id": "attachment-0001",
+                        "media_kind": "image",
+                        "media_role": "schedule_table_carrier",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "pending",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/stale.png",
+                        },
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {"candidate_source_object_ref_missing_attachment_bytes": 1},
+        )
+
     def test_orphan_and_duplicate_candidates_are_high_findings(self) -> None:
         unit = _unit(
             notice_id="355867",
@@ -551,6 +697,31 @@ def _unit(
             "retention_class_counts": {retention_class: 1},
         },
         "attachment_refs": [attachment_ref],
+    }
+
+
+def _attachment_ref(
+    *,
+    notice_id: str,
+    attachment_ref_id: str,
+    attachment_policy: str,
+    attachment_state: str,
+    retention_class: str,
+) -> dict[str, object]:
+    return {
+        "attachment_ref_id": attachment_ref_id,
+        "resource_role": "inline_image",
+        "original_filename": f"{notice_id}-{attachment_ref_id}.png",
+        "attachment_capture_policy": attachment_policy,
+        "attachment_capture_state": attachment_state,
+        "retention_class": retention_class,
+        "byte_fetch_required": False,
+        "required_source_object": False,
+        "object_key": f"authenticated_notice_portal/attachment/{notice_id}-{attachment_ref_id}.png",
+        "mime_type": "image/png",
+        "content_sha256": f"sha256-{notice_id}-{attachment_ref_id}",
+        "storage_provider": "object_store",
+        "ingest_status": "uploaded",
     }
 
 

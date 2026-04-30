@@ -228,10 +228,21 @@ def run_authenticated_notice_closeout_batch(
     lease_seconds: int = 300,
     validate_chunking: bool = False,
     promote: bool = False,
+    media_gate_candidate_inventory_path: str | None = None,
+    media_gate_attempt_ledger_path: str | None = None,
+    media_gate_closeout_candidate_inventory_path: str | None = None,
+    media_gate_target_admission_manifest_paths: tuple[str, ...] = (),
+    media_gate_cleanup_report_path: str | None = None,
+    media_gate_object_verification_report_path: str | None = None,
+    media_gate_output_dir: str = "/tmp/media-closeout-state-machine-audit",
     policy: OnDemandBatchPolicy | None = None,
 ) -> dict[str, Any]:
     runtime_policy = policy or load_batch_policy()
     _require_within_batch_limit(name="batch-size", value=batch_size, policy=runtime_policy)
+    if promote and not media_gate_candidate_inventory_path:
+        raise ValueError(
+            "authenticated notice closeout promotion requires media gate evidence paths"
+        )
     steps: list[IngestionBatchStep] = []
     if bundle_path:
         if not site_id or not source_home_url:
@@ -295,12 +306,70 @@ def run_authenticated_notice_closeout_batch(
                 args=("--closeout-run-id", run_id),
             )
         )
+    if media_gate_candidate_inventory_path:
+        effective_object_verification_report_path = media_gate_object_verification_report_path
+        if effective_object_verification_report_path is None:
+            verification_output_dir = str(
+                Path(media_gate_output_dir) / "source-object-verification"
+            )
+            effective_object_verification_report_path = str(
+                Path(verification_output_dir) / "media-source-object-verification-report.json"
+            )
+            steps.append(
+                IngestionBatchStep(
+                    name="verify_media_source_objects",
+                    module="campus_ingestion_worker.verify_collected_notice_media_source_objects",
+                    args=(
+                        "--candidate-inventory-path",
+                        media_gate_candidate_inventory_path,
+                        "--output-dir",
+                        verification_output_dir,
+                    ),
+                )
+            )
+        gate_args = [
+            "--candidate-inventory-path",
+            media_gate_candidate_inventory_path,
+        ]
+        if media_gate_attempt_ledger_path:
+            gate_args.extend(("--attempt-ledger-path", media_gate_attempt_ledger_path))
+        if media_gate_closeout_candidate_inventory_path:
+            gate_args.extend(
+                (
+                    "--closeout-candidate-inventory-path",
+                    media_gate_closeout_candidate_inventory_path,
+                )
+            )
+        for manifest_path in media_gate_target_admission_manifest_paths:
+            gate_args.extend(("--target-admission-manifest-path", manifest_path))
+        if media_gate_cleanup_report_path:
+            gate_args.extend(("--cleanup-report-path", media_gate_cleanup_report_path))
+        if effective_object_verification_report_path:
+            gate_args.extend(
+                (
+                    "--object-verification-report-path",
+                    effective_object_verification_report_path,
+                )
+            )
+        gate_args.extend(("--output-dir", media_gate_output_dir))
+        steps.append(
+            IngestionBatchStep(
+                name="audit_media_closeout_state_machine",
+                module="campus_ingestion_worker.audit_collected_notice_media_closeout_state_machine",
+                args=tuple(gate_args),
+            )
+        )
     if promote:
         steps.append(
             IngestionBatchStep(
                 name="promote_closeout",
                 module="campus_ingestion_worker.promote_authenticated_notice_closeout",
-                args=("--run-id", run_id),
+                args=(
+                    "--run-id",
+                    run_id,
+                    "--media-gate-audit-path",
+                    str(Path(media_gate_output_dir) / "media-closeout-state-machine-audit.json"),
+                ),
             )
         )
     return _run_steps(
@@ -451,6 +520,18 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument("--lease-seconds", type=_positive_int, default=300)
     closeout.add_argument("--validate-chunking", action="store_true")
     closeout.add_argument("--promote", action="store_true")
+    closeout.add_argument("--media-gate-candidate-inventory-path")
+    closeout.add_argument("--media-gate-attempt-ledger-path")
+    closeout.add_argument("--media-gate-closeout-candidate-inventory-path")
+    closeout.add_argument(
+        "--media-gate-target-admission-manifest-path", action="append", default=[]
+    )
+    closeout.add_argument("--media-gate-cleanup-report-path")
+    closeout.add_argument("--media-gate-object-verification-report-path")
+    closeout.add_argument(
+        "--media-gate-output-dir",
+        default="/tmp/media-closeout-state-machine-audit",
+    )
     _add_common_runtime_args(closeout)
 
     wechat = subparsers.add_parser(
@@ -536,6 +617,19 @@ def main(argv: Sequence[str] | None = None) -> None:
                 lease_seconds=args.lease_seconds,
                 validate_chunking=args.validate_chunking,
                 promote=args.promote,
+                media_gate_candidate_inventory_path=args.media_gate_candidate_inventory_path,
+                media_gate_attempt_ledger_path=args.media_gate_attempt_ledger_path,
+                media_gate_closeout_candidate_inventory_path=(
+                    args.media_gate_closeout_candidate_inventory_path
+                ),
+                media_gate_target_admission_manifest_paths=tuple(
+                    args.media_gate_target_admission_manifest_path or ()
+                ),
+                media_gate_cleanup_report_path=args.media_gate_cleanup_report_path,
+                media_gate_object_verification_report_path=(
+                    args.media_gate_object_verification_report_path
+                ),
+                media_gate_output_dir=args.media_gate_output_dir,
                 policy=policy,
             )
         elif args.batch_kind == "wechat-public-notices":

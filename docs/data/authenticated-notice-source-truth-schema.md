@@ -419,6 +419,10 @@ consumer admission manifest 决定。
 - `fetch_to_quarantine` 如果尚无有效 object-backed bytes，必须保持
   `byte_fetch_required=true` 并进入 fetch request manifest；如果 candidate inventory 已暴露
   `source_capture_repair`，也必须存在对应 fetch request 或 operator action。
+- retryable download / upload failure 不得只写 legacy `last_error`。collector 必须写
+  `last_error_class=transient_failed`；source retention 必须保留
+  `attachment_capture_state=transient_failed`、`byte_fetch_required=true`，并继续进入 fetch
+  request / repair 闭环。
 - quarantine cleanup 不得只按 `retention_expires_at` 删除 object-backed bytes；如果
   media extraction candidate inventory 中存在 `target_blocking=true` 且引用同一
   `source_object_ref` 的未终态 candidate，则必须阻塞删除。仅当所有阻塞 candidate 已进入
@@ -487,9 +491,40 @@ media extraction candidate inventory 与 closeout result manifest 的 media life
   产生。第一版允许 `fetch_to_quarantine`、`fetch_required_for_source_truth` 与
   `fetch_required_for_admitted_owner`；缺少 `attachment_capture_policy` 的历史
   attachment ref 不得靠 `attachment_refs` fallback 自动进入处理。
+- media extraction candidate 必须绑定具体 `media_ref_id` / `attachment_ref_id`。audit
+  对 `metadata_only`、typed terminal/skip 与 candidate source object 的校验必须按 attachment
+  ref 执行，不得把 unit 级 candidate 套到所有 attachment ref。
 - stale object ref 不等于 bytes 可用。只有同时具备 `object_key`、`content_sha256` /
   `sha256`、非 `reference_only` 的 `storage_provider`，以及 `downloaded` 或 `uploaded`
   `ingest_status` 时，attachment bytes 才能被视为已采集。
+- candidate `source_object_ref` 必须与其 `media_ref_id` 指向的 attachment object-backed
+  bytes 匹配；bucket/key 不匹配、attachment 缺有效 bytes、或 candidate 缺 media ref 都必须
+  fail closed。
+- media extraction attempt ledger 是 candidate execution 的规范化状态投影，schema
+  为 `notice_media_extraction_attempt_ledger.v1`。它必须记录 `candidate_id`、
+  `unit_id`、`media_ref_id`、`processing_family`、`attempt_number`、contract-facing
+  `status`、retry policy、`retry_budget_remaining`、`next_retry_after`、
+  `source_object_ref`、`source_object_hash` 与 output ref 计划。
+- `notice_media_closeout_target_admission_state_machine_audit.v1` 是 media closeout
+  后半段的 fail-closed gate。strict gate 必须同时读取 attempt ledger、closeout
+  candidate inventory、target admission manifest、cleanup dry-run report 与 source-object
+  verification report；缺任一输入都必须产生 high finding。它还必须对 orphan
+  attempt、attempt/candidate source ref 或 hash 不一致、retry budget 缺失、completed
+  output refs 缺失、completed closeout 缺失或错配 attempt provenance、非终态 target
+  blocker 被 admission ready、target manifest 漏 unit 或 target/source 不一致、cleanup
+  未按 bucket/key identity 保护或选中 active quarantine bytes、candidate source object
+  未按 bucket/key/hash/size/storage provider 验证等情况产生 medium/high finding。对象验证
+  口径遵循 S3-compatible object integrity practice：不能只信 object key；必须具备可核对的
+  checksum/hash 与 object size。
+- `notice_media_source_object_verification_report.v1` 是 source-object live verification
+  report。每行必须包含 bucket、object key、status、storage provider、reference-only
+  posture、expected/observed hash、expected/observed size、`check_method` 与
+  `live_checked_at`。production strict gate 只接受 `head_checksum` 或 `get_hash`，其中
+  `get_hash` 是 HEAD 无可用 checksum 时的受控 fallback。
+- direct closeout promotion 与 on-demand closeout promotion 都必须消费通过的
+  `notice_media_closeout_target_admission_state_machine_audit.v1`；destructive quarantine
+  cleanup 必须消费同一 audit，并通过 `input_hashes.candidate_inventory_sha256` 证明 cleanup
+  使用的是被 audit 覆盖的 candidate inventory。
 
 ## Collection Extension Fields
 

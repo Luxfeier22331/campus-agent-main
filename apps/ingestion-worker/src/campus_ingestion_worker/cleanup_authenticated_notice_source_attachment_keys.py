@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--unreferenced-inventory-path")
     parser.add_argument("--quarantine-attachment-refs-path")
     parser.add_argument("--media-extraction-candidate-inventory-path")
+    parser.add_argument("--media-closeout-audit-path")
     parser.add_argument("--now")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--dry-run", action="store_true")
@@ -49,6 +50,9 @@ def main(argv: Sequence[str] | None = None) -> None:
                     Path(args.media_extraction_candidate_inventory_path)
                     if args.media_extraction_candidate_inventory_path
                     else None
+                ),
+                media_closeout_audit_path=(
+                    Path(args.media_closeout_audit_path) if args.media_closeout_audit_path else None
                 ),
                 output_dir=Path(args.output_dir),
                 now=str(args.now),

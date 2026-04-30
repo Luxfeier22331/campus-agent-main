@@ -26,10 +26,14 @@ export function aggregateAttachmentFacts(bundleRecords: BundleNoticeRecord[]): {
 			const isTerminalUnavailable =
 				attachment.provenance_status === "terminal_unavailable" ||
 				attachment.ingest_status === "terminal_unavailable" ||
+				attachment.last_error_class === "terminal_unavailable" ||
 				attachment.last_error?.startsWith("terminal_unavailable:");
+			const isTransientFailed = attachment.last_error_class === "transient_failed";
 			const lastError = attachment.last_error ?? "";
 			if (isTerminalUnavailable) {
 				attachmentTerminalUnavailable += 1;
+			} else if (isTransientFailed) {
+				attachmentTransientFailed += 1;
 			} else if (attachment.storage_provider === "reference_only") {
 				attachmentReferenceOnly += 1;
 			} else if (lastError.trim()) {
@@ -123,10 +127,14 @@ export function aggregateReleasedFileFacts(bundleRecords: BundleFileReleaseRecor
 		const isTerminalUnavailable =
 			releasedFile.provenance_status === "terminal_unavailable" ||
 			releasedFile.ingest_status === "terminal_unavailable" ||
+			releasedFile.last_error_class === "terminal_unavailable" ||
 			releasedFile.last_error?.startsWith("terminal_unavailable:");
+		const isTransientFailed = releasedFile.last_error_class === "transient_failed";
 		const lastError = releasedFile.last_error ?? "";
 		if (isTerminalUnavailable) {
 			attachmentTerminalUnavailable += 1;
+		} else if (isTransientFailed) {
+			attachmentTransientFailed += 1;
 		} else if (releasedFile.storage_provider === "reference_only") {
 			attachmentReferenceOnly += 1;
 		} else if (lastError.trim()) {

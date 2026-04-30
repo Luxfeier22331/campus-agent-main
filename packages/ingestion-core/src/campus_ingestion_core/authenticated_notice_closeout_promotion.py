@@ -50,6 +50,7 @@ class CloseoutPromotionCoordinator:
         *,
         run: CloseoutRun,
         request: AuthenticatedNoticeImportRequest,
+        media_gate_audit: dict[str, Any],
     ) -> dict[str, Any]:
         documents = self.closeout_store.get_staged_documents(run.run_id)
         raw_assets = self.closeout_store.get_staged_raw_assets(run.run_id)
@@ -57,6 +58,7 @@ class CloseoutPromotionCoordinator:
             run=run,
             documents=documents,
             raw_assets=raw_assets,
+            media_gate_audit=media_gate_audit,
         )
         self._persist_progress(run=run, request=request, promotion=promotion)
         try:
@@ -138,12 +140,14 @@ class CloseoutPromotionCoordinator:
         run: CloseoutRun,
         documents: tuple[dict[str, Any], ...],
         raw_assets: tuple[dict[str, Any], ...],
+        media_gate_audit: dict[str, Any],
     ) -> dict[str, Any]:
         existing = dict(run.promotion)
         promotion_id = str(existing.get("promotion_id") or DEFAULT_PROMOTION_ID)
         return self._merge_promotion(
             existing,
             promotion_id=promotion_id,
+            media_gate=dict(media_gate_audit),
             state="running",
             phase=str(existing.get("phase") or "raw_asset_sync"),
             started_at=str(existing.get("started_at") or utc_now()),

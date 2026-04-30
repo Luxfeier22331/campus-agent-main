@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -271,7 +272,12 @@ class AuthenticatedNoticeCloseoutService:
             lease_seconds=lease_seconds,
         )
 
-    def promote_run(self, run_id: str) -> dict[str, Any]:
+    def promote_run(
+        self,
+        run_id: str,
+        *,
+        media_gate_audit: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         run = self.closeout_store.get_run(run_id)
         if run is None:
             raise ValueError(f"closeout run not found: {run_id}")
@@ -279,9 +285,18 @@ class AuthenticatedNoticeCloseoutService:
             return self._build_run_summary(run_id)
         if run.state.value not in ("verified", "promoting"):
             raise ValueError(f"closeout run must be verified before promotion: {run.state.value}")
+        normalized_media_gate = _validated_media_gate_audit(
+            media_gate_audit,
+            existing_gate=(
+                dict(run.promotion.get("media_gate") or {})
+                if isinstance(run.promotion.get("media_gate"), Mapping)
+                else None
+            ),
+        )
         return self.promotion.promote_run(
             run=run,
             request=self._request_from_run(run),
+            media_gate_audit=normalized_media_gate,
         )
 
     def repair_run(self, run_id: str) -> dict[str, Any]:
@@ -720,3 +735,28 @@ __all__ = [
     "CloseoutS3ObjectStore",
     "CloseoutVerifier",
 ]
+
+
+def _validated_media_gate_audit(
+    media_gate_audit: Mapping[str, Any] | None,
+    *,
+    existing_gate: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    candidate = dict(media_gate_audit or existing_gate or {})
+    if not candidate:
+        raise ValueError("media closeout state machine gate is required before promotion")
+    if str(candidate.get("verdict") or "") != "passed":
+        raise ValueError("media closeout state machine gate must pass before promotion")
+    if not bool(candidate.get("strict_gate")):
+        raise ValueError("media closeout state machine gate must be strict before promotion")
+    if int(candidate.get("finding_count") or 0) != 0:
+        raise ValueError("media closeout state machine gate must have zero findings")
+    return {
+        "schema_version": str(candidate.get("schema_version") or ""),
+        "verdict": str(candidate.get("verdict") or ""),
+        "strict_gate": bool(candidate.get("strict_gate")),
+        "finding_count": int(candidate.get("finding_count") or 0),
+        "candidate_count": int(candidate.get("candidate_count") or 0),
+        "attempt_count": int(candidate.get("attempt_count") or 0),
+        "input_hashes": dict(candidate.get("input_hashes") or {}),
+    }

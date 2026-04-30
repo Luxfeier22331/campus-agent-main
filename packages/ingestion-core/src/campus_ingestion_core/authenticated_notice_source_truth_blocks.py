@@ -242,6 +242,7 @@ def _build_attachment_refs(
 
 
 def _terminal_fetch_outcome(attachment: dict[str, Any]) -> tuple[str | None, str | None]:
+    last_error_class = _optional_text(attachment.get("last_error_class"))
     terminal_reason = _optional_text(attachment.get("terminal_reason"))
     if terminal_reason in set(_TERMINAL_UNAVAILABLE_STATUSES.values()):
         return terminal_reason, "terminal_unavailable"
@@ -255,7 +256,29 @@ def _terminal_fetch_outcome(attachment: dict[str, Any]) -> tuple[str | None, str
             return terminal_reason, "terminal_unavailable"
     if provenance_status == "terminal_unavailable" or ingest_status == "terminal_unavailable":
         return "portal_file_missing", "terminal_unavailable"
+    if last_error_class == "transient_failed" or _is_retryable_attachment_error(last_error):
+        return None, "transient_failed"
     return None, None
+
+
+def _is_retryable_attachment_error(value: str | None) -> bool:
+    normalized = (value or "").strip().lower()
+    if not normalized or normalized.startswith("default_inline_visual_capture_skipped:"):
+        return False
+    return any(
+        token in normalized
+        for token in (
+            "timeout",
+            "timed out",
+            "content-length",
+            "econn",
+            "enotfound",
+            "socket",
+            "network",
+            "fetch failed",
+            "failed to fetch",
+        )
+    )
 
 
 def _text_mentions_http_status(value: str, status: int) -> bool:

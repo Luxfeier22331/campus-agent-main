@@ -138,9 +138,10 @@ def _unit_findings(
     *,
     unit: Mapping[str, Any],
     candidates: Sequence[Mapping[str, Any]],
-    fetch_request_keys: set[tuple[str, str]],
+    fetch_request_keys: set[tuple[str, str, str]],
 ) -> tuple[dict[str, Any], ...]:
     findings: list[dict[str, Any]] = []
+    site_id = str(unit.get("site_id") or "")
     source_notice_id = str(unit.get("source_notice_id") or "")
     title = str(unit.get("title") or "")
     source_surface = str(unit.get("source_surface") or "")
@@ -148,6 +149,12 @@ def _unit_findings(
     primary_route = str(classification.get("primary_route") or "")
     target_candidates = tuple(str(item) for item in classification.get("target_candidates") or ())
     attachment_refs = tuple(_mapping_rows(unit.get("attachment_refs")))
+    attachments_by_ref_id = {
+        str(attachment.get("attachment_ref_id") or ""): attachment
+        for attachment in attachment_refs
+        if str(attachment.get("attachment_ref_id") or "")
+    }
+    has_single_attachment = len(attachment_refs) == 1
 
     if unit.get("source_retention") is None:
         findings.append(
@@ -166,6 +173,11 @@ def _unit_findings(
         retention_class = str(attachment.get("retention_class") or "")
         ref_id = str(attachment.get("attachment_ref_id") or "")
         has_object_bytes = _has_object_bytes(attachment)
+        attachment_candidates = _candidates_for_attachment(
+            candidates,
+            attachment_ref_id=ref_id,
+            single_attachment=has_single_attachment,
+        )
         if _is_terminal_unavailable_attachment(attachment):
             if (
                 policy != "terminal_unavailable"
@@ -189,7 +201,7 @@ def _unit_findings(
                         ),
                     )
                 )
-            if candidates:
+            if attachment_candidates:
                 findings.append(
                     _finding(
                         severity=FINDING_HIGH,
@@ -222,7 +234,7 @@ def _unit_findings(
                         ),
                     )
                 )
-            if candidates:
+            if attachment_candidates:
                 findings.append(
                     _finding(
                         severity=FINDING_HIGH,
@@ -234,7 +246,7 @@ def _unit_findings(
                     )
                 )
         if policy == "metadata_only":
-            if candidates:
+            if attachment_candidates:
                 findings.append(
                     _finding(
                         severity=FINDING_MEDIUM,
@@ -256,6 +268,32 @@ def _unit_findings(
                         detail="metadata_only attachment has inconsistent state or retention class",
                     )
                 )
+        if (
+            policy in _FETCH_POLICIES
+            and not has_object_bytes
+            and not _is_terminal_unavailable_attachment(attachment)
+            and not _is_skip_terminal_attachment(attachment)
+            and attachment.get("byte_fetch_required") is True
+            and not _has_fetch_request(
+                fetch_request_keys,
+                site_id=site_id,
+                notice_id=source_notice_id,
+                attachment_ref_id=ref_id,
+            )
+        ):
+            findings.append(
+                _finding(
+                    severity=FINDING_HIGH,
+                    code="fetch_policy_missing_bytes_without_fetch_request",
+                    source_notice_id=source_notice_id,
+                    title=title,
+                    attachment_ref_id=ref_id,
+                    detail=(
+                        "fetch policy attachment without bytes and byte_fetch_required=true "
+                        "must appear in the fetch request manifest"
+                    ),
+                )
+            )
         if policy == "fetch_to_quarantine" and has_object_bytes:  # noqa: SIM102
             if state != "uploaded_quarantine" or attachment.get("byte_fetch_required") is not False:
                 findings.append(
@@ -298,7 +336,12 @@ def _unit_findings(
                 not has_object_bytes
                 and not _is_terminal_unavailable_attachment(attachment)
                 and attachment.get("byte_fetch_required") is not True
-                and (source_notice_id, ref_id) not in fetch_request_keys
+                and not _has_fetch_request(
+                    fetch_request_keys,
+                    site_id=site_id,
+                    notice_id=source_notice_id,
+                    attachment_ref_id=ref_id,
+                )
             ):
                 findings.append(
                     _finding(
@@ -332,17 +375,30 @@ def _unit_findings(
     for candidate in candidates:
         media_kind = str(candidate.get("media_kind") or "")
         processing_family = str(candidate.get("processing_family") or "")
+        media_ref_id = _candidate_media_ref_id(candidate)
         if processing_family == "source_capture_repair":
-            media_ref_id = str(
-                candidate.get("media_ref_id") or candidate.get("attachment_ref_id") or ""
-            ).strip()
             has_operator_action = bool(
                 str(candidate.get("operator_action_id") or "").strip()
                 or str(candidate.get("operator_action") or "").strip()
             )
-            if (
-                media_ref_id
-                and (source_notice_id, media_ref_id) not in fetch_request_keys
+            if not media_ref_id:
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="source_capture_repair_missing_media_ref",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        candidate_id=str(candidate.get("candidate_id") or ""),
+                        detail="source_capture_repair candidate must identify media_ref_id",
+                    )
+                )
+            elif (
+                not _has_fetch_request(
+                    fetch_request_keys,
+                    site_id=site_id,
+                    notice_id=source_notice_id,
+                    attachment_ref_id=media_ref_id,
+                )
                 and not has_operator_action
             ):
                 findings.append(
@@ -356,6 +412,28 @@ def _unit_findings(
                         detail=(
                             "source_capture_repair candidate must be closed by a fetch request "
                             "or an explicit operator action"
+                        ),
+                    )
+                )
+        if media_ref_id and (attachment := attachments_by_ref_id.get(media_ref_id)) is not None:
+            source_object_ref = candidate.get("source_object_ref")
+            if isinstance(
+                source_object_ref, Mapping
+            ) and not _candidate_source_ref_matches_attachment(
+                source_object_ref=source_object_ref,
+                attachment=attachment,
+            ):
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="candidate_source_object_ref_missing_attachment_bytes",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        attachment_ref_id=media_ref_id,
+                        candidate_id=str(candidate.get("candidate_id") or ""),
+                        detail=(
+                            "candidate source_object_ref must match object-backed bytes on "
+                            "the referenced attachment"
                         ),
                     )
                 )
@@ -552,17 +630,59 @@ def _candidate_has_source_object_ref(candidate: Mapping[str, Any]) -> bool:
     )
 
 
+def _candidate_source_ref_matches_attachment(
+    *,
+    source_object_ref: Mapping[str, Any],
+    attachment: Mapping[str, Any],
+) -> bool:
+    if not _has_object_bytes(attachment):
+        return False
+    source_key = str(source_object_ref.get("key") or "").strip()
+    attachment_key = str(attachment.get("object_key") or "").strip()
+    if not source_key or source_key != attachment_key:
+        return False
+    source_bucket = str(source_object_ref.get("bucket") or "").strip()
+    attachment_bucket = str(attachment.get("bucket") or "").strip()
+    return not attachment_bucket or source_bucket == attachment_bucket
+
+
+def _candidates_for_attachment(
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    attachment_ref_id: str,
+    single_attachment: bool,
+) -> tuple[Mapping[str, Any], ...]:
+    rows: list[Mapping[str, Any]] = []
+    for candidate in candidates:
+        media_ref_id = _candidate_media_ref_id(candidate)
+        if media_ref_id == attachment_ref_id or (single_attachment and not media_ref_id):
+            rows.append(candidate)
+    return tuple(rows)
+
+
+def _candidate_media_ref_id(candidate: Mapping[str, Any]) -> str:
+    for key in ("media_ref_id", "attachment_ref_id"):
+        value = str(candidate.get(key) or "").strip()
+        if value:
+            return value
+    attachment_ref = candidate.get("attachment_ref")
+    if isinstance(attachment_ref, Mapping):
+        return str(attachment_ref.get("attachment_ref_id") or "").strip()
+    return ""
+
+
 def _fetch_manifest_findings(
     requests: Sequence[Mapping[str, Any]],
     *,
-    source_ref_index: Mapping[tuple[str, str], Mapping[str, Any]],
+    source_ref_index: Mapping[tuple[str, str, str], Mapping[str, Any]],
 ) -> tuple[dict[str, Any], ...]:
     findings: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str]] = set()
     for request in requests:
+        site_id = str(request.get("site_id") or "")
         notice_id = str(request.get("notice_id") or "")
         ref_id = str(request.get("attachment_ref_id") or "")
-        key = (notice_id, ref_id)
+        key = (site_id, notice_id, ref_id)
         if key in seen:
             findings.append(
                 _finding(
@@ -576,7 +696,12 @@ def _fetch_manifest_findings(
             )
         seen.add(key)
         policy = str(request.get("attachment_capture_policy") or "")
-        source_ref = source_ref_index.get(key)
+        source_ref = _source_ref_for_request(
+            source_ref_index,
+            site_id=site_id,
+            notice_id=notice_id,
+            attachment_ref_id=ref_id,
+        )
         source_policy = str((source_ref or {}).get("attachment_capture_policy") or "")
         source_is_terminal = source_ref is not None and (
             _is_terminal_unavailable_attachment(source_ref)
@@ -628,9 +753,10 @@ def _fetch_manifest_findings(
 
 def _fetch_request_keys(
     requests: Sequence[Mapping[str, Any]],
-) -> set[tuple[str, str]]:
+) -> set[tuple[str, str, str]]:
     return {
         (
+            str(request.get("site_id") or ""),
             str(request.get("notice_id") or ""),
             str(request.get("attachment_ref_id") or ""),
         )
@@ -641,17 +767,45 @@ def _fetch_request_keys(
 
 def _source_attachment_ref_index(
     units: Sequence[Mapping[str, Any]],
-) -> dict[tuple[str, str], Mapping[str, Any]]:
-    index: dict[tuple[str, str], Mapping[str, Any]] = {}
+) -> dict[tuple[str, str, str], Mapping[str, Any]]:
+    index: dict[tuple[str, str, str], Mapping[str, Any]] = {}
     for unit in units:
+        site_id = str(unit.get("site_id") or "")
         notice_id = str(unit.get("source_notice_id") or "")
         if not notice_id:
             continue
         for attachment_ref in _mapping_rows(unit.get("attachment_refs")):
             ref_id = str(attachment_ref.get("attachment_ref_id") or "")
             if ref_id:
-                index[(notice_id, ref_id)] = attachment_ref
+                index[(site_id, notice_id, ref_id)] = attachment_ref
+                index.setdefault(("", notice_id, ref_id), attachment_ref)
     return index
+
+
+def _source_ref_for_request(
+    source_ref_index: Mapping[tuple[str, str, str], Mapping[str, Any]],
+    *,
+    site_id: str,
+    notice_id: str,
+    attachment_ref_id: str,
+) -> Mapping[str, Any] | None:
+    return source_ref_index.get((site_id, notice_id, attachment_ref_id)) or source_ref_index.get(
+        ("", notice_id, attachment_ref_id)
+    )
+
+
+def _has_fetch_request(
+    fetch_request_keys: set[tuple[str, str, str]],
+    *,
+    site_id: str,
+    notice_id: str,
+    attachment_ref_id: str,
+) -> bool:
+    return (site_id, notice_id, attachment_ref_id) in fetch_request_keys or (
+        "",
+        notice_id,
+        attachment_ref_id,
+    ) in fetch_request_keys
 
 
 def _finding(

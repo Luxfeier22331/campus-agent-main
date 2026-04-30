@@ -95,6 +95,8 @@ def _file_release_required_attachment_ref(
     released_file_ref: Mapping[str, Any],
 ) -> dict[str, Any]:
     byte_ref = dict(released_file_ref)
+    if _looks_like_object_backed_file_release_ref(byte_ref):
+        byte_ref["storage_provider"] = "object_store"
     if (
         _optional_text(byte_ref.get("storage_provider")) == "object_store"
         and _optional_text(byte_ref.get("object_key")) is not None
@@ -134,6 +136,16 @@ def _file_release_required_attachment_ref(
         "terminal_reason": None,
         "last_error_class": None,
     }
+
+
+def _looks_like_object_backed_file_release_ref(byte_ref: Mapping[str, Any]) -> bool:
+    storage_provider = _optional_text(byte_ref.get("storage_provider"))
+    return (
+        storage_provider is None
+        and _optional_text(byte_ref.get("bucket")) is not None
+        and _optional_text(byte_ref.get("object_key")) is not None
+        and _optional_text(byte_ref.get("content_sha256")) is not None
+    )
 
 
 def _source_retention_summary_from_manifest(

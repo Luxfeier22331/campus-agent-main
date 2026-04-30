@@ -68,6 +68,18 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _passed_media_gate_audit() -> dict[str, object]:
+    return {
+        "schema_version": "notice_media_closeout_target_admission_state_machine_audit.v1",
+        "verdict": "passed",
+        "strict_gate": True,
+        "finding_count": 0,
+        "finding_counts_by_severity": {},
+        "candidate_count": 0,
+        "attempt_count": 0,
+    }
+
+
 def _sample_notice_bundle() -> list[dict[str, object]]:
     return [
         {
