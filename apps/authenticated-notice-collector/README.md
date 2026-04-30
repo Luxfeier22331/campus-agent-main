@@ -187,6 +187,9 @@ Notice export note:
   only after the collector run ledger row is `success` and `verified`. The
   collector does not write source-truth, projection, read model, chunk, index,
   or queue internals; it only hands off the verified `run_id`.
+- historical collected content is not auto-enqueued by the collector; operators
+  manually enqueue existing verified/repair ledger rows through the ingestion
+  worker queue command when they decide to replay those captured runs.
 - `AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_OUTPUT_DIR` optionally sets the
   enqueue evidence directory for that worker command.
 - when `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` is configured and

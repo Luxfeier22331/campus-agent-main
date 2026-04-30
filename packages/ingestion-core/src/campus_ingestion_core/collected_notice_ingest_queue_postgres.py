@@ -12,6 +12,7 @@ from campus_ingestion_core.collected_notice_ingest_queue_store import (
     NoticeIngestQueueLeaseError,
     NoticeIngestQueueNotFoundError,
     NoticeIngestQueueRecord,
+    build_notice_ingest_queue_operator_summary,
     build_notice_ingest_queue_record,
     notice_ingest_job_from_payload,
     zero_status_counts,
@@ -420,6 +421,13 @@ class PostgresNoticeIngestQueueStore:
         for status, count in rows:
             counts[str(status)] = int(count)
         return counts
+
+    def operator_summary(self, *, now: datetime | None = None) -> dict[str, object]:
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(self._select_query(), ())
+            rows = cursor.fetchall()
+        records = tuple(_record_from_row(row) for row in rows)
+        return build_notice_ingest_queue_operator_summary(records, now=now)
 
     def _ensure_schema(self) -> None:
         table_sql = _qualified_table_sql(self.table_name)

@@ -64,8 +64,6 @@ class ConsumeAuthenticatedNoticeIngestQueueWorkerTest(unittest.TestCase):
                         "--output-dir",
                         str(output_dir),
                         "--require-media-gate",
-                        "--media-gate-evidence-dir",
-                        str(output_dir / "media-gate"),
                     ]
                 )
 
@@ -75,7 +73,8 @@ class ConsumeAuthenticatedNoticeIngestQueueWorkerTest(unittest.TestCase):
             self.assertEqual(kwargs["site_id"], "muc_internal_portal")
             self.assertEqual(kwargs["source_home_url"], "https://my.muc.edu.cn")
             self.assertTrue(kwargs["require_media_gate"])
-            self.assertEqual(str(kwargs["media_gate_evidence_dir"]), str(output_dir / "media-gate"))
+            self.assertIsNone(kwargs["media_gate_evidence_dir"])
+            self.assertEqual(str(kwargs["operations_dir"]), str(output_dir / "operations"))
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["mode"], "execute")
             self.assertTrue(payload["write_enabled"])

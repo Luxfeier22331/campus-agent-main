@@ -24,6 +24,14 @@ class _FakeStore:
             "cancelled": 1,
         }
 
+    def operator_summary(self) -> dict[str, object]:
+        return {
+            "oldest_pending_age_seconds": 3600,
+            "retry_due_count": 4,
+            "manual_review_reason_counts": {"media_gate_requires_manual_review": 2},
+            "dead_letter_reason_counts": {"source_object_unavailable": 1},
+        }
+
 
 class ShowCollectedNoticeIngestQueueWorkerTest(unittest.TestCase):
     def test_main_prints_read_only_queue_status_counts(self) -> None:
@@ -47,6 +55,11 @@ class ShowCollectedNoticeIngestQueueWorkerTest(unittest.TestCase):
         self.assertEqual(payload["status_counts"]["queued"], 2)
         self.assertEqual(payload["status_counts"]["dead_letter"], 1)
         self.assertEqual(payload["status_counts"]["manual_review"], 2)
+        self.assertEqual(payload["operator_summary"]["retry_due_count"], 4)
+        self.assertEqual(
+            payload["operator_summary"]["manual_review_reason_counts"],
+            {"media_gate_requires_manual_review": 2},
+        )
 
 
 if __name__ == "__main__":

@@ -183,7 +183,57 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
         self.assertIsNone(record.leased_by)
         self.assertEqual(result.queue_consume["counts"]["completed_count"], 0)
 
-    def test_required_media_gate_failure_maps_to_manual_review(self) -> None:
+    def test_required_media_gate_uses_consumer_owned_operations_dir(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+        with TemporaryDirectory() as tmpdir:
+            operations_root = Path(tmpdir) / "operations"
+            evidence_dir = operations_root / "run-001" / job.job_id / "attempt-001"
+            _write_passed_media_gate_evidence(evidence_dir)
+            result = consume_authenticated_notice_ingest_queue(
+                queue_store=store,
+                object_store=_ObjectStore(
+                    {
+                        ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                        ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                    }
+                ),
+                run_ref_resolver=_resolver_for(job),
+                importer=_RecordingImporter({"notice_count": 1}),
+                mode="execute",
+                worker_id="worker-a",
+                site_id="muc_internal_portal",
+                source_home_url="https://my.muc.edu.cn",
+                require_media_gate=True,
+                operations_dir=operations_root,
+            )
+            self.assertTrue(
+                (evidence_dir / "authenticated-notice-media-gate-evidence.json").exists()
+            )
+            self.assertTrue(
+                (evidence_dir / "authenticated-notice-media-gate-evidence-verdict.json").exists()
+            )
+
+        record = store.get(job.job_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.status, "succeeded")
+        self.assertEqual(result.failed_report["manual_review_count"], 0)
+        row = result.trace["trace_rows"][0]
+        self.assertEqual(row["operations_dir"], str(evidence_dir))
+        self.assertEqual(row["media_gate"]["verdict"], "passed")
+
+    def test_required_media_gate_missing_consumer_owned_evidence_maps_to_manual_review(
+        self,
+    ) -> None:
         bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
         manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
         store = InMemoryNoticeIngestQueueStore()
@@ -211,7 +261,7 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
                 site_id="muc_internal_portal",
                 source_home_url="https://my.muc.edu.cn",
                 require_media_gate=True,
-                media_gate_evidence_dir=Path(tmpdir),
+                operations_dir=Path(tmpdir) / "operations",
             )
 
         record = store.get(job.job_id)
@@ -219,6 +269,50 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
         self.assertEqual(record.status, "manual_review")
         self.assertEqual(record.last_error_code, "media_gate_requires_manual_review")
         self.assertEqual(result.failed_report["manual_review_count"], 1)
+
+    def test_downstream_materialization_requires_consumer_admission_manifest(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = InMemoryNoticeIngestQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+        importer = _RecordingImporter(
+            {
+                "notice_count": 1,
+                "consumption_projection_entry_count": 1,
+                "internal_notice_read_model_entry_count": 1,
+            }
+        )
+
+        result = consume_authenticated_notice_ingest_queue(
+            queue_store=store,
+            object_store=_ObjectStore(
+                {
+                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                }
+            ),
+            run_ref_resolver=_resolver_for(job),
+            importer=importer,
+            mode="execute",
+            worker_id="worker-a",
+            site_id="muc_internal_portal",
+            source_home_url="https://my.muc.edu.cn",
+            source_truth_only=False,
+        )
+
+        record = store.get(job.job_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.status, "manual_review")
+        self.assertEqual(record.last_error_code, "consumer_admission_manifest_required")
+        self.assertEqual(result.failed_report["manual_review_count"], 1)
+        self.assertEqual(len(importer.requests), 0)
 
     def test_downstream_materialization_trace_is_required_when_requested(self) -> None:
         bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
@@ -232,31 +326,35 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
             manifest_size=len(manifest_bytes),
         )
         store.enqueue(job)
+        with TemporaryDirectory() as tmpdir:
+            consumer_manifest_path = Path(tmpdir) / "consumer-admission.json"
+            consumer_manifest_path.write_text("{}", encoding="utf-8")
 
-        result = consume_authenticated_notice_ingest_queue(
-            queue_store=store,
-            object_store=_ObjectStore(
-                {
-                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
-                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
-                }
-            ),
-            run_ref_resolver=_resolver_for(job),
-            importer=_RecordingImporter(
-                {
-                    "notice_count": 1,
-                    "consumption_projection_entry_count": 1,
-                    "internal_notice_read_model_entry_count": 1,
-                    "consumer_admission_projection_gate": {"allowed": True},
-                    "consumer_admission_read_model_gate": {"allowed": True},
-                }
-            ),
-            mode="execute",
-            worker_id="worker-a",
-            site_id="muc_internal_portal",
-            source_home_url="https://my.muc.edu.cn",
-            source_truth_only=False,
-        )
+            result = consume_authenticated_notice_ingest_queue(
+                queue_store=store,
+                object_store=_ObjectStore(
+                    {
+                        ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                        ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                    }
+                ),
+                run_ref_resolver=_resolver_for(job),
+                importer=_RecordingImporter(
+                    {
+                        "notice_count": 1,
+                        "consumption_projection_entry_count": 1,
+                        "internal_notice_read_model_entry_count": 1,
+                        "consumer_admission_projection_gate": {"allowed": True},
+                        "consumer_admission_read_model_gate": {"allowed": True},
+                    }
+                ),
+                mode="execute",
+                worker_id="worker-a",
+                site_id="muc_internal_portal",
+                source_home_url="https://my.muc.edu.cn",
+                source_truth_only=False,
+                consumer_admission_manifest_path=consumer_manifest_path,
+            )
 
         row = result.trace["trace_rows"][0]
         self.assertEqual(row["downstream_materialization"]["status"], "completed")
@@ -282,23 +380,27 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
             manifest_size=len(manifest_bytes),
         )
         store.enqueue(job)
+        with TemporaryDirectory() as tmpdir:
+            consumer_manifest_path = Path(tmpdir) / "consumer-admission.json"
+            consumer_manifest_path.write_text("{}", encoding="utf-8")
 
-        result = consume_authenticated_notice_ingest_queue(
-            queue_store=store,
-            object_store=_ObjectStore(
-                {
-                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
-                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
-                }
-            ),
-            run_ref_resolver=_resolver_for(job),
-            importer=_RecordingImporter({"notice_count": 1}),
-            mode="execute",
-            worker_id="worker-a",
-            site_id="muc_internal_portal",
-            source_home_url="https://my.muc.edu.cn",
-            source_truth_only=False,
-        )
+            result = consume_authenticated_notice_ingest_queue(
+                queue_store=store,
+                object_store=_ObjectStore(
+                    {
+                        ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                        ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                    }
+                ),
+                run_ref_resolver=_resolver_for(job),
+                importer=_RecordingImporter({"notice_count": 1}),
+                mode="execute",
+                worker_id="worker-a",
+                site_id="muc_internal_portal",
+                source_home_url="https://my.muc.edu.cn",
+                source_truth_only=False,
+                consumer_admission_manifest_path=consumer_manifest_path,
+            )
 
         record = store.get(job.job_id)
         self.assertIsNotNone(record)
@@ -464,6 +566,50 @@ def _json_bytes(payload: object) -> bytes:
 
 def _sha(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _write_passed_media_gate_evidence(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    artifact_payloads = {
+        "media-extraction-candidate-inventory.json": {"candidates": []},
+        "media-extraction-attempt-ledger.json": {"attempts": []},
+        "media-extraction-candidate-inventory.closeout.json": {"candidates": []},
+        "target-admission-manifest.json": {"admissions": []},
+        "cleanup.dry-run.json": {"items": []},
+        "media-source-object-verification-report.json": {"objects": []},
+    }
+    for filename, payload in artifact_payloads.items():
+        (root / filename).write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    audit = {
+        "verdict": "passed",
+        "strict_gate": True,
+        "finding_count": 0,
+        "input_hashes": {
+            "candidate_inventory_sha256": _sha(
+                (root / "media-extraction-candidate-inventory.json").read_bytes()
+            ),
+            "attempt_ledger_sha256": _sha(
+                (root / "media-extraction-attempt-ledger.json").read_bytes()
+            ),
+            "closeout_candidate_inventory_sha256": _sha(
+                (root / "media-extraction-candidate-inventory.closeout.json").read_bytes()
+            ),
+            "target_admission_manifest_1_sha256": _sha(
+                (root / "target-admission-manifest.json").read_bytes()
+            ),
+            "cleanup_report_sha256": _sha((root / "cleanup.dry-run.json").read_bytes()),
+            "object_verification_report_sha256": _sha(
+                (root / "media-source-object-verification-report.json").read_bytes()
+            ),
+        },
+    }
+    (root / "media-closeout-state-machine-audit.json").write_text(
+        json.dumps(audit, ensure_ascii=False, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

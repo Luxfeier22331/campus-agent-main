@@ -16,8 +16,10 @@ updated: 2026-05-01
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 1 planned`
-- baseline: authenticated notice 状态机、media gate、strict audit、promotion guard 已在当前 worktree 中硬化；但主链路仍依赖人工拼接 artifact、手动执行 worker 命令和手动判断 smoke 证据。
+- current phase: `Verification`
+- phases complete: `8`
+- baseline: authenticated notice run-level queue、verified ledger handoff、run consumer、consumer-owned media gate evidence manifest、downstream materialization guard、cleanup guard 与 captured-content smoke harness 已在当前 worktree 中落地。
+- deferred by operator decision: local-only historical content 不自动入队；后续由 operator 手动触发 verified/repair ledger enqueue。真实 Postgres/object-store full execute smoke 验收也后置，不作为本轮修复完成条件。
 
 ## Problem
 
@@ -31,15 +33,12 @@ updated: 2026-05-01
 - `apps/ingestion-worker/src/campus_ingestion_worker/enqueue_collected_notice_historical_inventory.py`
 - `apps/ingestion-worker/src/campus_ingestion_worker/consume_collected_notice_ingest_queue.py`
 
-但这套能力仍不足以表达真正的 production-like 主路径：
+本线当前剩余收口点是 consumer 侧生命周期和 operator 观测，而不是重新打开历史内容自动入队：
 
-- queue job 仍偏向 per-notice collected replay / searchable evidence 投影，而不是 collector verified run 的 durable handoff job。
-- collector 成功后不会自动根据 run ledger verified row enqueue。
-- 手动历史内容 enqueue 还没有统一的 run-ledger/object repair entrypoint。
-- worker consumer 不会按 `run_id` 自动串起 import、closeout worker、media gate、promotion、downstream materialization 和 smoke。
-- queue lifecycle 缺少 `manual_review`、`cancelled`、`blocked`、`retry_after` 等 production operator 态。
-- strict media audit、live object verification、cleanup dry-run、promotion 和 downstream read-model rebuild 仍需要人工传 artifact 路径。
-- smoke 仍主要验证单段命令输出，不能证明从队列到下游 materialized/read model 的无人值守路径。
+- live collector path 只在 verified run ledger 后 hand off `run_id`。
+- already-collected historical path 由 operator 手动 enqueue verified/repair ledger row。
+- consumer 必须 owns operations-dir evidence、downstream admission/materialization gate、cleanup posture 与 queue terminal/manual-review 状态。
+- smoke 当前用于 captured-content path 结构验证；真实 infra acceptance 后置执行。
 
 ## Target Shape
 

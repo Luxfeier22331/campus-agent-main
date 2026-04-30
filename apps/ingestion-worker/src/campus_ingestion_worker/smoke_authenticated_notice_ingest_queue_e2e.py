@@ -43,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-surface", default="notice")
     parser.add_argument("--sample-id")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--operations-dir")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--require-media-gate", action="store_true")
     parser.add_argument("--media-gate-evidence-dir")
@@ -57,6 +58,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     env = dict(os.environ)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    operations_dir = Path(args.operations_dir) if args.operations_dir else output_dir / "operations"
     mode = "execute" if args.execute else "dry_run"
     run_refs = resolve_authenticated_notice_collector_run_refs(
         env=env,
@@ -97,6 +99,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             media_gate_evidence_dir=(
                 Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None
             ),
+            operations_dir=operations_dir,
             cleanup_report_path=(
                 Path(args.cleanup_report_path) if args.cleanup_report_path else None
             ),

@@ -10,6 +10,7 @@ from campus_ingestion_core.collected_notice_ingest_queue_store import (
     DEFAULT_NOTICE_INGEST_QUEUE_MAX_ATTEMPTS,
     NoticeIngestQueueNotFoundError,
     NoticeIngestQueueRecord,
+    build_notice_ingest_queue_operator_summary,
     build_notice_ingest_queue_record,
     utc_now_dt,
     zero_status_counts,
@@ -262,6 +263,11 @@ class InMemoryNoticeIngestQueueStore:
             for record in self._records_by_job_id.values():
                 counts[record.status] += 1
         return counts
+
+    def operator_summary(self, *, now: datetime | None = None) -> dict[str, object]:
+        with self._lock:
+            records = tuple(self._records_by_job_id.values())
+        return build_notice_ingest_queue_operator_summary(records, now=now)
 
     def _require(self, job_id: str) -> NoticeIngestQueueRecord:
         record = self._records_by_job_id.get(str(job_id))

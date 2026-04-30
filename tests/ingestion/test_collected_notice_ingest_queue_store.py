@@ -221,6 +221,10 @@ class NoticeIngestQueueStoreTest(unittest.TestCase):
         self.assertEqual(counts["manual_review"], 1)
         self.assertEqual(counts["blocked"], 1)
         self.assertEqual(counts["cancelled"], 1)
+        summary = store.operator_summary(now=_dt(10))
+        self.assertEqual(summary["manual_review_reason_counts"], {"media_gate_failed": 1})
+        self.assertEqual(summary["blocked_reason_counts"], {"missing_repair_ledger": 1})
+        self.assertEqual(summary["oldest_pending_age_seconds"], 8)
 
     def test_terminal_failure_and_status_counts_are_visible(self) -> None:
         store = InMemoryNoticeIngestQueueStore()

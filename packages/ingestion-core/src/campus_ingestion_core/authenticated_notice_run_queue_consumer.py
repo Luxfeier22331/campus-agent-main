@@ -122,6 +122,7 @@ def consume_authenticated_notice_ingest_queue(
     source_truth_only: bool = True,
     require_media_gate: bool = False,
     media_gate_evidence_dir: Path | None = None,
+    operations_dir: Path | None = None,
     cleanup_report_path: Path | None = None,
     destructive_cleanup_enabled: bool = False,
     consumer_admission_manifest_path: Path | None = None,
@@ -161,6 +162,11 @@ def consume_authenticated_notice_ingest_queue(
         if record is None:
             break
         trace_row = _base_trace_row(record)
+        record_operations_dir = _record_operations_dir(
+            root=operations_dir,
+            record=record,
+        )
+        trace_row["operations_dir"] = str(record_operations_dir)
         try:
             _assert_authenticated_notice_run_job(record)
             if record.source_surface != normalized_source_surface:
@@ -179,6 +185,14 @@ def consume_authenticated_notice_ingest_queue(
                 run_ref_resolver=run_ref_resolver,
             )
             _verify_source_objects(object_store=object_store, refs=refs)
+            if not source_truth_only and consumer_admission_manifest_path is None:
+                raise _RunQueueConsumeFailure(
+                    error_code="consumer_admission_manifest_required",
+                    message=(
+                        "consumer admission manifest is required before downstream materialization"
+                    ),
+                    failure_class="manual_review",
+                )
             import_result = importer(
                 request=AuthenticatedNoticeImportRequest(
                     site_id=normalized_site_id,
@@ -209,10 +223,11 @@ def consume_authenticated_notice_ingest_queue(
             if require_media_gate:
                 media_gate_verdict = _validate_required_media_gate(
                     run_id=record.run_id,
-                    media_gate_evidence_dir=media_gate_evidence_dir,
+                    media_gate_evidence_dir=media_gate_evidence_dir or record_operations_dir,
                 )
             cleanup = _cleanup_summary(
-                cleanup_report_path=cleanup_report_path,
+                cleanup_report_path=cleanup_report_path
+                or _default_cleanup_report_path(record_operations_dir),
                 destructive_cleanup_enabled=destructive_cleanup_enabled,
                 media_gate_verdict=media_gate_verdict,
             )
@@ -353,6 +368,7 @@ def consume_authenticated_notice_ingest_queue(
             "media_gate_evidence_dir": (
                 str(media_gate_evidence_dir) if media_gate_evidence_dir else None
             ),
+            "operations_dir": str(operations_dir) if operations_dir else None,
             "cleanup_report_path": str(cleanup_report_path) if cleanup_report_path else None,
             "destructive_cleanup_enabled": destructive_cleanup_enabled,
             "planned_writes": {
@@ -409,7 +425,16 @@ def _validate_required_media_gate(
             run_id=run_id,
             operations_dir=media_gate_evidence_dir,
         )
-        return validate_authenticated_notice_media_gate_evidence_manifest(manifest)
+        verdict = validate_authenticated_notice_media_gate_evidence_manifest(manifest)
+        _write_json(
+            media_gate_evidence_dir / "authenticated-notice-media-gate-evidence.json",
+            manifest,
+        )
+        _write_json(
+            media_gate_evidence_dir / "authenticated-notice-media-gate-evidence-verdict.json",
+            verdict,
+        )
+        return verdict
     except Exception as exc:
         if isinstance(exc, _RunQueueConsumeFailure):
             raise
@@ -717,11 +742,33 @@ def _cleanup_summary(
     }
 
 
+def _record_operations_dir(*, root: Path | None, record: NoticeIngestQueueRecord) -> Path:
+    base = root or Path(
+        ".planning/workstreams/authenticated-notice-ingest-queue-e2e-automation/"
+        "evidence/consumer-operations"
+    )
+    attempt_ordinal = int(record.attempt_count) + 1
+    return Path(base) / record.run_id / record.job_id / f"attempt-{attempt_ordinal:03d}"
+
+
+def _default_cleanup_report_path(record_operations_dir: Path) -> Path | None:
+    path = record_operations_dir / "cleanup.dry-run.json"
+    return path if path.exists() else None
+
+
 def _load_json_object(path: Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"JSON object expected at {path}")
     return dict(payload)
+
+
+def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _normalize_mode(mode: str) -> str:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -462,6 +463,8 @@ class NoticeIngestQueueStore(Protocol):
 
     def list_status_counts(self) -> dict[str, int]: ...
 
+    def operator_summary(self, *, now: datetime | None = None) -> dict[str, Any]: ...
+
 
 def build_notice_ingest_queue_record(
     job: NoticeIngestJob,
@@ -525,6 +528,48 @@ def zero_status_counts() -> dict[str, int]:
     return dict.fromkeys(NOTICE_INGEST_QUEUE_STATUSES, 0)
 
 
+def build_notice_ingest_queue_operator_summary(
+    records: Sequence[NoticeIngestQueueRecord],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    timestamp = _coerce_datetime(now) or utc_now_dt()
+    pending_records = [
+        record
+        for record in records
+        if record.status
+        in {
+            "queued",
+            "leased",
+            "failed_retryable",
+            "manual_review",
+            "blocked",
+            "dead_letter",
+        }
+    ]
+    oldest_pending_age_seconds = 0
+    if pending_records:
+        oldest_updated_at = min(record.updated_at for record in pending_records)
+        oldest_pending_age_seconds = max(0, int((timestamp - oldest_updated_at).total_seconds()))
+    return {
+        "oldest_pending_age_seconds": oldest_pending_age_seconds,
+        "retry_due_count": sum(1 for record in records if record.is_retry_due(now=timestamp)),
+        "expired_lease_count": sum(
+            1 for record in records if record.is_lease_expired(now=timestamp)
+        ),
+        "manual_review_reason_counts": _reason_counts(records, "manual_review"),
+        "blocked_reason_counts": _reason_counts(records, "blocked"),
+        "dead_letter_reason_counts": _reason_counts(records, "dead_letter"),
+    }
+
+
+def _reason_counts(records: Sequence[NoticeIngestQueueRecord], status: str) -> dict[str, int]:
+    counts = Counter(
+        str(record.last_error_code or "unknown") for record in records if record.status == status
+    )
+    return dict(sorted(counts.items()))
+
+
 def utc_now_dt() -> datetime:
     return datetime.now(UTC)
 
@@ -586,6 +631,7 @@ __all__ = [
     "NoticeIngestQueueNotFoundError",
     "NoticeIngestQueueRecord",
     "NoticeIngestQueueStore",
+    "build_notice_ingest_queue_operator_summary",
     "build_notice_ingest_queue_record",
     "notice_ingest_job_from_payload",
     "utc_now_dt",

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 # Authenticated Notice Source Architecture
 
@@ -257,6 +257,12 @@ projection、查询 read model 与 notice tool runtime 是四个不同语义：
   projection/read-model 与 canonical body，不承担留档；当前 repo 仅落成 package-level
   backing query service，不等于打开 panel/chatbot serving
 
+在长期 supervisor-led multi-agent workflow 中，`notice-agent` 的 query-time 输出必须先收敛为
+bounded notice projection，例如 `CanonicalNoticeContext`、`NoticeCardSet` 或
+`NoticeChangeSet`。这些 projection 可以作为 `rag-agent` grounding、`campus-services-agent`
+schedule/status reconciliation 或 Go finalizer 的输入，但不得携带 raw source bundle、
+raw portal HTML、未裁剪附件 OCR dump 或 provider raw trace。
+
 notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工作：
 
 - 它可以从 historical bundle 或 source-truth inventory 生成 stratified sample report
@@ -319,6 +325,11 @@ read-model 与 runtime execution。notice-level 查询候选使用
 `campus_services/special_service_candidate`，并由
 `campus_services/service_guide` 生成只读 `service_guide_lookup` 记录。后者不得生成预约、
 提交或签到 transaction payload。
+
+当交通或服务类问题需要同时读取 baseline 与近期通知时，长期由 supervisor workflow plan
+显式串联 `campus-services-agent` 与 `notice-agent`。`notice-agent` 只提供当前通知变更事实和
+source-linked notice context；班次基底、服务状态基底与 temporal reconciliation 不得通过
+query-time raw notice scan 临时推断。
 
 ## Collector Runtime Ownership
 

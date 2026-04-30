@@ -65,6 +65,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--consumer-admission-manifest-path")
     parser.add_argument(
+        "--operations-dir",
+        help=(
+            "Consumer-owned operations directory. Defaults to <output-dir>/operations; "
+            "debug-only media gate overrides may still use --media-gate-evidence-dir."
+        ),
+    )
+    parser.add_argument(
         "--require-media-gate",
         action="store_true",
         help="Require consumer-owned strict media gate evidence before queue completion.",
@@ -93,6 +100,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     env = dict(os.environ)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    operations_dir = Path(args.operations_dir) if args.operations_dir else output_dir / "operations"
     mode = "execute" if args.execute else "dry_run"
     queue_store = build_notice_ingest_queue_store_from_env(
         env,
@@ -119,6 +127,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         media_gate_evidence_dir=(
             Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None
         ),
+        operations_dir=operations_dir,
         cleanup_report_path=(Path(args.cleanup_report_path) if args.cleanup_report_path else None),
         destructive_cleanup_enabled=args.enable_destructive_cleanup,
         consumer_admission_manifest_path=(
