@@ -2,7 +2,7 @@
 doc_type: phase_plan
 phase: "9"
 phase_name: "First-Batch Regulation Promotion Write Gate"
-status: planned
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -197,13 +197,11 @@ If Python source changes are made:
 
 ## Exit Rule
 
-Phase 9 is complete only when:
+Phase 9 completed with:
 
-- the eight selected regulation candidates have either been materialized or
-  explicitly failed with bounded, actionable reasons;
-- existing prior target documents are preserved;
-- target-side acceptance passes for the selected cohort;
-- source-to-target provenance is traceable from selected source ids to target
-  document ids and object-store artifacts;
+- the eight selected regulation candidates materialized into target collections;
+- existing prior target documents preserved by selected-scope refresh;
+- target-side acceptance passed for the selected cohort;
+- source-to-target provenance trace emitted;
 - all non-selected regulation candidates remain blocked/deferred;
 - `query_serving_opened=false` and `rag_release_opened=false` remain proven.

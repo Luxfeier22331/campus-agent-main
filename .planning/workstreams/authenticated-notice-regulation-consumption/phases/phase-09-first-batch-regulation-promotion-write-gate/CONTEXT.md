@@ -2,7 +2,7 @@
 doc_type: phase_context
 phase: "9"
 phase_name: "First-Batch Regulation Promotion Write Gate"
-status: ready_for_planning
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---

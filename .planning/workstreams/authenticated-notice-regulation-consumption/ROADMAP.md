@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-19
 updated: 2026-04-30
 ---
@@ -12,10 +12,10 @@ updated: 2026-04-30
 这条 workstream 只收口已捕获 authenticated-notice corpus 的 regulation downstream consumption。
 固定顺序来自 `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` 与本 workstream phase 目录，
 不再拆成 replay / promotion / quality 多条并发 lane。
-当前已完成 `11-target rerun -> evidence freeze`，并在 2026-04-30 为
-collected-notice Phase 6R/7 验证出的 `8` 条 regulation candidates 重开
-Phase 9。Phase 9 只推进 selected first-batch target materialization /
-offline reader preparation，不打开 query serving 或 RAG release。
+当前已完成 `11-target rerun -> evidence freeze` 与 2026-04-30 first-batch
+selected regulation promotion。Phase 9 将 collected-notice Phase 6R/7 验证出的
+`8` 条 regulation candidates 推进到 target materialization，并保持 query
+serving / RAG release 关闭。
 
 ## Phases
 
@@ -27,7 +27,7 @@ offline reader preparation，不打开 query serving 或 RAG release。
 - [x] **Phase 6: Institutional Regulations Target Chunk-Prep Parity** — 已补齐 `regulations/institutional_rules` 的 collection-specific lane profile/runtime wiring，并与既有 `scoped_rules` acceptance seam 对齐。
 - [x] **Phase 7: Eleven-Target Acceptance Rerun And Gap Closure** — 已完成当前 `11` 条 admitted target 的 full local-only acceptance rerun；最终 `institutional_rules=2`、`scoped_rules=9`，两条 lane 均通过 fail-close 验收。
 - [x] **Phase 8: Acceptance Evidence Freeze And Closeout** — 已冻结 `chunk-prep-manifest.json` / `validation-summary.json` / `document-reports.jsonl`，补齐 runbook / reference continuity，并把 stop point 保持在 `offline_preparation`。
-- [ ] **Phase 9: First-Batch Regulation Promotion Write Gate** — 对 collected-notice Phase 6R/7 已证明 ready 的 `8` 条 regulation candidates 建立 selected promotion write gate，执行 target materialization / offline reader preparation，并证明 query serving 与 RAG release 仍关闭。
+- [x] **Phase 9: First-Batch Regulation Promotion Write Gate** — 对 collected-notice Phase 6R/7 已证明 ready 的 `8` 条 regulation candidates 建立 selected promotion write gate，执行 target materialization / offline reader preparation，并证明 query serving 与 RAG release 仍关闭。
 
 ## Phase 9: First-Batch Regulation Promotion Write Gate
 
@@ -58,4 +58,16 @@ query-serving / RAG release 关闭。
 - target-side acceptance artifacts for institutional/scoped lanes
 - serving-closed assertion
 
+**Result:**
+
+- materialized document count: `8`
+- postflight target counts:
+  - `regulations/institutional_rules=2`
+  - `regulations/scoped_rules=16`
+- selected acceptance:
+  - institutional lane: `passed=true`, prepared documents `1`
+  - scoped lane: `passed=true`, prepared documents `7`
+- query serving / RAG release: closed
+
 **Plan:** `phases/phase-09-first-batch-regulation-promotion-write-gate/PLAN.md`
+**Summary:** `phases/phase-09-first-batch-regulation-promotion-write-gate/SUMMARY.md`

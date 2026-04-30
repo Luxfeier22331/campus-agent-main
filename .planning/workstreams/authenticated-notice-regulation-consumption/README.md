@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-22
 updated: 2026-04-30
 ---
@@ -12,22 +12,30 @@ updated: 2026-04-30
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 9`
-- current focus: 对 collected-notice Phase 6R/7 已证明 ready 的 `8` 条
-  regulation candidates 建立 selected promotion write gate；目标是进入
+- status: `completed`
+- completed phase: `Phase 9`
+- closeout: collected-notice Phase 6R/7 已证明 ready 的 `8` 条 regulation
+  candidates 已通过 selected promotion write gate 进入
   `regulations/institutional_rules` / `regulations/scoped_rules` target
-  materialization 与 offline/gated reader preparation，不打开 query serving、
-  RAG release 或 public-chat citation。
+  materialization；selected target-side acceptance 已通过，query serving、
+  RAG release 与 public-chat citation 仍关闭。
 
 ## Closeout Evidence
 
 - `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-09-first-batch-regulation-promotion-write-gate/`
 
-## Active Phase
+## Completed Phase
 
 - `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-09-first-batch-regulation-promotion-write-gate/CONTEXT.md`
 - `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-09-first-batch-regulation-promotion-write-gate/PLAN.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-09-first-batch-regulation-promotion-write-gate/SUMMARY.md`
+
+## Reopen Rule
+
+只有在下一批 regulation candidates 被 admission、`32` 个 multimodal blocked
+或 `2` 个 manual-review rows 被解决，或产品范围明确把 regulation targets 从
+offline preparation 提升到 query serving / RAG release / public-chat citation 时恢复。
 
 ## Native Planning Truth
 
