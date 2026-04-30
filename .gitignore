@@ -41,6 +41,19 @@ node_modules/
 .planning/runtime/
 .planning/reports/
 
+# Workstream local execution evidence and scratch outputs.
+# Existing tracked evidence remains tracked; force-add any future evidence that
+# is intentionally part of a reviewable workstream closeout.
+.planning/workstreams/**/evidence/
+.planning/workstreams/**/ocr-dry-run/
+.planning/workstreams/**/schedule-batch-preview-gate-*/**/*work*/
+.planning/workstreams/**/schedule-batch-preview-gate-*/**/manual-review-*/
+.planning/workstreams/**/schedule-batch-preview-gate-*/**/pdf-*-preview-gate/
+.planning/workstreams/**/schedule-batch-preview-gate-*/**/pdf-page-render-*/
+.planning/workstreams/**/schedule-batch-preview-gate-*/**/reviewed-pdf-*-combined-preview-gate/
+.planning/workstreams/**/schedule-batch-preview-gate-*/**/*selected-bundle.json
+.planning/workstreams/**/schedule-batch-preview-gate-*/**/reviewed-pdf-*-combined-selection.json
+
 # Local map/screenshot scratch files
 tmp-*.png
 tmp-*.jpg

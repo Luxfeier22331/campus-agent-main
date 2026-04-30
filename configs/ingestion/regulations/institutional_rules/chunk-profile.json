@@ -13,8 +13,8 @@
 	"lane_defaults": {
 		"formal_regulation": {
 			"strategy_name": "institutional_rules_formal_v1",
-			"chunk_size": 280,
-			"max_chunk_size": 380,
+			"chunk_size": 240,
+			"max_chunk_size": 360,
 			"chunk_overlap": 48,
 			"min_chunk_size": 48
 		},

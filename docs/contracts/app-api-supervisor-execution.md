@@ -107,6 +107,20 @@ fixture matrix 跨 Python、Go 与 TypeScript 一起验证。
 - 更新共享 fixture matrix 中的 canonical valid / invalid 样本
 - 更新 `multi-agent-runtime-contract` gate 或对应 targeted tests
 
+`runtime_decisions.workflow_plan` 是 planner 的 safe projection，当前
+`schema_version=workflow-plan-v1`。它只记录 workflow mode、step / edge skeleton、
+terminal policy、resume policy 与 semantic retry policy；真实 delegate payload 仍只通过
+`runtime_decisions.handoff.agent_request` 进入 Python bridge。当前 runtime 可发出
+`terminal`、`direct_runtime`、`single_handoff`，以及受 gate 保护的 `multi_step`。
+首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
+`notice-agent campus_notice_get -> rag-agent retrieval.query`。notice step 输出会被
+`supervisor-api` 投影成 canonical `StepOutputProjection`，再输入后续 RAG step；
+`workflow_plan.edges[].required_projection_kind` 声明跨 step 输入要求。operator / eval
+可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
+`projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
+notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace 至少
+包含两个 handoff。semantic retry/replan 与 resumable resume 仍不是当前 public contract 承诺。
+
 ## 设计原则
 
 长期执行链路固定为：
@@ -246,6 +260,8 @@ breaker。
 
 - `SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD`：默认 `5`
 - `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS`：默认 `10000`
+- `SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS`：默认 `2`
+- `SUPERVISOR_API_BRIDGE_RETRY_BASE_MS`：默认 `50`
 
 语义：
 
@@ -253,6 +269,13 @@ breaker。
 - `open` 期间 answer path fail fast，返回 `503 supervisor_bridge_circuit_open`
 - `open` 状态会让 `/readyz` 降级，并在 `/metrics` 暴露 circuit state、open count
   与 rejected count
+- 只有 transient bridge transport unavailable 会在同一 bridge timeout budget 内进行
+  有界 retry；request timeout、client / execution cancel、oversized response、invalid
+  envelope、`bridge_invalid_request` 与语义层 `supervisor_error` 不通过 bridge retry
+  掩盖
+- 恢复成功的 delegate response 会在 `workflow_trace_summary.trace_steps` 的
+  `finalization` step 中写出 `attempt_count` 与 `runtime_retry_count`；Prometheus
+  通过 `campus_supervisor_api_bridge_retries_total{kind=...}` 记录 retry attempt
 - 语义层 supervisor error 不代表 bridge transport 不健康；有效 bridge envelope 会重置 circuit
 - breaker 只保护 Docker-side execution runtime，不替代 `app-api` 的 product-layer
   user limit、热点合并或 duplicate-submit UX

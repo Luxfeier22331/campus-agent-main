@@ -140,6 +140,7 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - `--reset-index`
 - `--publish-alias`
 - `--no-publish-alias`
+- `--acceptance-case-path <retrieval-acceptance-cases.json>`
 
 这个入口底层走的是：
 
@@ -147,6 +148,14 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - runtime-profile-governed serving/current selection
 - `document_units_object_key -> chunking -> embedding -> indexing -> optional
   alias publish`
+
+固定规则：
+
+- 默认 query-enabled scope 发布 alias 时必须显式传入 retrieval acceptance cases；缺失或失败时
+  publish fail closed
+- no-alias preview 可以不传 acceptance cases，但不能因此视为 serving alias 可发布
+- provider-response replay 不发布 serving alias；query-serving alias publish 只走
+  registry-scope release path
 
 对上游已经是 canonical `document-units` 的派生 collection，先执行 collection-specific
 materialization，再走同一个 release shell。当前实例是 `curriculum/program_semester_facts`：
@@ -237,6 +246,7 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   --corpus official_web \
   --collection muc_public_pages \
+  --acceptance-case-path <retrieval-acceptance-cases.json> \
   --publish-alias
 ```
 
@@ -285,6 +295,19 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - 术语命中抽样
 - 无关问题 no-hit 抽样
 - source traceability 抽样
+
+对 retrieval profile 调参，使用 qrels + tuning report 产出 evidence-backed patch
+recommendation，不直接手改生产 profile：
+
+```bash
+uv run --all-packages python -m campus_evals.retrieval_tuning \
+  --qrels packages/evals/fixtures/student_handbook_retrieval_qrels.json \
+  --candidate <candidate-run-results.json> \
+  --candidate <candidate-run-results.json> \
+  --runtime-profile \
+    configs/ingestion/regulations/student_rules/runtime-profile.json \
+  --output <tuning-report.json>
+```
 
 ## 回滚
 

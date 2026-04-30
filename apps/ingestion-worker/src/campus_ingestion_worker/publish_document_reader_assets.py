@@ -12,6 +12,7 @@ from campus_ingestion_core import (
     publish_document_reader_assets,
 )
 from campus_ingestion_core.campusrag_ingestion_support import utc_now
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.models import DocumentRegistryRecord
 
@@ -84,10 +85,14 @@ def _select_records(*, registry, scopes: tuple[str, ...]) -> tuple[DocumentRegis
     records: list[DocumentRegistryRecord] = []
     for scope in scopes:
         corpus, collection = _parse_scope(scope)
+        runtime_profile = load_runtime_profile(corpus, collection)
+        allowed_revision_tracks = set(runtime_profile.serving_revision_tracks)
         records.extend(
             record
             for record in registry.list_by_scope(corpus, collection)
-            if record.status == "active" and record.is_current
+            if record.status == "active"
+            and record.is_current
+            and (not allowed_revision_tracks or record.revision_track in allowed_revision_tracks)
         )
     return tuple(records)
 

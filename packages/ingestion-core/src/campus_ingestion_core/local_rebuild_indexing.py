@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -7,15 +8,13 @@ from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
     build_release_metadata_payload,
     default_release_id,
-    publish_release_alias,
-    reset_index_binding,
     resolve_alias_target,
-    rollback_release_alias,
     validate_scope_release,
     write_index_release_artifacts,
 )
@@ -50,9 +49,10 @@ def _index_replayed_documents(
     )
     object_store_settings = ObjectStoreSettings.from_env(source)
     upsert_batch_size = _read_qdrant_upsert_batch_size(source)
-    embedding_model = build_embedding_model(EmbeddingSettings.from_env(source))
+    embedding_settings = EmbeddingSettings.from_env(source)
+    embedding_model = build_embedding_model(embedding_settings)
     sparse_embedding_model = build_sparse_embedding_model(SparseEmbeddingSettings.from_env(source))
-    should_publish_alias = _should_publish_qdrant_alias_for_replay(source)
+    _should_publish_qdrant_alias_for_replay(source)
     release_id = default_release_id()
     documents_by_scope: dict[tuple[str, str], list[DocumentImportInput]] = {}
     for document in documents:
@@ -66,7 +66,7 @@ def _index_replayed_documents(
             qdrant_client=runtime_qdrant_client,
             alias_name=binding.alias_name,
         )
-        records, chunks = _run_traced_stage(
+        records, chunks, document_units_sha256_by_key = _run_traced_stage(
             trace_recorder,
             "replay.index_scope.prepare",
             lambda corpus=corpus, collection=collection, scope_documents=scope_documents: (
@@ -92,6 +92,7 @@ def _index_replayed_documents(
         )
         if not chunks:
             continue
+        _validate_chunk_embedding_runtime_identity(chunks=chunks, settings=embedding_settings)
 
         validation = _run_traced_stage(
             trace_recorder,
@@ -131,6 +132,11 @@ def _index_replayed_documents(
             indexed_at=indexed_at,
             published_at=None,
             validation_summary_object_key=validation_summary_object_key,
+            embedding_provider=embedding_settings.provider,
+            embedding_dimensions=embedding_settings.dimensions,
+            document_units_sha256_by_key=document_units_sha256_by_key,
+            runtime_profile=load_runtime_profile(corpus, collection),
+            sparse_settings=getattr(sparse_embedding_model, "settings", None),
         )
         release_metadata = build_release_metadata_payload(
             manifest=prepublish_manifest,
@@ -209,90 +215,22 @@ def _index_replayed_documents(
                 f"index release validation failed for {corpus}/{collection}: {validation.summary}"
             )
 
-        if not should_publish_alias:
-            _run_traced_stage(
-                trace_recorder,
-                "replay.index_scope.write_artifacts_preview",
-                lambda prepublish_manifest=prepublish_manifest, validation=validation: (
-                    write_index_release_artifacts(
-                        writer=object_store,
-                        bucket=object_store_settings.bucket_derived,
-                        manifest=prepublish_manifest,
-                        validation_summary=validation.summary,
-                    )
-                ),
-                fields={
-                    "scope": f"{corpus}/{collection}",
-                    "publish_alias": False,
-                },
-            )
-            continue
-
-        published_at = datetime.now(UTC).isoformat()
-        published_manifest = build_index_release_manifest(
-            release_id=release_id,
-            corpus=corpus,
-            collection=collection,
-            binding=binding,
-            physical_collection_name=physical_collection_name,
-            previous_physical_collection_name=previous_physical_collection_name,
-            records=tuple(records),
-            chunks=tuple(chunks),
-            validation=validation,
-            indexed_at=indexed_at,
-            published_at=published_at,
-            validation_summary_object_key=validation_summary_object_key,
+        _run_traced_stage(
+            trace_recorder,
+            "replay.index_scope.write_artifacts_preview",
+            lambda prepublish_manifest=prepublish_manifest, validation=validation: (
+                write_index_release_artifacts(
+                    writer=object_store,
+                    bucket=object_store_settings.bucket_derived,
+                    manifest=prepublish_manifest,
+                    validation_summary=validation.summary,
+                )
+            ),
+            fields={
+                "scope": f"{corpus}/{collection}",
+                "publish_alias": False,
+            },
         )
-        alias_published = False
-        try:
-            _run_traced_stage(
-                trace_recorder,
-                "replay.index_scope.publish_alias",
-                lambda binding=binding, physical_collection_name=physical_collection_name: (
-                    publish_release_alias(
-                        qdrant_client=runtime_qdrant_client,
-                        binding=binding,
-                        physical_collection_name=physical_collection_name,
-                    )
-                ),
-                fields={
-                    "scope": f"{corpus}/{collection}",
-                    "alias_name": binding.alias_name,
-                    "physical_collection_name": physical_collection_name,
-                },
-            )
-            alias_published = True
-            _run_traced_stage(
-                trace_recorder,
-                "replay.index_scope.write_artifacts_published",
-                lambda published_manifest=published_manifest, validation=validation: (
-                    write_index_release_artifacts(
-                        writer=object_store,
-                        bucket=object_store_settings.bucket_derived,
-                        manifest=published_manifest,
-                        validation_summary=validation.summary,
-                    )
-                ),
-                fields={
-                    "scope": f"{corpus}/{collection}",
-                    "publish_alias": True,
-                },
-            )
-        except Exception:
-            if alias_published and previous_physical_collection_name is not None:
-                rollback_release_alias(
-                    qdrant_client=runtime_qdrant_client,
-                    binding=binding,
-                    target_collection_name=previous_physical_collection_name,
-                )
-            elif alias_published:
-                reset_index_binding(
-                    qdrant_client=runtime_qdrant_client,
-                    binding=binding,
-                )
-            if runtime_qdrant_client.collection_exists(physical_collection_name):
-                runtime_qdrant_client.delete_collection(collection_name=physical_collection_name)
-            raise
 
 
 def _prepare_replay_scope_chunks(
@@ -303,9 +241,10 @@ def _prepare_replay_scope_chunks(
     registry: DocumentRegistry,
     embedding_model: object,
     sparse_embedding_model: object,
-) -> tuple[list[object], list[object]]:
+) -> tuple[list[object], list[object], dict[str, str]]:
     records = []
     chunks = []
+    document_units_sha256_by_key: dict[str, str] = {}
     missing_registry_documents: list[str] = []
     empty_chunk_documents: list[str] = []
     for document in scope_documents:
@@ -317,6 +256,10 @@ def _prepare_replay_scope_chunks(
             missing_registry_documents.append(document_label)
             continue
         records.append(record)
+        if record.document_units_object_key:
+            document_units_sha256_by_key[record.document_units_object_key] = hashlib.sha256(
+                document.document_units_bytes
+            ).hexdigest()
         document_chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=document.document_units_bytes,
@@ -335,7 +278,7 @@ def _prepare_replay_scope_chunks(
         raise ValueError(
             "replayed document " + "; ".join(empty_chunk_documents) + " produced no chunks"
         )
-    return records, chunks
+    return records, chunks, document_units_sha256_by_key
 
 
 def _upsert_replay_scope_chunks(
@@ -363,3 +306,28 @@ def _read_qdrant_upsert_batch_size(source: dict[str, str]) -> int:
     if batch_size <= 0:
         raise ValueError("QDRANT_UPSERT_BATCH_SIZE must be greater than zero")
     return batch_size
+
+
+def _validate_chunk_embedding_runtime_identity(
+    *,
+    chunks: list[object],
+    settings: EmbeddingSettings,
+) -> None:
+    chunk_models = {
+        chunk.embedding_model for chunk in chunks if getattr(chunk, "embedding_model", "").strip()
+    }
+    if chunk_models and chunk_models != {settings.model}:
+        raise ValueError(
+            "replay chunk embedding model mismatch: "
+            f"expected {settings.model}, got {', '.join(sorted(chunk_models))}"
+        )
+    if settings.dimensions is None:
+        return
+    chunk_dimensions = {
+        len(chunk.embedding) for chunk in chunks if getattr(chunk, "embedding", None) is not None
+    }
+    if chunk_dimensions and chunk_dimensions != {settings.dimensions}:
+        raise ValueError(
+            "replay chunk embedding dimensions mismatch: "
+            f"expected {settings.dimensions}, got {', '.join(str(item) for item in sorted(chunk_dimensions))}"
+        )

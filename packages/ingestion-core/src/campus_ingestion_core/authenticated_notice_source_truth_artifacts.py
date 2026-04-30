@@ -1,9 +1,21 @@
 from __future__ import annotations
 
+from collections import Counter
+from datetime import datetime, timedelta
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_browser_url_backfill import (
     build_authenticated_notice_browser_urls,
+)
+from campus_ingestion_core.authenticated_notice_notice_family import (
+    AuthenticatedNoticeNoticeFamilyConfig,
+)
+from campus_ingestion_core.authenticated_notice_routing_sampling_samples import (
+    sample_authenticated_notice_routing_from_bundle_record,
+)
+from campus_ingestion_core.authenticated_notice_source_retention_decision import (
+    build_authenticated_notice_source_retention_decision,
+    resolve_authenticated_notice_capture_route,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_blocks import (
     _build_attachment_refs,
@@ -32,6 +44,13 @@ from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     infer_authenticated_notice_year,
     resolve_authenticated_notice_attachment_object_key,
 )
+from campus_ingestion_core.collected_notice_classification import (
+    resolve_collected_notice_target_candidates,
+)
+from campus_ingestion_core.internal_notice_schedule_body import (
+    ScheduleNoticeBody,
+    extract_schedule_from_notice_body,
+)
 
 
 def prepare_authenticated_notice_source_material(
@@ -40,6 +59,7 @@ def prepare_authenticated_notice_source_material(
     export_manifest: dict[str, Any] | None,
     site_id: str,
     source_home_url: str,
+    notice_family_config: AuthenticatedNoticeNoticeFamilyConfig,
 ) -> AuthenticatedNoticeSourceMaterial:
     notice = _notice_payload(bundle_record)
     notice_id = str(notice.get("notice_id") or bundle_record.get("notice_id") or "").strip()
@@ -71,6 +91,17 @@ def prepare_authenticated_notice_source_material(
         raw_version_id=raw_version_id,
         notice_id=notice_id,
     )
+    source_retention_decision = _build_source_retention_decision(
+        bundle_record=bundle_record,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+        notice_family_config=notice_family_config,
+    )
+    attachment_refs = _attachment_refs_with_source_retention(
+        attachment_refs=attachment_refs,
+        captured_at=_exported_at(export_manifest),
+        source_retention_decision=source_retention_decision,
+    )
     capture_artifacts = _build_capture_artifacts(
         bundle_record=bundle_record,
         export_manifest=export_manifest,
@@ -88,6 +119,7 @@ def prepare_authenticated_notice_source_material(
         export_manifest=export_manifest,
         content_blocks=content_blocks,
         attachment_refs=attachment_refs,
+        notice_capture_route=source_retention_decision.notice_capture_route,
     )
     canonical_markdown_bytes, document_units_bytes = (
         build_authenticated_notice_notice_document_artifacts(
@@ -221,6 +253,7 @@ def _build_source_truth_artifacts(
     export_manifest: dict[str, Any] | None,
     content_blocks: tuple[dict[str, Any], ...],
     attachment_refs: tuple[dict[str, Any], ...],
+    notice_capture_route: str,
 ) -> dict[str, bytes]:
     category_pairs = _category_pairs(notice)
     browser_urls = build_authenticated_notice_browser_urls(
@@ -282,6 +315,10 @@ def _build_source_truth_artifacts(
         "block_count": len(content_blocks),
         "link_count": sum(1 for row in content_blocks if row.get("block_role") == "link"),
         "attachment_ref_count": len(attachment_refs),
+        **_source_retention_manifest_fields(
+            notice_capture_route=notice_capture_route,
+            attachment_refs=attachment_refs,
+        ),
         "owner_expectation_count": len(owner_expectations),
         "owner_expectations": [dict(item) for item in owner_expectations],
     }
@@ -289,4 +326,276 @@ def _build_source_truth_artifacts(
         "source-truth/notice-manifest.json": _json_bytes(notice_manifest),
         "source-truth/content-blocks.jsonl": _jsonl_bytes(content_blocks),
         "source-truth/attachment-refs.jsonl": _jsonl_bytes(attachment_refs),
+    }
+
+
+def _build_source_retention_decision(
+    *,
+    bundle_record: dict[str, Any],
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+    notice_family_config: AuthenticatedNoticeNoticeFamilyConfig,
+):
+    routing_sample = sample_authenticated_notice_routing_from_bundle_record(
+        bundle_record,
+        config=notice_family_config,
+    )
+    notice_capture_route = resolve_authenticated_notice_capture_route(
+        suggested_consumption_route=routing_sample.suggested_consumption_route,
+    )
+    return build_authenticated_notice_source_retention_decision(
+        notice_capture_route=notice_capture_route,
+        attachment_refs=attachment_refs,
+        missing_fact_attachment_ref_ids=_missing_fact_attachment_ref_ids(
+            bundle_record=bundle_record,
+            content_blocks=content_blocks,
+            attachment_refs=attachment_refs,
+            routing_sample=routing_sample,
+            notice_capture_route=notice_capture_route,
+        ),
+    )
+
+
+def _missing_fact_attachment_ref_ids(
+    *,
+    bundle_record: dict[str, Any],
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+    routing_sample,
+    notice_capture_route: str,
+) -> tuple[str, ...]:
+    if notice_capture_route != "candidate_service_fact":
+        return ()
+    target_candidates = resolve_collected_notice_target_candidates(
+        notice_family=routing_sample.notice_family,
+        primary_route=routing_sample.suggested_consumption_route,
+        title=routing_sample.notice_title,
+    )
+    if "transport_schedule" not in target_candidates:
+        return ()
+    return _missing_transport_schedule_attachment_ref_ids(
+        bundle_record=bundle_record,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+    )
+
+
+def _missing_transport_schedule_attachment_ref_ids(
+    *,
+    bundle_record: dict[str, Any],
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> tuple[str, ...]:
+    notice = _notice_payload(bundle_record)
+    body_text = _content_blocks_text(content_blocks)
+    extraction = extract_schedule_from_notice_body(
+        ScheduleNoticeBody(
+            notice_id=str(notice.get("notice_id") or bundle_record.get("notice_id") or ""),
+            notice_title=str(notice.get("notice_title") or ""),
+            release_time=str(notice.get("notice_release_time") or ""),
+            organization=str(notice.get("organization_name") or ""),
+            context_before=body_text,
+            context_after="",
+        )
+    )
+    if extraction.rows:
+        return ()
+    if not _has_transport_schedule_attachment_fact_signal(
+        title=str(notice.get("notice_title") or ""),
+        body_text=body_text,
+    ):
+        return ()
+    return tuple(
+        str(ref.get("attachment_ref_id") or "")
+        for ref in attachment_refs
+        if str(ref.get("attachment_ref_id") or "")
+        and _is_candidate_fact_carrier_attachment_ref(ref)
+    )
+
+
+def _content_blocks_text(content_blocks: tuple[dict[str, Any], ...]) -> str:
+    return "\n".join(
+        str(block.get("text_normalized") or block.get("text_raw") or "").strip()
+        for block in content_blocks
+        if str(block.get("block_role") or "") != "title"
+        and str(block.get("text_normalized") or block.get("text_raw") or "").strip()
+    )
+
+
+def _has_transport_schedule_attachment_fact_signal(*, title: str, body_text: str) -> bool:
+    text = f"{title}\n{body_text}"
+    return (
+        any(term in text for term in ("班车", "通勤车", "校车", "接驳车", "专车"))
+        and any(term in text for term in ("安排", "班次", "运行", "运营", "发车", "时刻表"))
+        and any(term in text for term in ("如下", "下表", "图片", "安排", "具体"))
+    )
+
+
+def _is_candidate_fact_carrier_attachment_ref(ref: dict[str, Any]) -> bool:
+    if _looks_reservation_or_qr_only(ref):
+        return False
+    role = str(ref.get("resource_role") or "").lower()
+    content_kind = str(ref.get("content_kind") or "").lower()
+    mime_type = str(ref.get("mime_type") or "").lower()
+    filename = str(ref.get("original_filename") or ref.get("source_url") or "").lower()
+    return (
+        role == "inline_image"
+        or content_kind == "inline_image"
+        or mime_type.startswith("image/")
+        or mime_type == "application/pdf"
+        or any(
+            token in mime_type
+            for token in (
+                "msword",
+                "officedocument",
+                "ms-excel",
+                "ms-powerpoint",
+                "spreadsheet",
+                "presentation",
+                "wordprocessing",
+            )
+        )
+        or filename.endswith(
+            (
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".gif",
+                ".bmp",
+                ".pdf",
+                ".doc",
+                ".docx",
+                ".xls",
+                ".xlsx",
+                ".ppt",
+                ".pptx",
+            )
+        )
+    )
+
+
+def _looks_reservation_or_qr_only(ref: dict[str, Any]) -> bool:
+    text = " ".join(
+        str(ref.get(field) or "")
+        for field in (
+            "anchor_text",
+            "original_filename",
+            "source_url",
+            "normalized_source_url",
+            "final_url",
+        )
+    )
+    return any(term in text for term in ("二维码", "扫码", "扫一扫", "预约"))
+
+
+def _attachment_refs_with_source_retention(
+    *,
+    attachment_refs: tuple[dict[str, Any], ...],
+    captured_at: str,
+    source_retention_decision,
+) -> tuple[dict[str, Any], ...]:
+    decisions_by_ref_id = {
+        decision.attachment_ref_id: decision
+        for decision in source_retention_decision.attachment_decisions
+    }
+    rows: list[dict[str, Any]] = []
+    for attachment_ref in attachment_refs:
+        attachment_ref_id = str(attachment_ref.get("attachment_ref_id") or "")
+        decision = decisions_by_ref_id.get(attachment_ref_id)
+        if decision is None:
+            rows.append(dict(attachment_ref))
+            continue
+        rows.append(
+            {
+                **dict(attachment_ref),
+                "notice_capture_route": source_retention_decision.notice_capture_route,
+                "attachment_capture_policy": decision.attachment_capture_policy,
+                "attachment_capture_state": decision.attachment_capture_state,
+                "byte_fetch_required": decision.byte_fetch_required,
+                "byte_fetch_required_reason": ",".join(decision.reason_codes) or None,
+                "required_source_object": decision.required_source_object,
+                "source_object_role": "notice_attachment_source_bytes"
+                if decision.required_source_object
+                else None,
+                "retention_class": decision.retention_class,
+                "retention_expires_at": _retention_expires_at(
+                    captured_at=captured_at,
+                    retention_class=decision.retention_class,
+                ),
+                "promotion_owner": None,
+                "attachment_promotion_state": (
+                    "candidate"
+                    if decision.retention_class == "quarantine_candidate"
+                    else "not_applicable"
+                ),
+                "promotion_decision_id": None,
+                "promotion_reason_codes": [],
+                "skip_reason": None,
+                "terminal_reason": None,
+                "last_error_class": None,
+            }
+        )
+    return tuple(rows)
+
+
+def _retention_expires_at(*, captured_at: str, retention_class: str) -> str | None:
+    if retention_class != "quarantine_candidate":
+        return None
+    parsed = _parse_timestamp(captured_at)
+    if parsed is None:
+        return None
+    return (parsed + timedelta(days=14)).isoformat()
+
+
+def _parse_timestamp(value: str) -> datetime | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    try:
+        return datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _source_retention_manifest_fields(
+    *,
+    notice_capture_route: str,
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> dict[str, Any]:
+    attachment_capture_policy_counts = Counter(
+        str(ref.get("attachment_capture_policy") or "")
+        for ref in attachment_refs
+        if str(ref.get("attachment_capture_policy") or "")
+    )
+    attachment_capture_state_counts = Counter(
+        str(ref.get("attachment_capture_state") or "")
+        for ref in attachment_refs
+        if str(ref.get("attachment_capture_state") or "")
+    )
+    retention_class_counts = Counter(
+        str(ref.get("retention_class") or "")
+        for ref in attachment_refs
+        if str(ref.get("retention_class") or "")
+    )
+    return {
+        "notice_capture_route": notice_capture_route,
+        "attachment_capture_policy_counts": dict(sorted(attachment_capture_policy_counts.items())),
+        "attachment_capture_state_counts": dict(sorted(attachment_capture_state_counts.items())),
+        "retention_class_counts": dict(sorted(retention_class_counts.items())),
+        "required_source_object_count": sum(
+            1 for ref in attachment_refs if bool(ref.get("required_source_object"))
+        ),
+        "metadata_only_attachment_ref_count": attachment_capture_policy_counts.get(
+            "metadata_only",
+            0,
+        ),
+        "quarantine_attachment_ref_count": attachment_capture_policy_counts.get(
+            "fetch_to_quarantine",
+            0,
+        ),
+        "admitted_source_byte_ref_count": retention_class_counts.get(
+            "admitted_source_bytes",
+            0,
+        ),
     }

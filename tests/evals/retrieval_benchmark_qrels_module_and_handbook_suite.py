@@ -4,12 +4,16 @@ from tests.evals.retrieval_benchmark_test_support import (
     ANNOTATION_TEMPLATE_PATH,
     FIXTURE_PATH,
     HANDBOOK_MANIFEST_PATH,
+    INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH,
+    INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
     KnowledgeScope,
     RetrievalQrelsDataset,
     campus_evals,
     json,
     load_retrieval_qrels_dataset,
+    resolve_retrieval_fixture_manifest_path,
     unittest,
+    validate_retrieval_qrels_fixture,
 )
 
 
@@ -37,6 +41,10 @@ class BenchmarkModuleAndHandbookQrelsTest(unittest.TestCase):
             "summarize_retrieval_metrics",
             "validate_retrieval_hybrid_query_fixture",
             "validate_retrieval_qrels_fixture",
+            "RetrievalTuningCandidateReport",
+            "RetrievalTuningReport",
+            "build_retrieval_tuning_report",
+            "render_retrieval_tuning_report_text",
         ):
             self.assertTrue(hasattr(benchmark_module, name), name)
 
@@ -179,3 +187,76 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
         }
 
         self.assertEqual(overridden_case_ids, set())
+
+
+class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
+    def test_load_institutional_rules_retrieval_qrels_dataset_reads_baseline(self) -> None:
+        dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
+
+        self.assertIsInstance(dataset, RetrievalQrelsDataset)
+        self.assertEqual(dataset.schema_version, 1)
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="regulations", collection="institutional_rules")
+        )
+        self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
+        self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
+        self.assertEqual(dataset.baseline["fusion"], "rrf")
+        self.assertGreaterEqual(len(dataset.cases), 4)
+
+    def test_institutional_rules_qrels_cover_authz_version_and_no_hit(self) -> None:
+        dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
+        cases = {case.case_id: case for case in dataset.cases}
+
+        self.assertIn("institutional-procurement-title", cases)
+        self.assertIn("institutional-ai-guidance-title-version", cases)
+        self.assertIn("institutional-ai-guidance-authz-deny", cases)
+        self.assertIn("no-hit-impossible-institutional-rule", cases)
+        self.assertTrue(
+            all(
+                source.version_id is not None
+                for case in dataset.cases
+                if case.expected_sources
+                for source in case.expected_sources
+            )
+        )
+        self.assertEqual(
+            cases["institutional-ai-guidance-title-version"].request_overrides[
+                "entitlement_groups"
+            ],
+            ["campus_members"],
+        )
+        self.assertFalse(cases["institutional-ai-guidance-authz-deny"].expected_sources)
+        self.assertTrue(cases["institutional-ai-guidance-authz-deny"].forbidden_sources)
+
+    def test_institutional_rules_qrels_expected_doc_ids_align_with_eval_manifest(self) -> None:
+        dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
+        manifest = json.loads(INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text())
+        manifest_doc_ids = {item["document_id"] for item in manifest["documents"]}
+        referenced_doc_ids = {
+            source.doc_id
+            for case in dataset.cases
+            for source in (*case.expected_sources, *case.forbidden_sources)
+        }
+
+        self.assertTrue(referenced_doc_ids)
+        self.assertTrue(referenced_doc_ids.issubset(manifest_doc_ids))
+
+    def test_validate_institutional_rules_qrels_fixture_against_eval_manifest_has_no_issues(
+        self,
+    ) -> None:
+        self.assertEqual(
+            validate_retrieval_qrels_fixture(
+                INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH,
+                manifest_path=INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
+                ambiguity_severity="error",
+            ),
+            (),
+        )
+
+    def test_resolve_retrieval_fixture_manifest_path_supports_eval_manifest_fallback(
+        self,
+    ) -> None:
+        self.assertEqual(
+            resolve_retrieval_fixture_manifest_path(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH),
+            INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
+        )

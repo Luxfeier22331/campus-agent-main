@@ -1,6 +1,12 @@
 import { Pool } from "pg";
 
 import type { StoredArtifactRef } from "./artifact-store";
+import type { AttachmentFetchAdmission } from "./attachment-materialization";
+import {
+	aggregateAttachmentFacts,
+	aggregateReleasedFileFacts,
+	aggregateRequiredNoticeAttachmentFacts,
+} from "./collector-run-ledger-facts";
 import type {
 	BootstrapExportManifest,
 	BundleFileReleaseRecord,
@@ -198,6 +204,7 @@ function buildLifecycleLedgerRecord(input: {
 }
 
 export function buildCollectorRunLedgerRecord(input: {
+	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	bundleArtifactRef?: StoredArtifactRef | null;
 	bundleObjectKey?: string | null;
 	bundlePath: string | null;
@@ -213,12 +220,16 @@ export function buildCollectorRunLedgerRecord(input: {
 	sourceHomeUrl: string;
 }): CollectorRunLedgerRecord {
 	const attachmentFacts = aggregateAttachmentFacts(input.bundleRecords);
+	const requiredAttachmentFacts = aggregateRequiredNoticeAttachmentFacts({
+		admissions: input.attachmentFetchAdmissions ?? [],
+		bundleRecords: input.bundleRecords,
+	});
 	const selectedNoticeIds = input.manifest.filters.selected_notice_ids ?? [];
 	const verification = buildVerificationSummary({
 		bundleArtifactRef: input.bundleArtifactRef ?? null,
 		manifestArtifactRef: input.manifestArtifactRef ?? null,
-		requiredSourceByteObjectCount: attachmentFacts.attachmentUploaded,
-		verifiedSourceByteObjectCount: attachmentFacts.attachmentUploaded,
+		requiredSourceByteObjectCount: requiredAttachmentFacts.requiredSourceByteObjectCount,
+		verifiedSourceByteObjectCount: requiredAttachmentFacts.verifiedSourceByteObjectCount,
 	});
 	const record = {
 		run_id: input.runId ?? buildCollectorRunId(input.exportedAt, input.siteId, "notice"),
@@ -612,95 +623,6 @@ export function createPostgresCollectorRunLedgerStore(input: {
 		async dispose() {
 			await pool.end();
 		},
-	};
-}
-
-function aggregateAttachmentFacts(bundleRecords: BundleNoticeRecord[]): {
-	attachmentReferenceOnly: number;
-	attachmentRefsSeen: number;
-	attachmentTerminalUnavailable: number;
-	attachmentTransientFailed: number;
-	attachmentUploaded: number;
-} {
-	let attachmentReferenceOnly = 0;
-	let attachmentRefsSeen = 0;
-	let attachmentTerminalUnavailable = 0;
-	let attachmentTransientFailed = 0;
-	let attachmentUploaded = 0;
-	for (const bundleRecord of bundleRecords) {
-		attachmentRefsSeen += bundleRecord.notice_attachments.length;
-		for (const attachment of bundleRecord.attachments) {
-			if (
-				attachment.storage_provider !== "reference_only" &&
-				(attachment.ingest_status === "uploaded" || attachment.ingest_status === "downloaded")
-			) {
-				attachmentUploaded += 1;
-				continue;
-			}
-			if (attachment.storage_provider === "reference_only") {
-				attachmentReferenceOnly += 1;
-			}
-			const lastError = attachment.last_error ?? "";
-			if (lastError.startsWith("terminal_unavailable:")) {
-				attachmentTerminalUnavailable += 1;
-			} else if (lastError.trim()) {
-				attachmentTransientFailed += 1;
-			}
-		}
-	}
-	return {
-		attachmentReferenceOnly,
-		attachmentRefsSeen,
-		attachmentTerminalUnavailable,
-		attachmentTransientFailed,
-		attachmentUploaded,
-	};
-}
-
-function aggregateReleasedFileFacts(bundleRecords: BundleFileReleaseRecord[]): {
-	attachmentReferenceOnly: number;
-	attachmentRefsSeen: number;
-	attachmentTerminalUnavailable: number;
-	attachmentTransientFailed: number;
-	attachmentUploaded: number;
-	sourceObjectsRequired: number;
-} {
-	let attachmentReferenceOnly = 0;
-	let attachmentRefsSeen = 0;
-	let attachmentTerminalUnavailable = 0;
-	let attachmentTransientFailed = 0;
-	let attachmentUploaded = 0;
-	let sourceObjectsRequired = 0;
-	for (const bundleRecord of bundleRecords) {
-		attachmentRefsSeen += 1;
-		const releasedFile = bundleRecord.released_file;
-		if (releasedFile.origin_scope === "internal") {
-			sourceObjectsRequired += 1;
-		}
-		if (
-			releasedFile.storage_provider !== "reference_only" &&
-			(releasedFile.ingest_status === "uploaded" || releasedFile.ingest_status === "downloaded")
-		) {
-			attachmentUploaded += 1;
-			continue;
-		}
-		if (releasedFile.storage_provider === "reference_only") {
-			attachmentReferenceOnly += 1;
-		}
-		const lastError = releasedFile.last_error ?? "";
-		if (lastError.startsWith("terminal_unavailable:")) {
-			attachmentTerminalUnavailable += 1;
-		} else if (lastError.trim()) {
-			attachmentTransientFailed += 1;
-		}
-	}
-	return {
-		attachmentReferenceOnly,
-		attachmentRefsSeen,
-		attachmentTerminalUnavailable,
-		attachmentTransientFailed,
-		attachmentUploaded,
-		sourceObjectsRequired,
 	};
 }
 

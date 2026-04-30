@@ -16,6 +16,10 @@ from campus_ingestion_core.wechat_public_notice_multimodal import (
 )
 
 PHASE_05_ID = "phase-05-multimodal-ocr-consumption-readiness"
+MEDIA_EXTRACTION_CANDIDATE_INVENTORY_SCHEMA_VERSION = (
+    "notice_media_extraction_candidate_inventory.v1"
+)
+MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION = "notice_media_extraction_candidate.v1"
 MULTIMODAL_CANDIDATE_INVENTORY_SCHEMA_VERSION = "notice_multimodal_candidate_inventory.v1"
 MULTIMODAL_CANDIDATE_SCHEMA_VERSION = "notice_multimodal_candidate.v1"
 MULTIMODAL_STATE_MAPPING_SCHEMA_VERSION = "notice_multimodal_state_mapping.v1"
@@ -24,6 +28,15 @@ OCR_ATTEMPT_PLAN_SCHEMA_VERSION = "notice_multimodal_ocr_attempt_plan.v1"
 SEARCHABLE_MERGE_PREVIEW_SCHEMA_VERSION = "notice_multimodal_searchable_merge_preview.v1"
 MULTIMODAL_GAP_REPORT_SCHEMA_VERSION = "notice_multimodal_gap_report.v1"
 DEFAULT_PHASE_05_ADMISSION_BATCH_ID = "phase-05-multimodal-readiness-dry-run"
+RELEASED_FILE_TEXT_EXTRACTION_ATTEMPT_TABLE = (
+    "ingestion_projection.collected_notice_released_file_text_extraction_attempt"
+)
+PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE = (
+    "ingestion_projection.collected_notice_pdf_ocr_text_extraction_attempt"
+)
+OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE = (
+    "ingestion_projection.collected_notice_office_text_extraction_attempt"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,8 +71,78 @@ def source_attempt_tables() -> dict[str, dict[str, Any]]:
                 "ocr_manifest_key",
             ],
         },
+        RELEASED_FILE_TEXT_EXTRACTION_ATTEMPT_TABLE: {
+            "processing_family": "released_file_text_extraction",
+            "join_key_fields": [
+                "source_corpus",
+                "source_collection",
+                "source_notice_id",
+                "unit_id",
+                "media_ref_id",
+                "attempt_number",
+            ],
+            "status_mapping": {
+                "owner_text_ready": "completed",
+                "failed": "pending",
+                "failed_terminal": "failed",
+                "no_extractable_text": "skipped",
+            },
+            "normalized_output_fields": [
+                "provider_response",
+                "plain_text",
+                "layout_elements",
+                "searchable_merge_input",
+            ],
+        },
+        PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE: {
+            "processing_family": "pdf_ocr_text_extraction",
+            "join_key_fields": [
+                "source_corpus",
+                "source_collection",
+                "source_notice_id",
+                "unit_id",
+                "media_ref_id",
+                "attempt_number",
+            ],
+            "status_mapping": {
+                "owner_text_ready": "completed",
+                "failed": "pending",
+                "failed_terminal": "failed",
+                "no_extractable_text": "skipped",
+            },
+            "normalized_output_fields": [
+                "provider_response",
+                "plain_text",
+                "layout_elements",
+                "searchable_merge_input",
+            ],
+        },
+        OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE: {
+            "processing_family": "office_text_extraction",
+            "join_key_fields": [
+                "source_corpus",
+                "source_collection",
+                "source_notice_id",
+                "unit_id",
+                "media_ref_id",
+                "attempt_number",
+            ],
+            "status_mapping": {
+                "owner_text_ready": "completed",
+                "failed": "pending",
+                "failed_terminal": "failed",
+                "no_extractable_text": "skipped",
+            },
+            "normalized_output_fields": [
+                "provider_response",
+                "plain_text",
+                "layout_elements",
+                "searchable_merge_input",
+            ],
+        },
         DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE: {
-            "processing_family": "internal_notice_multimodal",
+            "processing_family": "multimodal_fallback",
+            "legacy_processing_family": "internal_notice_multimodal",
             "join_key_fields": [
                 "source_corpus",
                 "source_collection",
@@ -141,13 +224,18 @@ def mapping_rows(value: object) -> tuple[Mapping[str, Any], ...]:
 
 __all__ = [
     "DEFAULT_PHASE_05_ADMISSION_BATCH_ID",
+    "MEDIA_EXTRACTION_CANDIDATE_INVENTORY_SCHEMA_VERSION",
+    "MEDIA_EXTRACTION_CANDIDATE_SCHEMA_VERSION",
     "MULTIMODAL_CANDIDATE_INVENTORY_SCHEMA_VERSION",
     "MULTIMODAL_CANDIDATE_SCHEMA_VERSION",
     "MULTIMODAL_GAP_REPORT_SCHEMA_VERSION",
     "MULTIMODAL_STATE_MAPPING_SCHEMA_VERSION",
     "OCR_ATTEMPT_PLAN_SCHEMA_VERSION",
     "OCR_BATCH_MANIFEST_SCHEMA_VERSION",
+    "OFFICE_TEXT_EXTRACTION_ATTEMPT_TABLE",
+    "PDF_OCR_TEXT_EXTRACTION_ATTEMPT_TABLE",
     "PHASE_05_ID",
+    "RELEASED_FILE_TEXT_EXTRACTION_ATTEMPT_TABLE",
     "SEARCHABLE_MERGE_PREVIEW_SCHEMA_VERSION",
     "CollectedNoticeMultimodalReadinessPreview",
     "counter",

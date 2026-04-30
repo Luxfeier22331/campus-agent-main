@@ -31,6 +31,8 @@ class ReleaseRegistryScopeWorkerCliTest(unittest.TestCase):
             point_count=6,
             indexed_at="2026-04-02T12:00:00+00:00",
             published_at=None,
+            retrieval_acceptance_status="skipped",
+            retrieval_acceptance_summary_object_key=None,
         )
         with (
             patch("campus_ingestion_worker.release_registry_scope.load_worker_env"),

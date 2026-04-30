@@ -1,8 +1,8 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-04-30
 ---
 
 # Roadmap: WeChat Official-Account Public Source Channel
@@ -148,7 +148,7 @@ precondition 需要在 Phase 10-11 重新硬化。
 
 ### Phase 12: Replay, Drift Guard, And Acceptance Closeout
 
-**Status:** active
+**Status:** completed
 
 **Goal:** 为重开后的链路补齐 replay、live smoke 与防回流保护。
 
@@ -172,6 +172,14 @@ precondition 需要在 Phase 10-11 重新硬化。
 - drift guard：禁止重新把 FeedWe summary/download placeholder 当正文 truth
 - live smoke 作为显式 lane，单独验证真实采集与 notice projection
 - 更新 acceptance evidence 与 closeout 条件
+
+**Closeout evidence:**
+
+- `phases/phase-12-replay-drift-guard-and-acceptance-closeout/SUMMARY.md`
+- `evidence/phase-12-replay-drift-guard-and-acceptance-closeout/live-capture-three-decoded-20260430070701.json`
+- `evidence/phase-12-replay-drift-guard-and-acceptance-closeout/unified-shell-live-20260430070843.log`
+- `evidence/phase-12-replay-drift-guard-and-acceptance-closeout/runtime-smoke-provider-check-20260430071654.json`
+- `evidence/phase-12-replay-drift-guard-and-acceptance-closeout/state-audit-after-live-20260430071624.json`
 
 ## Guardrails
 

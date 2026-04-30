@@ -12,13 +12,14 @@ func shapeStructuredSupervisorResponse(
 	answerText := structuredAnswerText(payloadKind, result, status)
 	supervisorResponse, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":             target,
-			"status":             status,
-			"answer_text":        answerText,
-			"follow_up_question": "",
-			"confidence":         confidenceForStructuredOutcome(outcome),
-			"result":             result,
-			"error":              nil,
+			"target":              target,
+			"status":              status,
+			"answer_text":         answerText,
+			"follow_up_question":  "",
+			"confidence":          confidenceForStructuredOutcome(outcome),
+			"result":              result,
+			"error":               nil,
+			"agent_observability": structuredDirectAgentObservability(target, payloadKind, result),
 		},
 		traceID,
 		structuredFinalizerContext(context, payloadKind),
@@ -36,6 +37,58 @@ func shapeStructuredSupervisorResponse(
 		}
 	}
 	return supervisorResponse
+}
+
+func structuredDirectAgentObservability(
+	target string,
+	payloadKind string,
+	result map[string]any,
+) map[string]any {
+	outcome := stringValue(result["outcome"])
+	failCloseReason := stringValue(result["fail_close_reason"])
+	sourceIDs := workflowSourceIDs(result)
+	sourceRefCount := len(sourceIDs)
+	observability := map[string]any{
+		"selected_tool":    payloadKind,
+		"tool_attempted":   true,
+		"tool_outcome":     outcome,
+		"result_outcome":   outcome,
+		"source_ref_count": sourceRefCount,
+		"access_decision":  "allowed",
+		"safe_details": map[string]any{
+			"agent_execution_projection": map[string]any{
+				"schema_version":        "agent-execution-projection-v1",
+				"projection_owner":      target,
+				"selected_tool":         payloadKind,
+				"payload_kind":          payloadKind,
+				"tool_selection_reason": "go_direct_structured_runtime",
+			},
+			"result_guardrail": map[string]any{
+				"schema_version":   "agent-result-guardrail-v1",
+				"outcome":          structuredDirectGuardrailOutcome(outcome, failCloseReason, sourceRefCount),
+				"source_ref_count": sourceRefCount,
+				"access_decision":  "allowed",
+			},
+		},
+	}
+	if failCloseReason != "" {
+		observability["failure_class"] = failCloseReason
+		observability["fail_close_reason"] = failCloseReason
+	}
+	return observability
+}
+
+func structuredDirectGuardrailOutcome(outcome string, failCloseReason string, sourceRefCount int) string {
+	if failCloseReason != "" || outcome == "temporarily_unverifiable" {
+		return "fail_closed"
+	}
+	if outcome == "clarification_required" {
+		return "clarification_required"
+	}
+	if sourceRefCount > 0 {
+		return "source_backed"
+	}
+	return "source_missing"
 }
 
 func structuredFinalizerContext(

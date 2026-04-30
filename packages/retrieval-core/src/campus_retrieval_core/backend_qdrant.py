@@ -49,6 +49,7 @@ from campus_retrieval_core.backend_qdrant_query import (
     _build_rrf_query,
     _prefer_curriculum_semester_course_list_sources,
 )
+from campus_retrieval_core.backend_qdrant_release_guard import validate_alias_release_metadata
 from campus_retrieval_core.backend_qdrant_runtime import (
     DEFAULT_DENSE_QUERY_CACHE_MAX_ENTRIES,
     DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS,
@@ -96,6 +97,7 @@ class QdrantRetrievalBackend:
     dense_query_cache_max_entries: int = DEFAULT_DENSE_QUERY_CACHE_MAX_ENTRIES
     registry_lookup_cache_ttl_seconds: float = DEFAULT_REGISTRY_LOOKUP_CACHE_TTL_SECONDS
     registry_lookup_cache_max_entries: int = DEFAULT_REGISTRY_LOOKUP_CACHE_MAX_ENTRIES
+    release_drift_guard_cache_ttl_seconds: float = 60.0
     _dense_query_cache: OrderedDict[str, tuple[float, tuple[float, ...]]] = field(
         default_factory=OrderedDict, init=False
     )
@@ -107,6 +109,9 @@ class QdrantRetrievalBackend:
         tuple[str, tuple[str, ...]], tuple[float, DocumentRegistryRecord | None]
     ] = field(default_factory=OrderedDict, init=False)
     _registry_cache_lock: RLock = field(default_factory=RLock, init=False, repr=False)
+    _release_drift_guard_cache: OrderedDict[str, tuple[float, str, str, str]] = field(
+        default_factory=OrderedDict, init=False
+    )
     _known_collection_names: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
@@ -162,6 +167,13 @@ class QdrantRetrievalBackend:
                         collection=request.collection,
                     )
                 self._known_collection_names.add(qdrant_collection_name)
+            validate_alias_release_metadata(
+                self,
+                collection_name=qdrant_collection_name,
+                profile=profile,
+                settings=self.settings,
+                timeout_seconds=deadline.qdrant_timeout_seconds(),
+            )
             dense_query_embedding = get_dense_query_embedding(self, query_text, profile=profile)
             initial_query_limit = _resolve_initial_query_limit(request=request, profile=profile)
             response = _retry_qdrant_read(
@@ -183,6 +195,8 @@ class QdrantRetrievalBackend:
                 ),
                 deadline=deadline,
             )
+        except RetrievalBackendError:
+            raise
         except Exception as exc:  # pragma: no cover - exercised by error mapping test
             raise RetrievalBackendError("qdrant retrieval failed") from exc
 

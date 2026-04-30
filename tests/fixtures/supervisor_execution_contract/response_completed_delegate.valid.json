@@ -29,14 +29,23 @@
 		},
 		"planning_outcome": "preplanned",
 		"direct_vs_delegate_branch": "delegate",
+		"workflow_mode": "single_handoff",
 		"handoff": {
 			"target": "rag-agent",
 			"agent_request": {
 				"target": "rag-agent"
 			}
 		},
+		"handoff_chain": [
+			{
+				"target": "rag-agent",
+				"payload_kind": "rag_request",
+				"selected_tool": "retrieval.query"
+			}
+		],
 		"selected_target": "rag-agent",
 		"selected_tools": ["retrieval.query"],
+		"context_projections": [],
 		"tool_argument_summary": {
 			"collection": "student_rules"
 		},
@@ -44,11 +53,13 @@
 			{
 				"step_id": "runtime_policy",
 				"span_kind": "runtime_policy",
+				"parent_step_id": "",
 				"outcome": "delegate"
 			},
 			{
 				"step_id": "finalization",
 				"span_kind": "finalization",
+				"parent_step_id": "runtime_policy",
 				"outcome": "completed"
 			}
 		],
@@ -65,7 +76,7 @@
 		},
 		"fail_close_reason": "",
 		"runtime_versions": {
-			"workflow_trace_summary_version": "workflow-trace-summary-v1"
+			"workflow_trace_summary": "workflow-trace-summary-v3"
 		},
 		"policy_artifact_versions": {
 			"intent_policy": "intent-policy.v1"

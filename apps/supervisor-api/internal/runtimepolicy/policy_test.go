@@ -66,6 +66,7 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 		"contact_directory_focus_location",
 		"contact_directory_focus_office_hours",
 		"contact_directory_focus_contact_person",
+		"notice_knowledge_followthrough",
 	} {
 		if len(policy.SignalGroups[group]) == 0 {
 			t.Fatalf("policy-backed signal group %q must not be empty", group)
@@ -607,6 +608,18 @@ func TestQueryServingScopePolicyMatchesDefaultRuntimeProfile(t *testing.T) {
 			corpus:     "regulations",
 			collection: "student_rules",
 			want:       true,
+		},
+		{
+			name:       "institutional rules allowed after serving admission",
+			corpus:     "regulations",
+			collection: "institutional_rules",
+			want:       true,
+		},
+		{
+			name:       "scoped rules rejected by default",
+			corpus:     "regulations",
+			collection: "scoped_rules",
+			want:       false,
 		},
 		{
 			name:       "curriculum plan allowed",

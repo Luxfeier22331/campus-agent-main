@@ -109,10 +109,17 @@ promotion boundary 至少负责判断：
 - 它不绑定单一 source channel
 - 后续如果同一制度正文来自 `official_web` 或其他 canonical source，仍可进入同一 collection
 
-当前这条 target collection 的 forward posture 固定为：
+当前这条 target collection 的 forward posture 已在 2026-04-30 Phase 10
+从 offline preparation 提升为受控 query-serving：
 
-- `serving_stage=offline_preparation`
-- `query_enabled=false`
+- `serving_stage=query_serving`
+- `retrieval_enabled=true`
+- `query_enabled_by_default=true`
+- `serving_revision_tracks=["current-effective"]`
+
+这只表示经 selected admission 的 canonical regulation target 可以进入受限
+knowledge query path；不表示 wrapper notice、source-channel triage rows 或
+public-chat citation 被打开。
 
 直到 promotion contract、quality gate、identity/version/provenance 规则都落盘为止，不推进
 release/index。

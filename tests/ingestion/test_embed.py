@@ -4,7 +4,11 @@ import unittest
 from unittest.mock import Mock, patch
 
 import httpx
-from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.embed import (
+    EmbeddingSettings,
+    build_embedding_model,
+    validate_ingestion_retrieval_embedding_env_alignment,
+)
 
 
 class EmbeddingProviderAliasTest(unittest.TestCase):
@@ -24,6 +28,37 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
         )
 
         self.assertEqual(settings.dimensions, 2560)
+
+    def test_embedding_alignment_rejects_ingestion_model_without_matching_retrieval_model(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(ValueError, "embedding model mismatch"):
+            validate_ingestion_retrieval_embedding_env_alignment(
+                {
+                    "INGESTION_EMBEDDING_MODEL": "fixture-ingestion-model",
+                }
+            )
+
+    def test_embedding_alignment_rejects_ingestion_dimensions_without_matching_retrieval_dimensions(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(ValueError, "embedding dimensions mismatch"):
+            validate_ingestion_retrieval_embedding_env_alignment(
+                {
+                    "INGESTION_EMBEDDING_DIMENSIONS": "1536",
+                }
+            )
+
+    def test_mock_embedding_provider_respects_configured_dimensions(self) -> None:
+        settings = EmbeddingSettings(
+            provider="mock",
+            model="mock-embedding-8d",
+            dimensions=8,
+        )
+
+        model = build_embedding_model(settings)
+
+        self.assertEqual(len(model.get_text_embedding("测试正文")), 8)
 
     @patch("campus_ingestion_core.embed.OpenAIEmbedding")
     def test_build_embedding_model_uses_openai_embedding_for_official_provider(

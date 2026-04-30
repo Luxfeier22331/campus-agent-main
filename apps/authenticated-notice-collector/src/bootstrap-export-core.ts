@@ -6,12 +6,12 @@ import {
 	createAuthenticatedNoticeArtifactStoreFromEnv,
 	type StoredArtifactRef,
 } from "./artifact-store";
+import { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions";
+import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status";
 import {
-	type AuthenticatedNoticeAttachmentFetchStatusStore,
-	createPostgresAttachmentFetchStatusStore,
-	type DisposableAttachmentFetchStatusStore,
-} from "./attachment-fetch-status";
-import { materializeBundleAttachments } from "./attachment-materialization";
+	type AttachmentFetchAdmission,
+	materializeBundleAttachments,
+} from "./attachment-materialization";
 import {
 	buildCategories,
 	buildExportManifest,
@@ -29,8 +29,12 @@ import {
 	toTimestampLabel,
 } from "./bootstrap-export-helpers";
 import {
+	buildAttachmentFetchStatusStoreForMain,
+	buildCollectorRunLeaseStoreForMain,
+	buildCollectorRunLedgerStoreForMain,
+} from "./bootstrap-export-runtime-stores";
+import {
 	buildCollectorRunLeaseKey,
-	createPostgresCollectorRunLeaseStore,
 	type DisposableCollectorRunLeaseStore,
 	withCollectorRunLease,
 } from "./collector-run-lease";
@@ -41,8 +45,6 @@ import {
 	buildCollectorRunStartedLedgerRecord,
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
-	createPostgresCollectorRunLedgerStore,
-	type DisposableCollectorRunLedgerStore,
 } from "./collector-run-ledger";
 import {
 	type CollectorConfig,
@@ -70,7 +72,9 @@ import type {
 
 export interface CollectBootstrapBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
+	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
+	defaultInlineVisualCapture?: boolean;
 	backfillMaxPagesPerType?: number | null;
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 	exportedAt: string;
@@ -118,6 +122,8 @@ export interface CollectBootstrapBundleResult {
 	};
 }
 
+export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions";
+
 export interface WriteBootstrapArtifactsInput {
 	bundleRecords: BundleNoticeRecord[];
 	exportManifest: BootstrapExportManifest;
@@ -151,6 +157,7 @@ export interface UploadBootstrapArtifactsInput {
 
 export interface RunBootstrapExportInput {
 	artifactStore?: AuthenticatedNoticeArtifactStore;
+	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	collectBundle: () => Promise<CollectBootstrapBundleResult>;
 	collectionMode: NoticeCollectionMode;
 	collectorRunLedgerStore?: CollectorRunLedgerStore;
@@ -434,7 +441,9 @@ export async function collectBootstrapBundle(
 				: await materializeBundleAttachments({
 						apiContext,
 						artifactStore: input.attachmentArtifactStore,
+						attachmentFetchAdmissions: input.attachmentFetchAdmissions,
 						attachmentFetchStatusStore: input.attachmentFetchStatusStore,
+						defaultInlineVisualCapture: input.defaultInlineVisualCapture,
 						bundleRecords,
 						observedAt: input.exportedAt,
 						requestBackoffBaseMs: input.requestBackoffBaseMs,
@@ -452,7 +461,7 @@ export async function collectBootstrapBundle(
 		bundleRecords: materialized.bundleRecords,
 		exportManifest: buildExportManifest({
 			attachmentStorageMode:
-				input.attachmentArtifactStore === undefined ? "reference_only" : "object_store_write",
+				materialized.uploadedAttachmentCount > 0 ? "object_store_write" : "reference_only",
 			collectionMode,
 			detailFetched,
 			exportedAt: input.exportedAt,
@@ -658,6 +667,7 @@ export async function runBootstrapExport(
 			siteId: input.siteId,
 		});
 		const ledgerRecord = buildCollectorRunLedgerRecord({
+			attachmentFetchAdmissions: input.attachmentFetchAdmissions,
 			bundleArtifactRef: uploadedArtifactRefs.bundleRef,
 			bundleObjectKey: uploadedArtifactRefs.bundleObjectKey,
 			bundlePath: written?.bundlePath ?? null,
@@ -718,6 +728,7 @@ export async function main(): Promise<void> {
 	);
 	const exportedAt = new Date().toISOString();
 	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
+	const attachmentFetchAdmissions = loadAttachmentFetchAdmissionsForMain(config);
 	const attachmentFetchStatusStore = buildAttachmentFetchStatusStoreForMain(config);
 	const collectorRunLedgerStore = buildCollectorRunLedgerStoreForMain(config);
 	const collectorRunLeaseStore = buildCollectorRunLeaseStoreForMain(config);
@@ -739,6 +750,7 @@ export async function main(): Promise<void> {
 				);
 				const runResult = await runBootstrapExport({
 					artifactStore: attachmentArtifactStore,
+					attachmentFetchAdmissions,
 					collectBundle: () =>
 						collectBootstrapBundle({
 							attachmentArtifactStore,
@@ -748,6 +760,8 @@ export async function main(): Promise<void> {
 							noticeTypes,
 							requestBackoffBaseMs: config.requestBackoffBaseMs,
 							requestMaxRetries: config.requestMaxRetries,
+							attachmentFetchAdmissions,
+							defaultInlineVisualCapture: config.defaultInlineVisualCapture,
 							backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
 							selectedNotices,
 							siteId: config.siteId,
@@ -783,42 +797,17 @@ export async function main(): Promise<void> {
 	}
 }
 
+function loadAttachmentFetchAdmissionsForMain(config: CollectorConfig): AttachmentFetchAdmission[] {
+	if (config.attachmentFetchRequestManifestPath === null) {
+		return [];
+	}
+	const raw = fs.readFileSync(config.attachmentFetchRequestManifestPath, "utf-8");
+	return parseAttachmentFetchAdmissionsFromManifest(JSON.parse(raw));
+}
+
 function sanitizeObjectKeySegment(value: string): string {
 	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");
 	return normalized || "unknown";
-}
-
-function buildAttachmentFetchStatusStoreForMain(
-	config: CollectorConfig,
-): DisposableAttachmentFetchStatusStore | undefined {
-	if (config.attachmentFetchStatusDisabled || config.attachmentFetchStatusDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresAttachmentFetchStatusStore({
-		databaseUrl: config.attachmentFetchStatusDatabaseUrl,
-	});
-}
-
-function buildCollectorRunLedgerStoreForMain(
-	config: CollectorConfig,
-): DisposableCollectorRunLedgerStore | undefined {
-	if (config.collectorRunLedgerDisabled || config.collectorRunLedgerDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresCollectorRunLedgerStore({
-		databaseUrl: config.collectorRunLedgerDatabaseUrl,
-	});
-}
-
-function buildCollectorRunLeaseStoreForMain(
-	config: CollectorConfig,
-): DisposableCollectorRunLeaseStore | undefined {
-	if (config.collectorRunLeaseDisabled || config.collectorRunLeaseDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresCollectorRunLeaseStore({
-		databaseUrl: config.collectorRunLeaseDatabaseUrl,
-	});
 }
 
 async function runWithOptionalCollectorLease<T>(

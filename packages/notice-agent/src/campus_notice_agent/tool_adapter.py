@@ -232,9 +232,9 @@ def _agent_safe_details(
         result_guardrail["failure_class"] = failure_class
     return {
         "result_type": result_type,
-        "agent_plan": {
-            "schema_version": "agent-local-plan-v1",
-            "planner": "deterministic_payload_router",
+        "agent_execution_projection": {
+            "schema_version": "agent-execution-projection-v1",
+            "projection_owner": "notice-agent",
             "selected_tool": tool_name,
             "payload_kind": tool_name,
             "tool_selection_reason": "typed_payload_allowed_tool",
@@ -303,8 +303,19 @@ def _tool_not_allowed(tool_name: str) -> AgentResponse:
         agent_observability=AgentObservability(
             selected_tool=tool_name,
             tool_attempted=False,
+            tool_outcome="disallowed_tool",
             failure_class="tool_policy",
+            result_outcome="disallowed_tool",
+            source_ref_count=0,
             access_decision="not_evaluated",
+            safe_details=_agent_safe_details(
+                tool_name=tool_name,
+                result_type="ErrorInfo",
+                outcome="disallowed_tool",
+                source_ref_count=0,
+                access_decision="not_evaluated",
+                failure_class="tool_policy",
+            ),
         ),
     )
 
@@ -321,7 +332,18 @@ def _query_service_failed(tool_name: str, message: str) -> AgentResponse:
         agent_observability=AgentObservability(
             selected_tool=tool_name,
             tool_attempted=True,
+            tool_outcome="internal_query_service_failed",
             failure_class="query_service_failed",
+            result_outcome="internal_query_service_failed",
+            source_ref_count=0,
             access_decision="allowed",
+            safe_details=_agent_safe_details(
+                tool_name=tool_name,
+                result_type="ErrorInfo",
+                outcome="internal_query_service_failed",
+                source_ref_count=0,
+                access_decision="allowed",
+                failure_class="query_service_failed",
+            ),
         ),
     )

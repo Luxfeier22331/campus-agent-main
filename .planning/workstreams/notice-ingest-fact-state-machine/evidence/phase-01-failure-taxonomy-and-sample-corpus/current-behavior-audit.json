@@ -1,0 +1,1181 @@
+{
+  "schema_version": "notice_ingest_fact_state_current_behavior_audit.v1",
+  "generated_at": "2026-04-30T00:00:00+08:00",
+  "transport_entries": [
+    {
+      "entry_id": "notice:muc_internal_portal:355881",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355881",
+      "source_document_id": "notice:muc_internal_portal:355881",
+      "title": "关于开通丰台校区社会实践专车的通知",
+      "published_at": "2026-04-25 16:26",
+      "body_excerpt": "各位同学：\n根据学校工作安排，为保障2026年春季社会实践周活动顺利开展，满足丰台校区学生开展专业实习等社会实践的出行需求，4月28日（周二）至4月30日（周四）临时开通社会实践专车，具体通知如下：\n一、运行区间：\n1.出发：丰台校区至地铁14号线张郭庄站\n2.接站：地铁14号线园博园站至丰台校区\n二、运行时间：\n1.出发：第一班07：30，第二班09：00，第三班10：30，第四班12：00\n2.接站：第一班18：00，第二班19：30，第三班21：00\n三、乘车地点：\n1.出发：丰台校区智慧中心南侧\n2.接站：园博园地铁站A出口右转西侧50米\n四、乘车方式：\n4月26日9：00起开放预约，有出行需求的同学可通过服务门户、企业微信APP、民大通APP等线上预约系统“接驳车预约”内预约4月28日-30日之间的专车，约满即止。请提前到达上车点，通过企业微信或民大通“扫一扫”现场扫码签到后排队乘车，准点发车。\n如有行程改变或特殊情况无法按时乘车的同学，请及时取消预约。\n特此通知。\n丰台校区管理委员会办公室 后勤保障处（后勤集团）\n二〇二六年四月二十五日\n图片1.png",
+      "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355881&show_type=1",
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+          "role": "collector_bundle"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+          "role": "collector_manifest"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/capture/detail-response.json",
+          "role": "capture/detail-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/capture/fetch-metadata.json",
+          "role": "capture/fetch-metadata.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/capture/list-response.json",
+          "role": "capture/list-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/provider/bundle-import-v1/attachment-observations.jsonl",
+          "role": "provider/attachment-observations.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/provider/bundle-import-v1/discovered-links.jsonl",
+          "role": "provider/discovered-links.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/provider/bundle-import-v1/normalized-notice.json",
+          "role": "provider/normalized-notice.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/source-truth/attachment-refs.jsonl",
+          "role": "source-truth/attachment-refs.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/source-truth/content-blocks.jsonl",
+          "role": "source-truth/content-blocks.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355881/2026/sha256/93b07cb7a8eed86b85c726cc83b48e1954ab22d3334402aec7122c92e9c0fcbe/source-truth/notice-manifest.json",
+          "role": "source-truth/notice-manifest.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/attachment-5e0a6fde93cc/2026/sha256/5e0a6fde93cc29eb3a86b559dcac2b6564af60187c9a03a6cbd1f2c2c6f78949/capture/694db62e-c14c-4f35-8564-17e147226354.png",
+          "role": "inline_image",
+          "sha256": "5e0a6fde93cc29eb3a86b559dcac2b6564af60187c9a03a6cbd1f2c2c6f78949",
+          "byte_size": 1091336,
+          "mime_type": "image/png",
+          "source_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/694db62e-c14c-4f35-8564-17e147226354.png",
+          "final_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/694db62e-c14c-4f35-8564-17e147226354.png"
+        }
+      ],
+      "consumption_class": "downstream_admitted",
+      "target": "transport_schedule",
+      "target_surface": "campus_services/transport_schedule_candidate",
+      "target_hints": {
+        "candidate_targets": [
+          "transport_schedule"
+        ],
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route",
+        "weak_keyword_targets": [
+          "transport_schedule",
+          "service_status"
+        ]
+      },
+      "multimodal_policy": "pending",
+      "fact_readiness_state": "ready_from_text",
+      "target_admission_state": "stage_ready",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "ready_from_text",
+        "target_admission_state": "stage_ready",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "missing_fact_groups": [],
+        "reason_codes": [
+          "body_facts_complete",
+          "supplemental_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:74bc7d2bcc5001d8",
+            "unit_id": "searchable:notice:muc_internal_portal:355881",
+            "source_notice_id": "355881",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "qr_or_reservation_instruction",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": false,
+            "reason_codes": [
+              "qr_or_reservation_instruction",
+              "supplemental_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355881",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355881"
+        }
+      },
+      "baseline_status": "available",
+      "baseline_effective_date": "2026-03-20",
+      "temporal_relation": "active_or_future_window",
+      "overlay_kind": "temporary_overlay",
+      "ocr_priority": "search_only",
+      "current_eligible": false,
+      "baseline_gate_reason_codes": [
+        "temporary_window_detected"
+      ],
+      "reason_codes": [
+        "transport_schedule_batch_admitted",
+        "body_facts_complete",
+        "supplemental_media_pending"
+      ],
+      "preconditions": [
+        "searchable_unit_present",
+        "source_object_refs_present",
+        "body_transport_schedule_extracted",
+        "no_current_promotion"
+      ],
+      "searchable_unit_id": "searchable:notice:muc_internal_portal:355881"
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:355867",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355867",
+      "source_document_id": "notice:muc_internal_portal:355867",
+      "title": "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+      "published_at": "2026-04-25 13:11",
+      "body_excerpt": "各位老师、同学们：\n根据学校近期相关安排，现将4月27日-5月5日期间两校区班车及地铁接驳车运营安排通知如下：\n一、4月27日两校区班车安排\n二、4月28日-5月5日两校区班车及地铁接驳车安排\n（一）两校区班车\n（二）地铁接驳车\n丰台校区管委会办公室\n2026年4月25日\nimage.png\nimage.png\nimage.png",
+      "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355867&show_type=1",
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+          "role": "collector_bundle"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+          "role": "collector_manifest"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/capture/detail-response.json",
+          "role": "capture/detail-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/capture/fetch-metadata.json",
+          "role": "capture/fetch-metadata.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/capture/list-response.json",
+          "role": "capture/list-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/provider/bundle-import-v1/attachment-observations.jsonl",
+          "role": "provider/attachment-observations.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/provider/bundle-import-v1/discovered-links.jsonl",
+          "role": "provider/discovered-links.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/provider/bundle-import-v1/normalized-notice.json",
+          "role": "provider/normalized-notice.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/source-truth/attachment-refs.jsonl",
+          "role": "source-truth/attachment-refs.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/source-truth/content-blocks.jsonl",
+          "role": "source-truth/content-blocks.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355867/2026/sha256/6e7e165974b4701c7a4e462c3b0f577f65ffe43d23a6d03d3beff8b6cfcea69d/source-truth/notice-manifest.json",
+          "role": "source-truth/notice-manifest.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/attachment-91d6d5bc945c/2026/sha256/91d6d5bc945c47b5ceaa8d9aa652a6efffd1e8a57c16572e42e8fee040beb910/capture/a753da4f-375a-46ad-a1d1-99d28fdbe282.png",
+          "role": "inline_image",
+          "sha256": "91d6d5bc945c47b5ceaa8d9aa652a6efffd1e8a57c16572e42e8fee040beb910",
+          "byte_size": 47862,
+          "mime_type": "image/png",
+          "source_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/a753da4f-375a-46ad-a1d1-99d28fdbe282.png",
+          "final_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/a753da4f-375a-46ad-a1d1-99d28fdbe282.png"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/attachment-c1992805c48a/2026/sha256/c1992805c48a9a992fcc11789b946db2064842841bc447e54cbc9ffe17ad048e/capture/08a8617b-486a-4f9b-805e-382c7357b25e.png",
+          "role": "inline_image",
+          "sha256": "c1992805c48a9a992fcc11789b946db2064842841bc447e54cbc9ffe17ad048e",
+          "byte_size": 38430,
+          "mime_type": "image/png",
+          "source_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/08a8617b-486a-4f9b-805e-382c7357b25e.png",
+          "final_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/08a8617b-486a-4f9b-805e-382c7357b25e.png"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/attachment-53daf52134c0/2026/sha256/53daf52134c05a5594f207fd051691d88656642caae7fdc52d25b5793a588a2e/capture/d01549b8-39db-41a2-96e1-fc391ab0c493.png",
+          "role": "inline_image",
+          "sha256": "53daf52134c05a5594f207fd051691d88656642caae7fdc52d25b5793a588a2e",
+          "byte_size": 43090,
+          "mime_type": "image/png",
+          "source_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/d01549b8-39db-41a2-96e1-fc391ab0c493.png",
+          "final_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026425/d01549b8-39db-41a2-96e1-fc391ab0c493.png"
+        }
+      ],
+      "consumption_class": "needs_multimodal",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {
+        "candidate_targets": [
+          "transport_schedule"
+        ],
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route",
+        "weak_keyword_targets": [
+          "transport_schedule"
+        ]
+      },
+      "multimodal_policy": "pending",
+      "fact_readiness_state": "blocked_by_required_media",
+      "target_admission_state": "needs_multimodal",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "blocked_by_required_media",
+        "target_admission_state": "needs_multimodal",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "reason_codes": [
+          "required_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:4b05191086d926ff",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0002",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:b87915ec35e8ed8d",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:dfd0f5dd94beacad",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0003",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [
+          {
+            "candidate_id": "notice-mm:4b05191086d926ff",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0002",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:b87915ec35e8ed8d",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          },
+          {
+            "candidate_id": "notice-mm:dfd0f5dd94beacad",
+            "unit_id": "searchable:notice:muc_internal_portal:355867",
+            "source_notice_id": "355867",
+            "media_ref_id": "attachment-0003",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "provenance": {
+          "source_notice_id": "355867",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355867"
+        }
+      },
+      "baseline_status": "available",
+      "baseline_effective_date": "2026-03-20",
+      "temporal_relation": "active_or_future_window",
+      "overlay_kind": "temporary_overlay",
+      "ocr_priority": "execute_now",
+      "current_eligible": false,
+      "baseline_gate_reason_codes": [
+        "temporary_window_detected",
+        "schedule_image_requires_ocr"
+      ],
+      "reason_codes": [
+        "required_media_pending"
+      ],
+      "preconditions": [],
+      "searchable_unit_id": "searchable:notice:muc_internal_portal:355867"
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:355122",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355122",
+      "source_document_id": "notice:muc_internal_portal:355122",
+      "title": "关于两校区学生通勤班车增加班次的通知",
+      "published_at": "2026-03-18 11:12",
+      "body_excerpt": "各位老师、同学们：\n为方便我校师生两校区通勤，3月20日（本周五）起，对两校区学生通勤班车增加2个班次。具体见下表：\n特此通知。\n丰台校区管委会办公室\n2026年3月18日\n班次表_2548_1.jpg",
+      "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355122&show_type=1",
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+          "role": "collector_bundle"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+          "role": "collector_manifest"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/capture/detail-response.json",
+          "role": "capture/detail-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/capture/fetch-metadata.json",
+          "role": "capture/fetch-metadata.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/capture/list-response.json",
+          "role": "capture/list-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/provider/bundle-import-v1/attachment-observations.jsonl",
+          "role": "provider/attachment-observations.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/provider/bundle-import-v1/discovered-links.jsonl",
+          "role": "provider/discovered-links.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/provider/bundle-import-v1/normalized-notice.json",
+          "role": "provider/normalized-notice.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/source-truth/attachment-refs.jsonl",
+          "role": "source-truth/attachment-refs.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/source-truth/content-blocks.jsonl",
+          "role": "source-truth/content-blocks.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355122/2026/sha256/85129d5b56a9e6eeeae22f545e8e30b75d5e65c7a4f5e636f103c362ad472df7/source-truth/notice-manifest.json",
+          "role": "source-truth/notice-manifest.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/attachment-fc9a63ccf50c/2026/sha256/fc9a63ccf50c6aed37042b304901584fbf880f4fe54359b061aeaaa39347f6dc/capture/2ddee1c3-28a5-434e-b0de-e758c3463be3.jpg",
+          "role": "inline_image",
+          "sha256": "fc9a63ccf50c6aed37042b304901584fbf880f4fe54359b061aeaaa39347f6dc",
+          "byte_size": 231842,
+          "mime_type": "image/jpeg",
+          "source_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/2ddee1c3-28a5-434e-b0de-e758c3463be3.jpg",
+          "final_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026318/2ddee1c3-28a5-434e-b0de-e758c3463be3.jpg"
+        }
+      ],
+      "consumption_class": "search_only",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {
+        "candidate_targets": [
+          "transport_schedule"
+        ],
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route",
+        "weak_keyword_targets": [
+          "transport_schedule"
+        ]
+      },
+      "multimodal_policy": "pending",
+      "fact_readiness_state": "blocked_by_required_media",
+      "target_admission_state": "needs_multimodal",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "blocked_by_required_media",
+        "target_admission_state": "needs_multimodal",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "reason_codes": [
+          "required_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:9e8f43da3ac4d64b",
+            "unit_id": "searchable:notice:muc_internal_portal:355122",
+            "source_notice_id": "355122",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [
+          {
+            "candidate_id": "notice-mm:9e8f43da3ac4d64b",
+            "unit_id": "searchable:notice:muc_internal_portal:355122",
+            "source_notice_id": "355122",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "schedule_table_carrier",
+            "media_state": "ocr_pending",
+            "target": "transport_schedule",
+            "target_blocking": true,
+            "reason_codes": [
+              "schedule_table_carrier",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "provenance": {
+          "source_notice_id": "355122",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355122"
+        }
+      },
+      "baseline_status": "available",
+      "baseline_effective_date": "2026-03-20",
+      "temporal_relation": "baseline_source",
+      "overlay_kind": "covered_by_official_baseline",
+      "ocr_priority": "search_only",
+      "current_eligible": false,
+      "baseline_gate_reason_codes": [
+        "official_baseline_source_covered"
+      ],
+      "reason_codes": [
+        "official_baseline_source_covered"
+      ],
+      "preconditions": [],
+      "searchable_unit_id": "searchable:notice:muc_internal_portal:355122"
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:355512",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355512",
+      "source_document_id": "notice:muc_internal_portal:355512",
+      "title": "关于本周六临时增加学生班车班次的通知",
+      "published_at": "2026-04-10 12:09",
+      "body_excerpt": "各位老师、同学们：\n本周六（4月11日），“丰台校区”发往“海淀校区”的通勤班车临时增加一趟6：40的学生班次。\n特此通知。\n丰台校区管委会办公室\n2026年4月10日",
+      "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355512&show_type=1",
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+          "role": "collector_bundle"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+          "role": "collector_manifest"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/capture/detail-response.json",
+          "role": "capture/detail-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/capture/fetch-metadata.json",
+          "role": "capture/fetch-metadata.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/capture/list-response.json",
+          "role": "capture/list-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/provider/bundle-import-v1/attachment-observations.jsonl",
+          "role": "provider/attachment-observations.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/provider/bundle-import-v1/discovered-links.jsonl",
+          "role": "provider/discovered-links.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/provider/bundle-import-v1/normalized-notice.json",
+          "role": "provider/normalized-notice.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/source-truth/attachment-refs.jsonl",
+          "role": "source-truth/attachment-refs.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/source-truth/content-blocks.jsonl",
+          "role": "source-truth/content-blocks.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355512/2026/sha256/e559f8033c303920bb08b61a9952b06777c4d09680b9dc6faa91c1f2d0c31d8b/source-truth/notice-manifest.json",
+          "role": "source-truth/notice-manifest.json"
+        }
+      ],
+      "consumption_class": "downstream_admitted",
+      "target": "transport_schedule",
+      "target_surface": "campus_services/transport_schedule_candidate",
+      "target_hints": {
+        "candidate_targets": [
+          "transport_schedule"
+        ],
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route",
+        "weak_keyword_targets": [
+          "transport_schedule"
+        ]
+      },
+      "multimodal_policy": "not_required",
+      "fact_readiness_state": "ready_from_text",
+      "target_admission_state": "stage_ready",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "transport_schedule",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "ready_from_text",
+        "target_admission_state": "stage_ready",
+        "required_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "ready_fact_groups": [
+          "route",
+          "service_window",
+          "departure_time"
+        ],
+        "missing_fact_groups": [],
+        "reason_codes": [
+          "body_facts_complete"
+        ],
+        "media_states": [],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355512",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355512"
+        }
+      },
+      "baseline_status": "available",
+      "baseline_effective_date": "2026-03-20",
+      "temporal_relation": "expired_temporary_window",
+      "overlay_kind": "temporary_overlay",
+      "ocr_priority": "search_only",
+      "current_eligible": false,
+      "baseline_gate_reason_codes": [
+        "temporary_window_detected"
+      ],
+      "reason_codes": [
+        "transport_schedule_batch_admitted",
+        "body_facts_complete"
+      ],
+      "preconditions": [
+        "searchable_unit_present",
+        "source_object_refs_present",
+        "body_transport_schedule_extracted",
+        "no_current_promotion"
+      ],
+      "searchable_unit_id": "searchable:notice:muc_internal_portal:355512"
+    }
+  ],
+  "service_status_entries": [
+    {
+      "entry_id": "notice:muc_internal_portal:355283",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355283",
+      "source_document_id": "notice:muc_internal_portal:355283",
+      "title": "校医院清明节假期工作安排",
+      "published_at": "2026-03-27 15:44",
+      "body_excerpt": "根据学校统一安排，4月4日（星期六）至4月6日（星期一）放假，共3天，不安排调休。\n在此期间，两校区只开放急诊。\n海淀校区：8：00—11：30 14：00—17；00\n丰台校区：8：30—11：30 14：00—17：00\n其他时间急诊请拨打120。\n校医院\n2026-3-27",
+      "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355283&show_type=1",
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+          "role": "collector_bundle"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+          "role": "collector_manifest"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/capture/detail-response.json",
+          "role": "capture/detail-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/capture/fetch-metadata.json",
+          "role": "capture/fetch-metadata.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/capture/list-response.json",
+          "role": "capture/list-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/provider/bundle-import-v1/attachment-observations.jsonl",
+          "role": "provider/attachment-observations.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/provider/bundle-import-v1/discovered-links.jsonl",
+          "role": "provider/discovered-links.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/provider/bundle-import-v1/normalized-notice.json",
+          "role": "provider/normalized-notice.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/source-truth/attachment-refs.jsonl",
+          "role": "source-truth/attachment-refs.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/source-truth/content-blocks.jsonl",
+          "role": "source-truth/content-blocks.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355283/2026/sha256/a615d133858e3aa7bf5b6c14d294a3747c425cb4b928d18ae4fa2196c988660f/source-truth/notice-manifest.json",
+          "role": "source-truth/notice-manifest.json"
+        }
+      ],
+      "consumption_class": "defer",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {
+        "candidate_targets": [
+          "service_status"
+        ],
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route",
+        "weak_keyword_targets": [
+          "service_status"
+        ]
+      },
+      "multimodal_policy": "not_required",
+      "fact_readiness_state": "missing",
+      "target_admission_state": "defer",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "service_status",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "missing",
+        "target_admission_state": "defer",
+        "required_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "reason_codes": [
+          "required_fact_missing"
+        ],
+        "media_states": [],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355283",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355283"
+        }
+      },
+      "reason_codes": [
+        "missing_effective_window_or_status_signal"
+      ],
+      "preconditions": [],
+      "searchable_unit_id": "searchable:notice:muc_internal_portal:355283"
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:355549",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355549",
+      "source_document_id": "notice:muc_internal_portal:355549",
+      "title": "关于暂时停用相关区域停车权限的通知",
+      "published_at": "2026-04-13 14:41",
+      "body_excerpt": "各位老师：\n为配合海淀校区15号楼南侧场地维修，保障车辆、人员安全，自即日起，暂时停用小篮球场东、西两侧（见附件红色区域）停车位的停车权限，相关车辆可停至学生6、7号公寓之间的停车区域。带来不便之处，敬请老师们谅解。\n特此通知。\n党委保卫部、保卫处\n2026年4月13日\ncd288ce2-c6d3-4e27-be54-306a53dbe619.png",
+      "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355549&show_type=1",
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+          "role": "collector_bundle"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+          "role": "collector_manifest"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/capture/detail-response.json",
+          "role": "capture/detail-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/capture/fetch-metadata.json",
+          "role": "capture/fetch-metadata.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/capture/list-response.json",
+          "role": "capture/list-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/provider/bundle-import-v1/attachment-observations.jsonl",
+          "role": "provider/attachment-observations.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/provider/bundle-import-v1/discovered-links.jsonl",
+          "role": "provider/discovered-links.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/provider/bundle-import-v1/normalized-notice.json",
+          "role": "provider/normalized-notice.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/source-truth/attachment-refs.jsonl",
+          "role": "source-truth/attachment-refs.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/source-truth/content-blocks.jsonl",
+          "role": "source-truth/content-blocks.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355549/2026/sha256/87eae845f8bd2bb2bc6996bb75298ad41d9d30a10b08d3644108f41633309579/source-truth/notice-manifest.json",
+          "role": "source-truth/notice-manifest.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/attachment-8d5e997a6a48/2026/sha256/8d5e997a6a48b7457154744e9c8d994f79f82213eca7d2c5b44729c9b3d8a51c/capture/46570803-51f0-488d-b1c1-35d0a4b0b84b.png",
+          "role": "inline_image",
+          "sha256": "8d5e997a6a48b7457154744e9c8d994f79f82213eca7d2c5b44729c9b3d8a51c",
+          "byte_size": 300871,
+          "mime_type": "image/png",
+          "source_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026413/46570803-51f0-488d-b1c1-35d0a4b0b84b.png",
+          "final_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026413/46570803-51f0-488d-b1c1-35d0a4b0b84b.png"
+        }
+      ],
+      "consumption_class": "needs_multimodal",
+      "target": null,
+      "target_surface": null,
+      "target_hints": {
+        "candidate_targets": [
+          "service_status"
+        ],
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route",
+        "weak_keyword_targets": [
+          "service_status"
+        ]
+      },
+      "multimodal_policy": "pending",
+      "fact_readiness_state": "blocked_by_required_media",
+      "target_admission_state": "needs_multimodal",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "service_status",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "blocked_by_required_media",
+        "target_admission_state": "needs_multimodal",
+        "required_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "ready_fact_groups": [],
+        "missing_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "reason_codes": [
+          "required_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:1eb24c870f77bf9d",
+            "unit_id": "searchable:notice:muc_internal_portal:355549",
+            "source_notice_id": "355549",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "visual_text_only",
+            "media_state": "ocr_pending",
+            "target": "service_status",
+            "target_blocking": true,
+            "reason_codes": [
+              "visual_text_only",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [
+          {
+            "candidate_id": "notice-mm:1eb24c870f77bf9d",
+            "unit_id": "searchable:notice:muc_internal_portal:355549",
+            "source_notice_id": "355549",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "visual_text_only",
+            "media_state": "ocr_pending",
+            "target": "service_status",
+            "target_blocking": true,
+            "reason_codes": [
+              "visual_text_only",
+              "required_media_pending"
+            ]
+          }
+        ],
+        "provenance": {
+          "source_notice_id": "355549",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355549"
+        }
+      },
+      "reason_codes": [
+        "required_media_pending"
+      ],
+      "preconditions": [],
+      "searchable_unit_id": "searchable:notice:muc_internal_portal:355549"
+    },
+    {
+      "entry_id": "notice:muc_internal_portal:355650",
+      "source_channel": "authenticated_notice_portal",
+      "source_surface": "notice",
+      "source_corpus": "campus_notices",
+      "source_collection": "internal_notice",
+      "site_id": "muc_internal_portal",
+      "source_notice_id": "355650",
+      "source_document_id": "notice:muc_internal_portal:355650",
+      "title": "关于静园10号楼负一层女浴室试运行的通知",
+      "published_at": "2026-04-15 16:21",
+      "body_excerpt": "各位同学：\n静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行。该浴室共有两个区域（见图2），开放时间如下：\n（一）电热水器浴室区：位于静园10号楼负一层西侧，共28个淋浴位。开放时间：早7:00-晚22:30。\n（二）直供水浴室区：位于静园10号楼负一层东侧，共90个淋浴位。开放时间：中午12:00-晚22:30。\n温馨提示：1．电热水器浴室区非直供热水，热水量有限，请合理安排洗浴时间，建议尽量选择12:00后洗浴；\n2．电热水器水温较高，请自行调至合适水温后再行洗浴；\n3．试运行期间浴室使用安排如有调整，以浴室值班员现场引导为准。\n特此通知。\n丰台校区管委会办公室\n2026年4月15日\nimage.png",
+      "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355650&show_type=1",
+      "run_id": "muc_internal_portal:notice:20260428T181953007Z",
+      "source_object_refs": [
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/notices-bundle.json",
+          "role": "collector_bundle"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/runs/muc_internal_portal/20260428T181953.007Z/export-manifest.json",
+          "role": "collector_manifest"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/capture/detail-response.json",
+          "role": "capture/detail-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/capture/fetch-metadata.json",
+          "role": "capture/fetch-metadata.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/capture/list-response.json",
+          "role": "capture/list-response.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/provider/bundle-import-v1/attachment-observations.jsonl",
+          "role": "provider/attachment-observations.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/provider/bundle-import-v1/discovered-links.jsonl",
+          "role": "provider/discovered-links.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/provider/bundle-import-v1/normalized-notice.json",
+          "role": "provider/normalized-notice.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/source-truth/attachment-refs.jsonl",
+          "role": "source-truth/attachment-refs.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/source-truth/content-blocks.jsonl",
+          "role": "source-truth/content-blocks.jsonl"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/355650/2026/sha256/dda5887d4116fdc14749ad47de1d80888da29b17def271a24d1bf6d224cbc560/source-truth/notice-manifest.json",
+          "role": "source-truth/notice-manifest.json"
+        },
+        {
+          "bucket": "campus-rag-source",
+          "key": "authenticated_notice_portal/attachment-3c6178960d86/2026/sha256/3c6178960d8648ce07440cf83fc9f8f3d2eba887aaa8013296e2e82ed7effc7c/capture/9832bb79-36ff-4110-b0ab-05736909ed43.png",
+          "role": "inline_image",
+          "sha256": "3c6178960d8648ce07440cf83fc9f8f3d2eba887aaa8013296e2e82ed7effc7c",
+          "byte_size": 238577,
+          "mime_type": "image/png",
+          "source_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026415/9832bb79-36ff-4110-b0ab-05736909ed43.png",
+          "final_url": "http://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/2026415/9832bb79-36ff-4110-b0ab-05736909ed43.png"
+        }
+      ],
+      "consumption_class": "downstream_admitted",
+      "target": "service_status",
+      "target_surface": "campus_services/service_status_candidate",
+      "target_hints": {
+        "candidate_targets": [
+          "service_status"
+        ],
+        "policy": "notice-family-classification.v1",
+        "hint_strength": "classifier_route",
+        "weak_keyword_targets": [
+          "service_status"
+        ]
+      },
+      "multimodal_policy": "pending",
+      "fact_readiness_state": "ready_from_text",
+      "target_admission_state": "stage_ready",
+      "fact_readiness": {
+        "schema_version": "notice_ingest_fact_state.v1",
+        "target": "service_status",
+        "source_unit_state": "searchable_ready",
+        "fact_readiness_state": "ready_from_text",
+        "target_admission_state": "stage_ready",
+        "required_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "ready_fact_groups": [
+          "subject",
+          "observed_status",
+          "effective_window"
+        ],
+        "missing_fact_groups": [],
+        "reason_codes": [
+          "body_facts_complete",
+          "supplemental_media_pending"
+        ],
+        "media_states": [
+          {
+            "candidate_id": "notice-mm:d59834a9741c528b",
+            "unit_id": "searchable:notice:muc_internal_portal:355650",
+            "source_notice_id": "355650",
+            "media_ref_id": "attachment-0001",
+            "media_kind": "image",
+            "media_role": "supplemental_location_visual",
+            "media_state": "ocr_pending",
+            "target": "service_status",
+            "target_blocking": false,
+            "reason_codes": [
+              "supplemental_location_visual",
+              "supplemental_media_pending"
+            ]
+          }
+        ],
+        "blocking_media": [],
+        "provenance": {
+          "source_notice_id": "355650",
+          "searchable_unit_id": "searchable:notice:muc_internal_portal:355650"
+        }
+      },
+      "reason_codes": [
+        "service_status_current_window_admitted",
+        "body_facts_complete",
+        "supplemental_media_pending"
+      ],
+      "preconditions": [
+        "searchable_unit_present",
+        "source_object_refs_present",
+        "service_status_current_window_extracted",
+        "no_current_promotion"
+      ],
+      "searchable_unit_id": "searchable:notice:muc_internal_portal:355650"
+    }
+  ],
+  "regulation_counts": {
+    "entry_count": 42,
+    "downstream_admitted": 0,
+    "search_only": 0,
+    "defer": 0,
+    "needs_multimodal": 42,
+    "invalid_capture": 0,
+    "by_regulation_admission_class": {
+      "needs_multimodal": 42
+    },
+    "by_target_collection": {
+      "institutional_rules": 31,
+      "scoped_rules": 11
+    }
+  }
+}

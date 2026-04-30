@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"testing"
 
+	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 )
 
@@ -63,6 +65,73 @@ func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 	}
 }
 
+func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
+	response, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "rag-agent",
+			"status":      "completed",
+			"answer_text": "图书馆开放到 22:00。",
+			"confidence":  "high",
+			"result": map[string]any{
+				"evidence": map[string]any{
+					"sources": []any{map[string]any{"doc_id": "handbook:library-hours"}},
+				},
+			},
+		},
+		"trace-finalizer-canonical-wire",
+		supervisorFinalizerContext{
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				ScopeGateDecision:     "allow",
+				PolicyGateDecision:    "allow",
+				ContextPreflightState: "not_follow_up",
+				RoutingNextAction:     "delegate",
+				PlanningOutcome:       "preplanned",
+				SelectedTarget:        "rag-agent",
+				SelectedTool:          "retrieval.query",
+			},
+			Handoff: &execution.RuntimeHandoff{
+				Target:       "rag-agent",
+				PayloadKind:  "rag_request",
+				Payload:      map[string]any{"scope": map[string]any{"corpus": "regulations", "collection": "student_rules"}},
+				AllowedTools: []string{"retrieval.query"},
+			},
+			Branch:             "delegate",
+			SelectedTool:       "retrieval.query",
+			BridgeAttemptCount: 2,
+			BridgeRetryCount:   1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("finalize returned error: %v", err)
+	}
+	rawResponse, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal finalized response: %v", err)
+	}
+	wire, err := contractsv1.DecodeSupervisorResponseWireJSON(rawResponse)
+	if err != nil {
+		t.Fatalf("decode canonical supervisor response wire: %v; body=%s", err, string(rawResponse))
+	}
+	if wire.WorkflowTraceSummary == nil {
+		t.Fatal("workflow trace summary is nil")
+	}
+	if wire.WorkflowTraceSummary.WorkflowMode != "single_handoff" {
+		t.Fatalf("workflow_mode = %v, want single_handoff", wire.WorkflowTraceSummary.WorkflowMode)
+	}
+	if wire.WorkflowTraceSummary.SelectedTarget == nil ||
+		*wire.WorkflowTraceSummary.SelectedTarget != "rag-agent" {
+		t.Fatalf("selected_target = %#v, want rag-agent", wire.WorkflowTraceSummary.SelectedTarget)
+	}
+	if len(wire.WorkflowTraceSummary.TraceSteps) == 0 {
+		t.Fatal("trace steps are empty")
+	}
+	finalization := wire.WorkflowTraceSummary.TraceSteps[len(wire.WorkflowTraceSummary.TraceSteps)-1]
+	if finalization["attempt_count"] != float64(2) ||
+		finalization["runtime_retry_count"] != float64(1) {
+		t.Fatalf("finalization step = %#v, want attempt/retry counts", finalization)
+	}
+}
+
 func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
@@ -119,6 +188,16 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 			traceSummary["direct_vs_delegate_branch"],
 		)
 	}
+	if traceSummary["workflow_mode"] != "single_handoff" {
+		t.Fatalf("workflow_mode = %v, want single_handoff", traceSummary["workflow_mode"])
+	}
+	handoffChain, ok := traceSummary["handoff_chain"].([]map[string]any)
+	if !ok || len(handoffChain) != 1 || handoffChain[0]["target"] != "campus-services-agent" {
+		t.Fatalf(
+			"handoff_chain = %#v, want single campus-services-agent handoff",
+			traceSummary["handoff_chain"],
+		)
+	}
 	if traceSummary["planning_outcome"] != "preplanned" {
 		t.Fatalf("planning_outcome = %v, want preplanned", traceSummary["planning_outcome"])
 	}
@@ -138,6 +217,96 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	}
 	if toolSummary["source_ref_count"] != float64(1) {
 		t.Fatalf("source_ref_count = %v, want 1", toolSummary["source_ref_count"])
+	}
+}
+
+func TestFinalizeAgentBridgeResponseUsesRecordedMultiStepWorkflowRun(t *testing.T) {
+	workflowRun := execution.WorkflowRun{
+		RunID:  "run-multi-001",
+		Mode:   execution.WorkflowModeMultiStep,
+		Branch: "multi_step",
+		State:  execution.WorkflowStateCompleted,
+		HandoffChain: []execution.HandoffStep{
+			{
+				Target:       "notice-agent",
+				PayloadKind:  "campus_notice_get",
+				AllowedTools: []string{"campus_notice_get"},
+				SelectedTool: "campus_notice_get",
+			},
+			{
+				Target:       "rag-agent",
+				PayloadKind:  "rag_request",
+				AllowedTools: []string{"retrieval.query"},
+				SelectedTool: "retrieval.query",
+			},
+		},
+		Steps: []execution.WorkflowStep{
+			{
+				StepID:       "handoff:notice-agent:campus_notice_get",
+				SpanKind:     "handoff",
+				Target:       "notice-agent",
+				Outcome:      "completed",
+				ResultStatus: "completed",
+			},
+			{
+				StepID:       "handoff:rag-agent:rag_request",
+				SpanKind:     "handoff",
+				Target:       "rag-agent",
+				Outcome:      "completed",
+				ResultStatus: "completed",
+			},
+		},
+	}
+	response, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "rag-agent",
+			"status":      "completed",
+			"answer_text": "这条通知可按学生手册相关规定理解。",
+			"confidence":  "high",
+			"result": map[string]any{
+				"evidence": map[string]any{
+					"sources": []any{map[string]any{"doc_id": "handbook:rule-001"}},
+				},
+			},
+			"agent_observability": map[string]any{
+				"selected_tool": "retrieval.query",
+			},
+		},
+		"trace-finalizer-multi-step",
+		supervisorFinalizerContext{
+			Branch:       "multi_step",
+			SelectedTool: "retrieval.query",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				ScopeGateDecision:     "delegate",
+				PolicyGateDecision:    "delegate",
+				ContextPreflightState: "resolved",
+				RoutingNextAction:     "delegate",
+				PlanningOutcome:       "preplanned",
+				SelectedTarget:        "rag-agent",
+				SelectedTool:          "retrieval.query",
+			},
+			WorkflowRun: &workflowRun,
+		},
+	)
+	if err != nil {
+		t.Fatalf("finalize returned error: %v", err)
+	}
+	traceSummary := expectRecord(t, response["workflow_trace_summary"], "workflow_trace_summary")
+	if traceSummary["workflow_mode"] != "multi_step" {
+		t.Fatalf("workflow_mode = %v, want multi_step", traceSummary["workflow_mode"])
+	}
+	handoffChain, ok := traceSummary["handoff_chain"].([]map[string]any)
+	if !ok || len(handoffChain) != 2 {
+		t.Fatalf("handoff_chain = %#v, want two handoffs", traceSummary["handoff_chain"])
+	}
+	if handoffChain[0]["target"] != "notice-agent" || handoffChain[1]["target"] != "rag-agent" {
+		t.Fatalf("handoff_chain = %#v, want notice -> rag", handoffChain)
+	}
+	selectedTools, ok := traceSummary["selected_tools"].([]string)
+	if !ok || len(selectedTools) != 2 ||
+		selectedTools[0] != "campus_notice_get" ||
+		selectedTools[1] != "retrieval.query" {
+		t.Fatalf("selected_tools = %#v, want notice get then retrieval query", traceSummary["selected_tools"])
 	}
 }
 
@@ -216,9 +385,9 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				"source_ref_count": float64(1),
 				"access_decision":  "allowed",
 				"safe_details": map[string]any{
-					"agent_plan": map[string]any{
-						"schema_version":        "agent-local-plan-v1",
-						"planner":               "deterministic_payload_router",
+					"agent_execution_projection": map[string]any{
+						"schema_version":        "agent-execution-projection-v1",
+						"projection_owner":      "campus-services-agent",
 						"selected_tool":         "service_status_lookup",
 						"payload_kind":          "service_status_lookup",
 						"tool_selection_reason": "typed_payload_allowed_tool",
@@ -309,9 +478,15 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	if !ok {
 		t.Fatalf("tool safe_details = %#v, want object", toolCall["safe_details"])
 	}
-	agentPlan, ok := safeDetails["agent_plan"].(map[string]any)
-	if !ok || agentPlan["schema_version"] != "agent-local-plan-v1" {
-		t.Fatalf("agent_plan = %#v, want versioned agent plan", safeDetails["agent_plan"])
+	executionProjection, ok := safeDetails["agent_execution_projection"].(map[string]any)
+	if !ok || executionProjection["schema_version"] != "agent-execution-projection-v1" {
+		t.Fatalf(
+			"agent_execution_projection = %#v, want versioned execution projection",
+			safeDetails["agent_execution_projection"],
+		)
+	}
+	if _, exists := safeDetails["agent_plan"]; exists {
+		t.Fatalf("agent_plan = %#v, want absent for deterministic projection", safeDetails["agent_plan"])
 	}
 	resultGuardrail, ok := safeDetails["result_guardrail"].(map[string]any)
 	if !ok || resultGuardrail["outcome"] != "source_backed" {
@@ -321,7 +496,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	if !ok || runtimeVersions["supervisor_api_runtime"] != "go-runtime-control-plane-v1" {
 		t.Fatalf("runtime_versions = %#v, want supervisor_api_runtime", traceSummary["runtime_versions"])
 	}
-	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v1" {
+	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v3" {
 		t.Fatalf("runtime_versions = %#v, want workflow trace summary version", runtimeVersions)
 	}
 	policyVersions, ok := traceSummary["policy_artifact_versions"].(map[string]any)
@@ -374,6 +549,12 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 		},
 	)
 	clarificationTrace := clarification["workflow_trace_summary"].(map[string]any)
+	if clarificationTrace["workflow_mode"] != "terminal" {
+		t.Fatalf("clarification workflow_mode = %v, want terminal", clarificationTrace["workflow_mode"])
+	}
+	if clarificationTrace["selected_target"] != "none" {
+		t.Fatalf("clarification selected_target = %v, want none", clarificationTrace["selected_target"])
+	}
 	if clarificationTrace["direct_vs_delegate_branch"] != "clarification" {
 		t.Fatalf("clarification branch = %v, want clarification", clarificationTrace["direct_vs_delegate_branch"])
 	}
@@ -397,6 +578,12 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 		},
 	)
 	failCloseTrace := failClose["workflow_trace_summary"].(map[string]any)
+	if failCloseTrace["workflow_mode"] != "terminal" {
+		t.Fatalf("fail-close workflow_mode = %v, want terminal", failCloseTrace["workflow_mode"])
+	}
+	if failCloseTrace["selected_target"] != "none" {
+		t.Fatalf("fail-close selected_target = %v, want none", failCloseTrace["selected_target"])
+	}
 	if failCloseTrace["direct_vs_delegate_branch"] != "fail_close" {
 		t.Fatalf("fail-close branch = %v, want fail_close", failCloseTrace["direct_vs_delegate_branch"])
 	}
@@ -439,6 +626,14 @@ func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 		t.Fatalf("finalize returned error: %v", err)
 	}
 	traceSummary := response["workflow_trace_summary"].(map[string]any)
+	handoff := traceSummary["handoff"].(map[string]any)
+	allowedTools, ok := handoff["allowed_tools"].([]string)
+	if !ok {
+		t.Fatalf("handoff allowed_tools = %#v, want string array", handoff["allowed_tools"])
+	}
+	if allowedTools == nil {
+		t.Fatal("handoff allowed_tools is nil, want empty array projection")
+	}
 	toolSummary, ok := traceSummary["tool_argument_summary"].(map[string]any)
 	if !ok {
 		t.Fatalf("tool_argument_summary = %#v, want object", traceSummary["tool_argument_summary"])
@@ -452,6 +647,24 @@ func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 	observability := response["observability"].(map[string]any)
 	if observability["selected_tool"] != "retrieval.query" {
 		t.Fatalf("observability selected_tool = %v, want retrieval.query", observability["selected_tool"])
+	}
+}
+
+func TestWorkflowHandoffSummaryProjectsNilAllowedToolsAsEmptyArray(t *testing.T) {
+	summary := workflowHandoffSummary(&execution.RuntimeHandoff{
+		Target:      "rag-agent",
+		PayloadKind: "rag_request",
+	}, "rag-agent", "retrieval.query")
+
+	allowedTools, ok := summary["allowed_tools"].([]string)
+	if !ok {
+		t.Fatalf("allowed_tools = %#v, want string array", summary["allowed_tools"])
+	}
+	if allowedTools == nil {
+		t.Fatal("allowed_tools is nil, want empty array projection")
+	}
+	if len(allowedTools) != 0 {
+		t.Fatalf("allowed_tools = %#v, want empty array", allowedTools)
 	}
 }
 
@@ -558,65 +771,5 @@ func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 				t.Fatal("expected malformed agent response to be rejected")
 			}
 		})
-	}
-}
-
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
-		"completed",
-		map[string]any{
-			"subject_query":        "丰台校区通勤班车在哪里上车",
-			"outcome":              "resolved_current",
-			"related_notice_refs":  []any{"authenticated_notice:355122"},
-			"override_source_refs": []any{"notice:muc_internal_portal:353903"},
-		},
-		"",
-	)
-
-	if observability["selected_tool"] != "service_status_lookup" {
-		t.Fatalf("selected_tool = %v, want service_status_lookup", observability["selected_tool"])
-	}
-	if observability["tool_business_outcome"] != "resolved_current" {
-		t.Fatalf("tool_business_outcome = %v, want resolved_current", observability["tool_business_outcome"])
-	}
-	if observability["notice_source_family_summary"] != "internal_notice_restricted" {
-		t.Fatalf(
-			"notice_source_family_summary = %v, want internal_notice_restricted",
-			observability["notice_source_family_summary"],
-		)
-	}
-	if observability["temporal_posture"] != "current" {
-		t.Fatalf("temporal_posture = %v, want current", observability["temporal_posture"])
-	}
-}
-
-func TestBuildStructuredSupervisorObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
-	observability := buildStructuredSupervisorObservability(
-		"campus-services-agent",
-		"no_answer",
-		map[string]any{
-			"subject_query":       "图书馆今天开门吗",
-			"outcome":             "temporarily_unverifiable",
-			"fail_close_reason":   "source_conflict",
-			"related_notice_refs": []any{"authenticated_notice:355999"},
-		},
-		"",
-	)
-
-	if observability["fail_closed"] != true {
-		t.Fatalf("fail_closed = %v, want true", observability["fail_closed"])
-	}
-	if observability["tool_fail_close_reason"] != "source_conflict" {
-		t.Fatalf("tool_fail_close_reason = %v, want source_conflict", observability["tool_fail_close_reason"])
-	}
-	if observability["semantic_outcome"] != "temporarily_unverifiable" {
-		t.Fatalf("semantic_outcome = %v, want temporarily_unverifiable", observability["semantic_outcome"])
-	}
-	if observability["notice_source_family_summary"] != "internal_notice_restricted" {
-		t.Fatalf(
-			"notice_source_family_summary = %v, want internal_notice_restricted",
-			observability["notice_source_family_summary"],
-		)
 	}
 }

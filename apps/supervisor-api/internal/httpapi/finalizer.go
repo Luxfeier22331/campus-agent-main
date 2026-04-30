@@ -11,26 +11,64 @@ import (
 var errInvalidAgentResponse = errors.New("invalid agent response")
 
 type supervisorFinalizerContext struct {
-	SelectedTool     string
-	RuntimeDecisions execution.RuntimeDecisionSummary
-	Handoff          *execution.RuntimeHandoff
-	Branch           string
-	RuntimeVersions  map[string]any
-	PolicyVersions   map[string]any
+	SelectedTool       string
+	RuntimeDecisions   execution.RuntimeDecisionSummary
+	Handoff            *execution.RuntimeHandoff
+	Branch             string
+	RuntimeVersions    map[string]any
+	PolicyVersions     map[string]any
+	BridgeAttemptCount int
+	BridgeRetryCount   int
+	WorkflowRun        *execution.WorkflowRun
 }
 
 func finalizerContextFromExecutionRequest(
 	request execution.AnswerExecutionRequest,
 	branch string,
+	runStates ...bridgeExecutionRunState,
 ) supervisorFinalizerContext {
-	return supervisorFinalizerContext{
-		SelectedTool:     request.RuntimeDecisions.SelectedTool,
-		RuntimeDecisions: request.RuntimeDecisions,
-		Handoff:          request.StructuredHandoff,
-		Branch:           branch,
-		RuntimeVersions:  request.RuntimeDecisions.RuntimeVersions,
-		PolicyVersions:   request.RuntimeDecisions.PolicyArtifactVersions,
+	runState := bridgeExecutionRunState{AttemptCount: 1}
+	if len(runStates) > 0 {
+		runState = runStates[0]
 	}
+	if runState.AttemptCount <= 0 {
+		runState.AttemptCount = 1
+	}
+	if runState.RetryCount < 0 {
+		runState.RetryCount = 0
+	}
+	return supervisorFinalizerContext{
+		SelectedTool:       request.RuntimeDecisions.SelectedTool,
+		RuntimeDecisions:   request.RuntimeDecisions,
+		Handoff:            request.StructuredHandoff,
+		Branch:             branch,
+		RuntimeVersions:    request.RuntimeDecisions.RuntimeVersions,
+		PolicyVersions:     request.RuntimeDecisions.PolicyArtifactVersions,
+		BridgeAttemptCount: runState.AttemptCount,
+		BridgeRetryCount:   runState.RetryCount,
+	}
+}
+
+func finalizerContextWithWorkflowRun(
+	context supervisorFinalizerContext,
+	run *execution.WorkflowRun,
+) supervisorFinalizerContext {
+	context.WorkflowRun = run
+	return context
+}
+
+func firstWorkflowRun(runs []*execution.WorkflowRun) *execution.WorkflowRun {
+	if len(runs) == 0 {
+		return nil
+	}
+	return runs[0]
+}
+
+func workflowBranchForRequest(request execution.AnswerExecutionRequest) string {
+	if request.WorkflowMode == execution.WorkflowModeMultiStep {
+		return "multi_step"
+	}
+	return "delegate"
 }
 
 func finalizeAgentBridgeResponse(
@@ -83,6 +121,8 @@ func finalizeAgentBridgeResponse(
 	if err != nil || hasForbiddenWorkflowTraceKey(agentObservability) {
 		return nil, errInvalidAgentResponse
 	}
+	selectedTool := finalizerSelectedTool(target, result, agentObservability, context)
+	context.SelectedTool = selectedTool
 	response := map[string]any{
 		"selected_target":        target,
 		"status":                 status,
@@ -91,11 +131,27 @@ func finalizeAgentBridgeResponse(
 		"confidence":             confidence,
 		"result":                 result,
 		"error":                  errorBody,
-		"observability":          buildSupervisorObservability(target, status, result, context.SelectedTool),
+		"observability":          buildSupervisorObservability(target, status, result, selectedTool),
 		"workflow_trace_summary": buildWorkflowTraceSummary(context, target, status, result, agentObservability),
 		"trace_id":               traceID,
 	}
 	return response, nil
+}
+
+func finalizerSelectedTool(
+	target string,
+	result map[string]any,
+	agentObservability map[string]any,
+	context supervisorFinalizerContext,
+) string {
+	selectedTool := defaultString(
+		stringValue(agentObservability["selected_tool"]),
+		defaultString(context.SelectedTool, context.RuntimeDecisions.SelectedTool),
+	)
+	if selectedTool == "" {
+		selectedTool = inferSelectedTool(target, result)
+	}
+	return selectedTool
 }
 
 func optionalAgentResponseString(agentResponse map[string]any, field string) (string, error) {
@@ -129,6 +185,18 @@ func buildWorkflowTraceSummary(
 	result map[string]any,
 	agentObservability map[string]any,
 ) map[string]any {
+	return workflowTraceSummaryWireMap(
+		buildWorkflowTraceSummaryWire(context, target, status, result, agentObservability),
+	)
+}
+
+func buildWorkflowTraceSummaryWire(
+	context supervisorFinalizerContext,
+	target string,
+	status string,
+	result map[string]any,
+	agentObservability map[string]any,
+) contractsv1.WorkflowTraceSummaryWire {
 	decisions := context.RuntimeDecisions
 	selectedTool := defaultString(
 		stringValue(agentObservability["selected_tool"]),
@@ -141,6 +209,11 @@ func buildWorkflowTraceSummary(
 	if branch == "" {
 		branch = branchFromRuntimeDecision(decisions)
 	}
+	workflowMode := workflowMode(branch, context.Handoff, decisions)
+	if context.WorkflowRun != nil && context.WorkflowRun.Mode != "" {
+		workflowMode = string(context.WorkflowRun.Mode)
+	}
+	traceTarget := workflowTraceSelectedTarget(workflowMode, target)
 	handoff := workflowHandoffSummary(context.Handoff, target, selectedTool)
 	selectedTools := workflowSelectedTools(context.Handoff, selectedTool)
 	failCloseReason := defaultString(
@@ -148,6 +221,31 @@ func buildWorkflowTraceSummary(
 		stringValue(agentObservability["fail_close_reason"]),
 	)
 	branch = workflowBranch(branch, status, failCloseReason)
+	run := workflowTraceRun(
+		workflowMode,
+		branch,
+		context.Handoff,
+		traceTarget,
+		selectedTool,
+		status,
+		decisions,
+		failCloseReason,
+		context.BridgeAttemptCount,
+		context.BridgeRetryCount,
+	)
+	if context.WorkflowRun != nil {
+		run = *context.WorkflowRun
+		if run.Branch != "" {
+			branch = run.Branch
+		}
+		selectedTools = workflowSelectedToolsFromRun(run, selectedTool)
+		if traceTarget == "" && len(run.HandoffChain) > 0 {
+			traceTarget = run.HandoffChain[len(run.HandoffChain)-1].Target
+		}
+		if len(handoff) == 0 && len(run.HandoffChain) > 0 {
+			handoff = run.HandoffChain[0].Map()
+		}
+	}
 	toolArgumentSummary := workflowToolArgumentSummary(
 		selectedTool,
 		context.Handoff,
@@ -162,47 +260,154 @@ func buildWorkflowTraceSummary(
 	if len(policyVersions) == 0 {
 		policyVersions = decisions.PolicyArtifactVersions
 	}
-	return map[string]any{
-		"routing_frame": map[string]any{
+	selectedTarget := traceTarget
+	return contractsv1.WorkflowTraceSummaryWire{
+		RoutingFrame: map[string]any{
 			"scope_gate_decision":     decisions.ScopeGateDecision,
 			"policy_gate_decision":    decisions.PolicyGateDecision,
 			"context_preflight_state": decisions.ContextPreflightState,
 			"routing_next_action":     decisions.RoutingNextAction,
 		},
-		"context_resolution": map[string]any{
+		ContextResolution: map[string]any{
 			"state": decisions.ContextPreflightState,
 		},
-		"planning_outcome":          defaultString(decisions.PlanningOutcome, "not_preplanned"),
-		"direct_vs_delegate_branch": branch,
-		"handoff":                   handoff,
-		"selected_target":           target,
-		"selected_tools":            selectedTools,
-		"tool_argument_summary":     toolArgumentSummary,
-		"trace_steps":               workflowTraceSteps(branch, target, selectedTool, status, decisions, failCloseReason),
-		"tool_call_summaries": workflowToolCallSummaries(
+		PlanningOutcome:        defaultString(decisions.PlanningOutcome, "not_preplanned"),
+		DirectVsDelegateBranch: branch,
+		WorkflowMode:           contractsv1.WorkflowMode(workflowMode),
+		Handoff:                handoff,
+		HandoffChain:           run.HandoffChainMaps(),
+		SelectedTarget:         &selectedTarget,
+		SelectedTools:          selectedTools,
+		ContextProjections:     workflowContextProjectionWire(run.ContextProjections),
+		ToolArgumentSummary:    toolArgumentSummary,
+		TraceSteps:             run.StepMaps(),
+		ToolCallSummaries: workflowToolCallSummaries(
 			selectedTool,
-			target,
+			traceTarget,
 			status,
 			result,
 			toolArgumentSummary,
 			agentObservability,
 			failCloseReason,
 		),
-		"guardrail_outcomes": map[string]any{
+		GuardrailOutcomes: map[string]any{
 			"scope_gate":        decisions.ScopeGateDecision,
 			"policy_gate":       decisions.PolicyGateDecision,
 			"context_preflight": decisions.ContextPreflightState,
 		},
-		"fail_close_reason":        failCloseReason,
-		"runtime_versions":         safeWorkflowMap(runtimeVersions),
-		"policy_artifact_versions": safeWorkflowMap(policyVersions),
+		FailCloseReason:        failCloseReason,
+		RuntimeVersions:        safeWorkflowMap(runtimeVersions),
+		PolicyArtifactVersions: safeWorkflowMap(policyVersions),
 	}
+}
+
+func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[string]any {
+	var selectedTarget any
+	if wire.SelectedTarget != nil {
+		selectedTarget = *wire.SelectedTarget
+	}
+	return map[string]any{
+		"routing_frame":             wire.RoutingFrame,
+		"context_resolution":        wire.ContextResolution,
+		"planning_outcome":          wire.PlanningOutcome,
+		"direct_vs_delegate_branch": wire.DirectVsDelegateBranch,
+		"workflow_mode":             string(wire.WorkflowMode),
+		"handoff":                   wire.Handoff,
+		"handoff_chain":             wire.HandoffChain,
+		"selected_target":           selectedTarget,
+		"selected_tools":            wire.SelectedTools,
+		"context_projections":       workflowContextProjectionWireMaps(wire.ContextProjections),
+		"tool_argument_summary":     wire.ToolArgumentSummary,
+		"trace_steps":               wire.TraceSteps,
+		"tool_call_summaries":       wire.ToolCallSummaries,
+		"guardrail_outcomes":        wire.GuardrailOutcomes,
+		"fail_close_reason":         wire.FailCloseReason,
+		"runtime_versions":          wire.RuntimeVersions,
+		"policy_artifact_versions":  wire.PolicyArtifactVersions,
+	}
+}
+
+func workflowContextProjectionWire(
+	projections []execution.StepOutputProjection,
+) []contractsv1.WorkflowContextProjectionWire {
+	items := make([]contractsv1.WorkflowContextProjectionWire, 0, len(projections))
+	for _, projection := range projections {
+		items = append(items, contractsv1.WorkflowContextProjectionWire{
+			ProjectionID:   projection.ProjectionID,
+			SourceStepID:   projection.SourceStepID,
+			ProjectionKind: string(projection.ProjectionKind),
+			ContentHash:    projection.ContentHash,
+			Safety: contractsv1.ProjectionSafetySummaryWire{
+				Truncated:     projection.Safety.Truncated,
+				Redacted:      projection.Safety.Redacted,
+				MaxChars:      projection.Safety.MaxChars,
+				FieldsPresent: append([]string{}, projection.Safety.FieldsPresent...),
+			},
+		})
+	}
+	return items
+}
+
+func workflowContextProjectionWireMaps(
+	projections []contractsv1.WorkflowContextProjectionWire,
+) []map[string]any {
+	items := make([]map[string]any, 0, len(projections))
+	for _, projection := range projections {
+		items = append(items, map[string]any{
+			"projection_id":   projection.ProjectionID,
+			"source_step_id":  projection.SourceStepID,
+			"projection_kind": projection.ProjectionKind,
+			"content_hash":    projection.ContentHash,
+			"safety": map[string]any{
+				"truncated":      projection.Safety.Truncated,
+				"redacted":       projection.Safety.Redacted,
+				"max_chars":      projection.Safety.MaxChars,
+				"fields_present": append([]string{}, projection.Safety.FieldsPresent...),
+			},
+		})
+	}
+	return items
+}
+
+func workflowMode(
+	branch string,
+	handoff *execution.RuntimeHandoff,
+	decisions execution.RuntimeDecisionSummary,
+) string {
+	if branch == "terminal" {
+		return "terminal"
+	}
+	if branch == "direct" {
+		return "direct_runtime"
+	}
+	if branch == "delegate" || decisions.RoutingNextAction == "delegate" || handoff != nil {
+		return "single_handoff"
+	}
+	if decisions.RoutingNextAction != "" && decisions.RoutingNextAction != "delegate" {
+		return "terminal"
+	}
+	return "direct_runtime"
+}
+
+func workflowTraceSelectedTarget(workflowMode string, target string) string {
+	if workflowMode == "terminal" {
+		return "none"
+	}
+	return target
 }
 
 func validFinalizerHandoffInvariant(target string, context supervisorFinalizerContext) bool {
 	isDelegate := context.Branch == "delegate" || context.RuntimeDecisions.RoutingNextAction == "delegate"
 	if !isDelegate {
 		return true
+	}
+	if context.WorkflowRun != nil {
+		for _, handoff := range context.WorkflowRun.HandoffChain {
+			if handoff.Target == target {
+				return true
+			}
+		}
+		return false
 	}
 	if context.Handoff == nil {
 		return false
@@ -272,7 +477,96 @@ func workflowHandoffSummary(
 	return map[string]any{
 		"target":        defaultString(handoff.Target, target),
 		"payload_kind":  handoff.PayloadKind,
-		"allowed_tools": append([]string(nil), handoff.AllowedTools...),
+		"allowed_tools": append([]string{}, handoff.AllowedTools...),
+	}
+}
+
+func workflowTraceRun(
+	workflowMode string,
+	branch string,
+	handoff *execution.RuntimeHandoff,
+	target string,
+	selectedTool string,
+	status string,
+	decisions execution.RuntimeDecisionSummary,
+	failCloseReason string,
+	bridgeAttemptCount int,
+	bridgeRetryCount int,
+) execution.WorkflowRun {
+	if bridgeAttemptCount <= 0 {
+		bridgeAttemptCount = 1
+	}
+	if bridgeRetryCount < 0 {
+		bridgeRetryCount = 0
+	}
+	run := execution.WorkflowRun{
+		Mode:   execution.WorkflowMode(workflowMode),
+		Branch: branch,
+		State:  workflowStateForStatus(status),
+	}
+	if run.Mode == execution.WorkflowModeSingleHandoff && handoff != nil {
+		run.HandoffChain = append(run.HandoffChain, execution.HandoffStep{
+			Target:       defaultString(handoff.Target, target),
+			PayloadKind:  handoff.PayloadKind,
+			AllowedTools: append([]string{}, handoff.AllowedTools...),
+			SelectedTool: selectedTool,
+		})
+	}
+	run.Steps = append(run.Steps, execution.WorkflowStep{
+		StepID:       "runtime_policy",
+		SpanKind:     "runtime_policy",
+		ParentStepID: "",
+		Outcome: defaultString(
+			decisions.RoutingNextAction,
+			defaultString(branch, status),
+		),
+	})
+	if branch == "delegate" {
+		run.Steps = append(run.Steps, execution.WorkflowStep{
+			StepID:       "handoff",
+			SpanKind:     "handoff",
+			ParentStepID: "runtime_policy",
+			Target:       target,
+			Outcome:      branch,
+		})
+	}
+	if selectedTool != "" {
+		run.Steps = append(run.Steps, execution.WorkflowStep{
+			StepID:       "tool_call",
+			SpanKind:     "tool_call",
+			ParentStepID: workflowToolCallParentStep(branch),
+			ToolName:     selectedTool,
+			Target:       target,
+			Outcome:      status,
+			ResultStatus: status,
+			RetryCount:   0,
+		})
+	}
+	run.Steps = append(run.Steps, execution.WorkflowStep{
+		StepID:            "finalization",
+		SpanKind:          "finalization",
+		ParentStepID:      workflowFinalizationParentStep(branch, selectedTool),
+		Outcome:           status,
+		ResultStatus:      status,
+		AttemptCount:      bridgeAttemptCount,
+		RuntimeRetryCount: bridgeRetryCount,
+		FailCloseReason:   failCloseReason,
+	})
+	return run
+}
+
+func workflowStateForStatus(status string) execution.WorkflowState {
+	switch status {
+	case "completed":
+		return execution.WorkflowStateCompleted
+	case "cancelled":
+		return execution.WorkflowStateCanceled
+	case "timed_out":
+		return execution.WorkflowStateTimedOut
+	case "error":
+		return execution.WorkflowStateFailed
+	default:
+		return execution.WorkflowStateRunning
 	}
 }
 
@@ -283,62 +577,31 @@ func workflowSelectedTools(handoff *execution.RuntimeHandoff, selectedTool strin
 	return []string{}
 }
 
-func workflowTraceSteps(
-	branch string,
-	target string,
-	selectedTool string,
-	status string,
-	decisions execution.RuntimeDecisionSummary,
-	failCloseReason string,
-) []map[string]any {
-	steps := []map[string]any{
-		{
-			"step_id":        "runtime_policy",
-			"span_kind":      "runtime_policy",
-			"parent_step_id": "",
-			"outcome": defaultString(
-				decisions.RoutingNextAction,
-				defaultString(branch, status),
-			),
-		},
+func workflowSelectedToolsFromRun(run execution.WorkflowRun, fallback string) []string {
+	selected := make([]string, 0, len(run.HandoffChain))
+	seen := map[string]struct{}{}
+	for _, handoff := range run.HandoffChain {
+		tool := handoff.SelectedTool
+		if tool == "" && len(handoff.AllowedTools) == 1 {
+			tool = handoff.AllowedTools[0]
+		}
+		if tool == "" {
+			continue
+		}
+		if _, exists := seen[tool]; exists {
+			continue
+		}
+		seen[tool] = struct{}{}
+		selected = append(selected, tool)
 	}
-	if branch != "" {
-		steps = append(steps, map[string]any{
-			"step_id":        "handoff",
-			"span_kind":      "handoff",
-			"parent_step_id": "runtime_policy",
-			"target":         target,
-			"outcome":        branch,
-		})
+	if len(selected) == 0 && fallback != "" {
+		selected = append(selected, fallback)
 	}
-	if selectedTool != "" {
-		steps = append(steps, map[string]any{
-			"step_id":        "tool_call",
-			"span_kind":      "tool_call",
-			"parent_step_id": workflowToolCallParentStep(branch),
-			"tool_name":      selectedTool,
-			"target":         target,
-			"outcome":        status,
-			"result_status":  status,
-			"retry_count":    0,
-		})
-	}
-	finalization := map[string]any{
-		"step_id":        "finalization",
-		"span_kind":      "finalization",
-		"parent_step_id": workflowFinalizationParentStep(branch, selectedTool),
-		"outcome":        status,
-		"result_status":  status,
-	}
-	if failCloseReason != "" {
-		finalization["fail_close_reason"] = failCloseReason
-	}
-	steps = append(steps, finalization)
-	return steps
+	return selected
 }
 
 func workflowToolCallParentStep(branch string) string {
-	if branch != "" {
+	if branch == "delegate" {
 		return "handoff"
 	}
 	return "runtime_policy"
@@ -348,7 +611,7 @@ func workflowFinalizationParentStep(branch string, selectedTool string) string {
 	if selectedTool != "" {
 		return "tool_call"
 	}
-	if branch != "" {
+	if branch == "delegate" {
 		return "handoff"
 	}
 	return "runtime_policy"
@@ -428,189 +691,6 @@ func workflowToolArgumentSummary(
 	return summary
 }
 
-func workflowHandoffPayloadSummary(handoff *execution.RuntimeHandoff) map[string]any {
-	if handoff == nil || len(handoff.Payload) == 0 || hasForbiddenWorkflowTraceKey(handoff.Payload) {
-		return map[string]any{}
-	}
-	payload := handoff.Payload
-	switch handoff.PayloadKind {
-	case "rag_request":
-		return workflowRagPayloadSummary(payload)
-	case "transport_schedule_lookup":
-		return workflowTransportPayloadSummary(payload)
-	case "service_status_lookup":
-		return workflowServiceStatusPayloadSummary(payload)
-	case "service_guide_lookup":
-		return workflowServiceGuidePayloadSummary(payload)
-	case "contact_directory_lookup":
-		return workflowContactDirectoryPayloadSummary(payload)
-	case "campus_notice_discover":
-		return workflowNoticeDiscoverPayloadSummary(payload)
-	case "campus_notice_get":
-		return workflowNoticeGetPayloadSummary(payload)
-	default:
-		return map[string]any{}
-	}
-}
-
-func workflowRagPayloadSummary(payload map[string]any) map[string]any {
-	summary := map[string]any{}
-	if scope, ok := payload["scope"].(map[string]any); ok {
-		copyStringField(summary, scope, "corpus")
-		copyStringField(summary, scope, "collection")
-	}
-	if versionQuery, ok := payload["version_query"].(map[string]any); ok {
-		copyPrefixedStringField(summary, versionQuery, "mode", "version_query_mode")
-		copyPrefixedStringField(summary, versionQuery, "as_of", "version_query_as_of")
-		copyPrefixedStringField(summary, versionQuery, "version_id", "version_query_version_id")
-		copyPrefixedStringField(
-			summary,
-			versionQuery,
-			"compare_to_version_id",
-			"version_query_compare_to_version_id",
-		)
-	}
-	return summary
-}
-
-func workflowTransportPayloadSummary(payload map[string]any) map[string]any {
-	summary := map[string]any{}
-	copyStringField(summary, payload, "intent")
-	copyStringField(summary, payload, "campus_scope")
-	if snapshotQuery, ok := payload["snapshot_query"].(map[string]any); ok {
-		copyPrefixedStringField(summary, snapshotQuery, "mode", "snapshot_query_mode")
-		copyPrefixedStringField(summary, snapshotQuery, "year_hint", "snapshot_query_year_hint")
-		copyPrefixedStringField(summary, snapshotQuery, "as_of", "snapshot_query_as_of")
-	}
-	if serviceTimeQuery, ok := payload["service_time_query"].(map[string]any); ok {
-		serviceTimeSummary := stringFields(
-			serviceTimeQuery,
-			"date_mode",
-			"daypart",
-			"time_anchor",
-		)
-		if len(serviceTimeSummary) > 0 {
-			summary["service_time_query"] = serviceTimeSummary
-		}
-	}
-	if routeSelector, ok := payload["route_selector"].(map[string]any); ok {
-		routeSelectorSummary := stringFields(
-			routeSelector,
-			"route_id",
-			"service_family",
-			"origin_campus",
-			"destination_campus",
-		)
-		if len(routeSelectorSummary) > 0 {
-			summary["route_selector"] = routeSelectorSummary
-		}
-	}
-	return summary
-}
-
-func workflowServiceStatusPayloadSummary(payload map[string]any) map[string]any {
-	summary := map[string]any{}
-	copyStringField(summary, payload, "campus_scope")
-	if temporalQuery, ok := payload["temporal_query"].(map[string]any); ok {
-		copyPrefixedStringField(summary, temporalQuery, "mode", "temporal_query_mode")
-		copyPrefixedStringField(summary, temporalQuery, "year_hint", "temporal_query_year_hint")
-		copyPrefixedStringField(summary, temporalQuery, "as_of", "temporal_query_as_of")
-	}
-	return summary
-}
-
-func workflowServiceGuidePayloadSummary(payload map[string]any) map[string]any {
-	summary := workflowServiceStatusPayloadSummary(payload)
-	copyStringField(summary, payload, "guide_focus")
-	copyStringField(summary, payload, "audience")
-	return summary
-}
-
-func workflowContactDirectoryPayloadSummary(payload map[string]any) map[string]any {
-	summary := workflowServiceStatusPayloadSummary(payload)
-	copyStringField(summary, payload, "contact_focus")
-	copyStringField(summary, payload, "audience")
-	return summary
-}
-
-func workflowNoticeDiscoverPayloadSummary(payload map[string]any) map[string]any {
-	summary := map[string]any{}
-	if temporalQuery, ok := payload["temporal_query"].(map[string]any); ok {
-		copyPrefixedStringField(summary, temporalQuery, "mode", "temporal_query_mode")
-		copyPrefixedStringField(summary, temporalQuery, "year_hint", "temporal_query_year_hint")
-		copyPrefixedStringField(summary, temporalQuery, "as_of", "temporal_query_as_of")
-	}
-	return summary
-}
-
-func workflowNoticeGetPayloadSummary(payload map[string]any) map[string]any {
-	summary := map[string]any{}
-	copyStringField(summary, payload, "notice_id")
-	copyStringField(summary, payload, "source_family")
-	return summary
-}
-
-func copyStringField(summary map[string]any, payload map[string]any, key string) {
-	copyPrefixedStringField(summary, payload, key, key)
-}
-
-func copyPrefixedStringField(
-	summary map[string]any,
-	payload map[string]any,
-	sourceKey string,
-	summaryKey string,
-) {
-	if value := stringValue(payload[sourceKey]); value != "" {
-		summary[summaryKey] = value
-	}
-}
-
-func stringFields(payload map[string]any, keys ...string) map[string]any {
-	summary := map[string]any{}
-	for _, key := range keys {
-		copyStringField(summary, payload, key)
-	}
-	return summary
-}
-
-func workflowSourceIDs(result map[string]any) []string {
-	ids := []string{}
-	collectWorkflowSourceIDs(result, &ids)
-	return ids
-}
-
-func collectWorkflowSourceIDs(value any, ids *[]string) {
-	switch current := value.(type) {
-	case map[string]any:
-		for key, item := range current {
-			switch key {
-			case "doc_id", "docId", "source_id", "sourceId", "source_ref", "sourceRef",
-				"notice_id", "noticeId":
-				appendWorkflowSourceID(ids, stringValue(item))
-			case "source_ids", "sourceIds", "evidence_ids", "evidenceIds", "related_notice_refs",
-				"relatedNoticeRefs", "source_refs", "sourceRefs", "notice_refs", "noticeRefs",
-				"override_source_refs", "overrideSourceRefs":
-				for _, sourceID := range stringArrayValue(item) {
-					appendWorkflowSourceID(ids, sourceID)
-				}
-			}
-			collectWorkflowSourceIDs(item, ids)
-		}
-	case []any:
-		for _, item := range current {
-			collectWorkflowSourceIDs(item, ids)
-		}
-	}
-}
-
-func appendWorkflowSourceID(ids *[]string, id string) {
-	normalized := strings.TrimSpace(id)
-	if normalized == "" || containsString(*ids, normalized) {
-		return
-	}
-	*ids = append(*ids, normalized)
-}
-
 func safeWorkflowMap(value map[string]any) map[string]any {
 	if value == nil || hasForbiddenWorkflowTraceKey(value) {
 		return map[string]any{}
@@ -658,337 +738,4 @@ func forbiddenWorkflowTraceKey(key string) bool {
 		}
 	}
 	return false
-}
-
-func normalizeWorkflowTraceKeyToken(value string) string {
-	var builder strings.Builder
-	for _, char := range strings.ToLower(strings.TrimSpace(value)) {
-		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') {
-			builder.WriteRune(char)
-		}
-	}
-	return builder.String()
-}
-
-func allowedAgentTarget(target string) bool {
-	switch target {
-	case "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent":
-		return true
-	default:
-		return false
-	}
-}
-
-func allowedDelegateStatus(status string) bool {
-	switch status {
-	case "completed", "needs_clarification", "no_answer", "error":
-		return true
-	default:
-		return false
-	}
-}
-
-func allowedConfidence(confidence string) bool {
-	switch confidence {
-	case "high", "medium", "low":
-		return true
-	default:
-		return false
-	}
-}
-
-func buildSupervisorObservability(
-	target string,
-	status string,
-	result map[string]any,
-	selectedTool string,
-) map[string]any {
-	if target == "rag-agent" {
-		return buildRagSupervisorObservability(status, result, selectedTool)
-	}
-	return buildStructuredSupervisorObservability(target, status, result, selectedTool)
-}
-
-func buildRagSupervisorObservability(
-	status string,
-	result map[string]any,
-	selectedTool string,
-) map[string]any {
-	diagnostics := nestedMap(result, "diagnostics")
-	evidence := nestedMap(result, "evidence")
-	supportingSources := arrayValue(evidence["sources"])
-	retrievedSources := arrayValue(diagnostics["retrieved_sources"])
-	sourceCount := len(retrievedSources)
-	retrievalAttempted := any(nil)
-	switch status {
-	case "completed":
-		retrievalAttempted = true
-	case "no_answer":
-		retrievalAttempted = stringValue(diagnostics["no_answer_reason"]) != "curriculum_course_map_unsupported"
-	case "needs_clarification":
-		retrievalAttempted = sourceCount > 0
-	}
-	citationExpected := status == "completed"
-	citationCount := 0
-	if citationExpected {
-		citationCount = len(supportingSources)
-	}
-	denied := stringValue(diagnostics["no_answer_reason"]) == "restricted_access_denied"
-	freshnessFailClosed, _ := diagnostics["freshness_fail_closed"].(bool)
-	return map[string]any{
-		"retrieval_attempted":    retrievalAttempted,
-		"candidate_count":        sourceCount,
-		"retrieved_source_count": sourceCount,
-		"retrieved_sources":      retrievedSources,
-		"citation_expected":      citationExpected,
-		"citation_count":         citationCount,
-		"citation_missing":       citationExpected && citationCount == 0,
-		"refusal_class":          refusalClassForAgentStatus(status),
-		"semantic_outcome":       ragSemanticOutcome(status, diagnostics),
-		"scope_class":            "in_scope",
-		"acl_decision":           aclDecision(denied),
-		"fail_closed":            denied || freshnessFailClosed,
-		"prompt_runtime_state":   stringValue(diagnostics["prompt_runtime_state"]),
-		"prompt_runtime_detail":  stringValue(diagnostics["prompt_runtime_detail"]),
-		"resolved_scope_corpus":  optionalStringValue(diagnostics["resolved_scope_corpus"]),
-		"resolved_scope_collection": stringValue(
-			diagnostics["resolved_scope_collection"],
-		),
-		"selected_tool": selectedTool,
-		"prompt_trace":  diagnostics["prompt_trace"],
-	}
-}
-
-func buildStructuredSupervisorObservability(
-	target string,
-	status string,
-	result map[string]any,
-	selectedTool string,
-) map[string]any {
-	tool := defaultString(selectedTool, inferSelectedTool(target, result))
-	outcome := stringValue(result["outcome"])
-	failCloseReason := stringValue(result["fail_close_reason"])
-	return map[string]any{
-		"retrieval_attempted":              false,
-		"candidate_count":                  candidateCountForTool(tool, result),
-		"retrieved_source_count":           0,
-		"retrieved_sources":                []any{},
-		"citation_expected":                false,
-		"citation_count":                   0,
-		"citation_missing":                 false,
-		"refusal_class":                    refusalClassForAgentStatus(status),
-		"semantic_outcome":                 structuredSemanticOutcome(status, outcome),
-		"scope_class":                      scopeClassForTarget(target),
-		"acl_decision":                     "allowed",
-		"fail_closed":                      failCloseReason != "",
-		"selected_tool":                    tool,
-		"tool_business_outcome":            outcome,
-		"tool_fail_close_reason":           failCloseReason,
-		"tool_historical_downgrade_reason": stringValue(result["historical_downgrade_reason"]),
-		"service_guide_focus":              stringValue(result["guide_focus"]),
-		"matched_service_category":         stringValue(result["matched_service_category"]),
-		"notice_source_family_summary":     noticeSourceFamilySummary(result),
-		"temporal_posture":                 temporalPosture(result),
-	}
-}
-
-func ragSemanticOutcome(status string, diagnostics map[string]any) string {
-	if semanticOutcome := stringValue(diagnostics["semantic_outcome"]); semanticOutcome != "" {
-		return semanticOutcome
-	}
-	if status == "completed" {
-		return "grounded_answer"
-	}
-	if status == "needs_clarification" {
-		return "needs_clarification"
-	}
-	if status != "no_answer" {
-		return ""
-	}
-	if stringValue(diagnostics["no_answer_reason"]) == "restricted_access_denied" {
-		return "restricted_access_denied"
-	}
-	return "unsupported_by_evidence"
-}
-
-func structuredSemanticOutcome(status string, outcome string) string {
-	if outcome != "" {
-		return outcome
-	}
-	if status == "needs_clarification" {
-		return "needs_clarification"
-	}
-	if status == "no_answer" {
-		return "temporarily_unverifiable"
-	}
-	return ""
-}
-
-func refusalClassForAgentStatus(status string) string {
-	if status == "needs_clarification" || status == "no_answer" {
-		return status
-	}
-	return ""
-}
-
-func scopeClassForTarget(target string) string {
-	switch target {
-	case "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent":
-		return "in_scope"
-	default:
-		return ""
-	}
-}
-
-func aclDecision(denied bool) string {
-	if denied {
-		return "denied"
-	}
-	return "allowed"
-}
-
-func inferSelectedTool(target string, result map[string]any) string {
-	switch {
-	case target == "navigation-agent":
-		return "place_lookup"
-	case target == "notice-agent" && stringValue(result["notice_id"]) != "":
-		return "campus_notice_get"
-	case target == "notice-agent":
-		return "campus_notice_discover"
-	case stringValue(result["contact_focus"]) != "":
-		return "contact_directory_lookup"
-	case stringValue(result["guide_focus"]) != "":
-		return "service_guide_lookup"
-	case stringValue(result["intent"]) != "":
-		return "transport_schedule_lookup"
-	case stringValue(result["subject_query"]) != "":
-		return "service_status_lookup"
-	default:
-		return ""
-	}
-}
-
-func candidateCountForTool(tool string, result map[string]any) int {
-	switch tool {
-	case "campus_notice_discover":
-		return len(arrayValue(result["notice_cards"]))
-	case "transport_schedule_lookup":
-		return len(arrayValue(result["candidate_routes"]))
-	case "service_guide_lookup":
-		return len(arrayValue(result["candidate_services"]))
-	case "contact_directory_lookup":
-		return len(arrayValue(result["candidate_contacts"]))
-	case "place_lookup":
-		return len(arrayValue(result["candidate_places"]))
-	default:
-		return 0
-	}
-}
-
-func noticeSourceFamilySummary(result map[string]any) string {
-	families := []string{}
-	collectNoticeSourceFamiliesFromValue(result, &families)
-	return joinStrings(families, ",")
-}
-
-func collectNoticeSourceFamiliesFromValue(value any, families *[]string) {
-	switch current := value.(type) {
-	case map[string]any:
-		for key, item := range current {
-			switch key {
-			case "source_family", "sourceFamily":
-				appendNoticeSourceFamily(families, stringValue(item))
-			case "source_families", "sourceFamilies":
-				for _, family := range stringArrayValue(item) {
-					appendNoticeSourceFamily(families, family)
-				}
-			case "source_ref", "sourceRef":
-				appendNoticeSourceFamily(families, noticeSourceFamilyFromRef(stringValue(item)))
-			case "source_refs", "sourceRefs", "related_notice_refs", "relatedNoticeRefs",
-				"override_source_refs", "overrideSourceRefs", "notice_refs", "noticeRefs":
-				for _, ref := range stringArrayValue(item) {
-					appendNoticeSourceFamily(families, noticeSourceFamilyFromRef(ref))
-				}
-			}
-			collectNoticeSourceFamiliesFromValue(item, families)
-		}
-	case []any:
-		for _, item := range current {
-			collectNoticeSourceFamiliesFromValue(item, families)
-		}
-	}
-}
-
-func appendNoticeSourceFamily(families *[]string, family string) {
-	normalized := strings.TrimSpace(family)
-	if normalized == "" || containsString(*families, normalized) {
-		return
-	}
-	*families = append(*families, normalized)
-}
-
-func noticeSourceFamilyFromRef(ref string) string {
-	normalized := strings.ToLower(strings.TrimSpace(ref))
-	switch {
-	case strings.HasPrefix(normalized, "authenticated_notice:"),
-		strings.HasPrefix(normalized, "notice:muc_internal_portal:"),
-		strings.HasPrefix(normalized, "notice:internal_notice_restricted:"):
-		return "internal_notice_restricted"
-	case strings.HasPrefix(normalized, "official_web:"),
-		strings.HasPrefix(normalized, "notice:official_web:"):
-		return "official_web_public_notice"
-	case strings.HasPrefix(normalized, "wechat_public_notice:"),
-		strings.HasPrefix(normalized, "notice:wechat_public_notice:"):
-		return "wechat_public_notice"
-	default:
-		return ""
-	}
-}
-
-func temporalPosture(result map[string]any) string {
-	if stringValue(result["outcome"]) == "resolved_historical_reference" {
-		return "historical_reference"
-	}
-	return "current"
-}
-
-func arrayValue(value any) []any {
-	items, ok := value.([]any)
-	if !ok {
-		return []any{}
-	}
-	return items
-}
-
-func stringArrayValue(value any) []string {
-	items := arrayValue(value)
-	values := make([]string, 0, len(items))
-	for _, item := range items {
-		text := stringValue(item)
-		if text != "" {
-			values = append(values, text)
-		}
-	}
-	return values
-}
-
-func optionalStringValue(value any) any {
-	text := stringValue(value)
-	if text == "" {
-		return nil
-	}
-	return text
-}
-
-func containsString(values []string, needle string) bool {
-	for _, value := range values {
-		if value == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func joinStrings(values []string, separator string) string {
-	return strings.Join(values, separator)
 }

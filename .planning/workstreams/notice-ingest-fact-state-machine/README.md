@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-30
 updated: 2026-04-30
 ---
@@ -11,6 +11,9 @@ updated: 2026-04-30
 
 本 workstream 负责把 collected notice 的 ingest / OCR / downstream replay 从
 notice-level 粗粒度 gating 收口为 fact-level 状态机。
+
+Completed on 2026-04-30. Reopened on 2026-04-30 for source-retention cleanup, then
+closed after Phase 8.
 
 触发问题是 `355881`（`关于开通丰台校区社会实践专车的通知`）：正文已经包含完整班次事实，但因为 notice
 存在 pending inline image，当前 replay 把整条通知标记为 `multimodal_not_ready`，导致 7 条可从正文提取的
@@ -93,3 +96,29 @@ idempotency key、dry-run evidence 和 target admission contract 做确定，避
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
 - phase plans: `./phases/*/PLAN.md`
+
+## Phase 8 Addendum
+
+Phase 8 closed the retention-state-machine gap found during larger notice sampling:
+legacy `attachment_processing_policy=process` rows without admitted downstream target
+must not force attachment byte retention.
+
+Implemented outcome:
+
+- added a notice-first source retention decision model;
+- wrote `notice_capture_route` and attachment retention policy fields into notice
+  source-truth artifacts;
+- exposed `source_retention` in collected notice reimport preview;
+- filtered `source_object_refs` so metadata-only attachments are not planned as
+  required source objects;
+- added preview audit evidence for 83 legacy `process/no target` units.
+
+## Phase 9 Addendum
+
+Phase 9 moved retention cleanup into live collector behavior:
+
+- notice collector defaults to reference-only attachment rows even when object storage is configured;
+- attachment bytes are downloaded only from explicit fetch admissions;
+- ingestion-core emits `authenticated_notice_attachment_fetch_request_manifest_v1` rows for quarantine, source-truth-required, and admitted-owner fetches;
+- collector can read the fetch request manifest via `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH`;
+- run ledger required object verification now fails closed for required/admitted owner bytes and does not count quarantine bytes as required source objects.

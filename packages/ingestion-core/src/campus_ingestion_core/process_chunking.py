@@ -197,7 +197,10 @@ def build_indexable_chunks_from_jsonl(
                 source_channel=record.source_channel,
                 is_current=record.is_current,
                 parser_version=record.parser_version,
-                embedding_model=record.embedding_model,
+                embedding_model=_resolve_embedding_model_name(
+                    embedding_model,
+                    fallback=record.embedding_model,
+                ),
                 entitlement_groups=document_entitlement_groups,
                 visibility_scope=document_visibility_scope,
                 visibility_level=effective_visibility_level,
@@ -350,6 +353,20 @@ def embed_texts(
             raise ValueError("embedding batch result count does not match input count")
         return tuple(tuple(float(item) for item in embedding) for embedding in embeddings)
     return tuple(embed_text(text, embedding_model) for text in texts)
+
+
+def _resolve_embedding_model_name(
+    embedding_model: BaseEmbedding | object | None,
+    *,
+    fallback: str,
+) -> str:
+    if embedding_model is None:
+        return fallback
+    for attribute in ("model_name", "model"):
+        value = getattr(embedding_model, attribute, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return fallback
 
 
 __all__ = [

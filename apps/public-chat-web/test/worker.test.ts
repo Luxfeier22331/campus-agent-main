@@ -14,66 +14,19 @@ import {
 	type FinalizeRequestWrite,
 	type SupervisorExecutionClient,
 } from "../../app-api/test/chat-command.service.test-support";
-import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
-
-const packageManifest = JSON.parse(packageManifestRaw) as {
-	scripts?: Record<string, string | undefined>;
-};
-
-const EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS = {
-	cspHasBaseUri: true,
-	cspHasChallengeFrame: true,
-	cspHasDefaultSrc: true,
-	cspHasFrameAncestors: true,
-	cspHasObjectSrc: true,
-	permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-	referrerPolicy: "strict-origin-when-cross-origin",
-	xContentTypeOptions: "nosniff",
-} as const;
-
-function readPublicChatSecurityHeaders(response: Response) {
-	const csp = response.headers.get("content-security-policy");
-	return {
-		cspHasBaseUri: csp?.includes("base-uri 'self'") ?? false,
-		cspHasChallengeFrame: csp?.includes("https://challenges.cloudflare.com") ?? false,
-		cspHasDefaultSrc: csp?.includes("default-src 'self'") ?? false,
-		cspHasFrameAncestors: csp?.includes("frame-ancestors 'none'") ?? false,
-		cspHasObjectSrc: csp?.includes("object-src 'none'") ?? false,
-		permissionsPolicy: response.headers.get("permissions-policy"),
-		referrerPolicy: response.headers.get("referrer-policy"),
-		xContentTypeOptions: response.headers.get("x-content-type-options"),
-	};
-}
-
-type CampusServicesTool =
-	| "contact_directory_lookup"
-	| "service_guide_lookup"
-	| "service_status_lookup"
-	| "transport_schedule_lookup";
-
-interface CampusServicesRoutingCase {
-	expectedAnswerFragment: string;
-	expectedTool: CampusServicesTool;
-	prompt: string;
-	toolResult: Record<string, unknown>;
-}
-
-interface CampusServicesGuardrailCase {
-	expectedResultKind: "answer" | "clarification" | "no_answer" | "error";
-	expectedStatus: SupervisorExecutionResponse["status"];
-	expectedTextFragments: string[];
-	expectedTool: CampusServicesTool;
-	forbiddenTextFragments: string[];
-	name: string;
-	prompt: string;
-	responseAnswerText: string;
-	responseFollowUpQuestion: string;
-	toolResult: Record<string, unknown>;
-}
+import type {
+	CampusServicesGuardrailCase,
+	CampusServicesRoutingCase,
+} from "./worker-campus-services-types";
+import {
+	EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS,
+	packageManifest,
+	readPublicChatSecurityHeaders,
+} from "./worker-shell-fixtures";
 
 const CAMPUS_SERVICES_ROUTING_CASES: CampusServicesRoutingCase[] = [
 	{

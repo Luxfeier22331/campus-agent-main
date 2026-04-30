@@ -12,7 +12,6 @@ from campus_ingestion_core.collected_notice_reimport_preview import (
 
 from tests.ingestion.authenticated_notice_import_test_support import (
     _sample_export_manifest,
-    _sample_inline_image_notice_bundle,
     _sample_notice_bundle,
 )
 
@@ -77,6 +76,129 @@ def _notice_bundle_record(
     }
 
 
+def _transport_schedule_image_bundle_without_body_times() -> list[dict[str, object]]:
+    notice_id = 355867
+    image_urls = (
+        "http://my.muc.edu.cn/upload/ueditor/2026425/first-day.png",
+        "http://my.muc.edu.cn/upload/ueditor/2026425/bus-schedule.png",
+        "http://my.muc.edu.cn/upload/ueditor/2026425/shuttle-schedule.png",
+    )
+    body_html = (
+        "<p>根据学校近期相关安排，现将4月27日-5月5日期间两校区班车及地铁接驳车运营安排通知如下：</p>"
+        "<p>一、4月27日两校区班车安排</p>"
+        f'<p><img src="{image_urls[0]}" title="" alt="image.png"/></p>'
+        "<p>二、4月28日-5月5日两校区班车及地铁接驳车安排</p>"
+        "<p>（一）两校区班车</p>"
+        f'<p><img src="{image_urls[1]}" title="" alt="image.png"/></p>'
+        "<p>（二）地铁接驳车</p>"
+        f'<p><img src="{image_urls[2]}" title="" alt="image.png"/></p>'
+    )
+    links = []
+    notice_attachments = []
+    attachments = []
+    for index, url in enumerate(image_urls, start=1):
+        content = f"fake-image-{index}".encode()
+        digest = hashlib.sha256(content).hexdigest()
+        filename = url.rsplit("/", 1)[-1]
+        links.append(
+            {
+                "id": index,
+                "notice_id": notice_id,
+                "run_id": 14,
+                "source": "content",
+                "content_kind": "inline_image",
+                "url": url,
+                "url_scheme": "http",
+                "link_host": "my.muc.edu.cn",
+                "link_scope": "internal",
+                "collect_policy": "reference_only",
+                "skip_reason": None,
+                "link_text": "image.png",
+                "final_url": url,
+                "title": None,
+                "status_code": 200,
+                "content_type": "image/png",
+                "downloaded": True,
+                "download_path": None,
+                "file_size": len(content),
+                "fetched_at": "2026-04-28T18:19:53.007Z",
+                "error_message": None,
+            }
+        )
+        notice_attachments.append(
+            {
+                "notice_id": notice_id,
+                "attachment_id": index,
+                "link_id": index,
+                "relation_source": "content",
+                "resource_role": "inline_image",
+                "anchor_text": "image.png",
+                "discovered_at": "2026-04-28T18:19:53.007Z",
+            }
+        )
+        attachments.append(
+            {
+                "attachment_id": index,
+                "source_url": url,
+                "normalized_source_url": url,
+                "final_url": url,
+                "original_filename": filename,
+                "mime_type": "image/png",
+                "byte_size": len(content),
+                "sha256": digest,
+                "storage_provider": "object_store",
+                "bucket": "campus-rag-source",
+                "object_key": f"authenticated_notice_portal/attachment-{index}/capture/{filename}",
+                "etag": f"fake-etag-{index}",
+                "version_id": None,
+                "origin_url_scheme": "http",
+                "origin_host": "my.muc.edu.cn",
+                "origin_scope": "internal",
+                "provenance_status": "collected_internal",
+                "ingest_status": "uploaded",
+                "local_path": None,
+                "downloaded_at": "2026-04-28T18:19:53.007Z",
+                "uploaded_at": "2026-04-28T18:19:53.007Z",
+                "last_error": None,
+                "created_at": "2026-04-28T18:19:53.007Z",
+                "updated_at": "2026-04-28T18:19:53.007Z",
+            }
+        )
+    return [
+        {
+            "notice_id": notice_id,
+            "notice": {
+                "notice_id": notice_id,
+                "notice_title": "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+                "organization_name": "丰台校区管理委员会",
+                "organization_id": "00054",
+                "notice_release_time": "2026-04-25 13:11",
+                "notice_create_time": "2026-04-25 11:17",
+                "notice_first_time": "2026-04-25 13:11",
+                "notice_content": body_html,
+                "notice_link": None,
+                "notice_source": 0,
+                "notice_link_state": 0,
+                "notice_state": 1,
+                "notice_stick": 0,
+                "categories": [
+                    {
+                        "notice_id": notice_id,
+                        "notice_type": "5",
+                        "notice_type_name": "办公通知",
+                        "category_first_seen_at": "2026-04-28T18:19:53.007Z",
+                        "category_last_seen_at": "2026-04-28T18:19:53.007Z",
+                        "category_last_run_id": 14,
+                    }
+                ],
+            },
+            "links": links,
+            "notice_attachments": notice_attachments,
+            "attachments": attachments,
+        }
+    ]
+
+
 class CollectedNoticeReimportPreviewTests(unittest.TestCase):
     def test_preview_builds_searchable_unit_for_valid_notice_without_writes(self) -> None:
         object_store = _ReadOnlyObjectStore()
@@ -122,19 +244,173 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
         self.assertEqual(unit["source_url"], "https://portal.example.edu/notice/355119")
         self.assertIn("请同学们于4月10日前完成报名。", unit["body_text"])
         self.assertGreaterEqual(len(unit["source_object_refs"]), 2)
-        self.assertEqual(unit["multimodal_status"], "pending")
+        self.assertEqual(unit["multimodal_status"], "not_required")
         self.assertIn("报名表.docx", unit["search_text"])
         self.assertEqual(object_store.puts, [])
 
-    def test_preview_reports_invalid_runs_and_multimodal_candidates(self) -> None:
-        attachment_bytes = b"fake-image"
+    def test_preview_does_not_repair_empty_notice_discover_only_attachment_body(
+        self,
+    ) -> None:
         object_store = _ReadOnlyObjectStore()
         bucket = "campus-rag-source"
-        bundle_key = "runs/inline-image-bundle.json"
+        bundle_key = "runs/empty-form-notice.json"
         manifest_key = "runs/export-manifest.json"
-        bundle = _sample_inline_image_notice_bundle(attachment_bytes=attachment_bytes)
-        manifest = _sample_export_manifest()
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_content"] = ""
+        bundle[0]["notice"]["notice_title"] = "中央民族大学学生证补办申请表"
         object_store.add_json(bucket=bucket, key=bundle_key, payload=bundle)
+        object_store.add_json(bucket=bucket, key=manifest_key, payload=_sample_export_manifest())
+
+        preview = build_collected_notice_reimport_preview(
+            run_refs=(
+                CollectedNoticeCapturedRunRef(
+                    run_id="muc_internal_portal:notice:empty-form",
+                    source_surface="notice",
+                    source_bucket=bucket,
+                    bundle_object_key=bundle_key,
+                    manifest_object_key=manifest_key,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://my.muc.edu.cn",
+                    notices_collected=1,
+                ),
+            ),
+            env={},
+            object_store=object_store,
+        )
+
+        unit = preview.searchable_notice_preview["units"][0]
+        self.assertEqual(unit["classification"]["primary_route"], "notice_level_query")
+        self.assertEqual(unit["classification"]["target_candidates"], [])
+        self.assertEqual(unit["multimodal_status"], "not_required")
+        self.assertEqual(
+            preview.invalid_defer_multimodal_report["needs_multimodal_count"],
+            0,
+        )
+
+    def test_preview_applies_notice_first_source_retention_to_notice_level_query_attachments(
+        self,
+    ) -> None:
+        object_store = _ReadOnlyObjectStore()
+        bucket = "campus-rag-source"
+        bundle_key = "runs/notices-bundle.json"
+        manifest_key = "runs/export-manifest.json"
+        object_store.add_json(bucket=bucket, key=bundle_key, payload=_sample_notice_bundle())
+        object_store.add_json(bucket=bucket, key=manifest_key, payload=_sample_export_manifest())
+
+        preview = build_collected_notice_reimport_preview(
+            run_refs=(
+                CollectedNoticeCapturedRunRef(
+                    run_id="muc_internal_portal:notice:retention",
+                    source_surface="notice",
+                    source_bucket=bucket,
+                    bundle_object_key=bundle_key,
+                    manifest_object_key=manifest_key,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://my.muc.edu.cn",
+                    notices_collected=1,
+                ),
+            ),
+            env={},
+            object_store=object_store,
+        )
+
+        unit = preview.searchable_notice_preview["units"][0]
+        self.assertEqual(unit["classification"]["primary_route"], "notice_level_query")
+        self.assertEqual(
+            unit["source_retention"]["notice_capture_route"],
+            "notice_level_query_only",
+        )
+        self.assertEqual(
+            unit["source_retention"]["attachment_capture_policy_counts"],
+            {"metadata_only": 1},
+        )
+        self.assertEqual(unit["multimodal_status"], "not_required")
+        attachment = unit["attachment_refs"][0]
+        self.assertEqual(attachment["attachment_capture_policy"], "metadata_only")
+        self.assertEqual(attachment["attachment_capture_state"], "metadata_recorded")
+        self.assertEqual(attachment["retention_class"], "metadata_only")
+        self.assertFalse(attachment["byte_fetch_required"])
+        self.assertFalse(attachment["required_source_object"])
+        self.assertNotIn(
+            "application.docx",
+            "\n".join(str(ref.get("key") or "") for ref in unit["source_object_refs"]),
+        )
+
+    def test_preview_marks_transport_schedule_images_fetch_to_quarantine_when_body_lacks_times(
+        self,
+    ) -> None:
+        object_store = _ReadOnlyObjectStore()
+        bucket = "campus-rag-source"
+        bundle_key = "runs/transport-schedule-images.json"
+        manifest_key = "runs/export-manifest.json"
+        object_store.add_json(
+            bucket=bucket,
+            key=bundle_key,
+            payload=_transport_schedule_image_bundle_without_body_times(),
+        )
+        object_store.add_json(bucket=bucket, key=manifest_key, payload=_sample_export_manifest())
+
+        preview = build_collected_notice_reimport_preview(
+            run_refs=(
+                CollectedNoticeCapturedRunRef(
+                    run_id="muc_internal_portal:notice:transport-schedule",
+                    source_surface="notice",
+                    source_bucket=bucket,
+                    bundle_object_key=bundle_key,
+                    manifest_object_key=manifest_key,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://my.muc.edu.cn",
+                    notices_collected=1,
+                ),
+            ),
+            env={},
+            object_store=object_store,
+        )
+
+        unit = preview.searchable_notice_preview["units"][0]
+        self.assertEqual(unit["classification"]["primary_route"], "service_status_candidate")
+        self.assertEqual(unit["classification"]["target_candidates"], ["transport_schedule"])
+        self.assertEqual(
+            unit["source_retention"]["notice_capture_route"],
+            "candidate_service_fact",
+        )
+        self.assertEqual(
+            unit["source_retention"]["attachment_capture_policy_counts"],
+            {"fetch_to_quarantine": 3},
+        )
+        self.assertEqual(unit["source_retention"]["quarantine_attachment_ref_count"], 3)
+        self.assertEqual(unit["multimodal_status"], "pending")
+        self.assertEqual(unit["media_text_status"], "pending")
+        self.assertEqual(
+            unit["media_text_reason_codes"],
+            ["image_attachment_pending_text_extraction"],
+        )
+        for attachment in unit["attachment_refs"]:
+            with self.subTest(attachment_ref_id=attachment["attachment_ref_id"]):
+                self.assertEqual(
+                    attachment["attachment_capture_policy"],
+                    "fetch_to_quarantine",
+                )
+                self.assertEqual(attachment["attachment_capture_state"], "uploaded_quarantine")
+                self.assertEqual(attachment["retention_class"], "quarantine_candidate")
+                self.assertFalse(attachment["byte_fetch_required"])
+                self.assertFalse(attachment["required_source_object"])
+                self.assertEqual(
+                    attachment["byte_fetch_required_reason"],
+                    "service_fact_missing_required_fact",
+                )
+
+    def test_preview_reports_invalid_runs_and_multimodal_candidates(self) -> None:
+        object_store = _ReadOnlyObjectStore()
+        bucket = "campus-rag-source"
+        bundle_key = "runs/transport-schedule-images.json"
+        manifest_key = "runs/export-manifest.json"
+        manifest = _sample_export_manifest()
+        object_store.add_json(
+            bucket=bucket,
+            key=bundle_key,
+            payload=_transport_schedule_image_bundle_without_body_times(),
+        )
         object_store.add_json(bucket=bucket, key=manifest_key, payload=manifest)
 
         selected, rejected = select_collected_notice_reimport_run_refs(
@@ -174,7 +450,7 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
         self.assertEqual(preview.invalid_defer_multimodal_report["invalid_capture_count"], 1)
         self.assertEqual(preview.invalid_defer_multimodal_report["needs_multimodal_count"], 1)
         unit = preview.searchable_notice_preview["units"][0]
-        self.assertEqual(unit["source_notice_id"], "351118")
+        self.assertEqual(unit["source_notice_id"], "355867")
         self.assertEqual(unit["multimodal_status"], "pending")
         self.assertIn("image_attachment_pending_text_extraction", unit["reason_codes"])
 

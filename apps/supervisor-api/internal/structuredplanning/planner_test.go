@@ -367,7 +367,14 @@ func TestPlanGoldenCases(t *testing.T) {
 			if err != nil {
 				t.Fatalf("load intent policy: %v", err)
 			}
-			handoff := PlanWithPolicy(tt.request, policy)
+			plan := PlanWithPolicy(tt.request, policy)
+			if plan == nil {
+				t.Fatal("expected preplanned workflow plan")
+			}
+			if plan.WorkflowMode != WorkflowModeSingleHandoff {
+				t.Fatalf("workflow mode = %q, want single_handoff", plan.WorkflowMode)
+			}
+			handoff := plan.SelectedHandoff()
 			if handoff == nil {
 				t.Fatal("expected preplanned handoff")
 			}
@@ -403,10 +410,131 @@ func TestPlanSkipsTransactionalStructuredRequests(t *testing.T) {
 			UserGoal:            "帮我发邮件给国际合作处",
 		},
 	} {
-		handoff := PlanWithPolicy(request, policy)
-		if handoff != nil {
-			t.Fatalf("transactional request must not be preplanned for %q: %#v", request.UserGoal, handoff)
+		plan := PlanWithPolicy(request, policy)
+		if plan != nil {
+			t.Fatalf("transactional request must not be preplanned for %q: %#v", request.UserGoal, plan)
 		}
+	}
+}
+
+func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load intent policy: %v", err)
+	}
+
+	plan := PlanWithPolicy(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "学生手册请假制度怎么规定？",
+		HasRequestedScope:   true,
+		RequestedScope: Scope{
+			Corpus:     "regulations",
+			Collection: "student_rules",
+		},
+	}, policy)
+
+	if plan == nil {
+		t.Fatal("expected workflow plan")
+	}
+	if plan.SchemaVersion != WorkflowPlanSchemaVersion {
+		t.Fatalf("schema version = %q, want %q", plan.SchemaVersion, WorkflowPlanSchemaVersion)
+	}
+	if plan.WorkflowMode != WorkflowModeSingleHandoff {
+		t.Fatalf("workflow mode = %q, want single_handoff", plan.WorkflowMode)
+	}
+	if plan.PlanID == "" {
+		t.Fatal("plan id must not be empty")
+	}
+	if len(plan.Steps) != 1 {
+		t.Fatalf("step count = %d, want 1", len(plan.Steps))
+	}
+	step := plan.Steps[0]
+	if step.StepKind != WorkflowStepKindHandoff || step.Target != "rag-agent" {
+		t.Fatalf("step = %#v, want rag handoff", step)
+	}
+	if step.SelectedTool != "retrieval.query" {
+		t.Fatalf("selected tool = %q, want retrieval.query", step.SelectedTool)
+	}
+	if len(plan.Edges) != 0 {
+		t.Fatalf("edges = %#v, want none for single handoff", plan.Edges)
+	}
+	if plan.SemanticRetryPolicy.MaxReplans != 0 {
+		t.Fatalf("semantic retry max replans = %d, want 0", plan.SemanticRetryPolicy.MaxReplans)
+	}
+	projection := plan.Map()
+	if projection["workflow_mode"] != "single_handoff" {
+		t.Fatalf("projection workflow_mode = %v, want single_handoff", projection["workflow_mode"])
+	}
+	steps, ok := projection["steps"].([]map[string]any)
+	if !ok || len(steps) != 1 || steps[0]["target"] != "rag-agent" {
+		t.Fatalf("projection steps = %#v, want typed rag step", projection["steps"])
+	}
+}
+
+func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T) {
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load intent policy: %v", err)
+	}
+
+	plan := PlanWithPolicy(Request{
+		EffectiveCapability:      "knowledge",
+		UserGoal:                 "这条通知依据学生手册哪条规定？",
+		HasRequestedScope:        true,
+		MultiStepWorkflowEnabled: true,
+		RequestedScope: Scope{
+			Corpus:     "regulations",
+			Collection: "student_rules",
+		},
+		SelectedNoticeRef: SelectedNoticeRef{
+			NoticeID:     "notice:smoke:001",
+			SourceFamily: "wechat_public_notice",
+			Title:        "烟雾测试通知",
+		},
+	}, policy)
+
+	if plan == nil {
+		t.Fatal("expected workflow plan")
+	}
+	if plan.WorkflowMode != WorkflowModeMultiStep {
+		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
+	}
+	handoffs := plan.Handoffs()
+	if len(handoffs) != 2 {
+		t.Fatalf("handoff count = %d, want 2", len(handoffs))
+	}
+	if handoffs[0].Target != "notice-agent" || handoffs[0].PayloadKind != "campus_notice_get" {
+		t.Fatalf("first handoff = %#v, want notice get", handoffs[0])
+	}
+	if handoffs[0].Payload["notice_id"] != "notice:smoke:001" {
+		t.Fatalf("first handoff notice_id = %#v", handoffs[0].Payload["notice_id"])
+	}
+	if handoffs[1].Target != "rag-agent" || handoffs[1].PayloadKind != "rag_request" {
+		t.Fatalf("second handoff = %#v, want rag request", handoffs[1])
+	}
+	if plan.ResumePolicy.ResumeSupported != true {
+		t.Fatal("multi-step plan must declare resume support")
+	}
+	if plan.SemanticRetryPolicy.MaxReplans != 1 {
+		t.Fatalf("semantic retry max replans = %d, want 1", plan.SemanticRetryPolicy.MaxReplans)
+	}
+	projection := plan.Map()
+	if projection["workflow_mode"] != "multi_step" {
+		t.Fatalf("projection workflow_mode = %v, want multi_step", projection["workflow_mode"])
+	}
+	steps, ok := projection["steps"].([]map[string]any)
+	if !ok || len(steps) != 2 {
+		t.Fatalf("projection steps = %#v, want two steps", projection["steps"])
+	}
+	edges, ok := projection["edges"].([]map[string]any)
+	if !ok || len(edges) != 1 || edges[0]["condition"] != "completed" {
+		t.Fatalf("projection edges = %#v, want completed edge", projection["edges"])
+	}
+	if edges[0]["required_projection_kind"] != "notice_context" {
+		t.Fatalf(
+			"projection edge required projection = %#v, want notice_context",
+			edges[0]["required_projection_kind"],
+		)
 	}
 }
 
@@ -417,11 +545,12 @@ func TestPlanWithPolicyUsesIntentPolicyArtifactSignals(t *testing.T) {
 	}
 	policy.SignalGroups["structured_transport"] = []string{"摆渡车"}
 
-	handoff := PlanWithPolicy(Request{
+	plan := PlanWithPolicy(Request{
 		EffectiveCapability: "campus_services",
 		UserGoal:            "摆渡车最早几点",
 	}, policy)
 
+	handoff := plan.SelectedHandoff()
 	if handoff == nil {
 		t.Fatal("expected policy-backed transport signal to produce handoff")
 	}

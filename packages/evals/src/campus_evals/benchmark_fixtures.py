@@ -138,17 +138,18 @@ def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
 def resolve_retrieval_fixture_manifest_path(path: str | Path) -> Path:
     dataset = load_retrieval_qrels_dataset(path)
     repo_root = Path(__file__).resolve().parents[4]
-    manifest_path = (
-        repo_root
-        / "configs"
-        / "ingestion"
-        / dataset.scope.corpus
-        / dataset.scope.collection
-        / "split-manifest.v1.json"
+    collection_root = (
+        repo_root / "configs" / "ingestion" / dataset.scope.corpus / dataset.scope.collection
     )
+    manifest_path = collection_root / "split-manifest.v1.json"
+    if manifest_path.exists():
+        return manifest_path
+    manifest_path = collection_root / "retrieval-eval-manifest.v1.json"
     if not manifest_path.exists():
         raise FileNotFoundError(
-            f"unable to resolve split manifest for {dataset.scope}: {manifest_path}"
+            "unable to resolve retrieval fixture manifest for "
+            f"{dataset.scope}: expected split-manifest.v1.json or "
+            f"retrieval-eval-manifest.v1.json under {collection_root}"
         )
     return manifest_path
 

@@ -67,7 +67,7 @@ class RebuildRequest:
     source_pdf: str | None = None
     reset_qdrant: bool = False
     index_qdrant: bool = False
-    publish_qdrant_alias: bool = True
+    publish_qdrant_alias: bool = False
 
 
 @dataclass(frozen=True, slots=True)

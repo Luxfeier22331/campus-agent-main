@@ -17,6 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--collection", required=True)
     parser.add_argument("--preparation-run-id")
+    parser.add_argument("--acceptance-case-path")
     parser.add_argument("--reset-index", action="store_true")
     publish_group = parser.add_mutually_exclusive_group()
     publish_group.add_argument("--publish-alias", dest="publish_alias", action="store_true")
@@ -32,6 +33,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         corpus=args.corpus,
         collection=args.collection,
         preparation_run_id=args.preparation_run_id,
+        acceptance_case_path=args.acceptance_case_path,
         reset_index=args.reset_index,
         publish_alias=args.publish_alias,
     )

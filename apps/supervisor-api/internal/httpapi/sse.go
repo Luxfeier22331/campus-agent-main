@@ -102,6 +102,8 @@ func admissionErrorForStream(decision admission.Decision, executionCanceled bool
 func (s *Server) streamBridgePayload(
 	bridgeResponse bridge.ExecuteResponse,
 	executionRequest execution.AnswerExecutionRequest,
+	runState bridgeExecutionRunState,
+	workflowRuns ...*execution.WorkflowRun,
 ) (streamPayload, bridgeWriteOutcome) {
 	if !validBridgeResponseEnvelope(bridgeResponse) {
 		return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response envelope.")
@@ -115,7 +117,10 @@ func (s *Server) streamBridgePayload(
 		responseBody, err := finalizeAgentBridgeResponse(
 			body,
 			executionRequest.TraceID,
-			finalizerContextFromExecutionRequest(executionRequest, "delegate"),
+			finalizerContextWithWorkflowRun(
+				finalizerContextFromExecutionRequest(executionRequest, workflowBranchForRequest(executionRequest), runState),
+				firstWorkflowRun(workflowRuns),
+			),
 		)
 		if err != nil {
 			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid agent response.")

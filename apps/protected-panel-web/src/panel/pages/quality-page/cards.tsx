@@ -8,7 +8,6 @@ import {
 	Divider,
 	Drawer,
 	MenuItem,
-	Link as MuiLink,
 	Stack,
 	Table,
 	TableBody,
@@ -23,7 +22,6 @@ import { Link as RouterLink } from "react-router-dom";
 
 import { PanelLineChart } from "../../panel-chart";
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
-import { normalizeSafeExternalHref } from "../../panel-safe-links";
 import { PANEL_SELECT_EMPTY_VALUE_SLOT_PROPS } from "../../panel-select";
 import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
 import { buildRequestShowPath } from "../../requests/request-routes";
@@ -37,6 +35,7 @@ import {
 	formatQualityBadcaseDetectedBy,
 	formatQualityBadcaseStatus,
 } from "../quality-domain";
+import { SafeExternalLink } from "../safe-external-link";
 import {
 	BADCASE_STATUS_OPTIONS,
 	QUALITY_PAGE_SIZE_OPTIONS,
@@ -103,19 +102,6 @@ function SectionCard(props: { children: ReactNode; description?: string; title: 
 				</Stack>
 			</CardContent>
 		</Card>
-	);
-}
-
-function SafeExternalLink(props: { unsafeHref: string | null; label: string }) {
-	const safeHref = normalizeSafeExternalHref(props.unsafeHref);
-	if (!safeHref) {
-		return null;
-	}
-
-	return (
-		<MuiLink href={safeHref} rel="noopener noreferrer" target="_blank">
-			{props.label}
-		</MuiLink>
 	);
 }
 

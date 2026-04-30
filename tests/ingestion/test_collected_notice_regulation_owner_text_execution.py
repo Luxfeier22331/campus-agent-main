@@ -114,6 +114,12 @@ class CollectedNoticeRegulationOwnerTextExecutionTests(unittest.TestCase):
         self.assertEqual(result["owner_text_status"], "ready")
         self.assertGreater(result["owner_text_length"], 20)
         self.assertEqual(ocr_client.calls[0].name, "source.pdf")
+        closeout = report["media_extraction_closeout_result_manifest"]
+        self.assertEqual(
+            closeout["schema_version"], "notice_media_extraction_closeout_result_manifest.v1"
+        )
+        self.assertEqual(closeout["results"][0]["candidate_id"], attempt["candidate_id"])
+        self.assertEqual(closeout["results"][0]["status"], "completed")
 
         writes = object_store.writes_by_key()
         provider_key = attempt["normalized_output_refs"]["provider_response"]["key"]  # type: ignore[index]

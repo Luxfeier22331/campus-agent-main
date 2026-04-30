@@ -1,0 +1,112 @@
+{
+  "institutional_rules": {
+    "document_reports_path": ".planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-09-first-batch-regulation-promotion-write-gate/acceptance/institutional_rules/document-reports.jsonl",
+    "manifest_path": ".planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-09-first-batch-regulation-promotion-write-gate/acceptance/institutional_rules/chunk-prep-manifest.json",
+    "passed": true,
+    "prepared_document_count": 1,
+    "prepared_documents": [
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学毕业生就业奖励办法--f16e569519f7/chunks.jsonl",
+        "document_units_path": "prepared-documents/中央民族大学毕业生就业奖励办法--f16e569519f7/document-units.jsonl",
+        "semantic_owner_kind": "attachment_document",
+        "source_notice_ids": [
+          "594"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7",
+        "title": "中央民族大学毕业生就业奖励办法"
+      }
+    ],
+    "total_chunk_count": 26,
+    "total_unit_count": 25,
+    "validation_summary_path": ".planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-09-first-batch-regulation-promotion-write-gate/acceptance/institutional_rules/validation-summary.json"
+  },
+  "passed": true,
+  "query_serving_opened": false,
+  "rag_release_opened": false,
+  "schema_version": "collected_notice_regulation_first_batch_acceptance_summary.v1",
+  "scoped_rules": {
+    "document_reports_path": ".planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-09-first-batch-regulation-promotion-write-gate/acceptance/scoped_rules/document-reports.jsonl",
+    "manifest_path": ".planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-09-first-batch-regulation-promotion-write-gate/acceptance/scoped_rules/chunk-prep-manifest.json",
+    "passed": true,
+    "prepared_document_count": 7,
+    "prepared_documents": [
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学优秀研究生导师-优秀研究生导师团队评选办法-试行--fe595f0225bc/chunks.jsonl",
+        "document_nature": "time_bound_operational_rule",
+        "document_units_path": "prepared-documents/中央民族大学优秀研究生导师-优秀研究生导师团队评选办法-试行--fe595f0225bc/document-units.jsonl",
+        "source_notice_ids": [
+          "493"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学优秀研究生导师-优秀研究生导师团队评选办法-试行:fe595f0225bc",
+        "title": "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）"
+      },
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学双学士学位复合型人才培养项目实施管理暂行办法--b70e82aa4d40/chunks.jsonl",
+        "document_nature": "time_bound_operational_rule",
+        "document_units_path": "prepared-documents/中央民族大学双学士学位复合型人才培养项目实施管理暂行办法--b70e82aa4d40/document-units.jsonl",
+        "source_notice_ids": [
+          "564"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学双学士学位复合型人才培养项目实施管理暂行办法:b70e82aa4d40",
+        "title": "中央民族大学双学士学位复合型人才培养项目实施管理暂行办法"
+      },
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学招募选拔--中国青年志愿者扶贫接力计划研究生支教团-成员规定--1bc08d61fc1d/chunks.jsonl",
+        "document_nature": "time_bound_operational_rule",
+        "document_units_path": "prepared-documents/中央民族大学招募选拔--中国青年志愿者扶贫接力计划研究生支教团-成员规定--1bc08d61fc1d/document-units.jsonl",
+        "source_notice_ids": [
+          "620"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学招募选拔-中国青年志愿者扶贫接力计划研究生支教团-成员规定:1bc08d61fc1d",
+        "title": "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定"
+      },
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学研究生-三助-工作管理办法--1e3ce0e9494d/chunks.jsonl",
+        "document_nature": "time_bound_operational_rule",
+        "document_units_path": "prepared-documents/中央民族大学研究生-三助-工作管理办法--1e3ce0e9494d/document-units.jsonl",
+        "source_notice_ids": [
+          "509"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:1e3ce0e9494d",
+        "title": "中央民族大学研究生“三助”工作管理办法"
+      },
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学研究生学位论文评阅办法-试行--d8a9840e0030/chunks.jsonl",
+        "document_nature": "time_bound_operational_rule",
+        "document_units_path": "prepared-documents/中央民族大学研究生学位论文评阅办法-试行--d8a9840e0030/document-units.jsonl",
+        "source_notice_ids": [
+          "485"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学研究生学位论文评阅办法-试行:d8a9840e0030",
+        "title": "中央民族大学研究生学位论文评阅办法（试行）"
+      },
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学研究生涉密学位论文管理办法-试行--21e15df92994/chunks.jsonl",
+        "document_nature": "time_bound_operational_rule",
+        "document_units_path": "prepared-documents/中央民族大学研究生涉密学位论文管理办法-试行--21e15df92994/document-units.jsonl",
+        "source_notice_ids": [
+          "487"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学研究生涉密学位论文管理办法-试行:21e15df92994",
+        "title": "中央民族大学研究生涉密学位论文管理办法（试行）"
+      },
+      {
+        "chunk_catalog_path": "prepared-documents/中央民族大学硕博连读研究生招生实施办法-试行--7a8759f2f236/chunks.jsonl",
+        "document_nature": "time_bound_operational_rule",
+        "document_units_path": "prepared-documents/中央民族大学硕博连读研究生招生实施办法-试行--7a8759f2f236/document-units.jsonl",
+        "source_notice_ids": [
+          "483"
+        ],
+        "target_document_id": "institutional_regulation:muc:中央民族大学硕博连读研究生招生实施办法-试行:7a8759f2f236",
+        "title": "中央民族大学硕博连读研究生招生实施办法（试行）"
+      }
+    ],
+    "total_chunk_count": 175,
+    "total_unit_count": 126,
+    "validation_summary_path": ".planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-09-first-batch-regulation-promotion-write-gate/acceptance/scoped_rules/validation-summary.json"
+  },
+  "selected_document_counts": {
+    "institutional_rules": 1,
+    "scoped_rules": 7
+  }
+}

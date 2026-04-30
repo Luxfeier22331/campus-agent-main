@@ -36,6 +36,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         ("service_status", _smoke_service_status_bundle()),
         ("transport_schedule", _smoke_transport_schedule_bundle()),
         ("service_guide", _smoke_service_guide_bundle()),
+        ("contact_directory", _smoke_contact_directory_bundle()),
     ):
         release_id = f"{release_id_prefix}-{collection.replace('_', '-')}"
         report = publisher.publish_release(
@@ -95,10 +96,10 @@ def _smoke_service_status_bundle() -> dict[str, object]:
         "schema_version": "campus_services_projection_bundle.v1",
         "service_status_records": [
             {
-                "subject_id": "smoke:structured-projection",
-                "display_name": "结构化投影 PG smoke",
+                "subject_id": "service:smoke:campus-card",
+                "display_name": "校园卡服务状态 smoke",
                 "service_family": "service_counter",
-                "aliases": ["structured projection smoke"],
+                "aliases": ["校园卡", "一卡通", "卡务中心", "structured projection smoke"],
                 "campus_scope": "all",
                 "affected_scope": "smoke",
                 "observed_status": "open",
@@ -161,10 +162,10 @@ def _smoke_service_guide_bundle() -> dict[str, object]:
         "schema_version": "campus_services_service_guide_projection.v1",
         "service_guide_records": [
             {
-                "service_id": "service:smoke:transport-reservation",
-                "display_name": "结构化投影服务指南 smoke",
-                "aliases": ["服务指南 smoke"],
-                "category": "transportation",
+                "service_id": "service:smoke:medical-reimbursement",
+                "display_name": "公费医疗报销 smoke",
+                "aliases": ["公费医疗", "医疗报销", "医药费报销", "服务指南 smoke"],
+                "category": "healthcare",
                 "campus_scope": "all",
                 "audience": ["student"],
                 "effective_from": "2026-01-01T00:00:00+08:00",
@@ -172,18 +173,25 @@ def _smoke_service_guide_bundle() -> dict[str, object]:
                 "source_refs": ["smoke:service-guide"],
                 "guide_sections": [
                     {
-                        "section_id": "service:smoke:transport-reservation:section:entry",
-                        "section_type": "entry",
-                        "title": "预约入口",
-                        "content": "通过服务门户查看预约入口。",
+                        "section_id": "service:smoke:medical-reimbursement:section:materials",
+                        "section_type": "required_materials",
+                        "title": "办理材料",
+                        "content": "准备报销单据和学生身份证明。",
                         "order": 1,
                         "source_refs": ["smoke:service-guide"],
                     }
                 ],
-                "materials": [],
+                "materials": [
+                    {
+                        "material_id": "service:smoke:medical-reimbursement:material:invoice",
+                        "name": "报销单据",
+                        "required": True,
+                        "source_refs": ["smoke:service-guide"],
+                    }
+                ],
                 "entry_refs": [
                     {
-                        "entry_id": "service:smoke:transport-reservation:entry:portal",
+                        "entry_id": "service:smoke:medical-reimbursement:entry:portal",
                         "label": "服务门户",
                         "entry_type": "url",
                         "url": "https://example.invalid/service",
@@ -201,4 +209,37 @@ def _smoke_service_guide_bundle() -> dict[str, object]:
     }
 
 
+def _smoke_contact_directory_bundle() -> dict[str, object]:
+    return {
+        "schema_version": "campus_services_contact_directory_projection.v1",
+        "contact_records": [
+            {
+                "contact_id": "contact:smoke:campus-card-center",
+                "display_name": "卡务中心联系电话 smoke",
+                "aliases": ["卡务中心", "一卡通中心", "联系电话 smoke"],
+                "contact_group": "campus_card",
+                "department": "卡务中心",
+                "phones": [
+                    {
+                        "phone_id": "phone:smoke:transport-office",
+                        "label": "咨询电话",
+                        "number": "010-00000000",
+                        "source_refs": ["smoke:contact-directory"],
+                    }
+                ],
+                "emails": [],
+                "location_refs": [],
+                "source_refs": ["smoke:contact-directory"],
+                "extraction_status": "ready",
+            }
+        ],
+        "conflict_records": [],
+        "manual_review_sources": [],
+    }
+
+
 __all__ = ["build_parser", "main"]
+
+
+if __name__ == "__main__":
+    main()

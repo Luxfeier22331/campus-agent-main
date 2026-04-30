@@ -1,0 +1,87 @@
+{
+	"schema_version": 1,
+	"corpus": "regulations",
+	"collection": "institutional_rules",
+	"baseline": {
+		"dense_model": "Qwen3-Embedding-4B",
+		"sparse_model": "qdrant/bm25",
+		"fusion": "rrf"
+	},
+	"cases": [
+		{
+			"case_id": "institutional-procurement-title",
+			"split": "smoke",
+			"query": "中央民族大学采购工作管理办法",
+			"request_overrides": {
+				"entitlement_groups": ["campus_members"],
+				"visibility_scope": "campus",
+				"visibility_level": "restricted"
+			},
+			"expected_sources": [
+				{
+					"doc_id": "institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf",
+					"version_id": "sha256:77dc1a8d41d6a6e8d137d7e1f68608ab8b2009f059e69852adae6acd99d03e09:effective-2021年3月1日:revision-修订",
+					"grade": 2,
+					"rationale": "标题精确问法应命中采购工作管理办法当前制度正文。"
+				}
+			]
+		},
+		{
+			"case_id": "institutional-procurement-effective-date",
+			"split": "release_gate",
+			"query": "中央民族大学采购工作管理办法什么时候开始施行",
+			"request_overrides": {
+				"entitlement_groups": ["campus_members"],
+				"visibility_scope": "campus",
+				"visibility_level": "restricted"
+			},
+			"expected_sources": [
+				{
+					"doc_id": "institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf",
+					"version_id": "sha256:77dc1a8d41d6a6e8d137d7e1f68608ab8b2009f059e69852adae6acd99d03e09:effective-2021年3月1日:revision-修订",
+					"grade": 2,
+					"rationale": "生效日期问法应仍回到同一 current-effective 制度正文。"
+				}
+			]
+		},
+		{
+			"case_id": "institutional-ai-guidance-title-version",
+			"split": "smoke",
+			"query": "中央民族大学关于学生使用人工智能的指导意见2026版",
+			"request_overrides": {
+				"entitlement_groups": ["campus_members"],
+				"visibility_scope": "campus",
+				"visibility_level": "restricted"
+			},
+			"expected_sources": [
+				{
+					"doc_id": "institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:60410b2486e0",
+					"version_id": "sha256:54a9780979aa46f22715f422b3b46c56673d68c9a83bc4597a5ab30905e6eed9:effective-undated:revision-2026版",
+					"grade": 2,
+					"rationale": "版本化标题问法应命中 2026版 指导意见正文。"
+				}
+			]
+		},
+		{
+			"case_id": "institutional-ai-guidance-authz-deny",
+			"split": "regression_locked",
+			"query": "中央民族大学关于学生使用人工智能的指导意见2026版",
+			"expected_sources": [],
+			"forbidden_sources": [
+				{
+					"doc_id": "institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:60410b2486e0",
+					"version_id": "sha256:54a9780979aa46f22715f422b3b46c56673d68c9a83bc4597a5ab30905e6eed9:effective-undated:revision-2026版",
+					"grade": 1,
+					"rationale": "没有 campus_members entitlement 时不应召回 restricted institutional regulation。"
+				}
+			]
+		},
+		{
+			"case_id": "no-hit-impossible-institutional-rule",
+			"split": "regression_locked",
+			"query": "中央民族大学星际通勤飞船管理办法",
+			"expected_sources": [],
+			"notes": "不存在制度标题的 no-hit deterministic case。"
+		}
+	]
+}

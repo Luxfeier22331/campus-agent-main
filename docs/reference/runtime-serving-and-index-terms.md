@@ -44,8 +44,8 @@ updated: 2026-04-23
   才开始承担 serving/runtime 语义
 - 同一个 source channel 可以 fan-out 到多个 `corpus/collection` scope
 - `official_web` 作为 source channel，不表示它只能有一个 mixed collection
-- `official_web` 未来应拆成独立 serving scope，例如 `official_web/stable_reference`、`offic
-  ial_web/fresh_news`、`official_web/news_archive`
+- `official_web/stable_reference` 当前已经拆成默认 query-enabled serving scope；
+  `official_web/fresh_news`、`official_web/news_archive` 仍是 default-off 后续 scope
 - 正式规章与正式培养方案若已有更强语义 owner，应继续进入与 `official_web` 并列的
   `regulations/*`、`curriculum/*`
 
@@ -95,11 +95,63 @@ updated: 2026-04-23
 
 说明：
 
-- 当前 query-enabled scope 是 `regulations/student_rules` 与
-  `curriculum/curriculum_plan`
+- 当前 query-enabled scope 是 `regulations/student_rules`、
+  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+  `official_web/stable_reference`
+- `regulations/scoped_rules` 当前已具备 retrieval-ready serving alias，但
+  `query_enabled_by_default=false`，不属于默认 query-enabled scope
 - `campus_services/*` 当前仍是 `offline_preparation`
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
   bridge，不应误读成长期最终 serving scope
+
+### Retrieval Qrels Fixture
+
+定义：
+
+- `packages/evals/fixtures/*_retrieval_qrels.json` 中的 deterministic retrieval truth
+  denominator
+
+说明：
+
+- qrels fixture 以 `case_id`、query、scope、expected / forbidden source refs、authz /
+  version request overrides 表达 retrieval gate truth
+- 当前默认 query-enabled scope 必须都有 qrels fixture：
+  - `regulations/student_rules`
+  - `regulations/institutional_rules`
+  - `curriculum/curriculum_plan`
+  - `official_web/stable_reference`
+- qrels fixture 不等于 source truth、registry truth 或 release manifest；它是 eval / release
+  gate 的 denominator
+
+### Retrieval Eval Manifest
+
+定义：
+
+- qrels validation 用来 anchor document id / title 的 lightweight manifest
+
+说明：
+
+- 对有静态 split truth 的 collection，默认使用
+  `configs/ingestion/<corpus>/<collection>/split-manifest.v1.json`
+- 对 projection-derived 且没有静态 split manifest 的 scope，可使用同目录
+  `retrieval-eval-manifest.v1.json`
+- `retrieval-eval-manifest.v1.json` 只服务 deterministic qrels validation；不替代 registry
+  scope、current pointer、release manifest 或 object-store artifact truth
+
+### Retrieval Tuning Report
+
+定义：
+
+- `campus_evals.retrieval_tuning` 生成的 per-collection deterministic tuning artifact
+
+说明：
+
+- 输入是 qrels fixture 与一个或多个 candidate run-results
+- candidate profile 可覆盖 dense / sparse prefetch、RRF 参数与 no-hit threshold
+- 输出包含 positive hit / recall / MRR、forbidden hit rate、no-hit success、version-locked
+  recall 与 `recommended_profile_patch`
+- 只有 candidate 通过 deterministic gate 时才允许产生 recommendation
+- tuning report 不自动改写 `runtime-profile.json`，也不自动扩大 query-enabled scope
 
 ### Capability Family
 
@@ -369,6 +421,9 @@ updated: 2026-04-23
 说明：
 
 - manifest 用于把 preparation 结果和 current registry scope 对齐
+- manifest 必须记录 document-units object key hash、document-units content hash、
+  chunk profile hash 与 chunk fingerprint hash；release 只能在这些 truth 与当前
+  registry/object-store/config/chunk 结果一致时继续
 - manifest 是 release gate 的输入，不是最终在线索引的替代物
 
 ### Index Release
@@ -399,6 +454,10 @@ updated: 2026-04-23
 说明：
 
 - release manifest 用于审计、回滚和追溯
+- release manifest 记录实际 embedding provider/model/dimensions、document-units
+  content hash 与 chunk fingerprint hash，供 retrieval runtime 与发布审计确认同源
+- provider-response replay 不发布 serving alias；alias 发布只走 registry-scope release
+  path
 - release manifest 不保存 chunk dump
 
 ### Managed Backup

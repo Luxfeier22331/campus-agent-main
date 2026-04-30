@@ -16,14 +16,17 @@ from campus_evals.models import (
 WORKFLOW_TRACE_GATE_CASES_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "workflow_trace_gate_cases.v1.json"
 )
+SUPPORTED_WORKFLOW_MODES = frozenset(("terminal", "direct_runtime", "single_handoff", "multi_step"))
 
 
 @dataclass(frozen=True, slots=True)
 class WorkflowTraceExpectation:
     direct_vs_delegate_branch: str
     selected_target: str
+    workflow_mode: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     handoff: dict[str, object] = field(default_factory=dict)
+    handoff_chain: tuple[dict[str, object], ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, object] = field(default_factory=dict)
     tool_call_summaries: tuple[dict[str, object], ...] = field(default_factory=tuple)
     expected_tool_order: tuple[str, ...] = field(default_factory=tuple)
@@ -37,6 +40,7 @@ class WorkflowTraceExpectation:
     def __post_init__(self) -> None:
         for field_name, payload in (
             ("handoff", self.handoff),
+            ("handoff_chain", self.handoff_chain),
             ("tool_argument_summary", self.tool_argument_summary),
             ("tool_call_summaries", self.tool_call_summaries),
             ("expected_tool_result_statuses", self.expected_tool_result_statuses),
@@ -95,8 +99,12 @@ def evaluate_workflow_trace_case(
             expectation.direct_vs_delegate_branch,
         ),
         handoff_correctness=_combine_dimension_results(
+            _equals("workflow_mode", summary.workflow_mode, expectation.workflow_mode)
+            if expectation.workflow_mode
+            else DimensionResult(True, "not_applicable"),
             _equals("selected_target", summary.selected_target, expectation.selected_target),
             _mapping_contains("handoff", summary.handoff, expectation.handoff),
+            _handoff_chain_contains(summary.handoff_chain, expectation.handoff_chain),
         ),
         tool_argument_precision=_combine_dimension_results(
             _equals("selected_tools", summary.selected_tools, expectation.selected_tools),
@@ -135,6 +143,25 @@ def evaluate_workflow_trace_cases(
         )
         for case in cases
     }
+
+
+def load_process_smoke_workflow_trace_summaries(
+    report_paths: Iterable[str | Path],
+    *,
+    profile_case_ids: dict[str, str],
+) -> dict[str, WorkflowTraceSummary]:
+    summaries: dict[str, WorkflowTraceSummary] = {}
+    for report_path in report_paths:
+        payload = json.loads(Path(report_path).read_text(encoding="utf-8"))
+        profile = str(payload.get("profile") or "").strip()
+        case_id = profile_case_ids.get(profile, "")
+        if not case_id:
+            continue
+        summary_payload = _process_smoke_workflow_trace_payload(payload)
+        if summary_payload is None:
+            continue
+        summaries[case_id] = _workflow_trace_summary_from_payload(summary_payload)
+    return summaries
 
 
 def validate_workflow_trace_case_set(case_set: WorkflowTraceCaseSet) -> None:
@@ -223,9 +250,11 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
         description=str(item.get("description") or ""),
         expectation=WorkflowTraceExpectation(
             direct_vs_delegate_branch=str(expectation.get("direct_vs_delegate_branch") or ""),
+            workflow_mode=str(expectation.get("workflow_mode") or ""),
             selected_target=str(expectation.get("selected_target") or ""),
             selected_tools=tuple(str(tool) for tool in expectation.get("selected_tools") or ()),
             handoff=dict(expectation.get("handoff") or {}),
+            handoff_chain=tuple(dict(item) for item in expectation.get("handoff_chain") or ()),
             tool_argument_summary=dict(expectation.get("tool_argument_summary") or {}),
             tool_call_summaries=tuple(
                 dict(item) for item in expectation.get("tool_call_summaries") or ()
@@ -245,6 +274,90 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
             fail_close_reason=str(expectation.get("fail_close_reason") or ""),
         ),
     )
+
+
+def _process_smoke_workflow_trace_payload(payload: dict[str, object]) -> object | None:
+    answer = payload.get("answer")
+    if isinstance(answer, dict):
+        return answer.get("workflow_trace_summary") or answer.get("workflowTraceSummary")
+    if isinstance(answer, str):
+        try:
+            parsed = json.loads(answer)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, dict):
+            return parsed.get("workflow_trace_summary") or parsed.get("workflowTraceSummary")
+    return None
+
+
+def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummary:
+    record = dict(payload or {}) if isinstance(payload, dict) else {}
+    selected_tools = _list_value(record, "selected_tools", "selectedTools")
+    handoff_chain = _list_value(record, "handoff_chain", "handoffChain")
+    context_projections = _list_value(record, "context_projections", "contextProjections")
+    return WorkflowTraceSummary(
+        routing_frame=_dict_value(record, "routing_frame", "routingFrame"),
+        context_resolution=_dict_value(record, "context_resolution", "contextResolution"),
+        planning_outcome=_string_value(record, "planning_outcome", "planningOutcome"),
+        direct_vs_delegate_branch=_string_value(
+            record,
+            "direct_vs_delegate_branch",
+            "directVsDelegateBranch",
+        ),
+        workflow_mode=_string_value(record, "workflow_mode", "workflowMode"),
+        handoff=_dict_value(record, "handoff"),
+        handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
+        selected_target=_string_value(record, "selected_target", "selectedTarget"),
+        selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
+        context_projections=tuple(
+            dict(item) for item in context_projections if isinstance(item, dict)
+        ),
+        tool_argument_summary=_dict_value(
+            record,
+            "tool_argument_summary",
+            "toolArgumentSummary",
+        ),
+        trace_steps=_tuple_dict_value(record, "trace_steps", "traceSteps"),
+        tool_call_summaries=_tuple_dict_value(
+            record,
+            "tool_call_summaries",
+            "toolCallSummaries",
+        ),
+        guardrail_outcomes=_dict_value(record, "guardrail_outcomes", "guardrailOutcomes"),
+        fail_close_reason=_string_value(record, "fail_close_reason", "failCloseReason"),
+        runtime_versions=_dict_value(record, "runtime_versions", "runtimeVersions"),
+        policy_artifact_versions=_dict_value(
+            record,
+            "policy_artifact_versions",
+            "policyArtifactVersions",
+        ),
+    )
+
+
+def _record_value(record: dict[str, object], *keys: str) -> object:
+    for key in keys:
+        if key in record:
+            return record[key]
+    return None
+
+
+def _string_value(record: dict[str, object], *keys: str) -> str:
+    value = _record_value(record, *keys)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _dict_value(record: dict[str, object], *keys: str) -> dict[str, object]:
+    value = _record_value(record, *keys)
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _list_value(record: dict[str, object], *keys: str) -> list[object]:
+    value = _record_value(record, *keys)
+    return list(value) if isinstance(value, list | tuple) else []
+
+
+def _tuple_dict_value(record: dict[str, object], *keys: str) -> tuple[dict[str, object], ...]:
+    return tuple(dict(item) for item in _list_value(record, *keys) if isinstance(item, dict))
 
 
 def _equals(field_name: str, observed: object, expected: object) -> DimensionResult:
@@ -269,6 +382,28 @@ def _mapping_contains(
     return DimensionResult(
         passed=passed,
         reason="" if passed else f"{field_name} mismatch: {missing_or_mismatch}",
+    )
+
+
+def _handoff_chain_contains(
+    observed: tuple[dict[str, object], ...],
+    expected: tuple[dict[str, object], ...],
+) -> DimensionResult:
+    if not expected:
+        return DimensionResult(True, "not_applicable")
+    if len(observed) < len(expected):
+        return DimensionResult(
+            False,
+            f"handoff_chain length={len(observed)}, expected at least {len(expected)}",
+        )
+    failures = []
+    for index, expected_item in enumerate(expected):
+        result = _mapping_contains(f"handoff_chain[{index}]", observed[index], expected_item)
+        if not result.passed:
+            failures.append(result.reason)
+    return DimensionResult(
+        passed=not failures,
+        reason="; ".join(failure for failure in failures if failure),
     )
 
 
@@ -392,12 +527,25 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
     missing = []
     if not summary.direct_vs_delegate_branch:
         missing.append("direct_vs_delegate_branch")
+    if not summary.workflow_mode:
+        missing.append("workflow_mode")
+    elif summary.workflow_mode not in SUPPORTED_WORKFLOW_MODES:
+        missing.append("workflow_mode.supported")
     if not summary.selected_target:
         missing.append("selected_target")
+    if summary.workflow_mode == "terminal" and summary.selected_target != "none":
+        missing.append("selected_target.none_sentinel")
+    if summary.workflow_mode == "single_handoff" and not summary.handoff_chain:
+        missing.append("handoff_chain")
+    if summary.workflow_mode == "multi_step" and len(summary.handoff_chain) < 2:
+        missing.append("handoff_chain.multi_step")
+    if summary.workflow_mode == "multi_step" and not summary.context_projections:
+        missing.append("context_projections.multi_step")
     if (
         not summary.selected_tools
         and not summary.fail_close_reason
         and summary.direct_vs_delegate_branch != "clarification"
+        and summary.workflow_mode != "terminal"
     ):
         missing.append("selected_tools")
     if summary.selected_tools and not summary.tool_call_summaries:

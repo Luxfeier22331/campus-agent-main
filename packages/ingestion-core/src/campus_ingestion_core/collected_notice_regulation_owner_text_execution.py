@@ -8,6 +8,9 @@ from typing import Any, Protocol
 
 from campus_ingestion_core.authenticated_notice_attachment_ocr import _normalize_layout_rows
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
+from campus_ingestion_core.collected_notice_media_extraction_closeout import (
+    build_owner_text_media_extraction_closeout_result_manifest,
+)
 from campus_ingestion_core.collected_notice_regulation_owner_text_recovery_constants import (
     PHASE_06_R1A_ID,
     PHASE_06_R1B_ID,
@@ -402,7 +405,7 @@ def _execution_report(
     attempt_results: list[dict[str, Any]],
 ) -> dict[str, Any]:
     status_counts = _status_counts(attempt_results)
-    return {
+    report = {
         "schema_version": REGULATION_OWNER_TEXT_EXECUTION_REPORT_SCHEMA_VERSION,
         "generated_at": generated_at,
         "generated_by": generated_by,
@@ -424,6 +427,13 @@ def _execution_report(
         },
         "attempt_results": attempt_results,
     }
+    report["media_extraction_closeout_result_manifest"] = (
+        build_owner_text_media_extraction_closeout_result_manifest(
+            execution_report=report,
+            generated_at=generated_at,
+        )
+    )
+    return report
 
 
 def _success_result(

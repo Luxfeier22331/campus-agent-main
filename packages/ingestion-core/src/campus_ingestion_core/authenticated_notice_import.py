@@ -9,9 +9,6 @@ from typing import Any
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
-    DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
-    DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     AuthenticatedNoticeAttachmentFetchStatusStore,
     build_attachment_fetch_status_records_from_bundle_records,
 )
@@ -38,10 +35,20 @@ from campus_ingestion_core.authenticated_notice_import_env import (
     _build_consumption_projection_store_from_env_if_configured,
     _build_read_model_store_from_env_if_configured,
 )
+from campus_ingestion_core.authenticated_notice_import_env_presence import (
+    env_has_attachment_fetch_status_config,
+    env_has_consumption_projection_config,
+    env_has_inventory_store_config,
+    env_has_read_model_config,
+)
 from campus_ingestion_core.authenticated_notice_import_sources import (
     AuthenticatedNoticeImportObjectRefs,
     explicit_authenticated_notice_import_object_refs,
     load_authenticated_notice_import_payload_from_object_refs,
+)
+from campus_ingestion_core.authenticated_notice_notice_family import (
+    load_authenticated_notice_notice_family_config,
+    read_authenticated_notice_notice_family_config_path,
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
     _load_json_payload,
@@ -89,9 +96,6 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     rebuild_internal_notice_consumption_projection,
 )
 from campus_ingestion_core.internal_notice_read_model import (
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
     InternalNoticeReadModelStore,
     rebuild_internal_notice_read_model,
 )
@@ -229,6 +233,9 @@ def prepare_authenticated_notice_bundle_records(
     export_manifest: dict[str, Any] | None = None,
 ) -> AuthenticatedNoticeBundleImportResult:
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
+    notice_family_config = load_authenticated_notice_notice_family_config(
+        read_authenticated_notice_notice_family_config_path({})
+    )
     prepared: list[AuthenticatedNoticePreparedImport] = []
     for bundle_record in bundle_records:
         material = prepare_authenticated_notice_source_material(
@@ -236,6 +243,7 @@ def prepare_authenticated_notice_bundle_records(
             export_manifest=export_manifest,
             site_id=request.site_id,
             source_home_url=request.source_home_url,
+            notice_family_config=notice_family_config,
         )
         prepared.append(
             _prepare_notice_import(
@@ -314,18 +322,18 @@ def import_authenticated_notice_export(
         selected_notice_ids=selected_notice_ids,
         replace_scope=replace_scope,
         source_truth_inventory_enabled=source_truth_inventory_store is not None
-        or _env_has_inventory_store_config(source),
+        or env_has_inventory_store_config(source),
         attachment_fetch_status_enabled=attachment_fetch_status_store is not None
-        or _env_has_attachment_fetch_status_config(source),
+        or env_has_attachment_fetch_status_config(source),
         consumption_projection_enabled=_should_materialize_internal_notice_consumption(
             request=request
         )
         and (
             consumption_projection_store is not None
-            or _env_has_consumption_projection_config(source)
+            or env_has_consumption_projection_config(source)
         ),
         read_model_enabled=_should_materialize_internal_notice_consumption(request=request)
-        and (read_model_store is not None or _env_has_read_model_config(source)),
+        and (read_model_store is not None or env_has_read_model_config(source)),
         consumer_admission_manifest_supplied=(
             request.consumer_admission_manifest_path is not None
             and _should_materialize_internal_notice_consumption(request=request)
@@ -580,7 +588,7 @@ def _load_consumer_admission_manifest_if_needed(
     downstream_write_requested = (
         projection_store is not None
         or read_model_store is not None
-        or _env_has_read_model_config(source)
+        or env_has_read_model_config(source)
     )
     if not downstream_write_requested:
         return None
@@ -768,62 +776,6 @@ def _build_authenticated_notice_import_admission_report(
         "write_plan": write_plan,
         "errors": [],
     }
-
-
-def _env_has_inventory_store_config(env: dict[str, str]) -> bool:
-    return any(
-        env.get(key)
-        for key in (
-            DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
-            DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
-            DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
-            SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-            SHARED_POSTGRES_ENV_KEY,
-            DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-            DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
-            DOCUMENT_REGISTRY_ENV_KEY,
-            RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
-            RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
-            RAW_ASSET_REGISTRY_ENV_KEY,
-        )
-    )
-
-
-def _env_has_attachment_fetch_status_config(env: dict[str, str]) -> bool:
-    return any(
-        env.get(key)
-        for key in (
-            DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
-            DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
-            DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
-            SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-            SHARED_POSTGRES_ENV_KEY,
-        )
-    )
-
-
-def _env_has_consumption_projection_config(env: dict[str, str]) -> bool:
-    return any(
-        env.get(key)
-        for key in (
-            "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-            "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
-            "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
-        )
-    )
-
-
-def _env_has_read_model_config(env: dict[str, str]) -> bool:
-    return any(
-        env.get(key)
-        for key in (
-            DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
-            DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
-            DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
-        )
-    )
 
 
 def _build_inventory_store_from_env_if_configured(

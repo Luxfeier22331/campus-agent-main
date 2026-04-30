@@ -108,15 +108,16 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(response.agent_observability.source_ref_count, 1)
         self.assertEqual(response.agent_observability.access_decision, "allowed")
         self.assertEqual(
-            response.agent_observability.safe_details["agent_plan"],
+            response.agent_observability.safe_details["agent_execution_projection"],
             {
-                "schema_version": "agent-local-plan-v1",
-                "planner": "deterministic_payload_router",
+                "schema_version": "agent-execution-projection-v1",
+                "projection_owner": "notice-agent",
                 "selected_tool": "campus_notice_discover",
                 "payload_kind": "campus_notice_discover",
                 "tool_selection_reason": "typed_payload_allowed_tool",
             },
         )
+        self.assertNotIn("agent_plan", response.agent_observability.safe_details)
         self.assertEqual(
             response.agent_observability.safe_details["result_guardrail"],
             {
@@ -159,6 +160,11 @@ class NoticeAgentTest(unittest.TestCase):
 
         self.assertEqual(response.status, "error")
         self.assertEqual(response.error.code, "disallowed_tool")
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        self.assertIn("agent_execution_projection", response.agent_observability.safe_details)
+        self.assertIn("result_guardrail", response.agent_observability.safe_details)
+        self.assertNotIn("agent_plan", response.agent_observability.safe_details)
 
     def test_http_query_service_posts_discover_payload_and_authorization_projection(self) -> None:
         transport = _RecordingNoticeHTTPTransport(

@@ -10,7 +10,17 @@ from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
-from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.embed import (
+    EmbeddingSettings,
+    build_embedding_model,
+    validate_ingestion_retrieval_embedding_env_alignment,
+)
+from campus_ingestion_core.embedding_cache import (
+    CacheAwareEmbeddingModel,
+    EmbeddingCacheStats,
+    ObjectStoreEmbeddingCache,
+    build_cache_profile_identity,
+)
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
     build_release_metadata_payload,
@@ -22,6 +32,11 @@ from campus_ingestion_core.index_release import (
     validate_scope_release,
     write_index_release_artifacts,
 )
+from campus_ingestion_core.index_release_acceptance import (
+    build_release_retrieval_acceptance_executor,
+    load_release_retrieval_acceptance_cases,
+    run_release_retrieval_acceptance,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import (
     IndexableChunk,
@@ -31,6 +46,7 @@ from campus_ingestion_core.process import (
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.registry_scope_chunk_preparation import (
     require_verified_chunk_preparation,
+    verify_prepared_chunks_match_manifest,
 )
 from campus_ingestion_core.registry_scope_common import (
     record_label,
@@ -71,6 +87,11 @@ class RegistryScopeReleaseReport:
     point_count: int
     indexed_at: str
     published_at: str | None
+    retrieval_acceptance_status: str
+    retrieval_acceptance_summary_object_key: str | None
+    embedding_cache_hit_count: int = 0
+    embedding_cache_miss_count: int = 0
+    embedding_provider_call_count: int = 0
 
 
 def release_registry_scope(
@@ -84,6 +105,7 @@ def release_registry_scope(
     publish_alias: bool = True,
     reset_index: bool = False,
     preparation_run_id: str | None = None,
+    acceptance_case_path: str | None = None,
 ) -> RegistryScopeReleaseReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
@@ -107,13 +129,15 @@ def release_registry_scope(
             qdrant_client=runtime_qdrant_client,
             binding=runtime_profile.qdrant_index_binding,
         )
+    if publish_alias:
+        validate_ingestion_retrieval_embedding_env_alignment(source)
     records = select_releasable_registry_records(
         records=runtime_registry.list_by_scope(corpus, collection),
         runtime_profile=runtime_profile,
     )
     if not records:
         raise ValueError(f"no releasable registry records found for {corpus}/{collection}")
-    require_verified_chunk_preparation(
+    preparation_manifest = require_verified_chunk_preparation(
         corpus=corpus,
         collection=collection,
         preparation_run_id=preparation_run_id,
@@ -122,7 +146,25 @@ def release_registry_scope(
         bucket=object_store_settings.bucket_derived,
     )
 
-    embedding_model = build_embedding_model(EmbeddingSettings.from_env(source))
+    embedding_settings = EmbeddingSettings.from_env(source)
+    embedding_cache_stats = EmbeddingCacheStats()
+    embedding_model = build_embedding_model(embedding_settings)
+    if _embedding_cache_enabled(source):
+        embedding_model = CacheAwareEmbeddingModel(
+            provider_model=embedding_model,
+            cache=ObjectStoreEmbeddingCache(
+                object_store=runtime_object_store,
+                bucket=object_store_settings.bucket_derived,
+                settings=embedding_settings,
+                profile_identity=build_cache_profile_identity(
+                    corpus=corpus,
+                    collection=collection,
+                    cleaning=runtime_profile.cleaning_policy_version,
+                    chunk=runtime_profile.chunk_profile_version,
+                ),
+            ),
+            stats=embedding_cache_stats,
+        )
     sparse_embedding_model = build_sparse_embedding_model(SparseEmbeddingSettings.from_env(source))
     chunks: list[IndexableChunk] = []
     empty_chunk_documents: list[str] = []
@@ -143,6 +185,8 @@ def release_registry_scope(
         raise ValueError(
             "registry document " + "; ".join(empty_chunk_documents) + " produced no chunks"
         )
+    _validate_chunk_embedding_runtime_identity(chunks=tuple(chunks), settings=embedding_settings)
+    verify_prepared_chunks_match_manifest(manifest=preparation_manifest, chunks=tuple(chunks))
 
     return publish_scope_release(
         corpus=corpus,
@@ -154,8 +198,18 @@ def release_registry_scope(
         object_store_settings=object_store_settings,
         runtime_profile=runtime_profile,
         sparse_embedding_model=sparse_embedding_model,
+        embedding_provider=embedding_settings.provider,
+        embedding_dimensions=embedding_settings.dimensions,
+        document_units_sha256_by_key=_document_units_sha256_by_key(preparation_manifest),
         publish_alias=publish_alias,
         upsert_batch_size=_read_qdrant_upsert_batch_size(source),
+        acceptance_case_path=acceptance_case_path,
+        retrieval_settings=(
+            RetrievalSettings.from_env(source)
+            if publish_alias and _requires_release_retrieval_acceptance(runtime_profile)
+            else None
+        ),
+        embedding_cache_stats=embedding_cache_stats,
     )
 
 
@@ -172,11 +226,25 @@ def publish_scope_release(
     sparse_embedding_model,
     publish_alias: bool,
     upsert_batch_size: int,
+    embedding_provider: str = "",
+    embedding_dimensions: int | None = None,
+    document_units_sha256_by_key: dict[str, str] | None = None,
+    acceptance_case_path: str | None = None,
+    retrieval_settings: RetrievalSettings | None = None,
+    embedding_cache_stats: EmbeddingCacheStats | None = None,
 ) -> RegistryScopeReleaseReport:
     if not records:
         raise ValueError(f"records must not be empty for {corpus}/{collection}")
     if not chunks:
         raise ValueError(f"chunks must not be empty for {corpus}/{collection}")
+    if (
+        publish_alias
+        and _requires_release_retrieval_acceptance(runtime_profile)
+        and not (acceptance_case_path or "").strip()
+    ):
+        raise ValueError(
+            f"retrieval acceptance case path is required to publish {corpus}/{collection}"
+        )
 
     binding = runtime_profile.qdrant_index_binding
     release_id = default_release_id()
@@ -200,6 +268,11 @@ def publish_scope_release(
         indexed_at=indexed_at,
         published_at=None,
         validation_summary_object_key=None,
+        embedding_provider=embedding_provider,
+        embedding_dimensions=embedding_dimensions,
+        document_units_sha256_by_key=document_units_sha256_by_key,
+        runtime_profile=runtime_profile,
+        sparse_settings=getattr(sparse_embedding_model, "settings", None),
     )
     release_metadata = build_release_metadata_payload(
         manifest=prepublish_manifest,
@@ -257,9 +330,74 @@ def publish_scope_release(
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
         )
-        return _build_release_report(artifacts)
+        return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
+
+    acceptance_result = None
+    if _requires_release_retrieval_acceptance(runtime_profile):
+        cases = load_release_retrieval_acceptance_cases(
+            str(acceptance_case_path),
+            corpus=corpus,
+            collection=collection,
+        )
+        acceptance_result = run_release_retrieval_acceptance(
+            cases=cases,
+            executor=build_release_retrieval_acceptance_executor(
+                qdrant_client=qdrant_client,
+                settings=retrieval_settings
+                or _build_fallback_retrieval_settings(
+                    chunks=tuple(chunks),
+                    embedding_provider=embedding_provider,
+                    embedding_dimensions=embedding_dimensions,
+                ),
+                runtime_profile=runtime_profile,
+                sparse_embedding_model=sparse_embedding_model,
+            ),
+            physical_collection_name=physical_collection_name,
+        )
+        accepted_manifest = build_index_release_manifest(
+            release_id=release_id,
+            corpus=corpus,
+            collection=collection,
+            binding=binding,
+            physical_collection_name=physical_collection_name,
+            previous_physical_collection_name=previous_physical_collection_name,
+            records=tuple(records),
+            chunks=tuple(chunks),
+            validation=validation,
+            indexed_at=indexed_at,
+            published_at=None,
+            validation_summary_object_key=None,
+            embedding_provider=embedding_provider,
+            embedding_dimensions=embedding_dimensions,
+            document_units_sha256_by_key=document_units_sha256_by_key,
+            retrieval_acceptance_status=acceptance_result.status,
+            runtime_profile=runtime_profile,
+            sparse_settings=getattr(sparse_embedding_model, "settings", None),
+        )
+        acceptance_artifacts = write_index_release_artifacts(
+            writer=object_store,
+            bucket=object_store_settings.bucket_derived,
+            manifest=accepted_manifest,
+            validation_summary=validation.summary,
+            retrieval_acceptance_summary=acceptance_result.summary,
+        )
+        if acceptance_result.status != "passed":
+            if qdrant_client.collection_exists(physical_collection_name):
+                qdrant_client.delete_collection(collection_name=physical_collection_name)
+            raise ValueError(
+                f"retrieval acceptance failed for {corpus}/{collection}: "
+                f"{acceptance_result.summary}"
+            )
+        prepublish_manifest = acceptance_artifacts.manifest
 
     published_at = datetime.now(UTC).isoformat()
+    if acceptance_result is None:
+        write_index_release_artifacts(
+            writer=object_store,
+            bucket=object_store_settings.bucket_derived,
+            manifest=prepublish_manifest,
+            validation_summary=validation.summary,
+        )
     published_manifest = build_index_release_manifest(
         release_id=release_id,
         corpus=corpus,
@@ -273,6 +411,13 @@ def publish_scope_release(
         indexed_at=indexed_at,
         published_at=published_at,
         validation_summary_object_key=None,
+        embedding_provider=embedding_provider,
+        embedding_dimensions=embedding_dimensions,
+        document_units_sha256_by_key=document_units_sha256_by_key,
+        retrieval_acceptance_status=prepublish_manifest.retrieval_acceptance_status,
+        retrieval_acceptance_summary_object_key=prepublish_manifest.retrieval_acceptance_summary_object_key,
+        runtime_profile=runtime_profile,
+        sparse_settings=getattr(sparse_embedding_model, "settings", None),
     )
     alias_published = False
     try:
@@ -287,8 +432,11 @@ def publish_scope_release(
             bucket=object_store_settings.bucket_derived,
             manifest=published_manifest,
             validation_summary=validation.summary,
+            retrieval_acceptance_summary=(
+                acceptance_result.summary if acceptance_result is not None else None
+            ),
         )
-        return _build_release_report(artifacts)
+        return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
     except Exception:
         if alias_published and previous_physical_collection_name is not None:
             rollback_release_alias(
@@ -306,8 +454,13 @@ def publish_scope_release(
         raise
 
 
-def _build_release_report(artifacts) -> RegistryScopeReleaseReport:
+def _build_release_report(
+    artifacts,
+    *,
+    embedding_cache_stats: EmbeddingCacheStats | None = None,
+) -> RegistryScopeReleaseReport:
     manifest = artifacts.manifest
+    cache_stats = embedding_cache_stats or EmbeddingCacheStats()
     return RegistryScopeReleaseReport(
         corpus=manifest.corpus,
         collection=manifest.collection,
@@ -322,7 +475,73 @@ def _build_release_report(artifacts) -> RegistryScopeReleaseReport:
         point_count=manifest.point_count,
         indexed_at=manifest.indexed_at,
         published_at=manifest.published_at,
+        retrieval_acceptance_status=manifest.retrieval_acceptance_status,
+        retrieval_acceptance_summary_object_key=manifest.retrieval_acceptance_summary_object_key,
+        embedding_cache_hit_count=cache_stats.hit_count,
+        embedding_cache_miss_count=cache_stats.miss_count,
+        embedding_provider_call_count=cache_stats.provider_call_count,
     )
+
+
+def _validate_chunk_embedding_runtime_identity(
+    *,
+    chunks: Sequence[IndexableChunk],
+    settings: EmbeddingSettings,
+) -> None:
+    chunk_models = {chunk.embedding_model for chunk in chunks if chunk.embedding_model.strip()}
+    if chunk_models and chunk_models != {settings.model}:
+        raise ValueError(
+            "release chunk embedding model mismatch: "
+            f"expected {settings.model}, got {', '.join(sorted(chunk_models))}"
+        )
+    if settings.dimensions is None:
+        return
+    chunk_dimensions = {len(chunk.embedding) for chunk in chunks if chunk.embedding is not None}
+    if chunk_dimensions and chunk_dimensions != {settings.dimensions}:
+        raise ValueError(
+            "release chunk embedding dimensions mismatch: "
+            f"expected {settings.dimensions}, got {', '.join(str(item) for item in sorted(chunk_dimensions))}"
+        )
+
+
+def _requires_release_retrieval_acceptance(profile: CollectionRuntimeProfile) -> bool:
+    return bool(profile.serving_stage == "query_serving" and profile.query_enabled_by_default)
+
+
+def _embedding_cache_enabled(source: dict[str, str]) -> bool:
+    return (source.get("INGESTION_EMBEDDING_CACHE_ENABLED") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _build_fallback_retrieval_settings(
+    *,
+    chunks: Sequence[IndexableChunk],
+    embedding_provider: str,
+    embedding_dimensions: int | None,
+) -> RetrievalSettings:
+    embedding_model = next((chunk.embedding_model for chunk in chunks if chunk.embedding_model), "")
+    if not embedding_model:
+        embedding_model = "mock-embedding"
+    return RetrievalSettings(
+        qdrant_url=":memory:",
+        embedding_provider=embedding_provider or "mock",
+        embedding_model=embedding_model,
+        embedding_dimensions=embedding_dimensions,
+        sparse_provider="mock",
+    )
+
+
+def _document_units_sha256_by_key(manifest) -> dict[str, str] | None:
+    if manifest is None:
+        return None
+    values: dict[str, str] = {}
+    for document in manifest.documents:
+        if document.document_units_object_key and document.document_units_sha256:
+            values[document.document_units_object_key] = document.document_units_sha256
+    return values or None
 
 
 def _build_qdrant_client(

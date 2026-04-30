@@ -1,0 +1,27 @@
+{
+  "schema_version": "internal_notice_institutional_regulation_chunk_prep_v1",
+  "passed": true,
+  "prepared_document_count": 1,
+  "total_unit_count": 25,
+  "total_chunk_count": 26,
+  "unit_type_counts": {
+    "regulation_body": 24,
+    "regulation_title": 1
+  },
+  "split_reason_counts": {
+    "token_guardrail": 2
+  },
+  "header_mode_counts": {
+    "compact_identity": 23,
+    "compact_path": 1,
+    "full_path": 2
+  },
+  "missing_title_chunk_count": 0,
+  "missing_contextualization_count": 0,
+  "missing_identity_metadata_count": 0,
+  "invalid_semantic_owner_lineage_count": 0,
+  "wrapper_notice_leak_chunk_count": 0,
+  "front_matter_leak_chunk_count": 0,
+  "short_body_chunk_count": 6,
+  "failed_document_ids": []
+}
