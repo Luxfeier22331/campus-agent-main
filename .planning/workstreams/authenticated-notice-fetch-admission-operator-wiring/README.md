@@ -15,7 +15,7 @@ fetch admission 能力接到 repo-owned operator / ingestion-worker 工作流。
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2 auth-blocked`
+- current phase: `Phase 4 completed; live collector proof auth-blocked`
 - baseline: `86695c4b feat: 完成通知附件 fetch admission 收口`
 
 ## Problem
@@ -38,6 +38,9 @@ fetch request manifest；README / runbook 也仍有“配置对象存储即 mate
 - collector 只消费 manifest admission，不重新根据附件类型扩张下载范围。
 - `metadata_only` refs 不下载、不计入 required source objects。
 - required/admitted owner bytes 缺失时 fail closed；quarantine bytes 不阻断 source-truth。
+- quarantine cleanup 删除过期 bytes 前必须检查 media extraction candidate inventory；
+  `target_blocking=true` 且未进入 `completed` / `skipped` / `failed_terminal` 的 candidate
+  仍引用该 object 时不得删除。
 
 ## Native Planning Truth
 

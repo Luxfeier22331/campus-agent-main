@@ -14,6 +14,7 @@ updated: 2026-04-30
 - [x] **Phase 1: Operator Manifest Builder And Docs Wiring** — add ingestion-worker CLI, tests, collector README/runbook updates, and workstream registration.
 - [x] **Phase 2: Selected Notice E2E Smoke Evidence** — selected notice `355867` is replayed through repaired local source-truth, fetch omission, multimodal readiness, and schedule OCR mini-batch evidence.
 - [x] **Phase 3: Sample State Machine Audit** — current code replays 338 captured units, produces 60 downstream multimodal candidates, generates 0 fetch requests, and passes state-machine audit with 0 findings.
+- [x] **Phase 4: Media Extraction Semantics Repair** — current readiness output now uses OCR/text-extraction-first media extraction semantics while preserving legacy multimodal filenames for compatibility.
 
 ## Phase 1: Operator Manifest Builder And Docs Wiring
 
@@ -118,5 +119,39 @@ Verification:
 uv run --all-packages python -m unittest \
   tests.ingestion.test_collected_notice_reimport_preview \
   tests.ingestion.test_collected_notice_multimodal_readiness \
+  tests.ingestion.test_authenticated_notice_state_machine_audit
+```
+
+## Phase 4: Media Extraction Semantics Repair
+
+Goal: remove the misleading default `multimodal` routing for captured PDFs and
+media-backed facts without breaking existing downstream preview filenames.
+
+Deliverables:
+
+- canonical `notice_media_extraction_candidate_inventory.v1` readiness payload.
+- compatibility `multimodal-candidate-inventory.json` output that carries the
+  same canonical payload plus `legacy_schema_version`.
+- OCR/text-extraction-first processing families:
+  `released_file_text_extraction`, `pdf_ocr_text_extraction`,
+  `office_text_extraction`, and `schedule_image_ocr`.
+- candidate-level `media_role` and `target_blocking` for target-specific fact gates.
+- quarantine cleanup gate that preserves expired object-backed bytes while
+  target-blocking media extraction candidates are still non-terminal.
+- state-machine audit guard for PDF/Office candidates incorrectly routed to
+  `internal_notice_multimodal` or `multimodal_fallback`.
+
+Verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_collected_notice_reimport_preview \
+  tests.ingestion.test_collected_notice_multimodal_readiness \
+  tests.ingestion.test_preview_collected_notice_multimodal_readiness_worker \
+  tests.ingestion.test_collected_notice_fact_readiness \
+  tests.ingestion.test_collected_notice_regulation_owner_text_recovery \
+  tests.ingestion.test_collected_notice_regulation_owner_text_execution \
+  tests.ingestion.test_collected_notice_regulation_admission \
+  tests.ingestion.test_collected_notice_service_status_downstream_replay \
   tests.ingestion.test_authenticated_notice_state_machine_audit
 ```

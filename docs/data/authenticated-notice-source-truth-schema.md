@@ -411,6 +411,11 @@ consumer admission manifest 决定。
   下游 owner source bytes。该 policy 表示 bytes 需要进入 quarantine processing，不等同于
   collector 必须重新 fetch；如果 collector 已经捕获并上传该 ref，状态必须写为
   `uploaded_quarantine`，`byte_fetch_required=false`。
+- quarantine cleanup 不得只按 `retention_expires_at` 删除 object-backed bytes；如果
+  media extraction candidate inventory 中存在 `target_blocking=true` 且引用同一
+  `source_object_ref` 的未终态 candidate，则必须阻塞删除。仅当所有阻塞 candidate 已进入
+  `completed`、`skipped` 或 `failed_terminal` 后，过期 quarantine bytes 才能按 lifecycle
+  cleanup。
 - `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 必须具备
   `object_key`、`content_sha256`、`byte_size` 与 `required_source_object=true`，否则 source
   import / downstream materialization 必须 fail closed。

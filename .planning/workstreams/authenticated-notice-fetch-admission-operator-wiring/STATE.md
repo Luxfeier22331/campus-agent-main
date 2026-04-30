@@ -8,12 +8,12 @@ updated: 2026-04-30
 
 ## Current Position
 **Status:** Active
-**Current Phase:** Phase 3 completed
+**Current Phase:** Phase 4 completed
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Completed current-code sample state-machine audit across 338 captured units; discover-only notices no longer enter downstream multimodal, fetch manifest is empty, and audit reports 0 findings.
+**Last Activity Description:** Repaired Phase 5 media readiness semantics so captured PDFs use OCR/text-extraction-first families instead of default multimodal routing; current 338-unit replay keeps 60 candidates with 56 released-file text extraction and 4 schedule image OCR candidates, 0 fetch requests, and 0 audit findings. Quarantine cleanup now preserves expired bytes while target-blocking media extraction candidates are still non-terminal.
 
 ## Progress
-**Phases Complete:** 3
+**Phases Complete:** 4
 **Current Plan:** `ROADMAP.md`
 
 ## Phase 1 Result
@@ -39,8 +39,8 @@ updated: 2026-04-30
 
 ## Next Slice
 
-Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine acceptance is currently clean.
+Refresh live portal auth when available and run a fresh selected collector smoke to prove operator manifest consumption against a live run; offline state-machine and media-readiness acceptance are currently clean.
 
 ## Session Continuity
-**Stopped At:** Phase 3 audit complete; live collector proof remains auth-dependent
+**Stopped At:** Phase 4 media extraction semantics repair complete; live collector proof remains auth-dependent
 **Resume File:** None

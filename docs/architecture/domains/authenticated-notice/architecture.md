@@ -486,6 +486,10 @@ source objects 分开：
   lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。已有 object-backed bytes 必须
   进入 `uploaded_quarantine`，下游 OCR/materializer 直接消费 object key；只有
   reference-only 且 policy 仍要求 bytes 时才进入 fetch manifest。
+- quarantine cleanup 必须以 media extraction candidate inventory 作为保护输入；凡是被
+  `target_blocking=true` candidate 的 `source_object_ref` 引用、且 candidate 尚未进入
+  `completed`、`skipped` 或 `failed_terminal` 的 object-backed quarantine bytes，即使
+  `retention_expires_at` 已过期也不得删除。
 
 ## Bootstrap Import Ownership
 
