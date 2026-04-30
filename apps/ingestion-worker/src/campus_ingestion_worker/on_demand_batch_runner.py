@@ -359,6 +359,18 @@ def run_authenticated_notice_closeout_batch(
                 args=tuple(gate_args),
             )
         )
+        steps.append(
+            IngestionBatchStep(
+                name="build_media_gate_evidence",
+                module="campus_ingestion_worker.build_authenticated_notice_media_gate_evidence",
+                args=(
+                    "--run-id",
+                    run_id,
+                    "--operations-dir",
+                    media_gate_output_dir,
+                ),
+            )
+        )
     if promote:
         steps.append(
             IngestionBatchStep(

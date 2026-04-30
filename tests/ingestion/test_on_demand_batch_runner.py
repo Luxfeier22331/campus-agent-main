@@ -85,6 +85,7 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
                 {"name": "run_closeout_workers", "status": "succeeded"},
                 {"name": "validate_chunking", "status": "succeeded"},
                 {"name": "audit_media_closeout_state_machine", "status": "succeeded"},
+                {"name": "build_media_gate_evidence", "status": "succeeded"},
                 {"name": "promote_closeout", "status": "succeeded"},
             ],
         ) as run_step:
@@ -120,6 +121,7 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
                 "run_closeout_workers",
                 "validate_chunking",
                 "audit_media_closeout_state_machine",
+                "build_media_gate_evidence",
                 "promote_closeout",
             ],
         )
@@ -163,8 +165,9 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         )
         self.assertEqual(steps[2].args, ("--closeout-run-id", "notice-20260427"))
         self.assertEqual(steps[3].name, "audit_media_closeout_state_machine")
+        self.assertEqual(steps[4].name, "build_media_gate_evidence")
         self.assertEqual(
-            steps[4].args,
+            steps[5].args,
             (
                 "--run-id",
                 "notice-20260427",
@@ -187,6 +190,7 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
             side_effect=[
                 {"name": "run_closeout_workers", "status": "succeeded"},
                 {"name": "audit_media_closeout_state_machine", "status": "succeeded"},
+                {"name": "build_media_gate_evidence", "status": "succeeded"},
                 {"name": "promote_closeout", "status": "succeeded"},
             ],
         ) as run_step:
@@ -207,6 +211,7 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
             [
                 "run_closeout_workers",
                 "audit_media_closeout_state_machine",
+                "build_media_gate_evidence",
                 "promote_closeout",
             ],
         )
@@ -234,7 +239,20 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
             ),
         )
         self.assertEqual(
+            steps[2].module,
+            "campus_ingestion_worker.build_authenticated_notice_media_gate_evidence",
+        )
+        self.assertEqual(
             steps[2].args,
+            (
+                "--run-id",
+                "notice-20260427",
+                "--operations-dir",
+                "/tmp/media-closeout-state-machine-audit",
+            ),
+        )
+        self.assertEqual(
+            steps[3].args,
             (
                 "--run-id",
                 "notice-20260427",
