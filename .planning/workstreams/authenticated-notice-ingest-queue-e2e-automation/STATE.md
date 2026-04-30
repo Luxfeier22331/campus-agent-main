@@ -11,13 +11,13 @@ updated: 2026-05-01
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Phase 2 next
+**Current Phase:** Phase 3 next
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed Phase 1 queue contract and lifecycle freeze.
+**Last Activity Description:** Completed Phase 2 manual run-level enqueue for verified collector run ledger rows.
 
 ## Progress
 
-**Phases Complete:** 1
+**Phases Complete:** 2
 **Current Plan:** `ROADMAP.md`
 
 ## Baseline Code Facts
@@ -35,7 +35,7 @@ updated: 2026-05-01
 ## Current Gaps
 
 - Collector does not auto-enqueue after verified run ledger write.
-- Historical/local-only collected content lacks one repair/synthetic ledger entrypoint before enqueue.
+- Local-only collected content still needs repair/synthetic ledger upload before enqueue.
 - Queue consumer does not execute the complete `run_id -> import -> media gate -> promotion -> downstream -> smoke` chain.
 - Media gate artifacts are still manually threaded into on-demand closeout/promotion paths.
 - Downstream materialization/read-model rebuild is not automatically triggered after promotion.
@@ -44,9 +44,9 @@ updated: 2026-05-01
 
 ## Next Slice
 
-Start Phase 2 by adding a manual historical enqueue / repair ledger entrypoint. The first implementation should accept an existing verified run ledger `run_id` and project it into `authenticated_notice_ingest_job.v1`; local-only artifacts must first be uploaded to source bucket and represented by a repair/synthetic ledger row before enqueue.
+Start Phase 3 by connecting collector verified-run completion to the run-level enqueue contract. The first implementation should keep collector ownership limited to emitting or invoking the queue enqueue after source bucket upload and run ledger verification; collector must not own downstream ingestion.
 
 ## Session Continuity
 
-**Stopped At:** Phase 1 complete; Phase 2 manual historical enqueue / repair ledger is next.
+**Stopped At:** Phase 2 complete for existing verified run ledger rows; Phase 3 collector verified-run auto-enqueue is next. Local-only repair/synthetic ledger upload remains part of the broader Phase 2/Phase 8 smoke path if no verified ledger row exists.
 **Resume File:** None

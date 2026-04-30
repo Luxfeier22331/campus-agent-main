@@ -60,6 +60,9 @@ def _format_text_summary(payload: dict[str, object]) -> str:
         "failed_retryable",
         "failed_terminal",
         "dead_letter",
+        "manual_review",
+        "blocked",
+        "cancelled",
     ):
         lines.append(f"{status}={int(counts.get(status, 0))}")
     return "\n".join(lines)

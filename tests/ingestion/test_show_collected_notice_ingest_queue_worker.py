@@ -19,6 +19,9 @@ class _FakeStore:
             "failed_retryable": 0,
             "failed_terminal": 1,
             "dead_letter": 1,
+            "manual_review": 2,
+            "blocked": 1,
+            "cancelled": 1,
         }
 
 
@@ -43,6 +46,7 @@ class ShowCollectedNoticeIngestQueueWorkerTest(unittest.TestCase):
         self.assertFalse(payload["write_enabled"])
         self.assertEqual(payload["status_counts"]["queued"], 2)
         self.assertEqual(payload["status_counts"]["dead_letter"], 1)
+        self.assertEqual(payload["status_counts"]["manual_review"], 2)
 
 
 if __name__ == "__main__":

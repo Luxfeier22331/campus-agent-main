@@ -12,7 +12,7 @@ updated: 2026-05-01
 ## Phase Status
 
 - [x] **Phase 1: Queue Contract And Lifecycle Freeze** — froze authenticated-notice run-level queue payload, lifecycle states, idempotency, retry/manual-review semantics, and docs.
-- [ ] **Phase 2: Manual Historical Enqueue And Repair Ledger** — enqueue already collected content through verified run ledger or repair/synthetic ledger rows.
+- [x] **Phase 2: Manual Historical Enqueue And Repair Ledger** — enqueue already collected content through verified run ledger or repair/synthetic ledger rows.
 - [ ] **Phase 3: Collector Verified-Run Auto-Enqueue** — make collector or its scheduler enqueue only after source bucket upload and run ledger verification.
 - [ ] **Phase 4: Run-Level Queue Consumer** — claim queue jobs by lease and execute source-object verification plus source-truth/import from `run_id`.
 - [ ] **Phase 5: Consumer-Owned Media Gate And Promotion Evidence** — generate media gate artifacts inside consumer operations truth and block promotion unless strict audit passes.
@@ -57,6 +57,15 @@ git diff --check
 ## Phase 2: Manual Historical Enqueue And Repair Ledger
 
 Goal: make already collected content enter the same queue contract without preserving a privileged manual path.
+
+Result:
+
+- Added `authenticated_notice_run_enqueue_plan.v1` and execute report.
+- Added `campus_ingestion_core.authenticated_notice_run_enqueue`.
+- Added worker CLI `campus_ingestion_worker.enqueue_authenticated_notice_collector_run`.
+- CLI resolves only successful verified collector run ledger rows before building queue jobs.
+- Dry-run writes evidence without constructing a queue store; execute writes idempotently to queue.
+- Existing queue status display now includes `manual_review`, `blocked`, and `cancelled`.
 
 Deliverables:
 
