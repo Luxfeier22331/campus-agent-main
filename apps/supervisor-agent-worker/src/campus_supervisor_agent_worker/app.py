@@ -13,6 +13,9 @@ from campus_supervisor_agent_worker.agent_runtime import (
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 from campus_supervisor_agent_worker.http_types import HttpResponse, HttpRoute
+from campus_supervisor_agent_worker.provider_tool_runtime_policy import (
+    provider_tool_runtime_status,
+)
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -46,6 +49,10 @@ class SupervisorAgentWorkerApp:
         return {
             "prompt_http_pool": self.prompt_http_pool.status(
                 admitted=self.runtime.prompt_runtime.admitted
+            ),
+            "provider_tool_runtime": _provider_tool_runtime_status(
+                settings=self.settings,
+                prompt_runtime_admitted=self.runtime.prompt_runtime.admitted,
             ),
             "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
         }
@@ -82,6 +89,7 @@ def _create_runtime_app(
         agent_handler=agent_handler,
         rag_prompt_executor=rag_prompt_executor,
         cancel_flags=cancel_flags,
+        prompt_http_client=prompt_http_pool.client,
     )
     routes = build_bridge_routes(
         runtime_settings,
@@ -89,6 +97,10 @@ def _create_runtime_app(
         prompt_runtime=prompt_runtime,
         runtime_status_provider=lambda: {
             "prompt_http_pool": prompt_http_pool.status(admitted=prompt_runtime.admitted),
+            "provider_tool_runtime": _provider_tool_runtime_status(
+                settings=runtime_settings,
+                prompt_runtime_admitted=prompt_runtime.admitted,
+            ),
             "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
         },
         cancel_flags=cancel_flags,
@@ -105,4 +117,19 @@ def _create_runtime_app(
         prompt_http_pool=prompt_http_pool,
         cancel_flags=cancel_flags,
         settings=runtime_settings,
+    )
+
+
+def _provider_tool_runtime_status(
+    *,
+    settings: ApiSettings,
+    prompt_runtime_admitted: bool,
+) -> dict[str, object]:
+    return provider_tool_runtime_status(
+        enabled=settings.provider_tool_runtime_enabled,
+        allowed_tools=settings.provider_tool_runtime_allowed_tools,
+        prompt_runtime_admitted=prompt_runtime_admitted,
+        structured_query_configured=bool(
+            settings.structured_query_base_url and settings.structured_query_shared_secret
+        ),
     )

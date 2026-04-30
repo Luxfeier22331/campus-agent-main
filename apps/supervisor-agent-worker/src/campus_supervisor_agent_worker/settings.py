@@ -15,6 +15,10 @@ from campus_shared.prompt_runtime import (
     DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
 )
 
+from campus_supervisor_agent_worker.provider_tool_runtime_policy import (
+    DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS,
+)
+
 DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES = 1_048_576
 
 
@@ -33,6 +37,19 @@ def _read_optional_int(name: str) -> int | None:
     if not normalized:
         return None
     return int(normalized)
+
+
+def _read_provider_tool_runtime_allowed_tools(name: str) -> tuple[str, ...]:
+    value = os.getenv(name)
+    if value is None:
+        return DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS
+    normalized = tuple(item.strip() for item in value.split(",") if item.strip())
+    if normalized != DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS:
+        raise ValueError(
+            f"{name} currently only supports "
+            f"{','.join(DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS)}"
+        )
+    return normalized
 
 
 def _read_int(name: str, *, default: int) -> int:
@@ -96,6 +113,10 @@ class ApiSettings:
     structured_query_base_url: str = ""
     structured_query_shared_secret: str = ""
     structured_query_timeout_seconds: float = 1.0
+    provider_tool_runtime_enabled: bool = False
+    provider_tool_runtime_allowed_tools: tuple[str, ...] = (
+        DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS
+    )
     retrieval_observation_jsonl_path: str = ""
     retrieval_observation_include_query_text: bool = False
     cancel_flag_ttl_seconds: float = 900.0
@@ -148,6 +169,11 @@ class ApiSettings:
             "structured_query_timeout_seconds",
             self.structured_query_timeout_seconds,
         )
+        if self.provider_tool_runtime_allowed_tools != DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS:
+            raise ValueError(
+                "provider_tool_runtime_allowed_tools currently only supports "
+                f"{DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS!r}"
+            )
         _require_positive_float("cancel_flag_ttl_seconds", self.cancel_flag_ttl_seconds)
 
     @classmethod
@@ -235,6 +261,13 @@ class ApiSettings:
             structured_query_timeout_seconds=_read_float(
                 "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
                 default=1.0,
+            ),
+            provider_tool_runtime_enabled=_read_bool(
+                "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED",
+                default=False,
+            ),
+            provider_tool_runtime_allowed_tools=_read_provider_tool_runtime_allowed_tools(
+                "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS"
             ),
             retrieval_observation_jsonl_path=os.getenv(
                 "SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH",

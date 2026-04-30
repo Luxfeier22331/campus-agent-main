@@ -6,6 +6,7 @@ from campus_contracts import (
     ContactDirectoryEntitySelector,
     ContactDirectoryLookupPayload,
     RagRequestPayload,
+    ServiceGuideLookupPayload,
     ServiceStatusLookupPayload,
     TemporalQuery,
     TransportRouteSelector,
@@ -28,6 +29,7 @@ from campus_supervisor_agent_worker.bridge_trace_codecs import (
 AgentPayload = (
     TransportScheduleLookupPayload
     | ServiceStatusLookupPayload
+    | ServiceGuideLookupPayload
     | ContactDirectoryLookupPayload
     | CampusNoticeDiscoverPayload
     | CampusNoticeGetPayload
@@ -60,6 +62,19 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
                 payload.get("campus_scope"), field_name="campus_scope"
             )
             or "",
+        )
+    if payload_kind == "service_guide_lookup":
+        return ServiceGuideLookupPayload(
+            service_query=require_string(payload.get("service_query"), field_name="service_query"),
+            guide_focus=require_string(payload.get("guide_focus"), field_name="guide_focus"),
+            temporal_query=parse_temporal_query(payload.get("temporal_query")),
+            campus_scope=parse_optional_string(
+                payload.get("campus_scope"), field_name="campus_scope"
+            )
+            or "",
+            audience=parse_optional_string(payload.get("audience"), field_name="audience")
+            or "unknown",
+            result_limit=parse_optional_int(payload.get("result_limit")),
         )
     if payload_kind == "contact_directory_lookup":
         entity_selector = payload.get("entity_selector")

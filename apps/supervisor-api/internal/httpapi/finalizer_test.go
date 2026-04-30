@@ -392,6 +392,13 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 						"payload_kind":          "service_status_lookup",
 						"tool_selection_reason": "typed_payload_allowed_tool",
 					},
+					"provider_tool_call_projection": map[string]any{
+						"schema_version":        "provider-tool-call-projection-v1",
+						"tool_call_id_source":   "repo",
+						"model_tool_call_ref":   "call-safe-123",
+						"model_response_ref":    "resp-safe-456",
+						"tool_output_submitted": true,
+					},
 					"result_guardrail": map[string]any{
 						"schema_version":   "agent-result-guardrail-v1",
 						"outcome":          "source_backed",
@@ -444,6 +451,15 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	if toolCall["tool_name"] != "service_status_lookup" {
 		t.Fatalf("tool_name = %v, want service_status_lookup", toolCall["tool_name"])
 	}
+	if toolCall["schema_version"] != "tool-call-summary-v1" ||
+		toolCall["tool_call_id"] != "single_handoff:campus-services-agent:service_status_lookup:tool_call" ||
+		toolCall["workflow_run_ref"] != "single_handoff:campus-services-agent:service_status_lookup" ||
+		toolCall["step_id"] != "tool_call" ||
+		toolCall["lifecycle_state"] != "completed" ||
+		toolCall["result_projection"] != "bounded_summary" ||
+		toolCall["raw_result_included"] != false {
+		t.Fatalf("tool call lifecycle projection = %#v, want canonical bounded lifecycle fields", toolCall)
+	}
 	if toolCall["result_status"] != "completed" {
 		t.Fatalf("result_status = %v, want completed", toolCall["result_status"])
 	}
@@ -487,6 +503,24 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	}
 	if _, exists := safeDetails["agent_plan"]; exists {
 		t.Fatalf("agent_plan = %#v, want absent for deterministic projection", safeDetails["agent_plan"])
+	}
+	providerProjection, ok := safeDetails["provider_tool_call_projection"].(map[string]any)
+	if !ok ||
+		providerProjection["tool_call_id_source"] != "repo" ||
+		providerProjection["model_tool_call_ref"] != "call-safe-123" ||
+		providerProjection["model_response_ref"] != "resp-safe-456" ||
+		providerProjection["tool_output_submitted"] != true {
+		t.Fatalf(
+			"provider_tool_call_projection = %#v, want safe provider call correlation",
+			safeDetails["provider_tool_call_projection"],
+		)
+	}
+	topLevelProviderProjection, ok := toolCall["provider_tool_call_projection"].(map[string]any)
+	if !ok || topLevelProviderProjection["model_tool_call_ref"] != "call-safe-123" {
+		t.Fatalf(
+			"tool_call provider_tool_call_projection = %#v, want top-level safe provider correlation",
+			toolCall["provider_tool_call_projection"],
+		)
 	}
 	resultGuardrail, ok := safeDetails["result_guardrail"].(map[string]any)
 	if !ok || resultGuardrail["outcome"] != "source_backed" {

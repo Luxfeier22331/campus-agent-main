@@ -7,6 +7,7 @@ from campus_evals.tool_family_denominator import (
     ToolObservation,
     evaluate_tool_family_denominator,
     load_tool_family_denominator,
+    tool_spec_tool_names,
 )
 
 
@@ -34,6 +35,14 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
                     set(tool.denominator_splits)
                 )
             )
+
+    def test_fixture_tool_names_match_tool_spec_registry(self) -> None:
+        fixture = load_tool_family_denominator()
+
+        self.assertEqual(
+            tuple(tool.tool_name for tool in fixture.tools),
+            tool_spec_tool_names(),
+        )
 
     def test_priority_tools_have_cases_for_each_required_split(self) -> None:
         fixture = load_tool_family_denominator()

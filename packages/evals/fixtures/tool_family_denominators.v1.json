@@ -8,12 +8,12 @@
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
-			"tool_name": "transport_schedule_lookup",
+			"tool_name": "service_guide_lookup",
 			"capability_family": "campus-services-agent",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
-			"tool_name": "service_guide_lookup",
+			"tool_name": "transport_schedule_lookup",
 			"capability_family": "campus-services-agent",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},

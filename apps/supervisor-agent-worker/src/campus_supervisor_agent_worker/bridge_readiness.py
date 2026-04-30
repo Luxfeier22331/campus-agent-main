@@ -5,6 +5,9 @@ from collections.abc import Callable, Mapping
 from campus_supervisor_agent_worker.bridge_auth import require_bridge_auth
 from campus_supervisor_agent_worker.http_types import HttpResponse
 from campus_supervisor_agent_worker.prompt_stack import PromptRuntimeSettings
+from campus_supervisor_agent_worker.provider_tool_runtime_policy import (
+    provider_tool_runtime_status,
+)
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 RuntimeStatusProvider = Callable[[], Mapping[str, Mapping[str, object]]]
@@ -33,7 +36,18 @@ def readyz(
         runtime_status.get("prompt_http_pool")
         or default_prompt_http_pool_status(settings=settings, admitted=runtime_prompt.admitted)
     )
-    degraded = not runtime_prompt.admitted or not bool(prompt_http_pool.get("healthy", True))
+    provider_tool_runtime = dict(
+        runtime_status.get("provider_tool_runtime")
+        or default_provider_tool_runtime_status(settings=settings, admitted=runtime_prompt.admitted)
+    )
+    provider_tool_runtime_degraded = bool(provider_tool_runtime.get("enabled")) and not bool(
+        provider_tool_runtime.get("admitted")
+    )
+    degraded = (
+        not runtime_prompt.admitted
+        or not bool(prompt_http_pool.get("healthy", True))
+        or provider_tool_runtime_degraded
+    )
     return HttpResponse(
         status_code=503 if degraded else 200,
         json_body={
@@ -53,6 +67,7 @@ def readyz(
                 "admission_reason": runtime_prompt.admission_reason,
             },
             "prompt_http_pool": prompt_http_pool,
+            "provider_tool_runtime": provider_tool_runtime,
             "worker_runtime": runtime_status.get("worker_runtime")
             or {"role": "semantic_worker", "cancel_flag_store": "available"},
         },
@@ -116,3 +131,18 @@ def default_prompt_http_pool_status(
         "max_keepalive_connections": settings.prompt_runtime_max_keepalive_connections,
         "keepalive_expiry_seconds": settings.prompt_runtime_keepalive_expiry_seconds,
     }
+
+
+def default_provider_tool_runtime_status(
+    *,
+    settings: ApiSettings,
+    admitted: bool,
+) -> dict[str, object]:
+    return provider_tool_runtime_status(
+        enabled=settings.provider_tool_runtime_enabled,
+        allowed_tools=settings.provider_tool_runtime_allowed_tools,
+        prompt_runtime_admitted=admitted,
+        structured_query_configured=bool(
+            settings.structured_query_base_url and settings.structured_query_shared_secret
+        ),
+    )

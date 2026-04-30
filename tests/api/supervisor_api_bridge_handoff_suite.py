@@ -1,3 +1,5 @@
+from campus_contracts import ServiceGuideLookupPayload
+
 from .supervisor_api_bridge_support import *
 
 
@@ -282,5 +284,37 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
                     version_id="v1:student-handbook",
                     compare_to_version_id="v2:student-handbook",
                 ),
+            ),
+        )
+
+    def test_bridge_parser_parses_go_preplanned_service_guide_handoff(self) -> None:
+        body = _bridge_v6_payload_with_handoff(
+            user_goal="宿舍入住怎么办理",
+            request_id="req-go-preplanned-service-guide",
+            trace_id="trace-go-preplanned-service-guide",
+            effective_capability="campus_services",
+            lane="campus_services",
+            handoff_target="campus-services-agent",
+            payload_kind="service_guide_lookup",
+            allowed_tools=["service_guide_lookup"],
+            payload={
+                "service_query": "宿舍入住怎么办理",
+                "guide_focus": "procedure",
+                "temporal_query": {"mode": "current"},
+                "audience": "unknown",
+            },
+        )
+
+        envelope = parse_bridge_supervisor_envelope(body)
+
+        self.assertIsNotNone(envelope.agent_request)
+        assert envelope.agent_request is not None
+        self.assertEqual(envelope.agent_request.target, "campus-services-agent")
+        self.assertEqual(envelope.agent_request.allowed_tools, ("service_guide_lookup",))
+        self.assertEqual(
+            envelope.agent_request.payload,
+            ServiceGuideLookupPayload(
+                service_query="宿舍入住怎么办理",
+                guide_focus="procedure",
             ),
         )

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 # Execution And Agents Architecture
 
@@ -177,6 +177,10 @@ Docker-side Go runtime control plane 长期负责：
   intent policy artifact；artifact 固定 policy / classifier / intent schema /
   case-set version、reason code registry 与 signal group taxonomy，避免 runtime
   源码内匿名 signal list 成为第二套 classifier truth
+- Go runtime policy 当前从 `configs/runtime/tools.v1.json` 加载 repo-owned ToolSpec
+  registry，并由它派生 structured handoff `allowed_tools`；`retrieval.query`
+  只作为 `rag-agent` 内部 retrieval step 进入 eval / observability denominator，
+  不作为 Go preplanned structured handoff tool 暴露
 - Go runtime policy 已显式区分 previous-goal follow-up、selected notice follow-up 与
   curriculum slot follow-up；缺上下文进入 routing clarification，多候选 previous-goal
   进入 ambiguous clarification，而不是继续让 prompt 或 Python fallback 猜测
@@ -293,6 +297,7 @@ Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-age
 候选，用来补齐：
 
 - code-first tool loop 与 handoff object modeling
+- provider-native function calling adapter 与 strict function schema execution
 - run / trace capture，便于投影到 repo-owned `workflow_trace_summary`
 - agent 内部 guardrail / approval checkpoint 的实现 ergonomics
 - resumable state 或 next-turn surface 的局部实现
@@ -308,7 +313,7 @@ Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-age
   regression lifecycle
 - source-truth / projection-backed structured query service 的 data-plane truth
 
-如果引入 Agents SDK，默认路径是 adapter/spike lane：
+如果引入 Agents SDK，默认路径是 gated adapter lane：
 
 `Go supervisor-api -> AgentRequest -> Python SDK-backed domain agent -> AgentResponse
 -> Go finalization`
@@ -316,6 +321,12 @@ Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-age
 SDK run / trace 只能作为内部 trace/debug input；进入 app-api / panel / eval 的内容必须先
 经过 repo-owned sanitized projection。不得把 SDK-native agent graph、tool schema 或 provider
 trace 直接写入 shared contracts。
+
+Provider-native function calling 的默认接入点同样只能在 domain-agent 内部。它不能替代 Go
+`apps/supervisor-api` 的 `allowed_tools`、tool admission、opening gate、runtime policy
+或 fail-close finalization。Python adapter 只能把 Go handoff 中已经允许的 tool 子集编译成
+provider function schema，并把 tool output 先收敛为 repo-owned typed result，再返回
+`AgentResponse`。
 
 引入 SDK 或其他 agent framework 之前，repo-owned workflow runtime 仍需继续补齐：
 
@@ -328,6 +339,97 @@ trace 直接写入 shared contracts。
   sanitized `workflow_trace_summary.context_projections` projection
 - eval denominator：继续覆盖 resume、semantic retry/replan、agent-owned clarification
   与 fail-close provenance，避免把固定两步链路误当完整通用 agent graph
+
+## Tool And Function Calling Target
+
+长期 tool use 采用 application-owned orchestration：
+
+`Go supervisor-api -> ToolSpec / allowed_tools -> domain-agent tool loop ->
+thin adapter -> internal query service -> sanitized AgentResponse -> Go finalization`
+
+固定 owner 如下：
+
+- `apps/supervisor-api`
+  - 拥有 deterministic tool admission、capability / lane / scope / version guard、
+    opening gate、workflow plan、max-call / timeout posture、fail-close terminal
+    semantics 与 low-cardinality observability labels
+- domain-agent
+  - 拥有 family 内部的 tool sequencing、agent clarification、provider-native
+    function calling adapter、typed result consumption 与 answer shaping
+- thin adapter
+  - 只负责 function arguments 到 repo-owned request DTO 的 glue code，不拥有业务
+    policy、不读 raw source、不自行扩大权限
+- internal query service / retrieval-core
+  - 负责读取 projection、read model、canonical artifact 或 retrieval index，并返回
+    typed result
+- `packages/evals`
+  - 拥有 tool selection、argument precision、no-tool correctness、fail-close
+    correctness、tool result usage 与 hallucinated tool prevention 的 denominator
+
+当前 `ToolSpec` registry 位于 `configs/runtime/tools.v1.json`，是 tool truth 的
+canonical artifact，而不是 scattered runtime 常量。`function_schema` 只表示某个
+structured handoff tool 可以生成 provider function schema；`runtime_posture` 才表达
+该 tool 是否只走 typed handoff、是否允许 provider argument completion pilot，或是否进入
+provider tool loop pilot / open runtime。schema 可用不等于 runtime 已开放。
+
+它至少约束：
+
+- tool name、owner agent、capability family 与 payload kind
+- request / result schema refs
+- read-only / state-changing posture
+- opening gate、allowed surface、source-truth owner 与 query service owner
+- timeout、max result size、parallel-call policy 与 retry / replan budget
+- argument summary policy 与 result projection policy
+- business outcome、fail-close reason 与 observability labels
+- eval denominator 与 provider function schema generation policy
+
+Provider-native function calling 只能由 ToolSpec 生成的 strict schema 驱动。agent framework
+或 provider SDK 可以承担调用循环、arguments validation ergonomics 与 trace capture，但 trace
+进入 app-api、panel、eval 或 workflow summary 前必须经过 repo-owned bounded projection。
+
+当前 Python worker 已有 repo-owned provider function-call adapter 与 gated provider
+tool loop：它只接收 Go `allowed_tools` 对应的 provider schema 子集，通过 injectable
+Responses HTTP runtime 发送 `tool_choice=required`、`parallel_tool_calls=false` 的
+第一轮请求，解析 Responses-style `function_call` output，并把 repo-owned bounded
+`function_call_output` 连同对应 provider `call_id` 提交给第二轮 provider finalization。
+缺失 call、wrong tool、非对象 arguments、final response malformed、schema 不存在或
+query service failure 都必须转成结构化 `AgentResponse` fail-close，而不是穿透为 bridge
+500。该 adapter 不把 raw provider response 写入 `AgentResponse`、workflow trace、panel 或
+eval canonical surface。
+
+该 provider tool runtime 仍是 default-off pilot：必须显式设置
+`SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED=true`，且
+`SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS` 当前只接受 `campus_notice_get`。
+Python `/internal/bridge/readyz` 会发布 `provider_tool_runtime` admission summary，并显式拆分
+`schema_available`、`runtime_enabled`、`runtime_admitted` 与 `runtime_posture`；
+gate 打开但 prompt runtime 或 structured query service 未配置时，worker readiness
+degraded。gate admitted 后，notice-agent 的 `campus_notice_get` delegate 会走 provider
+tool loop，再回到 repo-owned notice query service；其它 notice tool 仍走原 typed adapter。
+
+当前 workflow trace 的 tool call summary 已显式记录：
+
+- `workflow_run_ref`
+- step id
+- `tool_call_id`
+- tool name / owner agent
+- sanitized argument summary
+- result status / business outcome
+- fail-close reason
+- source refs 或 result hash
+- bounded result projection posture；raw tool result 不进入该 summary
+- provider tool loop correlation：repo-owned `tool_call_id` 仍是主 ID，provider
+  `call_id` / response id 只作为 sanitized `provider_tool_call_projection` 出现在
+  workflow trace 中，用于 debugging 与 eval，不替代 repo-owned lifecycle id
+
+默认禁止：
+
+- 模型看到全局工具全集后自由选择工具
+- provider-native remote MCP / built-in web search 作为 campus answer-bearing fallback
+- raw SQL、raw object-store read、collector live crawl、ingestion write 或 index build
+  暴露成 query-time tool
+- state-changing tool 在没有 approval / HITL / audit / rollback / eval contract 时进入
+  public chat 主路径
+- tool output 未裁剪就进入 prompt、workflow trace、panel 或 eval canonical asset
 
 ## Structured Runtime Families
 

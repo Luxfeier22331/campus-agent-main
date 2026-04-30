@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+import json
 import os
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
+    CampusNoticeGetPayload,
+    CampusNoticeGetResult,
+    KnowledgeScope,
+    RagRequestPayload,
+)
+from campus_notice_agent.query_service import NoticeGetQuery
+from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
 from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.provider_function_calling import ProviderFunctionToolRequest
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -37,6 +51,19 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "api_key_not_configured",
         )
         self.assertIn("prompt_http_pool", ready.json_body)
+        self.assertEqual(
+            ready.json_body["provider_tool_runtime"],
+            {
+                "enabled": False,
+                "admitted": False,
+                "admission_reason": "disabled",
+                "allowed_tools": ["campus_notice_get"],
+                "schema_available": True,
+                "runtime_enabled": False,
+                "runtime_admitted": False,
+                "runtime_posture": "provider_loop_pilot",
+            },
+        )
         self.assertNotIn("transport_runtime", ready.json_body)
         self.assertFalse(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertNotIn("audit_runtime", ready.json_body)
@@ -72,6 +99,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(ready.json_body["status"], "ready")
         self.assertTrue(ready.json_body["prompt_runtime"]["admitted"])
         self.assertEqual(ready.json_body["prompt_runtime"]["admission_reason"], "")
+        self.assertEqual(ready.json_body["provider_tool_runtime"]["admission_reason"], "disabled")
         self.assertTrue(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertEqual(ready.json_body["prompt_http_pool"]["max_connections"], 32)
         self.assertNotIn("transport_runtime", ready.json_body)
@@ -97,6 +125,8 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_THREADS": "7",
             "SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES": "2048",
             "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "123",
+            "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED": "true",
+            "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "campus_notice_get",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -120,7 +150,212 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.bridge_worker_threads, 7)
         self.assertEqual(settings.bridge_request_body_limit_bytes, 2048)
         self.assertEqual(settings.cancel_flag_ttl_seconds, 123)
+        self.assertTrue(settings.provider_tool_runtime_enabled)
+        self.assertEqual(settings.provider_tool_runtime_allowed_tools, ("campus_notice_get",))
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
+
+    def test_api_settings_from_env_reads_retrieval_observation_settings(self) -> None:
+        env = {
+            "SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH": "/tmp/retrieval-observations.jsonl",
+            "SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT": "true",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertEqual(
+            settings.retrieval_observation_jsonl_path,
+            "/tmp/retrieval-observations.jsonl",
+        )
+        self.assertTrue(settings.retrieval_observation_include_query_text)
+
+    def test_bridge_readyz_reports_provider_tool_runtime_gate_admission(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+                runtime_provider="openai-responses",
+                supervisor_prompt_model="gpt-supervisor",
+                agent_prompt_model="gpt-agent",
+                prompt_runtime_provider="openai-responses",
+                prompt_runtime_api_key="test-key",
+                prompt_runtime_base_url="https://api.openai.com/v1",
+                structured_query_base_url="https://supervisor-api.internal",
+                structured_query_shared_secret="structured-secret",
+                provider_tool_runtime_enabled=True,
+            )
+        )
+
+        ready = app.handle(
+            "GET",
+            "/internal/bridge/readyz",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+        )
+
+        self.assertEqual(ready.status_code, 200)
+        self.assertEqual(
+            ready.json_body["provider_tool_runtime"],
+            {
+                "enabled": True,
+                "admitted": True,
+                "admission_reason": "",
+                "allowed_tools": ["campus_notice_get"],
+                "schema_available": True,
+                "runtime_enabled": True,
+                "runtime_admitted": True,
+                "runtime_posture": "provider_loop_pilot",
+            },
+        )
+        app.close()
+
+    def test_bridge_readyz_degrades_when_provider_tool_runtime_enabled_without_query_service(
+        self,
+    ) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+                runtime_provider="openai-responses",
+                supervisor_prompt_model="gpt-supervisor",
+                agent_prompt_model="gpt-agent",
+                prompt_runtime_provider="openai-responses",
+                prompt_runtime_api_key="test-key",
+                prompt_runtime_base_url="https://api.openai.com/v1",
+                provider_tool_runtime_enabled=True,
+            )
+        )
+
+        ready = app.handle(
+            "GET",
+            "/internal/bridge/readyz",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+        )
+
+        self.assertEqual(ready.status_code, 503)
+        self.assertEqual(
+            ready.json_body["provider_tool_runtime"]["admission_reason"],
+            "structured_query_service_not_configured",
+        )
+        app.close()
+
+    def test_rag_delegate_wires_jsonl_retrieval_observation_sink_when_configured(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            observation_path = Path(temp_dir) / "retrieval-observations.jsonl"
+            settings = ApiSettings(
+                retrieval_observation_jsonl_path=str(observation_path),
+            )
+            with patch(
+                "campus_supervisor_agent_worker.agent_delegates.delegate_to_rag_agent"
+            ) as delegate:
+                delegate.return_value = AgentResponse(
+                    target="rag-agent",
+                    status="completed",
+                    answer_text="ok",
+                    confidence="high",
+                )
+                delegates = _build_agent_delegates(
+                    settings=settings,
+                    rag_prompt_executor=None,
+                    campus_services_query_service=None,
+                    notice_query_service=None,
+                )
+
+                response = delegates["rag-agent"](
+                    AgentRequest(
+                        target="rag-agent",
+                        user_goal="校园卡丢了怎么办",
+                        request_id="req-rag-jsonl",
+                        payload=RagRequestPayload(
+                            scope=KnowledgeScope(
+                                corpus="regulations",
+                                collection="student_rules",
+                            )
+                        ),
+                    )
+                )
+                observation_sink = delegate.call_args.kwargs["retrieval_observation_sink"]
+                observation_sink(
+                    {
+                        "schema_version": "retrieval-runtime-observation-v1",
+                        "request_id": "req-rag-jsonl",
+                        "query": "校园卡丢了怎么办",
+                        "scope": {
+                            "corpus": "regulations",
+                            "collection": "student_rules",
+                        },
+                    }
+                )
+            rows = [
+                json.loads(line)
+                for line in observation_path.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(rows[0]["request_id"], "req-rag-jsonl")
+
+    def test_notice_get_delegate_uses_provider_tool_runtime_when_gate_is_admitted(self) -> None:
+        captured_provider_requests: list[ProviderFunctionToolRequest] = []
+        query_service = _FakeNoticeGetQueryService()
+
+        def provider(request: ProviderFunctionToolRequest) -> dict[str, object]:
+            captured_provider_requests.append(request)
+            if len(captured_provider_requests) > 1:
+                return {
+                    "id": "resp-final",
+                    "output": [
+                        {
+                            "type": "message",
+                            "content": [{"type": "output_text", "text": "通知已读取。"}],
+                        }
+                    ],
+                }
+            return {
+                "id": "resp-tool",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "name": "campus_notice_get",
+                        "arguments": json.dumps(
+                            {"notice_id": "notice:provider-selected"},
+                            ensure_ascii=False,
+                        ),
+                        "call_id": "call-provider-selected",
+                    }
+                ]
+            }
+
+        delegates = _build_agent_delegates(
+            settings=ApiSettings(
+                provider_tool_runtime_enabled=True,
+                structured_query_base_url="https://supervisor-api.internal",
+                structured_query_shared_secret="structured-secret",
+            ),
+            rag_prompt_executor=None,
+            campus_services_query_service=None,
+            notice_query_service=query_service,
+            provider_tool_provider=provider,
+        )
+
+        response = delegates["notice-agent"](
+            AgentRequest(
+                target="notice-agent",
+                user_goal="读取这条通知",
+                request_id="req-provider-tool",
+                payload=CampusNoticeGetPayload(notice_id="notice:placeholder"),
+                allowed_tools=("campus_notice_get",),
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, "通知已读取。")
+        self.assertEqual(len(captured_provider_requests), 2)
+        captured_provider_request = captured_provider_requests[0]
+        self.assertEqual(
+            [tool["name"] for tool in captured_provider_request.tools],
+            ["campus_notice_get"],
+        )
+        self.assertEqual(captured_provider_requests[1].input_items[-1]["call_id"], "call-provider-selected")
+        self.assertIsNotNone(query_service.last_get_query)
+        assert query_service.last_get_query is not None
+        self.assertEqual(query_service.last_get_query.payload.notice_id, "notice:provider-selected")
 
     def test_api_settings_from_env_rejects_non_positive_cancel_flag_ttl(self) -> None:
         with (
@@ -161,6 +396,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             },
             {"PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "0"},
             {"PROMPT_RUNTIME_MAX_OUTPUT_TOKENS": "0"},
+            {"SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "campus_notice_discover"},
         )
         for env in invalid_envs:
             with (
@@ -183,6 +419,26 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 self.assertRaises(ValueError),
             ):
                 ApiSettings.from_env()
+
+
+class _FakeNoticeGetQueryService:
+    def __init__(self) -> None:
+        self.last_get_query: NoticeGetQuery | None = None
+
+    def get_notice(self, query: NoticeGetQuery) -> CampusNoticeGetResult:
+        self.last_get_query = query
+        return CampusNoticeGetResult(
+            notice_id=query.payload.notice_id,
+            outcome="resolved_current",
+            title="校历通知",
+            source_family="official_web_public_notice",
+            source_url="https://campus.example/notices/calendar",
+            canonical_url="https://campus.example/notices/calendar",
+            normalized_body="校历内容",
+        )
+
+    def discover_notice(self, _query):  # pragma: no cover - this test exercises notice get
+        raise AssertionError("notice get provider runtime must not call discover")
 
 
 if __name__ == "__main__":

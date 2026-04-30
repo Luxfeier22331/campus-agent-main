@@ -1,33 +1,38 @@
 package runtimepolicy
 
-var allowedToolsByTarget = map[string][]string{
-	"rag-agent":        {},
-	"navigation-agent": {},
-	"campus-services-agent": {
-		"service_status_lookup",
-		"service_guide_lookup",
-		"transport_schedule_lookup",
-		"contact_directory_lookup",
-	},
-	"notice-agent": {
-		"campus_notice_discover",
-		"campus_notice_get",
-	},
-}
+import "sync"
+
+var (
+	defaultToolSpecRegistryOnce sync.Once
+	defaultToolSpecRegistry     ToolSpecRegistry
+	defaultToolSpecRegistryOK   bool
+)
 
 func AllowedToolsForTarget(target string) []string {
-	allowedTools, ok := allowedToolsByTarget[target]
+	registry, ok := DefaultToolSpecRegistry()
 	if !ok {
 		return nil
 	}
-	return append(make([]string, 0, len(allowedTools)), allowedTools...)
+	return registry.AllowedToolsForTarget(target)
 }
 
 func AllowedToolsForPayloadKind(target string, payloadKind string) []string {
-	for _, tool := range allowedToolsByTarget[target] {
-		if tool == payloadKind {
-			return []string{payloadKind}
-		}
+	registry, ok := DefaultToolSpecRegistry()
+	if !ok {
+		return nil
 	}
-	return nil
+	return registry.AllowedToolsForPayloadKind(target, payloadKind)
+}
+
+func DefaultToolSpecRegistry() (ToolSpecRegistry, bool) {
+	defaultToolSpecRegistryOnce.Do(func() {
+		registry, err := LoadToolSpecRegistry("")
+		if err != nil {
+			defaultToolSpecRegistryOK = false
+			return
+		}
+		defaultToolSpecRegistry = registry
+		defaultToolSpecRegistryOK = true
+	})
+	return defaultToolSpecRegistry, defaultToolSpecRegistryOK
 }

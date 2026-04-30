@@ -282,6 +282,7 @@ func buildWorkflowTraceSummaryWire(
 		ToolArgumentSummary:    toolArgumentSummary,
 		TraceSteps:             run.StepMaps(),
 		ToolCallSummaries: workflowToolCallSummaries(
+			run,
 			selectedTool,
 			traceTarget,
 			status,
@@ -618,6 +619,7 @@ func workflowFinalizationParentStep(branch string, selectedTool string) string {
 }
 
 func workflowToolCallSummaries(
+	run execution.WorkflowRun,
 	selectedTool string,
 	target string,
 	status string,
@@ -629,12 +631,21 @@ func workflowToolCallSummaries(
 	if selectedTool == "" {
 		return []map[string]any{}
 	}
+	stepID := workflowToolCallStepID(run, selectedTool)
+	workflowRunRef := workflowRunRef(run, target, selectedTool)
 	summary := map[string]any{
-		"tool_name":        selectedTool,
-		"target":           target,
-		"result_status":    status,
-		"argument_summary": safeWorkflowMap(argumentSummary),
-		"source_ids":       workflowSourceIDs(result),
+		"schema_version":      "tool-call-summary-v1",
+		"tool_call_id":        workflowRunRef + ":" + stepID,
+		"workflow_run_ref":    workflowRunRef,
+		"step_id":             stepID,
+		"lifecycle_state":     workflowToolLifecycleState(status),
+		"result_projection":   "bounded_summary",
+		"raw_result_included": false,
+		"tool_name":           selectedTool,
+		"target":              target,
+		"result_status":       status,
+		"argument_summary":    safeWorkflowMap(argumentSummary),
+		"source_ids":          workflowSourceIDs(result),
 	}
 	if businessOutcome := defaultString(
 		stringValue(agentObservability["tool_outcome"]),
@@ -651,8 +662,42 @@ func workflowToolCallSummaries(
 	if safeDetails, ok := agentObservability["safe_details"].(map[string]any); ok &&
 		!hasForbiddenWorkflowTraceKey(safeDetails) {
 		summary["safe_details"] = safeDetails
+		if providerProjection, ok := safeDetails["provider_tool_call_projection"].(map[string]any); ok &&
+			!hasForbiddenWorkflowTraceKey(providerProjection) {
+			summary["provider_tool_call_projection"] = providerProjection
+		}
 	}
 	return []map[string]any{summary}
+}
+
+func workflowToolCallStepID(run execution.WorkflowRun, selectedTool string) string {
+	for _, step := range run.Steps {
+		if step.SpanKind == "tool_call" && step.ToolName == selectedTool {
+			return defaultString(step.StepID, "tool_call")
+		}
+	}
+	return "tool_call"
+}
+
+func workflowRunRef(run execution.WorkflowRun, target string, selectedTool string) string {
+	if run.RunID != "" {
+		return run.RunID
+	}
+	parts := []string{string(run.Mode)}
+	if target != "" {
+		parts = append(parts, target)
+	}
+	if selectedTool != "" {
+		parts = append(parts, selectedTool)
+	}
+	return strings.Join(parts, ":")
+}
+
+func workflowToolLifecycleState(status string) string {
+	if status == "error" || status == "cancelled" || status == "timed_out" {
+		return "failed"
+	}
+	return "completed"
 }
 
 func workflowToolArgumentSummary(

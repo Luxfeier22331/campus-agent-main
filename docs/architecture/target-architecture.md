@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-27
+updated: 2026-05-01
 ---
 # 目标架构
 
@@ -34,6 +34,8 @@ updated: 2026-04-27
 - 可替换 retrieval stack
 - eval-governed quality lifecycle
 - planner-first `agentic retrieval` target，且仍保持 bounded campus scope
+- repo-owned tool orchestration，provider-native function calling 只作为
+  domain-agent 内部 adapter
 
 长期主链路固定为：
 
@@ -65,6 +67,11 @@ raw/source-truth/projection/document/chunk/index`
 - planner 不能绕过 runtime profile、authz、source-trust 或 freshness gate
 - admitted live retrieval 只能命中 repo-owned source channel，不得退化为 general web
   fallback
+- provider-native function calling、remote MCP、built-in web tool 或其他外部 tool
+  substrate 不得替代 repo-owned admission、source-trust、ToolSpec、eval 与
+  observability truth
+- tool output 不得以 provider 原始 trace、raw function response 或未裁剪正文形式进入
+  app-api、panel、eval canonical asset 或 downstream prompt context
 
 ## 长期产品/runtime 形态
 
@@ -141,6 +148,57 @@ raw/source-truth/projection/document/chunk/index`
 
 如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 agent 接入，并拥有单独的
 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。
+
+## 长期 tool / function-calling 形态
+
+长期 tool 架构固定为：
+
+`Go supervisor-api deterministic admission -> ToolSpec / allowed_tools ->
+domain-agent optional provider-native tool loop -> thin adapter ->
+repo-owned internal query service -> sanitized result projection`
+
+其中：
+
+- Go `apps/supervisor-api` 拥有 tool admission、opening gate、capability / lane /
+  scope / version guard、`allowed_tools` planning、workflow policy 与 fail-close
+  terminal semantics
+- domain-agent 可以在自己的能力边界内使用 provider-native function calling 或
+  agent framework tool loop，但只能消费 Go handoff 中允许的 tool 子集
+- provider-native function calling 是 implementation substrate，不是 repo-level
+  orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
+  capability family
+- tool 必须优先建模为 read-only typed capability；state-changing tool 默认不进入
+  campus 主路径，除非另开 approval / HITL / audit / rollback / eval contract
+- tool 后端必须是 repo-owned internal query service、retrieval-core 或已 admission
+  的 source-channel adjunct，不得直接暴露 browser-facing API、raw SQL、raw object-store
+  bytes、collector runtime 或 ingestion/index build path
+- tool result 必须先变成 bounded result projection 或 `StepOutputProjection`，再进入
+  answer synthesis、workflow trace、operator projection 或下一步 handoff
+- remote MCP / provider built-in web search 只能作为 future admitted source-channel
+  adjunct；未 admission 前不得作为 campus answer-bearing fallback
+
+长期需要一个 repo-owned `ToolSpec` registry 作为 canonical artifact。该 registry 至少固定：
+
+- `tool_name`
+- owner agent / capability family
+- payload schema / result schema
+- read-only 或 state-changing posture
+- opening gate 与 allowed surface
+- source-truth owner / internal query service owner
+- timeout budget、max result size 与 parallel-call policy
+- temporal semantics、freshness policy 与 version behavior
+- argument summary 与 result projection policy
+- fail-close reason、business outcome 与 observability labels
+- eval denominator 与 provider function schema generation policy
+
+`ToolSpec` registry 应生成或校验：
+
+- Go runtime policy 的 target/tool allowlist
+- Go structured planner 的 payload kind 与 planning outcome
+- Python domain-agent adapter dispatch table
+- provider-native function schema
+- workflow trace / execution audit 的 sanitized projection
+- `packages/evals` tool selection、argument precision 与 fail-close denominator
 
 ## 长期 routing intent governance 形态
 
