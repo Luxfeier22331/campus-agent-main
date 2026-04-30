@@ -138,11 +138,15 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 query-enabled collection 的 release / serving hardening 固定包含以下层次：
 
 - alias publish 前的 deterministic retrieval acceptance gate
+- alias publish 前的 chunk quality gate；缺 traceability metadata、超过 chunk token budget
+  或 release metadata 不完整时 query-serving publish fail closed
 - release manifest / point payload 中的 dense、sparse、hybrid、chunk、cleaning 与 query
-  instruction provenance
-- runtime 查询 alias 前的 release drift guard；profile / release metadata 不一致时 fail
-  closed
-- `packages/evals` 持有的 per-collection qrels denominator 与 retrieval tuning report
+  instruction provenance，以及 quality gate / chunk quality / qrels coverage /
+  release metadata consistency status
+- runtime 查询 alias 前的 release drift guard；profile / release metadata 不一致或 sampled
+  point payload 混入不同 release/profile metadata 时 fail closed
+- `packages/evals` 持有的 per-collection qrels scenario denominator、retrieval tuning
+  report 与 sanitized runtime observation backlog intake
 
 固定规则：
 

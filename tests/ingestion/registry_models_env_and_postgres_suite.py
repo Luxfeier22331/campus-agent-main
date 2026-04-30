@@ -714,6 +714,60 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
         self.assertEqual(cursor.executemany_calls, [])
         self.assertTrue(any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls))
 
+    def test_attachment_fetch_status_store_repairs_legacy_fetch_status_check(self) -> None:
+        class _RecordingCursor:
+            def __init__(self) -> None:
+                self.execute_calls: list[tuple[str, tuple[object, ...] | None]] = []
+
+            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+                self.execute_calls.append((sql, params))
+
+            def fetchall(self) -> list[tuple[str]]:
+                return [("authenticated_notice_attachment_fetch_status_fetch_status_check",)]
+
+        class _CursorContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self.cursor = cursor
+
+            def __enter__(self) -> _RecordingCursor:
+                return self.cursor
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _ConnectionContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self._cursor = cursor
+
+            def __enter__(self) -> _ConnectionContext:
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def cursor(self) -> _CursorContext:
+                return _CursorContext(self._cursor)
+
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.authenticated_notice_attachment_fetch_status_store._patched_postgres_connection",
+            return_value=_ConnectionContext(cursor),
+        ):
+            PostgresAuthenticatedNoticeAttachmentFetchStatusStore(
+                "postgresql://registry.example/postgres"
+            )
+
+        statements = [sql for sql, _params in cursor.execute_calls]
+        self.assertTrue(
+            any(
+                'drop constraint if exists "authenticated_notice_attachment_fetch_status_fetch_status_check"'
+                in sql
+                for sql in statements
+            )
+        )
+        self.assertTrue(any("'reference_only'" in sql for sql in statements))
+
     def test_ensure_table_schema_serializes_schema_bootstrap_with_advisory_lock(self) -> None:
         class _RecordingCursor:
             def __init__(self) -> None:

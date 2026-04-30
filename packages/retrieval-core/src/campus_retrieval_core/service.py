@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import time
 from collections.abc import Callable, Sequence
 from threading import Lock
@@ -34,6 +35,7 @@ _RUNTIME_BACKEND_CACHE: dict[RetrievalSettings, QdrantRetrievalBackend] = {}
 _RUNTIME_BACKEND_CACHE_LOCK = Lock()
 ExecutableRetrievalRequestFn = Callable[[RetrievalRequest], EvidenceBundle]
 ExecutableLiveLookupFn = Callable[[RetrievalStep], EvidenceBundle]
+RetrievalObservationSink = Callable[[dict[str, object]], None]
 ReplanStepCallback = Callable[
     [RetrievalPlan, tuple[RetrievalStepResult, ...], RetrievalStepResult], Sequence[RetrievalStep]
 ]
@@ -111,6 +113,8 @@ def execute_retrieval_plan(
     retrieve_step: ExecutableRetrievalRequestFn | None = None,
     retrieve_live_step: ExecutableLiveLookupFn | None = None,
     replan_callback: ReplanStepCallback | None = None,
+    observation_sink: RetrievalObservationSink | None = None,
+    observation_request_id: str = "",
 ) -> RetrievalExecutionResult:
     runtime_backend = backend
     needs_indexed_executor = any(step.step_type == "indexed_lookup" for step in plan.steps)
@@ -236,7 +240,7 @@ def execute_retrieval_plan(
                 replan_count += 1
         step_index += 1
 
-    return RetrievalExecutionResult(
+    execution = RetrievalExecutionResult(
         plan=plan,
         step_results=tuple(step_results),
         merged_evidence=filter_merged_evidence_by_source_trust_policy(
@@ -249,6 +253,71 @@ def execute_retrieval_plan(
         ),
         replan_count=replan_count,
     )
+    if observation_sink is not None:
+        _emit_retrieval_observations(
+            execution=execution,
+            observation_sink=observation_sink,
+            request_id=observation_request_id,
+        )
+    return execution
+
+
+def _emit_retrieval_observations(
+    *,
+    execution: RetrievalExecutionResult,
+    observation_sink: RetrievalObservationSink,
+    request_id: str,
+) -> None:
+    for index, result in enumerate(execution.step_results, start=1):
+        if result.activity is None:
+            continue
+        observation_sink(
+            _build_retrieval_observation(
+                execution=execution,
+                result=result,
+                request_id=request_id or f"{execution.plan.plan_id}:step-{index}",
+            )
+        )
+
+
+def _build_retrieval_observation(
+    *,
+    execution: RetrievalExecutionResult,
+    result: RetrievalStepResult,
+    request_id: str,
+) -> dict[str, object]:
+    activity = result.activity
+    if activity is None:
+        raise ValueError("retrieval step activity is required to build monitoring observation")
+    scores = [float(source.score) for source in result.references if source.score is not None]
+    top_score = scores[0] if scores else None
+    return {
+        "schema_version": "retrieval-runtime-observation-v1",
+        "request_id": request_id,
+        "plan_id": execution.plan.plan_id,
+        "step_id": activity.step_id,
+        "query": activity.query_text,
+        "query_sha256": hashlib.sha256(activity.query_text.encode("utf-8")).hexdigest(),
+        "scope": {"corpus": activity.corpus, "collection": activity.collection},
+        "terminal_state": "failed_closed"
+        if result.status in {"blocked", "failed"}
+        else "completed",
+        "failure_kind": activity.failure_kind or "",
+        "candidate_count": activity.candidate_count,
+        "reference_count": activity.reference_count,
+        "top_score": top_score,
+        "score_gap": _score_gap(scores),
+        "top_source_ids": tuple(source.doc_id for source in result.references[:5]),
+        "target_document_ids": activity.target_document_ids,
+        "target_version_ids": activity.target_version_ids,
+        "latency_ms": activity.latency_ms,
+    }
+
+
+def _score_gap(scores: Sequence[float]) -> float | None:
+    if len(scores) < 2:
+        return None
+    return scores[0] - scores[1]
 
 
 def _execute_freshness_gate_step(

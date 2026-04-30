@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import time
+
+from campus_retrieval_core.backend_qdrant_release_guard import (
+    _cached_guard_result,
+    _profile_identity,
+)
 
 from tests.retrieval.backend_qdrant_test_support import (
     InMemoryDocumentRegistry,
@@ -27,23 +33,42 @@ class _NoSparseModel:
 
 
 class _ReleaseGuardQdrantClient:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self.payload = payload
+    def __init__(
+        self,
+        payload: dict[str, object] | None = None,
+        *,
+        payloads: tuple[dict[str, object], ...] | None = None,
+        collection_payload: dict[str, object] | None = None,
+    ) -> None:
+        self.payload = payload or {}
+        self.payloads = payloads or ((self.payload,) if payload is not None else ())
+        self.collection_payload = collection_payload
         self.scroll_calls = 0
+        self.get_collection_calls = 0
         self.query_calls = 0
 
     def collection_exists(self, collection_name: str, **kwargs: object) -> bool:
         return True
+
+    def get_collection(self, collection_name: str, **kwargs: object) -> object:
+        self.get_collection_calls += 1
+
+        class CollectionInfo:
+            def __init__(self, payload: dict[str, object] | None) -> None:
+                self.metadata = payload
+
+        return CollectionInfo(self.collection_payload)
 
     def scroll(self, **kwargs: object) -> tuple[list[qdrant_models.Record], None]:
         self.scroll_calls += 1
         return (
             [
                 qdrant_models.Record(
-                    id="point-release-metadata",
-                    payload=self.payload,
+                    id=f"point-release-metadata-{index}",
+                    payload=payload,
                     vector=None,
                 )
+                for index, payload in enumerate(self.payloads, start=1)
             ],
             None,
         )
@@ -70,6 +95,92 @@ class BackendQdrantReleaseGuardTest(unittest.TestCase):
 
         self.assertEqual(qdrant_client.scroll_calls, 1)
         self.assertEqual(qdrant_client.query_calls, 2)
+
+    def test_release_guard_fails_closed_on_mixed_sampled_release_ids(self) -> None:
+        profile = _make_runtime_profile()
+        first_payload = _release_payload(profile=profile, settings=_settings())
+        second_payload = dict(first_payload)
+        second_payload["index_release_id"] = "r20260430_stale_mixed_release"
+        qdrant_client = _ReleaseGuardQdrantClient(payloads=(first_payload, second_payload))
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "inconsistent release metadata"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_calls, 0)
+
+    def test_release_guard_cache_is_invalidated_by_profile_identity_change(self) -> None:
+        first_profile = _make_runtime_profile()
+        second_profile = _make_runtime_profile(dense_prefetch_limit=40)
+        qdrant_client = _ReleaseGuardQdrantClient(
+            _release_payload(profile=first_profile, settings=_settings())
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+            return_value=first_profile,
+        ):
+            backend.retrieve(_request())
+
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=second_profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "release metadata drift"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.scroll_calls, 2)
+        self.assertEqual(qdrant_client.query_calls, 1)
+
+    def test_release_guard_expired_cache_entry_is_removed_by_composite_key(self) -> None:
+        backend = _backend(
+            qdrant_client=_ReleaseGuardQdrantClient(
+                _release_payload(profile=_make_runtime_profile(), settings=_settings())
+            )
+        )
+        cache_key = "student_rules:profile-hash"
+        backend._release_drift_guard_cache[cache_key] = (
+            time.monotonic() - 1.0,
+            "r20260430_expired",
+            "passed",
+            "",
+        )
+
+        cached = _cached_guard_result(
+            backend,
+            collection_name="student_rules",
+            profile_identity="profile-hash",
+        )
+
+        self.assertIsNone(cached)
+        self.assertNotIn(cache_key, backend._release_drift_guard_cache)
+
+    def test_release_guard_fails_closed_on_profile_identity_hash_mismatch(self) -> None:
+        profile = _make_runtime_profile()
+        payload = _release_payload(profile=profile, settings=_settings())
+        payload["profile_identity_hash"] = "stale-profile-identity"
+        qdrant_client = _ReleaseGuardQdrantClient(payload)
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "profile_identity_hash"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_calls, 0)
 
     def test_release_guard_fails_closed_on_dense_embedding_model_mismatch(self) -> None:
         profile = _make_runtime_profile()
@@ -215,6 +326,11 @@ def _release_payload(*, profile, settings: RetrievalSettings) -> dict[str, objec
         "embedding_query_instruction_hash": hashlib.sha256(
             profile.embedding_query_instruction.encode("utf-8")
         ).hexdigest(),
+        "profile_identity_hash": _profile_identity(profile=profile, settings=settings),
+        "quality_gate_status": "passed",
+        "chunk_quality_status": "passed",
+        "qrels_coverage_status": "passed",
+        "release_metadata_consistency_status": "passed",
     }
 
 

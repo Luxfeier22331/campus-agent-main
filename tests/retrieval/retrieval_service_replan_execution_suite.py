@@ -158,6 +158,46 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
         )
         self.assertEqual(len(result.merged_evidence.sources), 1)
 
+    def test_execute_retrieval_plan_emits_sanitized_monitoring_observation(self) -> None:
+        observations: list[dict[str, object]] = []
+        plan = RetrievalPlan(
+            plan_id="official_web:stable_reference:no-hit",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="official_web", collection="stable_reference"),),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="official_web", collection="stable_reference"),
+                    query_text="校内宇宙签证办理处",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=lambda request: EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(),
+            ),
+            observation_sink=observations.append,
+            observation_request_id="req-no-hit",
+        )
+
+        self.assertEqual(result.step_results[0].status, "empty")
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["request_id"], "req-no-hit")
+        self.assertEqual(observations[0]["query"], "校内宇宙签证办理处")
+        self.assertEqual(
+            observations[0]["scope"],
+            {"corpus": "official_web", "collection": "stable_reference"},
+        )
+        self.assertEqual(observations[0]["candidate_count"], 0)
+        self.assertEqual(observations[0]["terminal_state"], "completed")
+
     def test_execute_retrieval_plan_fail_closes_when_replan_drops_existing_version_filter(
         self,
     ) -> None:

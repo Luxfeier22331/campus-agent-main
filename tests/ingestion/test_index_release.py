@@ -204,6 +204,7 @@ class IndexReleaseValidationTest(unittest.TestCase):
         self.assertEqual(manifest.rrf_dense_weight, runtime_profile.rrf_dense_weight)
         self.assertEqual(manifest.rrf_sparse_weight, runtime_profile.rrf_sparse_weight)
         self.assertRegex(manifest.embedding_query_instruction_hash, r"^[0-9a-f]{64}$")
+        self.assertRegex(manifest.profile_identity_hash, r"^[0-9a-f]{64}$")
 
         payload = build_release_metadata_payload(
             manifest=manifest,
@@ -214,6 +215,7 @@ class IndexReleaseValidationTest(unittest.TestCase):
         self.assertEqual(payload["sparse_model"], "qdrant/bm25")
         self.assertEqual(payload["dense_prefetch_limit"], runtime_profile.dense_prefetch_limit)
         self.assertEqual(payload["rrf_k"], runtime_profile.rrf_k)
+        self.assertEqual(payload["profile_identity_hash"], manifest.profile_identity_hash)
 
     def test_resolve_alias_target_does_not_fall_back_to_same_named_collection(self) -> None:
         qdrant_client = Mock()

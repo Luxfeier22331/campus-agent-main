@@ -15,6 +15,9 @@ from campus_ingestion_core.authenticated_notice_closeout_store import (
 from campus_ingestion_core.authenticated_notice_file_release_inventory import (
     build_authenticated_notice_file_release_inventory_store_from_env,
 )
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store import (
+    PostgresAuthenticatedNoticeAttachmentFetchStatusStore,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
@@ -165,6 +168,7 @@ __all__ = [
     "InMemoryDocumentRegistry",
     "InMemoryRawAssetRegistry",
     "Path",
+    "PostgresAuthenticatedNoticeAttachmentFetchStatusStore",
     "PostgresAuthenticatedNoticeCloseoutStore",
     "PostgresDocumentRegistry",
     "PostgresRawAssetRegistry",

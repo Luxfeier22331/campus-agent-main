@@ -631,6 +631,18 @@ def _load_index_release_manifest(
         rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or 0.0),
         embedding_query_instruction_hash=str(payload.get("embedding_query_instruction_hash") or ""),
         hybrid_query_profile_hash=str(payload.get("hybrid_query_profile_hash") or ""),
+        profile_identity_hash=str(payload.get("profile_identity_hash") or ""),
+        quality_gate_status=str(payload.get("quality_gate_status") or ""),
+        quality_gate_summary_object_key=(
+            None
+            if payload.get("quality_gate_summary_object_key") is None
+            else str(payload["quality_gate_summary_object_key"])
+        ),
+        chunk_quality_status=str(payload.get("chunk_quality_status") or ""),
+        qrels_coverage_status=str(payload.get("qrels_coverage_status") or "not_applicable"),
+        release_metadata_consistency_status=str(
+            payload.get("release_metadata_consistency_status") or ""
+        ),
     )
 
 

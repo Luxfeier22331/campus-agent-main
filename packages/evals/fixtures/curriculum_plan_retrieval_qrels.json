@@ -10,6 +10,15 @@
 		"sparse_language": "none",
 		"fusion": "rrf"
 	},
+	"coverage_scenarios": {
+		"program_title": ["ethnology-plan-title"],
+		"program_variant_disambiguation": ["history-strong-base-title"],
+		"academic_years": ["ethnology-second-degree-academic-years"],
+		"credit_total": ["ethnology-total-credits"],
+		"course_table": ["economics-course-settings-table"],
+		"semester_course_list": ["law-ethnic-class-fourth-semester-courses"],
+		"no_hit": ["no-hit-impossible-query"]
+	},
 	"cases": [
 		{
 			"case_id": "ethnology-plan-title",

@@ -2,7 +2,7 @@
 doc_type: state
 status: completed
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -12,14 +12,14 @@ updated: 2026-04-30
 ## Current Status
 
 **Status:** completed
-**Current Phase:** Phase 8 `Acceptance, Docs And Closeout`
-**Last Activity:** 2026-04-30 post-review gap hardening completed
+**Current Phase:** Phase 9 `Post-Review Release-Quality Closeout`
+**Last Activity:** 2026-05-01 post-review release-quality closeout completed
 
 - status: `completed`
-- current slice: Workstream closed after Phase 8 acceptance/docs/closeout
+- current slice: Workstream closed after Phase 9 post-review closeout
 - owner: current Codex session
 - active implementation: none
-- latest completed phase: Phase 8 `Acceptance, Docs And Closeout`
+- latest completed phase: Phase 9 `Post-Review Release-Quality Closeout`
 - next phase: none
 - status note: `gsd-sdk workstream.status` reports any phase directory with `PLAN.md` and no
   `SUMMARY.md` as `in_progress`; ROADMAP `Status:` lines remain the human execution truth for
@@ -27,7 +27,7 @@ updated: 2026-04-30
 
 ## Captured Context
 
-2026-04-30 review context:
+2026-05-01 post-review closeout context:
 
 - `docs/architecture/system/data-plane-architecture.md` freezes the canonical chain as
   `raw asset -> provider output -> source truth -> declared projections -> canonical
@@ -37,10 +37,21 @@ updated: 2026-04-30
   retrieval, release id hardening, and provider replay no-alias boundary.
 - Phase 0 evidence is captured at
   `evidence/phase-00-current-inventory.md`.
-- Current gaps:
-  - none for the closed workstream scope.
-  - Post-review hardening also closed qrels coverage, chunk quality audit, production
-    monitoring intake, and query-serving empty-release-metadata fail-closed gaps.
+- Gaps closed in Phase 9:
+  - Chunk quality audit is now a query-serving release blocking gate, with
+    `quality-gate-summary.json` release artifact evidence.
+  - Release manifest / point payload now carries quality gate status, chunk quality status,
+    qrels coverage status, and release metadata consistency status.
+  - Runtime drift guard samples collection metadata / multiple point payloads and fail-closes
+    mixed release/profile metadata.
+  - Runtime drift guard cache is keyed by collection plus profile identity, so profile changes
+    invalidate old guard results.
+  - Query embedding cache key includes provider/model/dimension and collection/profile
+    identity, not only normalized query text.
+  - Default query-enabled qrels coverage now requires declared scenario denominator entries,
+    not only class/count coverage.
+  - Retrieval monitoring can load sanitized runtime observation JSONL and emit deterministic
+    backlog JSON.
 
 ## Blockers
 
@@ -49,8 +60,8 @@ updated: 2026-04-30
   query-serving alias publish can pass; missing fixtures fail closed.
 - Phase 5 runtime drift guard posture is frozen: online query path uses Qdrant point payload /
   current release metadata; object-store manifest is audit / offline fallback only.
-- Phase 6 embedding cache uses deterministic provider/model/dimension identity; cache key
-  changes must invalidate stale vectors.
+- Phase 6/9 embedding cache uses deterministic provider/model/dimension/profile identity;
+  cache key changes must invalidate stale vectors.
 
 ## Verification Plan
 
@@ -107,6 +118,25 @@ uv run --all-packages python -m unittest \
 ```
 
 Result: `Ran 288 tests ... OK`.
+
+Phase 9 focused gate result:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_embed \
+  tests.ingestion.test_corpus_runtime_profile \
+  tests.ingestion.test_index_release_acceptance \
+  tests.ingestion.test_registry_scope_release \
+  tests.ingestion.test_index_release \
+  tests.ingestion.test_qdrant_backup \
+  tests.ingestion.test_qdrant_backup_worker \
+  tests.retrieval.test_backend_qdrant \
+  tests.retrieval.test_service \
+  tests.evals.test_retrieval_benchmark \
+  tests.evals.test_retrieval_tuning
+```
+
+Result: `Ran 296 tests ... OK`.
 
 Docs gate:
 

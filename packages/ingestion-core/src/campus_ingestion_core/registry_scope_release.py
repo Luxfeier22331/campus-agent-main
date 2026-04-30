@@ -9,7 +9,26 @@ from typing import Protocol
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
-from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
+from campus_ingestion_core.chunking import (
+    CURRICULUM_V1_CHUNK_POLICY_VERSION,
+    CURRICULUM_V1_MAX_CHUNK_SIZE,
+    CURRICULUM_V2_CHUNK_POLICY_VERSION,
+    CURRICULUM_V2_MAX_CHUNK_SIZE,
+    CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE,
+    DEFAULT_MAX_CHUNK_SIZE,
+    HANDBOOK_V1_CHUNK_POLICY_VERSION,
+    HANDBOOK_V2_CHUNK_POLICY_VERSION,
+    HANDBOOK_V2_MAX_CHUNK_SIZE,
+    HANDBOOK_V3_CHUNK_POLICY_VERSION,
+    HANDBOOK_V3_MAX_CHUNK_SIZE,
+    OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION,
+    OFFICIAL_WEB_V2_MAX_CHUNK_SIZE,
+)
+from campus_ingestion_core.corpus_profiles import (
+    CollectionRuntimeProfile,
+    load_chunk_profile,
+    load_runtime_profile,
+)
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     build_embedding_model,
@@ -34,6 +53,7 @@ from campus_ingestion_core.index_release import (
 )
 from campus_ingestion_core.index_release_acceptance import (
     build_release_retrieval_acceptance_executor,
+    evaluate_release_chunk_quality,
     load_release_retrieval_acceptance_cases,
     run_release_retrieval_acceptance,
 )
@@ -57,6 +77,68 @@ from campus_ingestion_core.sparse import SparseEmbeddingSettings, build_sparse_e
 
 DEFAULT_QDRANT_UPSERT_BATCH_SIZE = 128
 DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS = 60.0
+_DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES = {
+    "regulations/student_rules": "student_handbook_retrieval_qrels.json",
+    "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
+    "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
+    "official_web/stable_reference": "official_web_stable_reference_retrieval_qrels.json",
+}
+_DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY = {
+    "regulations/student_rules": {
+        "min_case_count": 15,
+        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
+        "required_scenarios": (
+            "policy_title_exact_match",
+            "article_number_exact_match",
+            "semantic_service_process",
+            "hard_negative",
+            "no_hit",
+            "version_locked",
+        ),
+    },
+    "regulations/institutional_rules": {
+        "min_case_count": 5,
+        "required_classes": (
+            "positive",
+            "no_hit",
+            "forbidden",
+            "version_locked",
+            "authz",
+        ),
+        "required_scenarios": (
+            "institutional_policy_title",
+            "effective_date",
+            "authz_denied",
+            "version_locked",
+            "no_hit",
+        ),
+    },
+    "curriculum/curriculum_plan": {
+        "min_case_count": 20,
+        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
+        "required_scenarios": (
+            "program_title",
+            "program_variant_disambiguation",
+            "academic_years",
+            "credit_total",
+            "course_table",
+            "semester_course_list",
+            "no_hit",
+        ),
+    },
+    "official_web/stable_reference": {
+        "min_case_count": 10,
+        "required_classes": ("positive", "no_hit", "forbidden", "version_locked"),
+        "required_scenarios": (
+            "school_profile",
+            "leadership",
+            "education_office",
+            "organization_profile",
+            "no_hit",
+            "hard_negative",
+        ),
+    },
+}
 
 
 class RegistryScopeObjectStore(Protocol):
@@ -106,6 +188,7 @@ def release_registry_scope(
     reset_index: bool = False,
     preparation_run_id: str | None = None,
     acceptance_case_path: str | None = None,
+    qrels_coverage_issues: Sequence[str] | None = None,
 ) -> RegistryScopeReleaseReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
@@ -204,6 +287,7 @@ def release_registry_scope(
         publish_alias=publish_alias,
         upsert_batch_size=_read_qdrant_upsert_batch_size(source),
         acceptance_case_path=acceptance_case_path,
+        qrels_coverage_issues=qrels_coverage_issues,
         retrieval_settings=(
             RetrievalSettings.from_env(source)
             if publish_alias and _requires_release_retrieval_acceptance(runtime_profile)
@@ -230,6 +314,7 @@ def publish_scope_release(
     embedding_dimensions: int | None = None,
     document_units_sha256_by_key: dict[str, str] | None = None,
     acceptance_case_path: str | None = None,
+    qrels_coverage_issues: Sequence[str] | None = None,
     retrieval_settings: RetrievalSettings | None = None,
     embedding_cache_stats: EmbeddingCacheStats | None = None,
 ) -> RegistryScopeReleaseReport:
@@ -254,6 +339,29 @@ def publish_scope_release(
         alias_name=binding.alias_name,
     )
     validation = validate_scope_release(corpus=corpus, collection=collection, chunks=tuple(chunks))
+    chunk_budget = _resolve_release_chunk_quality_budget(
+        corpus=corpus,
+        collection=collection,
+        runtime_profile=runtime_profile,
+    )
+    qrels_issues = _resolve_release_qrels_coverage_issues(
+        corpus=corpus,
+        collection=collection,
+        runtime_profile=runtime_profile,
+        publish_alias=publish_alias,
+        qrels_coverage_issues=qrels_coverage_issues,
+    )
+    qrels_coverage_required = publish_alias and _requires_release_retrieval_acceptance(
+        runtime_profile
+    )
+    quality_gate = evaluate_release_chunk_quality(
+        chunks=tuple(chunks),
+        max_token_count=chunk_budget.max_token_count,
+        max_token_count_source=chunk_budget.source,
+        max_token_count_by_unit_type=chunk_budget.max_token_count_by_unit_type,
+        qrels_coverage_issues=qrels_issues,
+        qrels_coverage_required=qrels_coverage_required,
+    )
     indexed_at = datetime.now(UTC).isoformat()
     prepublish_manifest = build_index_release_manifest(
         release_id=release_id,
@@ -273,7 +381,26 @@ def publish_scope_release(
         document_units_sha256_by_key=document_units_sha256_by_key,
         runtime_profile=runtime_profile,
         sparse_settings=getattr(sparse_embedding_model, "settings", None),
+        quality_gate_status=quality_gate.status,
+        chunk_quality_status=quality_gate.chunk_quality_status,
+        qrels_coverage_status=quality_gate.qrels_coverage_status,
+        release_metadata_consistency_status=quality_gate.release_metadata_consistency_status,
     )
+    if (
+        publish_alias
+        and _requires_release_retrieval_acceptance(runtime_profile)
+        and quality_gate.status != "passed"
+    ):
+        write_index_release_artifacts(
+            writer=object_store,
+            bucket=object_store_settings.bucket_derived,
+            manifest=prepublish_manifest,
+            validation_summary=validation.summary,
+            quality_gate_summary=quality_gate.summary,
+        )
+        raise ValueError(
+            f"release quality gate failed for {corpus}/{collection}: {quality_gate.summary}"
+        )
     release_metadata = build_release_metadata_payload(
         manifest=prepublish_manifest,
         manifest_object_key=(f"{corpus}/releases/{collection}/{release_id}/index-release.json"),
@@ -316,6 +443,7 @@ def publish_scope_release(
             bucket=object_store_settings.bucket_derived,
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
+            quality_gate_summary=quality_gate.summary,
         )
         if qdrant_client.collection_exists(physical_collection_name):
             qdrant_client.delete_collection(collection_name=physical_collection_name)
@@ -329,6 +457,7 @@ def publish_scope_release(
             bucket=object_store_settings.bucket_derived,
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
+            quality_gate_summary=quality_gate.summary,
         )
         return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
 
@@ -373,6 +502,11 @@ def publish_scope_release(
             retrieval_acceptance_status=acceptance_result.status,
             runtime_profile=runtime_profile,
             sparse_settings=getattr(sparse_embedding_model, "settings", None),
+            quality_gate_status=quality_gate.status,
+            quality_gate_summary_object_key=prepublish_manifest.quality_gate_summary_object_key,
+            chunk_quality_status=quality_gate.chunk_quality_status,
+            qrels_coverage_status=quality_gate.qrels_coverage_status,
+            release_metadata_consistency_status=quality_gate.release_metadata_consistency_status,
         )
         acceptance_artifacts = write_index_release_artifacts(
             writer=object_store,
@@ -380,6 +514,7 @@ def publish_scope_release(
             manifest=accepted_manifest,
             validation_summary=validation.summary,
             retrieval_acceptance_summary=acceptance_result.summary,
+            quality_gate_summary=quality_gate.summary,
         )
         if acceptance_result.status != "passed":
             if qdrant_client.collection_exists(physical_collection_name):
@@ -397,6 +532,7 @@ def publish_scope_release(
             bucket=object_store_settings.bucket_derived,
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
+            quality_gate_summary=quality_gate.summary,
         )
     published_manifest = build_index_release_manifest(
         release_id=release_id,
@@ -418,6 +554,11 @@ def publish_scope_release(
         retrieval_acceptance_summary_object_key=prepublish_manifest.retrieval_acceptance_summary_object_key,
         runtime_profile=runtime_profile,
         sparse_settings=getattr(sparse_embedding_model, "settings", None),
+        quality_gate_status=prepublish_manifest.quality_gate_status,
+        quality_gate_summary_object_key=prepublish_manifest.quality_gate_summary_object_key,
+        chunk_quality_status=prepublish_manifest.chunk_quality_status,
+        qrels_coverage_status=prepublish_manifest.qrels_coverage_status,
+        release_metadata_consistency_status=prepublish_manifest.release_metadata_consistency_status,
     )
     alias_published = False
     try:
@@ -435,6 +576,7 @@ def publish_scope_release(
             retrieval_acceptance_summary=(
                 acceptance_result.summary if acceptance_result is not None else None
             ),
+            quality_gate_summary=quality_gate.summary,
         )
         return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
     except Exception:
@@ -481,6 +623,205 @@ def _build_release_report(
         embedding_cache_miss_count=cache_stats.miss_count,
         embedding_provider_call_count=cache_stats.provider_call_count,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _ReleaseChunkQualityBudget:
+    max_token_count: int
+    source: str
+    max_token_count_by_unit_type: dict[str, int]
+
+
+def _resolve_release_chunk_quality_budget(
+    *,
+    corpus: str,
+    collection: str,
+    runtime_profile: CollectionRuntimeProfile,
+) -> _ReleaseChunkQualityBudget:
+    if corpus == "regulations" and collection == "student_rules":
+        handbook_limits = {
+            HANDBOOK_V1_CHUNK_POLICY_VERSION: DEFAULT_MAX_CHUNK_SIZE,
+            HANDBOOK_V2_CHUNK_POLICY_VERSION: HANDBOOK_V2_MAX_CHUNK_SIZE,
+            HANDBOOK_V3_CHUNK_POLICY_VERSION: HANDBOOK_V3_MAX_CHUNK_SIZE,
+        }
+        max_token_count = handbook_limits.get(runtime_profile.chunk_profile_version)
+        if max_token_count is None:
+            raise ValueError(
+                "unsupported student_rules chunk profile version for release gate: "
+                f"{runtime_profile.chunk_profile_version}"
+            )
+        return _ReleaseChunkQualityBudget(
+            max_token_count=max_token_count,
+            source="student_handbook_runtime_profile",
+            max_token_count_by_unit_type={},
+        )
+    if corpus == "curriculum" and collection == "curriculum_plan":
+        if runtime_profile.chunk_profile_version == CURRICULUM_V1_CHUNK_POLICY_VERSION:
+            max_token_count = CURRICULUM_V1_MAX_CHUNK_SIZE
+            table_max_token_count = CURRICULUM_V1_MAX_CHUNK_SIZE
+        elif runtime_profile.chunk_profile_version == CURRICULUM_V2_CHUNK_POLICY_VERSION:
+            max_token_count = CURRICULUM_V2_MAX_CHUNK_SIZE
+            table_max_token_count = CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE
+        else:
+            raise ValueError(
+                "unsupported curriculum chunk profile version for release gate: "
+                f"{runtime_profile.chunk_profile_version}"
+            )
+        return _ReleaseChunkQualityBudget(
+            max_token_count=max_token_count,
+            source="curriculum_runtime_profile",
+            max_token_count_by_unit_type={"table_unit": table_max_token_count},
+        )
+    if corpus == "official_web":
+        if runtime_profile.chunk_profile_version != OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION:
+            raise ValueError(
+                "unsupported official_web chunk profile version for release gate: "
+                f"{runtime_profile.chunk_profile_version}"
+            )
+        return _ReleaseChunkQualityBudget(
+            max_token_count=OFFICIAL_WEB_V2_MAX_CHUNK_SIZE,
+            source="official_web_runtime_profile",
+            max_token_count_by_unit_type={},
+        )
+    chunk_profile = load_chunk_profile(corpus, collection)
+    if chunk_profile.chunk_profile_version != runtime_profile.chunk_profile_version:
+        raise ValueError(
+            "chunk-profile version does not match runtime-profile for "
+            f"{corpus}/{collection}: "
+            f"{chunk_profile.chunk_profile_version} != {runtime_profile.chunk_profile_version}"
+        )
+    if chunk_profile.cleaning_policy_version != runtime_profile.cleaning_policy_version:
+        raise ValueError(
+            "chunk-profile cleaning policy does not match runtime-profile for "
+            f"{corpus}/{collection}: "
+            f"{chunk_profile.cleaning_policy_version} != {runtime_profile.cleaning_policy_version}"
+        )
+    lane_max_token_count = max(
+        (defaults.max_chunk_size for defaults in chunk_profile.lane_defaults.values()),
+        default=chunk_profile.runtime_defaults.max_chunk_size,
+    )
+    return _ReleaseChunkQualityBudget(
+        max_token_count=max(chunk_profile.runtime_defaults.max_chunk_size, lane_max_token_count),
+        source="collection_chunk_profile",
+        max_token_count_by_unit_type={},
+    )
+
+
+def _resolve_release_qrels_coverage_issues(
+    *,
+    corpus: str,
+    collection: str,
+    runtime_profile: CollectionRuntimeProfile,
+    publish_alias: bool,
+    qrels_coverage_issues: Sequence[str] | None,
+) -> tuple[str, ...]:
+    if not (publish_alias and _requires_release_retrieval_acceptance(runtime_profile)):
+        return tuple(str(issue) for issue in qrels_coverage_issues or () if str(issue).strip())
+    if qrels_coverage_issues is not None:
+        return tuple(str(issue) for issue in qrels_coverage_issues if str(issue).strip())
+    return _validate_default_qrels_coverage_for_scope(corpus=corpus, collection=collection)
+
+
+def _validate_default_qrels_coverage_for_scope(*, corpus: str, collection: str) -> tuple[str, ...]:
+    scope_key = f"{corpus}/{collection}"
+    fixture_name = _DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES.get(scope_key)
+    policy = _DEFAULT_QUERY_ENABLED_QRELS_COVERAGE_POLICY.get(scope_key)
+    if fixture_name is None or policy is None:
+        return (f"{scope_key}: missing qrels coverage policy",)
+    qrels_path = _repo_root() / "packages" / "evals" / "fixtures" / fixture_name
+    if not qrels_path.exists():
+        return (f"{scope_key}: missing qrels fixture {qrels_path}",)
+    payload = _load_json_object(qrels_path)
+    cases = tuple(item for item in payload.get("cases") or () if isinstance(item, dict))
+    issues: list[str] = []
+    case_count = len(cases)
+    min_case_count = int(policy["min_case_count"])
+    if case_count < min_case_count:
+        issues.append(f"{scope_key}: qrels case count {case_count} below minimum {min_case_count}")
+    coverage_classes = _raw_qrels_coverage_classes(cases)
+    for required_class in policy["required_classes"]:
+        if required_class not in coverage_classes:
+            issues.append(f"{scope_key}: missing qrels coverage class {required_class}")
+    declared_scenarios, scenario_issues = _declared_qrels_scenarios(payload=payload, cases=cases)
+    issues.extend(f"{scope_key}: {issue}" for issue in scenario_issues)
+    for required_scenario in policy["required_scenarios"]:
+        if required_scenario not in declared_scenarios:
+            issues.append(f"{scope_key}: missing qrels scenario {required_scenario}")
+    return tuple(issues)
+
+
+def _load_json_object(path) -> dict[str, object]:
+    import json
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"qrels fixture must be a JSON object: {path}")
+    return payload
+
+
+def _raw_qrels_coverage_classes(cases: Sequence[dict[str, object]]) -> set[str]:
+    coverage: set[str] = set()
+    for case in cases:
+        expected_sources = tuple(
+            item for item in case.get("expected_sources") or () if isinstance(item, dict)
+        )
+        forbidden_sources = tuple(
+            item for item in case.get("forbidden_sources") or () if isinstance(item, dict)
+        )
+        request_overrides = case.get("request_overrides")
+        if expected_sources:
+            coverage.add("positive")
+        else:
+            coverage.add("no_hit")
+        if forbidden_sources:
+            coverage.add("forbidden")
+        if any(str(source.get("version_id") or "").strip() for source in expected_sources):
+            coverage.add("version_locked")
+        if isinstance(request_overrides, dict) and request_overrides:
+            coverage.add("authz")
+    return coverage
+
+
+def _declared_qrels_scenarios(
+    *,
+    payload: dict[str, object],
+    cases: Sequence[dict[str, object]],
+) -> tuple[set[str], tuple[str, ...]]:
+    raw_scenarios = payload.get("coverage_scenarios")
+    if not isinstance(raw_scenarios, dict):
+        return set(), ("missing qrels coverage_scenarios",)
+    case_ids = {str(case.get("case_id") or "").strip() for case in cases}
+    scenarios: set[str] = set()
+    issues: list[str] = []
+    for scenario_id, raw_case_ids in raw_scenarios.items():
+        normalized_scenario_id = str(scenario_id).strip()
+        if not normalized_scenario_id:
+            issues.append("empty qrels scenario id")
+            continue
+        if not isinstance(raw_case_ids, list | tuple):
+            issues.append(f"qrels scenario {normalized_scenario_id} must list case ids")
+            continue
+        scenario_case_ids = tuple(
+            str(case_id).strip() for case_id in raw_case_ids if str(case_id).strip()
+        )
+        if not scenario_case_ids:
+            issues.append(f"qrels scenario {normalized_scenario_id} has no cases")
+            continue
+        missing_case_ids = sorted(set(scenario_case_ids) - case_ids)
+        if missing_case_ids:
+            issues.append(
+                f"qrels scenario {normalized_scenario_id} references missing cases: "
+                + ", ".join(missing_case_ids)
+            )
+            continue
+        scenarios.add(normalized_scenario_id)
+    return scenarios, tuple(issues)
+
+
+def _repo_root():
+    from pathlib import Path
+
+    return Path(__file__).resolve().parents[4]
 
 
 def _validate_chunk_embedding_runtime_identity(

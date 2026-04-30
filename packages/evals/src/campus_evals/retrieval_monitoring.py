@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -58,6 +60,40 @@ def build_retrieval_monitoring_backlog(
         candidates=tuple(candidates),
         counts_by_failure_class=counts,
     )
+
+
+def load_retrieval_runtime_observations_jsonl(path: str | Path) -> tuple[dict[str, Any], ...]:
+    observations: list[dict[str, Any]] = []
+    for line_number, line in enumerate(
+        Path(path).read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if not isinstance(payload, dict):
+            raise ValueError(f"runtime observation row {line_number} must be a JSON object")
+        observations.append(payload)
+    return tuple(observations)
+
+
+def retrieval_monitoring_backlog_to_dict(
+    report: RetrievalMonitoringBacklogReport,
+) -> dict[str, object]:
+    return {
+        "observation_count": report.observation_count,
+        "candidate_count": report.candidate_count,
+        "counts_by_failure_class": report.counts_by_failure_class,
+        "candidates": [
+            {
+                "request_id": candidate.request_id,
+                "query": candidate.query,
+                "scope_key": candidate.scope_key,
+                "failure_class": candidate.failure_class,
+                "recommended_action": candidate.recommended_action,
+            }
+            for candidate in report.candidates
+        ],
+    }
 
 
 def _classify_observation(
@@ -130,4 +166,6 @@ __all__ = [
     "RetrievalMonitoringBacklogReport",
     "RetrievalMonitoringCandidate",
     "build_retrieval_monitoring_backlog",
+    "load_retrieval_runtime_observations_jsonl",
+    "retrieval_monitoring_backlog_to_dict",
 ]

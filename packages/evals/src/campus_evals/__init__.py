@@ -265,6 +265,8 @@ from campus_evals.retrieval_monitoring import (
     RetrievalMonitoringBacklogReport,
     RetrievalMonitoringCandidate,
     build_retrieval_monitoring_backlog,
+    load_retrieval_runtime_observations_jsonl,
+    retrieval_monitoring_backlog_to_dict,
 )
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
@@ -617,6 +619,7 @@ __all__ = [
     "load_retrieval_benchmark_run",
     "load_retrieval_hybrid_query_dataset",
     "load_retrieval_qrels_dataset",
+    "load_retrieval_runtime_observations_jsonl",
     "load_retrieval_tuning_candidate_run",
     "load_tool_family_denominator",
     "load_tool_routing_cases",
@@ -649,6 +652,7 @@ __all__ = [
     "repair_live_benchmark_profile",
     "resolve_profile_id",
     "resolve_retrieval_fixture_manifest_path",
+    "retrieval_monitoring_backlog_to_dict",
     "retrieval_tuning_report_to_dict",
     "review_decision_for_lifecycle",
     "run_agentic_retrieval_plan_profile_gate",

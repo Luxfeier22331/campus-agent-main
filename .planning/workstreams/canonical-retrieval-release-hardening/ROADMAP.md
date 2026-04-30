@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: completed
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -13,7 +13,7 @@ updated: 2026-04-30
 
 All phases have `PLAN.md` files so the generic `gsd-sdk workstream.status` helper reports
 them as `in_progress`. For this workstream, execution truth is the explicit `Status:` line in
-this roadmap plus `STATE.md`: Phases 0-8 are complete.
+this roadmap plus `STATE.md`: Phases 0-9 are complete.
 
 ## Phase 0: Scope And Truth Alignment
 
@@ -157,3 +157,26 @@ this roadmap plus `STATE.md`: Phases 0-8 are complete.
 - 将 workstream 标记 completed 或留下明确 follow-up trigger。
 
 **Evidence:** `./phases/phase-08-acceptance-docs-and-closeout/SUMMARY.md`.
+
+## Phase 9: Post-Review Release-Quality Closeout
+
+**Status:** completed.
+
+**Goal:** 将 Phase 8 后 review 识别出的 helper-only / sample-only / identity-too-narrow
+缺口收敛为 release blocking gate、runtime fail-close guard 与 eval/monitoring denominator。
+
+**Scope:**
+
+- 将 chunk quality 从 eval helper 升级为 query-serving alias publish 前的 blocking gate。
+- 在 release manifest / point payload 中记录 quality gate、chunk quality、qrels coverage 与
+  release metadata consistency status。
+- 将 runtime drift guard 从单 point payload 读取升级为 collection metadata / multi-point
+  sampled consistency 校验，并把 cache key 绑定 profile identity。
+- 将 query embedding cache key 扩展为 provider/model/dimension + collection/profile
+  identity，避免跨模型或 profile 复用 query embedding。
+- 将默认 query-enabled qrels coverage 从 class/count 检查升级为 declared scenario
+  denominator 检查。
+- 为 retrieval monitoring 增加 sanitized runtime observation JSONL loader 与 backlog JSON
+  CLI。
+
+**Evidence:** `STATE.md` Phase 9 focused gate。

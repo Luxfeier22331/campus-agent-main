@@ -88,10 +88,46 @@ class BackendQdrantHotPathTest(unittest.TestCase):
 
         self.assertLessEqual(len(backend._dense_query_cache), 2)
         self.assertEqual(len(embedding_model.calls), 3)
-        self.assertNotIn(
-            "Instruct: " + profile.embedding_query_instruction + "\nQuery: second",
-            backend._dense_query_cache,
+        self.assertFalse(any("second" in key for key in backend._dense_query_cache))
+
+    def test_dense_query_cache_key_includes_embedding_and_profile_identity(self) -> None:
+        embedding_model = _FakeEmbeddingModel()
+        backend = QdrantRetrievalBackend(
+            RetrievalSettings(
+                qdrant_url=":memory:",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=Mock(),
+            embedding_model=embedding_model,
+            sparse_embedding_model=_NoSparseModel(),
+            dense_query_cache_ttl_seconds=60,
+            dense_query_cache_max_entries=8,
         )
+        profile = _make_runtime_profile()
+
+        first = get_dense_query_embedding(backend, "校园卡丢了怎么办", profile=profile)
+        second = get_dense_query_embedding(backend, "校园卡丢了怎么办", profile=profile)
+        backend.settings = RetrievalSettings(
+            qdrant_url=":memory:",
+            embedding_provider="mock",
+            embedding_model="mock-embedding-16d",
+            embedding_dimensions=16,
+        )
+        third = get_dense_query_embedding(backend, "校园卡丢了怎么办", profile=profile)
+        changed_profile = _make_runtime_profile(embedding_query_instruction="retrieve notices")
+        fourth = get_dense_query_embedding(
+            backend,
+            "校园卡丢了怎么办",
+            profile=changed_profile,
+        )
+
+        self.assertEqual(first, second)
+        self.assertNotEqual(second, third)
+        self.assertNotEqual(third, fourth)
+        self.assertEqual(len(embedding_model.calls), 3)
 
     def test_retrieve_threads_timeout_budget_to_qdrant_reads(self) -> None:
         qdrant_client = _FakeQdrantClient()

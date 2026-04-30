@@ -10,6 +10,14 @@
 		"sparse_language": "none",
 		"fusion": "rrf"
 	},
+	"coverage_scenarios": {
+		"school_profile": ["stable-reference-school-profile"],
+		"leadership": ["stable-reference-current-leadership"],
+		"education_office": ["stable-reference-undergraduate-education"],
+		"organization_profile": ["stable-reference-alumni-association-profile"],
+		"no_hit": ["stable-reference-no-hit-fictional-service"],
+		"hard_negative": ["stable-reference-school-overview"]
+	},
 	"cases": [
 		{
 			"case_id": "stable-reference-school-profile",

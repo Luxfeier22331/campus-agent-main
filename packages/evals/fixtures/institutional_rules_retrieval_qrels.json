@@ -7,6 +7,13 @@
 		"sparse_model": "qdrant/bm25",
 		"fusion": "rrf"
 	},
+	"coverage_scenarios": {
+		"institutional_policy_title": ["institutional-procurement-title"],
+		"effective_date": ["institutional-procurement-effective-date"],
+		"authz_denied": ["institutional-ai-guidance-authz-deny"],
+		"version_locked": ["institutional-ai-guidance-title-version"],
+		"no_hit": ["no-hit-impossible-institutional-rule"]
+	},
 	"cases": [
 		{
 			"case_id": "institutional-procurement-title",

@@ -356,6 +356,10 @@ retrieval benchmark CLI：
   `campus_evals.benchmark.default_query_enabled_retrieval_qrels_paths()` 固定：
   `regulations/student_rules`、`regulations/institutional_rules`、
   `curriculum/curriculum_plan` 与 `official_web/stable_reference`
+- 默认 query-enabled qrels 不只检查 case count / positive / no-hit / forbidden /
+  version/authz classes；fixture 还必须声明 `coverage_scenarios`，并把每个 required
+  scenario 绑定到已存在的 case id。缺 scenario 或 scenario 引用不存在的 case 都会让
+  `validate_default_query_enabled_qrels_coverage()` fail。
 - 对没有静态 `split-manifest.v1.json` 的 projection-derived scope，qrels validation
   可使用同目录 `retrieval-eval-manifest.v1.json` 作为 deterministic eval manifest；
   该 manifest 只服务 qrels anchoring，不替代 registry / release manifest truth
@@ -383,6 +387,17 @@ retrieval tuning CLI：
   recall 做 deterministic gate，并只在候选通过 gate 时输出 `recommended_profile_patch`
 - tuning runner 只生成 evidence-backed recommendation，不会自动修改 production
   `runtime-profile.json`，也不会扩大 query-enabled scope
+
+retrieval monitoring backlog CLI：
+
+- `uv run --all-packages python -m campus_evals.retrieval_monitoring_cli
+  --observations <sanitized-runtime-observations.jsonl> --output
+  <retrieval-monitoring-backlog.json>`
+- observation JSONL 输入必须是脱敏后的 runtime/operator artifact；典型字段包括
+  `request_id`、`timestamp`、`scope`、`query`、`terminal_state`、`candidate_count`、
+  `top_score`、`score_gap`、`failure_kind`、`release_id`、`profile_hash`
+- 输出只生成 deterministic backlog candidate；它不会自动改 qrels fixture、
+  `runtime-profile.json` 或 release manifest
 
 supplemental adapter seam：
 

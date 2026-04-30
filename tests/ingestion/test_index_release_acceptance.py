@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
@@ -11,6 +12,7 @@ from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.index_release_acceptance import (
     QdrantPhysicalCollectionAcceptanceExecutor,
     ReleaseRetrievalAcceptanceExecutor,
+    evaluate_release_chunk_quality,
     load_release_retrieval_acceptance_cases,
     run_release_retrieval_acceptance,
 )
@@ -452,6 +454,257 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
             any(key.endswith("retrieval-acceptance-summary.json") for key in upload_keys)
         )
 
+    def test_publish_scope_release_blocks_query_serving_alias_when_chunk_quality_fails(
+        self,
+    ) -> None:
+        record = _make_record()
+        qdrant_client = Mock()
+        qdrant_client.get_aliases.return_value.aliases = []
+        qdrant_client.collection_exists.return_value = False
+        object_store = _FakeObjectStore()
+        bad_chunk = replace(
+            _make_chunk(record=record),
+            metadata={
+                "unit_type": "section_text",
+                "final_token_count": 32,
+                "chunk_policy_version": "student_rules_semantic_v3",
+                "cleaning_policy_version": "student_rules_cleaning_v1",
+            },
+        )
+
+        with (
+            patch("campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant") as index,
+            patch("campus_ingestion_core.registry_scope_release.publish_release_alias") as alias,
+            self.assertRaisesRegex(ValueError, "release quality gate failed"),
+        ):
+            publish_scope_release(
+                corpus="regulations",
+                collection="student_rules",
+                records=(record,),
+                chunks=(bad_chunk,),
+                object_store=object_store,
+                qdrant_client=qdrant_client,
+                object_store_settings=_object_store_settings(),
+                runtime_profile=load_runtime_profile("regulations", "student_rules"),
+                sparse_embedding_model=object(),
+                publish_alias=True,
+                upsert_batch_size=128,
+                qrels_coverage_issues=(),
+                acceptance_case_path=str(
+                    _write_cases(
+                        {
+                            "cases": [
+                                {
+                                    "case_id": "expected-hit",
+                                    "corpus": "regulations",
+                                    "collection": "student_rules",
+                                    "query": "学生手册",
+                                    "expected_document_ids": ["student_rules:handbook"],
+                                }
+                            ]
+                        }
+                    )
+                ),
+            )
+
+        index.assert_not_called()
+        alias.assert_not_called()
+        upload_keys = [str(item["key"]) for item in object_store.uploads]
+        self.assertTrue(any(key.endswith("quality-gate-summary.json") for key in upload_keys))
+
+    def test_publish_scope_release_uses_collection_chunk_profile_budget(self) -> None:
+        record = replace(
+            _make_record(),
+            document_id="institutional_regulation:muc:procurement",
+            corpus="regulations",
+            collection="institutional_rules",
+            cleaning_policy_version="institutional_rules_cleaning_v1",
+            document_units_object_key="regulations/institutional_rules/procurement/document-units.jsonl",
+            processed_object_keys=(
+                "regulations/institutional_rules/procurement/document-units.jsonl",
+            ),
+        )
+        qdrant_client = Mock()
+        qdrant_client.get_aliases.return_value.aliases = []
+        qdrant_client.collection_exists.return_value = False
+        oversized_chunk = replace(
+            _make_chunk(record=record),
+            document_id=record.document_id,
+            chunk_id="institutional_regulation:muc:procurement:chunk-0001",
+            corpus="regulations",
+            collection="institutional_rules",
+            metadata={
+                "unit_type": "section_text",
+                "root_unit_id": "institutional_regulation:muc:procurement:root-0001",
+                "final_token_count": 361,
+                "chunk_policy_version": "institutional_rules_semantic_v1",
+                "cleaning_policy_version": "institutional_rules_cleaning_v1",
+            },
+        )
+        object_store = _FakeObjectStore()
+
+        with (
+            patch("campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant") as index,
+            patch("campus_ingestion_core.registry_scope_release.publish_release_alias") as alias,
+            self.assertRaisesRegex(ValueError, "token_count_exceeds_budget"),
+        ):
+            publish_scope_release(
+                corpus="regulations",
+                collection="institutional_rules",
+                records=(record,),
+                chunks=(oversized_chunk,),
+                object_store=object_store,
+                qdrant_client=qdrant_client,
+                object_store_settings=_object_store_settings(),
+                runtime_profile=load_runtime_profile("regulations", "institutional_rules"),
+                sparse_embedding_model=object(),
+                publish_alias=True,
+                upsert_batch_size=128,
+                qrels_coverage_issues=(),
+                acceptance_case_path=str(
+                    _write_cases(
+                        {
+                            "cases": [
+                                {
+                                    "case_id": "expected-hit",
+                                    "corpus": "regulations",
+                                    "collection": "institutional_rules",
+                                    "query": "采购工作管理办法",
+                                    "expected_document_ids": [record.document_id],
+                                }
+                            ]
+                        }
+                    )
+                ),
+            )
+
+        index.assert_not_called()
+        alias.assert_not_called()
+        quality_summary = _first_uploaded_json(object_store, filename="quality-gate-summary.json")
+        self.assertEqual(quality_summary["max_token_count"], 360)
+        self.assertEqual(quality_summary["max_token_count_source"], "collection_chunk_profile")
+
+    def test_publish_scope_release_blocks_query_serving_alias_when_qrels_coverage_fails(
+        self,
+    ) -> None:
+        record = _make_record()
+        qdrant_client = Mock()
+        qdrant_client.get_aliases.return_value.aliases = []
+        qdrant_client.collection_exists.return_value = False
+        object_store = _FakeObjectStore()
+
+        with (
+            patch("campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant") as index,
+            patch("campus_ingestion_core.registry_scope_release.publish_release_alias") as alias,
+            self.assertRaisesRegex(ValueError, "qrels_coverage_status"),
+        ):
+            publish_scope_release(
+                corpus="regulations",
+                collection="student_rules",
+                records=(record,),
+                chunks=(_make_chunk(record=record),),
+                object_store=object_store,
+                qdrant_client=qdrant_client,
+                object_store_settings=_object_store_settings(),
+                runtime_profile=load_runtime_profile("regulations", "student_rules"),
+                sparse_embedding_model=object(),
+                publish_alias=True,
+                upsert_batch_size=128,
+                qrels_coverage_issues=("regulations/student_rules: missing qrels scenario no_hit",),
+                acceptance_case_path=str(
+                    _write_cases(
+                        {
+                            "cases": [
+                                {
+                                    "case_id": "expected-hit",
+                                    "corpus": "regulations",
+                                    "collection": "student_rules",
+                                    "query": "学生手册",
+                                    "expected_document_ids": ["student_rules:handbook"],
+                                }
+                            ]
+                        }
+                    )
+                ),
+            )
+
+        index.assert_not_called()
+        alias.assert_not_called()
+        quality_summary = _first_uploaded_json(object_store, filename="quality-gate-summary.json")
+        self.assertEqual(quality_summary["qrels_coverage_status"], "failed")
+        self.assertEqual(
+            quality_summary["qrels_coverage_issues"],
+            ["regulations/student_rules: missing qrels scenario no_hit"],
+        )
+
+    def test_evaluate_release_chunk_quality_reports_traceability_and_budget_issues(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    metadata={
+                        "unit_type": "section_text",
+                        "final_token_count": 4097,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                    },
+                ),
+            ),
+            max_token_count=2048,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertEqual(report.chunk_quality_status, "failed")
+        self.assertIn("student_rules:handbook:chunk-0001", report.summary["issues_by_chunk_id"])
+        self.assertIn(
+            "missing_root_unit_id",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
+        )
+        self.assertIn(
+            "token_count_exceeds_budget",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
+        )
+
+    def test_evaluate_release_chunk_quality_rejects_semantic_non_evidence_chunks(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    chunk_id="student_rules:handbook:chunk-attachment-ref",
+                    metadata={
+                        "unit_type": "attachment_ref",
+                        "root_unit_id": "student_rules:handbook:root-attachment",
+                        "final_token_count": 8,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                    },
+                ),
+                replace(
+                    _make_chunk(record=record),
+                    chunk_id="student_rules:handbook:chunk-heading-only",
+                    text="总则",
+                    anchor={"section_path": ["总则"]},
+                    metadata={
+                        "unit_type": "section_text",
+                        "root_unit_id": "student_rules:handbook:root-heading",
+                        "final_token_count": 2,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "attachment_ref_not_query_serving_chunk",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-attachment-ref"],
+        )
+        self.assertIn(
+            "heading_only_chunk",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-heading-only"],
+        )
+
 
 def _write_cases(payload: dict[str, object]) -> Path:
     temp_dir = TemporaryDirectory()
@@ -462,6 +715,13 @@ def _write_cases(payload: dict[str, object]) -> Path:
 
 
 _CASE_DIRS: list[TemporaryDirectory[str]] = []
+
+
+def _first_uploaded_json(object_store: _FakeObjectStore, *, filename: str) -> dict[str, object]:
+    for upload in object_store.uploads:
+        if str(upload["key"]).endswith(filename):
+            return json.loads(bytes(upload["data"]).decode("utf-8"))
+    raise AssertionError(f"missing upload ending with {filename}")
 
 
 def _make_record() -> DocumentRegistryRecord:
@@ -513,6 +773,7 @@ def _make_chunk(*, record: DocumentRegistryRecord) -> IndexableChunk:
         metadata={
             "unit_type": "section_text",
             "final_token_count": 32,
+            "root_unit_id": "student_rules:handbook:root-0001",
             "chunk_policy_version": "student_rules_semantic_v3",
             "cleaning_policy_version": "student_rules_cleaning_v1",
         },

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,6 +27,8 @@ from campus_ingestion_core.sparse import (
     SparseEmbeddingSettings,
     build_sparse_embedding_model,
 )
+
+_TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9_]+|[^\s]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +91,15 @@ class ReleaseRetrievalAcceptanceCase:
 @dataclass(frozen=True, slots=True)
 class ReleaseRetrievalAcceptanceResult:
     status: str
+    summary: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class ReleaseQualityGateResult:
+    status: str
+    chunk_quality_status: str
+    qrels_coverage_status: str
+    release_metadata_consistency_status: str
     summary: dict[str, object]
 
 
@@ -280,6 +292,103 @@ def build_release_retrieval_acceptance_executor(
     )
 
 
+def evaluate_release_chunk_quality(
+    *,
+    chunks: Sequence[object],
+    max_token_count: int,
+    max_token_count_source: str = "explicit",
+    max_token_count_by_unit_type: dict[str, int] | None = None,
+    required_metadata_fields: Sequence[str] = ("root_unit_id", "chunk_policy_version"),
+    qrels_coverage_issues: Sequence[str] = (),
+    qrels_coverage_required: bool = True,
+) -> ReleaseQualityGateResult:
+    issues_by_chunk_id: dict[str, tuple[str, ...]] = {}
+    seen_chunk_ids: set[str] = set()
+    unit_type_budgets = dict(max_token_count_by_unit_type or {})
+    for index, chunk in enumerate(chunks, start=1):
+        chunk_id = _required_text(_chunk_value(chunk, "chunk_id")) or f"row-{index}"
+        issues: list[str] = []
+        for field_name in (
+            "document_id",
+            "version_id",
+            "chunk_id",
+            "chunk_order",
+            "corpus",
+            "collection",
+            "text",
+            "source_uri",
+        ):
+            if not _has_value(_chunk_value(chunk, field_name)):
+                issues.append(f"missing_{field_name}")
+        if chunk_id in seen_chunk_ids:
+            issues.append("duplicate_chunk_id")
+        seen_chunk_ids.add(chunk_id)
+        metadata = _mapping_value(_chunk_value(chunk, "metadata"))
+        anchor = _mapping_value(_chunk_value(chunk, "anchor"))
+        for metadata_field in required_metadata_fields:
+            if not (
+                _has_value(_chunk_value(chunk, metadata_field))
+                or _has_value(metadata.get(metadata_field))
+                or _has_value(anchor.get(metadata_field))
+            ):
+                issues.append(f"missing_{metadata_field}")
+        token_count = _coerce_int(metadata.get("final_token_count"))
+        if token_count is None:
+            token_count = _count_tokens(str(_chunk_value(chunk, "text") or ""))
+        unit_type = _required_text(metadata.get("unit_type")) or ""
+        chunk_max_token_count = unit_type_budgets.get(unit_type, max_token_count)
+        if chunk_max_token_count > 0 and token_count > chunk_max_token_count:
+            issues.append("token_count_exceeds_budget")
+        if unit_type == "attachment_ref":
+            issues.append("attachment_ref_not_query_serving_chunk")
+        if _is_heading_only_regulation_chunk(
+            chunk=chunk,
+            metadata=metadata,
+            anchor=anchor,
+            token_count=token_count,
+        ):
+            issues.append("heading_only_chunk")
+        if issues:
+            issues_by_chunk_id[chunk_id] = tuple(dict.fromkeys(issues))
+
+    chunk_issue_count = sum(len(issues) for issues in issues_by_chunk_id.values())
+    qrels_issues = tuple(str(issue) for issue in qrels_coverage_issues if str(issue).strip())
+    chunk_quality_status = "passed" if chunk_issue_count == 0 else "failed"
+    if not qrels_coverage_required:
+        qrels_coverage_status = "not_applicable" if not qrels_issues else "failed"
+    else:
+        qrels_coverage_status = "passed" if not qrels_issues else "failed"
+    release_metadata_consistency_status = "passed"
+    status = (
+        "passed"
+        if chunk_quality_status == "passed"
+        and qrels_coverage_status in {"passed", "not_applicable"}
+        and release_metadata_consistency_status == "passed"
+        else "failed"
+    )
+    return ReleaseQualityGateResult(
+        status=status,
+        chunk_quality_status=chunk_quality_status,
+        qrels_coverage_status=qrels_coverage_status,
+        release_metadata_consistency_status=release_metadata_consistency_status,
+        summary={
+            "status": status,
+            "chunk_count": len(chunks),
+            "chunk_quality_status": chunk_quality_status,
+            "chunk_issue_count": chunk_issue_count,
+            "issues_by_chunk_id": issues_by_chunk_id,
+            "max_token_count": max_token_count,
+            "max_token_count_source": max_token_count_source,
+            "max_token_count_by_unit_type": dict(sorted(unit_type_budgets.items())),
+            "required_metadata_fields": tuple(required_metadata_fields),
+            "qrels_coverage_status": qrels_coverage_status,
+            "qrels_coverage_issues": qrels_issues,
+            "qrels_coverage_required": qrels_coverage_required,
+            "release_metadata_consistency_status": release_metadata_consistency_status,
+        },
+    )
+
+
 def _coerce_case(raw_case: dict[str, object]) -> ReleaseRetrievalAcceptanceCase:
     return ReleaseRetrievalAcceptanceCase(
         case_id=str(raw_case.get("case_id") or ""),
@@ -368,12 +477,68 @@ def _qdrant_http_timeout_seconds(value: float | int | None) -> int | None:
     return max(math.ceil(float(value)), 1)
 
 
+def _chunk_value(chunk: object, field_name: str) -> object:
+    if isinstance(chunk, dict):
+        return chunk.get(field_name)
+    return getattr(chunk, field_name, None)
+
+
+def _mapping_value(value: object) -> dict[str, object]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _count_tokens(text: str) -> int:
+    return len(_TOKEN_RE.findall(text))
+
+
+def _has_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return True
+
+
+def _required_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _coerce_int(value: object) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_heading_only_regulation_chunk(
+    *,
+    chunk: object,
+    metadata: dict[str, object],
+    anchor: dict[str, object],
+    token_count: int,
+) -> bool:
+    if _chunk_value(chunk, "corpus") != "regulations":
+        return False
+    if str(metadata.get("unit_type") or "") != "section_text":
+        return False
+    text = str(_chunk_value(chunk, "text") or "").strip()
+    if not text or "\n" in text or token_count > 16:
+        return False
+    section_path = tuple(str(item).strip() for item in anchor.get("section_path") or ())
+    return bool(section_path and text == section_path[-1])
+
+
 __all__ = [
     "QdrantPhysicalCollectionAcceptanceExecutor",
+    "ReleaseQualityGateResult",
     "ReleaseRetrievalAcceptanceCase",
     "ReleaseRetrievalAcceptanceExecutor",
     "ReleaseRetrievalAcceptanceResult",
     "build_release_retrieval_acceptance_executor",
+    "evaluate_release_chunk_quality",
     "load_release_retrieval_acceptance_cases",
     "run_release_retrieval_acceptance",
 ]
