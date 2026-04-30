@@ -43,6 +43,10 @@ from campus_ingestion_core.authenticated_notice_import_sources import (
     explicit_authenticated_notice_import_object_refs,
     load_authenticated_notice_import_payload_from_object_refs,
 )
+from campus_ingestion_core.authenticated_notice_notice_family import (
+    load_authenticated_notice_notice_family_config,
+    read_authenticated_notice_notice_family_config_path,
+)
 from campus_ingestion_core.authenticated_notice_source_projections import (
     _load_json_payload,
     _load_jsonl_rows,
@@ -229,6 +233,9 @@ def prepare_authenticated_notice_bundle_records(
     export_manifest: dict[str, Any] | None = None,
 ) -> AuthenticatedNoticeBundleImportResult:
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
+    notice_family_config = load_authenticated_notice_notice_family_config(
+        read_authenticated_notice_notice_family_config_path({})
+    )
     prepared: list[AuthenticatedNoticePreparedImport] = []
     for bundle_record in bundle_records:
         material = prepare_authenticated_notice_source_material(
@@ -236,6 +243,7 @@ def prepare_authenticated_notice_bundle_records(
             export_manifest=export_manifest,
             site_id=request.site_id,
             source_home_url=request.source_home_url,
+            notice_family_config=notice_family_config,
         )
         prepared.append(
             _prepare_notice_import(

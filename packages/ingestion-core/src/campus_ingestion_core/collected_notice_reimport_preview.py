@@ -155,6 +155,7 @@ class _PreparedPreviewItem:
     multimodal_status: str
     reason_codes: tuple[str, ...]
     classification: dict[str, Any]
+    source_retention: dict[str, Any]
 
 
 def select_collected_notice_reimport_run_refs(
@@ -444,6 +445,10 @@ def _prepare_notice_run_preview_items(
             bucket_source=bucket_source,
             bucket_derived=bucket_derived,
             classification_config=classification_config,
+            source_retention=_source_retention_summary_from_manifest(
+                notice_manifest=notice_manifest,
+                attachment_refs=attachment_refs,
+            ),
         )
         items.append(item)
     return tuple(items)
@@ -501,6 +506,12 @@ def _prepare_file_release_run_preview_items(
             prepared.source_truth_artifacts["source-truth/released-file-ref.json"]
         )
         document = prepared.document_import
+        attachment_refs = (
+            _file_release_required_attachment_ref(
+                file_release_id=str(prepared.file_release_id),
+                released_file_ref=released_file_ref,
+            ),
+        )
         item = _prepared_preview_item(
             source_surface=FILE_RELEASE_SOURCE_SURFACE,
             run_ref=run_ref,
@@ -516,21 +527,7 @@ def _prepare_file_release_run_preview_items(
                 manifest.get("filedepartment") or manifest.get("explain_department") or ""
             ),
             content_blocks=content_blocks,
-            attachment_refs=(
-                {
-                    "schema_version": "file_release_source_ref_preview.v1",
-                    "attachment_ref_id": f"file_release:{prepared.file_release_id}",
-                    "resource_role": "released_file",
-                    "source_url": released_file_ref.get("source_url"),
-                    "final_url": released_file_ref.get("final_url"),
-                    "original_filename": released_file_ref.get("original_filename"),
-                    "mime_type": released_file_ref.get("mime_type"),
-                    "byte_size": released_file_ref.get("byte_size"),
-                    "object_key": released_file_ref.get("object_key"),
-                    "content_sha256": released_file_ref.get("content_sha256"),
-                    "bucket": released_file_ref.get("bucket"),
-                },
-            ),
+            attachment_refs=attachment_refs,
             source_artifact_keys=prepared.source_artifact_keys,
             raw_asset_id=prepared.raw_record.raw_asset_id,
             raw_version_id=prepared.raw_record.raw_version_id,
@@ -541,6 +538,10 @@ def _prepare_file_release_run_preview_items(
             bucket_source=bucket_source,
             bucket_derived=bucket_derived,
             classification_config=classification_config,
+            source_retention=_source_retention_summary_from_attachment_refs(
+                notice_capture_route="candidate_document_owner",
+                attachment_refs=attachment_refs,
+            ),
         )
         items.append(item)
     return tuple(items)
@@ -571,6 +572,7 @@ def _prepared_preview_item(
     bucket_source: str,
     bucket_derived: str,
     classification_config: Any,
+    source_retention: Mapping[str, Any] | None = None,
 ) -> _PreparedPreviewItem:
     document_id = str(document.metadata["document_id"])
     version_id = str(document.metadata["version_id"])
@@ -607,6 +609,16 @@ def _prepared_preview_item(
         body_text=body_text,
         attachment_refs=attachment_refs,
         config=classification_config,
+    )
+    resolved_source_retention = dict(
+        source_retention
+        or _source_retention_summary_from_attachment_refs(
+            notice_capture_route=str(
+                (attachment_refs[0] if attachment_refs else {}).get("notice_capture_route")
+                or "capture_only_no_adoption"
+            ),
+            attachment_refs=attachment_refs,
+        )
     )
     return _PreparedPreviewItem(
         source_surface=source_surface,
@@ -645,6 +657,7 @@ def _prepared_preview_item(
         multimodal_status=multimodal_status,
         reason_codes=reason_codes,
         classification=classification,
+        source_retention=resolved_source_retention,
     )
 
 
@@ -696,6 +709,7 @@ def _source_truth_candidate(
         "source_object_refs": list(item.source_object_refs),
         "attachment_refs": list(item.attachment_refs),
         "multimodal_status": item.multimodal_status,
+        "source_retention": dict(item.source_retention),
         "reason_codes": list(item.reason_codes),
     }
 
@@ -739,6 +753,7 @@ def _searchable_unit(
         "normalized_markdown_object_key": item.canonical_markdown_object_key,
         "target_hints": _target_hints(item),
         "classification": dict(item.classification),
+        "source_retention": dict(item.source_retention),
         "defer_reason_codes": [],
         "invalid_reason_codes": [],
         "reason_codes": list(item.reason_codes),
@@ -1089,6 +1104,10 @@ def _source_object_refs(
         for role, key in sorted(source_artifact_keys.items())
     )
     for index, attachment_ref in enumerate(attachment_refs, start=1):
+        if "required_source_object" in attachment_ref and not bool(
+            attachment_ref.get("required_source_object")
+        ):
+            continue
         object_key = _optional_text(attachment_ref.get("object_key"))
         if not object_key:
             continue
@@ -1096,7 +1115,11 @@ def _source_object_refs(
             _object_ref(
                 bucket=_optional_text(attachment_ref.get("bucket")) or bucket_source,
                 key=object_key,
-                role=str(attachment_ref.get("resource_role") or f"attachment:{index}"),
+                role=str(
+                    attachment_ref.get("source_object_role")
+                    or attachment_ref.get("resource_role")
+                    or f"attachment:{index}"
+                ),
                 sha256=_optional_text(
                     attachment_ref.get("content_sha256") or attachment_ref.get("sha256")
                 ),
@@ -1109,6 +1132,114 @@ def _source_object_refs(
             )
         )
     return tuple(_dedupe_object_refs(refs))
+
+
+def _file_release_required_attachment_ref(
+    *,
+    file_release_id: str,
+    released_file_ref: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": "file_release_source_ref_preview.v1",
+        "attachment_ref_id": f"file_release:{file_release_id}",
+        "resource_role": "released_file",
+        "source_url": released_file_ref.get("source_url"),
+        "final_url": released_file_ref.get("final_url"),
+        "original_filename": released_file_ref.get("original_filename"),
+        "mime_type": released_file_ref.get("mime_type"),
+        "byte_size": released_file_ref.get("byte_size"),
+        "object_key": released_file_ref.get("object_key"),
+        "content_sha256": released_file_ref.get("content_sha256"),
+        "bucket": released_file_ref.get("bucket"),
+        "notice_capture_route": "candidate_document_owner",
+        "attachment_capture_policy": "fetch_required_for_source_truth",
+        "attachment_capture_state": "uploaded_required",
+        "byte_fetch_required": True,
+        "byte_fetch_required_reason": "file_release_source_truth",
+        "required_source_object": True,
+        "source_object_role": "file_release_released_source_bytes",
+        "retention_class": "permanent_source_truth",
+        "retention_expires_at": None,
+        "promotion_owner": None,
+        "attachment_promotion_state": "not_applicable",
+        "promotion_decision_id": None,
+        "promotion_reason_codes": [],
+        "skip_reason": None,
+        "terminal_reason": None,
+        "last_error_class": None,
+    }
+
+
+def _source_retention_summary_from_manifest(
+    *,
+    notice_manifest: Mapping[str, Any],
+    attachment_refs: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    notice_capture_route = str(
+        notice_manifest.get("notice_capture_route") or "capture_only_no_adoption"
+    )
+    summary = {
+        "notice_capture_route": notice_capture_route,
+        "attachment_capture_policy_counts": dict(
+            notice_manifest.get("attachment_capture_policy_counts") or {}
+        ),
+        "attachment_capture_state_counts": dict(
+            notice_manifest.get("attachment_capture_state_counts") or {}
+        ),
+        "retention_class_counts": dict(notice_manifest.get("retention_class_counts") or {}),
+        "required_source_object_count": int(
+            notice_manifest.get("required_source_object_count") or 0
+        ),
+        "metadata_only_attachment_ref_count": int(
+            notice_manifest.get("metadata_only_attachment_ref_count") or 0
+        ),
+        "quarantine_attachment_ref_count": int(
+            notice_manifest.get("quarantine_attachment_ref_count") or 0
+        ),
+        "admitted_source_byte_ref_count": int(
+            notice_manifest.get("admitted_source_byte_ref_count") or 0
+        ),
+    }
+    if attachment_refs and not summary["attachment_capture_policy_counts"]:
+        return _source_retention_summary_from_attachment_refs(
+            notice_capture_route=notice_capture_route,
+            attachment_refs=attachment_refs,
+        )
+    return summary
+
+
+def _source_retention_summary_from_attachment_refs(
+    *,
+    notice_capture_route: str,
+    attachment_refs: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    policy_counts = Counter(
+        str(ref.get("attachment_capture_policy") or "")
+        for ref in attachment_refs
+        if str(ref.get("attachment_capture_policy") or "")
+    )
+    state_counts = Counter(
+        str(ref.get("attachment_capture_state") or "")
+        for ref in attachment_refs
+        if str(ref.get("attachment_capture_state") or "")
+    )
+    retention_counts = Counter(
+        str(ref.get("retention_class") or "")
+        for ref in attachment_refs
+        if str(ref.get("retention_class") or "")
+    )
+    return {
+        "notice_capture_route": notice_capture_route,
+        "attachment_capture_policy_counts": dict(sorted(policy_counts.items())),
+        "attachment_capture_state_counts": dict(sorted(state_counts.items())),
+        "retention_class_counts": dict(sorted(retention_counts.items())),
+        "required_source_object_count": sum(
+            1 for ref in attachment_refs if bool(ref.get("required_source_object"))
+        ),
+        "metadata_only_attachment_ref_count": policy_counts.get("metadata_only", 0),
+        "quarantine_attachment_ref_count": policy_counts.get("fetch_to_quarantine", 0),
+        "admitted_source_byte_ref_count": retention_counts.get("admitted_source_bytes", 0),
+    }
 
 
 def _object_ref(

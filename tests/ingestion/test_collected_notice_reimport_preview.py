@@ -126,6 +126,54 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
         self.assertIn("报名表.docx", unit["search_text"])
         self.assertEqual(object_store.puts, [])
 
+    def test_preview_applies_notice_first_source_retention_to_notice_level_query_attachments(
+        self,
+    ) -> None:
+        object_store = _ReadOnlyObjectStore()
+        bucket = "campus-rag-source"
+        bundle_key = "runs/notices-bundle.json"
+        manifest_key = "runs/export-manifest.json"
+        object_store.add_json(bucket=bucket, key=bundle_key, payload=_sample_notice_bundle())
+        object_store.add_json(bucket=bucket, key=manifest_key, payload=_sample_export_manifest())
+
+        preview = build_collected_notice_reimport_preview(
+            run_refs=(
+                CollectedNoticeCapturedRunRef(
+                    run_id="muc_internal_portal:notice:retention",
+                    source_surface="notice",
+                    source_bucket=bucket,
+                    bundle_object_key=bundle_key,
+                    manifest_object_key=manifest_key,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://my.muc.edu.cn",
+                    notices_collected=1,
+                ),
+            ),
+            env={},
+            object_store=object_store,
+        )
+
+        unit = preview.searchable_notice_preview["units"][0]
+        self.assertEqual(unit["classification"]["primary_route"], "notice_level_query")
+        self.assertEqual(
+            unit["source_retention"]["notice_capture_route"],
+            "notice_level_query_only",
+        )
+        self.assertEqual(
+            unit["source_retention"]["attachment_capture_policy_counts"],
+            {"metadata_only": 1},
+        )
+        attachment = unit["attachment_refs"][0]
+        self.assertEqual(attachment["attachment_capture_policy"], "metadata_only")
+        self.assertEqual(attachment["attachment_capture_state"], "metadata_recorded")
+        self.assertEqual(attachment["retention_class"], "metadata_only")
+        self.assertFalse(attachment["byte_fetch_required"])
+        self.assertFalse(attachment["required_source_object"])
+        self.assertNotIn(
+            "application.docx",
+            "\n".join(str(ref.get("key") or "") for ref in unit["source_object_refs"]),
+        )
+
     def test_preview_reports_invalid_runs_and_multimodal_candidates(self) -> None:
         attachment_bytes = b"fake-image"
         object_store = _ReadOnlyObjectStore()

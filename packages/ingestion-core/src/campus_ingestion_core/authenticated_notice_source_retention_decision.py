@@ -26,6 +26,21 @@ class AuthenticatedNoticeSourceRetentionDecision:
     quarantine_attachment_ref_count: int
 
 
+def resolve_authenticated_notice_capture_route(
+    *,
+    suggested_consumption_route: str,
+) -> str:
+    if suggested_consumption_route == "notice_level_query":
+        return "notice_level_query_only"
+    if suggested_consumption_route == "service_status_candidate":
+        return "candidate_service_fact"
+    if suggested_consumption_route == "regulation_candidate":
+        return "candidate_document_owner"
+    if suggested_consumption_route in {"defer", "no_adoption"}:
+        return "capture_only_no_adoption"
+    return "candidate_requires_attachment_routing"
+
+
 def build_authenticated_notice_source_retention_decision(
     *,
     notice_capture_route: str,
@@ -64,17 +79,17 @@ def _build_attachment_decision(
     missing_fact_attachment_refs: set[str],
     source_truth_required_attachment_refs: set[str],
 ) -> AuthenticatedNoticeAttachmentSourceRetentionDecision:
-    if notice_capture_route == "notice_level_query_only":
+    if notice_capture_route in {"notice_level_query_only", "capture_only_no_adoption"}:
         return _metadata_only_attachment_decision(
             attachment_ref_id=attachment_ref_id,
-            reason_codes=("notice_level_query_only",),
+            reason_codes=(notice_capture_route,),
         )
     if notice_capture_route == "candidate_service_fact":
         if attachment_ref_id in missing_fact_attachment_refs:
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_to_quarantine",
-                attachment_capture_state="quarantine_pending",
+                attachment_capture_state="not_attempted",
                 retention_class="quarantine_candidate",
                 byte_fetch_required=True,
                 required_source_object=False,
@@ -89,7 +104,7 @@ def _build_attachment_decision(
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_required_for_source_truth",
-                attachment_capture_state="source_truth_fetch_required",
+                attachment_capture_state="not_attempted",
                 retention_class="permanent_source_truth",
                 byte_fetch_required=True,
                 required_source_object=True,
@@ -98,6 +113,21 @@ def _build_attachment_decision(
         return _metadata_only_attachment_decision(
             attachment_ref_id=attachment_ref_id,
             reason_codes=("owner_not_admitted",),
+        )
+    if notice_capture_route == "candidate_requires_attachment_routing":
+        if attachment_ref_id in missing_fact_attachment_refs:
+            return AuthenticatedNoticeAttachmentSourceRetentionDecision(
+                attachment_ref_id=attachment_ref_id,
+                attachment_capture_policy="fetch_to_quarantine",
+                attachment_capture_state="not_attempted",
+                retention_class="quarantine_candidate",
+                byte_fetch_required=True,
+                required_source_object=False,
+                reason_codes=("attachment_routing_required",),
+            )
+        return _metadata_only_attachment_decision(
+            attachment_ref_id=attachment_ref_id,
+            reason_codes=("attachment_routing_not_admitted",),
         )
     raise ValueError(f"Unsupported notice_capture_route: {notice_capture_route}")
 
@@ -129,4 +159,5 @@ __all__ = [
     "AuthenticatedNoticeAttachmentSourceRetentionDecision",
     "AuthenticatedNoticeSourceRetentionDecision",
     "build_authenticated_notice_source_retention_decision",
+    "resolve_authenticated_notice_capture_route",
 ]

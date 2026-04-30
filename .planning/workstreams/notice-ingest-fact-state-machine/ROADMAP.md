@@ -23,6 +23,9 @@ updated: 2026-04-30
 - [x] **Phase 5: Target Replay Refactor** — 让 transport_schedule、service_status、regulation replay 消费 fact readiness，而不是直接消费 unit-level multimodal status。
 - [x] **Phase 6: Evidence Replay And Acceptance** — 重放固定 corpus，证明 `355881` stage ready、`355867` OCR-primary、service-status/regulation 边界稳定。
 - [x] **Phase 7: Guardrails And Closeout** — 增加防回流测试、rg/decomposition guard、docs/state closeout evidence。
+- [x] **Phase 8: Source Retention Preview Audit And Integration** — 把 notice-first retention
+  state machine 从人工验证推进到 source-truth / preview 输出，修正 legacy `process/no target`
+  附件 bytes 误保留风险。
 
 ## Phase 1: Failure Taxonomy And Sample Corpus
 
@@ -170,4 +173,54 @@ uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 uv run --all-packages python -m unittest discover -s tests -t .
 git diff --check
+```
+
+## Phase 8: Source Retention Preview Audit And Integration
+
+**Goal:** 把 source retention 状态机落到 source-truth 与 collected notice reimport
+preview，让附件 bytes 是否保留由 `notice_capture_route` 和 per-attachment policy 决定，而不是
+沿用旧 `attachment_processing_policy=process`。
+
+**Deliverables:**
+
+- `authenticated_notice_source_retention_decision.py`
+- source-truth `notice-manifest.json` retention summary fields
+- source-truth `attachment-refs.jsonl` per-attachment capture / retention fields
+- collected notice reimport preview `source_retention` summary
+- metadata-only attachment source object ref filtering
+- Batch 3 preview audit evidence for 83 legacy `process/no target` units
+
+**Verification:**
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_authenticated_notice_source_retention_decision \
+  tests.ingestion.test_authenticated_notice_retention_preview_audit \
+  tests.ingestion.test_authenticated_notice_routing_sampling \
+  tests.ingestion.test_authenticated_notice_routing_taxonomy_eval \
+  tests.ingestion.test_evaluate_authenticated_notice_routing_taxonomy_worker \
+  tests.ingestion.test_collected_notice_reimport_preview \
+  tests.ingestion.test_preview_collected_notice_reimport_worker \
+  tests.ingestion.authenticated_notice_import_bundle_suite \
+  tests.ingestion.authenticated_notice_import_inventory_suite
+uv run --all-packages ruff check \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_retention_decision.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_truth_artifacts.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py \
+  packages/ingestion-core/src/campus_ingestion_core/collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_source_retention_decision.py \
+  tests/ingestion/test_collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_retention_preview_audit.py \
+  tests/ingestion/test_authenticated_notice_routing_sampling.py \
+  tests/ingestion/test_authenticated_notice_routing_taxonomy_eval.py
+uv run --all-packages ruff format \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_retention_decision.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_truth_artifacts.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py \
+  packages/ingestion-core/src/campus_ingestion_core/collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_source_retention_decision.py \
+  tests/ingestion/test_collected_notice_reimport_preview.py \
+  tests/ingestion/test_authenticated_notice_retention_preview_audit.py \
+  tests/ingestion/test_authenticated_notice_routing_sampling.py \
+  tests/ingestion/test_authenticated_notice_routing_taxonomy_eval.py --check
 ```

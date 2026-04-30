@@ -125,6 +125,20 @@ class AuthenticatedNoticeSourceRetentionDecisionTest(unittest.TestCase):
         self.assertTrue(attachment.required_source_object)
         self.assertEqual(decision.required_source_object_count, 1)
 
+    def test_capture_only_no_adoption_keeps_attachment_metadata_only(self) -> None:
+        decision = build_authenticated_notice_source_retention_decision(
+            notice_capture_route="capture_only_no_adoption",
+            attachment_refs=({"attachment_ref_id": "legacy-file", "mime_type": "application/pdf"},),
+        )
+
+        attachment = decision.attachment_decisions[0]
+        self.assertEqual(attachment.attachment_capture_policy, "metadata_only")
+        self.assertEqual(attachment.attachment_capture_state, "metadata_recorded")
+        self.assertEqual(attachment.retention_class, "metadata_only")
+        self.assertFalse(attachment.byte_fetch_required)
+        self.assertFalse(attachment.required_source_object)
+        self.assertIn("capture_only_no_adoption", attachment.reason_codes)
+
 
 if __name__ == "__main__":
     unittest.main()

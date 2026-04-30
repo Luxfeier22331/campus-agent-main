@@ -12,13 +12,13 @@ updated: 2026-04-30
 ## Current Position
 
 **Status:** Completed
-**Current Phase:** Phase 7 complete
+**Current Phase:** Phase 8 complete
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Implemented fact-level notice ingest state machine, target replay refactor, evidence replay and guard tests.
+**Last Activity Description:** Integrated notice-first source retention decision into source-truth and collected notice reimport preview.
 
 ## Progress
 
-**Phases Complete:** 7
+**Phases Complete:** 8
 **Current Plan:** N/A
 
 ## Completed Tasks
@@ -32,6 +32,13 @@ updated: 2026-04-30
 - [x] Added regulation fact readiness exposure while preserving owner-text gate.
 - [x] Generated replay evidence and closeout summaries.
 - [x] Added guard tests for the old pending-media hard gate failure mode.
+- [x] Added source retention decision model for notice-level query, service-fact,
+  document-owner and capture-only routes.
+- [x] Added retention fields to notice source-truth manifest and attachment refs.
+- [x] Exposed `source_retention` in collected notice reimport preview and filtered
+  metadata-only attachments out of required source object refs.
+- [x] Audited 83 legacy `process/no target` units and confirmed current routing keeps
+  them metadata-only.
 
 ## Acceptance Evidence
 
@@ -39,6 +46,7 @@ updated: 2026-04-30
 - `evidence/phase-06-evidence-replay-and-acceptance/transport-schedule-acceptance.json`
 - `evidence/phase-06-evidence-replay-and-acceptance/service-status-acceptance.json`
 - `evidence/phase-06-evidence-replay-and-acceptance/regulation-acceptance.json`
+- `evidence/phase-08-retention-preview-audit/preview-process-no-target-audit.json`
 
 ## Known Non-Overlap
 
@@ -52,4 +60,6 @@ No workstream blockers remain.
 
 ## Resume Notes
 
-Only reopen if target replay regresses to whole-notice media gating, new target fact groups are admitted, or OCR/owner-text output schemas change.
+Only reopen if target replay regresses to whole-notice media gating, source retention
+regresses to attachment-type-first byte retention, new target fact groups are admitted, or
+OCR/owner-text output schemas change.
