@@ -6,11 +6,8 @@ import {
 	createAuthenticatedNoticeArtifactStoreFromEnv,
 	type StoredArtifactRef,
 } from "./artifact-store";
-import {
-	type AuthenticatedNoticeAttachmentFetchStatusStore,
-	createPostgresAttachmentFetchStatusStore,
-	type DisposableAttachmentFetchStatusStore,
-} from "./attachment-fetch-status";
+import { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions";
+import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status";
 import {
 	type AttachmentFetchAdmission,
 	materializeBundleAttachments,
@@ -32,8 +29,12 @@ import {
 	toTimestampLabel,
 } from "./bootstrap-export-helpers";
 import {
+	buildAttachmentFetchStatusStoreForMain,
+	buildCollectorRunLeaseStoreForMain,
+	buildCollectorRunLedgerStoreForMain,
+} from "./bootstrap-export-runtime-stores";
+import {
 	buildCollectorRunLeaseKey,
-	createPostgresCollectorRunLeaseStore,
 	type DisposableCollectorRunLeaseStore,
 	withCollectorRunLease,
 } from "./collector-run-lease";
@@ -44,8 +45,6 @@ import {
 	buildCollectorRunStartedLedgerRecord,
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
-	createPostgresCollectorRunLedgerStore,
-	type DisposableCollectorRunLedgerStore,
 } from "./collector-run-ledger";
 import {
 	type CollectorConfig,
@@ -122,25 +121,7 @@ export interface CollectBootstrapBundleResult {
 	};
 }
 
-export function parseAttachmentFetchAdmissionsFromManifest(
-	manifest: unknown,
-): AttachmentFetchAdmission[] {
-	if (!isRecord(manifest)) {
-		return [];
-	}
-	const requests = manifest.requests;
-	if (!Array.isArray(requests)) {
-		return [];
-	}
-	const admissions: AttachmentFetchAdmission[] = [];
-	for (const request of requests) {
-		const admission = parseAttachmentFetchAdmissionRequest(request);
-		if (admission) {
-			admissions.push(admission);
-		}
-	}
-	return admissions;
-}
+export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions";
 
 export interface WriteBootstrapArtifactsInput {
 	bundleRecords: BundleNoticeRecord[];
@@ -824,100 +805,6 @@ function loadAttachmentFetchAdmissionsForMain(config: CollectorConfig): Attachme
 function sanitizeObjectKeySegment(value: string): string {
 	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");
 	return normalized || "unknown";
-}
-
-function parseAttachmentFetchAdmissionRequest(request: unknown): AttachmentFetchAdmission | null {
-	if (!isRecord(request)) {
-		return null;
-	}
-	const nested = request.collector_admission;
-	if (isRecord(nested)) {
-		return normalizeAttachmentFetchAdmission({
-			attachmentCapturePolicy: nested.attachmentCapturePolicy,
-			attachmentRefId: nested.attachmentRefId,
-			noticeId: nested.noticeId,
-		});
-	}
-	return normalizeAttachmentFetchAdmission({
-		attachmentCapturePolicy: request.attachment_capture_policy,
-		attachmentRefId: request.attachment_ref_id,
-		noticeId: request.notice_id,
-	});
-}
-
-function normalizeAttachmentFetchAdmission(input: {
-	attachmentCapturePolicy: unknown;
-	attachmentRefId: unknown;
-	noticeId: unknown;
-}): AttachmentFetchAdmission | null {
-	const attachmentCapturePolicy = normalizeFetchAttachmentCapturePolicy(
-		input.attachmentCapturePolicy,
-	);
-	const attachmentRefId = normalizeUnknownText(input.attachmentRefId);
-	const noticeId = normalizeUnknownText(input.noticeId);
-	if (!(attachmentCapturePolicy && attachmentRefId && noticeId)) {
-		return null;
-	}
-	return {
-		attachmentCapturePolicy,
-		attachmentRefId,
-		noticeId,
-	};
-}
-
-function normalizeFetchAttachmentCapturePolicy(
-	value: unknown,
-): AttachmentFetchAdmission["attachmentCapturePolicy"] | null {
-	const normalized = normalizeUnknownText(value);
-	if (
-		normalized === "fetch_to_quarantine" ||
-		normalized === "fetch_required_for_source_truth" ||
-		normalized === "fetch_required_for_admitted_owner"
-	) {
-		return normalized;
-	}
-	return null;
-}
-
-function normalizeUnknownText(value: unknown): string | null {
-	return typeof value === "string" ? normalizeNullableText(value) : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function buildAttachmentFetchStatusStoreForMain(
-	config: CollectorConfig,
-): DisposableAttachmentFetchStatusStore | undefined {
-	if (config.attachmentFetchStatusDisabled || config.attachmentFetchStatusDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresAttachmentFetchStatusStore({
-		databaseUrl: config.attachmentFetchStatusDatabaseUrl,
-	});
-}
-
-function buildCollectorRunLedgerStoreForMain(
-	config: CollectorConfig,
-): DisposableCollectorRunLedgerStore | undefined {
-	if (config.collectorRunLedgerDisabled || config.collectorRunLedgerDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresCollectorRunLedgerStore({
-		databaseUrl: config.collectorRunLedgerDatabaseUrl,
-	});
-}
-
-function buildCollectorRunLeaseStoreForMain(
-	config: CollectorConfig,
-): DisposableCollectorRunLeaseStore | undefined {
-	if (config.collectorRunLeaseDisabled || config.collectorRunLeaseDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresCollectorRunLeaseStore({
-		databaseUrl: config.collectorRunLeaseDatabaseUrl,
-	});
 }
 
 async function runWithOptionalCollectorLease<T>(

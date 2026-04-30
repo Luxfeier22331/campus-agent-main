@@ -13,6 +13,7 @@ import overviewPageCardsSource from "../src/panel/pages/overview-page/cards.tsx?
 import overviewPageSource from "../src/panel/pages/overview-page.tsx?raw";
 import qualityPageCardsSource from "../src/panel/pages/quality-page/cards.tsx?raw";
 import qualityPageSource from "../src/panel/pages/quality-page.tsx?raw";
+import safeExternalLinkSource from "../src/panel/pages/safe-external-link.tsx?raw";
 import safetyPageCardsSource from "../src/panel/pages/safety-page/cards.tsx?raw";
 import safetyPageSource from "../src/panel/pages/safety-page.tsx?raw";
 import panelDatagridHeaderSource from "../src/panel/panel-datagrid-header.tsx?raw";
@@ -260,9 +261,10 @@ describe("protected panel shell chinese copy", () => {
 
 	it("renders operator trace and issue links through the safe external href guard", () => {
 		expect(requestShowSource).toContain("normalizeSafeExternalHref");
-		expect(qualityPageCardsSource).toContain("normalizeSafeExternalHref");
+		expect(safeExternalLinkSource).toContain("normalizeSafeExternalHref");
+		expect(qualityPageCardsSource).toContain("SafeExternalLink");
 		expect(safetyPageCardsSource).toContain("normalizeSafeExternalHref");
-		expect(auditPageSource).toContain("normalizeSafeExternalHref");
+		expect(auditPageSource).toContain("SafeExternalLink");
 		expect(requestShowSource).not.toContain("href={href}");
 		expect(qualityPageCardsSource).not.toContain("href={props.selectedBadcase.links.traceLink}");
 		expect(safetyPageCardsSource).not.toContain("href={props.selectedAnomaly.links.traceLink}");
@@ -275,9 +277,8 @@ describe("protected panel shell chinese copy", () => {
 		expect(safetyPageCardsSource).not.toContain('rel="noreferrer"');
 		expect(auditPageSource).not.toContain('rel="noreferrer"');
 		expect(requestShowSource).toContain('rel="noopener noreferrer"');
-		expect(qualityPageCardsSource).toContain('rel="noopener noreferrer"');
+		expect(safeExternalLinkSource).toContain('rel="noopener noreferrer"');
 		expect(safetyPageCardsSource).toContain('rel="noopener noreferrer"');
-		expect(auditPageSource).toContain('rel="noopener noreferrer"');
 	});
 
 	it("keeps manual cursor queue pagination locked while page queries are in flight", () => {

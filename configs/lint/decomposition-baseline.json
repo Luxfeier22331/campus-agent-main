@@ -1,9 +1,6 @@
 {
 	"threshold": 800,
 	"admitted": {
-		"apps/app-api/src/modules/operator-query/service-types.ts": {
-			"max_lines": 811
-		},
 		"apps/app-api/src/modules/runtime-command/service/normalize.ts": {
 			"max_lines": 1717
 		},
@@ -33,9 +30,6 @@
 		},
 		"apps/ingestion-worker/src/campus_ingestion_worker/on_demand_batch_runner.py": {
 			"max_lines": 820
-		},
-		"apps/protected-panel-web/src/panel/pages/quality-page/cards.tsx": {
-			"max_lines": 805
 		},
 		"apps/public-chat-web/test/worker.test.ts": {
 			"max_lines": 1767
