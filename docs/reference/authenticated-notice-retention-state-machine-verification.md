@@ -543,7 +543,24 @@ source。因此它们固定走 document owner path。
   必须先由 `notice_capture_route` 判定，再按 target-required fact gap 或 admitted
   owner 决定 bytes。
 
-## 当前实现缺口
+## 当前实现状态与剩余缺口
+
+Phase 8 已落地第一版 source retention 决策模型：
+
+- `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_retention_decision.py`
+  固定 notice-first route 到 attachment policy 的纯决策函数。
+- notice source-truth 生成会写入 `notice_capture_route`、
+  `attachment_capture_policy_counts`、`attachment_capture_state_counts`、
+  `retention_class_counts`、`required_source_object_count`、
+  `metadata_only_attachment_ref_count`、`quarantine_attachment_ref_count` 与
+  `admitted_source_byte_ref_count`。
+- `attachment-refs.jsonl` 会写入 per-ref `attachment_capture_policy`、
+  `attachment_capture_state`、`byte_fetch_required`、`required_source_object`、
+  `retention_class` 与 promotion / terminal outcome 占位字段。
+- collected notice reimport preview 会暴露 `source_retention` summary，并且不再把
+  metadata-only attachment bytes 计入 planned `source_object_refs`。
+
+仍未完成的部分：
 
 当前 repo 已具备部分粗粒度状态：
 
@@ -553,14 +570,14 @@ source。因此它们固定走 document owner path。
 - attachment provenance：`reference_only` / `collected_internal`
 - routing sample：`metadata_only` / `process`
 
-但它还没有完整表达：
+但它还没有完整表达或执行：
 
-- `notice_capture_route`
-- `attachment_capture_policy`
-- `attachment_capture_state`
-- `retention_class`
-- `attachment_promotion_state`
-- metadata-only attachment 不计入 required source objects 的 manifest / ledger contract
+- quarantine byte fetch lifecycle / expiry / cleanup。
+- `fetch_required_for_admitted_owner` 的 promotion owner 与 promotion decision id
+  写入。
+- collector live 层按 retention policy 跳过不必要附件下载；当前 Phase 8 先收口
+  ingestion/source-truth/preview。
+- run ledger required source object verification 与 retention summary 的完全对齐。
 
-因此首轮验证应先作为 design replay / dry-run report 执行，不能把现有 pending multimodal gap
-直接当作正确目标态。
+因此后续 collector/live cleanup 必须继续按 retention decision replay / dry-run report
+验收，不能把旧 pending multimodal gap 或历史附件下载状态直接当作正确目标态。

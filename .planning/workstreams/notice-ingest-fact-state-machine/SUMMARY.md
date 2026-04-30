@@ -20,6 +20,11 @@ Implemented:
 - service-status replay refactor
 - regulation fact readiness exposure
 - evidence replay and guard tests
+- notice-first source retention decision model
+- source-truth retention summary / attachment policy fields
+- collected notice reimport preview `source_retention` output
+- metadata-only attachment filtering from required source object refs
+- Batch 3 audit for 83 legacy `process/no target` units
 
 Acceptance:
 
@@ -27,5 +32,7 @@ Acceptance:
 - `355867`: required media remains `needs_multimodal`.
 - `355650`: text-complete service status stages despite supplemental pending media.
 - regulation remains owner-text gated.
+- notice-level query attachments remain metadata-only unless a downstream target-required fact
+  gap or admitted owner explicitly requires bytes.
 
 No production data writes were performed.
