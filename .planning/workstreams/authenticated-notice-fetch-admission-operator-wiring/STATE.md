@@ -8,9 +8,9 @@ updated: 2026-04-30
 
 ## Current Position
 **Status:** Active
-**Current Phase:** Phase 1
+**Current Phase:** Phase 2
 **Last Activity:** 2026-04-30
-**Last Activity Description:** Added operator manifest builder implementation, focused tests, collector README/runbook updates, and native planning docs.
+**Last Activity Description:** Completed Phase 1 operator manifest builder and docs wiring; next slice is selected notice E2E smoke evidence.
 
 ## Progress
 **Phases Complete:** 1
@@ -29,5 +29,5 @@ updated: 2026-04-30
 Phase 2 should use a real selected notice from current source-truth inventory to generate the manifest and run selected collector export with `AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_REQUEST_MANIFEST_PATH`.
 
 ## Session Continuity
-**Stopped At:** Phase 1 implementation complete; verification pending in current session
+**Stopped At:** Phase 1 committed; ready to start Phase 2 selected notice E2E smoke evidence
 **Resume File:** None
