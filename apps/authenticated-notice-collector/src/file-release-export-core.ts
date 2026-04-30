@@ -10,6 +10,7 @@ import {
 	fetchFileReleaseExplainDepartments,
 	fetchFileReleasePage,
 	fetchFileReleaseTypes,
+	isAttachmentDownloadTerminalUnavailableError,
 } from "./api";
 import {
 	type AuthenticatedNoticeArtifactStore,
@@ -714,6 +715,21 @@ async function materializeReleasedFiles(input: {
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
+			if (isAttachmentDownloadTerminalUnavailableError(error)) {
+				bundleRecords.push({
+					...record,
+					released_file: {
+						...record.released_file,
+						provenance_status: "terminal_unavailable",
+						ingest_status: "terminal_unavailable",
+						terminal_reason: error.terminalReason,
+						last_http_status: error.lastHttpStatus,
+						last_error: `terminal_unavailable:${error.terminalReason}`,
+						updated_at: input.observedAt,
+					},
+				});
+				continue;
+			}
 			bundleRecords.push({
 				...record,
 				released_file: {

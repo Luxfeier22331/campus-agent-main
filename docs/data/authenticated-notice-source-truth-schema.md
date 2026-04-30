@@ -407,11 +407,18 @@ consumer admission manifest 决定。
 - `metadata_only` attachment ref 必须保留 source relation、filename / anchor_text、
   source URL、origin scope、MIME/type 和 byte size 等可观测 metadata；`object_key`、
   `content_sha256` 与 `byte_size` 可以为空或只保留已知值，`required_source_object=false`。
+- `metadata_only` 的 canonical tuple 是
+  `attachment_capture_state=metadata_recorded`、`retention_class=metadata_only`、
+  `byte_fetch_required=false`、`required_source_object=false`；不得生成 fetch request
+  或 media extraction candidate。
 - `fetch_to_quarantine` 允许写入 `object_key`、`content_sha256` 与 `byte_size`，但必须同时写入
   `retention_class=quarantine_candidate` 和 `retention_expires_at`；未 promotion 前不得被视为
   下游 owner source bytes。该 policy 表示 bytes 需要进入 quarantine processing，不等同于
   collector 必须重新 fetch；如果 collector 已经捕获并上传该 ref，状态必须写为
   `uploaded_quarantine`，`byte_fetch_required=false`。
+- `fetch_to_quarantine` 如果尚无有效 object-backed bytes，必须保持
+  `byte_fetch_required=true` 并进入 fetch request manifest；如果 candidate inventory 已暴露
+  `source_capture_repair`，也必须存在对应 fetch request 或 operator action。
 - quarantine cleanup 不得只按 `retention_expires_at` 删除 object-backed bytes；如果
   media extraction candidate inventory 中存在 `target_blocking=true` 且引用同一
   `source_object_ref` 的未终态 candidate，则必须阻塞删除。仅当所有阻塞 candidate 已进入
@@ -419,10 +426,16 @@ consumer admission manifest 决定。
   cleanup。
 - `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 必须具备
   `object_key`、`content_sha256`、`byte_size` 与 `required_source_object=true`，否则 source
-  import / downstream materialization 必须 fail closed。
+  import / downstream materialization 必须 fail closed。缺 bytes 时只能处于三种状态之一：
+  `byte_fetch_required=true` 并进入 fetch request、typed terminal/skip，或
+  state-machine audit high finding；不得静默 pending。
 - `skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 是 typed terminal
   outcome；必须记录 `skip_reason` 或 `terminal_reason`，不能靠无限重试或 silent
   missing 表达。
+- `skip_unsupported` 与 `skip_too_large` attachment ref 必须满足
+  `attachment_capture_state=terminal_missing`、`retention_class=metadata_only`、
+  `byte_fetch_required=false`、`required_source_object=false`，且携带 `skip_reason`；不得生成
+  fetch request 或 media extraction candidate。
 - `terminal_unavailable` attachment ref 必须满足
   `attachment_capture_policy=terminal_unavailable`、`attachment_capture_state=terminal_missing`、
   `retention_class=metadata_only`、`byte_fetch_required=false`、

@@ -45,6 +45,11 @@ def build_authenticated_notice_attachment_fetch_request_manifest(
         for attachment_ref in attachment_refs
         if _requires_collector_fetch(attachment_ref)
     ]
+    invalid_attachment_refs = [
+        invalid_ref
+        for attachment_ref in attachment_refs
+        if (invalid_ref := _invalid_attachment_ref(attachment_ref)) is not None
+    ]
     return {
         "schema_version": FETCH_REQUEST_MANIFEST_SCHEMA,
         "site_id": site_id,
@@ -55,6 +60,12 @@ def build_authenticated_notice_attachment_fetch_request_manifest(
         "required_source_object_count": sum(
             1 for request in requests if request["required_source_object"]
         ),
+        "missing_required_source_object_count": sum(
+            1
+            for invalid_ref in invalid_attachment_refs
+            if invalid_ref["code"] == "required_source_object_missing_bytes_without_fetch"
+        ),
+        "invalid_attachment_refs": invalid_attachment_refs,
         "requests": requests,
     }
 
@@ -127,11 +138,30 @@ def _requires_collector_fetch(attachment_ref: Mapping[str, Any]) -> bool:
 
 
 def _is_terminal_unavailable_ref(attachment_ref: Mapping[str, Any]) -> bool:
+    if _optional_text(attachment_ref.get("attachment_capture_policy")) == "terminal_unavailable":
+        return True
     if _optional_text(attachment_ref.get("terminal_reason")) is not None:
         return True
     if _optional_text(attachment_ref.get("last_error_class")) == "terminal_unavailable":
         return True
     return _optional_text(attachment_ref.get("attachment_capture_state")) == "terminal_missing"
+
+
+def _invalid_attachment_ref(attachment_ref: Mapping[str, Any]) -> dict[str, str] | None:
+    policy = _attachment_capture_policy(attachment_ref)
+    if policy not in REQUIRED_SOURCE_OBJECT_POLICIES:
+        return None
+    if _is_terminal_unavailable_ref(attachment_ref):
+        return None
+    if has_collected_attachment_bytes(attachment_ref):
+        return None
+    if not _explicit_false(attachment_ref.get("byte_fetch_required")):
+        return None
+    return {
+        "attachment_ref_id": _required_text(attachment_ref, "attachment_ref_id"),
+        "code": "required_source_object_missing_bytes_without_fetch",
+        "attachment_capture_policy": policy,
+    }
 
 
 def _explicit_false(value: Any) -> bool:

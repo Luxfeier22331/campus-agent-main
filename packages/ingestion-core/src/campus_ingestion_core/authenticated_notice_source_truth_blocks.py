@@ -190,6 +190,7 @@ def _build_attachment_refs(
                 "byte_size": attachment.get("byte_size"),
                 "storage_provider": _optional_text(attachment.get("storage_provider")),
                 "ingest_status": _optional_text(attachment.get("ingest_status")),
+                "last_http_status": attachment.get("last_http_status"),
                 "terminal_reason": terminal_reason,
                 "last_error_class": last_error_class,
             }

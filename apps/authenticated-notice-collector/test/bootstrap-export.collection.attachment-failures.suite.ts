@@ -243,6 +243,107 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 		});
 		expect(result.bundleRecords[0]?.links).toEqual([]);
 	});
+	it("records first observed 404 attachment downloads as typed terminal unavailable", async () => {
+		const result = await collectBootstrapBundle({
+			attachmentArtifactStore: {
+				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+				putObject: async () => {
+					throw new Error("unexpected upload");
+				},
+			},
+			attachmentFetchAdmissions: [
+				{
+					attachmentCapturePolicy: "fetch_required_for_source_truth",
+					attachmentRefId: "attachment-0001",
+					noticeId: "186978",
+				},
+			],
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => ({
+					body: async () => Buffer.from("missing"),
+					headers: () => ({}),
+					json: async () => ({}),
+					ok: () => false,
+					status: () => 404,
+					statusText: () => "Not Found",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						home_url: "https://portal.example.edu/home",
+						notice_annext: [
+							{
+								notice_annex_id: "missing",
+								notice_annex_name: "missing.pdf",
+							},
+						],
+						notice_content: "<p>正文</p>",
+						notice_id: noticeId,
+						notice_release_time: "2021-01-05 19:02",
+						notice_title: "附件缺失通知",
+					},
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 6,
+							notice_type_name: "教学通知",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async () => {
+				throw new Error("unexpected page fetch");
+			},
+			noticeTypes: [
+				{
+					type: "6",
+					name: "教学通知",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 1,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			selectedNotices: [
+				{
+					noticeId: 186978,
+					noticeType: "6",
+					noticeTypeName: "教学通知",
+				},
+			],
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(result.stats.attachmentObjectsUploaded).toBe(0);
+		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+			storage_provider: "reference_only",
+			object_key: null,
+			original_filename: "missing.pdf",
+			last_error: "terminal_unavailable:http_404",
+			ingest_status: "terminal_unavailable",
+			provenance_status: "terminal_unavailable",
+			terminal_reason: "http_404",
+			last_http_status: 404,
+		});
+		expect(result.bundleRecords[0]?.links).toEqual([]);
+	});
 	it("skips terminal unavailable attachment downloads from the fetch-status ledger", async () => {
 		let downloadCalls = 0;
 		const result = await collectBootstrapBundle({

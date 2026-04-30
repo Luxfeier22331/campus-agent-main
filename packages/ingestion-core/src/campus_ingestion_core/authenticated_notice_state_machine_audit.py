@@ -53,6 +53,8 @@ def build_authenticated_notice_state_machine_audit(
     candidates = tuple(_mapping_rows(multimodal_candidate_inventory.get("candidates")))
     candidates_by_unit_id = _candidates_by_unit_id(candidates)
     fetch_requests = tuple(_mapping_rows((fetch_request_manifest or {}).get("requests")))
+    fetch_request_keys = _fetch_request_keys(fetch_requests)
+    source_ref_index = _source_attachment_ref_index(units)
     unit_ids = {str(unit.get("unit_id") or "") for unit in units if str(unit.get("unit_id") or "")}
 
     matrix = [
@@ -65,10 +67,11 @@ def build_authenticated_notice_state_machine_audit(
             _unit_findings(
                 unit=unit,
                 candidates=candidates_by_unit_id.get(str(unit.get("unit_id") or ""), ()),
+                fetch_request_keys=fetch_request_keys,
             )
         )
     findings.extend(_global_candidate_findings(candidates=candidates, unit_ids=unit_ids))
-    findings.extend(_fetch_manifest_findings(fetch_requests))
+    findings.extend(_fetch_manifest_findings(fetch_requests, source_ref_index=source_ref_index))
     findings = sorted(
         findings,
         key=lambda item: (
@@ -135,6 +138,7 @@ def _unit_findings(
     *,
     unit: Mapping[str, Any],
     candidates: Sequence[Mapping[str, Any]],
+    fetch_request_keys: set[tuple[str, str]],
 ) -> tuple[dict[str, Any], ...]:
     findings: list[dict[str, Any]] = []
     source_notice_id = str(unit.get("source_notice_id") or "")
@@ -194,6 +198,39 @@ def _unit_findings(
                         title=title,
                         attachment_ref_id=ref_id,
                         detail="terminal_unavailable attachment must not generate media candidates",
+                    )
+                )
+        if _is_skip_terminal_attachment(attachment):
+            if (
+                state != "terminal_missing"
+                or retention_class != "metadata_only"
+                or attachment.get("byte_fetch_required") is not False
+                or bool(attachment.get("required_source_object"))
+                or not str(attachment.get("skip_reason") or "").strip()
+            ):
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="skip_terminal_state_mismatch",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        attachment_ref_id=ref_id,
+                        detail=(
+                            "skip_unsupported/skip_too_large attachment must use terminal_missing, "
+                            "metadata_only retention, byte_fetch_required=false, "
+                            "required_source_object=false, and skip_reason"
+                        ),
+                    )
+                )
+            if candidates:
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="skip_terminal_generated_candidate",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        attachment_ref_id=ref_id,
+                        detail="skip terminal attachment must not generate media candidates",
                     )
                 )
         if policy == "metadata_only":
@@ -257,6 +294,25 @@ def _unit_findings(
                         detail="required/admitted fetch policy must set required_source_object=true",
                     )
                 )
+            if (
+                not has_object_bytes
+                and not _is_terminal_unavailable_attachment(attachment)
+                and attachment.get("byte_fetch_required") is not True
+                and (source_notice_id, ref_id) not in fetch_request_keys
+            ):
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="required_source_object_missing_bytes_without_fetch_request",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        attachment_ref_id=ref_id,
+                        detail=(
+                            "required/admitted fetch policy without bytes must either keep "
+                            "byte_fetch_required=true, emit a fetch request, or become typed terminal"
+                        ),
+                    )
+                )
 
     if (
         source_surface == "notice"
@@ -276,6 +332,33 @@ def _unit_findings(
     for candidate in candidates:
         media_kind = str(candidate.get("media_kind") or "")
         processing_family = str(candidate.get("processing_family") or "")
+        if processing_family == "source_capture_repair":
+            media_ref_id = str(
+                candidate.get("media_ref_id") or candidate.get("attachment_ref_id") or ""
+            ).strip()
+            has_operator_action = bool(
+                str(candidate.get("operator_action_id") or "").strip()
+                or str(candidate.get("operator_action") or "").strip()
+            )
+            if (
+                media_ref_id
+                and (source_notice_id, media_ref_id) not in fetch_request_keys
+                and not has_operator_action
+            ):
+                findings.append(
+                    _finding(
+                        severity=FINDING_HIGH,
+                        code="source_capture_repair_without_fetch_request_or_operator_action",
+                        source_notice_id=source_notice_id,
+                        title=title,
+                        attachment_ref_id=media_ref_id,
+                        candidate_id=str(candidate.get("candidate_id") or ""),
+                        detail=(
+                            "source_capture_repair candidate must be closed by a fetch request "
+                            "or an explicit operator action"
+                        ),
+                    )
+                )
         if media_kind == "pdf" and processing_family in {
             "internal_notice_multimodal",
             "multimodal_fallback",
@@ -471,6 +554,8 @@ def _candidate_has_source_object_ref(candidate: Mapping[str, Any]) -> bool:
 
 def _fetch_manifest_findings(
     requests: Sequence[Mapping[str, Any]],
+    *,
+    source_ref_index: Mapping[tuple[str, str], Mapping[str, Any]],
 ) -> tuple[dict[str, Any], ...]:
     findings: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
@@ -491,11 +576,18 @@ def _fetch_manifest_findings(
             )
         seen.add(key)
         policy = str(request.get("attachment_capture_policy") or "")
+        source_ref = source_ref_index.get(key)
+        source_policy = str((source_ref or {}).get("attachment_capture_policy") or "")
+        source_is_terminal = source_ref is not None and (
+            _is_terminal_unavailable_attachment(source_ref)
+            or _is_skip_terminal_attachment(source_ref)
+        )
         if (
             str(request.get("attachment_capture_state") or "") == "terminal_missing"
             or str(request.get("terminal_reason") or "").strip()
             or str(request.get("last_error_class") or "") == "terminal_unavailable"
             or policy == "terminal_unavailable"
+            or source_is_terminal
         ):
             findings.append(
                 _finding(
@@ -505,6 +597,19 @@ def _fetch_manifest_findings(
                     attachment_ref_id=ref_id,
                     title="",
                     detail="fetch request manifest must not request terminal_unavailable attachments",
+                )
+            )
+        if source_ref is not None and not source_is_terminal and source_policy != policy:
+            findings.append(
+                _finding(
+                    severity=FINDING_HIGH,
+                    code="fetch_request_source_ref_policy_mismatch",
+                    source_notice_id=notice_id,
+                    attachment_ref_id=ref_id,
+                    title="",
+                    detail=(
+                        "fetch request policy must match the canonical source-truth attachment ref"
+                    ),
                 )
             )
         if policy not in _FETCH_POLICIES:
@@ -519,6 +624,34 @@ def _fetch_manifest_findings(
                 )
             )
     return tuple(findings)
+
+
+def _fetch_request_keys(
+    requests: Sequence[Mapping[str, Any]],
+) -> set[tuple[str, str]]:
+    return {
+        (
+            str(request.get("notice_id") or ""),
+            str(request.get("attachment_ref_id") or ""),
+        )
+        for request in requests
+        if str(request.get("notice_id") or "") and str(request.get("attachment_ref_id") or "")
+    }
+
+
+def _source_attachment_ref_index(
+    units: Sequence[Mapping[str, Any]],
+) -> dict[tuple[str, str], Mapping[str, Any]]:
+    index: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for unit in units:
+        notice_id = str(unit.get("source_notice_id") or "")
+        if not notice_id:
+            continue
+        for attachment_ref in _mapping_rows(unit.get("attachment_refs")):
+            ref_id = str(attachment_ref.get("attachment_ref_id") or "")
+            if ref_id:
+                index[(notice_id, ref_id)] = attachment_ref
+    return index
 
 
 def _finding(
@@ -561,6 +694,13 @@ def _is_terminal_unavailable_attachment(attachment: Mapping[str, Any]) -> bool:
         or str(attachment.get("last_error_class") or "") == "terminal_unavailable"
         or bool(str(attachment.get("terminal_reason") or "").strip())
     )
+
+
+def _is_skip_terminal_attachment(attachment: Mapping[str, Any]) -> bool:
+    return str(attachment.get("attachment_capture_policy") or "") in {
+        "skip_unsupported",
+        "skip_too_large",
+    }
 
 
 def _candidates_by_unit_id(

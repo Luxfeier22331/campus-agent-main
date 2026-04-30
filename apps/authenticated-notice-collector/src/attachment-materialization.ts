@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { type FetchAttachmentBinaryResult, fetchAttachmentBinary } from "./api";
+import {
+	type FetchAttachmentBinaryResult,
+	fetchAttachmentBinary,
+	isAttachmentDownloadTerminalUnavailableError,
+} from "./api";
 import type { AuthenticatedNoticeArtifactStore } from "./artifact-store";
 import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status";
 import type {
@@ -397,6 +401,30 @@ async function materializeSingleAttachment(input: {
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
+		if (isAttachmentDownloadTerminalUnavailableError(error)) {
+			const terminalMessage = `terminal_unavailable:${error.terminalReason}`;
+			return {
+				attachment: {
+					...input.attachment,
+					provenance_status: "terminal_unavailable",
+					ingest_status: "terminal_unavailable",
+					terminal_reason: error.terminalReason,
+					last_http_status: error.lastHttpStatus,
+					last_error: terminalMessage,
+					updated_at: input.observedAt,
+				},
+				uploaded: false,
+				linkPatch: {
+					status_code: error.lastHttpStatus,
+					content_type: null,
+					downloaded: false,
+					download_path: null,
+					file_size: null,
+					fetched_at: input.observedAt,
+					error_message: terminalMessage,
+				},
+			};
+		}
 		return {
 			attachment: {
 				...input.attachment,

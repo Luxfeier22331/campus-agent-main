@@ -508,6 +508,7 @@ def _attachment_refs_with_source_retention(
             continue
         terminal_reason = _optional_text(attachment_ref.get("terminal_reason"))
         last_error_class = _optional_text(attachment_ref.get("last_error_class"))
+        last_http_status = attachment_ref.get("last_http_status")
         if terminal_reason is not None and last_error_class == "terminal_unavailable":
             rows.append(
                 {
@@ -527,6 +528,7 @@ def _attachment_refs_with_source_retention(
                     "promotion_reason_codes": [],
                     "skip_reason": None,
                     "terminal_reason": terminal_reason,
+                    "last_http_status": last_http_status,
                     "last_error_class": last_error_class,
                 }
             )
@@ -558,6 +560,7 @@ def _attachment_refs_with_source_retention(
                 "promotion_reason_codes": [],
                 "skip_reason": None,
                 "terminal_reason": terminal_reason,
+                "last_http_status": last_http_status,
                 "last_error_class": last_error_class,
             }
         )

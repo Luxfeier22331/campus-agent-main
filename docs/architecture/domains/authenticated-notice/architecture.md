@@ -495,6 +495,12 @@ source objects 分开：
   lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。已有 object-backed bytes 必须
   进入 `uploaded_quarantine`，下游 OCR/materializer 直接消费 object key；只有
   reference-only 且 policy 仍要求 bytes 时才进入 fetch manifest。
+- `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 如果缺少有效
+  object-backed bytes，必须显式进入 fetch manifest、typed terminal/skip，或 state-machine
+  audit high finding；不得只靠 `source_capture_repair` 或 unit-level pending 暗示后续会处理。
+- fetch request manifest 必须反查 canonical source-truth attachment ref；request
+  行自身缺少 terminal/metadata 字段不能绕过 source-truth 中的 `metadata_only`、
+  `terminal_unavailable` 或 skip 状态。
 - quarantine cleanup 必须以 media extraction candidate inventory 作为保护输入；凡是被
   `target_blocking=true` candidate 的 `source_object_ref` 引用、且 candidate 尚未进入
   `completed`、`skipped` 或 `failed_terminal` 的 object-backed quarantine bytes，即使
@@ -505,7 +511,8 @@ source objects 分开：
   pending work。
 - 高价值 target unit 如果存在 attachment refs 但没有可处理 object-backed bytes，candidate
   inventory 必须暴露 `source_capture_repair` / `source_capture_pending` gap，而不是静默无候选或直接进入
-  OCR/multimodal pending。
+  OCR/multimodal pending。该 gap 必须由 fetch request、operator action 或 audit high finding
+  闭环，不能作为下游 admission 的隐式 pending 状态。
 
 ## Bootstrap Import Ownership
 

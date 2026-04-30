@@ -109,6 +109,110 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
         self.assertEqual(audit["findings"][0]["code"], "non_fetch_policy_in_manifest")
         self.assertEqual(audit["findings"][0]["severity"], "high")
 
+    def test_fetch_manifest_request_must_match_source_truth_attachment_policy(self) -> None:
+        unit = _unit(
+            notice_id="355119",
+            primary_route="notice_level_query",
+            attachment_policy="metadata_only",
+            attachment_state="metadata_recorded",
+            retention_class="metadata_only",
+        )
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={"candidates": []},
+            fetch_request_manifest={
+                "requests": [
+                    {
+                        "notice_id": "355119",
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_capture_policy": "fetch_to_quarantine",
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {"fetch_request_source_ref_policy_mismatch": 1},
+        )
+
+    def test_required_policy_missing_bytes_without_fetch_request_is_high_finding(self) -> None:
+        unit = _unit(
+            notice_id="477",
+            source_surface="file_release",
+            primary_route="regulation_candidate",
+            target_candidates=("regulation",),
+            attachment_policy="fetch_required_for_source_truth",
+            attachment_state="not_attempted",
+            retention_class="permanent_source_truth",
+            required_source_object=True,
+        )
+        attachment = unit["attachment_refs"][0]
+        attachment["object_key"] = None
+        attachment["content_sha256"] = None
+        attachment["storage_provider"] = "reference_only"
+        attachment["ingest_status"] = "reference_only"
+        attachment["byte_fetch_required"] = False
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={"candidates": []},
+            fetch_request_manifest={"requests": []},
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {"required_source_object_missing_bytes_without_fetch_request": 1},
+        )
+
+    def test_source_capture_repair_requires_fetch_request_or_operator_action(self) -> None:
+        unit = _unit(
+            notice_id="355867",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="fetch_to_quarantine",
+            attachment_state="not_attempted",
+            retention_class="quarantine_candidate",
+        )
+        attachment = unit["attachment_refs"][0]
+        attachment["object_key"] = None
+        attachment["content_sha256"] = None
+        attachment["storage_provider"] = "reference_only"
+        attachment["ingest_status"] = "reference_only"
+        attachment["byte_fetch_required"] = False
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "candidate_id": "candidate-repair",
+                        "unit_id": unit["unit_id"],
+                        "source_notice_id": "355867",
+                        "media_ref_id": "attachment-0001",
+                        "media_kind": "image",
+                        "processing_family": "source_capture_repair",
+                        "status": "failed_retryable",
+                        "target_blocking": False,
+                        "reason_codes": [
+                            "source_capture_pending",
+                            "missing_collected_attachment_bytes",
+                        ],
+                    }
+                ]
+            },
+            fetch_request_manifest={"requests": []},
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {"source_capture_repair_without_fetch_request_or_operator_action": 1},
+        )
+
     def test_terminal_unavailable_attachment_requires_terminal_state_tuple(self) -> None:
         unit = _unit(
             notice_id="186977",
@@ -163,6 +267,59 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
                 "fetch_request_for_terminal_attachment": 1,
                 "terminal_attachment_generated_candidate": 1,
                 "terminal_unavailable_state_mismatch": 1,
+            },
+        )
+
+    def test_skip_terminal_attachment_requires_skip_state_tuple(self) -> None:
+        unit = _unit(
+            notice_id="355700",
+            primary_route="service_status_candidate",
+            target_candidates=("transport_schedule",),
+            attachment_policy="skip_unsupported",
+            attachment_state="not_attempted",
+            retention_class="quarantine_candidate",
+        )
+        attachment = unit["attachment_refs"][0]
+        attachment["byte_fetch_required"] = True
+        attachment["required_source_object"] = True
+
+        audit = build_authenticated_notice_state_machine_audit(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "candidate_id": "candidate-skip",
+                        "unit_id": unit["unit_id"],
+                        "source_notice_id": "355700",
+                        "media_kind": "image",
+                        "processing_family": "schedule_image_ocr",
+                        "status": "pending",
+                        "target_blocking": True,
+                        "source_object_ref": {
+                            "bucket": "campus-rag-source",
+                            "key": "authenticated_notice_portal/attachment/skipped.png",
+                        },
+                    }
+                ]
+            },
+            fetch_request_manifest={
+                "requests": [
+                    {
+                        "notice_id": "355700",
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_capture_policy": "fetch_to_quarantine",
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(audit["verdict"], "failed")
+        self.assertEqual(
+            audit["finding_counts_by_code"],
+            {
+                "fetch_request_for_terminal_attachment": 1,
+                "skip_terminal_generated_candidate": 1,
+                "skip_terminal_state_mismatch": 1,
             },
         )
 
