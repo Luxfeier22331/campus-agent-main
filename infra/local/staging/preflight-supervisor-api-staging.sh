@@ -22,13 +22,13 @@ docker_bin="$(supervisor_api_staging_require_command docker)"
 docker_timeout_seconds="${SUPERVISOR_API_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS:-10}"
 registry_timeout_seconds="${SUPERVISOR_API_STAGING_PREFLIGHT_REGISTRY_TIMEOUT_SECONDS:-30}"
 
-echo "Running docker info"
+echo "Running docker version"
 if command -v timeout >/dev/null 2>&1; then
-  if ! timeout "${docker_timeout_seconds}" "${docker_bin}" info >/dev/null 2>&1; then
+  if ! timeout "${docker_timeout_seconds}" "${docker_bin}" version --format '{{.Server.Version}}' >/dev/null 2>&1; then
     echo "Docker daemon is not reachable within ${docker_timeout_seconds}s. Start Docker Desktop or the Docker daemon before staging build." >&2
     exit 1
   fi
-elif ! "${docker_bin}" info >/dev/null 2>&1; then
+elif ! "${docker_bin}" version --format '{{.Server.Version}}' >/dev/null 2>&1; then
   echo "Docker daemon is not reachable. Start Docker Desktop or the Docker daemon before staging build." >&2
   exit 1
 fi
@@ -68,8 +68,8 @@ run_registry_check() {
     echo "Running docker pull ${image}"
     command=("${docker_bin}" pull "${image}")
   else
-    echo "Running docker manifest inspect ${image}"
-    command=("${docker_bin}" manifest inspect "${image}")
+    echo "Running docker buildx imagetools inspect ${image}"
+    command=("${docker_bin}" buildx imagetools inspect "${image}")
   fi
 
   if command -v timeout >/dev/null 2>&1; then
@@ -86,7 +86,7 @@ Docker registry preflight failed for ${image}.
 This usually means Docker registry/proxy access is broken for the staging host.
 Fix Docker Desktop proxy/registry access, pre-pull the required base images, or set
 SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY=1 only when the images are already cached locally.
-Set SUPERVISOR_API_STAGING_PREFLIGHT_PULL=1 to verify with docker pull instead of docker manifest inspect.
+Set SUPERVISOR_API_STAGING_PREFLIGHT_PULL=1 to verify with docker pull instead of buildx imagetools inspect.
 EOF
     exit 1
   fi

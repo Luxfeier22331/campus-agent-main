@@ -21,12 +21,15 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("docker info", script)
+        self.assertIn("docker version", script)
+        self.assertIn("--format", script)
         self.assertIn("SUPERVISOR_API_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS", script)
         self.assertIn("SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY", script)
         self.assertIn("SUPERVISOR_API_STAGING_PREFLIGHT_PULL", script)
         self.assertIn("timeout \"${docker_timeout_seconds}\"", script)
-        self.assertIn("docker manifest inspect", script)
+        self.assertIn("buildx imagetools inspect", script)
+        self.assertNotIn("docker info", script)
+        self.assertNotIn("docker manifest inspect", script)
         self.assertIn("docker pull", script)
         for image in (
             "golang:1.26.2-bookworm",
