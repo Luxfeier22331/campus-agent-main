@@ -612,6 +612,25 @@ def _load_index_release_manifest(
         ),
         document_units_content_hash=str(payload.get("document_units_content_hash") or ""),
         chunk_fingerprint_hash=str(payload.get("chunk_fingerprint_hash") or ""),
+        retrieval_acceptance_status=str(payload.get("retrieval_acceptance_status") or ""),
+        retrieval_acceptance_summary_object_key=(
+            None
+            if payload.get("retrieval_acceptance_summary_object_key") is None
+            else str(payload["retrieval_acceptance_summary_object_key"])
+        ),
+        sparse_provider=str(payload.get("sparse_provider") or ""),
+        sparse_model=str(payload.get("sparse_model") or ""),
+        sparse_tokenizer=str(payload.get("sparse_tokenizer") or ""),
+        sparse_language=str(payload.get("sparse_language") or ""),
+        dense_vector_name=str(payload.get("dense_vector_name") or ""),
+        sparse_vector_name=str(payload.get("sparse_vector_name") or ""),
+        dense_prefetch_limit=int(payload.get("dense_prefetch_limit") or 0),
+        sparse_prefetch_limit=int(payload.get("sparse_prefetch_limit") or 0),
+        rrf_k=int(payload.get("rrf_k") or 0),
+        rrf_dense_weight=float(payload.get("rrf_dense_weight") or 0.0),
+        rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or 0.0),
+        embedding_query_instruction_hash=str(payload.get("embedding_query_instruction_hash") or ""),
+        hybrid_query_profile_hash=str(payload.get("hybrid_query_profile_hash") or ""),
     )
 
 

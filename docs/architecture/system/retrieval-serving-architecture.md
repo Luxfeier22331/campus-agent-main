@@ -47,13 +47,16 @@ truth。
 当前默认公开 query-enabled surface 仍限于：
 
 - `regulations/student_rules`
+- `regulations/institutional_rules`
 - `curriculum/curriculum_plan`
+- `official_web/stable_reference`
 
 当前还存在若干 internal retrieval surface，但它们不因此自动成为默认公开 query-serving collection：
 
 - `curriculum/course_facts` internal agent retrieval surface
 - `curriculum/program_family_facts` internal agent retrieval surface
 - `curriculum/program_semester_facts` internal agent retrieval surface
+- `regulations/scoped_rules` notice-derived scoped-rule holding collection
 
 当前 accepted retrieval baseline 是：
 

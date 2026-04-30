@@ -5,8 +5,10 @@ import unittest
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
+    build_release_metadata_payload,
     default_release_id,
     resolve_alias_target,
     validate_scope_release,
@@ -14,6 +16,7 @@ from campus_ingestion_core.index_release import (
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.scope_catalog import QdrantIndexBinding
+from campus_ingestion_core.sparse import SparseEmbeddingSettings
 
 
 def _make_chunk(
@@ -119,6 +122,7 @@ class IndexReleaseValidationTest(unittest.TestCase):
         self.assertEqual({chunk.embedding_model for chunk in chunks}, {"actual-runtime-model"})
 
     def test_index_release_manifest_records_runtime_embedding_identity(self) -> None:
+        runtime_profile = load_runtime_profile("curriculum", "curriculum_plan")
         manifest = build_index_release_manifest(
             release_id="r20260430_120000_abcd",
             corpus="curriculum",
@@ -177,10 +181,39 @@ class IndexReleaseValidationTest(unittest.TestCase):
             validation_summary_object_key=None,
             embedding_provider="mock",
             embedding_dimensions=3,
+            runtime_profile=runtime_profile,
+            sparse_settings=SparseEmbeddingSettings(
+                provider="mock",
+                model="qdrant/bm25",
+                tokenizer="multilingual",
+                language="none",
+            ),
         )
 
         self.assertEqual(manifest.embedding_provider, "mock")
         self.assertEqual(manifest.embedding_dimensions, 3)
+        self.assertEqual(manifest.sparse_provider, "mock")
+        self.assertEqual(manifest.sparse_model, "qdrant/bm25")
+        self.assertEqual(manifest.sparse_tokenizer, "multilingual")
+        self.assertEqual(manifest.sparse_language, "none")
+        self.assertEqual(manifest.dense_vector_name, "dense")
+        self.assertEqual(manifest.sparse_vector_name, "sparse")
+        self.assertEqual(manifest.dense_prefetch_limit, runtime_profile.dense_prefetch_limit)
+        self.assertEqual(manifest.sparse_prefetch_limit, runtime_profile.sparse_prefetch_limit)
+        self.assertEqual(manifest.rrf_k, runtime_profile.rrf_k)
+        self.assertEqual(manifest.rrf_dense_weight, runtime_profile.rrf_dense_weight)
+        self.assertEqual(manifest.rrf_sparse_weight, runtime_profile.rrf_sparse_weight)
+        self.assertRegex(manifest.embedding_query_instruction_hash, r"^[0-9a-f]{64}$")
+
+        payload = build_release_metadata_payload(
+            manifest=manifest,
+            manifest_object_key="curriculum/releases/curriculum_plan/r1/index-release.json",
+        )
+
+        self.assertEqual(payload["sparse_provider"], "mock")
+        self.assertEqual(payload["sparse_model"], "qdrant/bm25")
+        self.assertEqual(payload["dense_prefetch_limit"], runtime_profile.dense_prefetch_limit)
+        self.assertEqual(payload["rrf_k"], runtime_profile.rrf_k)
 
     def test_resolve_alias_target_does_not_fall_back_to_same_named_collection(self) -> None:
         qdrant_client = Mock()

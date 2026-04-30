@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
+from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.curriculum_chunk_units import (
     _leading_curriculum_heading_lines,
     _looks_like_curriculum_structure_heading,
@@ -22,6 +23,7 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_index_release_artifact_key
 from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.scope_catalog import QdrantIndexBinding
+from campus_ingestion_core.sparse import SparseEmbeddingSettings
 
 _CURRICULUM_COURSE_MAP_HEADING = "六、课程地图"
 _OFFICIAL_WEB_MIN_RELEASE_DOCUMENTS = 2
@@ -80,6 +82,21 @@ class IndexReleaseManifest:
     embedding_dimensions: int | None = None
     document_units_content_hash: str = ""
     chunk_fingerprint_hash: str = ""
+    retrieval_acceptance_status: str = ""
+    retrieval_acceptance_summary_object_key: str | None = None
+    sparse_provider: str = ""
+    sparse_model: str = ""
+    sparse_tokenizer: str = ""
+    sparse_language: str = ""
+    dense_vector_name: str = ""
+    sparse_vector_name: str = ""
+    dense_prefetch_limit: int = 0
+    sparse_prefetch_limit: int = 0
+    rrf_k: int = 0
+    rrf_dense_weight: float = 0.0
+    rrf_sparse_weight: float = 0.0
+    embedding_query_instruction_hash: str = ""
+    hybrid_query_profile_hash: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +225,10 @@ def build_index_release_manifest(
     embedding_provider: str = "",
     embedding_dimensions: int | None = None,
     document_units_sha256_by_key: dict[str, str] | None = None,
+    retrieval_acceptance_status: str = "",
+    retrieval_acceptance_summary_object_key: str | None = None,
+    runtime_profile: CollectionRuntimeProfile | None = None,
+    sparse_settings: SparseEmbeddingSettings | None = None,
 ) -> IndexReleaseManifest:
     if not chunks:
         raise ValueError("chunks must not be empty")
@@ -264,6 +285,39 @@ def build_index_release_manifest(
         if runtime_document_units_sha256_by_key
         else "",
         chunk_fingerprint_hash=_hash_chunk_fingerprint(chunks),
+        retrieval_acceptance_status=retrieval_acceptance_status,
+        retrieval_acceptance_summary_object_key=retrieval_acceptance_summary_object_key,
+        sparse_provider=sparse_settings.provider if sparse_settings is not None else "",
+        sparse_model=sparse_settings.model if sparse_settings is not None else "",
+        sparse_tokenizer=sparse_settings.tokenizer if sparse_settings is not None else "",
+        sparse_language=sparse_settings.language if sparse_settings is not None else "",
+        dense_vector_name=(
+            runtime_profile.qdrant_index_binding.dense_vector_name
+            if runtime_profile is not None
+            else binding.dense_vector_name
+        ),
+        sparse_vector_name=(
+            runtime_profile.qdrant_index_binding.sparse_vector_name
+            if runtime_profile is not None
+            else binding.sparse_vector_name
+        ),
+        dense_prefetch_limit=runtime_profile.dense_prefetch_limit if runtime_profile else 0,
+        sparse_prefetch_limit=runtime_profile.sparse_prefetch_limit if runtime_profile else 0,
+        rrf_k=runtime_profile.rrf_k if runtime_profile else 0,
+        rrf_dense_weight=runtime_profile.rrf_dense_weight if runtime_profile else 0.0,
+        rrf_sparse_weight=runtime_profile.rrf_sparse_weight if runtime_profile else 0.0,
+        embedding_query_instruction_hash=(
+            _hash_text(runtime_profile.embedding_query_instruction) if runtime_profile else ""
+        ),
+        hybrid_query_profile_hash=(
+            _hash_hybrid_query_profile(
+                runtime_profile=runtime_profile,
+                binding=binding,
+                sparse_settings=sparse_settings,
+            )
+            if runtime_profile is not None
+            else ""
+        ),
     )
 
 
@@ -273,6 +327,7 @@ def write_index_release_artifacts(
     bucket: str,
     manifest: IndexReleaseManifest,
     validation_summary: dict[str, object] | None,
+    retrieval_acceptance_summary: dict[str, object] | None = None,
 ) -> IndexReleaseArtifacts:
     validation_summary_object_key: str | None = None
     if validation_summary is not None:
@@ -290,8 +345,28 @@ def write_index_release_artifacts(
             ),
             content_type="application/json",
         )
+    retrieval_acceptance_summary_object_key: str | None = None
+    if retrieval_acceptance_summary is not None:
+        retrieval_acceptance_summary_object_key = build_index_release_artifact_key(
+            corpus=manifest.corpus,
+            collection=manifest.collection,
+            release_id=manifest.release_id,
+            filename="retrieval-acceptance-summary.json",
+        )
+        writer.put_bytes(
+            bucket=bucket,
+            key=retrieval_acceptance_summary_object_key,
+            data=(
+                json.dumps(retrieval_acceptance_summary, ensure_ascii=False, indent=2) + "\n"
+            ).encode("utf-8"),
+            content_type="application/json",
+        )
     runtime_manifest = manifest
-    if validation_summary_object_key != manifest.validation_summary_object_key:
+    if (
+        validation_summary_object_key != manifest.validation_summary_object_key
+        or retrieval_acceptance_summary_object_key
+        != manifest.retrieval_acceptance_summary_object_key
+    ):
         runtime_manifest = IndexReleaseManifest(
             release_id=manifest.release_id,
             corpus=manifest.corpus,
@@ -315,6 +390,21 @@ def write_index_release_artifacts(
             embedding_dimensions=manifest.embedding_dimensions,
             document_units_content_hash=manifest.document_units_content_hash,
             chunk_fingerprint_hash=manifest.chunk_fingerprint_hash,
+            retrieval_acceptance_status=manifest.retrieval_acceptance_status,
+            retrieval_acceptance_summary_object_key=retrieval_acceptance_summary_object_key,
+            sparse_provider=manifest.sparse_provider,
+            sparse_model=manifest.sparse_model,
+            sparse_tokenizer=manifest.sparse_tokenizer,
+            sparse_language=manifest.sparse_language,
+            dense_vector_name=manifest.dense_vector_name,
+            sparse_vector_name=manifest.sparse_vector_name,
+            dense_prefetch_limit=manifest.dense_prefetch_limit,
+            sparse_prefetch_limit=manifest.sparse_prefetch_limit,
+            rrf_k=manifest.rrf_k,
+            rrf_dense_weight=manifest.rrf_dense_weight,
+            rrf_sparse_weight=manifest.rrf_sparse_weight,
+            embedding_query_instruction_hash=manifest.embedding_query_instruction_hash,
+            hybrid_query_profile_hash=manifest.hybrid_query_profile_hash,
         )
     manifest_object_key = build_index_release_artifact_key(
         corpus=runtime_manifest.corpus,
@@ -355,6 +445,21 @@ def build_release_metadata_payload(
         "embedding_dimensions": manifest.embedding_dimensions,
         "document_units_content_hash": manifest.document_units_content_hash,
         "chunk_fingerprint_hash": manifest.chunk_fingerprint_hash,
+        "retrieval_acceptance_status": manifest.retrieval_acceptance_status,
+        "retrieval_acceptance_summary_object_key": manifest.retrieval_acceptance_summary_object_key,
+        "sparse_provider": manifest.sparse_provider,
+        "sparse_model": manifest.sparse_model,
+        "sparse_tokenizer": manifest.sparse_tokenizer,
+        "sparse_language": manifest.sparse_language,
+        "dense_vector_name": manifest.dense_vector_name,
+        "sparse_vector_name": manifest.sparse_vector_name,
+        "dense_prefetch_limit": manifest.dense_prefetch_limit,
+        "sparse_prefetch_limit": manifest.sparse_prefetch_limit,
+        "rrf_k": manifest.rrf_k,
+        "rrf_dense_weight": manifest.rrf_dense_weight,
+        "rrf_sparse_weight": manifest.rrf_sparse_weight,
+        "embedding_query_instruction_hash": manifest.embedding_query_instruction_hash,
+        "hybrid_query_profile_hash": manifest.hybrid_query_profile_hash,
     }
 
 
@@ -597,6 +702,37 @@ def _hash_values(values: Sequence[str] | Any) -> str:
         digest.update(value.encode("utf-8"))
         digest.update(b"\n")
     return digest.hexdigest()
+
+
+def _hash_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _hash_hybrid_query_profile(
+    *,
+    runtime_profile: CollectionRuntimeProfile,
+    binding: QdrantIndexBinding,
+    sparse_settings: SparseEmbeddingSettings | None,
+) -> str:
+    payload = {
+        "dense_vector_name": runtime_profile.qdrant_index_binding.dense_vector_name
+        or binding.dense_vector_name,
+        "sparse_vector_name": runtime_profile.qdrant_index_binding.sparse_vector_name
+        or binding.sparse_vector_name,
+        "dense_prefetch_limit": runtime_profile.dense_prefetch_limit,
+        "sparse_prefetch_limit": runtime_profile.sparse_prefetch_limit,
+        "rrf_k": runtime_profile.rrf_k,
+        "rrf_dense_weight": runtime_profile.rrf_dense_weight,
+        "rrf_sparse_weight": runtime_profile.rrf_sparse_weight,
+        "embedding_query_instruction_hash": _hash_text(runtime_profile.embedding_query_instruction),
+        "sparse_provider": sparse_settings.provider if sparse_settings is not None else "",
+        "sparse_model": sparse_settings.model if sparse_settings is not None else "",
+        "sparse_tokenizer": sparse_settings.tokenizer if sparse_settings is not None else "",
+        "sparse_language": sparse_settings.language if sparse_settings is not None else "",
+    }
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 def _single_embedding_model(chunks: Sequence[IndexableChunk]) -> str:

@@ -68,6 +68,7 @@ model`
 - `regulations/student_rules`
 - `regulations/institutional_rules`
 - `curriculum/curriculum_plan`
+- `official_web/stable_reference`
 
 当前非默认公开查询面：
 

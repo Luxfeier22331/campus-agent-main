@@ -15,6 +15,7 @@ from campus_ingestion_core.authenticated_notice_closeout_store import (
     CloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
 )
+from campus_ingestion_core.chunking_tokenizers import DEFAULT_TOKENIZER_NAME
 from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.index_release import IndexReleaseValidationResult, validate_scope_release
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -35,6 +36,7 @@ MANDATORY_PREPARATION_SCOPES = frozenset(
         ("regulations", "scoped_rules"),
     }
 )
+CHUNKER_IMPLEMENTATION_VERSION = "registry_scope_chunker_v1"
 
 
 class RegistryScopePreparationObjectStore(Protocol):
@@ -90,6 +92,12 @@ class RegistryScopeChunkPreparationManifest:
     document_units_content_hash: str = ""
     chunk_profile_hash: str = ""
     chunk_fingerprint_hash: str = ""
+    tokenizer_name: str = ""
+    tokenizer_package_version: str = ""
+    chunker_implementation_version: str = ""
+    normalizer_version: str = ""
+    document_units_schema_version: str = ""
+    chunk_preparation_provenance_hash: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +263,7 @@ def build_chunk_preparation_manifest(
             records, key=lambda item: (item.document_id, item.revision_track, item.version_id)
         )
     )
+    provenance = _resolve_chunk_preparation_provenance(corpus=corpus, collection=collection)
     return RegistryScopeChunkPreparationManifest(
         preparation_run_id=preparation_run_id,
         corpus=corpus,
@@ -284,6 +293,12 @@ def build_chunk_preparation_manifest(
         else "",
         chunk_profile_hash=_hash_chunk_profile(corpus=corpus, collection=collection),
         chunk_fingerprint_hash=_hash_chunk_fingerprint(chunks),
+        tokenizer_name=provenance["tokenizer_name"],
+        tokenizer_package_version=provenance["tokenizer_package_version"],
+        chunker_implementation_version=provenance["chunker_implementation_version"],
+        normalizer_version=provenance["normalizer_version"],
+        document_units_schema_version=provenance["document_units_schema_version"],
+        chunk_preparation_provenance_hash=_hash_chunk_preparation_provenance(provenance),
     )
 
 
@@ -349,6 +364,12 @@ def write_chunk_preparation_artifacts(
         document_units_content_hash=manifest.document_units_content_hash,
         chunk_profile_hash=manifest.chunk_profile_hash,
         chunk_fingerprint_hash=manifest.chunk_fingerprint_hash,
+        tokenizer_name=manifest.tokenizer_name,
+        tokenizer_package_version=manifest.tokenizer_package_version,
+        chunker_implementation_version=manifest.chunker_implementation_version,
+        normalizer_version=manifest.normalizer_version,
+        document_units_schema_version=manifest.document_units_schema_version,
+        chunk_preparation_provenance_hash=manifest.chunk_preparation_provenance_hash,
     )
     manifest_object_key = _build_preparation_artifact_key(
         corpus=runtime_manifest.corpus,
@@ -440,6 +461,14 @@ def load_chunk_preparation_manifest(
         document_units_content_hash=str(payload.get("document_units_content_hash") or ""),
         chunk_profile_hash=str(payload.get("chunk_profile_hash") or ""),
         chunk_fingerprint_hash=str(payload.get("chunk_fingerprint_hash") or ""),
+        tokenizer_name=str(payload.get("tokenizer_name") or ""),
+        tokenizer_package_version=str(payload.get("tokenizer_package_version") or ""),
+        chunker_implementation_version=str(payload.get("chunker_implementation_version") or ""),
+        normalizer_version=str(payload.get("normalizer_version") or ""),
+        document_units_schema_version=str(payload.get("document_units_schema_version") or ""),
+        chunk_preparation_provenance_hash=str(
+            payload.get("chunk_preparation_provenance_hash") or ""
+        ),
     )
 
 
@@ -555,6 +584,7 @@ def require_verified_chunk_preparation(
                 "chunk preparation chunk fingerprint hash is missing for "
                 f"{corpus}/{collection} run {preparation_run_id}"
             )
+        _verify_chunk_preparation_provenance(manifest)
     expected_document_units_content_hash = _hash_values(
         f"{record.document_id}|{record.revision_track}|{record.version_id}|{_hash_document_units_bytes(object_store=object_store, bucket=bucket, record=record)}"
         for record in records
@@ -751,6 +781,63 @@ def _hash_chunk_profile(*, corpus: str, collection: str) -> str:
     return hashlib.sha256(
         json.dumps(asdict(profile), ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()
+
+
+def _resolve_chunk_preparation_provenance(*, corpus: str, collection: str) -> dict[str, str]:
+    profile = load_chunk_profile(corpus, collection)
+    return {
+        "tokenizer_name": DEFAULT_TOKENIZER_NAME,
+        "tokenizer_package_version": "",
+        "chunker_implementation_version": CHUNKER_IMPLEMENTATION_VERSION,
+        "normalizer_version": profile.cleaning_policy_version,
+        "document_units_schema_version": profile.structured_input,
+    }
+
+
+def _hash_chunk_preparation_provenance(provenance: Mapping[str, str]) -> str:
+    return hashlib.sha256(
+        json.dumps(dict(provenance), ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _verify_chunk_preparation_provenance(
+    manifest: RegistryScopeChunkPreparationManifest,
+) -> None:
+    expected = _resolve_chunk_preparation_provenance(
+        corpus=manifest.corpus,
+        collection=manifest.collection,
+    )
+    if not manifest.tokenizer_name:
+        raise ValueError(
+            "chunk preparation tokenizer identity is missing for "
+            f"{manifest.corpus}/{manifest.collection} run {manifest.preparation_run_id}"
+        )
+    if manifest.tokenizer_name != expected["tokenizer_name"]:
+        raise ValueError(
+            "chunk preparation tokenizer identity does not match current runtime for "
+            f"{manifest.corpus}/{manifest.collection}"
+        )
+    if manifest.chunker_implementation_version != expected["chunker_implementation_version"]:
+        raise ValueError(
+            "chunk preparation chunker implementation identity does not match current runtime for "
+            f"{manifest.corpus}/{manifest.collection}"
+        )
+    if manifest.normalizer_version != expected["normalizer_version"]:
+        raise ValueError(
+            "chunk preparation normalizer identity does not match current runtime for "
+            f"{manifest.corpus}/{manifest.collection}"
+        )
+    if manifest.document_units_schema_version != expected["document_units_schema_version"]:
+        raise ValueError(
+            "chunk preparation document-units schema identity does not match current runtime for "
+            f"{manifest.corpus}/{manifest.collection}"
+        )
+    expected_hash = _hash_chunk_preparation_provenance(expected)
+    if manifest.chunk_preparation_provenance_hash != expected_hash:
+        raise ValueError(
+            "chunk preparation provenance hash does not match current runtime for "
+            f"{manifest.corpus}/{manifest.collection}"
+        )
 
 
 def _hash_chunk_fingerprint(chunks: Sequence[IndexableChunk]) -> str:

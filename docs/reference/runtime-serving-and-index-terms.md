@@ -44,8 +44,8 @@ updated: 2026-04-23
   才开始承担 serving/runtime 语义
 - 同一个 source channel 可以 fan-out 到多个 `corpus/collection` scope
 - `official_web` 作为 source channel，不表示它只能有一个 mixed collection
-- `official_web` 未来应拆成独立 serving scope，例如 `official_web/stable_reference`、`offic
-  ial_web/fresh_news`、`official_web/news_archive`
+- `official_web/stable_reference` 当前已经拆成默认 query-enabled serving scope；
+  `official_web/fresh_news`、`official_web/news_archive` 仍是 default-off 后续 scope
 - 正式规章与正式培养方案若已有更强语义 owner，应继续进入与 `official_web` 并列的
   `regulations/*`、`curriculum/*`
 
@@ -96,7 +96,8 @@ updated: 2026-04-23
 说明：
 
 - 当前 query-enabled scope 是 `regulations/student_rules`、
-  `regulations/institutional_rules` 与 `curriculum/curriculum_plan`
+  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+  `official_web/stable_reference`
 - `regulations/scoped_rules` 当前已具备 retrieval-ready serving alias，但
   `query_enabled_by_default=false`，不属于默认 query-enabled scope
 - `campus_services/*` 当前仍是 `offline_preparation`

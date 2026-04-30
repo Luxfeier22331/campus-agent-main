@@ -8,6 +8,7 @@ from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
@@ -134,6 +135,8 @@ def _index_replayed_documents(
             embedding_provider=embedding_settings.provider,
             embedding_dimensions=embedding_settings.dimensions,
             document_units_sha256_by_key=document_units_sha256_by_key,
+            runtime_profile=load_runtime_profile(corpus, collection),
+            sparse_settings=getattr(sparse_embedding_model, "settings", None),
         )
         release_metadata = build_release_metadata_payload(
             manifest=prepublish_manifest,

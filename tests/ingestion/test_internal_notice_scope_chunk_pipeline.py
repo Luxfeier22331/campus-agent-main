@@ -79,6 +79,11 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertRegex(manifest["chunk_profile_hash"], r"^[0-9a-f]{64}$")
         self.assertRegex(manifest["chunk_fingerprint_hash"], r"^[0-9a-f]{64}$")
         self.assertRegex(manifest["documents"][0]["document_units_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(manifest["tokenizer_name"], "regex_approximation_v1")
+        self.assertEqual(manifest["chunker_implementation_version"], "registry_scope_chunker_v1")
+        self.assertEqual(manifest["normalizer_version"], "authenticated_notice_projection_v1")
+        self.assertEqual(manifest["document_units_schema_version"], "document_units_jsonl")
+        self.assertRegex(manifest["chunk_preparation_provenance_hash"], r"^[0-9a-f]{64}$")
 
     def test_prepare_registry_scope_chunks_can_use_verified_closeout_run_without_current_scope(
         self,
@@ -596,6 +601,58 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                     corpus="campus_notices",
                     collection="internal_notice",
                     preparation_run_id="prep-20260406-0003",
+                    env={
+                        **self._env(),
+                        "EMBEDDING_PROVIDER": "mock",
+                        "EMBEDDING_MODEL": "mock-embedding-8d",
+                        "SPARSE_PROVIDER": "mock",
+                    },
+                    registry=registry,
+                    object_store=object_store,
+                    qdrant_client=QdrantClient(location=":memory:"),
+                    publish_alias=False,
+                )
+
+    def test_release_registry_scope_rejects_stale_chunk_preparation_tokenizer_identity(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_key = (
+                "campus_notices/documents/internal_notice/"
+                "notice-355119/source-faithful/2026/document-units.jsonl"
+            )
+            record = make_internal_notice_record(object_key=object_key)
+            registry = InMemoryDocumentRegistry((record,), backing_path=root / "registry.json")
+            object_store = FakeObjectStore(
+                objects={
+                    ("campus-rag-derived", object_key): make_internal_notice_document_units_bytes(
+                        document_id=record.document_id,
+                        version_id=record.version_id,
+                    ),
+                }
+            )
+
+            report = prepare_registry_scope_chunks(
+                corpus="campus_notices",
+                collection="internal_notice",
+                preparation_run_id="prep-20260406-stale-tokenizer",
+                env=self._env(),
+                registry=registry,
+                object_store=object_store,
+            )
+            manifest_key = ("campus-rag-derived", report.manifest_object_key)
+            manifest = json.loads(object_store.objects[manifest_key].decode("utf-8"))
+            manifest["tokenizer_name"] = "stale-tokenizer"
+            object_store.objects[manifest_key] = (
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+            ).encode("utf-8")
+
+            with self.assertRaisesRegex(ValueError, "tokenizer identity"):
+                release_registry_scope(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                    preparation_run_id="prep-20260406-stale-tokenizer",
                     env={
                         **self._env(),
                         "EMBEDDING_PROVIDER": "mock",
