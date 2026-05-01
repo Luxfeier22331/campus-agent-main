@@ -218,7 +218,7 @@ compatibility during migration.
 
 ## Phase 9: Worker Execution And Operator Projection Implementation
 
-**Status:** ready.
+**Status:** completed on 2026-05-01.
 
 **Goal:** Turn the canonical handoff/execution store into the shared worker runner and
 operator-safe projection layer without making queue rows, local JSON files or panel reads the
@@ -239,4 +239,30 @@ source of truth.
   stable.
 - No panel direct database/object/local-file read is introduced.
 - No collector frontier is changed.
+- No query-serving surface is opened.
+
+**Evidence:** `./phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md`.
+
+## Phase 10: Closeout Gate And Migration Readiness
+
+**Status:** ready.
+
+**Goal:** Decide whether this workstream is ready to close or needs a separate deployment/runtime
+slice for Postgres-backed store adoption and app-api operator projection wiring.
+
+**Scope:**
+
+- Review Phase 6-9 implementation evidence against the original state-machine design.
+- Identify remaining gaps between in-memory/foundation implementation and production deployment.
+- Decide whether Postgres-backed store implementation belongs in this workstream or a follow-up
+  deployment workstream.
+- Confirm no-serving-opening and no-panel-direct-read gates still hold.
+- Produce closeout summary and next-workstream recommendation.
+
+**Acceptance:**
+
+- Workstream closeout decision is explicit.
+- Any remaining runtime/deployment gaps are recorded as follow-up, not hidden technical debt.
+- No app-api authenticated-notice control-plane route is opened.
+- No panel direct database/object/local-file read is introduced.
 - No query-serving surface is opened.

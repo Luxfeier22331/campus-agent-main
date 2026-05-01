@@ -12,12 +12,12 @@ updated: 2026-05-01
 ## Current Status
 
 - status: `active`
-- current slice: Phase 8 authenticated-notice adapter implementation complete
+- current slice: Phase 9 worker execution and operator projection implementation complete
 - owner: unassigned
-- active implementation: shared contract/store plus official-web and authenticated-notice adapter
-  foundations implemented
-- latest completed phase: Phase 8 `Authenticated-Notice Adapter Implementation`
-- next phase: Phase 9 `Worker Execution And Operator Projection Implementation`
+- active implementation: shared contract/store plus official-web/authenticated-notice adapters and
+  worker/operator projection foundation implemented
+- latest completed phase: Phase 9 `Worker Execution And Operator Projection Implementation`
+- next phase: Phase 10 `Closeout Gate And Migration Readiness`
 
 ## Captured Context
 
@@ -216,10 +216,32 @@ Accepted design direction:
 - Added Phase 8 plan and summary under
   `phases/phase-08-authenticated-notice-adapter-implementation/`.
 
+## Completed In Phase 9
+
+- Added `packages/ingestion-core/src/campus_ingestion_core/source_handoff_operator_projection.py`.
+- Added `packages/ingestion-core/src/campus_ingestion_core/source_handoff_execution.py`.
+- Added `packages/ingestion-core/src/campus_ingestion_core/source_handoff_no_serving_gate.py`.
+- Added `apps/ingestion-worker/src/campus_ingestion_worker/show_source_handoff_executions.py`.
+- Added `apps/ingestion-worker/src/campus_ingestion_worker/consume_source_handoff_executions.py`.
+- Added focused tests:
+  - `tests/ingestion/test_source_handoff_operator_projection.py`
+  - `tests/ingestion/test_source_handoff_execution_runner.py`
+  - `tests/ingestion/test_source_handoff_worker_cli.py`
+  - `tests/ingestion/test_source_handoff_no_serving_gate.py`
+- Updated `source_handoff_store.py` with canonical operator records and
+  `mark_execution_running`.
+- Updated `apps/ingestion-worker/pyproject.toml` with consume/show console scripts.
+- Implemented operator-safe projection for handoff, object verification, execution, step and
+  child-task state.
+- Implemented shared canonical execution runner helper.
+- Implemented no-serving-opening gate for query-enabled, serving alias and implicit promotion drift.
+- Added Phase 9 plan and summary under
+  `phases/phase-09-worker-execution-and-operator-projection-implementation/`.
+
 ## Blockers
 
 - No design blocker.
-- Phase 9 can start from worker execution and operator projection wiring.
+- Phase 10 can start from closeout gate and migration readiness review.
 - Current worktree has unrelated dirty files from other workstreams; do not edit or revert them.
 
 ## Verification Plan
@@ -254,7 +276,9 @@ pnpm exec markdownlint-cli2 --config .markdownlint-cli2.jsonc \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-07-official-web-adapter-implementation/PLAN.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-07-official-web-adapter-implementation/SUMMARY.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-08-authenticated-notice-adapter-implementation/PLAN.md \
-  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-08-authenticated-notice-adapter-implementation/SUMMARY.md
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-08-authenticated-notice-adapter-implementation/SUMMARY.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-09-worker-execution-and-operator-projection-implementation/PLAN.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md
 ```
 
 ```bash
@@ -328,8 +352,26 @@ uv run --all-packages python -m unittest \
   tests.ingestion.test_source_handoff_projection
 ```
 
+Phase 9 focused verification:
+
+```bash
+uv run --all-packages python -m unittest \
+  tests.ingestion.test_source_handoff_operator_projection \
+  tests.ingestion.test_source_handoff_execution_runner \
+  tests.ingestion.test_source_handoff_worker_cli \
+  tests.ingestion.test_source_handoff_no_serving_gate \
+  tests.ingestion.test_source_handoff_state_machine \
+  tests.ingestion.test_source_handoff_store \
+  tests.ingestion.test_source_handoff_postgres \
+  tests.ingestion.test_source_handoff_projection \
+  tests.ingestion.test_official_web_source_handoff_adapter \
+  tests.ingestion.test_authenticated_notice_source_handoff_adapter \
+  tests.ingestion.test_authenticated_notice_run_queue_consumer \
+  tests.ingestion.test_authenticated_notice_run_enqueue
+```
+
 ## Session Continuity
 
-**Stopped At:** Phase 8 authenticated-notice adapter implementation complete.
+**Stopped At:** Phase 9 worker execution and operator projection implementation complete.
 
-**Resume File:** `phases/phase-08-authenticated-notice-adapter-implementation/SUMMARY.md`
+**Resume File:** `phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md`

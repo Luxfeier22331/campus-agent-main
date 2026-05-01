@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 from threading import RLock
 from typing import Any, Protocol
@@ -36,6 +36,16 @@ class SourceHandoffLeaseError(SourceHandoffStoreError):
 
 class SourceHandoffNotFoundError(SourceHandoffStoreError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class SourceHandoffOperatorRecord:
+    handoff: SourceHandoff
+    source_objects: tuple[SourceObjectRef, ...]
+    object_verifications: tuple[ObjectVerification, ...]
+    execution: IngestionExecution | None = None
+    steps: tuple[IngestionStep, ...] = ()
+    child_tasks: tuple[IngestionChildTask, ...] = ()
 
 
 class SourceHandoffStore(Protocol):
@@ -93,6 +103,14 @@ class SourceHandoffStore(Protocol):
         now: datetime | None = None,
     ) -> IngestionExecution: ...
 
+    def mark_execution_running(
+        self,
+        execution_id: str,
+        *,
+        worker_id: str,
+        now: datetime | None = None,
+    ) -> IngestionExecution: ...
+
     def complete_execution(
         self,
         execution_id: str,
@@ -128,6 +146,15 @@ class SourceHandoffStore(Protocol):
     def append_event(self, event: IngestionEvent) -> IngestionEvent: ...
 
     def operator_summary(self, *, now: datetime | None = None) -> dict[str, Any]: ...
+
+    def operator_records(
+        self,
+        *,
+        limit: int = 100,
+        source_channel: str | None = None,
+        source_surface: str | None = None,
+        include_terminal: bool = True,
+    ) -> tuple[SourceHandoffOperatorRecord, ...]: ...
 
 
 class InMemorySourceHandoffStore:
@@ -293,6 +320,22 @@ class InMemorySourceHandoffStore:
             self._executions_by_id[execution_id] = updated
             return updated
 
+    def mark_execution_running(
+        self,
+        execution_id: str,
+        *,
+        worker_id: str,
+        now: datetime | None = None,
+    ) -> IngestionExecution:
+        with self._lock:
+            execution = self._require_execution(execution_id)
+            try:
+                updated = execution.mark_running(worker_id=worker_id, now=now)
+            except ValueError as exc:
+                raise SourceHandoffLeaseError(str(exc)) from exc
+            self._executions_by_id[execution_id] = updated
+            return updated
+
     def complete_execution(
         self,
         execution_id: str,
@@ -413,6 +456,81 @@ class InMemorySourceHandoffStore:
                 },
             }
 
+    def operator_records(
+        self,
+        *,
+        limit: int = 100,
+        source_channel: str | None = None,
+        source_surface: str | None = None,
+        include_terminal: bool = True,
+    ) -> tuple[SourceHandoffOperatorRecord, ...]:
+        normalized_limit = _positive_int(limit, "limit")
+        normalized_channel = str(source_channel or "").strip()
+        normalized_surface = str(source_surface or "").strip()
+        terminal_statuses = {"completed", "failed_terminal", "dead_letter", "cancelled"}
+        with self._lock:
+            records: list[SourceHandoffOperatorRecord] = []
+            for handoff in sorted(
+                self._handoffs_by_id.values(),
+                key=lambda item: (item.updated_at, item.handoff_id),
+                reverse=True,
+            ):
+                if normalized_channel and handoff.source_channel != normalized_channel:
+                    continue
+                if normalized_surface and handoff.source_surface != normalized_surface:
+                    continue
+                source_objects = tuple(
+                    self._objects_by_handoff_id.get(handoff.handoff_id, {}).values()
+                )
+                object_verifications = tuple(
+                    verification
+                    for verification in self._verifications_by_id.values()
+                    if verification.handoff_id == handoff.handoff_id
+                )
+                executions = tuple(
+                    execution
+                    for execution in self._executions_by_id.values()
+                    if execution.handoff_id == handoff.handoff_id
+                    and (include_terminal or execution.status not in terminal_statuses)
+                )
+                if not executions:
+                    records.append(
+                        SourceHandoffOperatorRecord(
+                            handoff=handoff,
+                            source_objects=source_objects,
+                            object_verifications=object_verifications,
+                        )
+                    )
+                    if len(records) >= normalized_limit:
+                        break
+                    continue
+                for execution in sorted(
+                    executions,
+                    key=lambda item: (item.updated_at, item.execution_id),
+                    reverse=True,
+                ):
+                    records.append(
+                        SourceHandoffOperatorRecord(
+                            handoff=handoff,
+                            source_objects=source_objects,
+                            object_verifications=object_verifications,
+                            execution=execution,
+                            steps=tuple(
+                                step
+                                for (execution_id, _), step in self._steps_by_key.items()
+                                if execution_id == execution.execution_id
+                            ),
+                            child_tasks=tuple(
+                                task
+                                for (execution_id, _), task in self._child_tasks_by_key.items()
+                                if execution_id == execution.execution_id
+                            ),
+                        )
+                    )
+                    if len(records) >= normalized_limit:
+                        return tuple(records)
+            return tuple(records[:normalized_limit])
+
     def _require_handoff(self, handoff_id: str) -> SourceHandoff:
         normalized = str(handoff_id or "").strip()
         handoff = self._handoffs_by_id.get(normalized)
@@ -428,12 +546,25 @@ class InMemorySourceHandoffStore:
         return execution
 
 
+def _positive_int(value: object, label: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be positive")
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be positive") from exc
+    if parsed <= 0:
+        raise ValueError(f"{label} must be positive")
+    return parsed
+
+
 __all__ = [
     "DEFAULT_SOURCE_HANDOFF_LEASE_SECONDS",
     "InMemorySourceHandoffStore",
     "SourceHandoffConflictError",
     "SourceHandoffLeaseError",
     "SourceHandoffNotFoundError",
+    "SourceHandoffOperatorRecord",
     "SourceHandoffStore",
     "SourceHandoffStoreError",
 ]

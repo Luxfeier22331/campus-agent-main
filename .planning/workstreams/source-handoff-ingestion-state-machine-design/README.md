@@ -22,13 +22,12 @@ updated: 2026-05-01
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 8 authenticated-notice adapter implementation complete`
+- current phase: `Phase 9 worker execution and operator projection implementation complete`
 - active implementation: shared contract/store plus official-web and authenticated-notice adapter
-  foundations implemented
-- current slice: Phase 8 已完成 authenticated-notice canonical adapter：verified run refs 可写入
-  `SourceHandoff`、`ObjectVerification`、`IngestionExecution`、step 与 child-task state；run queue
-  继续作为 scheduling inbox / compatibility projection。下一步进入 Phase 9 worker execution and
-  operator projection implementation。
+  foundations plus worker/operator projection implemented
+- current slice: Phase 9 已完成 shared canonical execution runner helper、operator-safe projection、
+  worker consume/show shell 与 no-serving gate。下一步进入 Phase 10 closeout gate and migration
+  readiness。
 
 ## Native Planning Truth
 
@@ -53,6 +52,7 @@ updated: 2026-05-01
 - Phase 6: `./phases/phase-06-shared-contract-and-store-implementation/PLAN.md`
 - Phase 7: `./phases/phase-07-official-web-adapter-implementation/PLAN.md`
 - Phase 8: `./phases/phase-08-authenticated-notice-adapter-implementation/PLAN.md`
+- Phase 9: `./phases/phase-09-worker-execution-and-operator-projection-implementation/PLAN.md`
 
 Phase summaries:
 
@@ -64,6 +64,7 @@ Phase summaries:
 - Phase 6: `./phases/phase-06-shared-contract-and-store-implementation/SUMMARY.md`
 - Phase 7: `./phases/phase-07-official-web-adapter-implementation/SUMMARY.md`
 - Phase 8: `./phases/phase-08-authenticated-notice-adapter-implementation/SUMMARY.md`
+- Phase 9: `./phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md`
 
 ## Boundary Notes
 
