@@ -63,10 +63,8 @@ ingestion-worker -> document/chunk/index`
   contract：`docs/data/official-web-source-truth-schema.md`
 - repo-level data-plane contract：`docs/architecture/system/data-plane-architecture.md`
 - shared file asset loader：`docs/architecture/system/file-asset-loader-architecture.md`
-- serving split / news retrieval strategy：`docs/architecture/official-web-servin
-  g-and-news-retrieval-strategy.md`
-- freshness / incremental crawling strategy：`docs/architecture/official-web-fres
-  hness-and-incremental-crawling.md`
+- serving split / news retrieval strategy：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- freshness / incremental crawling strategy：`docs/architecture/domains/official-web/freshness-and-incremental-crawling.md`
 
 ## Control-Plane Ownership
 

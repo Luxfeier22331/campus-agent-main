@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { OFFICIAL_WEB_RUN_ARTIFACT_TYPE_BY_NAME } from "official-web-core/artifacts";
+
 import { AppApiRouteError } from "../../http";
 import type {
 	NormalizedFinalizePayload,
@@ -22,15 +24,9 @@ const FINALIZEABLE_TERMINAL_STATUSES = new Set<OfficialWebTerminalRunStatus>([
 	"completed_with_errors",
 	"failed",
 ]);
-const ALLOWED_ARTIFACT_TYPES = new Set([
-	"crawl_run_manifest",
-	"host_summary",
-	"url_results",
-	"failures",
-	"source_truth_bundle",
-	"quality_audit",
-	"page_observations",
-]);
+const ALLOWED_ARTIFACT_TYPES: ReadonlySet<string> = new Set(
+	Object.values(OFFICIAL_WEB_RUN_ARTIFACT_TYPE_BY_NAME),
+);
 const ALLOWED_RUN_INTENTS = new Set<OfficialWebRunIntent>(["baseline", "hot", "repair"]);
 const ALLOWED_FETCH_DISPOSITIONS = new Set<OfficialWebFetchDisposition>([
 	"fetched",

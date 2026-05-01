@@ -2,19 +2,21 @@
 doc_type: state
 status: active
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-05-01
 ---
+
+<!-- markdownlint-disable MD013 -->
 
 # State: Official Web Collection Restart Closeout
 
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2`
+- current phase: `Phase 2 acceptance repair`
 - owner: unassigned
-- active implementation: planning and ops follow-up only
-- latest completed slice: local official web source-truth projection replay evidence,
-  source-layer host split config, and fresh rollout crawl evidence
+- active implementation: closeout repair and acceptance review
+- latest completed slice: official-web collector/app-api/ingestion handoff contract
+  repair; local source-truth projection replay evidence remains artifact-only
 
 ## Current Repo Facts
 
@@ -41,6 +43,20 @@ updated: 2026-04-28
 - Fresh rollout evidence now exists for enabled university-core hosts and one
   college single-host run. Both runs passed crawl artifact validation and QC.
   Replayed fixed projections now pass projection validation and chunk audit.
+- `official-web-university-level-collection-dev-closeout` closed the
+  university-core dev/local runner, preflight, repeated-run comparison,
+  retention dry-run, alert summary, and import dry-run slice. That evidence is
+  reconciled here as university-core dev-lane coverage, not full rollout or
+  registry promotion.
+- `apps/app-api` now consumes the `official-web-core` artifact type contract
+  for official-web run artifact validation, including
+  `dynamic_shell_discovery_audit`.
+- `apps/ingestion-worker` official-web handoff promotion now derives
+  collection-scoped `scope_refresh` targets from promotable projection
+  documents instead of hard-coding only
+  `official_web/muc_public_pages`.
+- `apps/official-web-collector` default test command now runs Vitest with
+  `--fileParallelism=false`, matching the stable collector gate.
 
 ## Latest Evidence
 
@@ -52,6 +68,14 @@ updated: 2026-04-28
   `.tmp/official-web-restart/official-web-restart-20260427T213902Z/stable-5host-projection`
 - server-side official-web handoff batch:
   `.tmp/phase7-ingestion-acceptance/server/20260427T165723Z/official-web-small-batch-report.json`
+- repair verification:
+  `pnpm --dir apps/app-api test -- official-web-command.service.test.ts`
+- repair verification:
+  `uv run --all-packages python -m unittest tests.ingestion.test_official_web_handoff_consumer tests.ingestion.test_official_web_handoff_receiver tests.ingestion.test_official_web_university_collection_worker`
+- repair verification:
+  `pnpm --dir apps/official-web-collector test`
+- repair verification:
+  `pnpm --dir apps/app-api typecheck`
 
 ## Latest Projection Outcome
 
@@ -116,6 +140,18 @@ College single-host crawl:
   classification for the 20260427T223542Z university-core and `law.muc.edu.cn`
   runs. Evidence remains artifact-only local replay; it did not import/promote
   registry truth and did not change query-serving surface.
+- `OFFICIAL-WEB-OPS-00B`: fixed closeout acceptance defects discovered during
+  takeover review:
+  app-api no longer hand-maintains a stale official-web artifact allowlist;
+  dynamic-shell audit artifacts are accepted from the shared source-channel
+  contract; official-web handoff promotion refreshes every promotable target
+  collection represented in the projection; collector tests use the stable
+  serial Vitest gate; official-web architecture links were corrected.
+- `OFFICIAL-WEB-OPS-01` through `OFFICIAL-WEB-OPS-05`: reconciled as covered
+  for the university-core dev lane by
+  `official-web-university-level-collection-dev-closeout`. They are not
+  evidence for college rollout, full recurring production operations, registry
+  promotion, or query-serving opening.
 
 ## Repo-Tracked Seed Manifests
 
@@ -127,26 +163,19 @@ College single-host crawl:
 ## Remaining Gaps
 
 - `OFFICIAL-WEB-OPS-00`: fresh bounded crawl evidence exists, and fixed
-  projection chunk audit now passes. Promotion / recurring coverage widening is
-  still pending import/promote handoff, scheduler, repeated-run, retention, and
-  alert closeout.
-- `OFFICIAL-WEB-OPS-01`: dev/local scheduler entry still needs a documented command and repeated-run
-  cadence.
-- `OFFICIAL-WEB-OPS-02`: worker preflight should explicitly verify official web source channel
-  readiness, writable target store and report directory behavior.
-- `OFFICIAL-WEB-OPS-03`: repeated-run acceptance should prove projection / handoff batch
-  idempotency or bounded duplicate handling across at least two consecutive runs.
-- `OFFICIAL-WEB-OPS-04`: report retention needs a concrete age/count policy for local and future
-  deployed runs.
-- `OFFICIAL-WEB-OPS-05`: alerting needs concrete failure, zero-candidate and abnormal skip/error
-  thresholds.
-- `OFFICIAL-WEB-OPS-06`: registry import/promote handoff evidence is pending; current projection
-  evidence is local artifact truth only.
+  projection chunk audit now passes. Full rollout coverage widening remains
+  outside this repaired slice.
+- `OFFICIAL-WEB-OPS-06`: fresh no-promotion live seam evidence is still
+  pending for
+  `collector -> app-api lifecycle -> object storage -> handoff receiver ->
+  ingestion staging`. Current projection evidence is still local artifact truth
+  only, and registry import/promote truth has not been executed.
 
 ## Continuity Notes
 
 - Keep `official-web-source-channel-news-opening` in backlog until product scope explicitly reopens
   news query-serving.
 - Do not use this workstream to change retrieval runtime profile or product routing gates.
-- Next implementation should start with `OFFICIAL-WEB-OPS-01` through
-  `OFFICIAL-WEB-OPS-03` before adding alert/retention policy.
+- Next implementation should start with a no-promotion live seam smoke. Do not
+  promote registry truth or widen query-serving until that seam is proven and
+  reviewed.

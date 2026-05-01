@@ -38,6 +38,9 @@ importers:
       hono:
         specifier: ^4.9.8
         version: 4.12.9
+      official-web-core:
+        specifier: file:../../packages/official-web-core
+        version: link:../../packages/official-web-core
       pg:
         specifier: ^8.16.3
         version: 8.20.0

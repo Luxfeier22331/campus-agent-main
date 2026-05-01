@@ -9,7 +9,7 @@
 		"plan": "node --experimental-strip-types src/plan.ts",
 		"validate": "node --experimental-strip-types src/validate.ts",
 		"qc-report": "node --experimental-strip-types src/qc-report.ts",
-		"test": "vitest run",
+		"test": "vitest run --fileParallelism=false",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

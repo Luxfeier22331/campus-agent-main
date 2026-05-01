@@ -2,8 +2,10 @@
 doc_type: index
 status: active
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-05-01
 ---
+
+<!-- markdownlint-disable MD013 -->
 
 # Workstream: Official Web Collection Restart Closeout
 
@@ -14,10 +16,11 @@ updated: 2026-04-28
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2`
-- current slice: 本地 `official_web` source-truth projection replay 已完成；source config 已补齐
-  校级优先、院级/topic 逐个 rollout 的 host 分组与 scheduler lane 形态
-- active implementation: yes, planning and ops follow-up only
+- current phase: `Phase 2 acceptance repair`
+- current slice: 本地 `official_web` source-truth projection replay 已完成；接手 review
+  已补齐 app-api artifact contract、handoff multi-scope promotion、collector stable test gate
+  与 architecture link drift
+- active implementation: yes, closeout repair and live-seam follow-up only
 - latest projection artifact:
   `.tmp/official-web-restart/official-web-restart-20260427T213902Z/projection-replay.json`
 - latest validation artifact:
@@ -41,6 +44,8 @@ updated: 2026-04-28
 - 本 workstream 不改变 retrieval serving profile、product routing gate 或 accepted merged truth。
 - 本 workstream 的校级/院级拆分只作用于 `official_web` source crawl admission 与
   scheduler/operator rollout，不创建 `college_web` source channel。
+- 本 workstream 当前剩余缺口是 no-promotion live seam evidence；不把本地 artifact-only
+  replay 或 import dry-run 冒充为 registry current truth。
 
 ## Related Work
 

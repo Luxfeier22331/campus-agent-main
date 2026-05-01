@@ -4,7 +4,10 @@
 	"private": true,
 	"description": "Config and planning helpers for campus-agent official web collection.",
 	"type": "module",
-	"exports": "./src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./artifacts": "./src/artifacts.ts"
+	},
 	"scripts": {
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit"
