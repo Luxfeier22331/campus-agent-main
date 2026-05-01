@@ -57,6 +57,7 @@ export function resolveOfficialWebConfigPaths(
 		credentialsSchemaPath: resolve(siteRoot, "credentials.schema.json"),
 		projectionDeclarationsPath: resolve(siteRoot, "projection-declarations.json"),
 		consumerDenominatorPath: resolve(siteRoot, "consumer-denominator.json"),
+		targetSourceMapPath: resolve(siteRoot, "target-source-map.json"),
 		schedulerPolicyPath: resolve(siteRoot, "scheduler-policy.json"),
 		qcPolicyPath: resolve(siteRoot, "qc-policy.json"),
 	};

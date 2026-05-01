@@ -14,6 +14,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			credentialsSchemaPath: "/tmp/campus_public/credentials.schema.json",
 			projectionDeclarationsPath: "/tmp/campus_public/projection-declarations.json",
 			consumerDenominatorPath: "/tmp/campus_public/consumer-denominator.json",
+			targetSourceMapPath: "/tmp/campus_public/target-source-map.json",
 			schedulerPolicyPath: "/tmp/campus_public/scheduler-policy.json",
 			qcPolicyPath: "/tmp/campus_public/qc-policy.json",
 		},
@@ -234,6 +235,24 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				"rejected_pages",
 				"consumer_family_counts",
 				"rejected_reason_counts",
+			],
+		},
+		targetSourceMap: {
+			schemaVersion: "official_web_target_source_map.v1",
+			siteId: "campus_public",
+			mapVersion: "campus_public_target_source_map_v1",
+			targets: [
+				{
+					targetId: "contact-directory",
+					consumerFamily: "contact_directory_candidate",
+					ownerSurface: "contact_directory_lookup",
+					selectedWriteTarget: "campus_services/contact_directory",
+					sourceHosts: ["www.example.edu"],
+					urlPatterns: ["contact"],
+					titleKeywords: ["联系"],
+					requiredEvidence: ["phone"],
+					notes: "test target",
+				},
 			],
 		},
 		schedulerPolicy: {

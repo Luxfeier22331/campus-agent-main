@@ -393,6 +393,72 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		"consumerDenominator.reportingCounters",
 	);
 
+	if (bundle.targetSourceMap.siteId !== bundle.site.siteId) {
+		throw new Error("targetSourceMap.siteId must match site.siteId");
+	}
+	assertNonEmpty(bundle.targetSourceMap.schemaVersion, "targetSourceMap.schemaVersion");
+	assertNonEmpty(bundle.targetSourceMap.mapVersion, "targetSourceMap.mapVersion");
+	if (bundle.targetSourceMap.targets.length === 0) {
+		throw new Error("targetSourceMap.targets must not be empty");
+	}
+	ensureUnique(
+		bundle.targetSourceMap.targets.map((item) => item.targetId),
+		"targetSourceMap.targets[].targetId",
+	);
+	const consumerRuleByFamily = new Map(
+		bundle.consumerDenominator.consumerFamilies.map((rule) => [rule.consumerFamily, rule]),
+	);
+	for (const target of bundle.targetSourceMap.targets) {
+		const consumerRule = consumerRuleByFamily.get(target.consumerFamily);
+		if (!consumerRule) {
+			throw new Error(
+				`targetSourceMap ${target.targetId} references unknown consumerFamily ${target.consumerFamily}`,
+			);
+		}
+		assertNonEmpty(target.ownerSurface, `targetSourceMap ${target.targetId} ownerSurface`);
+		assertNonEmpty(target.notes, `targetSourceMap ${target.targetId} notes`);
+		if (target.ownerSurface !== consumerRule.ownerSurface) {
+			throw new Error(
+				`targetSourceMap ${target.targetId} ownerSurface must match consumer denominator`,
+			);
+		}
+		if (target.selectedWriteTarget !== consumerRule.selectedWriteTarget) {
+			throw new Error(
+				`targetSourceMap ${target.targetId} selectedWriteTarget must match consumer denominator`,
+			);
+		}
+		if (target.sourceHosts.length === 0) {
+			throw new Error(`targetSourceMap ${target.targetId} must define sourceHosts`);
+		}
+		if (target.requiredEvidence.length === 0) {
+			throw new Error(`targetSourceMap ${target.targetId} must define requiredEvidence`);
+		}
+		ensureUnique(target.sourceHosts, `targetSourceMap ${target.targetId}.sourceHosts`);
+		ensureUnique(target.urlPatterns, `targetSourceMap ${target.targetId}.urlPatterns`);
+		ensureUnique(target.titleKeywords, `targetSourceMap ${target.targetId}.titleKeywords`);
+		ensureUnique(
+			target.requiredEvidence,
+			`targetSourceMap ${target.targetId}.requiredEvidence`,
+		);
+		for (const sourceHost of target.sourceHosts) {
+			validateHostName(sourceHost, `targetSourceMap ${target.targetId}.sourceHosts`);
+			const host = hostIndex.get(sourceHost);
+			if (!host || !host.enabled) {
+				throw new Error(
+					`targetSourceMap ${target.targetId} references unavailable host ${sourceHost}`,
+				);
+			}
+		}
+		for (const evidence of target.requiredEvidence) {
+			if (!consumerRule.requiredEvidence.includes(evidence)) {
+				throw new Error(
+					`targetSourceMap ${target.targetId} requiredEvidence must be allowed by consumer denominator`,
+				);
+			}
+		}
+		validateRegexList(target.urlPatterns, `targetSourceMap ${target.targetId}.urlPatterns`);
+	}
+
 	if (bundle.qcPolicy.siteId !== bundle.site.siteId) {
 		throw new Error("qcPolicy.siteId must match site.siteId");
 	}

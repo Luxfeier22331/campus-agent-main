@@ -34,6 +34,8 @@ export type {
 	OfficialWebSeed,
 	OfficialWebSeedSet,
 	OfficialWebSiteConfig,
+	OfficialWebTargetSourceMap,
+	OfficialWebTargetSourceMapTarget,
 } from "./config-models.ts";
 export {
 	ALLOWED_CREDENTIALS_MODES,

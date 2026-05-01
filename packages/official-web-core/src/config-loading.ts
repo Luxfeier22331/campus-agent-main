@@ -37,6 +37,7 @@ export function loadOfficialWebConfig(
 	const credentialsSchemaPayload = readJson(paths.credentialsSchemaPath);
 	const projectionDeclarationsPayload = readJson(paths.projectionDeclarationsPath);
 	const consumerDenominatorPayload = readJson(paths.consumerDenominatorPath);
+	const targetSourceMapPayload = readJson(paths.targetSourceMapPath);
 	const schedulerPolicyPayload = readJson(paths.schedulerPolicyPath);
 	const qcPolicyPayload = readJson(paths.qcPolicyPath);
 
@@ -194,6 +195,22 @@ export function loadOfficialWebConfig(
 				reviewPolicy: asString(item.review_policy),
 			})),
 			reportingCounters: asStringArray(consumerDenominatorPayload.reporting_counters),
+		},
+		targetSourceMap: {
+			schemaVersion: asString(targetSourceMapPayload.schema_version),
+			siteId: asString(targetSourceMapPayload.site_id),
+			mapVersion: asString(targetSourceMapPayload.map_version),
+			targets: asArray(targetSourceMapPayload.targets).map((item) => ({
+				targetId: asPathSegment(item.target_id, "target_source_map.target_id"),
+				consumerFamily: asConsumerFamily(item.consumer_family),
+				ownerSurface: asString(item.owner_surface),
+				selectedWriteTarget: asString(item.selected_write_target),
+				sourceHosts: asStringArray(item.source_hosts).map((host) => host.toLowerCase()),
+				urlPatterns: asStringArray(item.url_patterns),
+				titleKeywords: asStringArray(item.title_keywords),
+				requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+				notes: asString(item.notes),
+			})),
 		},
 		schedulerPolicy: {
 			schemaVersion: asString(schedulerPolicyPayload.schema_version),

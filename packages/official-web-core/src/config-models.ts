@@ -240,6 +240,25 @@ export interface OfficialWebConsumerDenominator {
 	reportingCounters: string[];
 }
 
+export interface OfficialWebTargetSourceMapTarget {
+	targetId: string;
+	consumerFamily: OfficialWebConsumerFamily;
+	ownerSurface: string;
+	selectedWriteTarget: string;
+	sourceHosts: string[];
+	urlPatterns: string[];
+	titleKeywords: string[];
+	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	notes: string;
+}
+
+export interface OfficialWebTargetSourceMap {
+	schemaVersion: string;
+	siteId: string;
+	mapVersion: string;
+	targets: OfficialWebTargetSourceMapTarget[];
+}
+
 export interface OfficialWebQcHostOverride {
 	host: string;
 	allowedReviewIssueCodes: string[];
@@ -284,6 +303,7 @@ export interface OfficialWebConfigPaths {
 	credentialsSchemaPath: string;
 	projectionDeclarationsPath: string;
 	consumerDenominatorPath: string;
+	targetSourceMapPath: string;
 	schedulerPolicyPath: string;
 	qcPolicyPath: string;
 }
@@ -297,6 +317,7 @@ export interface OfficialWebConfigBundle {
 	credentialsSchema: OfficialWebCredentialsSchema;
 	projectionDeclarations: OfficialWebProjectionDeclarations;
 	consumerDenominator: OfficialWebConsumerDenominator;
+	targetSourceMap: OfficialWebTargetSourceMap;
 	schedulerPolicy: OfficialWebSchedulerPolicy;
 	qcPolicy: OfficialWebQcPolicy;
 }

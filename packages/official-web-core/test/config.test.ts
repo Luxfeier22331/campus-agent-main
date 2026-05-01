@@ -110,6 +110,34 @@ function writeMinimalConsumerDenominator(siteRoot: string): void {
 	);
 }
 
+function writeMinimalTargetSourceMap(siteRoot: string): void {
+	writeFileSync(
+		resolve(siteRoot, "target-source-map.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_target_source_map.v1",
+				site_id: "campus_public",
+				map_version: "test_target_source_map_v1",
+				targets: [
+					{
+						target_id: "contact-directory",
+						consumer_family: "contact_directory_candidate",
+						owner_surface: "contact_directory_lookup",
+						selected_write_target: "campus_services/contact_directory",
+						source_hosts: ["www.example.edu"],
+						url_patterns: ["contact"],
+						title_keywords: ["Contact"],
+						required_evidence: ["phone"],
+						notes: "test target",
+					},
+				],
+			},
+			null,
+			2,
+		),
+	);
+}
+
 describe("official-web-core config loading", () => {
 	it("resolves muc_public repo-tracked config paths", () => {
 		const paths = resolveOfficialWebConfigPaths("muc_public");
@@ -129,6 +157,11 @@ describe("official-web-core config loading", () => {
 		).toBe(true);
 		expect(
 			paths.qcPolicyPath.endsWith("configs/sources/official_web/muc_public/qc-policy.json"),
+		).toBe(true);
+		expect(
+			paths.targetSourceMapPath.endsWith(
+				"configs/sources/official_web/muc_public/target-source-map.json",
+			),
 		).toBe(true);
 	});
 
@@ -162,6 +195,17 @@ describe("official-web-core config loading", () => {
 		);
 		expect(config.qcPolicy.allowedReviewPageFamilies).toContain("dynamic_shell_page");
 		expect(config.schedulerPolicy.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
+		expect(config.targetSourceMap.mapVersion).toBe("muc_public_target_source_map_v1");
+		expect(config.targetSourceMap.targets.map((target) => target.targetId)).toEqual([
+			"campus-services-contact-directory",
+			"campus-services-service-guide",
+			"official-web-stable-reference",
+			"official-web-notice-news-inventory",
+		]);
+		expect(config.targetSourceMap.targets[0]).toMatchObject({
+			consumerFamily: "contact_directory_candidate",
+			selectedWriteTarget: "campus_services/contact_directory",
+		});
 		expect(config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
 			hostGroup: "university_core",
 			ownerLabel: "学校主页",
@@ -458,6 +502,7 @@ describe("official-web-core config loading", () => {
 			),
 		);
 		writeMinimalConsumerDenominator(siteRoot);
+		writeMinimalTargetSourceMap(siteRoot);
 
 		expect(() =>
 			loadOfficialWebConfig("campus_public", {
@@ -683,6 +728,7 @@ describe("official-web-core config loading", () => {
 			),
 		);
 		writeMinimalConsumerDenominator(siteRoot);
+		writeMinimalTargetSourceMap(siteRoot);
 
 		expect(() =>
 			loadOfficialWebConfig("campus_public", {
