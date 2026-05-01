@@ -84,7 +84,10 @@ def build_authenticated_notice_smoke_replay_run_plan(
     _require_verified_source_row(source_row)
     created_at = generated_at or _utc_now_iso()
     new_run_id = synthetic_run_id or _synthetic_run_id(source_run_id, created_at)
-    synthetic_row = {column: deepcopy(source_row.get(column)) for column in AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_COLUMNS}
+    synthetic_row = {
+        column: deepcopy(source_row.get(column))
+        for column in AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_COLUMNS
+    }
     record = deepcopy(synthetic_row.get("record"))
     if not isinstance(record, dict):
         raise ValueError("source collector run record must be a json object")
@@ -180,9 +183,7 @@ def fetch_authenticated_notice_collector_run_row(
 
 
 def collector_run_ledger_database_url_from_env(env: Mapping[str, str]) -> str:
-    direct = (
-        env.get(AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL_ENV_KEY) or ""
-    ).strip()
+    direct = (env.get(AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL_ENV_KEY) or "").strip()
     if direct:
         return normalize_postgres_connection_url(direct)
     operator = (
