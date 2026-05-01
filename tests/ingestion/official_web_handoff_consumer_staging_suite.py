@@ -116,6 +116,120 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             "run_admission_decision_excluded",
         )
 
+    def test_consumer_candidate_review_reports_target_inventory_field_status(
+        self,
+    ) -> None:
+        candidate_key = "owcand_service_guide_fields"
+
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_field_review",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": candidate_key,
+                        "consumer_family": "service_guide_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/service_guide",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "依申请公开工作流程",
+                        "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        "matched_evidence": ["service_process", "service_material"],
+                        "raw_asset_id": "owasset_service",
+                        "raw_version_id": "owver_service",
+                        "target_id": "campus-services-service-guide",
+                        "target_job_id": "owtarget_muc_public_service",
+                        "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+                        "typed_candidate": {
+                            "service_name": "依申请公开工作流程",
+                            "process_steps": ["1. 申请人提交信息公开申请。"],
+                            "materials": ["申请表"],
+                            "entry_points": [],
+                            "contacts": {"phones": [], "emails": [], "locations": []},
+                            "source_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    }
+                ],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_v1",
+                "entries": [
+                    {
+                        "inventory_id": "muc-information-disclosure-application-process",
+                        "admission_target_id": "campus-services-service-guide",
+                        "source_urls": ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
+                        "required_fields": [
+                            "service_name",
+                            "process_steps",
+                            "required_materials",
+                            "responsible_office",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                    }
+                ],
+            },
+        )
+
+        candidate = review["candidates"][0]
+        self.assertEqual(
+            candidate["inventory_id"],
+            "muc-information-disclosure-application-process",
+        )
+        self.assertEqual(
+            candidate["field_status"],
+            {
+                "service_name": "present",
+                "process_steps": "present",
+                "required_materials": "present",
+                "responsible_office": "missing",
+                "source_url": "present",
+                "source_version_evidence": "present",
+            },
+        )
+        self.assertEqual(
+            review["targetFieldReviews"],
+            [
+                {
+                    "canonicalVerification": False,
+                    "jobId": "owtarget_muc_public_service",
+                    "runId": "owrun_field_review",
+                    "sourceHandoffId": None,
+                    "status": "blocked_fields",
+                    "summary": {
+                        "schemaVersion": "official_web_target_field_review.v1",
+                        "candidateKey": candidate_key,
+                        "consumerFamily": "service_guide_candidate",
+                        "fieldStatus": candidate["field_status"],
+                        "inventoryId": "muc-information-disclosure-application-process",
+                        "normalizedCanonicalUrl": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        "readyForSelectedWrite": False,
+                        "requiredFields": [
+                            "service_name",
+                            "process_steps",
+                            "required_materials",
+                            "responsible_office",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "reviewVerdict": "pending_review",
+                        "selectedWriteTarget": "campus_services/service_guide",
+                        "sourceRef": {
+                            "source_channel": "official_web",
+                            "raw_asset_id": "owasset_service",
+                            "raw_version_id": "owver_service",
+                            "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        },
+                        "targetId": "campus-services-service-guide",
+                    },
+                }
+            ],
+        )
+
     def test_consume_handoff_record_stages_projection_outputs_without_persisting_registry_by_default(
         self,
     ) -> None:

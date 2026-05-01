@@ -310,6 +310,7 @@ def consume_handoff_record(
             if consumer_review_manifest_path is not None
             else None,
             run_admission_decision=_run_admission_decision_from_payload(payload),
+            target_inventory_manifest=_read_target_inventory_manifest_if_present(site_id),
         )
         promotion_report = build_promotion_report(
             promote_import=settings.promote_import,
@@ -340,6 +341,8 @@ def consume_handoff_record(
                     "errorMessage": staged_error["message"] if staged_error is not None else None,
                     "executionRef": _execution_ref(event_id, canonical_context),
                     "status": "staged",
+                    "targetFieldReviews": consumer_candidate_review_report.get("targetFieldReviews")
+                    or [],
                     "updatedAt": utcnow(),
                 },
             )
@@ -401,6 +404,8 @@ def consume_handoff_record(
             payload={
                 "executionRef": _execution_ref(event_id, canonical_context),
                 "status": "promoted",
+                "targetFieldReviews": consumer_candidate_review_report.get("targetFieldReviews")
+                or [],
                 "updatedAt": utcnow(),
             },
         )
@@ -631,6 +636,13 @@ def resolve_source_truth_bundle_key(payload: dict[str, object]) -> str:
         run_id=run_id,
         artifact_name="source-truth-bundle.json",
     )
+
+
+def _read_target_inventory_manifest_if_present(site_id: str) -> dict[str, object] | None:
+    path = Path("configs") / "sources" / "official_web" / site_id / "target-inventory.json"
+    if not path.exists():
+        return None
+    return read_json(path)
 
 
 def persist_projection_output(

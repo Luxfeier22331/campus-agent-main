@@ -217,12 +217,14 @@ def build_consumer_candidate_review_report(
     replay_report: dict[str, object],
     consumer_review_manifest: dict[str, object] | None = None,
     run_admission_decision: dict[str, object] | None = None,
+    target_inventory_manifest: dict[str, object] | None = None,
 ) -> dict[str, object]:
     verdicts = _review_verdicts(
         consumer_review_manifest=consumer_review_manifest,
         replay_report=replay_report,
     )
     run_excluded = _is_run_admission_excluded(run_admission_decision)
+    target_inventory_entries = _target_inventory_entries(target_inventory_manifest)
     raw_candidates = require_object_list(
         replay_report.get("consumer_candidate_pages"),
         "consumer_candidate_pages",
@@ -232,6 +234,10 @@ def build_consumer_candidate_review_report(
             index=index,
             candidate=candidate,
             run_excluded=run_excluded,
+            target_inventory_entry=_target_inventory_entry_for_candidate(
+                candidate=candidate,
+                target_inventory_entries=target_inventory_entries,
+            ),
             verdicts=verdicts,
         )
         for index, candidate in enumerate(raw_candidates, start=1)
@@ -306,6 +312,17 @@ def build_consumer_candidate_review_report(
             "candidate_count": len(stable_reference_documents),
             "serving_alias_update": "not_allowed_in_consumer_denominator_recovery",
         },
+        "targetFieldReviews": [
+            review
+            for review in (
+                _target_field_review_record(
+                    candidate=candidate,
+                    run_id=require_text(replay_report.get("crawl_run_id"), "crawl_run_id"),
+                )
+                for candidate in candidates
+            )
+            if review is not None
+        ],
         "candidates": candidates,
     }
 
@@ -315,6 +332,7 @@ def _build_consumer_candidate_review_entry(
     index: int,
     candidate: dict[str, object],
     run_excluded: bool,
+    target_inventory_entry: dict[str, object] | None,
     verdicts: dict[str, dict[str, object]],
 ) -> dict[str, object]:
     consumer_family = require_text(candidate.get("consumer_family"), "consumer_family")
@@ -346,6 +364,12 @@ def _build_consumer_candidate_review_entry(
         else {}
     )
     typed_candidate_schema_version = optional_text(candidate.get("typed_candidate_schema_version"))
+    required_fields = _target_inventory_required_fields(target_inventory_entry)
+    field_status = _field_status_for_required_fields(
+        candidate=candidate,
+        required_fields=required_fields,
+        typed_candidate=typed_candidate,
+    )
     ready_for_selected_write = (
         _ready_for_selected_write(
             admission_action=admission_action,
@@ -366,6 +390,10 @@ def _build_consumer_candidate_review_entry(
         "consumer_family": consumer_family,
         "materialization_policy": materialization_policy,
         "selected_write_target": selected_write_target,
+        "target_candidate_id": optional_text(candidate.get("target_candidate_id")),
+        "target_declaration_version": optional_text(candidate.get("target_declaration_version")),
+        "target_id": optional_text(candidate.get("target_id")),
+        "target_job_id": optional_text(candidate.get("target_job_id")),
         "review_policy": require_text(candidate.get("review_policy"), "review_policy"),
         "title": require_text(candidate.get("title"), "title"),
         "normalized_canonical_url": require_text(
@@ -382,6 +410,11 @@ def _build_consumer_candidate_review_entry(
                 "normalized_canonical_url",
             ),
         },
+        "inventory_id": optional_text(target_inventory_entry.get("inventory_id"))
+        if target_inventory_entry is not None
+        else None,
+        "required_fields": required_fields,
+        "field_status": field_status,
         "typed_candidate_schema_version": typed_candidate_schema_version,
         "typed_candidate": typed_candidate,
         "quality_gate": quality_gate,
@@ -401,6 +434,174 @@ def _build_consumer_candidate_review_entry(
             typed_candidate=typed_candidate,
             typed_candidate_schema_version=typed_candidate_schema_version,
         ),
+    }
+
+
+def _target_inventory_entries(
+    target_inventory_manifest: dict[str, object] | None,
+) -> list[dict[str, object]]:
+    if target_inventory_manifest is None:
+        return []
+    if target_inventory_manifest.get("schema_version") != "official_web_target_inventory.v1":
+        return []
+    return require_object_list(target_inventory_manifest.get("entries"), "entries")
+
+
+def _target_inventory_entry_for_candidate(
+    *,
+    candidate: dict[str, object],
+    target_inventory_entries: list[dict[str, object]],
+) -> dict[str, object] | None:
+    target_id = optional_text(candidate.get("target_id"))
+    normalized_canonical_url = optional_text(candidate.get("normalized_canonical_url"))
+    if target_id is None:
+        return None
+    for entry in target_inventory_entries:
+        if optional_text(entry.get("admission_target_id")) != target_id:
+            continue
+        source_urls = normalize_string_list(entry.get("source_urls"))
+        if source_urls and normalized_canonical_url not in source_urls:
+            continue
+        return entry
+    return None
+
+
+def _target_inventory_required_fields(
+    target_inventory_entry: dict[str, object] | None,
+) -> list[str]:
+    if target_inventory_entry is None:
+        return []
+    return normalize_string_list(target_inventory_entry.get("required_fields"))
+
+
+_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    "authoritative_source_url": ("source_url",),
+    "email": ("emails", "contacts.emails"),
+    "location": ("locations", "contacts.locations"),
+    "normalized_content_summary": ("normalized_content_summary", "summary"),
+    "office_hours": ("office_hours", "contacts.office_hours"),
+    "organization_name": ("organization_name", "display_name", "source_title"),
+    "phone": ("phones", "contacts.phones"),
+    "process_steps": ("process_steps",),
+    "reference_title": ("reference_title", "source_title"),
+    "release_scope": ("release_scope",),
+    "required_materials": ("required_materials", "materials"),
+    "responsible_office": ("responsible_office",),
+    "service_name": ("service_name",),
+    "source_url": ("source_url",),
+}
+
+
+def _field_status_for_required_fields(
+    *,
+    candidate: dict[str, object],
+    required_fields: list[str],
+    typed_candidate: dict[object, object],
+) -> dict[str, str]:
+    return {
+        field_name: _field_status_for_required_field(
+            candidate=candidate,
+            field_name=field_name,
+            typed_candidate=typed_candidate,
+        )
+        for field_name in required_fields
+    }
+
+
+def _field_status_for_required_field(
+    *,
+    candidate: dict[str, object],
+    field_name: str,
+    typed_candidate: dict[object, object],
+) -> str:
+    if field_name == "source_version_evidence":
+        return (
+            "present"
+            if optional_text(candidate.get("raw_asset_id"))
+            and optional_text(candidate.get("raw_version_id"))
+            else "missing"
+        )
+    if field_name == "source_url":
+        return "present" if optional_text(candidate.get("normalized_canonical_url")) else "missing"
+    if field_name in {"phone", "location", "email"} and _evidence_span_present(
+        candidate=candidate,
+        evidence_type=field_name,
+    ):
+        return "present"
+
+    for field_path in _FIELD_ALIASES.get(field_name, (field_name,)):
+        if _is_present_value(_lookup_field_path(typed_candidate, field_path)):
+            return "present"
+    return "missing"
+
+
+def _lookup_field_path(value: dict[object, object], field_path: str) -> object:
+    current: object = value
+    for part in field_path.split("."):
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+    return current
+
+
+def _is_present_value(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return any(_is_present_value(item) for item in value)
+    if isinstance(value, dict):
+        return any(_is_present_value(item) for item in value.values())
+    return value is not None
+
+
+def _evidence_span_present(*, candidate: dict[str, object], evidence_type: str) -> bool:
+    for span in require_object_list(candidate.get("evidence_spans"), "evidence_spans"):
+        if optional_text(span.get("evidence_type")) == evidence_type and optional_text(
+            span.get("text")
+        ):
+            return True
+    return False
+
+
+def _target_field_review_record(
+    *,
+    candidate: dict[str, object],
+    run_id: str,
+) -> dict[str, object] | None:
+    job_id = optional_text(candidate.get("target_job_id"))
+    field_status = candidate.get("field_status")
+    if job_id is None or not isinstance(field_status, dict) or not field_status:
+        return None
+    status = (
+        "ready_for_selected_write"
+        if bool(candidate.get("ready_for_selected_write"))
+        else "blocked_fields"
+        if any(str(value) in {"missing", "ambiguous"} for value in field_status.values())
+        else "pending_review"
+    )
+    return {
+        "canonicalVerification": False,
+        "jobId": job_id,
+        "runId": run_id,
+        "sourceHandoffId": None,
+        "status": status,
+        "summary": {
+            "schemaVersion": "official_web_target_field_review.v1",
+            "candidateKey": require_text(candidate.get("candidate_key"), "candidate_key"),
+            "consumerFamily": require_text(candidate.get("consumer_family"), "consumer_family"),
+            "fieldStatus": field_status,
+            "inventoryId": candidate.get("inventory_id"),
+            "normalizedCanonicalUrl": require_text(
+                candidate.get("normalized_canonical_url"),
+                "normalized_canonical_url",
+            ),
+            "readyForSelectedWrite": bool(candidate.get("ready_for_selected_write")),
+            "requiredFields": normalize_string_list(candidate.get("required_fields")),
+            "reviewVerdict": require_text(candidate.get("review_verdict"), "review_verdict"),
+            "selectedWriteTarget": candidate.get("selected_write_target"),
+            "sourceRef": candidate.get("source_ref"),
+            "targetId": candidate.get("target_id"),
+        },
     }
 
 

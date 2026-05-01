@@ -87,6 +87,18 @@ export interface OfficialWebSiteProjectionMaterialization extends OfficialWebSit
 	projectedAt: string;
 }
 
+export interface OfficialWebTargetArtifactVerificationSummaryWrite {
+	canonicalVerification: boolean;
+	jobId: string;
+	objectVerificationId: string | null;
+	runId: string;
+	sourceHandoffId: string | null;
+	status: string;
+	summary: Record<string, unknown>;
+	summaryId: string;
+	updatedAt: string;
+}
+
 export interface OfficialWebProjectionProjectorStore {
 	getRunAdmissionDecision(runId: string): Promise<OfficialWebRunAdmissionDecision | null>;
 	getRunProjectionSource(runId: string): Promise<OfficialWebRunProjectionSource | null>;
@@ -118,6 +130,9 @@ export interface OfficialWebProjectionProjectorStore {
 		status: OfficialWebIngestionExecutionStatus;
 		updatedAt: string;
 	}): Promise<boolean>;
+	upsertTargetArtifactVerificationSummaries?(
+		records: OfficialWebTargetArtifactVerificationSummaryWrite[],
+	): Promise<void>;
 	upsertRunProjection(projection: OfficialWebRunProjectionMaterialization): Promise<void>;
 	upsertSiteProjection(projection: OfficialWebSiteProjectionMaterialization): Promise<void>;
 }

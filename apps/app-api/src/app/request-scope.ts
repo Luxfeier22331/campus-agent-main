@@ -24,7 +24,11 @@ import {
 	buildOfficialWebQueryService,
 	createPgOfficialWebQueryStore,
 } from "../modules/official-web-query";
-import { buildOfficialWebTargetInventoryService } from "../modules/official-web-target-inventory";
+import {
+	buildOfficialWebTargetInventoryService,
+	createPgOfficialWebTargetInventoryFieldStatusStore,
+	createPgOfficialWebTargetInventoryPreviewEvidenceStore,
+} from "../modules/official-web-target-inventory";
 import {
 	buildOfficialWebTargetJobService,
 	createPgOfficialWebTargetJobStore,
@@ -172,7 +176,14 @@ export function createRequestScopeFactory(input: {
 					return officialWebTargetInventoryService;
 				}
 
-				officialWebTargetInventoryService = buildOfficialWebTargetInventoryService();
+				officialWebTargetInventoryService = buildOfficialWebTargetInventoryService({
+					fieldStatusStore: createPgOfficialWebTargetInventoryFieldStatusStore(input.env, {
+						getDb: runtime.getDb,
+					}),
+					previewEvidenceStore: createPgOfficialWebTargetInventoryPreviewEvidenceStore(input.env, {
+						getDb: runtime.getDb,
+					}),
+				});
 				return officialWebTargetInventoryService;
 			}
 

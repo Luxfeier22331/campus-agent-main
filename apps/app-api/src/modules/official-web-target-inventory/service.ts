@@ -78,7 +78,23 @@ export interface OfficialWebTargetInventoryService {
 }
 
 export interface OfficialWebTargetInventoryServiceOptions {
+	fieldStatusStore?: OfficialWebTargetInventoryFieldStatusStore;
+	previewEvidenceStore?: OfficialWebTargetInventoryPreviewEvidenceStore;
 	targetInventory?: OfficialWebTargetInventory;
+}
+
+export interface OfficialWebTargetInventoryFieldStatusStore {
+	listFieldStatus(input: {
+		entries: OfficialWebTargetInventory["entries"];
+		siteId: string;
+	}): Promise<Record<string, Record<string, OfficialWebTargetInventoryFieldStatus>>>;
+}
+
+export interface OfficialWebTargetInventoryPreviewEvidenceStore {
+	listPreviewEvidence(input: {
+		entries: OfficialWebTargetInventory["entries"];
+		siteId: string;
+	}): Promise<OfficialWebTargetInventoryPreviewEvidence[]>;
 }
 
 const DEFAULT_TARGET_INVENTORY = normalizeOfficialWebTargetInventoryManifest(
@@ -145,11 +161,30 @@ export function buildOfficialWebTargetInventoryService(
 ): OfficialWebTargetInventoryService {
 	const targetInventory = options.targetInventory ?? DEFAULT_TARGET_INVENTORY;
 
+	async function buildReport() {
+		const previewEvidence = options.previewEvidenceStore
+			? await options.previewEvidenceStore.listPreviewEvidence({
+					entries: targetInventory.entries,
+					siteId: targetInventory.siteId,
+				})
+			: [];
+		const fieldStatusByInventoryId = options.fieldStatusStore
+			? await options.fieldStatusStore.listFieldStatus({
+					entries: targetInventory.entries,
+					siteId: targetInventory.siteId,
+				})
+			: {};
+		return buildOfficialWebTargetInventoryReportFromInventory(targetInventory, {
+			fieldStatusByInventoryId,
+			previewEvidence,
+		});
+	}
+
 	return {
 		async getTargetInventoryEntryById(input) {
 			ensureOperatorPrincipal(input.principal);
 			const inventoryId = normalizeOptionalString(input.inventoryId);
-			const report = buildOfficialWebTargetInventoryReportFromInventory(targetInventory);
+			const report = await buildReport();
 			const entry = report.entries.find((item) => item.inventoryId === inventoryId);
 			if (!entry) {
 				throw new AppApiRouteError({
@@ -166,7 +201,7 @@ export function buildOfficialWebTargetInventoryService(
 			ensureOperatorPrincipal(input.principal);
 			const filters = normalizeFilters(input.filters);
 			const siteId = filters.siteId ?? targetInventory.siteId;
-			const report = buildOfficialWebTargetInventoryReportFromInventory(targetInventory);
+			const report = await buildReport();
 			const entries =
 				siteId === targetInventory.siteId
 					? report.entries
