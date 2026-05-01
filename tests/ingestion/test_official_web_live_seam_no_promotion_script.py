@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from scripts.official_web_live_seam_no_promotion import (
     assert_seam_report,
@@ -11,6 +12,7 @@ from scripts.official_web_live_seam_no_promotion import (
     extract_last_json_object,
     handoff_path_for_run,
     resolve_inventory_target_args,
+    seed_target_workset,
     write_json,
 )
 
@@ -70,6 +72,37 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
 
             self.assertEqual(handoff_path_for_run(inbox_dir, "owrun_current"), current_path)
 
+    def test_seed_target_workset_requeues_exact_candidate_freshness_for_preview(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--site-id",
+                "muc_public",
+                "--target-id",
+                "campus-services-service-guide",
+                "--target-url",
+                "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                "--host",
+                "xxgk.muc.edu.cn",
+            ]
+        )
+
+        with (
+            TemporaryDirectory() as temp_dir,
+            patch(
+                "scripts.official_web_live_seam_no_promotion.run_json_command",
+                return_value={"targetCandidateId": "owcand_test"},
+            ) as run_json_command,
+        ):
+            seed_target_workset(Path.cwd(), args, output_root=Path(temp_dir))
+
+        command = run_json_command.call_args.args[1]
+        node_code = command[command.index("-e") + 1]
+        self.assertIn("update official_web.page_freshness", node_code)
+        self.assertIn("next_eligible_fetch_at = $", node_code)
+        self.assertIn("manual_live_seam_preview_requeue", node_code)
+        self.assertIn("where site_id = $1", node_code)
+        self.assertIn("normalized_canonical_url = $2", node_code)
+
     def test_build_seam_report_includes_target_first_proof_fields(self) -> None:
         with TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir)
@@ -107,6 +140,13 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
                     "ingestion_execution_error_code": None,
                     "ingestion_execution_status": "staged",
                     "target_attempt_count": 1,
+                    "target_attempts": [
+                        {
+                            "candidateId": "owcand_contact_home",
+                            "jobId": "owtarget_muc_public_contact_directory",
+                            "normalizedCanonicalUrl": "https://xxgk.muc.edu.cn/index.htm",
+                        }
+                    ],
                     "target_job_ids": ["owtarget_muc_public_contact_directory"],
                 },
                 drain_result={"processed": 1},

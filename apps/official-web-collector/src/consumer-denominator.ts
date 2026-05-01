@@ -79,20 +79,26 @@ export function applyOfficialWebConsumerDenominator(input: {
 			consumerDenominator: input.consumerDenominator,
 			page,
 		});
+		const targetRetentionOverride = hasTargetSourceTruthRetention(page);
 		if (
 			evaluation.retentionDecision === "retain_source_truth" ||
+			targetRetentionOverride ||
 			input.consumerDenominator.enforcementMode === "audit_only"
 		) {
 			const retainedDecision =
-				evaluation.retentionDecision === "retain_source_truth"
+				evaluation.retentionDecision === "retain_source_truth" || targetRetentionOverride
 					? "retain_source_truth"
 					: evaluation.retentionDecision;
+			const retainedRejectionReason =
+				evaluation.rejectionReason && targetRetentionOverride
+					? "target_workset_retention_policy"
+					: evaluation.rejectionReason;
 			const pageManifest = {
 				...page.pageManifest,
 				consumerDenominatorVersion: evaluation.consumerDenominatorVersion,
 				consumerMatches: evaluation.consumerMatches,
 				consumerRetentionDecision: retainedDecision,
-				consumerRejectionReason: evaluation.rejectionReason,
+				consumerRejectionReason: retainedRejectionReason,
 			} satisfies CollectedPageArtifact["pageManifest"];
 			const retainedPage = {
 				...page,
@@ -134,6 +140,14 @@ export function applyOfficialWebConsumerDenominator(input: {
 			rejectedReasonCounts,
 		},
 	};
+}
+
+function hasTargetSourceTruthRetention(page: CollectedPageArtifact): boolean {
+	return (
+		page.pageManifest.targetMatches?.some(
+			(match) => match.retentionPolicy === "retain_source_truth",
+		) ?? false
+	);
 }
 
 function matchConsumerFamily(

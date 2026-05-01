@@ -45,6 +45,7 @@ export interface CrawlHostsWithCrawleeInput {
 	maxPagesPerHost: number;
 	maxTotalPages: number;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
+	disableConditionalHeaders?: boolean;
 	reportProgress?: (counts: CollectorProgressCounts) => Promise<void>;
 }
 
@@ -120,6 +121,7 @@ export async function crawlHostsWithCrawlee(
 				remainingTotalPages,
 			),
 			dynamicShellDiscoverer: input.dynamicShellDiscoverer,
+			disableConditionalHeaders: input.disableConditionalHeaders,
 		});
 		hostSummaries.push(...hostResult.hostSummaries);
 		pageObservations.push(...(hostResult.pageObservations ?? []));

@@ -2,8 +2,12 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadOfficialWebConfig } from "official-web-core";
 import { describe, expect, it } from "vitest";
-import { evaluateOfficialWebConsumerDenominator } from "../src/consumer-denominator";
+import {
+	applyOfficialWebConsumerDenominator,
+	evaluateOfficialWebConsumerDenominator,
+} from "../src/consumer-denominator";
 import { crawlSite } from "../src/crawl";
+import type { CollectedPageArtifact } from "../src/page-artifacts";
 import {
 	createCollectedPageArtifactForTest,
 	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
@@ -334,6 +338,66 @@ describe("official web consumer denominator", () => {
 		});
 		expect(crawlRun.counters.consumerDenominator.rejectedReasonCounts).toMatchObject({
 			no_consumer_denominator_match: 1,
+		});
+	});
+
+	it("retains explicit target-workset source truth even when denominator evidence is pending review", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const listingPage = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_target_review",
+			requestedUrl: "https://www.example.edu/",
+			finalUrl: "https://www.example.edu/",
+			declaredCanonicalUrl: null,
+			responseBody: `
+        <html><head><title>Campus public</title></head><body><main>
+          <a href="/news/1.htm">新闻</a>
+          <a href="/news/2.htm">通知</a>
+        </main></body></html>
+      `,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+		const targetPage: CollectedPageArtifact = {
+			...listingPage,
+			pageManifest: {
+				...listingPage.pageManifest,
+				pageFamily: "listing_page",
+				targetMatches: [
+					{
+						targetJobId: "owtarget_contact",
+						targetCandidateId: "owcand_contact_home",
+						targetId: "campus-services-contact-directory",
+						targetDeclarationVersion: "campus_public_target_source_map_v2",
+						consumerFamily: "contact_directory_candidate",
+						retentionPolicy: "retain_source_truth",
+						materializationPolicy: "candidate_only",
+						selectedWriteTarget: "campus_services/contact_directory",
+						reviewPolicy: "selected_write_requires_review",
+						worksetReason: "manual_live_seam_seed",
+					},
+				],
+			},
+		};
+
+		const result = applyOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			pages: [targetPage],
+		});
+
+		expect(result.retainedPages).toHaveLength(1);
+		expect(result.retainedPages[0]?.pageManifest.consumerRetentionDecision).toBe(
+			"retain_source_truth",
+		);
+		expect(result.retainedPages[0]?.pageManifest.consumerRejectionReason).toBe(
+			"target_workset_retention_policy",
+		);
+		expect(result.summary).toMatchObject({
+			retainedSourceTruthPages: 1,
+			discoveryOnlyPages: 0,
+			rejectedPages: 0,
 		});
 	});
 });

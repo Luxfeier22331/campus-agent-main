@@ -70,6 +70,7 @@ export function resolveCollectorCrawlMainInput(
 			"trigger-type": { type: "string" },
 			"legacy-broad-crawl": { type: "boolean" },
 			"legacy-broad-crawl-reason": { type: "string" },
+			"disable-conditional-headers": { type: "boolean" },
 			host: { type: "string", multiple: true },
 			"max-pages-per-host": { type: "string" },
 			"max-total-pages": { type: "string" },
@@ -122,6 +123,7 @@ export function resolveCollectorCrawlMainInput(
 			artifactStore: createS3ArtifactStoreFromEnv(env),
 			controlPlaneClient,
 			legacyBroadCrawlAdmission,
+			disableConditionalHeaders: values["disable-conditional-headers"],
 		},
 		siteId,
 	};

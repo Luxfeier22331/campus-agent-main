@@ -21,6 +21,7 @@ export async function buildInitialRequests(input: {
 	robotsState: CollectorRobotsState;
 	hostSummary: OfficialWebHostSummaryRecord;
 	urlResults: OfficialWebUrlResultRecord[];
+	disableConditionalHeaders?: boolean;
 }): Promise<Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>> {
 	const candidates: Array<{
 		url: string;
@@ -129,7 +130,9 @@ export async function buildInitialRequests(input: {
 			uniqueKey: admission.normalizedUrl,
 			userData: {
 				discoveryMethod: candidate.discoveryMethod,
-				conditionalHeaders: buildConditionalHeaders(candidate.knownPage),
+				conditionalHeaders: buildConditionalHeaders(candidate.knownPage, {
+					disabled: input.disableConditionalHeaders,
+				}),
 				discoveredFromUrl: candidate.discoveredFromUrl ?? null,
 				depth: 0,
 				...(candidate.knownPage ? { knownPage: candidate.knownPage } : {}),
@@ -150,6 +153,7 @@ export function collectNavigationRequests(input: {
 	depth: number;
 	hostSummary: OfficialWebHostSummaryRecord;
 	targetWorksetOnly?: boolean;
+	disableConditionalHeaders?: boolean;
 }): Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }> {
 	const requests = new Map<
 		string,
@@ -200,7 +204,9 @@ export function collectNavigationRequests(input: {
 			uniqueKey: admission.normalizedUrl,
 			userData: {
 				discoveryMethod: "navigation",
-				conditionalHeaders: buildConditionalHeaders(knownPage),
+				conditionalHeaders: buildConditionalHeaders(knownPage, {
+					disabled: input.disableConditionalHeaders,
+				}),
 				discoveredFromUrl: input.baseUrl,
 				depth: input.depth,
 				knownPage,
@@ -211,13 +217,16 @@ export function collectNavigationRequests(input: {
 	return [...requests.values()];
 }
 
-export function buildConditionalHeaders(page: OfficialWebPlannerPageCandidate | undefined):
+export function buildConditionalHeaders(
+	page: OfficialWebPlannerPageCandidate | undefined,
+	options: { disabled?: boolean } = {},
+):
 	| {
 			ifModifiedSince?: string;
 			ifNoneMatch?: string;
 	  }
 	| undefined {
-	if (!page) {
+	if (!page || options.disabled) {
 		return;
 	}
 	const headers: {

@@ -102,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 f"manual-consumer-live-{local_run_id}",
                 "--trace-id",
                 f"trace-{local_run_id}",
+                "--disable-conditional-headers",
                 "--output-dir",
                 str(output_root / "collector-output"),
             ),
@@ -291,6 +292,7 @@ def seed_target_workset(
     .slice(0, 24)}`;
   const now = new Date().toISOString();
   const idempotencyKey = `${siteId}:${targetMap.map_version}:${targetId}`;
+  let previewRequeuedFreshnessRows = 0;
 
   const client = new Client({
     connectionString: process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB,
@@ -384,6 +386,20 @@ def seed_target_workset(
         now,
       ],
     );
+    const previewRequeueResult = await client.query(
+      `
+        update official_web.page_freshness
+        set
+          last_change_reason = 'manual_live_seam_preview_requeue',
+          next_eligible_fetch_at = $3,
+          updated_at = $3
+        where site_id = $1
+          and normalized_canonical_url = $2
+          and next_eligible_fetch_at > $3
+      `,
+      [siteId, targetUrl, now],
+    );
+    previewRequeuedFreshnessRows = previewRequeueResult.rowCount;
     await client.query(
       `
         update official_web.target_jobs
@@ -413,6 +429,7 @@ def seed_target_workset(
     targetId,
     targetJobId: jobId,
     targetUrl,
+    previewRequeuedFreshnessRows,
   }));
 })().catch((error) => {
   console.log(JSON.stringify({ error: String(error.message || error) }));
@@ -783,6 +800,7 @@ def assert_seam_report(report: dict[str, object]) -> None:
     collector = report["collector"]
     app_api = report["app_api"]
     consumer = report["consumer"]
+    target_seed = _object_mapping(report.get("target_seed"))
     assert isinstance(collector, dict)
     assert isinstance(app_api, dict)
     assert isinstance(consumer, dict)
@@ -808,6 +826,20 @@ def assert_seam_report(report: dict[str, object]) -> None:
         raise RuntimeError("app-api recorded no target attempts for the seam run")
     if not app_api.get("target_job_ids"):
         raise RuntimeError("app-api target job ids are missing from seam evidence")
+    expected_target_url = target_seed.get("targetUrl")
+    expected_target_job_id = target_seed.get("targetJobId")
+    expected_target_candidate_id = target_seed.get("targetCandidateId")
+    if expected_target_url and expected_target_job_id and expected_target_candidate_id:
+        target_attempts = _object_list(app_api.get("target_attempts"))
+        matched_seed_attempt = any(
+            isinstance(attempt, dict)
+            and attempt.get("normalizedCanonicalUrl") == expected_target_url
+            and attempt.get("jobId") == expected_target_job_id
+            and attempt.get("candidateId") == expected_target_candidate_id
+            for attempt in target_attempts
+        )
+        if not matched_seed_attempt:
+            raise RuntimeError("app-api target attempts did not match the seeded target")
     if not consumer.get("target_family_counts"):
         raise RuntimeError("consumer target family counts are missing")
     if not consumer.get("target_materialization_policy_counts"):

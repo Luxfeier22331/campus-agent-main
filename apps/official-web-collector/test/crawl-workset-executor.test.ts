@@ -104,6 +104,23 @@ describe("official web target workset executor", () => {
 		expect(requests.map((request) => request.url)).not.toContain("https://www.example.edu/");
 	});
 
+	it("can disable conditional headers for evidence preview fetches", async () => {
+		const fixture = buildFixture();
+		const requests = await buildInitialRequests({
+			...fixture,
+			disableConditionalHeaders: true,
+			executionMode: "target-workset",
+			plannerPages: [
+				buildPlannerPage({
+					etag: '"etag-current"',
+					lastModified: "Wed, 01 May 2026 08:00:00 GMT",
+				}),
+			],
+		});
+
+		expect(requests[0]?.userData.conditionalHeaders).toBeUndefined();
+	});
+
 	it("does not expand navigation outside returned target workset URLs", () => {
 		const fixture = buildFixture();
 		const plannerPage = buildPlannerPage();

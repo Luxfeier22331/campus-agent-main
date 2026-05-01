@@ -28,6 +28,7 @@ export function buildListingRequeueRequests(input: {
 	plannerPageLookup: Map<string, OfficialWebPlannerPageCandidate>;
 	robotsState: CollectorRobotsState;
 	targetWorksetOnly?: boolean;
+	disableConditionalHeaders?: boolean;
 }): Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }> {
 	if (!shouldPromoteListingRequeue({ knownPage: input.knownPage, page: input.page })) {
 		return [];
@@ -72,7 +73,9 @@ export function buildListingRequeueRequests(input: {
 			uniqueKey: link.normalizedUrl,
 			userData: {
 				discoveryMethod: "manual_requeue",
-				conditionalHeaders: buildConditionalHeaders(knownPage),
+				conditionalHeaders: buildConditionalHeaders(knownPage, {
+					disabled: input.disableConditionalHeaders,
+				}),
 				discoveredFromUrl: input.page.pageManifest.normalizedCanonicalUrl,
 				depth: input.depth,
 				knownPage,
@@ -99,6 +102,7 @@ export async function buildDynamicShellRequeueRequests(input: {
 	plannerPageLookup: Map<string, OfficialWebPlannerPageCandidate>;
 	robotsState: CollectorRobotsState;
 	targetWorksetOnly?: boolean;
+	disableConditionalHeaders?: boolean;
 }): Promise<{
 	requests: Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>;
 	audits: OfficialWebDynamicShellDiscoveryAudit[];
@@ -155,7 +159,9 @@ export async function buildDynamicShellRequeueRequests(input: {
 				uniqueKey: url,
 				userData: {
 					discoveryMethod: "manual_requeue",
-					conditionalHeaders: buildConditionalHeaders(knownPage),
+					conditionalHeaders: buildConditionalHeaders(knownPage, {
+						disabled: input.disableConditionalHeaders,
+					}),
 					discoveredFromUrl: input.page.pageManifest.normalizedCanonicalUrl,
 					depth: input.depth,
 					knownPage,

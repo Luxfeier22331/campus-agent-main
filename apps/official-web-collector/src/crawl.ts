@@ -74,6 +74,7 @@ export interface CrawlSiteOptions {
 	controlPlaneClient?: OfficialWebControlPlaneClient;
 	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmissionInput;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
+	disableConditionalHeaders?: boolean;
 	crawlHosts?: (input: CrawlHostsWithCrawleeInput) => Promise<CollectorAggregatedResults>;
 }
 
@@ -246,6 +247,7 @@ export async function crawlSite(
 						maxPagesPerHost,
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
+						disableConditionalHeaders: options.disableConditionalHeaders,
 						reportProgress,
 					})
 				: await options.crawlHosts({
@@ -258,6 +260,7 @@ export async function crawlSite(
 						maxPagesPerHost,
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
+						disableConditionalHeaders: options.disableConditionalHeaders,
 						reportProgress,
 					});
 		const dedupedPages = dedupeCollectedPages(aggregatedResults.pages);
