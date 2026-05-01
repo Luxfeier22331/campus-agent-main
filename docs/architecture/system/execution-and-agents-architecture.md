@@ -487,6 +487,17 @@ gate 打开但 prompt runtime 或 structured query service 未配置时，worker
 degraded。gate admitted 后，notice-agent 的 `campus_notice_get` delegate 会走 provider
 tool loop，再回到 repo-owned notice query service；其它 notice tool 仍走原 typed adapter。
 
+Agents SDK 试点的当前收口结论是 `keep_experimental_lane`。它只作为
+`notice-agent + campus_notice_get` 的 default-off domain-agent adapter lane 保留，
+必须同时满足 `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED`、allowed target 与 allowed tool
+gate；它不替换 provider tool loop，不改变产品默认 runtime，也不改变 Go
+`supervisor-api` 的 admission、ToolSpec / `allowed_tools`、workflow policy、fail-close
+与 finalization ownership。SDK `FunctionTool` surface 只能由 repo-owned ToolSpec 派生；
+SDK run / trace / native state 不得进入 `packages/contracts`、panel、eval 或
+`workflow_trace_summary`。当前只允许经过 `agents_sdk_trace_projection` 与
+`agents_sdk_tool_lifecycle_projection` 的 sanitized debug/eval projection，用来对齐
+Phase 6 parity evidence 与 operator-safe diagnostics。
+
 当前 workflow trace 的 tool call summary 已显式记录：
 
 - `workflow_run_ref`

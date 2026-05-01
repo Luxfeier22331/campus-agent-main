@@ -31,16 +31,18 @@ def generate_provider_function_schemas(
     registry = load_tool_spec_registry(tool_spec_path)
     schemas: list[dict[str, Any]] = []
     for tool in registry.provider_function_tools():
-        schemas.append(
-            {
-                "type": "function",
-                "name": tool.name,
-                "description": tool.description,
-                "strict": tool.function_schema.strict,
-                "parameters": _parameters_for_tool(tool),
-            }
-        )
+        schemas.append(provider_function_schema_for_tool(tool))
     return schemas
+
+
+def provider_function_schema_for_tool(tool: ToolSpec) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "name": tool.name,
+        "description": tool.description,
+        "strict": tool.function_schema.strict,
+        "parameters": _parameters_for_tool(tool),
+    }
 
 
 def provider_function_schema_artifact(

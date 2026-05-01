@@ -12,6 +12,7 @@ from campus_contracts import (
 from campus_notice_agent.query_service import NoticeQueryService
 from campus_notice_agent.service import delegate_to_notice_agent
 
+from campus_supervisor_agent_worker.notice_tool_projection import bounded_notice_get_projection
 from campus_supervisor_agent_worker.provider_function_calling import (
     ProviderFunctionToolAdmissionError,
     ProviderFunctionToolProvider,
@@ -68,6 +69,8 @@ def run_notice_get_provider_tool_adapter(
             model_tool_call_ref=provider_call.call_id,
             model_response_ref=provider_call.response_id,
             tool_output_submitted=False,
+            argument_keys=tuple(sorted(provider_call.arguments)),
+            tool_execution_count=1,
         )
     except ProviderFunctionToolAdmissionError as exc:
         return _runtime_error_response(_classify_provider_call_error(exc), str(exc))
@@ -97,7 +100,7 @@ def _run_notice_get_provider_tool_loop(
             query_service=query_service,
             model_tool_call_ref="",
         )
-        return _bounded_notice_get_projection(captured_response)
+        return bounded_notice_get_projection(captured_response)
 
     loop_result = run_required_provider_tool_loop(
         user_goal=request.user_goal,
@@ -115,6 +118,8 @@ def _run_notice_get_provider_tool_loop(
         model_tool_call_ref=loop_result.tool_call.call_id,
         model_response_ref=loop_result.model_response_ref,
         tool_output_submitted=True,
+        argument_keys=tuple(sorted(loop_result.tool_call.arguments)),
+        tool_execution_count=1,
     )
 
 
@@ -184,6 +189,8 @@ def _response_with_provider_projection(
     model_tool_call_ref: str,
     model_response_ref: str,
     tool_output_submitted: bool,
+    argument_keys: tuple[str, ...] = (),
+    tool_execution_count: int = 0,
 ) -> AgentResponse:
     observability = response.agent_observability or AgentObservability()
     safe_details = dict(observability.safe_details)
@@ -193,40 +200,13 @@ def _response_with_provider_projection(
         "model_tool_call_ref": model_tool_call_ref,
         "model_response_ref": model_response_ref,
         "tool_output_submitted": tool_output_submitted,
+        "argument_keys": list(argument_keys),
+        "tool_execution_count": tool_execution_count,
     }
     return replace(
         response,
         agent_observability=replace(observability, safe_details=safe_details),
     )
-
-
-def _bounded_notice_get_projection(response: AgentResponse) -> dict[str, object]:
-    result = response.result
-    projection: dict[str, object] = {
-        "status": response.status,
-        "confidence": response.confidence,
-    }
-    if result is not None:
-        for field_name in (
-            "notice_id",
-            "outcome",
-            "title",
-            "source_family",
-            "source_url",
-            "canonical_url",
-            "reference_only",
-            "target_surface",
-            "published_at",
-            "effective_at",
-            "fail_close_reason",
-        ):
-            value = getattr(result, field_name, None)
-            if value not in (None, "", (), []):
-                projection[field_name] = value
-    if response.agent_observability is not None:
-        projection["source_ref_count"] = response.agent_observability.source_ref_count or 0
-        projection["tool_outcome"] = response.agent_observability.tool_outcome
-    return projection
 
 
 def _runtime_error_response(failure_class: str, message: str) -> AgentResponse:

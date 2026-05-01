@@ -1,7 +1,7 @@
 ---
 doc_type: state
 workstream: agents-sdk-domain-agent-adapter-pilot
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -12,14 +12,14 @@ updated: 2026-05-01
 
 ## Current Position
 
-**Status:** Active, Phase 1 complete
-**Current Phase:** Phase 2 ready
+**Status:** Completed
+**Current Phase:** Phase 8 complete
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed default-off OpenAI Agents SDK dependency, admission gate, readiness summary, and anti-contract-leak tests without executing SDK runs.
+**Last Activity Description:** Completed closeout guardrails and docs for the SDK `notice-agent + campus_notice_get` pilot as a default-off experimental lane.
 
 ## Progress
 
-**Phases Complete:** 2
+**Phases Complete:** 9
 **Current Plan:** `ROADMAP.md`
 
 ## Baseline Architecture Facts
@@ -35,15 +35,20 @@ updated: 2026-05-01
 
 ## Current Blockers
 
-- Phase 2+ must keep ToolSpec as canonical source.
-- Phase 4+ must choose exactly one read-only pilot target before opening runtime execution.
-- Phase 5+ depends on a stable sanitized trace projection shape.
+- None for this closed pilot workstream.
 
-## Next Slice
+## Final Posture
 
-Phase 2: derive or validate SDK tool descriptors from ToolSpec + Go `allowed_tools`.
+- Selected posture: `keep_experimental_lane`.
+- Product default: unchanged and default-off.
+- SDK scope: `notice-agent + campus_notice_get` only.
+- Go ownership: admission, ToolSpec/allowed-tools derivation, workflow policy, fail-close and
+  finalization remain in `apps/supervisor-api`.
+- Python ownership: SDK is a private domain-agent adapter substrate only.
 
-## Session Continuity
+## Reopen Rule
 
-**Stopped At:** Phase 1 implementation complete.
-**Resume File:** `ROADMAP.md`
+Reopen only if SDK target / tool expansion is proposed, SDK raw traces or native types leak into
+contracts / panel / eval / workflow trace, ToolSpec / Go allowed-tools derivation is bypassed, a
+provider SDK version breaks runner/tool semantics, Phase 6 parity evidence becomes stale or fails,
+or product wants to promote the SDK lane beyond explicit gate.

@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -18,10 +18,11 @@ function calling 或 MCP 扩成顶层 orchestration owner。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 2 ready`
-- active implementation: Phase 1 default-off dependency/admission/readiness gate complete
-- current slice: constrain SDK tool surface to ToolSpec + Go allowed_tools before any SDK run execution
+- status: completed
+- final posture: `keep_experimental_lane`
+- completed phase: Phase 8 closeout guardrails and docs
+- product posture: default-off experimental lane only; no current product runtime default changed
+- admitted pilot scope: `notice-agent + campus_notice_get`
 
 ## Why This Exists
 
@@ -77,6 +78,17 @@ Go supervisor-api deterministic admission
   approval / HITL / audit / rollback / eval workstream。
 - 不把 deferred 的 `governed-multi-agent-workflow-runtime` 合并到本 workstream；本线只验证
   SDK adapter substrate。
+
+## Closeout Reopen Rule
+
+只有在以下任一情况发生时恢复本 workstream：
+
+- SDK target / tool expansion 被提出。
+- SDK raw traces or native types leak into contracts、panel、eval 或 workflow trace。
+- ToolSpec / Go allowed-tools derivation is bypassed。
+- provider SDK version changes break runner/tool semantics。
+- Phase 6 parity evidence 失效，或当前代码下不再通过。
+- 产品希望把 SDK lane 提升到显式 gate 之外。
 
 ## External Design Inputs
 

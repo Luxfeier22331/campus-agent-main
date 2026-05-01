@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "case_family": "agents_sdk_notice_get_parity.v1",
+  "updated_at": "2026-05-01",
+  "cases": [
+    {
+      "case_id": "notice_get_should_call_minimal_args",
+      "user_goal": "读取这条通知",
+      "notice_id": "notice:2026-spring",
+      "source_family": "",
+      "sdk_scenario": "success_minimal",
+      "provider_scenario": "success_minimal",
+      "expected_sdk": {
+        "status": "completed",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "",
+        "argument_keys": ["notice_id"],
+        "tool_execution_count": 1,
+        "final_answer_present": true
+      },
+      "expected_provider": {
+        "status": "completed",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "",
+        "argument_keys": ["notice_id"],
+        "tool_execution_count": 1,
+        "final_answer_present": true
+      },
+      "parity_fields": ["status", "selected_tool", "failure_kind", "argument_keys"]
+    },
+    {
+      "case_id": "notice_get_should_call_with_source_family",
+      "user_goal": "读取官方网页来源的这条通知",
+      "notice_id": "notice:2026-spring",
+      "source_family": "official_web_public_notice",
+      "sdk_scenario": "success_with_source_family",
+      "provider_scenario": "success_with_source_family",
+      "expected_sdk": {
+        "status": "completed",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "",
+        "argument_keys": ["notice_id", "source_family"],
+        "tool_execution_count": 1,
+        "final_answer_present": true
+      },
+      "expected_provider": {
+        "status": "completed",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "",
+        "argument_keys": ["notice_id", "source_family"],
+        "tool_execution_count": 1,
+        "final_answer_present": true
+      },
+      "parity_fields": ["status", "selected_tool", "failure_kind", "argument_keys"]
+    },
+    {
+      "case_id": "notice_get_wrong_tool_fail_close",
+      "user_goal": "读取这条通知",
+      "notice_id": "notice:2026-spring",
+      "source_family": "",
+      "sdk_scenario": "wrong_tool",
+      "provider_scenario": "wrong_tool",
+      "expected_sdk": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "wrong_tool",
+        "argument_keys": [],
+        "tool_execution_count": 0,
+        "final_answer_present": false
+      },
+      "expected_provider": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "wrong_tool",
+        "argument_keys": [],
+        "tool_execution_count": 0,
+        "final_answer_present": false
+      },
+      "parity_fields": ["status", "selected_tool", "failure_kind"]
+    },
+    {
+      "case_id": "notice_get_no_tool_call_fail_close",
+      "user_goal": "读取这条通知",
+      "notice_id": "notice:2026-spring",
+      "source_family": "",
+      "sdk_scenario": "no_tool_call",
+      "provider_scenario": "no_tool_call",
+      "expected_sdk": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "no_tool_call",
+        "argument_keys": [],
+        "tool_execution_count": 0,
+        "final_answer_present": false
+      },
+      "expected_provider": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "no_tool_call",
+        "argument_keys": [],
+        "tool_execution_count": 0,
+        "final_answer_present": false
+      },
+      "parity_fields": ["status", "selected_tool", "failure_kind"]
+    },
+    {
+      "case_id": "notice_get_bad_arguments_fail_close",
+      "user_goal": "读取这条通知",
+      "notice_id": "",
+      "source_family": "",
+      "sdk_scenario": "bad_arguments",
+      "provider_scenario": "bad_arguments",
+      "expected_sdk": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "bad_arguments",
+        "argument_keys": [],
+        "tool_execution_count": 0,
+        "final_answer_present": false
+      },
+      "expected_provider": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "bad_arguments",
+        "argument_keys": [],
+        "tool_execution_count": 0,
+        "final_answer_present": false
+      },
+      "parity_fields": ["status", "selected_tool", "failure_kind"]
+    },
+    {
+      "case_id": "notice_get_query_service_failure_retryable",
+      "user_goal": "读取这条通知",
+      "notice_id": "notice:2026-spring",
+      "source_family": "",
+      "sdk_scenario": "query_service_failure",
+      "provider_scenario": "query_service_failure",
+      "expected_sdk": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "tool_execution_failed",
+        "argument_keys": [],
+        "tool_execution_count": 0,
+        "final_answer_present": false
+      },
+      "expected_provider": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "tool_execution_failed",
+        "argument_keys": ["notice_id"],
+        "tool_execution_count": 1,
+        "final_answer_present": false
+      },
+      "parity_fields": ["status", "selected_tool", "failure_kind"]
+    },
+    {
+      "case_id": "notice_get_final_answer_uses_tool_result",
+      "user_goal": "读取这条通知并给出摘要",
+      "notice_id": "notice:2026-spring",
+      "source_family": "",
+      "sdk_scenario": "final_answer_uses_tool_result",
+      "provider_scenario": "final_answer_uses_tool_result",
+      "expected_sdk": {
+        "status": "completed",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "",
+        "argument_keys": ["notice_id"],
+        "tool_execution_count": 1,
+        "final_answer_present": true
+      },
+      "expected_provider": {
+        "status": "completed",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "",
+        "argument_keys": ["notice_id"],
+        "tool_execution_count": 1,
+        "final_answer_present": true
+      },
+      "parity_fields": [
+        "status",
+        "selected_tool",
+        "failure_kind",
+        "argument_keys",
+        "final_answer_present"
+      ]
+    },
+    {
+      "case_id": "notice_get_executed_reported_argument_drift_fail_close",
+      "user_goal": "读取这条通知",
+      "notice_id": "notice:2026-spring",
+      "source_family": "",
+      "sdk_scenario": "executed_reported_argument_drift",
+      "provider_scenario": "success_minimal",
+      "expected_sdk": {
+        "status": "error",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "argument_drift",
+        "argument_keys": [],
+        "tool_execution_count": 1,
+        "final_answer_present": false
+      },
+      "expected_provider": {
+        "status": "completed",
+        "selected_tool": "campus_notice_get",
+        "failure_kind": "",
+        "argument_keys": ["notice_id"],
+        "tool_execution_count": 1,
+        "final_answer_present": true
+      },
+      "parity_fields": ["selected_tool"]
+    }
+  ]
+}
