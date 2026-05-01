@@ -796,7 +796,4 @@ def _is_office_like(*, mime_type: str, filename: str) -> bool:
     )
 
 
-__all__ = [
-    "candidate_records",
-    "selected_units",
-]
+__all__ = ["candidate_records", "selected_units"]
