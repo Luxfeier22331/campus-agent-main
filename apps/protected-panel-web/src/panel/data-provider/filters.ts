@@ -72,6 +72,16 @@ export function appendOfficialWebTargetJobFilters(
 	appendOptionalQueryParam(query, "targetId", filter?.targetId);
 }
 
+export function appendOfficialWebTargetInventoryFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "consumerFamily", filter?.consumerFamily);
+	appendOptionalQueryParam(query, "ownerSurface", filter?.ownerSurface);
+	appendOptionalQueryParam(query, "reviewState", filter?.reviewState);
+	appendOptionalQueryParam(query, "siteId", filter?.siteId);
+}
+
 export function appendAuthenticatedNoticeProcessingFilters(
 	query: URLSearchParams,
 	filter: GetListParams["filter"],

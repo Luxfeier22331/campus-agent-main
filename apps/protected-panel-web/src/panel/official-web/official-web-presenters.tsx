@@ -5,16 +5,18 @@ import type {
 	OfficialWebPageChangeRecord,
 	OfficialWebRunRecord,
 	OfficialWebSiteFreshnessSummary,
+	OfficialWebTargetInventoryRecord,
 	OfficialWebTargetJobRecord,
 } from "../types";
 import {
-	formatOfficialWebConsumerFamilyLabel,
 	formatIngestionStatusLabel,
+	formatOfficialWebConsumerFamilyLabel,
 	formatOfficialWebFreshnessSummaryLabel,
 	formatOfficialWebMaterializationPolicyLabel,
 	formatOfficialWebPageChangeStatusLabel,
 	formatOfficialWebRunIntentLabel,
 	formatOfficialWebStatusLabel,
+	formatOfficialWebTargetInventoryReviewStateLabel,
 	formatOfficialWebTargetJobStatusLabel,
 } from "./official-web-formatters";
 
@@ -104,6 +106,33 @@ export function OfficialWebArtifactVerificationChip({
 			label={summary.status}
 			size="small"
 			variant={summary.canonicalVerification ? "filled" : "outlined"}
+		/>
+	);
+}
+
+export function OfficialWebTargetInventoryReviewStateChip({
+	record,
+}: {
+	record: OfficialWebTargetInventoryRecord;
+}) {
+	const state = record.reviewState;
+	const color =
+		state === "ready_for_selected_write"
+			? ("success" as const)
+			: state.startsWith("blocked_")
+				? ("warning" as const)
+				: state === "excluded"
+					? ("error" as const)
+					: state === "inventory_only"
+						? ("default" as const)
+						: ("info" as const);
+
+	return (
+		<Chip
+			color={color}
+			label={formatOfficialWebTargetInventoryReviewStateLabel(state)}
+			size="small"
+			variant={state === "ready_for_selected_write" ? "filled" : "outlined"}
 		/>
 	);
 }

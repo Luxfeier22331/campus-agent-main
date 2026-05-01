@@ -269,6 +269,32 @@ export interface OfficialWebTargetSourceMap {
 	targets: OfficialWebTargetSourceMapTarget[];
 }
 
+export interface OfficialWebTargetInventoryEntry {
+	admissionTargetId: string;
+	consumerFamily: OfficialWebConsumerFamily;
+	inventoryId: string;
+	inventoryOnly: boolean;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	notes: string;
+	ownerAgentOrRuntime: string;
+	ownerSurface: string;
+	previewStatus: string;
+	releaseBlockers: string[];
+	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	requiredFields: string[];
+	selectedWriteTarget: string;
+	sourceHosts: string[];
+	sourceUrls: string[];
+	targetLabel: string;
+}
+
+export interface OfficialWebTargetInventory {
+	entries: OfficialWebTargetInventoryEntry[];
+	inventoryVersion: string;
+	schemaVersion: string;
+	siteId: string;
+}
+
 export interface OfficialWebQcHostOverride {
 	host: string;
 	allowedReviewIssueCodes: string[];
@@ -314,6 +340,7 @@ export interface OfficialWebConfigPaths {
 	projectionDeclarationsPath: string;
 	consumerDenominatorPath: string;
 	targetSourceMapPath: string;
+	targetInventoryPath: string;
 	schedulerPolicyPath: string;
 	qcPolicyPath: string;
 }
@@ -328,6 +355,7 @@ export interface OfficialWebConfigBundle {
 	projectionDeclarations: OfficialWebProjectionDeclarations;
 	consumerDenominator: OfficialWebConsumerDenominator;
 	targetSourceMap: OfficialWebTargetSourceMap;
+	targetInventory: OfficialWebTargetInventory;
 	schedulerPolicy: OfficialWebSchedulerPolicy;
 	qcPolicy: OfficialWebQcPolicy;
 }

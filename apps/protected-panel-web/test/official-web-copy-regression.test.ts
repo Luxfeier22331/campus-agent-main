@@ -3,6 +3,7 @@ import runShowSource from "../src/panel/official-web/run-show.tsx?raw";
 import runsListSource from "../src/panel/official-web/runs-list.tsx?raw";
 import siteShowSource from "../src/panel/official-web/site-show.tsx?raw";
 import sitesListSource from "../src/panel/official-web/sites-list.tsx?raw";
+import targetInventoryListSource from "../src/panel/official-web/target-inventory-list.tsx?raw";
 import panelDatagridHeaderSource from "../src/panel/panel-datagrid-header.tsx?raw";
 import panelListActionsSource from "../src/panel/panel-list-actions.tsx?raw";
 import panelListErrorSource from "../src/panel/panel-list-error.tsx?raw";
@@ -80,6 +81,9 @@ describe("protected panel official web chinese copy", () => {
 		expect(runsListSource).not.toContain("aside={<OfficialWebRunsAside />}");
 		expect(runsListSource).toContain("OfficialWebRunsContractNotice");
 		expect(runsListSource).toContain("PanelResponsiveDatagrid");
+		expect(targetInventoryListSource).toContain("OfficialWebTargetInventoryContractNotice");
+		expect(targetInventoryListSource).toContain("PanelResponsiveDatagrid");
+		expect(targetInventoryListSource).toContain("PANEL_COPY.emptyState.officialWebTargetInventory");
 	});
 
 	it("allows long official web identifiers to wrap inside mobile detail cards", () => {

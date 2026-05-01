@@ -70,6 +70,8 @@ export type {
 	OfficialWebSeed,
 	OfficialWebSeedSet,
 	OfficialWebSiteConfig,
+	OfficialWebTargetInventory,
+	OfficialWebTargetInventoryEntry,
 	OfficialWebTargetRetentionPolicy,
 	OfficialWebTargetSourceMap,
 	OfficialWebTargetSourceMapTarget,
@@ -113,7 +115,6 @@ export {
 	OFFICIAL_WEB_TRACKING_QUERY_PARAM_KEYS,
 	OFFICIAL_WEB_URL_IDENTITY_BASES,
 } from "./policy.ts";
-
 export type {
 	OfficialWebBlockRole,
 	OfficialWebConsumerMatch,
@@ -143,3 +144,18 @@ export {
 	OFFICIAL_WEB_SOURCE_TRUTH_BUNDLE_ARTIFACT,
 	OFFICIAL_WEB_SOURCE_YEAR_LABEL,
 } from "./source-truth.ts";
+export type {
+	BuildOfficialWebTargetInventoryReportInput,
+	OfficialWebTargetInventoryFieldStatus,
+	OfficialWebTargetInventoryManifest,
+	OfficialWebTargetInventoryManifestEntry,
+	OfficialWebTargetInventoryPreviewEvidence,
+	OfficialWebTargetInventoryReport,
+	OfficialWebTargetInventoryReportEntry,
+	OfficialWebTargetInventoryReviewState,
+} from "./target-inventory.ts";
+export {
+	buildOfficialWebTargetInventoryReport,
+	buildOfficialWebTargetInventoryReportFromInventory,
+	normalizeOfficialWebTargetInventoryManifest,
+} from "./target-inventory.ts";

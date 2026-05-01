@@ -185,6 +185,18 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/official-web/target-inventory",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/target-inventory/:inventoryId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/official-web/sites",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",

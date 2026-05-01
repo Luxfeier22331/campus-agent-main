@@ -3,6 +3,7 @@ import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettin
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
@@ -198,6 +199,11 @@ function ProtectedPanelMenu() {
 				leftIcon={<RuleFolderOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.officialWebTargetJobs}
 				to="/officialWebTargetJobs"
+			/>
+			<RaMenu.Item
+				leftIcon={<Inventory2OutlinedIcon />}
+				primaryText={PANEL_COPY.menu.officialWebTargetInventory}
+				to="/officialWebTargetInventory"
 			/>
 			<RaMenu.Item
 				leftIcon={<TravelExploreOutlinedIcon />}

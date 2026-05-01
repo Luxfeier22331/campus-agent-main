@@ -133,6 +133,65 @@ export interface RawOfficialWebTargetJobRecord {
 	urlHints: string[];
 }
 
+export type OfficialWebTargetInventoryReviewState =
+	| "candidate"
+	| "previewed"
+	| "blocked_fields"
+	| "blocked_lineage"
+	| "blocked_source"
+	| "inventory_only"
+	| "ready_for_selected_write"
+	| "excluded";
+
+export type OfficialWebTargetInventoryFieldStatus =
+	| "ambiguous"
+	| "missing"
+	| "not_applicable"
+	| "present";
+
+export interface RawOfficialWebTargetInventoryPreviewEvidence {
+	appApiRunId: string;
+	currentTruthImportWasNull: boolean;
+	ingestionStatus: string;
+	inventoryId: string;
+	promotionDecision: string;
+	rawAssetId: string;
+	rawVersionId: string;
+	sourceObjectKeys: string[];
+	targetAttemptId: string;
+	targetJobId: string;
+}
+
+export interface RawOfficialWebTargetInventoryRecord {
+	admissionTargetId: string;
+	consumerFamily: string;
+	fieldStatus: Record<string, OfficialWebTargetInventoryFieldStatus>;
+	id: string;
+	inventoryId: string;
+	ownerSurface: string;
+	previewEvidence: RawOfficialWebTargetInventoryPreviewEvidence | null;
+	releaseBlockers: string[];
+	requiredFields: string[];
+	reviewState: OfficialWebTargetInventoryReviewState;
+	selectedWriteTarget: string;
+	sourceUrls: string[];
+	targetLabel: string;
+}
+
+export interface OfficialWebTargetInventoryRecord extends RawOfficialWebTargetInventoryRecord {}
+
+export interface RawOfficialWebTargetInventoryListResponse {
+	entries: RawOfficialWebTargetInventoryRecord[];
+	page: {
+		nextCursor: string | null;
+	};
+	summary: {
+		countsByReviewState: Partial<Record<OfficialWebTargetInventoryReviewState, number>>;
+		inventoryVersion: string;
+		siteId: string;
+	};
+}
+
 export interface RawOfficialWebTargetJobCandidateRecord {
 	candidateId: string;
 	createdAt: string;
@@ -286,6 +345,15 @@ export function normalizeOfficialWebTargetJobRecord(
 	return {
 		...input,
 		id: input.id,
+	};
+}
+
+export function normalizeOfficialWebTargetInventoryRecord(
+	input: RawOfficialWebTargetInventoryRecord,
+): OfficialWebTargetInventoryRecord {
+	return {
+		...input,
+		id: input.id || input.inventoryId,
 	};
 }
 

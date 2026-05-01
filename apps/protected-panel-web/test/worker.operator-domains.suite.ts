@@ -605,6 +605,114 @@ export function registerWorkerOperatorDomainsSuite() {
 		);
 	});
 
+	it("proxies official web target inventory queries to app-api operator projection", async () => {
+		await withAccessAssertion(
+			{
+				accessTeamDomain: "https://team-official-web-target-inventory.cloudflareaccess.com",
+				claims: {
+					email: "ops@example.com",
+					groups: ["panel", "ops"],
+					name: "Ops Team",
+					sub: "operator-001",
+				},
+			},
+			async (token) => {
+				const forwardedUrls: string[] = [];
+
+				const workerEnv = {
+					ACCESS_POLICY_AUD: "panel-operator-audience",
+					ACCESS_TEAM_DOMAIN: "https://team-official-web-target-inventory.cloudflareaccess.com",
+					APP_API: {
+						fetch: async (request: Request) => {
+							forwardedUrls.push(request.url);
+							const pathname = new URL(request.url).pathname;
+							if (pathname.endsWith("/muc-information-disclosure-application-process")) {
+								return new Response(
+									JSON.stringify({
+										inventoryEntry: {
+											inventoryId: "muc-information-disclosure-application-process",
+										},
+									}),
+									{
+										headers: {
+											"content-type": "application/json; charset=utf-8",
+										},
+										status: 200,
+									},
+								);
+							}
+
+							return new Response(
+								JSON.stringify({
+									entries: [{ inventoryId: "muc-information-disclosure-application-process" }],
+									page: { nextCursor: null },
+									summary: {
+										countsByReviewState: { candidate: 1 },
+										inventoryVersion: "muc_public_target_inventory_v1",
+										siteId: "muc_public",
+									},
+								}),
+								{
+									headers: {
+										"content-type": "application/json; charset=utf-8",
+									},
+									status: 200,
+								},
+							);
+						},
+					},
+					PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+					PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+					PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+				};
+
+				const listResponse = await worker.fetch(
+					new Request(
+						"https://panel.example.com/api/official-web/target-inventory?siteId=muc_public",
+						{
+							headers: {
+								"cf-access-jwt-assertion": token,
+							},
+						},
+					),
+					workerEnv,
+				);
+				expect(listResponse.status).toBe(200);
+				await expect(listResponse.json()).resolves.toEqual({
+					entries: [{ inventoryId: "muc-information-disclosure-application-process" }],
+					page: { nextCursor: null },
+					summary: {
+						countsByReviewState: { candidate: 1 },
+						inventoryVersion: "muc_public_target_inventory_v1",
+						siteId: "muc_public",
+					},
+				});
+
+				const detailResponse = await worker.fetch(
+					new Request(
+						"https://panel.example.com/api/official-web/target-inventory/muc-information-disclosure-application-process",
+						{
+							headers: {
+								"cf-access-jwt-assertion": token,
+							},
+						},
+					),
+					workerEnv,
+				);
+				expect(detailResponse.status).toBe(200);
+				await expect(detailResponse.json()).resolves.toEqual({
+					inventoryEntry: {
+						inventoryId: "muc-information-disclosure-application-process",
+					},
+				});
+				expect(forwardedUrls).toEqual([
+					"https://app-api.internal/api/operator/official-web/target-inventory?siteId=muc_public",
+					"https://app-api.internal/api/operator/official-web/target-inventory/muc-information-disclosure-application-process",
+				]);
+			},
+		);
+	});
+
 	it("proxies authenticated notice processing queries to app-api operator projection", async () => {
 		await withAccessAssertion(
 			{

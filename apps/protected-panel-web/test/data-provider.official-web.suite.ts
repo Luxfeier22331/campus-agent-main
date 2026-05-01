@@ -4,6 +4,73 @@ import { protectedPanelDataProvider } from "../src/panel/data-provider";
 import { createJsonResponse } from "./data-provider.test-support";
 
 export function registerDataProviderOfficialWebSuite() {
+	it("maps official web target inventory filters onto the protected app-api projection seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				entries: [
+					{
+						admissionTargetId: "campus-services-service-guide",
+						consumerFamily: "service_guide_candidate",
+						fieldStatus: {
+							process_steps: "missing",
+						},
+						id: "muc-information-disclosure-application-process",
+						inventoryId: "muc-information-disclosure-application-process",
+						ownerSurface: "service_guide_lookup",
+						previewEvidence: null,
+						releaseBlockers: ["no_preview_evidence"],
+						requiredFields: ["process_steps"],
+						reviewState: "candidate",
+						selectedWriteTarget: "campus_services/service_guide",
+						sourceUrls: ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
+						targetLabel: "中央民族大学信息公开依申请公开工作流程",
+					},
+				],
+				page: {
+					nextCursor: null,
+				},
+				summary: {
+					countsByReviewState: { candidate: 1 },
+					inventoryVersion: "muc_public_target_inventory_v1",
+					siteId: "muc_public",
+				},
+			}),
+		);
+
+		const response = await protectedPanelDataProvider.getList("officialWebTargetInventory", {
+			filter: {
+				ownerSurface: "service_guide_lookup",
+				reviewState: "candidate",
+				siteId: "muc_public",
+			},
+			meta: undefined,
+			pagination: {
+				page: 1,
+				perPage: 20,
+			},
+			signal: undefined,
+			sort: {
+				field: "inventoryId",
+				order: "ASC",
+			},
+		});
+
+		expect(response.data[0]).toMatchObject({
+			id: "muc-information-disclosure-application-process",
+			inventoryId: "muc-information-disclosure-application-process",
+			reviewState: "candidate",
+		});
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/official-web/target-inventory?limit=20&ownerSurface=service_guide_lookup&reviewState=candidate&siteId=muc_public",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
 	it("maps official web target job filters onto the protected app-api projection seam", async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			createJsonResponse({

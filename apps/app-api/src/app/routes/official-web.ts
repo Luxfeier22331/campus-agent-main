@@ -178,6 +178,51 @@ export function registerOfficialWebRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/operator/official-web/target-inventory", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOfficialWebTargetInventoryService().listTargetInventory({
+				filters: {
+					consumerFamily: c.req.query("consumerFamily") ?? null,
+					ownerSurface: c.req.query("ownerSurface") ?? null,
+					reviewState: c.req.query("reviewState") ?? null,
+					siteId: c.req.query("siteId") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.get("/api/operator/official-web/target-inventory/:inventoryId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse({
+			entry: await scope.resolveOfficialWebTargetInventoryService().getTargetInventoryEntryById({
+				inventoryId: c.req.param("inventoryId"),
+				principal: resolved.principal,
+			}),
+		});
+	});
+
 	input.app.get("/api/operator/official-web/target-jobs/:jobId", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

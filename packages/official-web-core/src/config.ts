@@ -34,6 +34,8 @@ export type {
 	OfficialWebSeed,
 	OfficialWebSeedSet,
 	OfficialWebSiteConfig,
+	OfficialWebTargetInventory,
+	OfficialWebTargetInventoryEntry,
 	OfficialWebTargetRetentionPolicy,
 	OfficialWebTargetSourceMap,
 	OfficialWebTargetSourceMapTarget,

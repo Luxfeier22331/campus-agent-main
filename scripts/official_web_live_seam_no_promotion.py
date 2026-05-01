@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     repo_root = Path(__file__).resolve().parents[1]
+    args = resolve_inventory_target_args(repo_root, args)
     local_run_id = f"owrun_consumer_live_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     output_root = repo_root / args.output_root / local_run_id
     output_root.mkdir(parents=True, exist_ok=True)
@@ -184,6 +185,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run official_web no-promotion live seam.")
     parser.add_argument("--site-id", default="muc_public")
+    parser.add_argument("--inventory-id", default="")
     parser.add_argument("--host", default="xxgk.muc.edu.cn")
     parser.add_argument("--target-id", default="campus-services-service-guide")
     parser.add_argument("--target-url", default="https://xxgk.muc.edu.cn/info/1007/1113.htm")
@@ -193,6 +195,53 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--handoff-port", type=int, default=8789)
     parser.add_argument("--output-root", type=Path, default=Path("var/official-web-live-seam"))
     return parser
+
+
+def resolve_inventory_target_args(
+    repo_root: Path,
+    args: argparse.Namespace,
+) -> argparse.Namespace:
+    inventory_id = str(getattr(args, "inventory_id", "") or "").strip()
+    if not inventory_id:
+        return args
+
+    inventory_path = (
+        repo_root
+        / "configs"
+        / "sources"
+        / "official_web"
+        / str(args.site_id)
+        / "target-inventory.json"
+    )
+    payload = json.loads(inventory_path.read_text(encoding="utf-8"))
+    entries = payload.get("entries", [])
+    if not isinstance(entries, list):
+        raise RuntimeError(f"{inventory_path} entries must be a list")
+
+    matched = [
+        entry
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("inventory_id") == inventory_id
+    ]
+    if len(matched) != 1:
+        raise RuntimeError(
+            f"expected exactly one inventory entry {inventory_id} in {inventory_path}, found {len(matched)}"
+        )
+
+    entry = matched[0]
+    source_urls = entry.get("source_urls", [])
+    if not isinstance(source_urls, list) or not source_urls:
+        raise RuntimeError(f"inventory entry {inventory_id} must define source_urls")
+    target_url = str(source_urls[0])
+    parsed_url = urlparse(target_url)
+    host = (parsed_url.hostname or "").lower()
+    if not host:
+        raise RuntimeError(f"inventory entry {inventory_id} source URL must include a host")
+
+    args.target_id = str(entry.get("admission_target_id") or "")
+    args.target_url = target_url
+    args.host = host
+    return args
 
 
 def seed_target_workset(

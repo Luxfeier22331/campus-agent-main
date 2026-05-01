@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -142,6 +142,42 @@ function writeMinimalTargetSourceMap(siteRoot: string): void {
 	);
 }
 
+function writeMinimalTargetInventory(siteRoot: string): void {
+	writeFileSync(
+		resolve(siteRoot, "target-inventory.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_target_inventory.v1",
+				site_id: "campus_public",
+				inventory_version: "test_target_inventory_v1",
+				entries: [
+					{
+						inventory_id: "contact-homepage-footer",
+						admission_target_id: "contact-directory",
+						target_label: "Homepage footer contact information",
+						consumer_family: "contact_directory_candidate",
+						owner_surface: "contact_directory_lookup",
+						owner_agent_or_runtime: "campus-services-agent",
+						selected_write_target: "campus_services/contact_directory",
+						source_hosts: ["www.example.edu"],
+						source_urls: ["https://www.example.edu/contact"],
+						required_fields: ["office_name", "phone", "source_url", "source_version_evidence"],
+						required_evidence: ["phone", "location"],
+						materialization_policy: "candidate_only",
+						review_policy: "selected_write_requires_review",
+						inventory_only: false,
+						release_blockers: ["no_preview_evidence"],
+						preview_status: "candidate",
+						notes: "test inventory entry",
+					},
+				],
+			},
+			null,
+			2,
+		),
+	);
+}
+
 describe("official-web-core config loading", () => {
 	it("resolves muc_public repo-tracked config paths", () => {
 		const paths = resolveOfficialWebConfigPaths("muc_public");
@@ -165,6 +201,11 @@ describe("official-web-core config loading", () => {
 		expect(
 			paths.targetSourceMapPath.endsWith(
 				"configs/sources/official_web/muc_public/target-source-map.json",
+			),
+		).toBe(true);
+		expect(
+			paths.targetInventoryPath.endsWith(
+				"configs/sources/official_web/muc_public/target-inventory.json",
 			),
 		).toBe(true);
 	});
@@ -223,6 +264,19 @@ describe("official-web-core config loading", () => {
 			retentionPolicy: "inventory_only",
 			reviewPolicy: "inventory_only",
 			selectedWriteTarget: "",
+		});
+		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v1");
+		expect(config.targetInventory.entries.map((entry) => entry.inventoryId)).toEqual([
+			"muc-main-homepage-contact",
+			"muc-information-disclosure-application-process",
+			"muc-school-introduction-reference",
+		]);
+		expect(config.targetInventory.entries[0]).toMatchObject({
+			admissionTargetId: "campus-services-contact-directory",
+			consumerFamily: "contact_directory_candidate",
+			previewStatus: "candidate",
+			releaseBlockers: expect.arrayContaining(["no_preview_evidence"]),
+			sourceUrls: ["https://www.muc.edu.cn/"],
 		});
 		expect(config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
 			hostGroup: "university_core",
@@ -526,6 +580,7 @@ describe("official-web-core config loading", () => {
 		);
 		writeMinimalConsumerDenominator(siteRoot);
 		writeMinimalTargetSourceMap(siteRoot);
+		writeMinimalTargetInventory(siteRoot);
 
 		expect(() =>
 			loadOfficialWebConfig("campus_public", {
@@ -752,11 +807,50 @@ describe("official-web-core config loading", () => {
 		);
 		writeMinimalConsumerDenominator(siteRoot);
 		writeMinimalTargetSourceMap(siteRoot);
+		writeMinimalTargetInventory(siteRoot);
 
 		expect(() =>
 			loadOfficialWebConfig("campus_public", {
 				configRoot: root,
 			}),
 		).toThrowError(/manual_review/);
+	});
+
+	it("fails closed when target inventory references an unknown admission target", () => {
+		const root = mkdtempSync(resolve(tmpdir(), "official-web-core-"));
+		const siteRoot = resolve(root, "muc_public");
+		cpSync(resolve("..", "..", "configs/sources/official_web/muc_public"), siteRoot, {
+			recursive: true,
+		});
+
+		const inventoryPath = resolve(siteRoot, "target-inventory.json");
+		const inventory = JSON.parse(readFileSync(inventoryPath, "utf8"));
+		inventory.entries[0].admission_target_id = "missing-target";
+		writeFileSync(inventoryPath, JSON.stringify(inventory, null, 2));
+
+		expect(() =>
+			loadOfficialWebConfig("muc_public", {
+				configRoot: root,
+			}),
+		).toThrowError(/unknown admission target/);
+	});
+
+	it("fails closed when a non-inventory target inventory entry lacks source urls", () => {
+		const root = mkdtempSync(resolve(tmpdir(), "official-web-core-"));
+		const siteRoot = resolve(root, "muc_public");
+		cpSync(resolve("..", "..", "configs/sources/official_web/muc_public"), siteRoot, {
+			recursive: true,
+		});
+
+		const inventoryPath = resolve(siteRoot, "target-inventory.json");
+		const inventory = JSON.parse(readFileSync(inventoryPath, "utf8"));
+		inventory.entries[0].source_urls = [];
+		writeFileSync(inventoryPath, JSON.stringify(inventory, null, 2));
+
+		expect(() =>
+			loadOfficialWebConfig("muc_public", {
+				configRoot: root,
+			}),
+		).toThrowError(/must define source_urls/);
 	});
 });

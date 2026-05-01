@@ -6,21 +6,57 @@ import {
 	normalizeOfficialWebRunRecord,
 	normalizeOfficialWebSiteDetailRecord,
 	normalizeOfficialWebSiteRecord,
+	normalizeOfficialWebTargetInventoryRecord,
 	normalizeOfficialWebTargetJobDetailRecord,
 	normalizeOfficialWebTargetJobRecord,
 	type OfficialWebRunRecord,
 	type OfficialWebSiteRecord,
+	type OfficialWebTargetInventoryRecord,
 	type OfficialWebTargetJobRecord,
 	type RawOfficialWebRunDetailResponse,
 	type RawOfficialWebRunListResponse,
 	type RawOfficialWebSiteDetailResponse,
 	type RawOfficialWebSiteListResponse,
+	type RawOfficialWebTargetInventoryListResponse,
 	type RawOfficialWebTargetJobDetailResponse,
 	type RawOfficialWebTargetJobListResponse,
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
-import { appendOfficialWebRunFilters, appendOfficialWebTargetJobFilters } from "./filters";
+import {
+	appendOfficialWebRunFilters,
+	appendOfficialWebTargetInventoryFilters,
+	appendOfficialWebTargetJobFilters,
+} from "./filters";
 import { encodePathIdentifier } from "./path";
+
+export async function getOfficialWebTargetInventoryList(params: GetListParams): Promise<{
+	data: OfficialWebTargetInventoryRecord[];
+	pageInfo: {
+		hasNextPage: boolean;
+		hasPreviousPage: boolean;
+	};
+}> {
+	return getSequentialCursorList<
+		RawOfficialWebTargetInventoryListResponse,
+		RawOfficialWebTargetInventoryListResponse["entries"][number],
+		OfficialWebTargetInventoryRecord
+	>({
+		buildQuery(query) {
+			appendOfficialWebTargetInventoryFilters(query, params.filter);
+		},
+		cursorFilter: params.filter,
+		normalizeRecord: normalizeOfficialWebTargetInventoryRecord,
+		page: params.pagination?.page,
+		perPage: params.pagination?.perPage,
+		resource: "officialWebTargetInventory",
+		resourceLabel: "official web target inventory",
+		responseItems(payload) {
+			return payload.entries;
+		},
+		signal: params.signal,
+		sourcePath: "/api/official-web/target-inventory",
+	});
+}
 
 export async function getOfficialWebTargetJobList(params: GetListParams): Promise<{
 	data: OfficialWebTargetJobRecord[];

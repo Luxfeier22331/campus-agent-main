@@ -24,6 +24,7 @@ import {
 	buildOfficialWebQueryService,
 	createPgOfficialWebQueryStore,
 } from "../modules/official-web-query";
+import { buildOfficialWebTargetInventoryService } from "../modules/official-web-target-inventory";
 import {
 	buildOfficialWebTargetJobService,
 	createPgOfficialWebTargetJobStore,
@@ -71,6 +72,8 @@ export function createRequestScopeFactory(input: {
 			let docsService = input.dependencies.docsService ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
+			let officialWebTargetInventoryService =
+				input.dependencies.officialWebTargetInventoryService ?? null;
 			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
 			let operatorObservabilityCommandService =
 				input.dependencies.operatorObservabilityCommandService ?? null;
@@ -164,6 +167,15 @@ export function createRequestScopeFactory(input: {
 				return officialWebTargetJobService;
 			}
 
+			function resolveOfficialWebTargetInventoryService() {
+				if (officialWebTargetInventoryService) {
+					return officialWebTargetInventoryService;
+				}
+
+				officialWebTargetInventoryService = buildOfficialWebTargetInventoryService();
+				return officialWebTargetInventoryService;
+			}
+
 			function resolveDocsService() {
 				if (docsService) {
 					return docsService;
@@ -244,6 +256,7 @@ export function createRequestScopeFactory(input: {
 				resolveDocsService,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
+				resolveOfficialWebTargetInventoryService,
 				resolveOfficialWebTargetJobService,
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,

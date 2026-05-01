@@ -1,4 +1,5 @@
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
@@ -14,6 +15,7 @@ import { OfficialWebRunShowPage } from "./official-web/run-show";
 import { OfficialWebRunsListPage } from "./official-web/runs-list";
 import { OfficialWebSiteShowPage } from "./official-web/site-show";
 import { OfficialWebSitesListPage } from "./official-web/sites-list";
+import { OfficialWebTargetInventoryListPage } from "./official-web/target-inventory-list";
 import { OfficialWebTargetJobShowPage } from "./official-web/target-job-show";
 import { OfficialWebTargetJobsListPage } from "./official-web/target-jobs-list";
 import { AccessRequiredPage } from "./pages/access-required-page";
@@ -77,6 +79,13 @@ export function ProtectedPanelAdminApp() {
 				options={{ label: PANEL_COPY.menu.officialWebTargetJobs }}
 				recordRepresentation="targetId"
 				show={OfficialWebTargetJobShowPage}
+			/>
+			<Resource
+				icon={Inventory2OutlinedIcon}
+				list={OfficialWebTargetInventoryListPage}
+				name="officialWebTargetInventory"
+				options={{ label: PANEL_COPY.menu.officialWebTargetInventory }}
+				recordRepresentation="inventoryId"
 			/>
 			<Resource
 				icon={TravelExploreOutlinedIcon}

@@ -6,14 +6,32 @@ from tempfile import TemporaryDirectory
 
 from scripts.official_web_live_seam_no_promotion import (
     assert_seam_report,
+    build_parser,
     build_seam_report,
     extract_last_json_object,
     handoff_path_for_run,
+    resolve_inventory_target_args,
     write_json,
 )
 
 
 class OfficialWebLiveSeamNoPromotionScriptTest(unittest.TestCase):
+    def test_resolve_inventory_target_args_uses_target_inventory(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--site-id",
+                "muc_public",
+                "--inventory-id",
+                "muc-information-disclosure-application-process",
+            ]
+        )
+
+        resolved = resolve_inventory_target_args(Path.cwd(), args)
+
+        self.assertEqual(resolved.target_id, "campus-services-service-guide")
+        self.assertEqual(resolved.target_url, "https://xxgk.muc.edu.cn/info/1007/1113.htm")
+        self.assertEqual(resolved.host, "xxgk.muc.edu.cn")
+
     def test_extract_last_json_object_prefers_trailing_top_level_object(self) -> None:
         output = """
 INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"}]}

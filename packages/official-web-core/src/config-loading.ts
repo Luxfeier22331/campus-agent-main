@@ -45,6 +45,7 @@ export function loadOfficialWebConfig(
 	const projectionDeclarationsPayload = readJson(paths.projectionDeclarationsPath);
 	const consumerDenominatorPayload = readJson(paths.consumerDenominatorPath);
 	const targetSourceMapPayload = readJson(paths.targetSourceMapPath);
+	const targetInventoryPayload = readJson(paths.targetInventoryPath);
 	const schedulerPolicyPayload = readJson(paths.schedulerPolicyPath);
 	const qcPolicyPayload = readJson(paths.qcPolicyPath);
 
@@ -209,6 +210,12 @@ export function loadOfficialWebConfig(
 			mapVersion: asString(targetSourceMapPayload.map_version),
 			targets: asArray(targetSourceMapPayload.targets).map(loadTargetSourceMapTarget),
 		},
+		targetInventory: {
+			schemaVersion: asString(targetInventoryPayload.schema_version),
+			siteId: asString(targetInventoryPayload.site_id),
+			inventoryVersion: asString(targetInventoryPayload.inventory_version),
+			entries: asArray(targetInventoryPayload.entries).map(loadTargetInventoryEntry),
+		},
 		schedulerPolicy: {
 			schemaVersion: asString(schedulerPolicyPayload.schema_version),
 			siteId: asString(schedulerPolicyPayload.site_id),
@@ -245,6 +252,30 @@ export function loadOfficialWebConfig(
 
 	validateOfficialWebConfig(bundle);
 	return bundle;
+}
+
+function loadTargetInventoryEntry(item: Record<string, unknown>) {
+	return {
+		admissionTargetId: asPathSegment(
+			item.admission_target_id,
+			"target_inventory.admission_target_id",
+		),
+		consumerFamily: asConsumerFamily(item.consumer_family),
+		inventoryId: asPathSegment(item.inventory_id, "target_inventory.inventory_id"),
+		inventoryOnly: Boolean(item.inventory_only),
+		materializationPolicy: asConsumerMaterializationPolicy(item.materialization_policy),
+		notes: asString(item.notes),
+		ownerAgentOrRuntime: asString(item.owner_agent_or_runtime),
+		ownerSurface: asString(item.owner_surface),
+		previewStatus: asString(item.preview_status),
+		releaseBlockers: asStringArray(item.release_blockers),
+		requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+		requiredFields: asStringArray(item.required_fields),
+		selectedWriteTarget: asString(item.selected_write_target),
+		sourceHosts: asStringArray(item.source_hosts).map((host) => host.toLowerCase()),
+		sourceUrls: asStringArray(item.source_urls),
+		targetLabel: asString(item.target_label),
+	};
 }
 
 function loadTargetSourceMapTarget(item: Record<string, unknown>) {

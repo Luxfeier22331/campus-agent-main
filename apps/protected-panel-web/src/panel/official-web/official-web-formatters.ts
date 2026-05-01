@@ -78,6 +78,17 @@ const OFFICIAL_WEB_TARGET_JOB_STATUS_LABELS: Record<string, string> = {
 	disabled: "已停用",
 };
 
+const OFFICIAL_WEB_TARGET_INVENTORY_REVIEW_STATE_LABELS: Record<string, string> = {
+	blocked_fields: "字段阻塞",
+	blocked_lineage: "血缘阻塞",
+	blocked_source: "来源阻塞",
+	candidate: "候选",
+	excluded: "已排除",
+	inventory_only: "仅清单",
+	previewed: "已预览",
+	ready_for_selected_write: "可进入选择写",
+};
+
 export function formatOfficialWebStatusLabel(status: string) {
 	switch (status) {
 		case "accepted":
@@ -139,6 +150,10 @@ export function formatOfficialWebMaterializationPolicyLabel(value: string) {
 
 export function formatOfficialWebTargetJobStatusLabel(value: string) {
 	return OFFICIAL_WEB_TARGET_JOB_STATUS_LABELS[value] ?? value;
+}
+
+export function formatOfficialWebTargetInventoryReviewStateLabel(value: string) {
+	return OFFICIAL_WEB_TARGET_INVENTORY_REVIEW_STATE_LABELS[value] ?? value;
 }
 
 export function formatIngestionStatusLabel(status: string | null) {

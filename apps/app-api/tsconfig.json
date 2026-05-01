@@ -5,6 +5,7 @@
 		"moduleResolution": "Bundler",
 		"allowImportingTsExtensions": true,
 		"allowJs": true,
+		"resolveJsonModule": true,
 		"strict": true,
 		"types": ["node", "@cloudflare/workers-types", "vite/client", "vitest/globals"],
 		"skipLibCheck": true,

@@ -1,0 +1,83 @@
+{
+	"schema_version": "official_web_target_inventory.v1",
+	"site_id": "muc_public",
+	"inventory_version": "muc_public_target_inventory_v1",
+	"entries": [
+		{
+			"inventory_id": "muc-main-homepage-contact",
+			"admission_target_id": "campus-services-contact-directory",
+			"target_label": "中央民族大学主页页脚联系方式",
+			"consumer_family": "contact_directory_candidate",
+			"owner_surface": "contact_directory_lookup",
+			"owner_agent_or_runtime": "campus-services-agent",
+			"selected_write_target": "campus_services/contact_directory",
+			"source_hosts": ["www.muc.edu.cn"],
+			"source_urls": ["https://www.muc.edu.cn/"],
+			"required_fields": [
+				"organization_name",
+				"phone",
+				"location",
+				"source_url",
+				"source_version_evidence"
+			],
+			"required_evidence": ["phone", "location"],
+			"materialization_policy": "candidate_only",
+			"review_policy": "selected_write_requires_review",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"preview_status": "candidate",
+			"notes": "Homepage footer currently exposes campus addresses and the main switchboard phone. Treat as a candidate contact-directory seed, not a complete department phone book."
+		},
+		{
+			"inventory_id": "muc-information-disclosure-application-process",
+			"admission_target_id": "campus-services-service-guide",
+			"target_label": "中央民族大学信息公开依申请公开工作流程",
+			"consumer_family": "service_guide_candidate",
+			"owner_surface": "service_guide_lookup",
+			"owner_agent_or_runtime": "campus-services-agent",
+			"selected_write_target": "campus_services/service_guide",
+			"source_hosts": ["xxgk.muc.edu.cn"],
+			"source_urls": ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
+			"required_fields": [
+				"service_name",
+				"process_steps",
+				"required_materials",
+				"responsible_office",
+				"source_url",
+				"source_version_evidence"
+			],
+			"required_evidence": ["service_process", "service_material", "location"],
+			"materialization_policy": "candidate_only",
+			"review_policy": "selected_write_requires_review",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"preview_status": "candidate",
+			"notes": "Public information-disclosure application guide. It supports informational service-guide answers only, not transactional submission."
+		},
+		{
+			"inventory_id": "muc-school-introduction-reference",
+			"admission_target_id": "official-web-stable-reference",
+			"target_label": "中央民族大学学校简介",
+			"consumer_family": "stable_reference_candidate",
+			"owner_surface": "official_web/stable_reference",
+			"owner_agent_or_runtime": "rag-agent",
+			"selected_write_target": "official_web/stable_reference",
+			"source_hosts": ["www.muc.edu.cn"],
+			"source_urls": ["https://www.muc.edu.cn/xxgk1/xxjj.htm"],
+			"required_fields": [
+				"reference_title",
+				"normalized_content_summary",
+				"authoritative_source_url",
+				"release_scope",
+				"source_version_evidence"
+			],
+			"required_evidence": ["stable_reference"],
+			"materialization_policy": "release_gate_required",
+			"review_policy": "release_gate_required",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
+			"preview_status": "candidate",
+			"notes": "Stable institutional reference candidate for school introduction. It must pass release gate before serving alias changes."
+		}
+	]
+}

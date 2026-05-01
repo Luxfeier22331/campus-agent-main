@@ -76,6 +76,19 @@ function validateSeedUrl(
 	}
 }
 
+function validateSourceUrl(rawUrl: string, sourceHosts: string[], fieldName: string): void {
+	const parsed = new URL(rawUrl);
+	if (parsed.protocol !== "https:") {
+		throw new Error(`${fieldName} ${rawUrl} must use https`);
+	}
+	if (parsed.hash) {
+		throw new Error(`${fieldName} ${rawUrl} must not include a fragment`);
+	}
+	if (!sourceHosts.includes(parsed.hostname)) {
+		throw new Error(`${fieldName} ${rawUrl} must stay on declared source hosts`);
+	}
+}
+
 export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void {
 	assertNonEmpty(bundle.site.schemaVersion, "site.schemaVersion");
 	assertNonEmpty(bundle.site.configVersion, "site.configVersion");
@@ -492,6 +505,127 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			}
 		}
 		validateRegexList(target.urlHints, `targetSourceMap ${target.targetId}.urlHints`);
+	}
+
+	if (bundle.targetInventory.siteId !== bundle.site.siteId) {
+		throw new Error("targetInventory.siteId must match site.siteId");
+	}
+	assertNonEmpty(bundle.targetInventory.schemaVersion, "targetInventory.schemaVersion");
+	assertNonEmpty(bundle.targetInventory.inventoryVersion, "targetInventory.inventoryVersion");
+	if (bundle.targetInventory.entries.length === 0) {
+		throw new Error("targetInventory.entries must not be empty");
+	}
+	ensureUnique(
+		bundle.targetInventory.entries.map((entry) => entry.inventoryId),
+		"targetInventory.entries[].inventoryId",
+	);
+	const targetSourceMapById = new Map(
+		bundle.targetSourceMap.targets.map((target) => [target.targetId, target]),
+	);
+	for (const entry of bundle.targetInventory.entries) {
+		assertNonEmpty(entry.targetLabel, `targetInventory ${entry.inventoryId} targetLabel`);
+		assertNonEmpty(entry.ownerSurface, `targetInventory ${entry.inventoryId} ownerSurface`);
+		assertNonEmpty(
+			entry.ownerAgentOrRuntime,
+			`targetInventory ${entry.inventoryId} ownerAgentOrRuntime`,
+		);
+		assertNonEmpty(entry.previewStatus, `targetInventory ${entry.inventoryId} previewStatus`);
+		assertNonEmpty(entry.notes, `targetInventory ${entry.inventoryId} notes`);
+		if (entry.requiredFields.length === 0) {
+			throw new Error(`targetInventory ${entry.inventoryId} must define required_fields`);
+		}
+		if (entry.requiredEvidence.length === 0) {
+			throw new Error(`targetInventory ${entry.inventoryId} must define required_evidence`);
+		}
+		if (!entry.inventoryOnly && entry.sourceUrls.length === 0) {
+			throw new Error(`targetInventory ${entry.inventoryId} must define source_urls`);
+		}
+		ensureUnique(entry.sourceHosts, `targetInventory ${entry.inventoryId}.sourceHosts`);
+		ensureUnique(entry.sourceUrls, `targetInventory ${entry.inventoryId}.sourceUrls`);
+		ensureUnique(entry.requiredFields, `targetInventory ${entry.inventoryId}.requiredFields`);
+		ensureUnique(entry.requiredEvidence, `targetInventory ${entry.inventoryId}.requiredEvidence`);
+		ensureUnique(entry.releaseBlockers, `targetInventory ${entry.inventoryId}.releaseBlockers`);
+
+		const admissionTarget = targetSourceMapById.get(entry.admissionTargetId);
+		if (!admissionTarget) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} references unknown admission target ${entry.admissionTargetId}`,
+			);
+		}
+		const consumerRule = consumerRuleByFamily.get(entry.consumerFamily);
+		if (!consumerRule) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} references unknown consumerFamily ${entry.consumerFamily}`,
+			);
+		}
+		if (entry.consumerFamily !== admissionTarget.consumerFamily) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} consumerFamily must match admission target`,
+			);
+		}
+		if (entry.ownerSurface !== admissionTarget.ownerSurface) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} ownerSurface must match admission target`,
+			);
+		}
+		if (entry.ownerAgentOrRuntime !== consumerRule.ownerAgentOrRuntime) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} ownerAgentOrRuntime must match consumer denominator`,
+			);
+		}
+		if (entry.selectedWriteTarget !== admissionTarget.selectedWriteTarget) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} selectedWriteTarget must match admission target`,
+			);
+		}
+		if (entry.materializationPolicy !== admissionTarget.materializationPolicy) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} materializationPolicy must match admission target`,
+			);
+		}
+		if (entry.inventoryOnly !== admissionTarget.inventoryOnly) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} inventoryOnly must match admission target`,
+			);
+		}
+		if (entry.inventoryOnly && entry.selectedWriteTarget) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} inventory-only selectedWriteTarget must be empty`,
+			);
+		}
+		for (const sourceHost of entry.sourceHosts) {
+			validateHostName(sourceHost, `targetInventory ${entry.inventoryId}.sourceHosts`);
+			if (!admissionTarget.sourceHosts.includes(sourceHost)) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} sourceHosts must be admitted by target-source-map`,
+				);
+			}
+			const host = hostIndex.get(sourceHost);
+			if (!host?.enabled) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} references unavailable host ${sourceHost}`,
+				);
+			}
+		}
+		for (const sourceUrl of entry.sourceUrls) {
+			validateSourceUrl(
+				sourceUrl,
+				entry.sourceHosts,
+				`targetInventory ${entry.inventoryId}.sourceUrls`,
+			);
+		}
+		for (const evidence of entry.requiredEvidence) {
+			if (!admissionTarget.requiredEvidence.includes(evidence)) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} requiredEvidence must be allowed by admission target`,
+				);
+			}
+		}
+		if (entry.previewStatus === "ready_for_selected_write" && entry.releaseBlockers.length > 0) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} ready_for_selected_write cannot have releaseBlockers`,
+			);
+		}
 	}
 
 	if (bundle.qcPolicy.siteId !== bundle.site.siteId) {

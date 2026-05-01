@@ -94,6 +94,11 @@ const STATIC_PROXY_ROUTES = [
 		targetPath: "/api/operator/official-web/target-jobs",
 	},
 	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		path: "/api/official-web/target-inventory",
+		targetPath: "/api/operator/official-web/target-inventory",
+	},
+	{
 		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
 		path: "/api/authenticated-notices/processing",
 		targetPath: "/api/operator/authenticated-notices/processing",
@@ -125,6 +130,11 @@ const PREFIX_PROXY_ROUTES = [
 		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
 		prefix: "/api/official-web/target-jobs/",
 		targetPrefix: "/api/operator/official-web/target-jobs/",
+	},
+	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		prefix: "/api/official-web/target-inventory/",
+		targetPrefix: "/api/operator/official-web/target-inventory/",
 	},
 	{
 		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,

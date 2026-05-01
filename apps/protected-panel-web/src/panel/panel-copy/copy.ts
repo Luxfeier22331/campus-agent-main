@@ -30,6 +30,7 @@ export const PANEL_COPY = {
 		authenticatedNoticeProcessing: "通知处理",
 		officialWebSites: "官网站点",
 		officialWebTargetJobs: "官网目标任务",
+		officialWebTargetInventory: "官网目标清单",
 		officialWebRuns: "采集运行",
 		jobs: "任务",
 		operations: "操作",
@@ -545,6 +546,7 @@ export const PANEL_COPY = {
 		authenticatedNoticeProcessing: "暂无通知处理记录。",
 		officialWebRuns: "暂无官网采集运行。",
 		officialWebSites: "暂无官网站点。",
+		officialWebTargetInventory: "暂无官网目标清单。",
 		officialWebTargetJobs: "暂无官网目标任务。",
 	},
 	domainStatus: {

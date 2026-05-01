@@ -29,6 +29,7 @@ import {
 	getOfficialWebRunList,
 	getOfficialWebSiteDetail,
 	getOfficialWebSiteList,
+	getOfficialWebTargetInventoryList,
 	getOfficialWebTargetJobDetail,
 	getOfficialWebTargetJobList,
 } from "./official-web";
@@ -73,6 +74,11 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		}
 		if (resource === "officialWebTargetJobs") {
 			return (await getOfficialWebTargetJobList(params)) as unknown as GetListResult<RecordType>;
+		}
+		if (resource === "officialWebTargetInventory") {
+			return (await getOfficialWebTargetInventoryList(
+				params,
+			)) as unknown as GetListResult<RecordType>;
 		}
 		if (resource === "officialWebSites") {
 			return (await getOfficialWebSiteList(params.signal)) as unknown as GetListResult<RecordType>;
