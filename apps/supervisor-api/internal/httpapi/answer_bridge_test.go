@@ -75,6 +75,62 @@ func TestAnswerDelegatesProjectedPayloadAndInjectsTraceID(t *testing.T) {
 	}
 }
 
+func TestAnswerPropagatesTraceHeadersToBridge(t *testing.T) {
+	bridgeClient := &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "agent_response",
+			Body: json.RawMessage(`{
+				"selected_target":"rag-agent",
+				"status":"completed",
+				"answer_text":"ok"
+			}`),
+		},
+	}
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "api-bearer-user",
+		DefaultActorRoles:     []string{"student"},
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, bridgeClient)
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{
+			"user_goal":"hello",
+			"request_id":"req-trace-propagation",
+			"requested_scope":{"corpus":"regulations","collection":"student_rules"}
+		}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("sentry-trace", "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1")
+	request.Header.Set("baggage", "release=phase1")
+	request.Header.Set("x-trace-id", "trace-product-001")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	traceHeaders := bridgeClient.seen.TraceHeaders
+	if traceHeaders["traceparent"] != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+		t.Fatalf("traceparent = %q", traceHeaders["traceparent"])
+	}
+	if traceHeaders["baggage"] != "release=phase1" {
+		t.Fatalf("baggage = %q", traceHeaders["baggage"])
+	}
+	if traceHeaders["x-request-id"] != "req-trace-propagation" {
+		t.Fatalf("x-request-id = %q", traceHeaders["x-request-id"])
+	}
+	if traceHeaders["x-trace-id"] != "trace-product-001" {
+		t.Fatalf("x-trace-id = %q", traceHeaders["x-trace-id"])
+	}
+}
+
 func TestAnswerPassesSupervisorErrorsThrough(t *testing.T) {
 	server := NewServer(config.Config{
 		AuthMode:              "bearer",

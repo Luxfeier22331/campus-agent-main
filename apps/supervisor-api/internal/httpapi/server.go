@@ -213,6 +213,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	request = request.WithContext(telemetry.ExtractIncomingContext(request.Context(), request.Header))
 	path := request.URL.Path
 	routeLabel := routeLabelFor(request.Method, path)
 	startedAt := time.Now()

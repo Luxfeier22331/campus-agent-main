@@ -563,6 +563,25 @@ link；panel 不直接向 Axiom 发查询请求。
 redaction、sampling、字段裁剪与 sink fan-out 优先放在这条 seam，而不是把厂商逻辑复制到每个 runtime
 boundary。
 
+runtime OTel 接入口径、事件 taxonomy、attribute allowlist、forbidden fields 与 runtime
+ownership matrix 固定在
+`docs/reference/runtime-otel-telemetry-taxonomy.md`。该 reference 的核心约束是：OTel SDK
+只进入 `apps/*` runtime / adapter / deployment 层；`retrieval-core`、`rag-agent`、
+`ingestion-core` 与 `contracts` 保持 vendor-neutral，不直接依赖 Sentry、Axiom、Collector
+或 OpenTelemetry SDK。
+
+当前 runtime bridge 已收口为：
+
+- `apps/supervisor-api` 是 online trace owner，负责 request admission、bridge
+  attempt 与 finalization 的 sanitized OTLP trace signal
+- `apps/supervisor-agent-worker` 负责把 `retrieval.runtime_observation` 映射成 sanitized
+  runtime event sink
+- `apps/ingestion-worker` 负责 offline run-level started/completed/failed telemetry
+- `infra/otel/` 提供 repo-owned local debug Collector config 与 staging Sentry/Axiom
+  fan-out template
+- `docs/runbooks/runtime-otel-collector-pipeline.md` 提供 local debug、staging env、
+  closeout smoke 与 drop diagnosis 操作口径
+
 ## Cost Model
 
 长期成本治理固定分成两层：

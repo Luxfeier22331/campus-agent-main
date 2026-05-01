@@ -208,6 +208,10 @@ Current observability boundary:
   `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured; telemetry
   export is fail-open for answer requests and surfaces exported / dropped /
   failed / sample-ratio / last-error state in `/readyz` and `/metrics`.
+- `apps/supervisor-api` is the online trace owner. It extracts inbound
+  `traceparent` / `baggage`, accepts current `app-api` `sentry-trace` as an
+  ingress compatibility source, and propagates only `traceparent`, `baggage`,
+  `x-request-id`, and `x-trace-id` to `supervisor-agent-worker`.
 - Execution audit backflow is disabled by default. When enabled, Go
   `apps/supervisor-api` sends only safe runtime event summaries for admission
   rejection, cancel, bridge failure, and timeout to `app-api`; it never includes

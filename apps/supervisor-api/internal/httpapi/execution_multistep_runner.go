@@ -219,7 +219,14 @@ func (s *Server) runMultiStepBridgeExecution(
 			requestCtx,
 			executionRequest,
 			emitProgress,
-			bridge.Request{Payload: stepPayload},
+			bridge.Request{
+				Payload: stepPayload,
+				TraceHeaders: telemetry.InjectBridgeTraceHeaders(
+					requestCtx,
+					executionRequest.RequestID,
+					executionRequest.TraceID,
+				),
+			},
 		)
 		bridgeCancel()
 		bridgeDuration := time.Since(bridgeStartedAt)

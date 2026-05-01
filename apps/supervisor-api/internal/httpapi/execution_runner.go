@@ -269,6 +269,11 @@ func (s *Server) runBridgeExecution(
 		emitProgress,
 		bridge.Request{
 			Payload: executionRequest.Payload,
+			TraceHeaders: telemetry.InjectBridgeTraceHeaders(
+				requestCtx,
+				executionRequest.RequestID,
+				executionRequest.TraceID,
+			),
 		},
 	)
 	bridgeDuration := time.Since(bridgeStartedAt)
@@ -356,9 +361,27 @@ func (s *Server) executeBridgeWithRetry(
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		runState.AttemptCount = attempt
 		attemptStartedAt := time.Now()
+		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			Name:                "agent.bridge.started",
+			RequestID:           executionRequest.RequestID,
+			TraceID:             executionRequest.TraceID,
+			Lane:                executionRequest.Lane,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Decision:            "attempt_started",
+		}, executionRequest))
 		response, err := s.bridge.Execute(bridgeCtx, request)
-		s.metrics.RecordBridgeDuration(time.Since(attemptStartedAt))
+		attemptDuration := time.Since(attemptStartedAt)
+		s.metrics.RecordBridgeDuration(attemptDuration)
 		if err == nil {
+			s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+				Name:                "agent.bridge.completed",
+				RequestID:           executionRequest.RequestID,
+				TraceID:             executionRequest.TraceID,
+				Lane:                executionRequest.Lane,
+				RequestedCapability: executionRequest.RequestedCapability,
+				Outcome:             "completed",
+				BridgeDuration:      attemptDuration,
+			}, executionRequest))
 			return response, runState, nil
 		}
 		lastErr = err
@@ -369,6 +392,16 @@ func (s *Server) executeBridgeWithRetry(
 			executionRequest.RequestID,
 		)
 		if !retryable || attempt >= maxAttempts {
+			s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+				Name:                "agent.bridge.failed",
+				RequestID:           executionRequest.RequestID,
+				TraceID:             executionRequest.TraceID,
+				Lane:                executionRequest.Lane,
+				RequestedCapability: executionRequest.RequestedCapability,
+				Outcome:             "failed",
+				FailureCode:         failureKind,
+				BridgeDuration:      attemptDuration,
+			}, executionRequest))
 			break
 		}
 		runState.RetryCount++

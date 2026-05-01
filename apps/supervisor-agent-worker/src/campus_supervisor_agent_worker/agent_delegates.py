@@ -21,6 +21,11 @@ from campus_supervisor_agent_worker.prompt_executor import ProviderBackedRagProm
 from campus_supervisor_agent_worker.provider_tool_runtime_policy import (
     DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS,
 )
+from campus_supervisor_agent_worker.retrieval_observation_bridge import (
+    build_retrieval_runtime_event_sink,
+    build_runtime_event_jsonl_emitter,
+    compose_retrieval_observation_sinks,
+)
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 ProviderFunctionToolProvider = Callable[[object], Mapping[str, object]]
@@ -64,10 +69,21 @@ def _build_agent_delegates(
     notice_query_service: NoticeHTTPQueryService | None,
     provider_tool_provider: ProviderFunctionToolProvider | None = None,
 ) -> dict[str, AgentDelegate]:
-    retrieval_observation_sink = (
+    retrieval_jsonl_observation_sink = (
         build_jsonl_retrieval_observation_sink(settings.retrieval_observation_jsonl_path)
         if settings.retrieval_observation_jsonl_path
         else None
+    )
+    retrieval_runtime_event_sink = (
+        build_retrieval_runtime_event_sink(
+            build_runtime_event_jsonl_emitter(settings.retrieval_runtime_event_jsonl_path)
+        )
+        if settings.retrieval_runtime_event_jsonl_path
+        else None
+    )
+    retrieval_observation_sink = compose_retrieval_observation_sinks(
+        retrieval_jsonl_observation_sink,
+        retrieval_runtime_event_sink,
     )
     agent_delegates: dict[str, AgentDelegate] = {
         "rag-agent": lambda agent_request: delegate_to_rag_agent(

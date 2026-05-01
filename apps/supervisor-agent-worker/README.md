@@ -162,3 +162,23 @@ audit writer 负责回流到 `app-api` internal ingest。
 只用于 Python worker 调用 Go `supervisor-api` 的 internal
 `/internal/query/campus-services/*` seam。未配置时，`campus-services-agent`
 继续保持 internal query service unavailable，不会打开产品 serving gate。
+
+## Retrieval Observation Env
+
+```bash
+export SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH=/tmp/retrieval-observations.jsonl
+export SUPERVISOR_RETRIEVAL_RUNTIME_EVENT_JSONL_PATH=/tmp/retrieval-runtime-events.jsonl
+export SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=false
+```
+
+`SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 写入 `retrieval-core` 产生的原始
+observation，用于本地调试和 eval backlog。只有显式设置
+`SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=true` 时才会包含 raw query text；
+生产 sink 不应开启该 debug 开关。
+
+`SUPERVISOR_RETRIEVAL_RUNTIME_EVENT_JSONL_PATH` 写入 worker-owned sanitized
+`retrieval.runtime_observation` runtime event。该路径只保留 allowlisted attributes：
+request/plan/step correlation、scope、query hash、counts、latency、terminal state、
+release drift 与 reranker degraded flags；不会写入 raw query、raw snippet、document
+body、auth material 或 source credentials。后续 Collector / sink pipeline 可以消费该
+event JSONL 或等价 runtime emitter，并映射为 OTel-compatible log/event/span。

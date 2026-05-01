@@ -111,8 +111,37 @@ func TestEmitterSpanUsesSupervisorAPINamespace(t *testing.T) {
 	if len(spans) != 1 {
 		t.Fatalf("ended spans = %d, want 1", len(spans))
 	}
-	if spans[0].Name() != "supervisor_api.answer.accepted" {
-		t.Fatalf("span name = %q, want supervisor_api.answer.accepted", spans[0].Name())
+	if spans[0].Name() != "supervisor_api.runtime.request.accepted" {
+		t.Fatalf("span name = %q, want supervisor_api.runtime.request.accepted", spans[0].Name())
+	}
+}
+
+func TestEmitterPreservesIncomingTraceParent(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	emitter := &Emitter{
+		enabled:     true,
+		sampleRatio: 1,
+		tracer:      provider.Tracer("test"),
+	}
+	ctx := ExtractIncomingContext(
+		context.Background(),
+		map[string][]string{
+			"traceparent": {"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+		},
+	)
+
+	emitter.Emit(ctx, Event{Name: "agent.bridge.started"})
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	if spans[0].SpanContext().TraceID().String() != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("trace id = %s, want propagated trace id", spans[0].SpanContext().TraceID())
+	}
+	if spans[0].Parent().SpanID().String() != "00f067aa0ba902b7" {
+		t.Fatalf("parent span id = %s, want propagated parent", spans[0].Parent().SpanID())
 	}
 }
 
@@ -177,27 +206,28 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 	attrs := spans[0].Attributes()
 	allowed := map[string]bool{
-		"bridge_duration_ms":      true,
-		"bridge_cancel_status":    true,
-		"context_preflight_state": true,
-		"decision":                true,
-		"duration_ms":             true,
-		"failure_code":            true,
-		"lane":                    true,
-		"outcome":                 true,
-		"planning_outcome":        true,
-		"policy_gate_decision":    true,
-		"queue_wait_ms":           true,
-		"request_id":              true,
-		"requested_capability":    true,
-		"routing_next_action":     true,
-		"selected_target":         true,
-		"selected_tool":           true,
-		"scope_gate_decision":     true,
-		"terminal_outcome":        true,
-		"fail_close_reason":       true,
-		"status_code":             true,
-		"trace_id":                true,
+		"bridge_duration_ms":                   true,
+		"bridge_cancel_status":                 true,
+		"context_preflight_state":              true,
+		"decision":                             true,
+		"duration_ms":                          true,
+		"failure_code":                         true,
+		"lane":                                 true,
+		"outcome":                              true,
+		"planning_outcome":                     true,
+		"policy_gate_decision":                 true,
+		"queue_wait_ms":                        true,
+		"request_id":                           true,
+		"requested_capability":                 true,
+		"routing_next_action":                  true,
+		"selected_target":                      true,
+		"selected_tool":                        true,
+		"scope_gate_decision":                  true,
+		"terminal_outcome":                     true,
+		"fail_close_reason":                    true,
+		"status_code":                          true,
+		"telemetry.allowed_attributes_version": true,
+		"trace_id":                             true,
 	}
 	found := map[string]string{}
 	for _, attr := range attrs {

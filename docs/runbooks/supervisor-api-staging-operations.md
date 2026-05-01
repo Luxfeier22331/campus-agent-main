@@ -118,6 +118,16 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - `SUPERVISOR_API_OTEL_ENABLED=false` 是本地 staging 默认；开启后必须同时配置
   `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT`，否则 `/readyz` 会标记
   `telemetry_runtime.exporter_configured=false`
+- OTel attribute allowlist、forbidden fields 与 sink ownership 以
+  `docs/reference/runtime-otel-telemetry-taxonomy.md` 为准；staging 不应把 raw prompt、
+  raw query、raw answer、token、cookie、auth material 或正文片段发往 Sentry/Axiom
+- Collector / Sentry / Axiom fan-out 操作以
+  `docs/runbooks/runtime-otel-collector-pipeline.md` 为准；runtime 只把 sanitized OTLP
+  发给 Collector，vendor endpoint/header/dataset 由部署 secret 注入
+- `supervisor-api` 会从入口请求提取 `traceparent` / `baggage`；为兼容当前
+  `app-api` 链路，也会把有效的 `sentry-trace` 转成标准 `traceparent`。向
+  `supervisor-agent-worker` 只传播 `traceparent`、`baggage`、`x-request-id`
+  与 `x-trace-id`
 - 如果设置了 `SUPERVISOR_API_METRICS_BEARER_TOKEN`，`status-supervisor-api-staging.sh`
   会用该 token 拉取本地 `/metrics`；不应把 raw token 写入日志
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有

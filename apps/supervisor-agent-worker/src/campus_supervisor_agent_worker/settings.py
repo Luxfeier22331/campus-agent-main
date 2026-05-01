@@ -128,6 +128,7 @@ class ApiSettings:
     agents_sdk_runtime_allowed_targets: tuple[str, ...] = ()
     agents_sdk_runtime_allowed_tools: tuple[str, ...] = ()
     retrieval_observation_jsonl_path: str = ""
+    retrieval_runtime_event_jsonl_path: str = ""
     retrieval_observation_include_query_text: bool = False
     cancel_flag_ttl_seconds: float = 900.0
 
@@ -289,6 +290,10 @@ class ApiSettings:
             agents_sdk_runtime_allowed_tools=_read_csv_tuple("SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS"),
             retrieval_observation_jsonl_path=os.getenv(
                 "SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH",
+                "",
+            ).strip(),
+            retrieval_runtime_event_jsonl_path=os.getenv(
+                "SUPERVISOR_RETRIEVAL_RUNTIME_EVENT_JSONL_PATH",
                 "",
             ).strip(),
             retrieval_observation_include_query_text=_read_bool(

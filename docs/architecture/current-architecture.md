@@ -163,6 +163,9 @@ model`
 - 拥有 non-delegate terminal envelope 与 runtime decision summary；non-stream /
   lifecycle SSE answer path 会直接在 Go 中返回 terminal supervisor-style response；
   metrics、OTel 与 execution audit 使用同一组低基数 runtime policy labels
+- 拥有 online runtime OTel trace owner 责任：`supervisor-api` 接收 trace context，
+  发出 sanitized OTLP trace signal 到 Collector seam，并在 Collector/exporter 不可用时保持
+  answer path fail-safe
 - 拥有 private bridge `AgentResponse -> SupervisorResponse` finalization 与
   response-level observability projection
 - 对已打开的 `campus_services` / `notice` deterministic structured payload，
@@ -180,11 +183,17 @@ model`
 - 只返回 `AgentResponse` 给 Go bridge；不再组装 public `SupervisorResponse`
 - 不再暴露 public `/api/v1/answer`；execution transport、admission、queue、
   metrics 与 published `transport_runtime` 由 `apps/supervisor-api` 拥有
+- 拥有 worker-side retrieval runtime observation bridge，把
+  `retrieval.runtime_observation` 投影成 sanitized runtime event sink；不把 raw
+  query / snippet / document body 写入 telemetry
 
 ### `apps/ingestion-worker`
 
 - offline ingestion/data-plane executor
 - 承接 source-truth / projection / chunk / index write path
+- 拥有 ingestion run-level telemetry adapter，输出 canonicalize / chunk / embedding /
+  index release / publish / audit 的 sanitized started/completed/failed run event；
+  export failure 不让 ingestion job 失败
 
 ### `apps/official-web-collector`
 

@@ -6,7 +6,8 @@ import (
 )
 
 type Request struct {
-	Payload json.RawMessage `json:"payload"`
+	Payload      json.RawMessage   `json:"payload"`
+	TraceHeaders map[string]string `json:"-"`
 }
 
 type ExecuteResponse struct {

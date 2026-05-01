@@ -393,6 +393,48 @@ operator gate 使用。
   release metadata drift observation 汇总成候选 backlog：
   `campus_evals.retrieval_monitoring.build_retrieval_monitoring_backlog()`
 
+## Ingestion Run Telemetry Smoke
+
+release-managed worker shell 可以通过 `INGESTION_RUN_TELEMETRY_JSONL_PATH` 写入
+OTel-compatible runtime event JSONL。这个 sink 只记录 run-level summary，不记录
+canonical body、chunk body、OCR raw text、source credential、object-store secret 或 database
+URL。
+
+本地 dry-run smoke：
+
+```bash
+export INGESTION_RUN_TELEMETRY_JSONL_PATH=/tmp/ingestion-runtime-events.jsonl
+
+uv run --all-packages python -m \
+  campus_ingestion_worker.prepare_registry_scope_chunks \
+  --corpus <corpus> \
+  --collection <collection> \
+  --preparation-run-id <prep_id>
+
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus <corpus> \
+  --collection <collection> \
+  --preparation-run-id <prep_id> \
+  --no-publish-alias
+```
+
+验收：
+
+- JSONL records 的 `event_name` 是 `ingestion.run.started`、
+  `ingestion.run.completed` 或 `ingestion.run.failed`。
+- attributes 只包含 allowlisted summary，例如 `operation`、`stage`、`run_id`、`corpus`、
+  `collection`、`document_count`、`chunk_count`、`point_count`、
+  `embedding_cache_hit_count`、`embedding_cache_miss_count`、`qdrant_upsert_count`、
+  `validation_status`、`retrieval_acceptance_status`、`post_publish_audit_status`、
+  `failure_kind`、`duration_ms`。
+- `prepare_registry_scope_chunks` 的 event 覆盖 chunking summary。
+- `release_registry_scope` 的 event 覆盖 embedding cache、Qdrant upsert、release
+  audit 与 alias publish summary。
+- `release_index` legacy provider-response replay 只用于 no-alias replay；event 只保留
+  import result counts，不发布 serving alias。
+- sink/exporter 失败时，worker stdout 的 `telemetry.status` 应为 `degraded` 且
+  `failure_kind=telemetry_export_failed`；job 本身不得因为 telemetry export failure 失败。
+
 supervisor-agent-worker 可通过 `SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 显式注入
 retrieval observation JSONL sink。该 sink 只写 sanitized retrieval observation，用于
 eval / backlog intake，不反向改变 release manifest、runtime profile 或 serving alias；sink

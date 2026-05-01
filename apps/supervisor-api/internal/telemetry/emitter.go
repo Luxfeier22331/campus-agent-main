@@ -71,6 +71,7 @@ type Emitter struct {
 }
 
 func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Emitter {
+	otel.SetTextMapPropagator(runtimeTextMapPropagator)
 	emitter := &Emitter{
 		enabled:        cfg.OTelEnabled,
 		logger:         logger,
@@ -138,6 +139,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) {
 	}
 
 	attributes := []attribute.KeyValue{
+		attribute.String("telemetry.allowed_attributes_version", e.allowedVersion),
 		attribute.Int64("bridge_duration_ms", event.BridgeDuration.Milliseconds()),
 		attribute.String("bridge_cancel_status", event.BridgeCancelStatus),
 		attribute.String("context_preflight_state", event.ContextPreflightState),
@@ -164,7 +166,11 @@ func (e *Emitter) Emit(ctx context.Context, event Event) {
 	if name == "" {
 		name = "execution.event"
 	}
-	_, span := e.tracer.Start(ctx, "supervisor_api."+name, trace.WithAttributes(attributes...))
+	_, span := e.tracer.Start(
+		ctx,
+		"supervisor_api."+normalizeEventName(name),
+		trace.WithAttributes(attributes...),
+	)
 	span.End()
 	e.recordExport()
 }
@@ -287,4 +293,19 @@ func statusSafeLastError(value string, fallback string) string {
 
 func fmtFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', 6, 64)
+}
+
+func normalizeEventName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	switch trimmed {
+	case "answer.accepted", "answer_stream.accepted":
+		return "runtime.request.accepted"
+	case "answer.completed", "answer_stream.completed",
+		"answer.failed", "answer_stream.failed",
+		"answer.cancelled", "answer_stream.cancelled",
+		"answer.admission_rejected", "answer_stream.admission_rejected":
+		return "runtime.request.finalized"
+	default:
+		return trimmed
+	}
 }

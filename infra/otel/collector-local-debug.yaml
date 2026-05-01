@@ -1,0 +1,116 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  resource/campus:
+    attributes:
+      - key: service.namespace
+        value: campus-agent
+        action: upsert
+      - key: deployment.environment
+        value: local
+        action: upsert
+      - key: telemetry.allowed_attributes_version
+        value: runtime-otel-attrs-v1
+        action: upsert
+  attributes/drop_forbidden:
+    actions:
+      - key: raw.prompt
+        action: delete
+      - key: raw.query
+        action: delete
+      - key: raw.answer
+        action: delete
+      - key: raw.chat_transcript
+        action: delete
+      - key: raw.retrieved_snippet
+        action: delete
+      - key: chunk.body
+        action: delete
+      - key: canonical.body
+        action: delete
+      - key: ocr.raw_text
+        action: delete
+      - key: authorization
+        action: delete
+      - key: cookie
+        action: delete
+      - key: jwt
+        action: delete
+      - key: api.key
+        action: delete
+      - key: database.url
+        action: delete
+      - key: object_store.secret
+        action: delete
+      - key: provider.secret
+        action: delete
+  filter/drop_marked:
+    error_mode: ignore
+    trace_conditions:
+      - span.attributes["telemetry.drop"] == true
+      - span.attributes["telemetry.drop"] == "true"
+    metric_conditions:
+      - datapoint.attributes["telemetry.drop"] == true
+      - datapoint.attributes["telemetry.drop"] == "true"
+    log_conditions:
+      - log.attributes["telemetry.drop"] == true
+      - log.attributes["telemetry.drop"] == "true"
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  debug:
+    verbosity: normal
+
+service:
+  extensions:
+    - health_check
+  pipelines:
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resource/campus
+        - attributes/drop_forbidden
+        - filter/drop_marked
+        - batch
+      exporters:
+        - debug
+    metrics:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resource/campus
+        - attributes/drop_forbidden
+        - filter/drop_marked
+        - batch
+      exporters:
+        - debug
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resource/campus
+        - attributes/drop_forbidden
+        - filter/drop_marked
+        - batch
+      exporters:
+        - debug
