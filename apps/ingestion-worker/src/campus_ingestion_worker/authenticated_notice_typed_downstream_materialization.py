@@ -148,6 +148,7 @@ def materialize_authenticated_notice_typed_downstream(
                     report=report,
                     current=True,
                     notice_ids=tuple(entry.source_notice_id for entry in transport_entries),
+                    preview_gate_report=preview_gate_report,
                 )
             )
 
@@ -414,8 +415,9 @@ def _release_payload(
     report: object,
     current: bool,
     notice_ids: Sequence[str],
+    preview_gate_report: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "collection": collection,
         "candidate_kind": candidate_kind,
         "release_id": str(getattr(report, "release_id", "")),
@@ -424,6 +426,47 @@ def _release_payload(
         "current": current,
         "notice_ids": list(normalize_notice_ids(notice_ids)),
     }
+    if preview_gate_report is not None:
+        payload["notice_read_model_counts"] = _notice_read_model_counts(preview_gate_report)
+        payload["notice_titles"] = _notice_titles(preview_gate_report)
+    return payload
+
+
+def _notice_read_model_counts(preview_gate_report: Mapping[str, Any]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for item in _mapping_items(preview_gate_report.get("items")):
+        notice_id = str(item.get("notice_id") or "").strip()
+        if not notice_id:
+            continue
+        materialization_counts = (
+            item.get("materialization_counts")
+            if isinstance(item.get("materialization_counts"), Mapping)
+            else {}
+        )
+        counts[notice_id] = {
+            "currentSnapshots": int(materialization_counts.get("current_snapshots") or 0),
+            "operationalNotices": int(materialization_counts.get("operational_notices") or 0),
+            "rejectedSources": 1 if item.get("rejected_source") else 0,
+            "scheduledDepartures": int(materialization_counts.get("scheduled_departures") or 0),
+            "serviceExceptions": int(materialization_counts.get("service_exceptions") or 0),
+            "snapshots": int(materialization_counts.get("snapshots") or 0),
+        }
+    return counts
+
+
+def _notice_titles(preview_gate_report: Mapping[str, Any]) -> dict[str, str]:
+    titles: dict[str, str] = {}
+    for item in _mapping_items(preview_gate_report.get("items")):
+        notice_id = str(item.get("notice_id") or "").strip()
+        if notice_id:
+            titles[notice_id] = str(item.get("title") or "").strip()
+    return titles
+
+
+def _mapping_items(value: object) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
 
 
 def _dataclass_payload(value: object) -> dict[str, Any]:

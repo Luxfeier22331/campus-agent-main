@@ -25,6 +25,13 @@ from campus_ingestion_core.authenticated_notice_import import (
 from campus_ingestion_core.authenticated_notice_import_sources import (
     AuthenticatedNoticeImportObjectStoreReader,
 )
+from campus_ingestion_core.authenticated_notice_processing_projection import (
+    DEFAULT_PRODUCER_VERSION as DEFAULT_AUTHENTICATED_NOTICE_PROCESSING_PROJECTION_PRODUCER_VERSION,
+)
+from campus_ingestion_core.authenticated_notice_processing_projection import (
+    AuthenticatedNoticeProcessingProjectionReporter,
+    build_authenticated_notice_processing_snapshots,
+)
 from campus_ingestion_core.authenticated_notice_processor_profiles import (
     get_processor_profile,
     profile_retry_budget,
@@ -221,6 +228,10 @@ def consume_authenticated_notice_ingest_queue(
     default_entitlement_groups: Sequence[str] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS,
     visibility_scope: str | None = DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
     source_handoff_store: SourceHandoffStore | None = None,
+    processing_projection_reporter: AuthenticatedNoticeProcessingProjectionReporter | None = None,
+    processing_projection_producer_version: str = (
+        DEFAULT_AUTHENTICATED_NOTICE_PROCESSING_PROJECTION_PRODUCER_VERSION
+    ),
     generated_by: str = "campus_ingestion_worker.consume_authenticated_notice_ingest_queue",
 ) -> AuthenticatedNoticeRunQueueConsumeResult:
     normalized_mode = _normalize_mode(mode)
@@ -695,6 +706,12 @@ def consume_authenticated_notice_ingest_queue(
                 queue_store.release(record.job_id, worker_id=normalized_worker_id)
         finally:
             trace_row["lease_heartbeat"] = heartbeat.stop()
+        _report_processing_projection(
+            reporter=processing_projection_reporter,
+            record=record,
+            trace_row=trace_row,
+            producer_version=processing_projection_producer_version,
+        )
         trace_rows.append(trace_row)
 
     counts = {
@@ -768,6 +785,43 @@ def _should_invoke_typed_materializer(import_result: Mapping[str, Any]) -> bool:
     return any(str(item).strip() for item in selected_notice_ids)
 
 
+def _report_processing_projection(
+    *,
+    reporter: AuthenticatedNoticeProcessingProjectionReporter | None,
+    record,
+    trace_row: Mapping[str, Any],
+    producer_version: str,
+) -> None:
+    if reporter is None:
+        return
+    projected_at = utc_now()
+    snapshots = build_authenticated_notice_processing_snapshots(
+        record=record,
+        trace_row=trace_row,
+        projected_at=projected_at,
+        producer_version=producer_version,
+    )
+    if not snapshots:
+        trace_row["processing_projection_report"] = {
+            "status": "skipped",
+            "reason": "no_selected_notice_ids",
+        }
+        return
+    try:
+        reporter.report(snapshots=snapshots)
+        trace_row["processing_projection_report"] = {
+            "status": "reported",
+            "snapshot_count": len(snapshots),
+            "projected_at": projected_at,
+        }
+    except Exception as exc:
+        trace_row["processing_projection_report"] = {
+            "status": "failed",
+            "snapshot_count": len(snapshots),
+            "error_message": str(exc),
+        }
+
+
 __all__ = [
     "AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_FAILED_REPORT_SCHEMA_VERSION",
     "AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_SCHEMA_VERSION",
@@ -775,6 +829,7 @@ __all__ = [
     "DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT",
     "DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID",
     "DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS",
+    "AuthenticatedNoticeProcessingProjectionReporter",
     "AuthenticatedNoticeRunQueueConsumeResult",
     "AuthenticatedNoticeRunQueueImportCallable",
     "AuthenticatedNoticeTypedDownstreamMaterializer",

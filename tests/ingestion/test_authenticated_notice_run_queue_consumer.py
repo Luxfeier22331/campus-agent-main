@@ -595,6 +595,86 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
             "transport_schedule",
         )
 
+    def test_execute_reports_operator_processing_projection(self) -> None:
+        bundle_bytes = support._json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = support._json_bytes({"run_id": "run-001", "filters": {}})
+        store = InMemoryNoticeIngestQueueStore()
+        job = support._job(
+            run_id="run-001",
+            bundle_sha=support._sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=support._sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+        reporter = support._RecordingProcessingProjectionReporter()
+        materializer = support._RecordingTypedMaterializer(
+            {
+                "schema_version": "authenticated_notice_typed_downstream_materialization.v1",
+                "status": "completed",
+                "candidate_count": 1,
+                "completed_count": 1,
+                "materialized_releases": [
+                    {
+                        "candidate_kind": "transport_schedule",
+                        "collection": "transport_schedule",
+                        "current": True,
+                        "notice_ids": ["355867"],
+                        "release_id": "release-001",
+                        "notice_read_model_counts": {
+                            "355867": {
+                                "rejectedSources": 0,
+                                "scheduledDepartures": 49,
+                            }
+                        },
+                    }
+                ],
+            }
+        )
+        with TemporaryDirectory() as tmpdir:
+            consumer_manifest_path = Path(tmpdir) / "consumer-admission.json"
+            consumer_manifest_path.write_text("{}", encoding="utf-8")
+
+            consume_authenticated_notice_ingest_queue(
+                queue_store=store,
+                object_store=support._ObjectStore(
+                    {
+                        ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                        ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                    }
+                ),
+                run_ref_resolver=support._resolver_for(job),
+                importer=support._RecordingImporter(
+                    {
+                        "notice_count": 1,
+                        "selected_notices": [
+                            {
+                                "notice_id": "355867",
+                                "title": "关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+                            }
+                        ],
+                        "selected_notice_ids": ["355867"],
+                    }
+                ),
+                typed_downstream_materializer=materializer,
+                processing_projection_reporter=reporter,
+                processing_projection_producer_version="test@1",
+                mode="execute",
+                worker_id="worker-a",
+                site_id="muc_internal_portal",
+                source_home_url="https://my.muc.edu.cn",
+                source_truth_only=False,
+                consumer_admission_manifest_path=consumer_manifest_path,
+            )
+
+        self.assertEqual(len(reporter.calls), 1)
+        snapshot = reporter.calls[0][0]
+        self.assertEqual(snapshot["noticeId"], "355867")
+        self.assertEqual(snapshot["lifecycleStatus"], "tool_ready")
+        self.assertEqual(snapshot["candidateKind"], "transport_schedule")
+        self.assertEqual(snapshot["readModelCounts"]["scheduledDepartures"], 49)
+        self.assertTrue(snapshot["toolReady"])
+
     def test_downstream_request_invokes_typed_materializer_for_selected_notice_replay(
         self,
     ) -> None:

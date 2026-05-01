@@ -93,6 +93,14 @@ class _RecordingTypedMaterializer:
         return dict(self.result)
 
 
+class _RecordingProcessingProjectionReporter:
+    def __init__(self) -> None:
+        self.calls: list[tuple[dict[str, object], ...]] = []
+
+    def report(self, *, snapshots):
+        self.calls.append(tuple(dict(snapshot) for snapshot in snapshots))
+
+
 class _WaitForHeartbeatImporter(_RecordingImporter):
     def __init__(self, heartbeat_seen: threading.Event, result: dict[str, object]) -> None:
         super().__init__(result)
