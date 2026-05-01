@@ -47,6 +47,9 @@ function latestTimelinePayloadValue(
 				return text;
 			}
 		}
+		if (typeof value === "number") {
+			return String(value);
+		}
 		if (typeof value === "string" && value.trim()) {
 			return value;
 		}
@@ -64,6 +67,15 @@ function ProcessingShowContent() {
 	const applicabilityStatus = latestTimelinePayloadValue(record, "applicabilityStatus");
 	const targetCollection = latestTimelinePayloadValue(record, "targetCollection");
 	const reasonCodes = latestTimelinePayloadValue(record, "reasonCodes");
+	const auditRunId = latestTimelinePayloadValue(record, "auditRunId");
+	const cleanupRunId = latestTimelinePayloadValue(record, "cleanupRunId");
+	const cleanupDisposition = latestTimelinePayloadValue(record, "cleanupDisposition");
+	const postgresExactRemaining = latestTimelinePayloadValue(record, "postgresExactRemaining");
+	const objectStoreExactKeysRemaining = latestTimelinePayloadValue(
+		record,
+		"objectStoreExactKeysRemaining",
+	);
+	const qdrantResidueCount = latestTimelinePayloadValue(record, "qdrantResidueCount");
 
 	return (
 		<PanelPage>
@@ -185,15 +197,24 @@ function ProcessingShowContent() {
 									label="Promotion"
 									value={promotionDisposition || PANEL_COPY.notAvailable}
 								/>
-								<FieldRow
-									label="适用状态"
-									value={applicabilityStatus || PANEL_COPY.notAvailable}
-								/>
-								<FieldRow
-									label="目标集合"
-									value={targetCollection || PANEL_COPY.notAvailable}
-								/>
+								<FieldRow label="适用状态" value={applicabilityStatus || PANEL_COPY.notAvailable} />
+								<FieldRow label="目标集合" value={targetCollection || PANEL_COPY.notAvailable} />
 								<FieldRow label="原因码" value={reasonCodes || PANEL_COPY.notAvailable} />
+								<FieldRow label="Audit Run" value={auditRunId || PANEL_COPY.notAvailable} />
+								<FieldRow label="Cleanup Run" value={cleanupRunId || PANEL_COPY.notAvailable} />
+								<FieldRow label="Cleanup" value={cleanupDisposition || PANEL_COPY.notAvailable} />
+								<FieldRow
+									label="PG 残留"
+									value={postgresExactRemaining || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="对象残留"
+									value={objectStoreExactKeysRemaining || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="Qdrant 残留"
+									value={qdrantResidueCount || PANEL_COPY.notAvailable}
+								/>
 							</Stack>
 						</CardContent>
 					</Card>

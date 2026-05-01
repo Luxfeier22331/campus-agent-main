@@ -892,6 +892,13 @@ updated: 2026-05-01
 - `timeline_json` 与 `downstream_json` 只能保存 sanitized summaries；不得保存 raw
   notice body、HTML、OCR text/table、attachment bytes、object-store key、local path、
   credential 或 raw stack trace
+- `timeline_json.payload` 允许保存 compact operator evidence，例如
+  `reasonCode`、`regulationAdmissionClass`、`promotionDisposition`、
+  `applicabilityStatus`、`targetCollection`、`auditRunId`、`cleanupRunId`、
+  `cleanupDisposition`、`postgresExactRemaining`、
+  `objectStoreExactKeysRemaining` 与 `qdrantResidueCount`
+- `timeline_json.payload` 禁止保存 bucket、object key、backup path、artifact path、raw
+  operations path 或任何可反向定位 source/derived object 的字段
 - first release 是 read-only projection；retry、cancel、re-enqueue 不是这张表或 panel
   surface 的职责
 
@@ -926,8 +933,9 @@ updated: 2026-05-01
 
 - `event_id` 可由 upstream event id 传入；缺省时由 snapshot identity、stage、status、
   occurred time 与 ordinal 派生
-- `payload_json` 只允许 compact reason code、count 或 typed status，不允许 raw logs、
-  source file path、object-store locator 或 OCR/provider payload
+- `payload_json` 只允许 compact reason code、count、typed status 或 audit/cleanup run
+  id，不允许 raw logs、source file path、object-store locator、backup path 或
+  OCR/provider payload
 - event projection 只解释 operator timeline，不作为 ingestion retry / cancellation
   command source
 

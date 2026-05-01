@@ -260,6 +260,61 @@ class AuthenticatedNoticeProcessingProjectionTest(unittest.TestCase):
             "regulations/institutional_rules",
         )
 
+    def test_builds_operator_visible_regulation_audit_cleanup_timeline_payload(self) -> None:
+        bundle_bytes = support._json_bytes([{"notice_id": "186977"}])
+        manifest_bytes = support._json_bytes({"run_id": "run-004"})
+        job = support._job(
+            run_id="run-004",
+            bundle_sha=support._sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=support._sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        record = build_notice_ingest_queue_record(job)
+        trace_row = {
+            "status": "completed",
+            "import_result": {
+                "selected_notices": [
+                    {
+                        "notice_id": "186977",
+                        "title": "药学院2021年硕博连读博士研究生招生实施细则",
+                    }
+                ],
+                "selected_notice_ids": ["186977"],
+            },
+            "progress_events": [
+                {
+                    "event_id": "event-004",
+                    "generated_at": "2026-05-01T10:00:00.000Z",
+                    "stage": "regulation_target_cleanup",
+                    "transition": "completed",
+                    "message": "target-side residue cleanup completed.",
+                    "audit_run_id": "audit-run14-20260501",
+                    "cleanup_run_id": "cleanup-186977-20260501",
+                    "cleanup_disposition": "target_residue_deleted",
+                    "postgres_exact_remaining": 0,
+                    "object_store_exact_keys_remaining": 0,
+                    "qdrant_residue_count": 0,
+                }
+            ],
+        }
+
+        snapshots = build_authenticated_notice_processing_snapshots(
+            record=record,
+            trace_row=trace_row,
+            projected_at="2026-05-01T10:00:01.000Z",
+            producer_version="test@1",
+        )
+
+        payload = snapshots[0]["timeline"][0]["payload"]
+        self.assertEqual(payload["auditRunId"], "audit-run14-20260501")
+        self.assertEqual(payload["cleanupRunId"], "cleanup-186977-20260501")
+        self.assertEqual(payload["cleanupDisposition"], "target_residue_deleted")
+        self.assertEqual(payload["postgresExactRemaining"], 0)
+        self.assertEqual(payload["objectStoreExactKeysRemaining"], 0)
+        self.assertEqual(payload["qdrantResidueCount"], 0)
+        self.assertFalse(_contains_forbidden_key(snapshots[0]))
+
 
 def _contains_forbidden_key(value: object) -> bool:
     forbidden = {

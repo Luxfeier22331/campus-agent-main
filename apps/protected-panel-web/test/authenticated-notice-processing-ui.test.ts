@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatAuthenticatedNoticeCandidateKindLabel } from "../src/panel/authenticated-notices/authenticated-notice-formatters";
 import appSource from "../src/panel/app.tsx?raw";
+import { formatAuthenticatedNoticeCandidateKindLabel } from "../src/panel/authenticated-notices/authenticated-notice-formatters";
 import { buildAuthenticatedNoticeProcessingShowPath } from "../src/panel/authenticated-notices/authenticated-notice-routes";
 import listSource from "../src/panel/authenticated-notices/processing-list.tsx?raw";
 import showSource from "../src/panel/authenticated-notices/processing-show.tsx?raw";
@@ -53,6 +53,16 @@ describe("protected panel authenticated notice processing UI", () => {
 		expect(showSource).toContain("applicabilityStatus");
 		expect(showSource).toContain("reasonCodes");
 		expect(showSource).not.toMatch(/sourceObjectRefs|objectKey|bodyText|ocrText/);
+	});
+
+	it("shows regulation audit and cleanup evidence without exposing storage details", () => {
+		expect(showSource).toContain("auditRunId");
+		expect(showSource).toContain("cleanupRunId");
+		expect(showSource).toContain("cleanupDisposition");
+		expect(showSource).toContain("postgresExactRemaining");
+		expect(showSource).toContain("objectStoreExactKeysRemaining");
+		expect(showSource).toContain("qdrantResidueCount");
+		expect(showSource).not.toMatch(/bucket|objectStoreKey|backupPath/);
 	});
 
 	it("uses encoded show paths for notice ids", () => {

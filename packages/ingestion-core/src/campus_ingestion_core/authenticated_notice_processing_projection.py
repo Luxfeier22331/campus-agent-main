@@ -218,9 +218,20 @@ def _timeline(*, trace_row: Mapping[str, Any]) -> list[dict[str, Any]]:
             ("promotion_disposition", "promotionDisposition"),
             ("applicability_status", "applicabilityStatus"),
             ("target_collection", "targetCollection"),
+            ("audit_run_id", "auditRunId"),
+            ("cleanup_run_id", "cleanupRunId"),
+            ("cleanup_disposition", "cleanupDisposition"),
         ):
             value = _optional_text(event.get(source_key) or event.get(target_key))
             if value:
+                payload[target_key] = value
+        for source_key, target_key in (
+            ("postgres_exact_remaining", "postgresExactRemaining"),
+            ("object_store_exact_keys_remaining", "objectStoreExactKeysRemaining"),
+            ("qdrant_residue_count", "qdrantResidueCount"),
+        ):
+            value = _optional_int(_first_present(event, source_key, target_key))
+            if value is not None:
                 payload[target_key] = value
         reason_codes = _string_list(event.get("reason_codes") or event.get("reasonCodes"))
         if reason_codes:
@@ -406,6 +417,23 @@ def _string_list(value: object) -> tuple[str, ...]:
 def _optional_text(value: object) -> str | None:
     normalized = str(value or "").strip()
     return normalized or None
+
+
+def _optional_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _first_present(mapping: Mapping[str, Any], *keys: str) -> object:
+    for key in keys:
+        if key in mapping:
+            return mapping[key]
+    return None
 
 
 def _bool(value: object) -> bool:

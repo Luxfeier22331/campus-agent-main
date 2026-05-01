@@ -145,6 +145,11 @@ operations 目录或 raw logs。
 - timeline event 使用 `eventId` 时按 event id 幂等 upsert；缺省时由 snapshot id、stage、
   status、occurredAt 与 ordinal 派生
 - snapshot ingest 是 upsert，不改变 queue/source truth
+- timeline payload 可携带 operator-safe audit/cleanup evidence，例如
+  `auditRunId`、`cleanupRunId`、`cleanupDisposition`、`postgresExactRemaining`、
+  `objectStoreExactKeysRemaining` 与 `qdrantResidueCount`
+- timeline payload 不得携带 bucket、object key、backup path、artifact path、raw
+  operations path、OCR text、notice body、HTML、attachment bytes 或 provider payload
 - first release 只读，不支持 retry/cancel/re-enqueue
 
 ## Operator List

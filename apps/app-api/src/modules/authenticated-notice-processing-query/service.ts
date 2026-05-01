@@ -6,6 +6,8 @@ export interface AuthenticatedNoticeProcessingTimelineEvent {
 	status: string;
 	occurredAt: string;
 	summary: string;
+	eventId?: string | null;
+	payload?: Record<string, unknown> | null;
 }
 
 export interface AuthenticatedNoticeProcessingRecord {

@@ -1124,6 +1124,11 @@ operator projection：
 - 该 projection 只解释 collect/enqueue/consume/downstream/tool readiness 状态；它不是
   collector scheduler、heartbeat truth、retry/cancel/re-enqueue action surface，也不改变
   source-truth 或 downstream release truth
+- regulation audit / cleanup 可以通过 timeline payload 暴露 compact evidence，例如
+  `auditRunId`、`cleanupRunId`、`cleanupDisposition`、
+  `postgresExactRemaining`、`objectStoreExactKeysRemaining` 与
+  `qdrantResidueCount`；不得暴露 bucket、object key、backup path、operations path 或
+  raw source/provider payload
 
 如果后续需要 product/API scheduler、collector heartbeat 或写操作型 ingestion handoff，长期规则固定为：
 

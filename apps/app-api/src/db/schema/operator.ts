@@ -14,10 +14,12 @@ interface OfficialWebArtifactProjectionJson {
 }
 
 interface AuthenticatedNoticeTimelineEventJson {
+	eventId?: string | null;
 	stage: string;
 	status: string;
 	occurredAt: string;
 	summary: string;
+	payload?: Record<string, unknown> | null;
 }
 
 interface RequestAuditDiagnosticsJson {
