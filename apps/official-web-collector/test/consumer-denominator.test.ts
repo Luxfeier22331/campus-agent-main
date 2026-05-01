@@ -47,6 +47,24 @@ const SAMPLE_SERVICE_GUIDE_PAGE_HTML = `
 </html>
 `.trim();
 
+const SAMPLE_PROCUREMENT_NOTICE_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>中央民族大学海淀校区家属区供电智能管理系统维保服务项目中选结果公示</title>
+  </head>
+  <body>
+    <main>
+      <h1>中央民族大学海淀校区家属区供电智能管理系统维保服务项目中选结果公示</h1>
+      <p>采购人：中央民族大学。</p>
+      <p>项目地点：海淀校区家属区。</p>
+      <p>联系电话：010-68933381。</p>
+      <p>本公示期为三个工作日。</p>
+    </main>
+  </body>
+</html>
+`.trim();
+
 describe("official web consumer denominator", () => {
 	it("loads consumer denominator config with explicit downstream owners", () => {
 		const { configRoot } = writeTestConfigRoot({
@@ -156,6 +174,95 @@ describe("official web consumer denominator", () => {
 				(item) => item.consumerFamily === "service_guide_candidate",
 			)?.matchedEvidence,
 		).toContain("service_process");
+	});
+
+	it("does not classify procurement notices as selected-write contact or service candidates", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const page = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_procurement",
+			requestedUrl: "https://www.example.edu/info/1358/29171.htm",
+			finalUrl: "https://www.example.edu/info/1358/29171.htm",
+			declaredCanonicalUrl: null,
+			responseBody: SAMPLE_PROCUREMENT_NOTICE_HTML,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+
+		const evaluation = evaluateOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			page,
+		});
+
+		expect(evaluation.consumerMatches.map((item) => item.consumerFamily)).not.toContain(
+			"contact_directory_candidate",
+		);
+		expect(evaluation.consumerMatches.map((item) => item.consumerFamily)).not.toContain(
+			"service_guide_candidate",
+		);
+	});
+
+	it("requires configured keyword/path match and enough evidence before selected-write candidate retention", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const contactRule = bundle.consumerDenominator.consumerFamilies.find(
+			(item) => item.consumerFamily === "contact_directory_candidate",
+		);
+		if (!contactRule) {
+			throw new Error("contact rule is required");
+		}
+		const ruleTuning = contactRule as typeof contactRule & {
+			minimumMatchedEvidenceCount: number;
+			requiresKeywordOrPathMatch: boolean;
+		};
+		ruleTuning.minimumMatchedEvidenceCount = 2;
+		ruleTuning.requiresKeywordOrPathMatch = true;
+
+		const evidenceOnlyPage = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_evidence_only",
+			requestedUrl: "https://www.example.edu/info/unit.htm",
+			finalUrl: "https://www.example.edu/info/unit.htm",
+			declaredCanonicalUrl: null,
+			responseBody: `
+        <html><head><title>信息化服务</title></head><body><main>
+          <h1>信息化服务</h1>
+          <p>办公地点：中慧楼二层，联系电话：010-68933381。</p>
+        </main></body></html>
+      `,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+		const insufficientEvidencePage = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_insufficient_evidence",
+			requestedUrl: "https://www.example.edu/contact.htm",
+			finalUrl: "https://www.example.edu/contact.htm",
+			declaredCanonicalUrl: null,
+			responseBody: `
+        <html><head><title>联系我们</title></head><body><main>
+          <h1>联系我们</h1>
+          <p>联系电话：010-68933381。</p>
+        </main></body></html>
+      `,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+
+		expect(
+			evaluateOfficialWebConsumerDenominator({
+				consumerDenominator: bundle.consumerDenominator,
+				page: evidenceOnlyPage,
+			}).consumerMatches.map((item) => item.consumerFamily),
+		).not.toContain("contact_directory_candidate");
+		expect(
+			evaluateOfficialWebConsumerDenominator({
+				consumerDenominator: bundle.consumerDenominator,
+				page: insufficientEvidencePage,
+			}).consumerMatches.map((item) => item.consumerFamily),
+		).not.toContain("contact_directory_candidate");
 	});
 
 	it("filters non-consumer pages from retained source truth and reports denominator counters", async () => {

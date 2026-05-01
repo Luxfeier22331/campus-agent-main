@@ -181,6 +181,14 @@ export function loadOfficialWebConfig(
 				titleKeywords: asStringArray(item.title_keywords),
 				pathPatterns: asStringArray(item.path_patterns),
 				requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+				minimumMatchedEvidenceCount:
+					item.minimum_matched_evidence_count == null
+						? 1
+						: asPositiveInt(
+								item.minimum_matched_evidence_count,
+								"consumer_denominator.minimum_matched_evidence_count",
+							),
+				requiresKeywordOrPathMatch: Boolean(item.requires_keyword_or_path_match),
 				negativePatterns: asStringArray(item.negative_patterns),
 				selectedWriteTarget: asString(item.selected_write_target),
 				reviewPolicy: asString(item.review_policy),

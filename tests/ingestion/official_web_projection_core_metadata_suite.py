@@ -466,3 +466,8 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
             issue_codes = {issue["code"] for issue in validation.issues}
             self.assertIn("consumer_candidate_missing_matched_evidence", issue_codes)
             self.assertIn("consumer_candidate_missing_selected_write_target", issue_codes)
+            self.assertIn("consumer_candidate_missing_candidate_key", issue_codes)
+            self.assertIn("consumer_candidate_missing_typed_candidate_schema_version", issue_codes)
+            self.assertIn("consumer_candidate_missing_typed_candidate", issue_codes)
+            self.assertIn("consumer_candidate_missing_quality_gate", issue_codes)
+            self.assertIn("consumer_candidate_missing_evidence_spans", issue_codes)

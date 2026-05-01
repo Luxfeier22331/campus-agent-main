@@ -364,6 +364,11 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		if (rule.requiredEvidence.length === 0) {
 			throw new Error(`consumerDenominator ${rule.consumerFamily} must define requiredEvidence`);
 		}
+		if (rule.minimumMatchedEvidenceCount < 1) {
+			throw new Error(
+				`consumerDenominator ${rule.consumerFamily}.minimumMatchedEvidenceCount must be positive`,
+			);
+		}
 		validateRegexList(rule.pathPatterns, `consumerDenominator ${rule.consumerFamily}.pathPatterns`);
 		validateRegexList(
 			rule.negativePatterns,

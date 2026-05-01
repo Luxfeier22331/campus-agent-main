@@ -21,6 +21,11 @@ _CONSUMER_CANDIDATE_MATERIALIZATION_POLICIES = frozenset({"candidate_only", "inv
 _SELECTED_WRITE_CANDIDATE_FAMILIES = frozenset(
     {"contact_directory_candidate", "service_guide_candidate"}
 )
+_TYPED_CANDIDATE_SCHEMA_BY_FAMILY = {
+    "contact_directory_candidate": "official_web_contact_directory_candidate.v1",
+    "service_guide_candidate": "official_web_service_guide_candidate.v1",
+    "notice_news_candidate": "official_web_inventory_candidate.v1",
+}
 
 
 def validate_official_web_projection_output(
@@ -220,6 +225,21 @@ def _validate_consumer_candidate(
     materialization_policy = _optional_text(candidate.get("materialization_policy"))
     selected_write_target = _optional_text(candidate.get("selected_write_target"))
     matched_evidence = _string_list(candidate.get("matched_evidence"))
+    candidate_key = _optional_text(candidate.get("candidate_key"))
+    typed_candidate_schema_version = _optional_text(candidate.get("typed_candidate_schema_version"))
+    typed_candidate = (
+        candidate.get("typed_candidate")
+        if isinstance(candidate.get("typed_candidate"), dict)
+        else None
+    )
+    quality_gate = (
+        candidate.get("quality_gate") if isinstance(candidate.get("quality_gate"), dict) else None
+    )
+    evidence_spans = (
+        candidate.get("evidence_spans")
+        if isinstance(candidate.get("evidence_spans"), list)
+        else None
+    )
 
     if consumer_family not in _CONSUMER_CANDIDATE_FAMILIES:
         issues.append(
@@ -265,6 +285,82 @@ def _validate_consumer_candidate(
                 "message": "consumer candidate must include matched_evidence",
             }
         )
+    if candidate_key is None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_missing_candidate_key",
+                "message": "consumer candidate must include candidate_key",
+            }
+        )
+    elif not candidate_key.startswith("owcand_"):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_invalid_candidate_key",
+                "message": "consumer candidate candidate_key must use owcand_ prefix",
+            }
+        )
+    if typed_candidate_schema_version is None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_missing_typed_candidate_schema_version",
+                "message": "consumer candidate must include typed_candidate_schema_version",
+            }
+        )
+    elif (
+        consumer_family in _TYPED_CANDIDATE_SCHEMA_BY_FAMILY
+        and typed_candidate_schema_version != _TYPED_CANDIDATE_SCHEMA_BY_FAMILY[consumer_family]
+    ):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_invalid_typed_candidate_schema_version",
+                "message": (
+                    "consumer candidate typed_candidate_schema_version does not match "
+                    f"{consumer_family}"
+                ),
+            }
+        )
+    if typed_candidate is None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_missing_typed_candidate",
+                "message": "consumer candidate must include typed_candidate",
+            }
+        )
+    else:
+        _validate_typed_candidate(
+            consumer_family=consumer_family,
+            typed_candidate=typed_candidate,
+            issues=issues,
+        )
+    if quality_gate is None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_missing_quality_gate",
+                "message": "consumer candidate must include quality_gate",
+            }
+        )
+    else:
+        _validate_quality_gate(
+            consumer_family=consumer_family,
+            quality_gate=quality_gate,
+            issues=issues,
+        )
+    if evidence_spans is None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_missing_evidence_spans",
+                "message": "consumer candidate must include evidence_spans",
+            }
+        )
+    else:
+        _validate_evidence_spans(evidence_spans=evidence_spans, issues=issues)
     if consumer_family in _SELECTED_WRITE_CANDIDATE_FAMILIES and selected_write_target is None:
         issues.append(
             {
@@ -283,6 +379,107 @@ def _validate_consumer_candidate(
                 "message": "notice/news consumer candidates must not define selected_write_target",
             }
         )
+
+
+def _validate_typed_candidate(
+    *,
+    consumer_family: str | None,
+    typed_candidate: dict[object, object],
+    issues: list[dict[str, object]],
+) -> None:
+    source_url = _optional_text(typed_candidate.get("source_url"))
+    source_title = _optional_text(typed_candidate.get("source_title"))
+    if source_url is None or source_title is None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_typed_candidate_missing_source_ref",
+                "message": "typed candidate must include source_url and source_title",
+            }
+        )
+
+    if consumer_family == "contact_directory_candidate":
+        for field_name in ("phones", "emails", "locations", "office_hours"):
+            if not isinstance(typed_candidate.get(field_name), list):
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "consumer_candidate_typed_contact_field_invalid",
+                        "message": f"contact typed candidate field must be an array: {field_name}",
+                    }
+                )
+    elif consumer_family == "service_guide_candidate":
+        for field_name in ("process_steps", "materials", "entry_points"):
+            if not isinstance(typed_candidate.get(field_name), list):
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "consumer_candidate_typed_service_field_invalid",
+                        "message": f"service typed candidate field must be an array: {field_name}",
+                    }
+                )
+        if not isinstance(typed_candidate.get("contacts"), dict):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "consumer_candidate_typed_service_contacts_invalid",
+                    "message": "service typed candidate must include contacts object",
+                }
+            )
+
+
+def _validate_quality_gate(
+    *,
+    consumer_family: str | None,
+    quality_gate: dict[object, object],
+    issues: list[dict[str, object]],
+) -> None:
+    decision = _optional_text(quality_gate.get("decision"))
+    if consumer_family in _SELECTED_WRITE_CANDIDATE_FAMILIES:
+        allowed_decisions = {"pass", "reject"}
+    else:
+        allowed_decisions = {"inventory_only", "pass", "reject"}
+    if decision not in allowed_decisions:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_invalid_quality_gate_decision",
+                "message": "consumer candidate quality_gate.decision is invalid",
+            }
+        )
+    if not isinstance(quality_gate.get("reason_codes"), list):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_invalid_quality_gate_reason_codes",
+                "message": "consumer candidate quality_gate.reason_codes must be an array",
+            }
+        )
+
+
+def _validate_evidence_spans(
+    *,
+    evidence_spans: list[object],
+    issues: list[dict[str, object]],
+) -> None:
+    for index, span in enumerate(evidence_spans):
+        if not isinstance(span, dict):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "consumer_candidate_invalid_evidence_span",
+                    "message": f"consumer candidate evidence span {index} must be an object",
+                }
+            )
+            continue
+        if _optional_text(span.get("evidence_type")) is None:
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "consumer_candidate_invalid_evidence_span",
+                    "message": f"consumer candidate evidence span {index} missing evidence_type",
+                }
+            )
 
 
 def _optional_text(value: object) -> str | None:

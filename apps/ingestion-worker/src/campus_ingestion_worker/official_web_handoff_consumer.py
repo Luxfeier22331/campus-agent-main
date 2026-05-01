@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--promote", action="store_true", default=None)
     parser.add_argument("--declarations-path")
+    parser.add_argument("--consumer-review-manifest-path")
     return parser
 
 
@@ -65,6 +66,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         promote_import=args.promote,
         declarations_path=Path(args.declarations_path).resolve()
         if args.declarations_path
+        else None,
+        consumer_review_manifest_path=Path(args.consumer_review_manifest_path).resolve()
+        if args.consumer_review_manifest_path
         else None,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))

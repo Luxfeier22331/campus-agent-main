@@ -11,6 +11,105 @@ import {
 	resolveOfficialWebConfigPaths,
 } from "../src/index";
 
+function writeMinimalConsumerDenominator(siteRoot: string): void {
+	writeFileSync(
+		resolve(siteRoot, "consumer-denominator.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_consumer_denominator.v1",
+				site_id: "campus_public",
+				denominator_version: "test_consumer_denominator_v1",
+				enforcement_mode: "retain_matching_only",
+				default_rejected_policy: "reject",
+				consumer_families: [
+					{
+						consumer_family: "contact_directory_candidate",
+						owner_surface: "contact_directory_lookup",
+						owner_agent_or_runtime: "campus-services-agent",
+						materialization_policy: "candidate_only",
+						page_families: [
+							"article_detail",
+							"directory_page",
+							"contact_widget_page",
+							"generic_content_page",
+						],
+						title_keywords: ["联系", "联系我们", "联系方式"],
+						path_patterns: ["contact", "lianxi"],
+						required_evidence: ["phone", "email", "location", "office_hours"],
+						minimum_matched_evidence_count: 2,
+						requires_keyword_or_path_match: true,
+						negative_patterns: ["采购", "招标", "中标", "通知", "公告"],
+						selected_write_target: "campus_services/contact_directory",
+						review_policy: "selected_write_requires_review",
+					},
+					{
+						consumer_family: "service_guide_candidate",
+						owner_surface: "service_guide_lookup",
+						owner_agent_or_runtime: "campus-services-agent",
+						materialization_policy: "candidate_only",
+						page_families: ["article_detail", "directory_page", "generic_content_page"],
+						title_keywords: ["办理", "申请", "指南", "服务"],
+						path_patterns: ["service", "guide", "apply"],
+						required_evidence: [
+							"service_process",
+							"service_entry",
+							"service_material",
+							"phone",
+							"location",
+							"office_hours",
+						],
+						minimum_matched_evidence_count: 2,
+						requires_keyword_or_path_match: true,
+						negative_patterns: ["采购", "招标", "中标", "通知", "公告"],
+						selected_write_target: "campus_services/service_guide",
+						review_policy: "selected_write_requires_review",
+					},
+					{
+						consumer_family: "stable_reference_candidate",
+						owner_surface: "official_web/stable_reference",
+						owner_agent_or_runtime: "rag-agent",
+						materialization_policy: "release_gate_required",
+						page_families: ["article_detail", "directory_page", "generic_content_page"],
+						title_keywords: ["学校简介", "学校概况", "现任领导", "机构设置"],
+						path_patterns: ["about", "intro", "leader"],
+						required_evidence: ["stable_reference"],
+						minimum_matched_evidence_count: 1,
+						requires_keyword_or_path_match: false,
+						negative_patterns: ["新闻", "通知", "公告"],
+						selected_write_target: "official_web/stable_reference",
+						review_policy: "release_gate_required",
+					},
+					{
+						consumer_family: "notice_news_candidate",
+						owner_surface: "future_notice_runtime",
+						owner_agent_or_runtime: "notice-agent",
+						materialization_policy: "inventory_only",
+						page_families: ["article_detail"],
+						title_keywords: ["新闻", "通知", "公告", "讲座", "活动"],
+						path_patterns: ["news", "info"],
+						required_evidence: ["notice_news"],
+						minimum_matched_evidence_count: 1,
+						requires_keyword_or_path_match: false,
+						negative_patterns: [],
+						selected_write_target: "",
+						review_policy: "inventory_only",
+					},
+				],
+				reporting_counters: [
+					"fetched_pages",
+					"retained_source_truth_pages",
+					"discovery_only_pages",
+					"rejected_pages",
+					"consumer_family_counts",
+					"rejected_reason_counts",
+				],
+			},
+			null,
+			2,
+		),
+	);
+}
+
 describe("official-web-core config loading", () => {
 	it("resolves muc_public repo-tracked config paths", () => {
 		const paths = resolveOfficialWebConfigPaths("muc_public");
@@ -94,15 +193,15 @@ describe("official-web-core config loading", () => {
 		expect(schedulerPlan.timezone).toBe("Asia/Shanghai");
 		expect(schedulerPlan.lanes).toHaveLength(5);
 		expect(schedulerPlan.lanes[0]).toMatchObject({
-			laneId: "university-core-hot",
+			laneId: "consumer-candidate-hot",
 			runIntent: "hot",
-			schedulerRunKeyPattern: "muc_public:university-core-hot:{scheduled-at-iso}",
+			schedulerRunKeyPattern: "muc_public:consumer-candidate-hot:{scheduled-at-iso}",
 			siteId: "muc_public",
 		});
 		expect(schedulerPlan.lanes[1]).toMatchObject({
-			laneId: "university-core-baseline",
+			laneId: "consumer-stable-baseline",
 			runIntent: "baseline",
-			schedulerRunKeyPattern: "muc_public:university-core-baseline:{scheduled-at-iso}",
+			schedulerRunKeyPattern: "muc_public:consumer-stable-baseline:{scheduled-at-iso}",
 			siteId: "muc_public",
 		});
 	});
@@ -115,7 +214,7 @@ describe("official-web-core config loading", () => {
 		const baselineLanes = schedulerPlan.lanes.filter((lane) => lane.runIntent === "baseline");
 
 		expect(baselineLanes.map((lane) => lane.laneId)).toEqual([
-			"university-core-baseline",
+			"consumer-stable-baseline",
 			"college-single-host-baseline",
 			"topic-single-host-baseline",
 		]);
@@ -358,6 +457,7 @@ describe("official-web-core config loading", () => {
 				2,
 			),
 		);
+		writeMinimalConsumerDenominator(siteRoot);
 
 		expect(() =>
 			loadOfficialWebConfig("campus_public", {
@@ -582,6 +682,7 @@ describe("official-web-core config loading", () => {
 				2,
 			),
 		);
+		writeMinimalConsumerDenominator(siteRoot);
 
 		expect(() =>
 			loadOfficialWebConfig("campus_public", {

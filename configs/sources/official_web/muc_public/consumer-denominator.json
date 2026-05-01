@@ -19,7 +19,23 @@
 			"title_keywords": ["联系", "联系我们", "联系方式", "电话", "办公地点"],
 			"path_patterns": ["contact", "lianxi", "lxwm", "bgs", "office"],
 			"required_evidence": ["phone", "email", "location", "office_hours"],
-			"negative_patterns": [],
+			"minimum_matched_evidence_count": 2,
+			"requires_keyword_or_path_match": true,
+			"negative_patterns": [
+				"采购",
+				"招标",
+				"中标",
+				"中选",
+				"比选",
+				"竞价",
+				"结果公示",
+				"公示期",
+				"公开招聘",
+				"招聘启事",
+				"新闻",
+				"通知",
+				"公告"
+			],
 			"selected_write_target": "campus_services/contact_directory",
 			"review_policy": "selected_write_requires_review"
 		},
@@ -39,7 +55,23 @@
 				"location",
 				"office_hours"
 			],
-			"negative_patterns": [],
+			"minimum_matched_evidence_count": 2,
+			"requires_keyword_or_path_match": true,
+			"negative_patterns": [
+				"采购",
+				"招标",
+				"中标",
+				"中选",
+				"比选",
+				"竞价",
+				"结果公示",
+				"公示期",
+				"公开招聘",
+				"招聘启事",
+				"新闻",
+				"通知",
+				"公告"
+			],
 			"selected_write_target": "campus_services/service_guide",
 			"review_policy": "selected_write_requires_review"
 		},
@@ -49,16 +81,11 @@
 			"owner_agent_or_runtime": "rag-agent",
 			"materialization_policy": "release_gate_required",
 			"page_families": ["article_detail", "directory_page", "generic_content_page"],
-			"title_keywords": [
-				"学校简介",
-				"学校概况",
-				"现任领导",
-				"机构设置",
-				"学院简介",
-				"部门简介"
-			],
+			"title_keywords": ["学校简介", "学校概况", "现任领导", "机构设置", "学院简介", "部门简介"],
 			"path_patterns": ["about", "intro", "leader", "gk", "jj", "jgsz"],
 			"required_evidence": ["stable_reference"],
+			"minimum_matched_evidence_count": 1,
+			"requires_keyword_or_path_match": false,
 			"negative_patterns": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
 			"selected_write_target": "official_web/stable_reference",
 			"review_policy": "release_gate_required"
@@ -72,6 +99,8 @@
 			"title_keywords": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
 			"path_patterns": ["news", "info", "tzgg", "xwdt"],
 			"required_evidence": ["notice_news"],
+			"minimum_matched_evidence_count": 1,
+			"requires_keyword_or_path_match": false,
 			"negative_patterns": [],
 			"selected_write_target": "",
 			"review_policy": "inventory_only"

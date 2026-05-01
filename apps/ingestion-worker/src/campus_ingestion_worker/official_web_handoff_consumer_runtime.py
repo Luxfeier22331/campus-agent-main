@@ -79,6 +79,7 @@ def consume_official_web_handoffs(
     limit: int = 20,
     force: bool = False,
     promote_import: bool | None = None,
+    consumer_review_manifest_path: Path | None = None,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
     source_handoff_store: SourceHandoffStore | None = None,
 ) -> OfficialWebHandoffConsumeBatchReport:
@@ -109,6 +110,7 @@ def consume_official_web_handoffs(
             raw_asset_registry=runtime_raw_asset_registry,
             declarations_path=declarations_path,
             force=force,
+            consumer_review_manifest_path=consumer_review_manifest_path,
             status_reporter=runtime_status_reporter,
             source_handoff_store=source_handoff_store,
         )
@@ -141,6 +143,7 @@ def consume_handoff_record(
     raw_asset_registry: RawAssetRegistry | None = None,
     declarations_path: Path | None = None,
     force: bool = False,
+    consumer_review_manifest_path: Path | None = None,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
     source_handoff_store: SourceHandoffStore | None = None,
 ) -> OfficialWebHandoffConsumeResult:
@@ -303,6 +306,9 @@ def consume_handoff_record(
         )
         consumer_candidate_review_report = build_consumer_candidate_review_report(
             replay_report=asdict(replay_report),
+            consumer_review_manifest=read_json(consumer_review_manifest_path)
+            if consumer_review_manifest_path is not None
+            else None,
         )
         promotion_report = build_promotion_report(
             promote_import=settings.promote_import,

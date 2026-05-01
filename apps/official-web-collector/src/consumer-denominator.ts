@@ -150,17 +150,26 @@ function matchConsumerFamily(
 		return null;
 	}
 
-	const matchedKeywords = rule.titleKeywords.filter((keyword) => pageText.includes(keyword));
+	const titleText = buildConsumerTitleText(page);
+	const matchedKeywords = rule.titleKeywords.filter((keyword) => titleText.includes(keyword));
 	const matchedPatterns = matchedRegexes(rule.pathPatterns, normalizedUrl);
 	const matchedEvidence = resolveMatchedEvidence(rule, page, pageText);
-	if (matchedEvidence.length === 0) {
+	if (matchedEvidence.length < rule.minimumMatchedEvidenceCount) {
 		return null;
 	}
 
 	if (
 		matchedKeywords.length === 0 &&
 		matchedPatterns.length === 0 &&
-		!allowsEvidenceOnlyMatch(rule)
+		(rule.requiresKeywordOrPathMatch || !allowsEvidenceOnlyMatch(rule))
+	) {
+		return null;
+	}
+	if (
+		rule.consumerFamily === "service_guide_candidate" &&
+		!matchedEvidence.some((item) =>
+			["service_process", "service_entry", "service_material"].includes(item),
+		)
 	) {
 		return null;
 	}
@@ -253,6 +262,16 @@ function buildConsumerText(page: PageForConsumerEvaluation): string {
 		.filter(Boolean)
 		.join("\n");
 	return `${title}\n${url}\n${mainContent}`;
+}
+
+function buildConsumerTitleText(page: PageForConsumerEvaluation): string {
+	const title = page.pageManifest.pageTitleNormalized;
+	const titleBlocks = page.contentBlocks
+		.filter((block) => block.blockRole === "title")
+		.map((block) => block.textNormalized ?? block.linkText ?? "")
+		.filter(Boolean)
+		.join("\n");
+	return `${title}\n${titleBlocks}`;
 }
 
 function matchedRegexes(patterns: string[], ...values: string[]): string[] {

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +42,17 @@ from campus_ingestion_core.official_web_projection_units import (
     _render_canonical_markdown,
     _resolve_document_title,
 )
+
+_PHONE_RE = re.compile(r"(?<!\d)(?:0\d{2,3}[-\s]?)?\d{7,8}(?!\d)")
+_EMAIL_RE = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", re.IGNORECASE)
+_LOCATION_RE = re.compile(r"(?:办公地点|办理地点|地点|地址)[:：]\s*([^，。；;\n]+)")
+_OFFICE_HOURS_RE = re.compile(r"(?:办公时间|办理时间|服务时间|开放时间)[:：]\s*([^。；;\n]+)")
+_SELECTED_WRITE_SUPPRESSION_RE = re.compile(
+    r"(采购|招标|中标|中选|比选|竞价|结果公示|公示期|公开招聘|招聘启事|新闻|通知|公告)"
+)
+_SERVICE_PROCESS_RE = re.compile(r"(办理流程|流程|步骤|申请|补办|挂失|办理|报销|预约)")
+_SERVICE_ENTRY_RE = re.compile(r"(入口|系统|APP|小程序|自助|线下|窗口|前台)", re.IGNORECASE)
+_SERVICE_MATERIAL_RE = re.compile(r"(材料|申请表|证明|身份证|证件|附件)")
 
 
 def replay_official_web_source_truth_local(
@@ -110,6 +123,7 @@ def replay_official_web_source_truth_local(
         consumer_projection = _resolve_consumer_projection(
             manifest=manifest,
             raw_page=raw_page,
+            blocks=blocks,
             title=title,
         )
         if consumer_projection is not None and consumer_projection["action"] == "candidate":
@@ -197,6 +211,7 @@ def _resolve_consumer_projection(
     *,
     manifest: dict[str, object],
     raw_page: dict[str, object],
+    blocks: list[dict[str, object]],
     title: str,
 ) -> dict[str, object] | None:
     matches = _consumer_matches(manifest) or _consumer_matches(raw_page)
@@ -226,33 +241,260 @@ def _resolve_consumer_projection(
         if consumer_family == "stable_reference_candidate":
             continue
         target_corpus, target_collection = _target_from_consumer_match(match)
+        selected_write_target = (
+            _require_optional_text(
+                match.get("selectedWriteTarget") or match.get("selected_write_target")
+            )
+            or ""
+        )
         candidate_pages.append(
-            {
-                "consumer_family": consumer_family,
-                "materialization_policy": materialization_policy,
-                "target_corpus": target_corpus,
-                "target_collection": target_collection,
-                "normalized_canonical_url": manifest["normalizedCanonicalUrl"],
-                "raw_asset_id": manifest["rawAssetId"],
-                "raw_version_id": manifest["rawVersionId"],
-                "title": title,
-                "matched_evidence": _string_list(
+            _build_consumer_candidate_page(
+                blocks=blocks,
+                consumer_family=consumer_family,
+                manifest=manifest,
+                materialization_policy=materialization_policy,
+                matched_evidence=_string_list(
                     match.get("matchedEvidence") or match.get("matched_evidence")
                 ),
-                "selected_write_target": _require_optional_text(
-                    match.get("selectedWriteTarget") or match.get("selected_write_target")
-                )
-                or "",
-                "review_policy": _require_optional_text(
+                review_policy=_require_optional_text(
                     match.get("reviewPolicy") or match.get("review_policy")
                 )
                 or "",
-                "reason": f"{materialization_policy} consumer denominator match",
-            }
+                selected_write_target=selected_write_target,
+                target_collection=target_collection,
+                target_corpus=target_corpus,
+                title=title,
+            )
         )
     if candidate_pages:
         return {"action": "candidate", "candidate_pages": candidate_pages}
     return None
+
+
+def _build_consumer_candidate_page(
+    *,
+    blocks: list[dict[str, object]],
+    consumer_family: str,
+    manifest: dict[str, object],
+    materialization_policy: str,
+    matched_evidence: list[str],
+    review_policy: str,
+    selected_write_target: str,
+    target_collection: str,
+    target_corpus: str,
+    title: str,
+) -> dict[str, object]:
+    normalized_canonical_url = _require_text(
+        manifest.get("normalizedCanonicalUrl"),
+        "normalizedCanonicalUrl",
+    )
+    raw_version_id = _require_text(manifest.get("rawVersionId"), "rawVersionId")
+    typed_candidate_schema_version, typed_candidate, quality_gate, evidence_spans = (
+        _build_typed_candidate(
+            blocks=blocks,
+            consumer_family=consumer_family,
+            normalized_canonical_url=normalized_canonical_url,
+            title=title,
+        )
+    )
+    return {
+        "candidate_key": _build_candidate_key(
+            consumer_family=consumer_family,
+            normalized_canonical_url=normalized_canonical_url,
+            raw_version_id=raw_version_id,
+            selected_write_target=selected_write_target,
+        ),
+        "consumer_family": consumer_family,
+        "materialization_policy": materialization_policy,
+        "target_corpus": target_corpus,
+        "target_collection": target_collection,
+        "normalized_canonical_url": normalized_canonical_url,
+        "raw_asset_id": manifest["rawAssetId"],
+        "raw_version_id": raw_version_id,
+        "title": title,
+        "matched_evidence": matched_evidence,
+        "selected_write_target": selected_write_target,
+        "review_policy": review_policy,
+        "reason": f"{materialization_policy} consumer denominator match",
+        "typed_candidate_schema_version": typed_candidate_schema_version,
+        "typed_candidate": typed_candidate,
+        "quality_gate": quality_gate,
+        "evidence_spans": evidence_spans,
+    }
+
+
+def _build_candidate_key(
+    *,
+    consumer_family: str,
+    normalized_canonical_url: str,
+    raw_version_id: str,
+    selected_write_target: str,
+) -> str:
+    digest = hashlib.sha256(
+        json.dumps(
+            {
+                "consumer_family": consumer_family,
+                "normalized_canonical_url": normalized_canonical_url,
+                "raw_version_id": raw_version_id,
+                "selected_write_target": selected_write_target,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()[:24]
+    return f"owcand_{digest}"
+
+
+def _build_typed_candidate(
+    *,
+    blocks: list[dict[str, object]],
+    consumer_family: str,
+    normalized_canonical_url: str,
+    title: str,
+) -> tuple[str, dict[str, object], dict[str, object], list[dict[str, object]]]:
+    lines = _main_content_lines(blocks)
+    page_text = "\n".join(lines)
+    phones = _unique(_PHONE_RE.findall(page_text))
+    emails = _unique(_EMAIL_RE.findall(page_text))
+    locations = _unique(match.strip() for match in _LOCATION_RE.findall(page_text))
+    office_hours = _unique(match.strip() for match in _OFFICE_HOURS_RE.findall(page_text))
+    evidence_spans = _build_evidence_spans(blocks)
+    suppressed = bool(_SELECTED_WRITE_SUPPRESSION_RE.search(f"{title}\n{page_text}"))
+
+    if consumer_family == "contact_directory_candidate":
+        typed_candidate = {
+            "display_name": title,
+            "phones": phones,
+            "emails": emails,
+            "locations": locations,
+            "office_hours": office_hours,
+            "source_url": normalized_canonical_url,
+            "source_title": title,
+        }
+        return (
+            "official_web_contact_directory_candidate.v1",
+            typed_candidate,
+            _quality_gate(
+                suppressed=suppressed,
+                has_identity=bool(title.strip()),
+                has_required_evidence=bool(phones or emails),
+                has_source=bool(normalized_canonical_url.strip()),
+            ),
+            evidence_spans,
+        )
+
+    if consumer_family == "service_guide_candidate":
+        process_steps = _matching_lines(lines, _SERVICE_PROCESS_RE)
+        materials = _matching_lines(lines, _SERVICE_MATERIAL_RE)
+        entry_points = _matching_lines(lines, _SERVICE_ENTRY_RE)
+        typed_candidate = {
+            "service_name": title,
+            "process_steps": process_steps,
+            "materials": materials,
+            "entry_points": entry_points,
+            "contacts": {
+                "phones": phones,
+                "emails": emails,
+                "locations": locations,
+                "office_hours": office_hours,
+            },
+            "source_url": normalized_canonical_url,
+            "source_title": title,
+        }
+        return (
+            "official_web_service_guide_candidate.v1",
+            typed_candidate,
+            _quality_gate(
+                suppressed=suppressed,
+                has_identity=bool(title.strip()),
+                has_required_evidence=bool(process_steps or materials or entry_points),
+                has_source=bool(normalized_canonical_url.strip()),
+            ),
+            evidence_spans,
+        )
+
+    return (
+        "official_web_inventory_candidate.v1",
+        {
+            "source_url": normalized_canonical_url,
+            "source_title": title,
+        },
+        {
+            "decision": "inventory_only",
+            "reason_codes": [],
+        },
+        evidence_spans,
+    )
+
+
+def _quality_gate(
+    *,
+    suppressed: bool,
+    has_identity: bool,
+    has_required_evidence: bool,
+    has_source: bool,
+) -> dict[str, object]:
+    reason_codes: list[str] = []
+    if suppressed:
+        reason_codes.append("selected_write_suppressed_page_type")
+    if not has_identity:
+        reason_codes.append("missing_candidate_identity")
+    if not has_required_evidence:
+        reason_codes.append("missing_required_evidence")
+    if not has_source:
+        reason_codes.append("missing_source_url")
+    return {
+        "decision": "pass" if not reason_codes else "reject",
+        "reason_codes": reason_codes,
+    }
+
+
+def _main_content_lines(blocks: list[dict[str, object]]) -> list[str]:
+    lines: list[str] = []
+    for block in blocks:
+        if not bool(block.get("isMainContent")) and block.get("blockRole") != "title":
+            continue
+        text = _normalize_block_text(block)
+        if text:
+            lines.append(text)
+    return lines
+
+
+def _build_evidence_spans(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
+    spans: list[dict[str, object]] = []
+    for block in blocks:
+        text = _normalize_block_text(block)
+        if not text:
+            continue
+        row_id = str(block.get("rowId") or block.get("row_id") or "")
+        for phone in _PHONE_RE.findall(text):
+            spans.append({"evidence_type": "phone", "row_id": row_id, "text": phone})
+        for location in _LOCATION_RE.findall(text):
+            spans.append(
+                {
+                    "evidence_type": "location",
+                    "row_id": row_id,
+                    "text": location.strip(),
+                }
+            )
+        for email in _EMAIL_RE.findall(text):
+            spans.append({"evidence_type": "email", "row_id": row_id, "text": email})
+    return spans
+
+
+def _matching_lines(lines: list[str], pattern: re.Pattern[str]) -> list[str]:
+    return _unique(line for line in lines if pattern.search(line))
+
+
+def _unique(values: object) -> list[str]:
+    items: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = str(value).strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            items.append(normalized)
+    return items
 
 
 def _consumer_matches(payload: dict[str, object]) -> list[dict[str, object]]:

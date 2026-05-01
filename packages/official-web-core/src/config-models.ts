@@ -223,6 +223,8 @@ export interface OfficialWebConsumerFamilyRule {
 	titleKeywords: string[];
 	pathPatterns: string[];
 	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	minimumMatchedEvidenceCount: number;
+	requiresKeywordOrPathMatch: boolean;
 	negativePatterns: string[];
 	selectedWriteTarget: string;
 	reviewPolicy: string;
