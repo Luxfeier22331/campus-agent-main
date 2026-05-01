@@ -243,7 +243,7 @@ def _source_truth_summary(trace_rows: Sequence[Mapping[str, Any]]) -> dict[str, 
             if title:
                 titles[notice_id] = title
         notice_ids.update(_string_list(import_result.get("selected_notice_ids")))
-    selected_notice_count = len(notice_ids) if notice_ids else imported_notice_count
+    selected_notice_count = max(len(notice_ids), imported_notice_count)
     return {
         "attachmentFetchStatusRecordCount": attachment_fetch_status_record_count,
         "importedNoticeCount": imported_notice_count,
