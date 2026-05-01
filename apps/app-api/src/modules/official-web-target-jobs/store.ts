@@ -153,7 +153,10 @@ function toTargetJobRecord(
 function mapLatestSummariesByJobId(
 	rows: (typeof officialWebTargetArtifactVerificationSummaries.$inferSelect)[],
 ): Map<string, typeof officialWebTargetArtifactVerificationSummaries.$inferSelect> {
-	const summariesByJob = new Map<string, typeof officialWebTargetArtifactVerificationSummaries.$inferSelect>();
+	const summariesByJob = new Map<
+		string,
+		typeof officialWebTargetArtifactVerificationSummaries.$inferSelect
+	>();
 	for (const row of rows) {
 		if (!summariesByJob.has(row.jobId)) {
 			summariesByJob.set(row.jobId, row);

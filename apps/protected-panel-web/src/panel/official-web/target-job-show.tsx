@@ -59,8 +59,8 @@ function OfficialWebTargetJobShowContent() {
 		<PanelPage>
 			<Stack spacing={3}>
 				<Alert severity="info">
-					目标任务详情来自 app-api operator 投影。页面展示 URL 候选、抓取尝试和校验状态，不把对象存储
-					key 或采集器本地路径作为面板契约。
+					目标任务详情来自 app-api operator 投影。页面展示 URL
+					候选、抓取尝试和校验状态，不把对象存储 key 或采集器本地路径作为面板契约。
 				</Alert>
 
 				<Box
@@ -223,7 +223,8 @@ function OfficialWebTargetJobShowContent() {
 												<Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
 													<Typography variant="body2">{attempt.attemptId}</Typography>
 													<Typography color="text.secondary" variant="caption">
-														{attempt.attemptStatus} · HTTP {attempt.httpStatus ?? PANEL_COPY.unknown}
+														{attempt.attemptStatus} · HTTP{" "}
+														{attempt.httpStatus ?? PANEL_COPY.unknown}
 													</Typography>
 													<Typography color="text.secondary" variant="caption">
 														产物已登记：{attempt.artifactCaptured ? "是" : "否"}
@@ -260,7 +261,8 @@ function OfficialWebTargetJobShowContent() {
 												<Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
 													<Typography variant="body2">{summary.summaryId}</Typography>
 													<Typography color="text.secondary" variant="caption">
-														{summary.status} · canonical {summary.canonicalVerification ? "是" : "否"}
+														{summary.status} · canonical{" "}
+														{summary.canonicalVerification ? "是" : "否"}
 													</Typography>
 												</Stack>
 												<Typography color="text.secondary" variant="caption">

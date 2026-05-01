@@ -2,10 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import {
-	officialWebTargetJobs,
-	officialWebTargetPageAttempts,
-} from "../src/db/schema";
+import { officialWebTargetJobs, officialWebTargetPageAttempts } from "../src/db/schema";
 import {
 	createPgOfficialWebCommandStore,
 	type FinalizeOfficialWebRunWrite,

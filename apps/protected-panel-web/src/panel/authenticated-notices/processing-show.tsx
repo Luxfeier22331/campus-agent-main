@@ -95,9 +95,7 @@ function ProcessingShowContent() {
 								/>
 								<FieldRow
 									label="投影新鲜度"
-									value={
-										<AuthenticatedNoticeFreshnessChip status={record.freshnessStatus} />
-									}
+									value={<AuthenticatedNoticeFreshnessChip status={record.freshnessStatus} />}
 								/>
 								<FieldRow
 									label="滞后原因"
