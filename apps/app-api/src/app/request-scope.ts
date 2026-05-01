@@ -25,6 +25,10 @@ import {
 	createPgOfficialWebQueryStore,
 } from "../modules/official-web-query";
 import {
+	buildOfficialWebTargetJobService,
+	createPgOfficialWebTargetJobStore,
+} from "../modules/official-web-target-jobs";
+import {
 	buildOperatorObservabilityCommandService,
 	buildOperatorTraceBacklinkRecorder,
 	createPgOperatorObservabilityCommandStore,
@@ -67,6 +71,7 @@ export function createRequestScopeFactory(input: {
 			let docsService = input.dependencies.docsService ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
+			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
 			let operatorObservabilityCommandService =
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
@@ -146,6 +151,17 @@ export function createRequestScopeFactory(input: {
 					store: createPgOfficialWebCommandStore(input.env, { getDb: runtime.getFreshDb }),
 				});
 				return officialWebCommandService;
+			}
+
+			function resolveOfficialWebTargetJobService() {
+				if (officialWebTargetJobService) {
+					return officialWebTargetJobService;
+				}
+
+				officialWebTargetJobService = buildOfficialWebTargetJobService({
+					store: createPgOfficialWebTargetJobStore(input.env, { getDb: runtime.getDb }),
+				});
+				return officialWebTargetJobService;
 			}
 
 			function resolveDocsService() {
@@ -228,6 +244,7 @@ export function createRequestScopeFactory(input: {
 				resolveDocsService,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
+				resolveOfficialWebTargetJobService,
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,

@@ -152,6 +152,52 @@ export function registerOfficialWebRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/operator/official-web/target-jobs", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOfficialWebTargetJobService().listTargetJobs({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					siteId: c.req.query("siteId") ?? null,
+					status: c.req.query("status") ?? null,
+					targetId: c.req.query("targetId") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.get("/api/operator/official-web/target-jobs/:jobId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse({
+			targetJob: await scope.resolveOfficialWebTargetJobService().getTargetJobById({
+				jobId: c.req.param("jobId"),
+				principal: resolved.principal,
+			}),
+		});
+	});
+
 	input.app.get("/api/operator/official-web/runs/:runId", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

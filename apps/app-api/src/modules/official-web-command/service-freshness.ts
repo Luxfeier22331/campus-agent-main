@@ -221,6 +221,10 @@ export function buildPersistedPageObservations(input: {
 			runId: input.run.runId,
 			runIntent: input.run.runIntent,
 			siteId: input.run.siteId,
+			targetCandidateId: observation.targetCandidateId,
+			targetDeclarationVersion: observation.targetDeclarationVersion,
+			targetId: observation.targetId,
+			targetJobId: observation.targetJobId,
 			freshness,
 		});
 		if (

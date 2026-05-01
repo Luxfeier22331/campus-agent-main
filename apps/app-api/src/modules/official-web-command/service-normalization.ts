@@ -319,6 +319,10 @@ function normalizePageObservations(value: unknown): NormalizedPageObservation[] 
 			rawVersionId: normalizeNullableString(observation.rawVersionId),
 			requestedUrl,
 			responseBodyHash: normalizeNullableString(observation.responseBodyHash),
+			targetCandidateId: normalizeNullableString(observation.targetCandidateId),
+			targetDeclarationVersion: normalizeNullableString(observation.targetDeclarationVersion),
+			targetId: normalizeNullableString(observation.targetId),
+			targetJobId: normalizeNullableString(observation.targetJobId),
 		} satisfies NormalizedPageObservation;
 	});
 }

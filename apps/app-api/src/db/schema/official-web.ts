@@ -1,4 +1,5 @@
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -261,6 +262,140 @@ export const runAdmissionDecisions = officialWeb.table(
 			table.siteId,
 			table.decision,
 			table.decidedAt,
+		),
+	}),
+);
+
+export const officialWebTargetJobs = officialWeb.table(
+	"target_jobs",
+	{
+		jobId: text("job_id").primaryKey(),
+		siteId: text("site_id").notNull(),
+		targetId: text("target_id").notNull(),
+		declarationVersion: text("declaration_version").notNull(),
+		idempotencyKey: text("idempotency_key").notNull(),
+		status: text("status").notNull(),
+		consumerFamily: text("consumer_family").notNull(),
+		ownerSurface: text("owner_surface").notNull(),
+		selectedWriteTarget: text("selected_write_target").notNull(),
+		sourceHostsJson: jsonb("source_hosts_json").$type<string[]>().notNull(),
+		urlHintsJson: jsonb("url_hints_json").$type<string[]>().notNull(),
+		titleHintsJson: jsonb("title_hints_json").$type<string[]>().notNull(),
+		requiredEvidenceJson: jsonb("required_evidence_json").$type<string[]>().notNull(),
+		retentionPolicy: text("retention_policy").notNull(),
+		reviewPolicy: text("review_policy").notNull(),
+		materializationPolicy: text("materialization_policy").notNull(),
+		inventoryOnly: boolean("inventory_only").notNull().default(false),
+		latestRunId: text("latest_run_id").references(() => crawlRuns.runId, { onDelete: "set null" }),
+		candidateCount: integer("candidate_count").notNull().default(0),
+		attemptCount: integer("attempt_count").notNull().default(0),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		idempotencyUnique: uniqueIndex("official_web_target_jobs_idempotency_idx").on(
+			table.idempotencyKey,
+		),
+		siteStatusUpdatedAtIndex: index("official_web_target_jobs_site_status_idx").on(
+			table.siteId,
+			table.status,
+			table.updatedAt,
+		),
+		targetUnique: uniqueIndex("official_web_target_jobs_site_target_version_idx").on(
+			table.siteId,
+			table.targetId,
+			table.declarationVersion,
+		),
+	}),
+);
+
+export const officialWebTargetJobCandidates = officialWeb.table(
+	"target_job_candidates",
+	{
+		candidateId: text("candidate_id").primaryKey(),
+		jobId: text("job_id")
+			.notNull()
+			.references(() => officialWebTargetJobs.jobId, { onDelete: "cascade" }),
+		siteId: text("site_id").notNull(),
+		targetId: text("target_id").notNull(),
+		normalizedCandidateUrl: text("normalized_candidate_url").notNull(),
+		sourceHost: text("source_host").notNull(),
+		eligibilityReason: text("eligibility_reason").notNull(),
+		urlHint: text("url_hint"),
+		titleHint: text("title_hint"),
+		status: text("status").notNull(),
+		priorityScore: integer("priority_score").notNull().default(0),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		jobUrlUnique: uniqueIndex("official_web_target_candidates_job_url_idx").on(
+			table.jobId,
+			table.normalizedCandidateUrl,
+		),
+		siteStatusPriorityIndex: index("official_web_target_candidates_site_status_idx").on(
+			table.siteId,
+			table.status,
+			table.priorityScore,
+		),
+	}),
+);
+
+export const officialWebTargetPageAttempts = officialWeb.table(
+	"target_page_attempts",
+	{
+		attemptId: text("attempt_id").primaryKey(),
+		jobId: text("job_id")
+			.notNull()
+			.references(() => officialWebTargetJobs.jobId, { onDelete: "cascade" }),
+		candidateId: text("candidate_id").references(() => officialWebTargetJobCandidates.candidateId, {
+			onDelete: "set null",
+		}),
+		runId: text("run_id").references(() => crawlRuns.runId, { onDelete: "set null" }),
+		siteId: text("site_id").notNull(),
+		targetId: text("target_id").notNull(),
+		normalizedCanonicalUrl: text("normalized_canonical_url").notNull(),
+		attemptStatus: text("attempt_status").notNull(),
+		httpStatus: integer("http_status"),
+		artifactObjectKey: text("artifact_object_key"),
+		attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull(),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		jobAttemptedAtIndex: index("official_web_target_attempts_job_attempted_idx").on(
+			table.jobId,
+			table.attemptedAt,
+		),
+		runIndex: index("official_web_target_attempts_run_idx").on(table.runId),
+	}),
+);
+
+export const officialWebTargetArtifactVerificationSummaries = officialWeb.table(
+	"target_artifact_verification_summaries",
+	{
+		summaryId: text("summary_id").primaryKey(),
+		jobId: text("job_id")
+			.notNull()
+			.references(() => officialWebTargetJobs.jobId, { onDelete: "cascade" }),
+		runId: text("run_id").references(() => crawlRuns.runId, { onDelete: "set null" }),
+		sourceHandoffId: text("source_handoff_id"),
+		objectVerificationId: text("object_verification_id"),
+		canonicalVerification: boolean("canonical_verification").notNull().default(false),
+		status: text("status").notNull(),
+		summaryJson: jsonb("summary_json").$type<Record<string, unknown>>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		jobRunUnique: uniqueIndex("official_web_target_artifact_summary_job_run_idx").on(
+			table.jobId,
+			table.runId,
+		),
+		canonicalIndex: index("official_web_target_artifact_summary_canonical_idx").on(
+			table.canonicalVerification,
+			table.updatedAt,
 		),
 	}),
 );

@@ -9,6 +9,7 @@ import type { OfficialWebCommandService } from "../modules/official-web-command"
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
 import type { OfficialWebPlannerService } from "../modules/official-web-planner";
 import type { OfficialWebQueryService } from "../modules/official-web-query";
+import type { OfficialWebTargetJobService } from "../modules/official-web-target-jobs";
 import type { OperatorObservabilityCommandService } from "../modules/operator-observability-command";
 import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
@@ -37,6 +38,7 @@ export interface AppDependencies {
 	officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
 	officialWebPlannerService?: OfficialWebPlannerService;
 	officialWebQueryService?: OfficialWebQueryService;
+	officialWebTargetJobService?: OfficialWebTargetJobService;
 	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
 	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
@@ -75,6 +77,7 @@ export interface AppRequestScope {
 	resolveDocsService(): DocsService;
 	resolveOfficialWebCommandService(): OfficialWebCommandService;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
+	resolveOfficialWebTargetJobService(): OfficialWebTargetJobService;
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;

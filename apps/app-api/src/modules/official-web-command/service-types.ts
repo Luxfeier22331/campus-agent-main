@@ -127,4 +127,8 @@ export interface NormalizedPageObservation {
 	rawVersionId: string | null;
 	requestedUrl: string;
 	responseBodyHash: string | null;
+	targetCandidateId: string | null;
+	targetDeclarationVersion: string | null;
+	targetId: string | null;
+	targetJobId: string | null;
 }

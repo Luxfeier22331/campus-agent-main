@@ -9,6 +9,10 @@ export {
 } from "./docs";
 export {
 	crawlRuns,
+	officialWebTargetArtifactVerificationSummaries,
+	officialWebTargetJobCandidates,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
 	pageFreshness,
 	pageObservations,
 	runAdmissionDecisions,
@@ -47,6 +51,10 @@ import {
 } from "./docs";
 import {
 	crawlRuns,
+	officialWebTargetArtifactVerificationSummaries,
+	officialWebTargetJobCandidates,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
 	pageFreshness,
 	pageObservations,
 	runAdmissionDecisions,
@@ -89,6 +97,10 @@ export const appApiSchema = {
 	docsReaderAssets,
 	docsSearchUnits,
 	crawlRuns,
+	officialWebTargetJobs,
+	officialWebTargetJobCandidates,
+	officialWebTargetPageAttempts,
+	officialWebTargetArtifactVerificationSummaries,
 	runHeartbeats,
 	runArtifacts,
 	pageObservations,

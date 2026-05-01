@@ -1,9 +1,11 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
 	crawlRuns,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
 	pageFreshness,
 	pageObservations,
 	runArtifacts,
@@ -146,6 +148,10 @@ export interface PersistedOfficialWebPageObservation {
 	runId: string;
 	runIntent: OfficialWebRunIntent;
 	siteId: string;
+	targetCandidateId: string | null;
+	targetDeclarationVersion: string | null;
+	targetId: string | null;
+	targetJobId: string | null;
 	freshness: {
 		lastChangedAt: string | null;
 		lastNotModifiedAt: string | null;
@@ -244,6 +250,18 @@ function toStoredOfficialWebRun(row: typeof crawlRuns.$inferSelect): StoredOffic
 		terminalPayloadSha256: row.terminalPayloadSha256 ?? null,
 		triggerType: row.triggerType,
 	};
+}
+
+function toTargetAttemptStatus(
+	fetchDisposition: OfficialWebFetchDisposition,
+): "completed" | "deleted" | "fetch_failed" {
+	if (fetchDisposition === "deleted") {
+		return "deleted";
+	}
+	if (fetchDisposition === "fetch_failed") {
+		return "fetch_failed";
+	}
+	return "completed";
 }
 
 function toStoredPageFreshnessState(
@@ -509,6 +527,50 @@ export function createPgOfficialWebCommandStore(
 									updatedAt: writeTimestamp,
 								},
 							});
+					}
+
+					const targetAttempts = input.observations.filter(
+						(observation) =>
+							observation.targetJobId &&
+							observation.targetId &&
+							observation.targetDeclarationVersion,
+					);
+					if (targetAttempts.length > 0) {
+						await tx.insert(officialWebTargetPageAttempts).values(
+							targetAttempts.map((observation) => ({
+								artifactObjectKey: null,
+								attemptId: `owattempt_${observation.observationId}`,
+								attemptStatus: toTargetAttemptStatus(observation.fetchDisposition),
+								attemptedAt: new Date(observation.observedAt),
+								candidateId: observation.targetCandidateId,
+								completedAt: new Date(observation.observedAt),
+								createdAt: writeTimestamp,
+								httpStatus: observation.httpStatus,
+								jobId: observation.targetJobId as string,
+								normalizedCanonicalUrl: observation.normalizedCanonicalUrl,
+								runId: observation.runId,
+								siteId: observation.siteId,
+								targetId: observation.targetId as string,
+								updatedAt: writeTimestamp,
+							})),
+						);
+
+						const attemptCountsByJob = new Map<string, number>();
+						for (const observation of targetAttempts) {
+							const jobId = observation.targetJobId as string;
+							attemptCountsByJob.set(jobId, (attemptCountsByJob.get(jobId) ?? 0) + 1);
+						}
+						for (const [jobId, attemptCount] of attemptCountsByJob) {
+							await tx
+								.update(officialWebTargetJobs)
+								.set({
+									attemptCount: sql`${officialWebTargetJobs.attemptCount} + ${attemptCount}`,
+									latestRunId: input.run.runId,
+									status: "active",
+									updatedAt: writeTimestamp,
+								})
+								.where(eq(officialWebTargetJobs.jobId, jobId));
+						}
 					}
 				}
 

@@ -7,6 +7,10 @@ export {
 } from "./docs";
 export {
 	crawlRuns,
+	officialWebTargetArtifactVerificationSummaries,
+	officialWebTargetJobCandidates,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
 	pageFreshness,
 	pageObservations,
 	runAdmissionDecisions,
@@ -43,6 +47,10 @@ import {
 } from "./docs";
 import {
 	crawlRuns,
+	officialWebTargetArtifactVerificationSummaries,
+	officialWebTargetJobCandidates,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
 	pageFreshness,
 	pageObservations,
 	runAdmissionDecisions,
@@ -72,6 +80,10 @@ import {
 
 export const appApiOwnedSchema = {
 	crawlRuns,
+	officialWebTargetJobs,
+	officialWebTargetJobCandidates,
+	officialWebTargetPageAttempts,
+	officialWebTargetArtifactVerificationSummaries,
 	pageObservations,
 	pageFreshness,
 	runAdmissionDecisions,

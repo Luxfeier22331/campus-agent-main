@@ -370,6 +370,10 @@ describe("official web command service", () => {
 						rawVersionId: "rawv_01",
 						requestedUrl: "https://www.muc.edu.cn/admissions",
 						responseBodyHash: "body-1",
+						targetCandidateId: "owcand_contact",
+						targetDeclarationVersion: "muc_public_target_source_map_v2",
+						targetId: "campus-services-contact-directory",
+						targetJobId: "owtarget_contact",
 					},
 				],
 				summary: {
@@ -421,6 +425,10 @@ describe("official web command service", () => {
 						changeStatus: "new",
 						normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
 						runIntent: "baseline",
+						targetCandidateId: "owcand_contact",
+						targetDeclarationVersion: "muc_public_target_source_map_v2",
+						targetId: "campus-services-contact-directory",
+						targetJobId: "owtarget_contact",
 					}),
 				],
 				run: expect.objectContaining({
