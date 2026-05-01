@@ -212,7 +212,7 @@ def _is_markdown_tracked_file(path: str) -> bool:
         )
     if path.startswith("apps/public-docs/docs/"):
         return False
-    if path.startswith(("apps/", "packages/", "configs/")):
+    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False
 
