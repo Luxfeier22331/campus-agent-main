@@ -83,9 +83,7 @@ export function createPgAuthenticatedNoticeProcessingCommandStore(
 							siteId: snapshot.siteId,
 							sourceChannel: snapshot.sourceChannel,
 							sourceSurface: snapshot.sourceSurface,
-							sourceUpdatedAt: snapshot.sourceUpdatedAt
-								? new Date(snapshot.sourceUpdatedAt)
-								: null,
+							sourceUpdatedAt: snapshot.sourceUpdatedAt ? new Date(snapshot.sourceUpdatedAt) : null,
 							targetSurface: snapshot.targetSurface,
 							timelineJson: snapshot.timeline,
 							title: snapshot.title,

@@ -100,9 +100,12 @@ describe("authenticated notice processing operator routes", () => {
 		const commandService = {
 			ingestSnapshots: vi.fn().mockResolvedValue({ accepted: 1 }),
 		};
-		const app = createApp(env as never, {
-			authenticatedNoticeProcessingCommandService: commandService,
-		} as never);
+		const app = createApp(
+			env as never,
+			{
+				authenticatedNoticeProcessingCommandService: commandService,
+			} as never,
+		);
 
 		const response = await app.fetch(
 			new Request(
@@ -133,9 +136,12 @@ describe("authenticated notice processing operator routes", () => {
 		const commandService = {
 			ingestSnapshots: vi.fn(),
 		};
-		const app = createApp(env as never, {
-			authenticatedNoticeProcessingCommandService: commandService,
-		} as never);
+		const app = createApp(
+			env as never,
+			{
+				authenticatedNoticeProcessingCommandService: commandService,
+			} as never,
+		);
 
 		const response = await app.fetch(
 			new Request(
@@ -181,10 +187,13 @@ describe("authenticated notice processing operator routes", () => {
 				},
 			}),
 		};
-		const app = createApp(env as never, {
-			authenticatedNoticeProcessingQueryService: queryService,
-			getPrincipal: vi.fn().mockResolvedValue(principal),
-		} as never);
+		const app = createApp(
+			env as never,
+			{
+				authenticatedNoticeProcessingQueryService: queryService,
+				getPrincipal: vi.fn().mockResolvedValue(principal),
+			} as never,
+		);
 
 		const response = await app.fetch(
 			new Request(
@@ -224,15 +233,16 @@ describe("authenticated notice processing operator routes", () => {
 			getByNoticeId: vi.fn().mockResolvedValue(processingRecord),
 			list: vi.fn(),
 		};
-		const app = createApp(env as never, {
-			authenticatedNoticeProcessingQueryService: queryService,
-			getPrincipal: vi.fn().mockResolvedValue(principal),
-		} as never);
+		const app = createApp(
+			env as never,
+			{
+				authenticatedNoticeProcessingQueryService: queryService,
+				getPrincipal: vi.fn().mockResolvedValue(principal),
+			} as never,
+		);
 
 		const response = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/operator/authenticated-notices/processing/355867",
-			),
+			new Request("https://app-api.internal/api/operator/authenticated-notices/processing/355867"),
 		);
 
 		expect(response.status).toBe(200);

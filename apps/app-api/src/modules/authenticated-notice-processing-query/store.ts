@@ -116,15 +116,21 @@ function buildWhere(filters: NormalizedAuthenticatedNoticeProcessingListFilters)
 		);
 	}
 	if (filters.updatedAfter) {
-		clauses.push(gt(authenticatedNoticeProcessingProjection.projectedAt, new Date(filters.updatedAfter)));
+		clauses.push(
+			gt(authenticatedNoticeProcessingProjection.projectedAt, new Date(filters.updatedAfter)),
+		);
 	}
 	if (filters.updatedBefore) {
-		clauses.push(lt(authenticatedNoticeProcessingProjection.projectedAt, new Date(filters.updatedBefore)));
+		clauses.push(
+			lt(authenticatedNoticeProcessingProjection.projectedAt, new Date(filters.updatedBefore)),
+		);
 	}
 	if (filters.cursor) {
 		const cursor = decodeCursor(filters.cursor);
 		if (cursor) {
-			clauses.push(lt(authenticatedNoticeProcessingProjection.projectedAt, new Date(cursor.projectedAt)));
+			clauses.push(
+				lt(authenticatedNoticeProcessingProjection.projectedAt, new Date(cursor.projectedAt)),
+			);
 		}
 	}
 	return clauses.length > 0 ? and(...clauses) : undefined;

@@ -2,8 +2,8 @@ import type { GetListParams, Identifier } from "react-admin";
 
 import { fetchJson } from "../http";
 import {
-	normalizeAuthenticatedNoticeProcessingRecord,
 	type AuthenticatedNoticeProcessingRecord,
+	normalizeAuthenticatedNoticeProcessingRecord,
 	type RawAuthenticatedNoticeProcessingDetailResponse,
 	type RawAuthenticatedNoticeProcessingListResponse,
 } from "../types";

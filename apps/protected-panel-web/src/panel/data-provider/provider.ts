@@ -118,9 +118,7 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		if (resource === "authenticatedNoticeProcessing") {
 			const items = await Promise.all(
 				params.ids.map((id) =>
-					getAuthenticatedNoticeProcessingDetail(id, params.signal).then(
-						(result) => result.data,
-					),
+					getAuthenticatedNoticeProcessingDetail(id, params.signal).then((result) => result.data),
 				),
 			);
 

@@ -381,9 +381,10 @@ export const authenticatedNoticeProcessingProjection = operator.table(
 			table.noticeId,
 			table.projectedAt,
 		),
-		noticeKeyProjectedAtIndex: index(
-			"operator_auth_notice_processing_notice_key_projected_idx",
-		).on(table.noticeKey, table.projectedAt),
+		noticeKeyProjectedAtIndex: index("operator_auth_notice_processing_notice_key_projected_idx").on(
+			table.noticeKey,
+			table.projectedAt,
+		),
 		statusProjectedAtIndex: index("operator_auth_notice_processing_status_projected_idx").on(
 			table.lifecycleStatus,
 			table.projectedAt,

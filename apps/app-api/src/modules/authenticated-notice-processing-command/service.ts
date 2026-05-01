@@ -1,8 +1,8 @@
 import { AppApiRouteError } from "../../http";
 import type {
+	AuthenticatedNoticeProcessingCommandStore,
 	AuthenticatedNoticeProcessingEventWrite,
 	AuthenticatedNoticeProcessingSnapshotWrite,
-	AuthenticatedNoticeProcessingCommandStore,
 } from "./store";
 
 export interface AuthenticatedNoticeProcessingSnapshot {
@@ -157,7 +157,9 @@ function normalizeNullableRecord(value: unknown, field: string): Record<string, 
 	return normalizeRecord(value, field);
 }
 
-function normalizeReadModelCounts(value: unknown): Record<string, number | string | boolean | null> {
+function normalizeReadModelCounts(
+	value: unknown,
+): Record<string, number | string | boolean | null> {
 	const record = normalizeRecord(value, "readModelCounts");
 	const normalized: Record<string, number | string | boolean | null> = {};
 	for (const [key, item] of Object.entries(record)) {
@@ -286,8 +288,7 @@ function toEventWrites(
 ): AuthenticatedNoticeProcessingEventWrite[] {
 	return snapshot.timeline.map((event, index) => ({
 		eventId:
-			event.eventId ??
-			`${snapshot.id}:${event.stage}:${event.status}:${event.occurredAt}:${index}`,
+			event.eventId ?? `${snapshot.id}:${event.stage}:${event.status}:${event.occurredAt}:${index}`,
 		processingId: snapshot.id,
 		noticeKey: snapshot.noticeKey,
 		noticeId: snapshot.noticeId,

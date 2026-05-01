@@ -1,8 +1,3 @@
-export {
-	assertNoForbiddenAuthenticatedNoticeProcessingFields,
-	buildAuthenticatedNoticeProcessingCommandService,
-	normalizeAuthenticatedNoticeProcessingSnapshot,
-} from "./service";
 export type {
 	AuthenticatedNoticeProcessingCommandService,
 	AuthenticatedNoticeProcessingSnapshot,
@@ -10,11 +5,16 @@ export type {
 	AuthenticatedNoticeProcessingTimelineEvent,
 } from "./service";
 export {
-	createPgAuthenticatedNoticeProcessingCommandStore,
-	deleteAuthenticatedNoticeProcessingSnapshotForTests,
-} from "./store";
+	assertNoForbiddenAuthenticatedNoticeProcessingFields,
+	buildAuthenticatedNoticeProcessingCommandService,
+	normalizeAuthenticatedNoticeProcessingSnapshot,
+} from "./service";
 export type {
 	AuthenticatedNoticeProcessingCommandStore,
 	AuthenticatedNoticeProcessingEventWrite,
 	AuthenticatedNoticeProcessingSnapshotWrite,
+} from "./store";
+export {
+	createPgAuthenticatedNoticeProcessingCommandStore,
+	deleteAuthenticatedNoticeProcessingSnapshotForTests,
 } from "./store";

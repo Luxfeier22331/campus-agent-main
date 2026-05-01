@@ -1,4 +1,3 @@
-export { buildAuthenticatedNoticeProcessingQueryService } from "./service";
 export type {
 	AuthenticatedNoticeProcessingListFilters,
 	AuthenticatedNoticeProcessingQueryService,
@@ -7,4 +6,5 @@ export type {
 	AuthenticatedNoticeProcessingTimelineEvent,
 	NormalizedAuthenticatedNoticeProcessingListFilters,
 } from "./service";
+export { buildAuthenticatedNoticeProcessingQueryService } from "./service";
 export { createPgAuthenticatedNoticeProcessingQueryStore } from "./store";
