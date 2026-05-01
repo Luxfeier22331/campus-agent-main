@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-27
+updated: 2026-05-01
 ---
 # 当前架构
 
@@ -122,6 +122,8 @@ model`
 - protected Worker web surface
 - 只负责 operator-facing panel UI
 - 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query surfaces
+- 当前已接入 `Requests`、`Official Web` 与 authenticated notice processing 的 app-owned
+  operator-safe read-only surfaces
 
 ### `apps/app-api`
 
@@ -132,6 +134,9 @@ model`
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
 - 承接 `official_web` control plane
+- 承接 authenticated notice processing 的 operator-safe projection ingest 与 list/detail
+  query；不暴露 raw notice content、OCR payload、附件字节、对象存储路径或 queue mutation
+  action
 - 当前代码侧以 route exposure inventory 固定每个 route 的 caller class 与 admission rule
 
 ### `apps/supervisor-api`

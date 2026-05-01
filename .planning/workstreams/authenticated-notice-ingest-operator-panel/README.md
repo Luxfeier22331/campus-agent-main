@@ -21,8 +21,12 @@ The target user question is:
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 1 next`
-- phases complete: `0`
+- current phase: `Phase 4/6 pending real-environment execution`
+- phases complete: `4 / 7`
+- Phase 1, Phase 2, Phase 3 and Phase 5 are implemented in current worktree.
+- Phase 4 historical backfill and Phase 6 real-data smoke remain open because
+  they require configured app-api DB/object-store execution against selected
+  historical notices.
 - created from observed gap after validating notice `355867`
   (`关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知`) reached
   `transport_schedule_lookup` consumption.

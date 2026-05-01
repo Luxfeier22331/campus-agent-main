@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-27
+updated: 2026-05-01
 ---
 # Product Runtime Architecture
 
@@ -63,12 +63,15 @@ model`
   - 只代理 docs control-plane endpoints，不作为 public chat、operator 或 generic
     app-api BFF
 - `protected-panel-web`
-  - 当前只承接 app-owned operator domains；`Requests` 与 `Official Web` 已是 accepted
-    shape
+  - 当前只承接 app-owned operator domains；`Requests`、`Official Web` 与
+    `Authenticated Notice Processing` 已是 accepted shape
   - `Jobs`、`Operations`、更完整 `Audit` 仍属于后续 rollout，不应被写成当前 merged truth
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
+  - `authenticated_notice_processing` operator projection 已是 accepted app-owned
+    read-only panel domain；它只展示处理状态，不成为 collector scheduler、queue
+    mutation API 或对象存储浏览器
 
 前向约束：
 
@@ -116,6 +119,7 @@ model`
 - `runtime.projection_outbox`
 - `operator.request_projection`
 - selected operator control-plane domains，例如 `official_web`
+- selected operator-safe processing projections，例如 `authenticated_notice_processing`
 - route exposure inventory 必须显式区分 `browser-surface`、`operator-via-panel`、
   `machine-internal`、`collector-machine` 与 `system`；新增 route 时必须同步 caller
   class 与 admission rule
@@ -175,7 +179,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - Go runtime 可以继续吸收 deterministic supervisor runtime kernel，但不能因此把
   semantic orchestration、domain-agent reasoning 或 retrieval planning 塞进 `apps/*`
 
-## Request Projection And Read Model
+## Operator Projection And Read Model
 
 request projection 的 canonical durable truth 固定为：
 
@@ -195,6 +199,9 @@ panel `Requests` 的 canonical read path 固定为：
 future operator-facing observability 域也遵循同一 ownership rule：
 
 - audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
+- authenticated notice processing 这类 ingestion/downstream visibility surface 也必须经
+  `apps/app-api` 的 operator-safe projection 暴露，不能让 panel 回读 queue、object-store、
+  operations 目录或 raw logs
 - panel 只能读取 runtime-owned projection / aggregate APIs
 - `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为
   canonical panel read model

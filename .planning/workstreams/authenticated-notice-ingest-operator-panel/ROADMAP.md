@@ -11,11 +11,11 @@ updated: 2026-05-01
 
 ## Phase Status
 
-- [ ] **Phase 1: Operator Projection Contract Freeze** — define the app-api owned, operator-safe processing projection, status taxonomy, timeline model, and redaction contract.
-- [ ] **Phase 2: App API Projection Store And Query Endpoints** — add durable app-api storage, list/detail query services, operator routes, and contract tests.
-- [ ] **Phase 3: Ingestion Projection Emitter** — emit sanitized processing snapshots from queue consumer/downstream materialization or a repo-owned worker command into app-api.
+- [x] **Phase 1: Operator Projection Contract Freeze** — define the app-api owned, operator-safe processing projection, status taxonomy, timeline model, and redaction contract.
+- [x] **Phase 2: App API Projection Store And Query Endpoints** — add durable app-api storage, list/detail query services, operator routes, and contract tests.
+- [x] **Phase 3: Ingestion Projection Emitter** — emit sanitized processing snapshots from queue consumer/downstream materialization or a repo-owned worker command into app-api.
 - [ ] **Phase 4: Historical Backfill And Reconciliation** — backfill existing processed notices such as `355867`, reconcile current release/read-model state, and detect stale or conflicting attempts.
-- [ ] **Phase 5: Protected Panel List And Detail UI** — add panel resources/pages for authenticated notice processing status with lifecycle timeline and downstream readiness cards.
+- [x] **Phase 5: Protected Panel List And Detail UI** — add panel resources/pages for authenticated notice processing status with lifecycle timeline and downstream readiness cards.
 - [ ] **Phase 6: End-To-End Acceptance And Real Notice Smoke** — verify `355867` and at least one non-schedule notice through app-api and panel-visible projection.
 - [ ] **Phase 7: Operational Hardening And Closeout** — add freshness checks, runbook, observability metrics, docs, and final verification.
 
@@ -47,6 +47,10 @@ pnpm docs:lint
 git diff --check
 ```
 
+Current status: implemented in current worktree via
+`docs/contracts/app-api-authenticated-notice-processing-http.md` and supporting
+architecture/schema docs.
+
 ## Phase 2: App API Projection Store And Query Endpoints
 
 Goal: make `apps/app-api` the durable read boundary consumed by protected panel.
@@ -69,6 +73,11 @@ Verification:
 pnpm web:typecheck
 pnpm web:test -- --runInBand
 ```
+
+Current status: implemented in current worktree with targeted app-api
+route/store tests. The canonical table definitions are
+`operator.authenticated_notice_processing_projection` and
+`operator.authenticated_notice_processing_event_projection`.
 
 ## Phase 3: Ingestion Projection Emitter
 
@@ -96,6 +105,10 @@ pnpm web:test
 git diff --check
 ```
 
+Current status: implemented in current worktree through the ingestion-core
+projection builder and ingestion-worker HTTP reporter. Historical backfill is
+not included in this phase.
+
 ## Phase 4: Historical Backfill And Reconciliation
 
 Goal: make existing already-processed notices visible without rerunning ingestion
@@ -119,6 +132,10 @@ Verification:
 uv run --all-packages python -m unittest tests.ingestion.<new_backfill_tests>
 pnpm web:test
 ```
+
+Current status: not implemented. Existing historical content remains manually
+replayable/queueable as planned; automatic historical projection reconstruction
+requires a later command and real environment validation.
 
 ## Phase 5: Protected Panel List And Detail UI
 
@@ -145,6 +162,9 @@ pnpm web:typecheck
 pnpm web:test
 ```
 
+Current status: implemented in current worktree with protected-panel resource,
+proxy/data-provider, list/detail pages and UI regression coverage.
+
 ## Phase 6: End-To-End Acceptance And Real Notice Smoke
 
 Goal: prove the feature answers the original operator question end to end.
@@ -166,6 +186,9 @@ Verification:
 pnpm web:test:integration
 pnpm web:build
 ```
+
+Current status: not completed. Requires a configured app-api DB/object-store and
+selected real notice snapshot ingestion through the same path used by the panel.
 
 ## Phase 7: Operational Hardening And Closeout
 

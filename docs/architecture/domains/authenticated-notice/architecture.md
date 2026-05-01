@@ -1107,14 +1107,33 @@ query-serving。
 这些 worker CLI 属于 source-channel operations truth，不是对象存储浏览器、审批系统或产品
 panel。
 
-如果后续需要 product/API scheduler、heartbeat、operator read model 与 ingestion handoff，长期规则固定为：
+当前已经单独打开的 protected-panel 可见面只覆盖 authenticated notice processing
+operator projection：
+
+`apps/ingestion-worker -> apps/app-api -> apps/protected-panel-web`
+
+固定边界：
+
+- ingestion worker 只上报 sanitized processing snapshot，不把 queue/source-handoff/object
+  store/operations 目录暴露给 panel
+- `apps/app-api` 拥有 `operator.authenticated_notice_processing_projection` 与
+  `operator.authenticated_notice_processing_event_projection`，并提供 operator list/detail
+  API
+- protected panel 只读取 app-api projection，不直接读取 ingestion queue、object-store、
+  operations 目录或 raw logs
+- 该 projection 只解释 collect/enqueue/consume/downstream/tool readiness 状态；它不是
+  collector scheduler、heartbeat truth、retry/cancel/re-enqueue action surface，也不改变
+  source-truth 或 downstream release truth
+
+如果后续需要 product/API scheduler、collector heartbeat 或写操作型 ingestion handoff，长期规则固定为：
 
 - 必须新增 dedicated authenticated notice control-plane domain
 - 不复用现有 `official_web` command/query surfaces
 - 不把产品级 collector control plane 混回 `apps/ingestion-worker`
 
-这是一条前向约束；当前 repo-owned closeout 只落成 bounded worker CLI 与 manifest /
-ledger truth。
+这是一条前向约束；当前 repo-owned closeout 的 source-channel control truth 仍是 bounded
+worker CLI 与 manifest / ledger truth，processing operator projection 只是 app-api owned
+read-only visibility seam。
 
 ## Async Staged Closeout
 
