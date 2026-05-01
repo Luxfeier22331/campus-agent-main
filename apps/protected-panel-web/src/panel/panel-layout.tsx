@@ -5,6 +5,7 @@ import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
+import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import PaidOutlinedIcon from "@mui/icons-material/PaidOutlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
@@ -182,6 +183,11 @@ function ProtectedPanelMenu() {
 				leftIcon={<FindInPageOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.requests}
 				to="/requests"
+			/>
+			<RaMenu.Item
+				leftIcon={<MarkEmailReadOutlinedIcon />}
+				primaryText={PANEL_COPY.menu.authenticatedNoticeProcessing}
+				to="/authenticatedNoticeProcessing"
 			/>
 			<RaMenu.Item
 				leftIcon={<LanguageOutlinedIcon />}

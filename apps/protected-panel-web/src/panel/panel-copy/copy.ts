@@ -27,6 +27,7 @@ export const PANEL_COPY = {
 		cost: "成本",
 		intent: "意图治理",
 		requests: "请求",
+		authenticatedNoticeProcessing: "通知处理",
 		officialWebSites: "官网站点",
 		officialWebRuns: "采集运行",
 		jobs: "任务",
@@ -540,6 +541,7 @@ export const PANEL_COPY = {
 		},
 	},
 	emptyState: {
+		authenticatedNoticeProcessing: "暂无通知处理记录。",
 		officialWebRuns: "暂无官网采集运行。",
 		officialWebSites: "暂无官网站点。",
 	},
@@ -550,6 +552,7 @@ export const PANEL_COPY = {
 	},
 	overviewDomains: {
 		audit: "审计",
+		authenticated_notices: "认证通知",
 		jobs: "任务",
 		official_web: "官网采集",
 		operations: "操作",
