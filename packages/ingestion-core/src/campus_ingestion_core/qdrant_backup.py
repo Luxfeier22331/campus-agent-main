@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Protocol
+from typing import Protocol
 from urllib.parse import quote
 
 import requests
@@ -24,6 +24,18 @@ from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.object_store import (
     build_index_release_artifact_key,
     build_qdrant_backup_artifact_key,
+)
+from campus_ingestion_core.qdrant_backup_io import (
+    object_exists as _object_exists,
+)
+from campus_ingestion_core.qdrant_backup_io import (
+    sha256_file as _sha256_file,
+)
+from campus_ingestion_core.qdrant_backup_io import (
+    utc_now_iso as _utc_now_iso,
+)
+from campus_ingestion_core.qdrant_backup_io import (
+    write_json_object as _write_json_object,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
 
@@ -751,14 +763,6 @@ def _find_backup_manifest_for_release(
     return None, None
 
 
-def _object_exists(*, object_store: BackupObjectStore, bucket: str, key: str) -> bool:
-    try:
-        object_store.head_object(bucket=bucket, key=key)
-    except Exception:
-        return False
-    return True
-
-
 def _remap_alias_bindings(
     *,
     alias_bindings: dict[str, str],
@@ -773,35 +777,3 @@ def _remap_alias_bindings(
             else collection_name
         )
     return remapped
-
-
-def _sha256_file(file_path: str) -> str:
-    import hashlib
-
-    digest = hashlib.sha256()
-    with Path(file_path).open("rb") as handle:
-        while True:
-            chunk = handle.read(1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def _write_json_object(
-    *,
-    object_store: BackupObjectStore,
-    bucket: str,
-    key: str,
-    payload: dict[str, Any],
-) -> None:
-    object_store.put_bytes(
-        bucket=bucket,
-        key=key,
-        data=(json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
-        content_type="application/json",
-    )

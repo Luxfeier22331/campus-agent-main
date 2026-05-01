@@ -25,14 +25,8 @@
 		"apps/ingestion-worker/src/campus_ingestion_worker/official_web_university_collection.py": {
 			"max_lines": 1188
 		},
-		"apps/ingestion-worker/src/campus_ingestion_worker/on_demand_batch_runner.py": {
-			"max_lines": 820
-		},
 		"apps/public-chat-web/test/worker.test.ts": {
 			"max_lines": 1799
-		},
-		"apps/supervisor-api/internal/structuredquery/notice_test.go": {
-			"max_lines": 808
 		},
 		"apps/supervisor-api/internal/structuredquery/runtime_fixtures_test.go": {
 			"max_lines": 866
@@ -43,17 +37,11 @@
 		"apps/wechat-official-account-collector/src/capture.ts": {
 			"max_lines": 803
 		},
-		"packages/contracts/src/campus_contracts/models_tools.py": {
-			"max_lines": 893
-		},
 		"packages/evals/src/campus_evals/intent_scenarios.py": {
 			"max_lines": 817
 		},
 		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_file_release_import.py": {
 			"max_lines": 1085
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py": {
-			"max_lines": 1223
 		},
 		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections_engine.py": {
 			"max_lines": 903
