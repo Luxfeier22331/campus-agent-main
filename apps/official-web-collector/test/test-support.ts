@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(TEST_DIR, "fixtures", "pages");
 
-export function writeTestConfigRoot(): { configRoot: string; outputDir: string } {
+export function writeTestConfigRoot(
+	options: { consumerDenominatorEnforcementMode?: "audit_only" | "retain_matching_only" } = {},
+): { configRoot: string; outputDir: string } {
 	const root = mkdtempSync(resolve(tmpdir(), "official-web-collector-"));
 	const configRoot = resolve(root, "official_web");
 	const siteRoot = resolve(configRoot, "campus_public");
@@ -208,6 +210,92 @@ export function writeTestConfigRoot(): { configRoot: string; outputDir: string }
 				site_id: "campus_public",
 				projection_policy_version: "campus_public_projection_v1",
 				declarations: [],
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "consumer-denominator.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_consumer_denominator.v1",
+				site_id: "campus_public",
+				denominator_version: "campus_public_consumer_denominator_v1",
+				enforcement_mode: options.consumerDenominatorEnforcementMode ?? "audit_only",
+				default_rejected_policy: "reject",
+				consumer_families: [
+					{
+						consumer_family: "contact_directory_candidate",
+						owner_surface: "contact_directory_lookup",
+						owner_agent_or_runtime: "campus-services-agent",
+						materialization_policy: "candidate_only",
+						page_families: [
+							"article_detail",
+							"directory_page",
+							"contact_widget_page",
+							"generic_content_page",
+						],
+						title_keywords: ["联系", "联系我们", "联系方式"],
+						path_patterns: ["contact", "lianxi"],
+						required_evidence: ["phone", "email", "location", "office_hours"],
+						negative_patterns: [],
+						selected_write_target: "campus_services/contact_directory",
+						review_policy: "selected_write_requires_review",
+					},
+					{
+						consumer_family: "service_guide_candidate",
+						owner_surface: "service_guide_lookup",
+						owner_agent_or_runtime: "campus-services-agent",
+						materialization_policy: "candidate_only",
+						page_families: ["article_detail", "directory_page", "generic_content_page"],
+						title_keywords: ["办理", "申请", "补办", "挂失", "指南", "服务"],
+						path_patterns: ["service", "guide", "card"],
+						required_evidence: [
+							"service_process",
+							"service_entry",
+							"service_material",
+							"phone",
+							"location",
+							"office_hours",
+						],
+						negative_patterns: [],
+						selected_write_target: "campus_services/service_guide",
+						review_policy: "selected_write_requires_review",
+					},
+					{
+						consumer_family: "stable_reference_candidate",
+						owner_surface: "official_web/stable_reference",
+						owner_agent_or_runtime: "rag-agent",
+						materialization_policy: "release_gate_required",
+						page_families: ["article_detail", "directory_page", "generic_content_page"],
+						title_keywords: ["学校简介", "学校概况", "现任领导", "机构设置"],
+						path_patterns: ["about", "intro", "leader"],
+						required_evidence: ["stable_reference"],
+						negative_patterns: ["新闻", "通知", "公告", "讲座"],
+						selected_write_target: "official_web/stable_reference",
+						review_policy: "release_gate_required",
+					},
+					{
+						consumer_family: "notice_news_candidate",
+						owner_surface: "future_notice_runtime",
+						owner_agent_or_runtime: "notice-agent",
+						materialization_policy: "inventory_only",
+						page_families: ["article_detail"],
+						title_keywords: ["新闻", "通知", "公告", "讲座", "活动"],
+						path_patterns: ["news", "info"],
+						required_evidence: ["notice_news"],
+						negative_patterns: [],
+						selected_write_target: "",
+						review_policy: "inventory_only",
+					},
+				],
+				reporting_counters: [
+					"fetched_pages",
+					"retained_source_truth_pages",
+					"rejected_pages",
+					"consumer_family_counts",
+				],
 			},
 			null,
 			2,

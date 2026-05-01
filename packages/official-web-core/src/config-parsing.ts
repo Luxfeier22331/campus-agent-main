@@ -4,10 +4,20 @@ import {
 	ALLOWED_CREDENTIALS_MODES,
 	ALLOWED_DISCOVERY_METHODS,
 	ALLOWED_PUBLIC_KINDS,
+	OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES,
+	OFFICIAL_WEB_CONSUMER_FAMILIES,
+	OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES,
+	OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES,
+	OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE,
 	OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES,
 	OFFICIAL_WEB_HOST_GROUPS,
 	OFFICIAL_WEB_PROJECTION_ACTIONS,
 	OFFICIAL_WEB_RUN_INTENTS,
+	type OfficialWebConsumerEnforcementMode,
+	type OfficialWebConsumerFamily,
+	type OfficialWebConsumerMaterializationPolicy,
+	type OfficialWebConsumerRejectedPolicy,
+	type OfficialWebConsumerRequiredEvidence,
 	type OfficialWebCredentialsMode,
 	type OfficialWebDeclarablePageFamily,
 	type OfficialWebDiscoveryMethod,
@@ -101,6 +111,48 @@ export function asProjectionPageFamily(value: unknown): OfficialWebDeclarablePag
 	const normalized = asString(value) as OfficialWebDeclarablePageFamily;
 	if (!OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES.includes(normalized)) {
 		throw new Error(`unsupported official_web projection page family: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asConsumerFamily(value: unknown): OfficialWebConsumerFamily {
+	const normalized = asString(value) as OfficialWebConsumerFamily;
+	if (!OFFICIAL_WEB_CONSUMER_FAMILIES.includes(normalized)) {
+		throw new Error(`unsupported official_web consumer family: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asConsumerMaterializationPolicy(
+	value: unknown,
+): OfficialWebConsumerMaterializationPolicy {
+	const normalized = asString(value) as OfficialWebConsumerMaterializationPolicy;
+	if (!OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES.includes(normalized)) {
+		throw new Error(`unsupported official_web consumer materialization policy: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asConsumerRejectedPolicy(value: unknown): OfficialWebConsumerRejectedPolicy {
+	const normalized = asString(value) as OfficialWebConsumerRejectedPolicy;
+	if (!OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES.includes(normalized)) {
+		throw new Error(`unsupported official_web consumer rejected policy: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asConsumerEnforcementMode(value: unknown): OfficialWebConsumerEnforcementMode {
+	const normalized = asString(value) as OfficialWebConsumerEnforcementMode;
+	if (!OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES.includes(normalized)) {
+		throw new Error(`unsupported official_web consumer enforcement mode: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asConsumerRequiredEvidence(value: unknown): OfficialWebConsumerRequiredEvidence {
+	const normalized = asString(value) as OfficialWebConsumerRequiredEvidence;
+	if (!OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE.includes(normalized)) {
+		throw new Error(`unsupported official_web consumer required evidence: ${String(value)}`);
 	}
 	return normalized;
 }

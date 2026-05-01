@@ -1,6 +1,11 @@
 import type { OfficialWebConfigBundle, OfficialWebDiscoveryMethod } from "./config-models.ts";
 import {
 	asArray,
+	asConsumerEnforcementMode,
+	asConsumerFamily,
+	asConsumerMaterializationPolicy,
+	asConsumerRejectedPolicy,
+	asConsumerRequiredEvidence,
 	asCredentialsMode,
 	asDiscoveryMethod,
 	asDynamicShellDiscoveryPolicy,
@@ -31,6 +36,7 @@ export function loadOfficialWebConfig(
 	const crawlPolicyPayload = readJson(paths.crawlPolicyPath);
 	const credentialsSchemaPayload = readJson(paths.credentialsSchemaPath);
 	const projectionDeclarationsPayload = readJson(paths.projectionDeclarationsPath);
+	const consumerDenominatorPayload = readJson(paths.consumerDenominatorPath);
 	const schedulerPolicyPayload = readJson(paths.schedulerPolicyPath);
 	const qcPolicyPayload = readJson(paths.qcPolicyPath);
 
@@ -157,6 +163,29 @@ export function loadOfficialWebConfig(
 				documentKind: asPathSegment(item.document_kind, "projection.document_kind"),
 				action: asProjectionAction(item.action),
 			})),
+		},
+		consumerDenominator: {
+			schemaVersion: asString(consumerDenominatorPayload.schema_version),
+			siteId: asString(consumerDenominatorPayload.site_id),
+			denominatorVersion: asString(consumerDenominatorPayload.denominator_version),
+			enforcementMode: asConsumerEnforcementMode(consumerDenominatorPayload.enforcement_mode),
+			defaultRejectedPolicy: asConsumerRejectedPolicy(
+				consumerDenominatorPayload.default_rejected_policy,
+			),
+			consumerFamilies: asArray(consumerDenominatorPayload.consumer_families).map((item) => ({
+				consumerFamily: asConsumerFamily(item.consumer_family),
+				ownerSurface: asString(item.owner_surface),
+				ownerAgentOrRuntime: asString(item.owner_agent_or_runtime),
+				materializationPolicy: asConsumerMaterializationPolicy(item.materialization_policy),
+				pageFamilies: asStringArray(item.page_families).map(asProjectionPageFamily),
+				titleKeywords: asStringArray(item.title_keywords),
+				pathPatterns: asStringArray(item.path_patterns),
+				requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+				negativePatterns: asStringArray(item.negative_patterns),
+				selectedWriteTarget: asString(item.selected_write_target),
+				reviewPolicy: asString(item.review_policy),
+			})),
+			reportingCounters: asStringArray(consumerDenominatorPayload.reporting_counters),
 		},
 		schedulerPolicy: {
 			schemaVersion: asString(schedulerPolicyPayload.schema_version),

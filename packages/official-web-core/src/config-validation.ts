@@ -1,5 +1,6 @@
 import {
 	ENABLED_PUBLIC_KINDS,
+	OFFICIAL_WEB_CONSUMER_FAMILIES,
 	OFFICIAL_WEB_RUN_INTENTS,
 	OFFICIAL_WEB_SHELL_PAGE_FAMILIES,
 	OFFICIAL_WEB_SOURCE_CHANNEL,
@@ -317,6 +318,75 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			);
 		}
 	}
+
+	if (bundle.consumerDenominator.siteId !== bundle.site.siteId) {
+		throw new Error("consumerDenominator.siteId must match site.siteId");
+	}
+	assertNonEmpty(bundle.consumerDenominator.schemaVersion, "consumerDenominator.schemaVersion");
+	assertNonEmpty(
+		bundle.consumerDenominator.denominatorVersion,
+		"consumerDenominator.denominatorVersion",
+	);
+	if (bundle.consumerDenominator.consumerFamilies.length === 0) {
+		throw new Error("consumerDenominator.consumerFamilies must not be empty");
+	}
+	ensureUnique(
+		bundle.consumerDenominator.consumerFamilies.map((item) => item.consumerFamily),
+		"consumerDenominator.consumerFamilies[].consumerFamily",
+	);
+	for (const family of OFFICIAL_WEB_CONSUMER_FAMILIES) {
+		if (
+			!bundle.consumerDenominator.consumerFamilies.some((rule) => rule.consumerFamily === family)
+		) {
+			throw new Error(`consumerDenominator must include ${family}`);
+		}
+	}
+	for (const rule of bundle.consumerDenominator.consumerFamilies) {
+		assertNonEmpty(rule.ownerSurface, `consumerDenominator ${rule.consumerFamily} ownerSurface`);
+		assertNonEmpty(
+			rule.ownerAgentOrRuntime,
+			`consumerDenominator ${rule.consumerFamily} ownerAgentOrRuntime`,
+		);
+		if (rule.pageFamilies.length === 0) {
+			throw new Error(`consumerDenominator ${rule.consumerFamily} must define pageFamilies`);
+		}
+		ensureUnique(rule.pageFamilies, `consumerDenominator ${rule.consumerFamily}.pageFamilies`);
+		ensureUnique(rule.titleKeywords, `consumerDenominator ${rule.consumerFamily}.titleKeywords`);
+		ensureUnique(rule.pathPatterns, `consumerDenominator ${rule.consumerFamily}.pathPatterns`);
+		ensureUnique(
+			rule.requiredEvidence,
+			`consumerDenominator ${rule.consumerFamily}.requiredEvidence`,
+		);
+		ensureUnique(
+			rule.negativePatterns,
+			`consumerDenominator ${rule.consumerFamily}.negativePatterns`,
+		);
+		if (rule.requiredEvidence.length === 0) {
+			throw new Error(`consumerDenominator ${rule.consumerFamily} must define requiredEvidence`);
+		}
+		validateRegexList(rule.pathPatterns, `consumerDenominator ${rule.consumerFamily}.pathPatterns`);
+		validateRegexList(
+			rule.negativePatterns,
+			`consumerDenominator ${rule.consumerFamily}.negativePatterns`,
+		);
+		if (rule.consumerFamily === "notice_news_candidate") {
+			if (rule.materializationPolicy !== "inventory_only") {
+				throw new Error("notice_news_candidate must use materializationPolicy=inventory_only");
+			}
+			if (rule.selectedWriteTarget) {
+				throw new Error("notice_news_candidate selectedWriteTarget must be empty");
+			}
+		} else {
+			assertNonEmpty(
+				rule.selectedWriteTarget,
+				`consumerDenominator ${rule.consumerFamily} selectedWriteTarget`,
+			);
+		}
+	}
+	ensureUnique(
+		bundle.consumerDenominator.reportingCounters,
+		"consumerDenominator.reportingCounters",
+	);
 
 	if (bundle.qcPolicy.siteId !== bundle.site.siteId) {
 		throw new Error("qcPolicy.siteId must match site.siteId");

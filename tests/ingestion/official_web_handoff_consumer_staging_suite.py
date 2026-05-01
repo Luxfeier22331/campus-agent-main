@@ -83,6 +83,93 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             )
             json.loads(Path(result.execution_report_path or "").read_text(encoding="utf-8"))
 
+    def test_consume_handoff_record_reports_consumer_candidate_review_before_selected_write(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            inbox_dir = root / "inbox"
+            execution_root_dir = root / "executions"
+            record_path = inbox_dir / "owevt_completed_consumer_candidate.json"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+
+            consumer_matches = [
+                {
+                    "consumerFamily": "contact_directory_candidate",
+                    "ownerSurface": "contact_directory_lookup",
+                    "ownerAgentOrRuntime": "campus-services-agent",
+                    "materializationPolicy": "candidate_only",
+                    "selectedWriteTarget": "campus_services/contact_directory",
+                    "reviewPolicy": "selected_write_requires_review",
+                    "matchedEvidence": ["phone", "location"],
+                    "matchedKeywords": ["联系我们"],
+                    "matchedPatterns": [],
+                }
+            ]
+            bundle = _bundle_payload(
+                run_id="owrun_projection_consumer_candidate",
+                raw_asset_id="owasset_contact_candidate",
+                raw_version_id="owver_contact_candidate",
+                normalized_canonical_url="https://www.example.edu/contact",
+                consumer_matches=consumer_matches,
+            )
+            _write_json(
+                record_path,
+                _handoff_record(
+                    event_id="owevt_completed_consumer_candidate",
+                    run_id="owrun_projection_consumer_candidate",
+                    site_id="campus_public",
+                    pages_normalized=1,
+                ),
+            )
+            object_store = FakeReplayObjectStore(
+                _standard_bundle_objects(
+                    bundle=bundle,
+                    page_title="联系我们",
+                    paragraph_text="办公地点：中慧楼二层，联系电话：010-68933381。",
+                    consumer_matches=consumer_matches,
+                )
+            )
+            document_registry = InMemoryDocumentRegistry()
+            raw_asset_registry = InMemoryRawAssetRegistry()
+            reporter = FakeExecutionStatusReporter()
+
+            result = consume_handoff_record(
+                record_path=record_path,
+                settings=OfficialWebHandoffConsumerSettings(
+                    inbox_dir=inbox_dir,
+                    execution_root_dir=execution_root_dir,
+                    source_bucket="campus-rag-source",
+                ),
+                object_store=object_store,
+                declarations_path=declarations_path,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                derived_object_store=object_store,
+                status_reporter=reporter,
+            )
+
+            self.assertEqual(result.status, "staged")
+            self.assertEqual(
+                len(document_registry.list_by_scope("campus_services", "contact_directory")), 0
+            )
+            self.assertEqual(object_store.put_requests, [])
+            execution_report = json.loads(
+                Path(result.execution_report_path or "").read_text(encoding="utf-8")
+            )
+            review = execution_report["consumerCandidateReview"]
+            self.assertEqual(review["counts"]["candidate_count"], 1)
+            self.assertEqual(
+                review["counts"]["by_consumer_family"], {"contact_directory_candidate": 1}
+            )
+            self.assertEqual(review["selectedWrite"]["decision"], "blocked")
+            self.assertEqual(
+                review["candidates"][0]["admission_action"],
+                "selected_write_review_required",
+            )
+            self.assertEqual(execution_report["promotion"]["decision"], "staged")
+
     def test_consume_handoff_record_promotes_when_projection_contains_mixed_promotable_and_audit_only_documents(
         self,
     ) -> None:

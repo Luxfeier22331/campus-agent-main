@@ -177,6 +177,163 @@ def build_stage_quality_report(
     }
 
 
+def build_consumer_candidate_review_report(
+    *,
+    replay_report: dict[str, object],
+) -> dict[str, object]:
+    raw_candidates = require_object_list(
+        replay_report.get("consumer_candidate_pages"),
+        "consumer_candidate_pages",
+    )
+    candidates = [
+        _build_consumer_candidate_review_entry(index=index, candidate=candidate)
+        for index, candidate in enumerate(raw_candidates, start=1)
+    ]
+    selected_write_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["admission_action"] == "selected_write_review_required"
+    ]
+    inventory_only_candidates = [
+        candidate for candidate in candidates if candidate["admission_action"] == "inventory_only"
+    ]
+    release_gate_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["admission_action"] == "release_gate_required"
+    ]
+    selected_write_ready = [
+        candidate for candidate in candidates if candidate["ready_for_selected_write"]
+    ]
+    stable_reference_documents = [
+        document
+        for document in require_object_list(replay_report.get("documents"), "documents")
+        if require_text(document.get("target_corpus"), "target_corpus") == "official_web"
+        and require_text(document.get("target_collection"), "target_collection")
+        == "stable_reference"
+    ]
+    return {
+        "schemaVersion": "official_web_consumer_candidate_review.v1",
+        "status": "pending_review" if candidates else "not_applicable",
+        "counts": {
+            "candidate_count": len(candidates),
+            "selected_write_candidate_count": len(selected_write_candidates),
+            "selected_write_ready_count": len(selected_write_ready),
+            "selected_write_blocked_count": len(selected_write_candidates)
+            - len(selected_write_ready),
+            "inventory_only_count": len(inventory_only_candidates),
+            "release_gate_candidate_count": len(release_gate_candidates),
+            "stable_reference_release_candidate_count": len(stable_reference_documents),
+            "by_consumer_family": count_by_value(
+                str(candidate["consumer_family"]) for candidate in candidates
+            ),
+            "by_materialization_policy": count_by_value(
+                str(candidate["materialization_policy"]) for candidate in candidates
+            ),
+        },
+        "selectedWrite": _build_selected_write_gate_report(
+            candidate_count=len(selected_write_candidates),
+            ready_count=len(selected_write_ready),
+        ),
+        "stableReferenceRelease": {
+            "decision": "release_gate_required" if stable_reference_documents else "not_applicable",
+            "candidate_count": len(stable_reference_documents),
+            "serving_alias_update": "not_allowed_in_consumer_denominator_recovery",
+        },
+        "candidates": candidates,
+    }
+
+
+def _build_consumer_candidate_review_entry(
+    *,
+    index: int,
+    candidate: dict[str, object],
+) -> dict[str, object]:
+    consumer_family = require_text(candidate.get("consumer_family"), "consumer_family")
+    materialization_policy = require_text(
+        candidate.get("materialization_policy"),
+        "materialization_policy",
+    )
+    selected_write_target = optional_text(candidate.get("selected_write_target"))
+    matched_evidence = normalize_string_list(candidate.get("matched_evidence"))
+    admission_action = _candidate_admission_action(
+        consumer_family=consumer_family,
+        materialization_policy=materialization_policy,
+    )
+    return {
+        "candidate_key": (
+            f"{consumer_family}:{require_text(candidate.get('raw_asset_id'), 'raw_asset_id')}:"
+            f"{require_text(candidate.get('raw_version_id'), 'raw_version_id')}:{index}"
+        ),
+        "consumer_family": consumer_family,
+        "materialization_policy": materialization_policy,
+        "selected_write_target": selected_write_target,
+        "review_policy": require_text(candidate.get("review_policy"), "review_policy"),
+        "title": require_text(candidate.get("title"), "title"),
+        "normalized_canonical_url": require_text(
+            candidate.get("normalized_canonical_url"),
+            "normalized_canonical_url",
+        ),
+        "matched_evidence": matched_evidence,
+        "source_ref": {
+            "source_channel": "official_web",
+            "raw_asset_id": require_text(candidate.get("raw_asset_id"), "raw_asset_id"),
+            "raw_version_id": require_text(candidate.get("raw_version_id"), "raw_version_id"),
+            "normalized_canonical_url": require_text(
+                candidate.get("normalized_canonical_url"),
+                "normalized_canonical_url",
+            ),
+        },
+        "review_verdict": "inventory_only"
+        if admission_action == "inventory_only"
+        else "pending_review",
+        "admission_action": admission_action,
+        "ready_for_selected_write": False,
+        "blocked_reason": _candidate_blocked_reason(admission_action),
+    }
+
+
+def _candidate_admission_action(
+    *,
+    consumer_family: str,
+    materialization_policy: str,
+) -> str:
+    if materialization_policy == "inventory_only" or consumer_family == "notice_news_candidate":
+        return "inventory_only"
+    if materialization_policy == "release_gate_required":
+        return "release_gate_required"
+    return "selected_write_review_required"
+
+
+def _candidate_blocked_reason(admission_action: str) -> str:
+    if admission_action == "inventory_only":
+        return "inventory_only_until_runtime_admission"
+    if admission_action == "release_gate_required":
+        return "release_gate_required_before_current_truth"
+    return "reviewed_extraction_required_before_selected_write"
+
+
+def _build_selected_write_gate_report(
+    *,
+    candidate_count: int,
+    ready_count: int,
+) -> dict[str, object]:
+    if candidate_count == 0:
+        return {
+            "decision": "not_applicable",
+            "ready_record_count": 0,
+            "blocked_record_count": 0,
+            "reason": "no_selected_write_candidates",
+        }
+    blocked_count = candidate_count - ready_count
+    return {
+        "decision": "dry_run_ready" if blocked_count == 0 else "blocked",
+        "ready_record_count": ready_count,
+        "blocked_record_count": blocked_count,
+        "reason": "all_candidates_reviewed" if blocked_count == 0 else "review_manifest_required",
+    }
+
+
 def build_promotion_report(
     *,
     promote_import: bool,

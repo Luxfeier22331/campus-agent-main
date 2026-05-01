@@ -305,6 +305,196 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
             )
             self.assertIsNone(documents_by_title["校园新闻"]["routing_route_id"])
 
+    def test_replay_official_web_source_truth_local_uses_consumer_matches_before_title_routing(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            stable_match = {
+                "consumerFamily": "stable_reference_candidate",
+                "ownerSurface": "official_web/stable_reference",
+                "ownerAgentOrRuntime": "rag-agent",
+                "materializationPolicy": "release_gate_required",
+                "selectedWriteTarget": "official_web/stable_reference",
+                "reviewPolicy": "release_gate_required",
+                "matchedEvidence": ["stable_reference"],
+                "matchedKeywords": ["学校简介"],
+                "matchedPatterns": [],
+            }
+            contact_match = {
+                "consumerFamily": "contact_directory_candidate",
+                "ownerSurface": "contact_directory_lookup",
+                "ownerAgentOrRuntime": "campus-services-agent",
+                "materializationPolicy": "candidate_only",
+                "selectedWriteTarget": "campus_services/contact_directory",
+                "reviewPolicy": "selected_write_requires_review",
+                "matchedEvidence": ["phone", "location"],
+                "matchedKeywords": ["联系我们"],
+                "matchedPatterns": [],
+            }
+            news_match = {
+                "consumerFamily": "notice_news_candidate",
+                "ownerSurface": "future_notice_runtime",
+                "ownerAgentOrRuntime": "notice-agent",
+                "materializationPolicy": "inventory_only",
+                "selectedWriteTarget": "",
+                "reviewPolicy": "inventory_only",
+                "matchedEvidence": ["notice_news"],
+                "matchedKeywords": ["通知"],
+                "matchedPatterns": [],
+            }
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_consumer",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_consumer_stable",
+                            raw_version_id="owver_consumer_stable",
+                            normalized_canonical_url="https://www.example.edu/intro",
+                            page_family="article_detail",
+                            consumer_matches=[stable_match],
+                        ),
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_consumer_contact",
+                            raw_version_id="owver_consumer_contact",
+                            normalized_canonical_url="https://www.example.edu/contact",
+                            page_family="article_detail",
+                            consumer_matches=[contact_match],
+                        ),
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_consumer_news",
+                            raw_version_id="owver_consumer_news",
+                            normalized_canonical_url="https://www.example.edu/news/notice",
+                            page_family="article_detail",
+                            consumer_matches=[news_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_consumer_stable",
+                raw_version_id="owver_consumer_stable",
+                normalized_canonical_url="https://www.example.edu/intro",
+                page_title="学校简介",
+                page_family="article_detail",
+                consumer_matches=[stable_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_consumer_stable",
+                        raw_version_id="owver_consumer_stable",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="学校简介",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_consumer_stable",
+                        raw_version_id="owver_consumer_stable",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="中央民族大学是一所特色鲜明的高水平大学。",
+                    ),
+                ],
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_consumer_contact",
+                raw_version_id="owver_consumer_contact",
+                normalized_canonical_url="https://www.example.edu/contact",
+                page_title="联系我们",
+                page_family="article_detail",
+                consumer_matches=[contact_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_consumer_contact",
+                        raw_version_id="owver_consumer_contact",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="联系我们",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_consumer_contact",
+                        raw_version_id="owver_consumer_contact",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="办公地点：中慧楼二层，联系电话：010-68933381。",
+                    ),
+                ],
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_consumer_news",
+                raw_version_id="owver_consumer_news",
+                normalized_canonical_url="https://www.example.edu/news/notice",
+                page_title="关于近期活动安排的通知",
+                page_family="article_detail",
+                consumer_matches=[news_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_consumer_news",
+                        raw_version_id="owver_consumer_news",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="关于近期活动安排的通知",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_consumer_news",
+                        raw_version_id="owver_consumer_news",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="活动安排以现场通知为准。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            self.assertEqual(report.counts["emitted_documents"], 1)
+            self.assertEqual(report.counts["consumer_candidate_pages"], 2)
+            self.assertEqual(report.documents[0]["target_collection"], "stable_reference")
+            self.assertEqual(
+                report.documents[0]["routing_route_id"],
+                "consumer-denominator:stable_reference_candidate",
+            )
+            candidate_families = {
+                page["consumer_family"] for page in report.consumer_candidate_pages
+            }
+            self.assertEqual(
+                candidate_families,
+                {"contact_directory_candidate", "notice_news_candidate"},
+            )
+
     def test_replay_official_web_source_truth_local_routes_fresh_news_seed_titles_to_fresh_news_scope(
         self,
     ) -> None:

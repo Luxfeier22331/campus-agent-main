@@ -101,8 +101,9 @@ def _page_bundle_entry(
     raw_version_id: str,
     normalized_canonical_url: str,
     page_family: str,
+    consumer_matches: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
-    return {
+    entry = {
         "rawAssetId": raw_asset_id,
         "rawVersionId": raw_version_id,
         "normalizedCanonicalUrl": normalized_canonical_url,
@@ -115,6 +116,10 @@ def _page_bundle_entry(
         "responseBodyHash": f"hash-{raw_asset_id}",
         "blockCount": 3,
     }
+    if consumer_matches is not None:
+        entry["consumerMatches"] = consumer_matches
+        entry["consumerRetentionDecision"] = "retain_source_truth"
+    return entry
 
 
 def _write_output_page(
@@ -130,6 +135,7 @@ def _write_output_page(
     blocks: list[dict[str, object]],
     published_at: str | None = None,
     last_modified: str | None = None,
+    consumer_matches: list[dict[str, object]] | None = None,
 ) -> None:
     base_dir = output_dir / "source-assets" / raw_asset_id / raw_version_id
     _write_json(
@@ -176,6 +182,16 @@ def _write_output_page(
             "hostPolicyVersion": "campus_public_hosts_v1",
             "crawlPolicyVersion": "campus_public_crawl_policy_v1",
             "credentialsMode": "public",
+            **(
+                {
+                    "consumerDenominatorVersion": "test_consumer_denominator_v1",
+                    "consumerMatches": consumer_matches,
+                    "consumerRetentionDecision": "retain_source_truth",
+                    "consumerRejectionReason": None,
+                }
+                if consumer_matches is not None
+                else {}
+            ),
         },
     )
     _write_jsonl(base_dir / "source-truth" / "content-blocks.jsonl", blocks)

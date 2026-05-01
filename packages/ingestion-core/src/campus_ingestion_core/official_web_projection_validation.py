@@ -10,6 +10,18 @@ from campus_ingestion_core.official_web_projection_shared import (
     _require_text,
 )
 
+_CONSUMER_CANDIDATE_FAMILIES = frozenset(
+    {
+        "contact_directory_candidate",
+        "service_guide_candidate",
+        "notice_news_candidate",
+    }
+)
+_CONSUMER_CANDIDATE_MATERIALIZATION_POLICIES = frozenset({"candidate_only", "inventory_only"})
+_SELECTED_WRITE_CANDIDATE_FAMILIES = frozenset(
+    {"contact_directory_candidate", "service_guide_candidate"}
+)
+
 
 def validate_official_web_projection_output(
     projection_output_dir: Path,
@@ -58,6 +70,18 @@ def validate_official_web_projection_output(
             }
         )
         documents = []
+    consumer_candidate_pages = report_payload.get("consumer_candidate_pages")
+    if consumer_candidate_pages is None:
+        consumer_candidate_pages = []
+    if not isinstance(consumer_candidate_pages, list):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "projection_report_consumer_candidate_pages_invalid",
+                "message": "projection report consumer_candidate_pages must be an array",
+            }
+        )
+        consumer_candidate_pages = []
 
     seen_document_ids: set[str] = set()
     for document in documents:
@@ -159,6 +183,18 @@ def validate_official_web_projection_output(
                 )
                 break
 
+    for candidate in consumer_candidate_pages:
+        if not isinstance(candidate, dict):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "consumer_candidate_invalid",
+                    "message": "consumer candidate entry must be an object",
+                }
+            )
+            continue
+        _validate_consumer_candidate(candidate=candidate, issues=issues)
+
     errors = sum(1 for issue in issues if issue["severity"] == "error")
     warnings = sum(1 for issue in issues if issue["severity"] == "warning")
     return OfficialWebProjectionValidationReport(
@@ -168,7 +204,95 @@ def validate_official_web_projection_output(
         issues=issues,
         counts={
             "documents": len(documents),
+            "consumer_candidate_pages": len(consumer_candidate_pages),
             "errors": errors,
             "warnings": warnings,
         },
     )
+
+
+def _validate_consumer_candidate(
+    *,
+    candidate: dict[str, object],
+    issues: list[dict[str, object]],
+) -> None:
+    consumer_family = _optional_text(candidate.get("consumer_family"))
+    materialization_policy = _optional_text(candidate.get("materialization_policy"))
+    selected_write_target = _optional_text(candidate.get("selected_write_target"))
+    matched_evidence = _string_list(candidate.get("matched_evidence"))
+
+    if consumer_family not in _CONSUMER_CANDIDATE_FAMILIES:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "unsupported_consumer_candidate_family",
+                "message": f"unsupported consumer candidate family: {consumer_family or '<empty>'}",
+            }
+        )
+    if materialization_policy not in _CONSUMER_CANDIDATE_MATERIALIZATION_POLICIES:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "unsupported_consumer_candidate_materialization_policy",
+                "message": (
+                    "unsupported consumer candidate materialization policy: "
+                    f"{materialization_policy or '<empty>'}"
+                ),
+            }
+        )
+    for field_name in (
+        "target_corpus",
+        "target_collection",
+        "normalized_canonical_url",
+        "raw_asset_id",
+        "raw_version_id",
+        "title",
+        "review_policy",
+    ):
+        if _optional_text(candidate.get(field_name)) is None:
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "consumer_candidate_missing_required_field",
+                    "message": f"consumer candidate missing required field: {field_name}",
+                }
+            )
+    if not matched_evidence:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_missing_matched_evidence",
+                "message": "consumer candidate must include matched_evidence",
+            }
+        )
+    if consumer_family in _SELECTED_WRITE_CANDIDATE_FAMILIES and selected_write_target is None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "consumer_candidate_missing_selected_write_target",
+                "message": (
+                    "contact/service consumer candidates must include selected_write_target"
+                ),
+            }
+        )
+    if consumer_family == "notice_news_candidate" and selected_write_target is not None:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "notice_news_candidate_must_stay_inventory_only",
+                "message": "notice/news consumer candidates must not define selected_write_target",
+            }
+        )
+
+
+def _optional_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if isinstance(item, str) and item.strip()]

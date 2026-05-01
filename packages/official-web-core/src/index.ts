@@ -39,6 +39,13 @@ export {
 export type {
 	OfficialWebConfigBundle,
 	OfficialWebConfigPaths,
+	OfficialWebConsumerDenominator,
+	OfficialWebConsumerEnforcementMode,
+	OfficialWebConsumerFamily,
+	OfficialWebConsumerFamilyRule,
+	OfficialWebConsumerMaterializationPolicy,
+	OfficialWebConsumerRejectedPolicy,
+	OfficialWebConsumerRequiredEvidence,
 	OfficialWebCrawlPlan,
 	OfficialWebCrawlPolicy,
 	OfficialWebCredentialsMode,
@@ -75,6 +82,11 @@ export {
 	defaultRepoRoot,
 	ENABLED_PUBLIC_KINDS,
 	loadOfficialWebConfig,
+	OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES,
+	OFFICIAL_WEB_CONSUMER_FAMILIES,
+	OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES,
+	OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES,
+	OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE,
 	OFFICIAL_WEB_HOST_GROUPS,
 	OFFICIAL_WEB_PROJECTION_ACTIONS,
 	OFFICIAL_WEB_RUN_INTENTS,
@@ -100,6 +112,7 @@ export {
 
 export type {
 	OfficialWebBlockRole,
+	OfficialWebConsumerMatch,
 	OfficialWebContentBlockRow,
 	OfficialWebDiscoveredLinkRecord,
 	OfficialWebPageFamily,

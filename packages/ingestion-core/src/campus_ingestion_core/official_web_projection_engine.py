@@ -85,6 +85,7 @@ def replay_official_web_source_truth_local(
     projection_output_dir.mkdir(parents=True, exist_ok=True)
     documents: list[dict[str, object]] = []
     manual_review_pages: list[dict[str, object]] = []
+    consumer_candidate_pages: list[dict[str, object]] = []
     for raw_page in pages:
         if not isinstance(raw_page, dict):
             raise ValueError("source-truth bundle page must be an object")
@@ -106,13 +107,29 @@ def replay_official_web_source_truth_local(
             ),
         )
         title = _resolve_document_title(manifest=manifest, blocks=blocks)
+        consumer_projection = _resolve_consumer_projection(
+            manifest=manifest,
+            raw_page=raw_page,
+            title=title,
+        )
+        if consumer_projection is not None and consumer_projection["action"] == "candidate":
+            consumer_candidate_pages.extend(consumer_projection["candidate_pages"])
+            continue
         matched_route = _resolve_projection_routing_route(
             routing=routing,
             declaration=declaration,
             title=title,
         )
         effective_declaration = declaration
-        if matched_route is not None:
+        consumer_routing_route_id: str | None = None
+        if consumer_projection is not None and consumer_projection["action"] == "emit_document":
+            effective_declaration = replace(
+                declaration,
+                target_corpus=str(consumer_projection["target_corpus"]),
+                target_collection=str(consumer_projection["target_collection"]),
+            )
+            consumer_routing_route_id = str(consumer_projection["routing_route_id"])
+        elif matched_route is not None:
             effective_declaration = replace(
                 declaration,
                 target_corpus=matched_route.target_corpus,
@@ -136,9 +153,8 @@ def replay_official_web_source_truth_local(
                     "raw_version_id": manifest["rawVersionId"],
                     "title": title,
                     "reason": manual_review_reason,
-                    "routing_route_id": matched_route.route_id
-                    if matched_route is not None
-                    else None,
+                    "routing_route_id": consumer_routing_route_id
+                    or (matched_route.route_id if matched_route is not None else None),
                 }
             )
             continue
@@ -148,7 +164,8 @@ def replay_official_web_source_truth_local(
             blocks=blocks,
             projection_output_dir=projection_output_dir,
             title=title,
-            routing_route_id=matched_route.route_id if matched_route is not None else None,
+            routing_route_id=consumer_routing_route_id
+            or (matched_route.route_id if matched_route is not None else None),
         )
         documents.append(document)
 
@@ -163,15 +180,119 @@ def replay_official_web_source_truth_local(
             "pages_seen": len(pages),
             "emitted_documents": len(documents),
             "manual_review_pages": len(manual_review_pages),
+            "consumer_candidate_pages": len(consumer_candidate_pages),
         },
         documents=documents,
         manual_review_pages=manual_review_pages,
+        consumer_candidate_pages=consumer_candidate_pages,
     )
     (projection_output_dir / "projection-report.json").write_text(
         json.dumps(asdict(report), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     return report
+
+
+def _resolve_consumer_projection(
+    *,
+    manifest: dict[str, object],
+    raw_page: dict[str, object],
+    title: str,
+) -> dict[str, object] | None:
+    matches = _consumer_matches(manifest) or _consumer_matches(raw_page)
+    if not matches:
+        return None
+    stable_match = _find_consumer_match(matches, "stable_reference_candidate")
+    if stable_match is not None:
+        return {
+            "action": "emit_document",
+            "target_corpus": "official_web",
+            "target_collection": "stable_reference",
+            "routing_route_id": "consumer-denominator:stable_reference_candidate",
+        }
+
+    candidate_pages: list[dict[str, object]] = []
+    for match in matches:
+        if not isinstance(match, dict):
+            continue
+        consumer_family = _require_optional_text(
+            match.get("consumerFamily") or match.get("consumer_family")
+        )
+        materialization_policy = _require_optional_text(
+            match.get("materializationPolicy") or match.get("materialization_policy")
+        )
+        if consumer_family is None or materialization_policy is None:
+            continue
+        if consumer_family == "stable_reference_candidate":
+            continue
+        target_corpus, target_collection = _target_from_consumer_match(match)
+        candidate_pages.append(
+            {
+                "consumer_family": consumer_family,
+                "materialization_policy": materialization_policy,
+                "target_corpus": target_corpus,
+                "target_collection": target_collection,
+                "normalized_canonical_url": manifest["normalizedCanonicalUrl"],
+                "raw_asset_id": manifest["rawAssetId"],
+                "raw_version_id": manifest["rawVersionId"],
+                "title": title,
+                "matched_evidence": _string_list(
+                    match.get("matchedEvidence") or match.get("matched_evidence")
+                ),
+                "selected_write_target": _require_optional_text(
+                    match.get("selectedWriteTarget") or match.get("selected_write_target")
+                )
+                or "",
+                "review_policy": _require_optional_text(
+                    match.get("reviewPolicy") or match.get("review_policy")
+                )
+                or "",
+                "reason": f"{materialization_policy} consumer denominator match",
+            }
+        )
+    if candidate_pages:
+        return {"action": "candidate", "candidate_pages": candidate_pages}
+    return None
+
+
+def _consumer_matches(payload: dict[str, object]) -> list[dict[str, object]]:
+    raw_matches = payload.get("consumerMatches") or payload.get("consumer_matches")
+    if not isinstance(raw_matches, list):
+        return []
+    return [item for item in raw_matches if isinstance(item, dict)]
+
+
+def _find_consumer_match(
+    matches: list[dict[str, object]],
+    consumer_family: str,
+) -> dict[str, object] | None:
+    for match in matches:
+        if (
+            str(match.get("consumerFamily") or match.get("consumer_family") or "")
+            == consumer_family
+        ):
+            return match
+    return None
+
+
+def _target_from_consumer_match(match: dict[str, object]) -> tuple[str, str]:
+    selected_write_target = _require_optional_text(
+        match.get("selectedWriteTarget") or match.get("selected_write_target")
+    )
+    if selected_write_target and "/" in selected_write_target:
+        corpus, collection = selected_write_target.split("/", 1)
+        if corpus and collection:
+            return corpus, collection
+    consumer_family = str(match.get("consumerFamily") or match.get("consumer_family") or "")
+    if consumer_family == "notice_news_candidate":
+        return "official_web", "fresh_news"
+    return "official_web", "muc_public_pages"
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if isinstance(item, str) and item.strip()]
 
 
 def _resolve_projection_action(

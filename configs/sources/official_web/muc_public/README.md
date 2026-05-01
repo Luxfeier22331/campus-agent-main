@@ -19,6 +19,8 @@ site.
 - `projection-routing.json`: downstream scope override truth for the first
   corpus split bootstrap; unmatched pages still fall back to the declaration
   target scope
+- `consumer-denominator.json`: downstream consumer denominator for deciding
+  which fetched pages are retained as source-truth candidates during recovery
 
 Repo-level workflow split:
 
@@ -46,10 +48,11 @@ Host rollout split:
 
 Current scheduler lanes:
 
-- `university-core-hot`: enabled `hot` lane for `university_core` homepage,
-  news, and information disclosure surfaces.
-- `university-core-baseline`: enabled daily `baseline` lane for the school-level
-  core/support surfaces.
+- `consumer-candidate-hot`: enabled bounded `hot` lane for contact, service
+  guide, and stable-reference candidates on university-level surfaces.
+- `consumer-stable-baseline`: enabled daily `baseline` lane for school-level
+  core/support consumer candidates. Broad news crawl is not part of default
+  recovery.
 - `college-single-host-baseline`: disabled lane template for operator-triggered
   one-college validation; pass exactly one explicit `--host`.
 - `topic-single-host-baseline`: disabled lane template for operator-triggered
@@ -59,6 +62,16 @@ Current scheduler lanes:
 
 The split is a source-layer crawl control mechanism only. It does not open
 `fresh_news`, `news_archive`, or any college-specific query-serving surface.
+
+Consumer-denominator recovery is stricter than host admission:
+
+- fetched pages without downstream consumer evidence are rejected from retained
+  source-truth in `retain_matching_only` mode
+- listing pages are discovery by default, not answer-bearing evidence
+- contact/service candidates require extracted fact evidence before selected
+  write
+- notice/news candidates remain `inventory_only` until a separate runtime
+  opening admits them
 
 Current v1 declarations stay inside the existing quality-improvement scope:
 

@@ -50,6 +50,7 @@ from campus_ingestion_worker.official_web_handoff_consumer_models import (
     OfficialWebSourceObjectStore,
 )
 from campus_ingestion_worker.official_web_handoff_consumer_reporting import (
+    build_consumer_candidate_review_report,
     build_promotion_blocked_message,
     build_promotion_report,
     build_stage_quality_report,
@@ -300,12 +301,16 @@ def consume_handoff_record(
             replay_report=asdict(replay_report),
             chunk_audit_report=asdict(chunk_audit_report),
         )
+        consumer_candidate_review_report = build_consumer_candidate_review_report(
+            replay_report=asdict(replay_report),
+        )
         promotion_report = build_promotion_report(
             promote_import=settings.promote_import,
             coverage_report=coverage_report,
         )
         execution_report["chunkAudit"] = asdict(chunk_audit_report)
         execution_report["coverage"] = coverage_report
+        execution_report["consumerCandidateReview"] = consumer_candidate_review_report
         execution_report["promotion"] = promotion_report
         if not settings.promote_import or not promotion_report["eligible"]:
             staged_error = None

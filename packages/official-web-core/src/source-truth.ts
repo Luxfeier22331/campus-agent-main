@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 
 import {
 	OFFICIAL_WEB_SOURCE_CHANNEL,
+	type OfficialWebConsumerFamily,
+	type OfficialWebConsumerMaterializationPolicy,
+	type OfficialWebConsumerRequiredEvidence,
 	type OfficialWebCredentialsMode,
 	type OfficialWebDiscoveryMethod,
 } from "./config.ts";
@@ -57,6 +60,18 @@ export interface OfficialWebPageSignalSummary {
 	dynamicShellSignal: boolean;
 }
 
+export interface OfficialWebConsumerMatch {
+	consumerFamily: OfficialWebConsumerFamily;
+	ownerSurface: string;
+	ownerAgentOrRuntime: string;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	selectedWriteTarget: string;
+	reviewPolicy: string;
+	matchedEvidence: OfficialWebConsumerRequiredEvidence[];
+	matchedKeywords: string[];
+	matchedPatterns: string[];
+}
+
 export interface OfficialWebPageManifest {
 	schemaVersion: "official_web_page_manifest.v1";
 	sourceChannel: typeof OFFICIAL_WEB_SOURCE_CHANNEL;
@@ -99,6 +114,10 @@ export interface OfficialWebPageManifest {
 	hostPolicyVersion: string;
 	crawlPolicyVersion: string;
 	credentialsMode: OfficialWebCredentialsMode;
+	consumerDenominatorVersion?: string;
+	consumerMatches?: OfficialWebConsumerMatch[];
+	consumerRetentionDecision?: "retain_source_truth" | "discovery_only" | "reject";
+	consumerRejectionReason?: string | null;
 }
 
 export interface OfficialWebContentBlockRow {
@@ -197,6 +216,9 @@ export interface OfficialWebSourceTruthBundlePage {
 	responseHtmlObjectKey: string;
 	responseBodyHash: string;
 	blockCount: number;
+	consumerMatches?: OfficialWebConsumerMatch[];
+	consumerRetentionDecision?: "retain_source_truth" | "discovery_only" | "reject";
+	consumerRejectionReason?: string | null;
 }
 
 export interface OfficialWebSourceTruthBundle {

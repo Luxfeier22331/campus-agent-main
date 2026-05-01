@@ -20,6 +20,7 @@ import {
 export type { ResolvedCollectorCrawlMainInput } from "./crawl-cli.ts";
 export { resolveCollectorCrawlMainInput } from "./crawl-cli.ts";
 
+import { applyOfficialWebConsumerDenominator } from "./consumer-denominator.ts";
 import type {
 	OfficialWebControlPlaneClient,
 	OfficialWebTerminalStatus,
@@ -217,19 +218,30 @@ export async function crawlSite(
 						reportProgress,
 					});
 		const dedupedPages = dedupeCollectedPages(aggregatedResults.pages);
+		const consumerGate = applyOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			pages: dedupedPages,
+		});
+		const retainedObservationUrls = new Set(
+			consumerGate.retainedPages.map((page) => page.pageManifest.normalizedCanonicalUrl),
+		);
 		const dedupedPageObservations = dedupePageObservations(
 			(aggregatedResults.pageObservations?.length ?? 0) > 0
-				? (aggregatedResults.pageObservations ?? [])
+				? (aggregatedResults.pageObservations ?? []).filter((observation) =>
+						observation.disposition === "fetched"
+							? retainedObservationUrls.has(observation.normalizedCanonicalUrl)
+							: true,
+					)
 				: buildPageObservations({
 						siteId: plan.siteId,
 						crawlRunId: plan.crawlRunId,
 						runIntent: plan.runIntent,
-						pages: dedupedPages,
+						pages: consumerGate.retainedPages,
 					}),
 		);
 		const normalizedResults: CollectorAggregatedResults = {
 			...aggregatedResults,
-			pages: dedupedPages,
+			pages: consumerGate.retainedPages,
 			pageObservations: dedupedPageObservations,
 		};
 		latestPages = normalizedResults.pages;
@@ -257,6 +269,7 @@ export async function crawlSite(
 				failures: normalizedResults.failures.length,
 				hostsPlanned: selectedHosts.length,
 				hostsCompleted: normalizedResults.hostSummaries.length,
+				consumerDenominator: consumerGate.summary,
 			},
 		});
 		const sourceTruthBundle = buildRunSourceTruthBundle(

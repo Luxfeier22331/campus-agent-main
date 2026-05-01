@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-19
+updated: 2026-05-01
 ---
 # Official Web Architecture
 
@@ -52,9 +52,40 @@ ingestion-worker -> document/chunk/index`
 - `official_web` 是一级 `source_channel`，不是某个 collection 私有脚本
 - crawl scope 的长期规则留在 policy 文档
 - page-level source-truth schema 留在 contract 文档
+- recovery 阶段默认使用 repo-tracked consumer denominator 决定 retained
+  source-truth；host/page allowlist 只说明“可以抓”，不等于“应该进入下游消费”
 - downstream serving / retrieval 继续只消费 document / chunk / registry truth
 - downloaded file-like assets 不属于 page-level source-truth parser 的长期 owner；如果
   downstream 要消费它们，必须进入 shared file asset loader contract
+
+## Consumer-Denominator Recovery
+
+official-web recovery 的当前默认形态是 consumer-driven collection。
+
+配置入口：
+
+- `configs/sources/official_web/muc_public/consumer-denominator.json`
+
+允许的 retained consumer families：
+
+- `contact_directory_candidate`：只进入 contact directory selected-write candidate；
+  需要 review 或 deterministic extraction 后才可写 current read model
+- `service_guide_candidate`：只进入 service guide selected-write candidate；需要
+  review 或 deterministic extraction 后才可写 current read model
+- `stable_reference_candidate`：只进入 `official_web/stable_reference` release gate
+- `notice_news_candidate`：只保留 inventory-only evidence；不得打开
+  `fresh_news`、`news_archive` 或 notice/news runtime
+
+边界：
+
+- collector 只能附加 consumer match metadata 和 retained/rejected counters，不直接写
+  downstream read model
+- ingestion staging 负责 replay、candidate review report、selected-write dry-run
+  gate 与 no-promotion proof
+- selected write 必须有 source refs、matched evidence、review verdict 或等价的
+  deterministic extraction evidence
+- listing pages 默认只作 discovery；除非自身命中 stable/contact/service denominator，否则不作为
+  answer-bearing source-truth
 
 ## Policy And Contract Split
 

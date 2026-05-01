@@ -23,6 +23,33 @@ export const ALLOWED_DISCOVERY_METHODS = [
 ] as const;
 export const OFFICIAL_WEB_RUN_INTENTS = ["baseline", "hot", "repair"] as const;
 export const OFFICIAL_WEB_PROJECTION_ACTIONS = ["emit_document", "manual_review"] as const;
+export const OFFICIAL_WEB_CONSUMER_FAMILIES = [
+	"contact_directory_candidate",
+	"service_guide_candidate",
+	"stable_reference_candidate",
+	"notice_news_candidate",
+] as const;
+export const OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES = [
+	"candidate_only",
+	"release_gate_required",
+	"inventory_only",
+] as const;
+export const OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE = [
+	"phone",
+	"email",
+	"location",
+	"office_hours",
+	"service_process",
+	"service_entry",
+	"service_material",
+	"stable_reference",
+	"notice_news",
+] as const;
+export const OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES = ["reject"] as const;
+export const OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES = [
+	"audit_only",
+	"retain_matching_only",
+] as const;
 export const OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES = [
 	"article_detail",
 	"listing_page",
@@ -46,6 +73,15 @@ export type OfficialWebCredentialsMode = (typeof ALLOWED_CREDENTIALS_MODES)[numb
 export type OfficialWebDiscoveryMethod = (typeof ALLOWED_DISCOVERY_METHODS)[number];
 export type OfficialWebRunIntent = (typeof OFFICIAL_WEB_RUN_INTENTS)[number];
 export type OfficialWebProjectionAction = (typeof OFFICIAL_WEB_PROJECTION_ACTIONS)[number];
+export type OfficialWebConsumerFamily = (typeof OFFICIAL_WEB_CONSUMER_FAMILIES)[number];
+export type OfficialWebConsumerMaterializationPolicy =
+	(typeof OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES)[number];
+export type OfficialWebConsumerRequiredEvidence =
+	(typeof OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE)[number];
+export type OfficialWebConsumerRejectedPolicy =
+	(typeof OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES)[number];
+export type OfficialWebConsumerEnforcementMode =
+	(typeof OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES)[number];
 export type OfficialWebDeclarablePageFamily =
 	(typeof OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES)[number];
 
@@ -178,6 +214,30 @@ export interface OfficialWebProjectionDeclarations {
 	declarations: OfficialWebProjectionDeclaration[];
 }
 
+export interface OfficialWebConsumerFamilyRule {
+	consumerFamily: OfficialWebConsumerFamily;
+	ownerSurface: string;
+	ownerAgentOrRuntime: string;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	pageFamilies: OfficialWebDeclarablePageFamily[];
+	titleKeywords: string[];
+	pathPatterns: string[];
+	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	negativePatterns: string[];
+	selectedWriteTarget: string;
+	reviewPolicy: string;
+}
+
+export interface OfficialWebConsumerDenominator {
+	schemaVersion: string;
+	siteId: string;
+	denominatorVersion: string;
+	enforcementMode: OfficialWebConsumerEnforcementMode;
+	defaultRejectedPolicy: OfficialWebConsumerRejectedPolicy;
+	consumerFamilies: OfficialWebConsumerFamilyRule[];
+	reportingCounters: string[];
+}
+
 export interface OfficialWebQcHostOverride {
 	host: string;
 	allowedReviewIssueCodes: string[];
@@ -221,6 +281,7 @@ export interface OfficialWebConfigPaths {
 	crawlPolicyPath: string;
 	credentialsSchemaPath: string;
 	projectionDeclarationsPath: string;
+	consumerDenominatorPath: string;
 	schedulerPolicyPath: string;
 	qcPolicyPath: string;
 }
@@ -233,6 +294,7 @@ export interface OfficialWebConfigBundle {
 	crawlPolicy: OfficialWebCrawlPolicy;
 	credentialsSchema: OfficialWebCredentialsSchema;
 	projectionDeclarations: OfficialWebProjectionDeclarations;
+	consumerDenominator: OfficialWebConsumerDenominator;
 	schedulerPolicy: OfficialWebSchedulerPolicy;
 	qcPolicy: OfficialWebQcPolicy;
 }

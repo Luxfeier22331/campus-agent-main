@@ -127,6 +127,14 @@ export interface OfficialWebCrawlRunRecord {
 		failures: number;
 		hostsPlanned: number;
 		hostsCompleted: number;
+		consumerDenominator?: {
+			fetchedPages: number;
+			retainedSourceTruthPages: number;
+			discoveryOnlyPages: number;
+			rejectedPages: number;
+			consumerFamilyCounts: Record<string, number>;
+			rejectedReasonCounts: Record<string, number>;
+		};
 	};
 }
 

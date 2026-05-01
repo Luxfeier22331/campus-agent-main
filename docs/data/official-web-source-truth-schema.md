@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-12
+updated: 2026-05-01
 ---
 # Official Web Source-Truth Schema
 
@@ -57,6 +57,8 @@ upstream，而不是让 downstream 永远依赖某个 parser 的原始输出或�
   source-level hints 保留，用于批次审计与 projection 选择，但它们不是 chunk / retrieval contract。
 - page freshness、crawl cadence、lane priority 与 downstream dispatch status 不属于
   source-truth schema；它们属于 control-plane truth。
+- consumer-denominator metadata 是 recovery/admission hint，只说明本页为何被 retained；
+  它不是 current read-model truth，也不是 serving alias truth。
 
 ## Canonical 形态
 
@@ -225,6 +227,23 @@ source-truth pipeline:
 - `host_policy_version`
 - `crawl_policy_version`
 - `credentials_mode`
+
+### E. Consumer-Denominator Recovery Hints
+
+当 collector 运行在 consumer-denominator recovery 模式时，`page-manifest.json` 可以包含：
+
+- `consumer_denominator_version`
+- `consumer_matches`
+- `consumer_retention_decision`
+- `consumer_rejection_reason`
+
+这些字段只属于 source-level recovery hint：
+
+- `consumer_matches` 记录命中的 downstream candidate family、owner surface、materialization
+  policy、matched evidence、selected write target 与 review policy
+- `consumer_retention_decision` 允许 `retain_source_truth`、`discovery_only`、`reject`
+- `consumer_rejection_reason` 只用于 run audit 与 rule tuning
+- 下游是否写 current read model 由 ingestion selected-write/release gate 决定，不由这些字段直接决定
 
 `discovery_method` 允许值固定为：
 

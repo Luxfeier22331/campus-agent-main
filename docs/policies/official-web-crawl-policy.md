@@ -2,7 +2,7 @@
 doc_type: policy
 status: active
 created: 2026-03-28
-updated: 2026-04-10
+updated: 2026-05-01
 ---
 # Official Web Crawl Policy
 
@@ -58,6 +58,11 @@ admission、robots/sitemap、frontier、重试与节流 policy。
 - host-level policy
 - seed-level policy
 - run-level limits
+- consumer-denominator retention policy
+
+前四层回答 URL 能否进入 crawl frontier；consumer-denominator retention policy 回答 fetched
+page 是否值得 retained 为 source-truth candidate。二者不得合并：允许 crawl 不等于允许进入
+downstream candidate。
 
 ### Site-level policy
 
@@ -114,6 +119,9 @@ host-level policy 负责冻结：
 - path 不命中 deny rules
 - robots 允许抓取
 - URL 通过 query parameter policy
+
+即使命中这些条件，页面仍必须经过 consumer-denominator retention gate，才能进入 retained
+source-truth candidate。
 
 ### 拒绝规则
 

@@ -417,3 +417,52 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
             self.assertTrue(
                 any(issue["code"] == "missing_document_units" for issue in validation.issues)
             )
+
+    def test_validate_official_web_projection_output_reports_invalid_consumer_candidate(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            projection_dir = Path(temp_dir) / "projection-output"
+            _write_json(
+                projection_dir / "projection-report.json",
+                {
+                    "schema_version": "official_web_projection_replay_report.v1",
+                    "site_id": "campus_public",
+                    "crawl_run_id": "owrun_projection_candidate_invalid",
+                    "output_dir": str(Path(temp_dir) / "collector-output"),
+                    "projection_output_dir": str(projection_dir),
+                    "generated_at": "2026-05-01T09:00:00+00:00",
+                    "counts": {
+                        "pages_seen": 1,
+                        "emitted_documents": 0,
+                        "manual_review_pages": 0,
+                        "consumer_candidate_pages": 1,
+                    },
+                    "documents": [],
+                    "manual_review_pages": [],
+                    "consumer_candidate_pages": [
+                        {
+                            "consumer_family": "contact_directory_candidate",
+                            "materialization_policy": "candidate_only",
+                            "target_corpus": "campus_services",
+                            "target_collection": "contact_directory",
+                            "normalized_canonical_url": "https://www.example.edu/contact",
+                            "raw_asset_id": "owasset_contact",
+                            "raw_version_id": "owver_contact",
+                            "title": "联系我们",
+                            "matched_evidence": [],
+                            "selected_write_target": "",
+                            "review_policy": "selected_write_requires_review",
+                            "reason": "candidate_only consumer denominator match",
+                        }
+                    ],
+                },
+            )
+
+            validation = validate_official_web_projection_output(projection_dir)
+
+            self.assertFalse(validation.valid)
+            self.assertEqual(validation.counts["consumer_candidate_pages"], 1)
+            issue_codes = {issue["code"] for issue in validation.issues}
+            self.assertIn("consumer_candidate_missing_matched_evidence", issue_codes)
+            self.assertIn("consumer_candidate_missing_selected_write_target", issue_codes)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -84,6 +84,7 @@ class OfficialWebProjectionReplayReport:
     counts: dict[str, int]
     documents: list[dict[str, object]]
     manual_review_pages: list[dict[str, object]]
+    consumer_candidate_pages: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

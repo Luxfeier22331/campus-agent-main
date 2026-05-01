@@ -56,6 +56,7 @@ export function resolveOfficialWebConfigPaths(
 		crawlPolicyPath: resolve(siteRoot, "crawl-policy.json"),
 		credentialsSchemaPath: resolve(siteRoot, "credentials.schema.json"),
 		projectionDeclarationsPath: resolve(siteRoot, "projection-declarations.json"),
+		consumerDenominatorPath: resolve(siteRoot, "consumer-denominator.json"),
 		schedulerPolicyPath: resolve(siteRoot, "scheduler-policy.json"),
 		qcPolicyPath: resolve(siteRoot, "qc-policy.json"),
 	};

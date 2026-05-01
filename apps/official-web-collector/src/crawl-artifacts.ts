@@ -195,6 +195,9 @@ export function buildRunSourceTruthBundle(
 			responseHtmlObjectKey: findPageFileObjectKey(page, "capture/response.html"),
 			responseBodyHash: page.pageManifest.responseBodyHash,
 			blockCount: page.contentBlocks.length,
+			consumerMatches: page.pageManifest.consumerMatches ?? [],
+			consumerRetentionDecision: page.pageManifest.consumerRetentionDecision,
+			consumerRejectionReason: page.pageManifest.consumerRejectionReason ?? null,
 		})),
 	});
 }

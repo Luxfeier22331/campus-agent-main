@@ -5,30 +5,29 @@
 	"timezone": "Asia/Shanghai",
 	"lanes": [
 		{
-			"lane_id": "university-core-hot",
+			"lane_id": "consumer-candidate-hot",
 			"enabled": true,
 			"run_intent": "hot",
 			"cadence_minutes": 30,
-			"host_filter": ["www.muc.edu.cn", "news.muc.edu.cn", "xxgk.muc.edu.cn"],
+			"host_filter": ["www.muc.edu.cn", "xxgk.muc.edu.cn"],
 			"max_pages_per_host": 20,
-			"max_total_pages": 80,
-			"notes": "High-frequency refresh for university-core homepage, news, and information disclosure surfaces."
+			"max_total_pages": 40,
+			"notes": "Bounded consumer-candidate refresh for contact, service guide, and stable reference surfaces; news pages remain inventory-only until notice/news runtime admission."
 		},
 		{
-			"lane_id": "university-core-baseline",
+			"lane_id": "consumer-stable-baseline",
 			"enabled": true,
 			"run_intent": "baseline",
 			"cadence_minutes": 1440,
 			"host_filter": [
 				"www.muc.edu.cn",
-				"news.muc.edu.cn",
 				"xxgk.muc.edu.cn",
 				"lib.muc.edu.cn",
 				"xiaoyou.muc.edu.cn"
 			],
 			"max_pages_per_host": 40,
-			"max_total_pages": 220,
-			"notes": "Daily university-level baseline crawl before college and topic rollout."
+			"max_total_pages": 160,
+			"notes": "Daily bounded baseline for university-level consumer candidates; broad news crawl is not part of default recovery."
 		},
 		{
 			"lane_id": "college-single-host-baseline",
