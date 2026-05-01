@@ -104,6 +104,11 @@ const STATIC_PROXY_ROUTES = [
 		targetPath: "/api/operator/authenticated-notices/processing",
 	},
 	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		path: "/api/authenticated-notices/run-processing",
+		targetPath: "/api/operator/authenticated-notices/run-processing",
+	},
+	{
 		identityMessage: REQUEST_IDENTITY_MESSAGE,
 		path: "/api/requests",
 		targetPath: "/api/operator/requests",
@@ -140,6 +145,11 @@ const PREFIX_PROXY_ROUTES = [
 		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
 		prefix: "/api/authenticated-notices/processing/",
 		targetPrefix: "/api/operator/authenticated-notices/processing/",
+	},
+	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		prefix: "/api/authenticated-notices/run-processing/",
+		targetPrefix: "/api/operator/authenticated-notices/run-processing/",
 	},
 	{
 		identityMessage: REQUEST_IDENTITY_MESSAGE,

@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -20,15 +20,19 @@ The target user question is:
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 6 real-environment closeout`
-- phases complete: `6 / 7 complete for implementation and selected schedule notice acceptance; non-schedule real sample and final gates remain`
+- status: `completed`
+- current phase: `Phase 6 real-environment closeout completed`
+- phases complete: `7 / 7 complete for implementation, selected schedule notice acceptance, non-schedule service-status acceptance and operator projection visibility`
 - Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 and Phase 7 implementation
   deliverables are present in current worktree.
 - Phase 6 selected schedule notice smoke passed in the real local
   Postgres/object-store environment for notice `355867`.
-- Remaining Phase 6 parity is a non-schedule authenticated notice sample if the
-  full roadmap acceptance bar is required before closeout.
+- Phase 6 non-schedule parity passed for service-status notice `355650`
+  (`关于静园10号楼负一层女浴室试运行的通知`) through the app-api internal
+  processing snapshot ingest seam and operator list/detail projection.
+- Post-closeout coverage audit confirmed strict per-notice projection diff is
+  `0`; collector-run-level rows are covered by the separate run-processing
+  projection and panel resource.
 - created from observed gap after validating notice `355867`
   (`关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知`) reached
   `transport_schedule_lookup` consumption.

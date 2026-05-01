@@ -191,6 +191,11 @@ function ProtectedPanelMenu() {
 				to="/authenticatedNoticeProcessing"
 			/>
 			<RaMenu.Item
+				leftIcon={<PendingActionsOutlinedIcon />}
+				primaryText={PANEL_COPY.menu.authenticatedNoticeRunProcessing}
+				to="/authenticatedNoticeRunProcessing"
+			/>
+			<RaMenu.Item
 				leftIcon={<LanguageOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.officialWebSites}
 				to="/officialWebSites"

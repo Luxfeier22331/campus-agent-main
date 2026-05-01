@@ -208,6 +208,59 @@ export function registerOperatorRoutes(input: {
 		});
 	});
 
+	input.app.get("/api/operator/authenticated-notices/run-processing", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveAuthenticatedNoticeRunProcessingQueryService().list({
+				filters: {
+					collectorRunToken: c.req.query("collectorRunToken") ?? null,
+					cursor: c.req.query("cursor") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					q: c.req.query("q") ?? null,
+					queueStatus: c.req.query("queueStatus") ?? null,
+					replayBatchId: c.req.query("replayBatchId") ?? null,
+					runId: c.req.query("runId") ?? null,
+					siteId: c.req.query("siteId") ?? null,
+					sourceSurface: c.req.query("sourceSurface") ?? null,
+					status: c.req.query("status") ?? null,
+					updatedAfter: c.req.query("updatedAfter") ?? null,
+					updatedBefore: c.req.query("updatedBefore") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.get("/api/operator/authenticated-notices/run-processing/:id", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse({
+			run: await scope.resolveAuthenticatedNoticeRunProcessingQueryService().getById({
+				id: c.req.param("id"),
+				principal: resolved.principal,
+			}),
+		});
+	});
+
 	input.app.get("/api/operator/intent/timeseries", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

@@ -47,6 +47,16 @@ class ConsumeAuthenticatedNoticeIngestQueueWorkerTest(unittest.TestCase):
                 ),
                 patch(
                     "campus_ingestion_worker.consume_authenticated_notice_ingest_queue."
+                    "build_processing_projection_reporter_from_env",
+                    return_value="notice-reporter",
+                ),
+                patch(
+                    "campus_ingestion_worker.consume_authenticated_notice_ingest_queue."
+                    "build_run_processing_projection_reporter_from_env",
+                    return_value="run-reporter",
+                ),
+                patch(
+                    "campus_ingestion_worker.consume_authenticated_notice_ingest_queue."
                     "consume_authenticated_notice_ingest_queue",
                     return_value=result,
                 ) as consume,
@@ -73,6 +83,8 @@ class ConsumeAuthenticatedNoticeIngestQueueWorkerTest(unittest.TestCase):
             self.assertEqual(kwargs["site_id"], "muc_internal_portal")
             self.assertEqual(kwargs["source_home_url"], "https://my.muc.edu.cn")
             self.assertTrue(kwargs["require_media_gate"])
+            self.assertEqual(kwargs["processing_projection_reporter"], "notice-reporter")
+            self.assertEqual(kwargs["run_processing_projection_reporter"], "run-reporter")
             self.assertIs(
                 kwargs["typed_downstream_materializer"],
                 worker.materialize_authenticated_notice_typed_downstream,

@@ -6,9 +6,12 @@ const LIFECYCLE_LABELS: Record<string, string> = {
 	imported: "已导入",
 	manual_review: "人工复核",
 	materialized: "已物化",
+	mixed_terminal: "混合终态",
 	queued: "已入队",
 	succeeded: "队列成功",
 	tool_ready: "工具可用",
+	active: "处理中",
+	cancelled: "已取消",
 };
 
 const QUEUE_LABELS: Record<string, string> = {
@@ -19,6 +22,7 @@ const QUEUE_LABELS: Record<string, string> = {
 	manual_review: "人工复核",
 	queued: "已入队",
 	succeeded: "已成功",
+	cancelled: "已取消",
 };
 
 const CANDIDATE_KIND_LABELS: Record<string, string> = {
@@ -35,6 +39,7 @@ const FRESHNESS_LABELS: Record<string, string> = {
 
 const STALE_REASON_LABELS: Record<string, string> = {
 	active_processing_observation_overdue: "活跃处理超过观测窗口未更新",
+	active_run_processing_observation_overdue: "活跃运行超过观测窗口未更新",
 	last_observed_at_missing: "缺少最近观测时间",
 };
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -35,6 +35,13 @@ from campus_ingestion_core.authenticated_notice_processing_projection import (
 from campus_ingestion_core.authenticated_notice_processor_profiles import (
     get_processor_profile,
     profile_retry_budget,
+)
+from campus_ingestion_core.authenticated_notice_run_processing_projection import (
+    DEFAULT_PRODUCER_VERSION as DEFAULT_AUTHENTICATED_NOTICE_RUN_PROCESSING_PROJECTION_PRODUCER_VERSION,
+)
+from campus_ingestion_core.authenticated_notice_run_processing_projection import (
+    AuthenticatedNoticeRunProcessingProjectionReporter,
+    build_authenticated_notice_run_processing_snapshots,
 )
 from campus_ingestion_core.authenticated_notice_run_queue_consumer_support import (
     AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_FAILED_REPORT_SCHEMA_VERSION,
@@ -232,6 +239,12 @@ def consume_authenticated_notice_ingest_queue(
     processing_projection_producer_version: str = (
         DEFAULT_AUTHENTICATED_NOTICE_PROCESSING_PROJECTION_PRODUCER_VERSION
     ),
+    run_processing_projection_reporter: (
+        AuthenticatedNoticeRunProcessingProjectionReporter | None
+    ) = None,
+    run_processing_projection_producer_version: str = (
+        DEFAULT_AUTHENTICATED_NOTICE_RUN_PROCESSING_PROJECTION_PRODUCER_VERSION
+    ),
     generated_by: str = "campus_ingestion_worker.consume_authenticated_notice_ingest_queue",
 ) -> AuthenticatedNoticeRunQueueConsumeResult:
     normalized_mode = _normalize_mode(mode)
@@ -254,6 +267,7 @@ def consume_authenticated_notice_ingest_queue(
     source = dict(env or {})
     generated_at = utc_now()
     trace_rows: list[dict[str, Any]] = []
+    run_projection_records = []
     failed_items: list[dict[str, Any]] = []
     completed_count = 0
     imported_count = 0
@@ -712,7 +726,16 @@ def consume_authenticated_notice_ingest_queue(
             trace_row=trace_row,
             producer_version=processing_projection_producer_version,
         )
+        run_projection_records.append(_record_for_run_processing_projection(record, trace_row))
         trace_rows.append(trace_row)
+
+    _report_run_processing_projection(
+        reporter=run_processing_projection_reporter,
+        records=tuple(run_projection_records),
+        trace_rows=tuple(trace_rows),
+        producer_version=run_processing_projection_producer_version,
+        trace_rows_out=trace_rows,
+    )
 
     counts = {
         "leased_count": len(trace_rows),
@@ -822,6 +845,71 @@ def _report_processing_projection(
         }
 
 
+def _report_run_processing_projection(
+    *,
+    reporter: AuthenticatedNoticeRunProcessingProjectionReporter | None,
+    records: Sequence[Any],
+    trace_rows: Sequence[Mapping[str, Any]],
+    producer_version: str,
+    trace_rows_out: Sequence[dict[str, Any]],
+) -> None:
+    if reporter is None or not records:
+        return
+    projected_at = utc_now()
+    snapshots = build_authenticated_notice_run_processing_snapshots(
+        records=records,
+        trace_rows=trace_rows,
+        projected_at=projected_at,
+        producer_version=producer_version,
+    )
+    if not snapshots:
+        for trace_row in trace_rows_out:
+            trace_row["run_processing_projection_report"] = {
+                "status": "skipped",
+                "reason": "no_run_snapshot",
+            }
+        return
+    try:
+        reporter.report(snapshots=snapshots)
+        for trace_row in trace_rows_out:
+            trace_row["run_processing_projection_report"] = {
+                "status": "reported",
+                "snapshot_count": len(snapshots),
+                "projected_at": projected_at,
+            }
+    except Exception as exc:
+        for trace_row in trace_rows_out:
+            trace_row["run_processing_projection_report"] = {
+                "status": "failed",
+                "snapshot_count": len(snapshots),
+                "error_message": str(exc),
+            }
+
+
+def _record_for_run_processing_projection(record, trace_row: Mapping[str, Any]):
+    trace_status = str(trace_row.get("status") or "").strip()
+    status = (
+        "succeeded"
+        if trace_status == "completed"
+        else trace_status
+        if trace_status in {"failed_retryable", "failed_terminal", "manual_review", "dead_letter"}
+        else record.status
+    )
+    return replace(
+        record,
+        status=status,
+        last_error_code=_optional_text(trace_row.get("error_code")) or record.last_error_code,
+        last_error_message=(
+            _optional_text(trace_row.get("error_message")) or record.last_error_message
+        ),
+    )
+
+
+def _optional_text(value: object) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
 __all__ = [
     "AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_FAILED_REPORT_SCHEMA_VERSION",
     "AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_SCHEMA_VERSION",
@@ -830,6 +918,7 @@ __all__ = [
     "DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID",
     "DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS",
     "AuthenticatedNoticeProcessingProjectionReporter",
+    "AuthenticatedNoticeRunProcessingProjectionReporter",
     "AuthenticatedNoticeRunQueueConsumeResult",
     "AuthenticatedNoticeRunQueueImportCallable",
     "AuthenticatedNoticeTypedDownstreamMaterializer",

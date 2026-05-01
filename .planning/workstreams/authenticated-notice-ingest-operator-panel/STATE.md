@@ -10,14 +10,14 @@ updated: 2026-05-01
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 6 real-environment closeout
+**Status:** Completed
+**Current Phase:** Phase 6 real-environment closeout completed
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Ran real Postgres/object-store selected-notice smoke for notice `355867` through queue consume, downstream materialization, app-api processing projection, and app-api operator detail query.
+**Last Activity Description:** Added non-schedule service-status notice `355650` to the app-api operator-safe processing projection and verified operator list/detail readback alongside the existing `355867` schedule sample.
 
 ## Progress
 
-**Phases Complete:** 6 / 7 complete for implementation and selected schedule notice acceptance; non-schedule real sample and final repository gates remain
+**Phases Complete:** 7 / 7 complete for implementation, selected schedule notice acceptance, non-schedule service-status acceptance and operator projection visibility
 **Current Plan:** `ROADMAP.md`
 
 ## Context
@@ -49,13 +49,21 @@ operator-safe projection and protected-panel surface.
   materialization `completed`, processing projection `reported`,
   `candidateKind=transport_schedule`, `targetSurface=campus_services`,
   `toolReady=true`, `scheduledDepartures=49`, and `rejectedSources=0`.
+- Phase 6 non-schedule authenticated notice acceptance: service-status notice
+  `355650` passed through app-api internal processing snapshot ingest and
+  operator list/detail readback with `queueStatus=succeeded`,
+  `lifecycleStatus=tool_ready`, `candidateKind=service_status`,
+  `targetSurface=campus_services`, `toolReady=true`,
+  `serviceStatusRecords=1`, and `rejectedSources=0`.
 - Phase 7: freshness/staleness policy, panel display, smoke blocked/failure
   evidence, and operator runbook.
+- Post-closeout projection coverage audit: strict notice-id diff is `0`.
+  Remaining unmatched queue jobs are older attempts for `355867` or
+  collector-run-scoped rows such as `20260428T181953007Z`, which are covered by
+  a separate run-processing projection rather than per-notice projection rows.
 
 ## Remaining Gaps
 
-- Phase 6 still needs at least one non-schedule authenticated notice real sample
-  if strict roadmap parity is required.
 - The real-environment attempt exposed and fixed the runbook/CLI gap for
   generating current-schema consumer admission manifests from verified collector
   runs. Legacy `entries` manifests are incompatible with the current consumer.
@@ -64,21 +72,29 @@ operator-safe projection and protected-panel surface.
   the canonical `0027` SQL for this acceptance run, but the local ledger drift
   should be reconciled before using `pnpm --dir apps/app-api db:migrate` as a
   clean local gate.
-- Repository-wide lint/typecheck/build gates still need final execution before
-  commit/merge.
+- Repository-wide lint/build gates remain outside this closeout because the
+  current worktree also contains unrelated official-web dirty files.
+- Run-level collector/queue visibility is implemented as
+  `authenticated_notice_run_processing_projection` plus the protected-panel
+  run-processing resource; it remains separate from the per-notice projection.
 
 ## Next Slice
 
-Finish the remaining Phase 6 closeout slice: run or select a non-schedule real
-notice acceptance sample, then run final targeted and repository gates.
+No next implementation slice remains for this workstream. Future work should
+only reopen it if the app-api owned authenticated-notice processing projection,
+protected-panel read path, or schedule/non-schedule acceptance evidence drifts.
 
 Current selected-notice evidence:
 
 - `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/authenticated-notice-ingest-queue-e2e-smoke.json`
 - `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/app-api-processing-355867.json`
 - `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/consumer-admission-manifest.cli.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-non-schedule-355650-20260501T235000Z/acceptance-summary.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-non-schedule-355650-20260501T235000Z/app-api-processing-355650.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-non-schedule-355650-20260501T235000Z/app-api-processing-list-service-status.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-projection-coverage-audit-20260501T235219/coverage-summary.json`
 
 ## Session Continuity
 
-**Stopped At:** Selected schedule notice acceptance passed; non-schedule sample and final gates pending
+**Stopped At:** Workstream closeout completed; lint/commit intentionally excluded from this closeout
 **Resume File:** `.planning/workstreams/authenticated-notice-ingest-operator-panel/ROADMAP.md`

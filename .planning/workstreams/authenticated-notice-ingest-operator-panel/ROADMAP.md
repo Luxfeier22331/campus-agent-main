@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -16,7 +16,7 @@ updated: 2026-05-01
 - [x] **Phase 3: Ingestion Projection Emitter** — emit sanitized processing snapshots from queue consumer/downstream materialization or a repo-owned worker command into app-api.
 - [x] **Phase 4: Historical Backfill And Reconciliation** — backfill existing processed notices such as `355867`, reconcile current release/read-model state, and detect stale or conflicting attempts.
 - [x] **Phase 5: Protected Panel List And Detail UI** — add panel resources/pages for authenticated notice processing status with lifecycle timeline and downstream readiness cards.
-- [ ] **Phase 6: End-To-End Acceptance And Real Notice Smoke** — verify `355867` and at least one non-schedule notice through app-api and panel-visible projection. Selected `355867` schedule acceptance is complete; non-schedule sample remains.
+- [x] **Phase 6: End-To-End Acceptance And Real Notice Smoke** — verify `355867` and at least one non-schedule notice through app-api and panel-visible projection.
 - [x] **Phase 7: Operational Hardening And Closeout** — add freshness checks, runbook, observability metrics, docs, and final verification.
 
 ## Phase 1: Operator Projection Contract Freeze
@@ -190,8 +190,8 @@ pnpm web:test:integration
 pnpm web:build
 ```
 
-Current status: partially completed. Selected real notice `355867` passed in the
-local real Postgres/object-store path:
+Current status: completed. Selected real notice `355867` passed in the local
+real Postgres/object-store path:
 
 - queue job status: `succeeded`
 - downstream materialization: `completed`
@@ -207,8 +207,23 @@ Evidence:
 - `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/app-api-processing-355867.json`
 - `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/consumer-admission-manifest.cli.json`
 
-Remaining: at least one non-schedule authenticated notice sample and final
-repository gates.
+Non-schedule service-status notice `355650`
+(`关于静园10号楼负一层女浴室试运行的通知`) also passed app-api internal
+processing snapshot ingest and operator list/detail readback:
+
+- `lifecycleStatus=tool_ready`
+- `queueStatus=succeeded`
+- `candidateKind=service_status`
+- `targetSurface=campus_services`
+- `toolReady=true`
+- `serviceStatusRecords=1`
+- `rejectedSources=0`
+
+Evidence:
+
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-non-schedule-355650-20260501T235000Z/acceptance-summary.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-non-schedule-355650-20260501T235000Z/app-api-processing-355650.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-non-schedule-355650-20260501T235000Z/app-api-processing-list-service-status.json`
 
 ## Phase 7: Operational Hardening And Closeout
 
@@ -237,5 +252,4 @@ git diff --check
 Current status: implemented in current worktree. Freshness is computed by
 app-api query store and displayed by protected panel; runbook is
 `docs/runbooks/authenticated-notice-processing-operator-panel-runbook.md`.
-Repository-wide final verification and real-environment Phase 6 smoke remain to
-be executed separately.
+Repository-wide lint/commit remain intentionally outside this closeout.

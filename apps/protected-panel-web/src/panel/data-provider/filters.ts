@@ -98,6 +98,22 @@ export function appendAuthenticatedNoticeProcessingFilters(
 	appendOptionalQueryParam(query, "updatedBefore", filter?.updatedBefore);
 }
 
+export function appendAuthenticatedNoticeRunProcessingFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "collectorRunToken", filter?.collectorRunToken);
+	appendOptionalQueryParam(query, "q", filter?.q);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "queueStatus", filter?.queueStatus);
+	appendOptionalQueryParam(query, "replayBatchId", filter?.replayBatchId);
+	appendOptionalQueryParam(query, "runId", filter?.runId);
+	appendOptionalQueryParam(query, "siteId", filter?.siteId);
+	appendOptionalQueryParam(query, "sourceSurface", filter?.sourceSurface);
+	appendOptionalQueryParam(query, "updatedAfter", filter?.updatedAfter);
+	appendOptionalQueryParam(query, "updatedBefore", filter?.updatedBefore);
+}
+
 export function appendOptionalQueryParam(query: URLSearchParams, key: string, value: unknown) {
 	const normalized = normalizeFilterValue(value);
 	if (normalized) {

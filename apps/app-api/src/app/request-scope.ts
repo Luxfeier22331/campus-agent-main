@@ -7,6 +7,14 @@ import {
 	buildAuthenticatedNoticeProcessingQueryService,
 	createPgAuthenticatedNoticeProcessingQueryStore,
 } from "../modules/authenticated-notice-processing-query";
+import {
+	buildAuthenticatedNoticeRunProcessingCommandService,
+	createPgAuthenticatedNoticeRunProcessingCommandStore,
+} from "../modules/authenticated-notice-run-processing-command";
+import {
+	buildAuthenticatedNoticeRunProcessingQueryService,
+	createPgAuthenticatedNoticeRunProcessingQueryStore,
+} from "../modules/authenticated-notice-run-processing-query";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import { createSupervisorExecutionClient } from "../modules/integration";
@@ -75,6 +83,10 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.authenticatedNoticeProcessingCommandService ?? null;
 			let authenticatedNoticeProcessingQueryService =
 				input.dependencies.authenticatedNoticeProcessingQueryService ?? null;
+			let authenticatedNoticeRunProcessingCommandService =
+				input.dependencies.authenticatedNoticeRunProcessingCommandService ?? null;
+			let authenticatedNoticeRunProcessingQueryService =
+				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
@@ -117,6 +129,34 @@ export function createRequestScopeFactory(input: {
 					}),
 				});
 				return authenticatedNoticeProcessingQueryService;
+			}
+
+			function resolveAuthenticatedNoticeRunProcessingCommandService() {
+				if (authenticatedNoticeRunProcessingCommandService) {
+					return authenticatedNoticeRunProcessingCommandService;
+				}
+
+				authenticatedNoticeRunProcessingCommandService =
+					buildAuthenticatedNoticeRunProcessingCommandService({
+						store: createPgAuthenticatedNoticeRunProcessingCommandStore(input.env, {
+							getDb: runtime.getFreshDb,
+						}),
+					});
+				return authenticatedNoticeRunProcessingCommandService;
+			}
+
+			function resolveAuthenticatedNoticeRunProcessingQueryService() {
+				if (authenticatedNoticeRunProcessingQueryService) {
+					return authenticatedNoticeRunProcessingQueryService;
+				}
+
+				authenticatedNoticeRunProcessingQueryService =
+					buildAuthenticatedNoticeRunProcessingQueryService({
+						store: createPgAuthenticatedNoticeRunProcessingQueryStore(input.env, {
+							getDb: runtime.getDb,
+						}),
+					});
+				return authenticatedNoticeRunProcessingQueryService;
 			}
 
 			function resolveChatConversationService() {
@@ -282,6 +322,8 @@ export function createRequestScopeFactory(input: {
 				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
 				resolveAuthenticatedNoticeProcessingCommandService,
 				resolveAuthenticatedNoticeProcessingQueryService,
+				resolveAuthenticatedNoticeRunProcessingCommandService,
+				resolveAuthenticatedNoticeRunProcessingQueryService,
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDocsService,

@@ -25,6 +25,10 @@ import {
 	getAuthenticatedNoticeProcessingList,
 } from "./authenticated-notice-processing";
 import {
+	getAuthenticatedNoticeRunProcessingDetail,
+	getAuthenticatedNoticeRunProcessingList,
+} from "./authenticated-notice-run-processing";
+import {
 	getOfficialWebRunDetail,
 	getOfficialWebRunList,
 	getOfficialWebSiteDetail,
@@ -88,6 +92,11 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 				params,
 			)) as unknown as GetListResult<RecordType>;
 		}
+		if (resource === "authenticatedNoticeRunProcessing") {
+			return (await getAuthenticatedNoticeRunProcessingList(
+				params,
+			)) as unknown as GetListResult<RecordType>;
+		}
 
 		unsupportedMethod(resource, "getList");
 	},
@@ -148,6 +157,19 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 				data: items,
 			} as unknown as GetManyResult<RecordType>;
 		}
+		if (resource === "authenticatedNoticeRunProcessing") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getAuthenticatedNoticeRunProcessingDetail(id, params.signal).then(
+						(result) => result.data,
+					),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
 
 		unsupportedMethod(resource, "getMany");
 	},
@@ -184,6 +206,12 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		}
 		if (resource === "authenticatedNoticeProcessing") {
 			return (await getAuthenticatedNoticeProcessingDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeRunProcessing") {
+			return (await getAuthenticatedNoticeRunProcessingDetail(
 				params.id,
 				params.signal,
 			)) as unknown as GetOneResult<RecordType>;

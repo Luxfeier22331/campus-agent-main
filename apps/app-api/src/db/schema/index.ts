@@ -24,6 +24,8 @@ export {
 export {
 	authenticatedNoticeProcessingEventProjection,
 	authenticatedNoticeProcessingProjection,
+	authenticatedNoticeRunProcessingEventProjection,
+	authenticatedNoticeRunProcessingProjection,
 	metricRollup,
 	officialWebRunProjection,
 	officialWebSiteProjection,
@@ -67,6 +69,8 @@ import {
 import {
 	authenticatedNoticeProcessingEventProjection,
 	authenticatedNoticeProcessingProjection,
+	authenticatedNoticeRunProcessingEventProjection,
+	authenticatedNoticeRunProcessingProjection,
 	metricRollup,
 	officialWebRunProjection,
 	officialWebSiteProjection,
@@ -125,6 +129,8 @@ export const appApiSchema = {
 	officialWebSiteProjection,
 	authenticatedNoticeProcessingProjection,
 	authenticatedNoticeProcessingEventProjection,
+	authenticatedNoticeRunProcessingProjection,
+	authenticatedNoticeRunProcessingEventProjection,
 	wechatOfficialAccountCaptureRuns,
 	wechatOfficialAccountRunHeartbeats,
 	wechatOfficialAccountRunArtifacts,

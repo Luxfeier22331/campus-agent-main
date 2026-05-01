@@ -28,6 +28,7 @@ export const PANEL_COPY = {
 		intent: "意图治理",
 		requests: "请求",
 		authenticatedNoticeProcessing: "通知处理",
+		authenticatedNoticeRunProcessing: "通知运行",
 		officialWebSites: "官网站点",
 		officialWebTargetJobs: "官网目标任务",
 		officialWebTargetInventory: "官网目标清单",
@@ -544,6 +545,7 @@ export const PANEL_COPY = {
 	},
 	emptyState: {
 		authenticatedNoticeProcessing: "暂无通知处理记录。",
+		authenticatedNoticeRunProcessing: "暂无通知运行记录。",
 		officialWebRuns: "暂无官网采集运行。",
 		officialWebSites: "暂无官网站点。",
 		officialWebTargetInventory: "暂无官网目标清单。",

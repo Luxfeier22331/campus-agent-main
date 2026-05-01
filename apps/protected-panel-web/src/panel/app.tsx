@@ -2,6 +2,7 @@ import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
+import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
 import TravelExploreOutlinedIcon from "@mui/icons-material/TravelExploreOutlined";
 import { Admin, CustomRoutes, Resource } from "react-admin";
@@ -10,6 +11,8 @@ import { Navigate, Route } from "react-router-dom";
 import { protectedPanelAuthProvider } from "./auth-provider";
 import { AuthenticatedNoticeProcessingListPage } from "./authenticated-notices/processing-list";
 import { AuthenticatedNoticeProcessingShowPage } from "./authenticated-notices/processing-show";
+import { AuthenticatedNoticeRunProcessingListPage } from "./authenticated-notices/run-processing-list";
+import { AuthenticatedNoticeRunProcessingShowPage } from "./authenticated-notices/run-processing-show";
 import { protectedPanelDataProvider } from "./data-provider";
 import { OfficialWebRunShowPage } from "./official-web/run-show";
 import { OfficialWebRunsListPage } from "./official-web/runs-list";
@@ -63,6 +66,14 @@ export function ProtectedPanelAdminApp() {
 				options={{ label: PANEL_COPY.menu.authenticatedNoticeProcessing }}
 				recordRepresentation="noticeId"
 				show={AuthenticatedNoticeProcessingShowPage}
+			/>
+			<Resource
+				icon={PendingActionsOutlinedIcon}
+				list={AuthenticatedNoticeRunProcessingListPage}
+				name="authenticatedNoticeRunProcessing"
+				options={{ label: PANEL_COPY.menu.authenticatedNoticeRunProcessing }}
+				recordRepresentation="collectorRunToken"
+				show={AuthenticatedNoticeRunProcessingShowPage}
 			/>
 			<Resource
 				icon={LanguageOutlinedIcon}

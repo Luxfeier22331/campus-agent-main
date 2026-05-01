@@ -20,6 +20,7 @@ import {
 	isEndUserEmailAllowedForAuth,
 } from "../../modules/auth";
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
+import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
 import type { OfficialWebExecutionStatusService } from "../../modules/official-web-execution";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import { internalAuthRequiredResponse, serviceCredentialRequiredResponse } from "../responses";
@@ -166,6 +167,24 @@ export function registerInternalRoutes(input: {
 			}),
 		);
 	});
+
+	input.app.post(
+		"/api/internal/operator/authenticated-notices/run-processing-snapshots",
+		async (c) => {
+			const scope = input.createRequestScope();
+			if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+				return serviceCredentialRequiredResponse();
+			}
+
+			const payload = await readJsonRequestBody(c.req.raw);
+			assertNoForbiddenAuthenticatedNoticeRunProcessingFields(payload);
+			return jsonResponse(
+				await scope.resolveAuthenticatedNoticeRunProcessingCommandService().ingestSnapshots({
+					payload,
+				}),
+			);
+		},
+	);
 
 	input.app.post("/api/internal/execution/audit-events", async (c) => {
 		const scope = input.createRequestScope();

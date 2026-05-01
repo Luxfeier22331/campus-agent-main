@@ -2,6 +2,8 @@ import type { Env } from "../config";
 import type { AppAuthGetter, AppAuthResolutionInput, ResolvedAppPrincipal } from "../modules/auth";
 import type { AuthenticatedNoticeProcessingCommandService } from "../modules/authenticated-notice-processing-command";
 import type { AuthenticatedNoticeProcessingQueryService } from "../modules/authenticated-notice-processing-query";
+import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/authenticated-notice-run-processing-command";
+import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
 import type { SupervisorCampusServicesProductPathPreflight } from "../modules/integration";
@@ -27,6 +29,8 @@ export interface AppDependencies {
 	) => Promise<Response> | Response;
 	authenticatedNoticeProcessingCommandService?: AuthenticatedNoticeProcessingCommandService;
 	authenticatedNoticeProcessingQueryService?: AuthenticatedNoticeProcessingQueryService;
+	authenticatedNoticeRunProcessingCommandService?: AuthenticatedNoticeRunProcessingCommandService;
+	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
 	docsService?: DocsService;
@@ -76,6 +80,8 @@ export interface AppRequestScope {
 	getAppAuth: AppAuthGetter;
 	resolveAuthenticatedNoticeProcessingCommandService(): AuthenticatedNoticeProcessingCommandService;
 	resolveAuthenticatedNoticeProcessingQueryService(): AuthenticatedNoticeProcessingQueryService;
+	resolveAuthenticatedNoticeRunProcessingCommandService(): AuthenticatedNoticeRunProcessingCommandService;
+	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDocsService(): DocsService;
