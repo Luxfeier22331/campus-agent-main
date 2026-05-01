@@ -24,6 +24,9 @@ from campus_ingestion_core.collected_notice_ingest_queue_postgres import (
     build_notice_ingest_queue_store_from_env,
 )
 
+from campus_ingestion_worker.authenticated_notice_processing_projection_reporting import (
+    build_processing_projection_reporter_from_env,
+)
 from campus_ingestion_worker.authenticated_notice_typed_downstream_materialization import (
     materialize_authenticated_notice_typed_downstream,
 )
@@ -125,6 +128,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             lease_seconds=args.lease_seconds,
             env=env,
             require_media_gate=args.require_media_gate,
+            processing_projection_reporter=build_processing_projection_reporter_from_env(env),
             typed_downstream_materializer=materialize_authenticated_notice_typed_downstream,
             media_gate_evidence_dir=(
                 Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None

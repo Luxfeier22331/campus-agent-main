@@ -28,6 +28,9 @@ from campus_ingestion_core.registry import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
+from campus_ingestion_worker.authenticated_notice_processing_projection_reporting import (
+    build_processing_projection_reporter_from_env,
+)
 from campus_ingestion_worker.authenticated_notice_typed_downstream_materialization import (
     materialize_authenticated_notice_typed_downstream,
 )
@@ -127,6 +130,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         retry_after_seconds=args.retry_after_seconds,
         source_truth_only=not args.materialize_downstream,
         typed_downstream_materializer=materialize_authenticated_notice_typed_downstream,
+        processing_projection_reporter=build_processing_projection_reporter_from_env(env),
         require_media_gate=args.require_media_gate,
         media_gate_evidence_dir=(
             Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None
