@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-29
-updated: 2026-04-12
+updated: 2026-05-01
 ---
 # App API Official Web HTTP Contract
 
@@ -86,11 +86,20 @@ contract。
 - `GET /api/operator/official-web/sites/:siteId`
 - `GET /api/operator/official-web/runs`
 - `GET /api/operator/official-web/runs/:runId`
+- `GET /api/operator/official-web/target-inventory`
+- `GET /api/operator/official-web/target-inventory/:inventoryId`
+- `POST /api/operator/official-web/target-inventory/:inventoryId/release-gates`
+- `GET /api/operator/official-web/target-release-gates/:releaseId`
+
+### Internal Executor
+
+- `GET /api/internal/official-web/target-release-gates/:releaseId`
+- `POST /api/internal/official-web/target-release-gates/:releaseId/execution-status`
 
 第一版不冻结：
 
 - collector 侧的 cancel / resume API
-- operator 写操作 API
+- operator 写操作 API，但 stable-reference release gate approve/reject 已作为显式受控例外
 - object storage proxy/download API
 
 ## Collector Command Endpoint Details
@@ -413,6 +422,56 @@ contract。
   "recentPageChanges": []
 }
 ```
+
+### `POST /api/operator/official-web/target-inventory/:inventoryId/release-gates`
+
+用途：
+
+- 对 `official_web/stable_reference` previewed target inventory row 记录 approve/reject
+  release gate
+- 审批成功后返回 ingestion-worker 可消费的 deterministic `releaseId`
+
+请求体最小形态：
+
+```json
+{
+  "decision": "approved",
+  "publishAlias": false,
+  "notes": "reviewed against staged preview evidence"
+}
+```
+
+规则：
+
+- 仅 operator principal 可调用
+- `approved` 要求 preview lineage 完整、ingestion status 为 `staged`、当前 truth import 为空、所有
+  required fields 均为 `present`
+- `publishAlias` 默认 `false`
+
+### `GET /api/internal/official-web/target-release-gates/:releaseId`
+
+用途：
+
+- ingestion-worker executor 读取已批准 release gate 的 app-api control-plane truth
+
+规则：
+
+- 仅接受 `x-app-internal-auth`
+- 返回值包含 `releaseGate`，其中 `evidenceJson` 是审批时的 source/object/field snapshot
+
+### `POST /api/internal/official-web/target-release-gates/:releaseId/execution-status`
+
+用途：
+
+- ingestion-worker executor 回写 release gate 执行进度
+
+允许状态：
+
+- `running`
+- `materialized`
+- `indexed`
+- `published`
+- `failed`
 
 ### `GET /api/operator/official-web/runs`
 

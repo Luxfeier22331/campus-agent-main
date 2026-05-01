@@ -236,8 +236,22 @@ uv run --all-packages python -m campus_evals.official_web_live_benchmark run \
   --output-dir /tmp/official-web-live-gate
 ```
 
-1. 如果当前 batch 要继续做首条 `stable_reference` bootstrap 闭环，则改为执行 routed scope import /
-   release：
+1. 如果当前 batch 要继续做 `stable_reference` release 闭环，优先走 app-api release gate /
+   worker executor，而不是手动执行整 scope refresh：
+
+```bash
+# 1) operator 先在 app-api 中批准 previewed inventory row，得到 releaseId
+campus-ingestion-release-official-web-target \
+  --release-id <releaseId> \
+  --work-dir ./var/official-web-target-releases
+```
+
+该 executor 会从 app-api internal route 读取 release gate，只导入匹配该 target
+`jobId + sourceUrl + official_web/stable_reference + release_gate_required` 的文档，并以
+`scope_refresh = None` 调用 projection import，避免为单条 release 清空整个
+`official_web/stable_reference` scope。默认 `publishAlias = false`，最终状态是 `indexed`。
+
+1. 仅在 bootstrap / repair 需要人工复放老路径时，才执行 routed scope import / release：
 
 ```bash
 uv run --all-packages python -m \
@@ -285,8 +299,9 @@ uv run --all-packages python -m campus_ingestion_worker.scope_alias \
 - 当前 `muc_public_pages` 的 low-value recruitment / procurement / public-notice
   `article_detail` 页面虽然能 replay 出 canonical document，但仍必须留在 staged audit
   truth，不参与 promote / release
-- `stable_reference` bootstrap import 只消费 routed
-  `target_collection=stable_reference` 文档，不允许顺手把 mixed bridge 页一起刷进这次 release
+- `stable_reference` 正常 release 只允许通过 release gate executor 消费单个批准 target；
+  bootstrap/repair 手动 import 才允许消费 routed `target_collection=stable_reference` 文档，且不允许顺手把
+  mixed bridge 页一起刷进这次 release
 - `stable_reference` bootstrap release 在本地验证阶段默认仍先 `--no-publish-alias`；若
   retrieval/live gate 已通过，再用 `campus_ingestion_worker.scope_alias` 单独执行 alias
   publish，避免把“生成 physical collection”和“切 serving alias”混成一步

@@ -50,7 +50,19 @@ Known current blockers:
 
 - contact/service extraction may still leave semantic fields missing, for example
   `responsible_office`, `location`, `office_hours` or `required_materials`.
-- `official_web/stable_reference` remains release-gated and needs an explicit release gate before
-  serving alias changes.
+- `official_web/stable_reference` now has an explicit app-api release gate and ingestion-worker
+  executor. The operator approves/rejects the previewed inventory row through app-api; the executor
+  reads that gate through the internal app-api route, imports only the matching target document with
+  `scope_refresh = None`, and then runs registry release with `publishAlias = false` by default.
 - existing preview runs before this callback change need a rerun or explicit review summary write
   before app-api can show non-default field status.
+
+Stable-reference release flow:
+
+- operator route: `POST /api/operator/official-web/target-inventory/:inventoryId/release-gates`
+- internal executor read: `GET /api/internal/official-web/target-release-gates/:releaseId`
+- internal executor callback:
+  `POST /api/internal/official-web/target-release-gates/:releaseId/execution-status`
+- worker CLI: `campus-ingestion-release-official-web-target --release-id <releaseId>`
+- default executor status progression: `running -> materialized -> indexed`; if `publishAlias` is
+  explicitly approved, final status becomes `published`.

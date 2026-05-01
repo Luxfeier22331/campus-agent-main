@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-29
-updated: 2026-04-12
+updated: 2026-05-01
 ---
 # App API Official Web Schema
 
@@ -366,6 +366,48 @@ updated: 2026-04-12
   `page_observations` 的组合为准
 - `plans:resolve` 会基于 `next_eligible_fetch_at`、`cadence_class` 与
   `last_fetch_disposition` 从这里解析动态 workset
+
+## `official_web.target_release_gates`
+
+用途：
+
+- 记录 `official_web/stable_reference` target inventory preview 的人工 release gate 决策
+- 为 ingestion-worker 单 target release executor 提供 app-api owned control-plane truth
+
+最小列：
+
+- `release_id`
+- `inventory_id`
+- `job_id`
+- `run_id` nullable
+- `summary_id` nullable
+- `decision`
+- `status`
+- `publish_alias`
+- `decided_by`
+- `decided_at`
+- `notes` nullable
+- `evidence_json`
+- `execution_json` nullable
+- `error_json` nullable
+- `created_at`
+- `updated_at`
+
+最小索引：
+
+- unique `(inventory_id, run_id, decision)`
+- `(status, updated_at desc)`
+
+规则：
+
+- app-api 拥有 release gate 决策、状态与 evidence snapshot
+- ingestion-worker 只通过 internal app-api route 读取 approved gate，并通过 callback 更新
+  `running / materialized / indexed / published / failed`
+- stable-reference target release 默认 `publish_alias = false`
+- 单 target release import 必须以 `scope_refresh = null` 执行，不允许为一条 release 清空整个
+  `official_web/stable_reference` scope
+- `execution_json` 只保存 executor 进度摘要，不保存 retained HTML、provider payload 或
+  chunk 文本
 
 ## `operator.official_web_run_projection`
 
