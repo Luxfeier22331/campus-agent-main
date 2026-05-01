@@ -129,6 +129,54 @@ class AuthenticatedNoticeRunProcessingProjectionTest(unittest.TestCase):
         self.assertEqual(len(snapshot["jobSummaries"]), 2)
         self.assertFalse(_contains_forbidden_key(snapshot))
 
+    def test_source_truth_only_collector_run_uses_import_count(self) -> None:
+        collector_run_token = "20260428T181953007Z"
+        bundle_bytes = support._json_bytes([{"notice_id": "355867"}])
+        manifest_bytes = support._json_bytes({"run_id": collector_run_token})
+        job = support._job(
+            run_id=f"muc_internal_portal:notice:{collector_run_token}",
+            bundle_sha=support._sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=support._sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        record = NoticeIngestQueueRecord(
+            job=job,
+            status="succeeded",
+            attempt_count=0,
+            created_at=datetime(2026, 5, 1, 0, 8, 0, tzinfo=UTC),
+            updated_at=datetime(2026, 5, 1, 0, 9, 11, tzinfo=UTC),
+        )
+
+        snapshots = build_authenticated_notice_run_processing_snapshots(
+            records=(record,),
+            trace_rows=(
+                {
+                    "job_id": job.job_id,
+                    "status": "completed",
+                    "generated_at": "2026-05-01T00:09:11.528648+00:00",
+                    "import_result": {
+                        "attachment_fetch_status_record_count": 305,
+                        "mode": "admit_and_materialize",
+                        "notice_count": 282,
+                        "raw_reused_count": 75,
+                        "raw_uploaded_count": 207,
+                        "source_truth_only": True,
+                    },
+                },
+            ),
+            projected_at="2026-05-01T00:10:00.000Z",
+            producer_version="test@1",
+        )
+
+        source_truth = snapshots[0]["sourceTruth"]
+        self.assertEqual(source_truth["selectedNoticeCount"], 282)
+        self.assertEqual(source_truth["importedNoticeCount"], 282)
+        self.assertEqual(source_truth["attachmentFetchStatusRecordCount"], 305)
+        self.assertEqual(source_truth["rawUploadedCount"], 207)
+        self.assertEqual(source_truth["rawReusedCount"], 75)
+        self.assertEqual(snapshots[0]["jobSummaries"][0]["selectedNoticeCount"], 282)
+
 
 def _contains_forbidden_key(value: object) -> bool:
     forbidden = {
