@@ -157,6 +157,11 @@ uv run --package campus-ingestion-worker python -m \
 当前固定行为：
 
 - 只消费 `promote_candidate`
+- `policy_regulation` 只是 source triage signal，不是 target promotion
+  eligibility
+- 明显历史年度周期规则必须 hold in `campus_notices/internal_notice`，例如
+  `药学院2021年硕博连读博士研究生招生实施细则` 应保留为 notice-level query，
+  不发布到 `regulations/scoped_rules`
 - target `document_id` 不从 `notice_id` 派生
 - duplicate candidate 合并为一个 canonical target document
 - target scope 使用 scope refresh
@@ -195,6 +200,8 @@ operator 规则：
 - `--object-store-root` 不得直接指向长期 source snapshot 输出根
 - local-only dry-run 必须使用隔离 target 输出目录
 - admission manifest 使用 `target_surface=regulations/*`
+- dry-run 必须证明 selected notice 通过 applicability gate；如果输出
+  `historical_annual_cycle_rule_hold`，该 notice 不得继续进入 formal import
 - generated target records 可以同时覆盖 `regulations/institutional_rules` 与
   `regulations/scoped_rules`
 - 输出 document reader assets 只作为 dry-run artifact，不表示 public docs deploy、

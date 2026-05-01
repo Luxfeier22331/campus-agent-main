@@ -17,8 +17,8 @@ collection within the `regulations` corpus.
 
 Current runtime truth:
 
-- serving stage: `offline_preparation`
-- retrieval enabled: `false`
+- serving stage: `query_serving`
+- retrieval enabled: `true`
 - query enabled by default: `false`
 - serving alias: `scoped_rules`
 - collection prefix: `scoped_rules`
@@ -32,15 +32,20 @@ Collection boundary:
 - wrapper notices remain in `campus_notices/internal_notice`
 - stable institution-wide regulations remain in
   `regulations/institutional_rules`
+- clearly historical annual-cycle notices remain in
+  `campus_notices/internal_notice` with `promotion_disposition=hold_in_internal_notice`
 
 Current scaffold note:
 
-- this collection is import-first and query-disabled
+- this collection is explicit/internal retrieval-ready, but query disabled by default
 - repo now has a completed `materialize_internal_notice_scoped_rules` worker
   path and a local-only `prepare_scoped_rule_chunks` acceptance path
 - selected `regulation_candidate` document-site dry-runs admit the broad
   `regulations/*` family, then publish scoped-rule reader assets from resolved
   `regulations/scoped_rules` projection truth without opening query-serving
+- `annual_cycle_rule` candidates must pass applicability gating before target
+  materialization; expired unit/year-specific annual cycle notices are retained
+  for notice-level query rather than published to the regulation reader
 - target scope refresh must rewrite `document-units/chunks` when provenance
   metadata expands, even if semantic content hash and version id stay stable
 - local-only quality acceptance must use an isolated snapshot root instead of

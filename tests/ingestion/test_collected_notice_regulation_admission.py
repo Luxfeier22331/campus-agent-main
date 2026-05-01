@@ -153,6 +153,68 @@ class CollectedNoticeRegulationAdmissionTests(unittest.TestCase):
         self.assertEqual(scoped["target_collection"], "scoped_rules")
         self.assertNotIn("188890", scoped["target_identity_preview"])
 
+    def test_historical_unit_scoped_annual_cycle_rule_is_held_in_notice_level(self) -> None:
+        unit = _regulation_unit(
+            source_notice_id="186977",
+            title="药学院2021年硕博连读博士研究生招生实施细则",
+            body_text=(
+                "一、硕博连读研究生选拔对象\n"
+                "我校全日制非定向、优秀的三年级学术型硕士研究生。\n"
+                "二、学生申请硕博连读研究生的条件\n"
+                "申请人应完成规定课程学习并通过综合考核。\n"
+                "三、招生程序\n"
+                "学院审核确定硕博连读拟录取名单，并进行公示。"
+            ),
+        )
+        unit["published_at"] = "2021-01-05 19:02"
+
+        preview = build_collected_notice_regulation_admission_preview(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={"candidates": []},
+            generated_at="2026-05-01T00:00:00+08:00",
+        )
+
+        entry = preview.admission_manifest["entries"][0]
+        self.assertEqual(entry["consumption_class"], "search_only")
+        self.assertEqual(
+            entry["regulation_admission_class"],
+            "historical_annual_cycle_rule_hold",
+        )
+        self.assertIsNone(entry["target"])
+        self.assertIsNone(entry["target_surface"])
+        self.assertIsNone(entry["target_identity_preview"])
+        self.assertEqual(entry["target_collection"], "scoped_rules")
+        self.assertEqual(entry["cycle_year"], "2021")
+        self.assertEqual(entry["applicability_status"], "historical_expired")
+        self.assertEqual(entry["promotion_disposition"], "hold_in_internal_notice")
+        self.assertEqual(entry["recommended_query_surface"], "notice_level_query")
+        self.assertIn("historical_annual_cycle_rule_not_promoted", entry["reason_codes"])
+
+    def test_historical_hold_prefers_structured_cycle_year_metadata(self) -> None:
+        unit = _regulation_unit(
+            source_notice_id="186978",
+            title="药学院硕博连读博士研究生招生实施细则",
+            body_text=(
+                "一、硕博连读研究生选拔对象\n"
+                "申请人应完成规定课程学习并通过综合考核。\n"
+                "二、招生程序\n"
+                "学院审核确定硕博连读拟录取名单，并进行公示。"
+            ),
+        )
+        unit["published_at"] = "2026-01-05 19:02"
+        unit["role_metadata"] = {"cycle_year": "2021"}
+
+        preview = build_collected_notice_regulation_admission_preview(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={"candidates": []},
+            generated_at="2026-05-01T00:00:00+08:00",
+        )
+
+        entry = preview.admission_manifest["entries"][0]
+        self.assertEqual(entry["regulation_admission_class"], "historical_annual_cycle_rule_hold")
+        self.assertEqual(entry["consumption_class"], "search_only")
+        self.assertEqual(entry["cycle_year"], "2021")
+
     def test_duplicate_hold_preserves_primary_and_source_provenance(self) -> None:
         body = (
             "第一条 为规范实验室安全管理，制定本规定。\n第二条 本规定适用于学校实验室安全管理工作。"

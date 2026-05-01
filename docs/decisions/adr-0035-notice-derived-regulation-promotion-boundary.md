@@ -85,10 +85,36 @@ promotion boundary 至少负责判断：
 
 - 该内容是否已经脱离 wrapper notice 语义
 - 该正文是否达到独立消费质量
+- 该内容是否仍具备 regulation 文档站收录价值，而不只是历史年度通知或一次性执行细则
 - 是否与既有 regulation 文本重复
 - provenance 是否足够回链到原始 notice / attachment
 
-### 决策 4：wrapper notice 必须继续留在 `internal_notice`
+### 决策 4：`policy_regulation` signal 不等于 document-site promotion eligibility
+
+`policy_regulation` 只表示 source-channel triage signal。它可以来自标题中的
+`办法`、`规定`、`实施细则` 等规则词，但不得直接推出该 notice 应进入
+`regulations/*` 或 document reader。
+
+显式 promotion gate 必须继续区分：
+
+- 当前仍可独立消费的 institution-wide regulation text
+- 当前仍有产品价值的 scoped rule text
+- 明显历史年度周期规则
+- wrapper notice / attachment relation truth / reference-only source
+
+对明显历史年度周期规则，默认处理为：
+
+- 保留在 `campus_notices/internal_notice`
+- `promotion_disposition=hold_in_internal_notice`
+- `recommended_query_surface=notice_level_query`
+- 不生成 `regulations/*` target identity
+- 不进入 document reader manifest
+
+示例：`药学院2021年硕博连读博士研究生招生实施细则` 可被识别为
+`policy_regulation`，但它绑定 `药学院 + 2021 + 硕博连读招生` 的历史年度周期，
+不应默认进入 regulation 文档站。
+
+### 决策 5：wrapper notice 必须继续留在 `internal_notice`
 
 即使某条 notice 的附件或正文最终被提升为 formal regulation：
 
@@ -97,7 +123,7 @@ promotion boundary 至少负责判断：
   provenance
 - regulation identity / version 不得继续用 `notice_id` 充当长期主身份
 
-### 决策 5：repo-tracked target collection 固定为 `regulations/institutional_rules`
+### 决策 6：repo-tracked target collection 固定为 `regulations/institutional_rules`
 
 对这条 source-channel 的第一条 notice-derived regulation target，repo 级命名固定为：
 

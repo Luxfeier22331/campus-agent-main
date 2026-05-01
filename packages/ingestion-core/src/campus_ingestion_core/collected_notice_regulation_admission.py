@@ -13,6 +13,7 @@ from campus_ingestion_core.collected_notice_fact_readiness import (
 from campus_ingestion_core.collected_notice_regulation_admission_support import (
     INSTITUTIONAL_TARGET_COLLECTION,
     REGULATION_CLASS_DUPLICATE_HOLD,
+    REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD,
     REGULATION_CLASS_INSTITUTIONAL,
     REGULATION_CLASS_INVALID_CAPTURE,
     REGULATION_CLASS_MANUAL_REVIEW,
@@ -23,8 +24,10 @@ from campus_ingestion_core.collected_notice_regulation_admission_support import 
     SCOPED_TARGET_COLLECTION,
     _candidate_key,
     _coerce_recovered_owner_text_payload,
+    _cycle_year,
     _has_formal_owner_title,
     _has_regulation_body_structure,
+    _is_historical_annual_cycle_rule,
     _issuing_org,
     _load_json_object,
     _looks_like_draft_or_operational_scheme,
@@ -77,6 +80,10 @@ class _RegulationDecision:
     duplicate_primary_searchable_unit_id: str | None
     queue_trace_row: Mapping[str, Any] | None
     fact_readiness: dict[str, Any]
+    applicability_status: str | None = None
+    promotion_disposition: str | None = None
+    recommended_query_surface: str | None = None
+    cycle_year: str | None = None
 
     @property
     def admitted(self) -> bool:
@@ -156,6 +163,7 @@ def build_collected_notice_regulation_admission_preview(
         units=units,
         multimodal_candidate_inventory=multimodal_candidate_inventory,
         queue_trace_by_unit_id=queue_trace_by_unit_id,
+        generated_at=timestamp,
     )
     admission_manifest = _admission_manifest(
         decisions=decisions,
@@ -314,6 +322,7 @@ def _build_decisions(
     units: Sequence[Mapping[str, Any]],
     multimodal_candidate_inventory: Mapping[str, Any],
     queue_trace_by_unit_id: Mapping[str, Mapping[str, Any]],
+    generated_at: str,
 ) -> list[_RegulationDecision]:
     decisions: list[_RegulationDecision] = []
     primary_by_candidate_key: dict[str, _RegulationDecision] = {}
@@ -322,6 +331,7 @@ def _build_decisions(
             unit=unit,
             multimodal_candidate_inventory=multimodal_candidate_inventory,
             queue_trace_row=queue_trace_by_unit_id.get(str(unit.get("unit_id") or "")),
+            generated_at=generated_at,
         )
         if decision.admitted and decision.candidate_key:
             primary = primary_by_candidate_key.get(decision.candidate_key)
@@ -338,6 +348,7 @@ def _initial_decision(
     unit: Mapping[str, Any],
     multimodal_candidate_inventory: Mapping[str, Any],
     queue_trace_row: Mapping[str, Any] | None,
+    generated_at: str,
 ) -> _RegulationDecision:
     reasons: list[str] = []
     title = _regulation_title(unit)
@@ -438,6 +449,29 @@ def _initial_decision(
             fact_readiness=fact_readiness,
         )
     target_collection = _target_collection_for_text(unit)
+    if target_collection == SCOPED_TARGET_COLLECTION and _is_historical_annual_cycle_rule(
+        unit,
+        generated_at=generated_at,
+    ):
+        return _decision(
+            unit=unit,
+            regulation_admission_class=REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD,
+            consumption_class="search_only",
+            reason_codes=(
+                "historical_annual_cycle_rule_not_promoted",
+                "expired_cycle_year",
+                "notice_level_retained",
+            ),
+            regulation_title=title,
+            issuing_org=issuing_org,
+            target_collection=target_collection,
+            queue_trace_row=queue_trace_row,
+            fact_readiness=fact_readiness,
+            applicability_status="historical_expired",
+            promotion_disposition="hold_in_internal_notice",
+            recommended_query_surface="notice_level_query",
+            cycle_year=_cycle_year(unit),
+        )
     if target_collection == SCOPED_TARGET_COLLECTION:
         return _decision(
             unit=unit,
@@ -476,6 +510,10 @@ def _decision(
     fact_readiness: Mapping[str, Any],
     duplicate_primary_source_notice_id: str | None = None,
     duplicate_primary_searchable_unit_id: str | None = None,
+    applicability_status: str | None = None,
+    promotion_disposition: str | None = None,
+    recommended_query_surface: str | None = None,
+    cycle_year: str | None = None,
 ) -> _RegulationDecision:
     candidate_key = (
         _candidate_key(
@@ -522,6 +560,10 @@ def _decision(
         duplicate_primary_searchable_unit_id=duplicate_primary_searchable_unit_id,
         queue_trace_row=queue_trace_row,
         fact_readiness=dict(fact_readiness),
+        applicability_status=applicability_status,
+        promotion_disposition=promotion_disposition,
+        recommended_query_surface=recommended_query_surface,
+        cycle_year=cycle_year,
     )
 
 
@@ -625,6 +667,10 @@ def _admission_entry(decision: _RegulationDecision) -> dict[str, Any]:
         "candidate_key": decision.candidate_key,
         "regulation_title_normalized": decision.regulation_title,
         "issuing_org": decision.issuing_org,
+        "cycle_year": decision.cycle_year,
+        "applicability_status": decision.applicability_status,
+        "promotion_disposition": decision.promotion_disposition,
+        "recommended_query_surface": decision.recommended_query_surface,
         "duplicate_primary_source_notice_id": decision.duplicate_primary_source_notice_id,
         "duplicate_primary_searchable_unit_id": decision.duplicate_primary_searchable_unit_id,
         "target_hints": unit.get("target_hints") or {},
@@ -681,6 +727,10 @@ def _audit_row(decision: _RegulationDecision) -> dict[str, Any]:
         "consumption_class": decision.consumption_class,
         "target_collection": decision.target_collection,
         "target_identity_preview": decision.target_identity_preview,
+        "cycle_year": decision.cycle_year,
+        "applicability_status": decision.applicability_status,
+        "promotion_disposition": decision.promotion_disposition,
+        "recommended_query_surface": decision.recommended_query_surface,
         "duplicate_primary_source_notice_id": decision.duplicate_primary_source_notice_id,
         "duplicate_primary_searchable_unit_id": decision.duplicate_primary_searchable_unit_id,
         "reason_codes": list(decision.reason_codes),
@@ -711,6 +761,10 @@ def _rejected_deferred_source_report(
                 "regulation_admission_class": decision.regulation_admission_class,
                 "consumption_class": decision.consumption_class,
                 "reason_codes": list(decision.reason_codes),
+                "cycle_year": decision.cycle_year,
+                "applicability_status": decision.applicability_status,
+                "promotion_disposition": decision.promotion_disposition,
+                "recommended_query_surface": decision.recommended_query_surface,
                 "searchable_exists": bool(unit.get("unit_id")),
                 "source_object_ref_count": len(unit.get("source_object_refs") or ()),
                 "multimodal_processing_could_change_decision": (
