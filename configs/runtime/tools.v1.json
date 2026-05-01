@@ -1,132 +1,132 @@
 {
-  "schema_version": "tool-spec-registry-v1",
-  "registry_version": "2026-05-01",
-  "tools": [
-    {
-      "name": "service_status_lookup",
-      "owner_agent": "campus-services-agent",
-      "capability": "campus_services",
-      "payload_kind": "service_status_lookup",
-      "payload_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupPayload",
-      "result_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupResult",
-      "backend": "internal_structured_query_service",
-      "surface": "structured_handoff",
-      "read_only": true,
-      "active": true,
-      "function_schema": {
-        "available": true,
-        "strict": true
-      },
-      "runtime_posture": "typed_handoff_only",
-      "description": "Lookup current or temporally qualified campus service status."
-    },
-    {
-      "name": "service_guide_lookup",
-      "owner_agent": "campus-services-agent",
-      "capability": "campus_services",
-      "payload_kind": "service_guide_lookup",
-      "payload_schema_ref": "campus_contracts.models_tools.ServiceGuideLookupPayload",
-      "result_schema_ref": "campus_contracts.models_tools.ServiceGuideLookupResult",
-      "backend": "internal_structured_query_service",
-      "surface": "structured_handoff",
-      "read_only": true,
-      "active": true,
-      "function_schema": {
-        "available": true,
-        "strict": true
-      },
-      "runtime_posture": "typed_handoff_only",
-      "description": "Lookup stable campus service guide entries and current release material."
-    },
-    {
-      "name": "transport_schedule_lookup",
-      "owner_agent": "campus-services-agent",
-      "capability": "campus_services",
-      "payload_kind": "transport_schedule_lookup",
-      "payload_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupPayload",
-      "result_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupResult",
-      "backend": "internal_structured_query_service",
-      "surface": "structured_handoff",
-      "read_only": true,
-      "active": true,
-      "function_schema": {
-        "available": true,
-        "strict": true
-      },
-      "runtime_posture": "typed_handoff_only",
-      "description": "Lookup campus shuttle schedule snapshots, departures, and service windows."
-    },
-    {
-      "name": "contact_directory_lookup",
-      "owner_agent": "campus-services-agent",
-      "capability": "campus_services",
-      "payload_kind": "contact_directory_lookup",
-      "payload_schema_ref": "campus_contracts.models_tools.ContactDirectoryLookupPayload",
-      "result_schema_ref": "campus_contracts.models_tools.ContactDirectoryLookupResult",
-      "backend": "internal_structured_query_service",
-      "surface": "structured_handoff",
-      "read_only": true,
-      "active": true,
-      "function_schema": {
-        "available": true,
-        "strict": true
-      },
-      "runtime_posture": "typed_handoff_only",
-      "description": "Lookup governed campus contact directory records."
-    },
-    {
-      "name": "campus_notice_discover",
-      "owner_agent": "notice-agent",
-      "capability": "notice",
-      "payload_kind": "campus_notice_discover",
-      "payload_schema_ref": "campus_contracts.models_tools.CampusNoticeDiscoverPayload",
-      "result_schema_ref": "campus_contracts.models_tools.CampusNoticeDiscoverResult",
-      "backend": "internal_structured_query_service",
-      "surface": "structured_handoff",
-      "read_only": true,
-      "active": true,
-      "function_schema": {
-        "available": true,
-        "strict": true
-      },
-      "runtime_posture": "typed_handoff_only",
-      "description": "Discover governed campus notices by topic, family, and target surface."
-    },
-    {
-      "name": "campus_notice_get",
-      "owner_agent": "notice-agent",
-      "capability": "notice",
-      "payload_kind": "campus_notice_get",
-      "payload_schema_ref": "campus_contracts.models_tools.CampusNoticeGetPayload",
-      "result_schema_ref": "campus_contracts.models_tools.CampusNoticeGetResult",
-      "backend": "internal_structured_query_service",
-      "surface": "agent_internal",
-      "read_only": true,
-      "active": true,
-      "function_schema": {
-        "available": false,
-        "strict": false
-      },
-      "runtime_posture": "closed",
-      "description": "Deprecated body-serving notice get; selected notice resolution is an internal query function."
-    },
-    {
-      "name": "retrieval.query",
-      "owner_agent": "rag-agent",
-      "capability": "knowledge",
-      "payload_kind": "rag_request",
-      "payload_schema_ref": "campus_contracts.models_retrieval.RagRequestPayload",
-      "result_schema_ref": "campus_contracts.models_runtime.RagResultPayload",
-      "backend": "retrieval_core",
-      "surface": "agent_internal",
-      "read_only": true,
-      "active": true,
-      "function_schema": {
-        "available": false,
-        "strict": true
-      },
-      "runtime_posture": "closed",
-      "description": "Internal retrieval step used by rag-agent; not exposed as a Go preplanned structured handoff tool."
-    }
-  ]
+	"schema_version": "tool-spec-registry-v1",
+	"registry_version": "2026-05-01",
+	"tools": [
+		{
+			"name": "service_status_lookup",
+			"owner_agent": "campus-services-agent",
+			"capability": "campus_services",
+			"payload_kind": "service_status_lookup",
+			"payload_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupPayload",
+			"result_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "typed_handoff_only",
+			"description": "Lookup current or temporally qualified campus service status."
+		},
+		{
+			"name": "service_guide_lookup",
+			"owner_agent": "campus-services-agent",
+			"capability": "campus_services",
+			"payload_kind": "service_guide_lookup",
+			"payload_schema_ref": "campus_contracts.models_tools.ServiceGuideLookupPayload",
+			"result_schema_ref": "campus_contracts.models_tools.ServiceGuideLookupResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "typed_handoff_only",
+			"description": "Lookup stable campus service guide entries and current release material."
+		},
+		{
+			"name": "transport_schedule_lookup",
+			"owner_agent": "campus-services-agent",
+			"capability": "campus_services",
+			"payload_kind": "transport_schedule_lookup",
+			"payload_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupPayload",
+			"result_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "typed_handoff_only",
+			"description": "Lookup campus shuttle schedule snapshots, departures, and service windows."
+		},
+		{
+			"name": "contact_directory_lookup",
+			"owner_agent": "campus-services-agent",
+			"capability": "campus_services",
+			"payload_kind": "contact_directory_lookup",
+			"payload_schema_ref": "campus_contracts.models_tools.ContactDirectoryLookupPayload",
+			"result_schema_ref": "campus_contracts.models_tools.ContactDirectoryLookupResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "typed_handoff_only",
+			"description": "Lookup governed campus contact directory records."
+		},
+		{
+			"name": "campus_notice_discover",
+			"owner_agent": "notice-agent",
+			"capability": "notice",
+			"payload_kind": "campus_notice_discover",
+			"payload_schema_ref": "campus_contracts.models_tools.CampusNoticeDiscoverPayload",
+			"result_schema_ref": "campus_contracts.models_tools.CampusNoticeDiscoverResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "typed_handoff_only",
+			"description": "Discover governed campus notices by topic, family, and target surface."
+		},
+		{
+			"name": "campus_notice_get",
+			"owner_agent": "notice-agent",
+			"capability": "notice",
+			"payload_kind": "campus_notice_get",
+			"payload_schema_ref": "campus_contracts.models_tools.CampusNoticeGetPayload",
+			"result_schema_ref": "campus_contracts.models_tools.CampusNoticeGetResult",
+			"backend": "internal_structured_query_service",
+			"surface": "agent_internal",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": false,
+				"strict": false
+			},
+			"runtime_posture": "closed",
+			"description": "Deprecated body-serving notice get; selected notice resolution is an internal query function."
+		},
+		{
+			"name": "retrieval.query",
+			"owner_agent": "rag-agent",
+			"capability": "knowledge",
+			"payload_kind": "rag_request",
+			"payload_schema_ref": "campus_contracts.models_retrieval.RagRequestPayload",
+			"result_schema_ref": "campus_contracts.models_runtime.RagResultPayload",
+			"backend": "retrieval_core",
+			"surface": "agent_internal",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": false,
+				"strict": true
+			},
+			"runtime_posture": "closed",
+			"description": "Internal retrieval step used by rag-agent; not exposed as a Go preplanned structured handoff tool."
+		}
+	]
 }

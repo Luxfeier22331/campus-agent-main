@@ -1,58 +1,58 @@
 {
-  "schema_version": 1,
-  "case_family": "agents_sdk_notice_get_parity.v1",
-  "updated_at": "2026-05-01",
-  "posture": "retired_closed",
-  "cases": [
-    {
-      "case_id": "notice_get_sdk_and_provider_closed",
-      "user_goal": "读取这条通知",
-      "notice_id": "notice:2026-spring",
-      "source_family": "official_web_public_notice",
-      "sdk_scenario": "runtime_closed",
-      "provider_scenario": "runtime_closed",
-      "expected_sdk": {
-        "status": "error",
-        "selected_tool": "",
-        "failure_kind": "runtime_closed",
-        "argument_keys": [],
-        "tool_execution_count": 0,
-        "final_answer_present": false
-      },
-      "expected_provider": {
-        "status": "error",
-        "selected_tool": "",
-        "failure_kind": "runtime_closed",
-        "argument_keys": [],
-        "tool_execution_count": 0,
-        "final_answer_present": false
-      },
-      "parity_fields": ["status", "failure_kind", "tool_execution_count"]
-    },
-    {
-      "case_id": "notice_get_disabled_gate_closed",
-      "user_goal": "读取这条通知",
-      "notice_id": "notice:2026-spring",
-      "source_family": "official_web_public_notice",
-      "sdk_scenario": "runtime_disabled",
-      "provider_scenario": "runtime_disabled",
-      "expected_sdk": {
-        "status": "error",
-        "selected_tool": "",
-        "failure_kind": "runtime_disabled",
-        "argument_keys": [],
-        "tool_execution_count": 0,
-        "final_answer_present": false
-      },
-      "expected_provider": {
-        "status": "error",
-        "selected_tool": "",
-        "failure_kind": "runtime_disabled",
-        "argument_keys": [],
-        "tool_execution_count": 0,
-        "final_answer_present": false
-      },
-      "parity_fields": ["status", "failure_kind", "tool_execution_count"]
-    }
-  ]
+	"schema_version": 1,
+	"case_family": "agents_sdk_notice_get_parity.v1",
+	"updated_at": "2026-05-01",
+	"posture": "retired_closed",
+	"cases": [
+		{
+			"case_id": "notice_get_sdk_and_provider_closed",
+			"user_goal": "读取这条通知",
+			"notice_id": "notice:2026-spring",
+			"source_family": "official_web_public_notice",
+			"sdk_scenario": "runtime_closed",
+			"provider_scenario": "runtime_closed",
+			"expected_sdk": {
+				"status": "error",
+				"selected_tool": "",
+				"failure_kind": "runtime_closed",
+				"argument_keys": [],
+				"tool_execution_count": 0,
+				"final_answer_present": false
+			},
+			"expected_provider": {
+				"status": "error",
+				"selected_tool": "",
+				"failure_kind": "runtime_closed",
+				"argument_keys": [],
+				"tool_execution_count": 0,
+				"final_answer_present": false
+			},
+			"parity_fields": ["status", "failure_kind", "tool_execution_count"]
+		},
+		{
+			"case_id": "notice_get_disabled_gate_closed",
+			"user_goal": "读取这条通知",
+			"notice_id": "notice:2026-spring",
+			"source_family": "official_web_public_notice",
+			"sdk_scenario": "runtime_disabled",
+			"provider_scenario": "runtime_disabled",
+			"expected_sdk": {
+				"status": "error",
+				"selected_tool": "",
+				"failure_kind": "runtime_disabled",
+				"argument_keys": [],
+				"tool_execution_count": 0,
+				"final_answer_present": false
+			},
+			"expected_provider": {
+				"status": "error",
+				"selected_tool": "",
+				"failure_kind": "runtime_disabled",
+				"argument_keys": [],
+				"tool_execution_count": 0,
+				"final_answer_present": false
+			},
+			"parity_fields": ["status", "failure_kind", "tool_execution_count"]
+		}
+	]
 }

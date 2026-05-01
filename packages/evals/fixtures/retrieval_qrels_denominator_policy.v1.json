@@ -1,108 +1,108 @@
 {
-  "schema_version": "retrieval-qrels-denominator-policy-v1",
-  "normalized_denominator_classes": [
-    "exact_title_or_policy_name",
-    "entity_alias_or_abbreviation",
-    "article_or_clause_reference",
-    "long_form_semantic_answer",
-    "table_or_structured_fact",
-    "hard_negative",
-    "no_hit",
-    "authz_filtered",
-    "current_only",
-    "historical_version",
-    "as_of_or_compare",
-    "citation_backlink",
-    "freshness_sensitive"
-  ],
-  "scopes": {
-    "regulations/student_rules": {
-      "fixture": "student_handbook_retrieval_qrels.json",
-      "min_case_count": 15,
-      "required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
-      "required_scenarios": [
-        "policy_title_exact_match",
-        "article_number_exact_match",
-        "semantic_service_process",
-        "hard_negative",
-        "no_hit",
-        "version_locked"
-      ],
-      "scenario_denominator_classes": {
-        "policy_title_exact_match": ["exact_title_or_policy_name", "citation_backlink"],
-        "article_number_exact_match": ["article_or_clause_reference", "citation_backlink"],
-        "semantic_service_process": ["long_form_semantic_answer", "citation_backlink"],
-        "hard_negative": ["hard_negative"],
-        "no_hit": ["no_hit"],
-        "version_locked": ["historical_version", "current_only"]
-      }
-    },
-    "regulations/institutional_rules": {
-      "fixture": "institutional_rules_retrieval_qrels.json",
-      "min_case_count": 5,
-      "required_classes": ["positive", "no_hit", "forbidden", "version_locked", "authz"],
-      "required_scenarios": [
-        "institutional_policy_title",
-        "effective_date",
-        "authz_denied",
-        "version_locked",
-        "no_hit"
-      ],
-      "scenario_denominator_classes": {
-        "institutional_policy_title": ["exact_title_or_policy_name", "citation_backlink"],
-        "effective_date": ["long_form_semantic_answer", "citation_backlink"],
-        "authz_denied": ["authz_filtered"],
-        "version_locked": ["historical_version", "current_only"],
-        "no_hit": ["no_hit"]
-      }
-    },
-    "curriculum/curriculum_plan": {
-      "fixture": "curriculum_plan_retrieval_qrels.json",
-      "min_case_count": 20,
-      "required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
-      "required_scenarios": [
-        "program_title",
-        "program_variant_disambiguation",
-        "academic_years",
-        "credit_total",
-        "course_table",
-        "semester_course_list",
-        "no_hit"
-      ],
-      "scenario_denominator_classes": {
-        "program_title": ["exact_title_or_policy_name", "citation_backlink"],
-        "program_variant_disambiguation": [
-          "exact_title_or_policy_name",
-          "entity_alias_or_abbreviation",
-          "hard_negative"
-        ],
-        "academic_years": ["long_form_semantic_answer", "citation_backlink"],
-        "credit_total": ["table_or_structured_fact", "citation_backlink"],
-        "course_table": ["table_or_structured_fact", "citation_backlink"],
-        "semester_course_list": ["table_or_structured_fact", "long_form_semantic_answer"],
-        "no_hit": ["no_hit"]
-      }
-    },
-    "official_web/stable_reference": {
-      "fixture": "official_web_stable_reference_retrieval_qrels.json",
-      "min_case_count": 10,
-      "required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
-      "required_scenarios": [
-        "school_profile",
-        "leadership",
-        "education_office",
-        "organization_profile",
-        "no_hit",
-        "hard_negative"
-      ],
-      "scenario_denominator_classes": {
-        "school_profile": ["long_form_semantic_answer", "citation_backlink"],
-        "leadership": ["exact_title_or_policy_name", "freshness_sensitive"],
-        "education_office": ["entity_alias_or_abbreviation", "citation_backlink"],
-        "organization_profile": ["long_form_semantic_answer", "citation_backlink"],
-        "no_hit": ["no_hit"],
-        "hard_negative": ["hard_negative"]
-      }
-    }
-  }
+	"schema_version": "retrieval-qrels-denominator-policy-v1",
+	"normalized_denominator_classes": [
+		"exact_title_or_policy_name",
+		"entity_alias_or_abbreviation",
+		"article_or_clause_reference",
+		"long_form_semantic_answer",
+		"table_or_structured_fact",
+		"hard_negative",
+		"no_hit",
+		"authz_filtered",
+		"current_only",
+		"historical_version",
+		"as_of_or_compare",
+		"citation_backlink",
+		"freshness_sensitive"
+	],
+	"scopes": {
+		"regulations/student_rules": {
+			"fixture": "student_handbook_retrieval_qrels.json",
+			"min_case_count": 15,
+			"required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
+			"required_scenarios": [
+				"policy_title_exact_match",
+				"article_number_exact_match",
+				"semantic_service_process",
+				"hard_negative",
+				"no_hit",
+				"version_locked"
+			],
+			"scenario_denominator_classes": {
+				"policy_title_exact_match": ["exact_title_or_policy_name", "citation_backlink"],
+				"article_number_exact_match": ["article_or_clause_reference", "citation_backlink"],
+				"semantic_service_process": ["long_form_semantic_answer", "citation_backlink"],
+				"hard_negative": ["hard_negative"],
+				"no_hit": ["no_hit"],
+				"version_locked": ["historical_version", "current_only"]
+			}
+		},
+		"regulations/institutional_rules": {
+			"fixture": "institutional_rules_retrieval_qrels.json",
+			"min_case_count": 5,
+			"required_classes": ["positive", "no_hit", "forbidden", "version_locked", "authz"],
+			"required_scenarios": [
+				"institutional_policy_title",
+				"effective_date",
+				"authz_denied",
+				"version_locked",
+				"no_hit"
+			],
+			"scenario_denominator_classes": {
+				"institutional_policy_title": ["exact_title_or_policy_name", "citation_backlink"],
+				"effective_date": ["long_form_semantic_answer", "citation_backlink"],
+				"authz_denied": ["authz_filtered"],
+				"version_locked": ["historical_version", "current_only"],
+				"no_hit": ["no_hit"]
+			}
+		},
+		"curriculum/curriculum_plan": {
+			"fixture": "curriculum_plan_retrieval_qrels.json",
+			"min_case_count": 20,
+			"required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
+			"required_scenarios": [
+				"program_title",
+				"program_variant_disambiguation",
+				"academic_years",
+				"credit_total",
+				"course_table",
+				"semester_course_list",
+				"no_hit"
+			],
+			"scenario_denominator_classes": {
+				"program_title": ["exact_title_or_policy_name", "citation_backlink"],
+				"program_variant_disambiguation": [
+					"exact_title_or_policy_name",
+					"entity_alias_or_abbreviation",
+					"hard_negative"
+				],
+				"academic_years": ["long_form_semantic_answer", "citation_backlink"],
+				"credit_total": ["table_or_structured_fact", "citation_backlink"],
+				"course_table": ["table_or_structured_fact", "citation_backlink"],
+				"semester_course_list": ["table_or_structured_fact", "long_form_semantic_answer"],
+				"no_hit": ["no_hit"]
+			}
+		},
+		"official_web/stable_reference": {
+			"fixture": "official_web_stable_reference_retrieval_qrels.json",
+			"min_case_count": 10,
+			"required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
+			"required_scenarios": [
+				"school_profile",
+				"leadership",
+				"education_office",
+				"organization_profile",
+				"no_hit",
+				"hard_negative"
+			],
+			"scenario_denominator_classes": {
+				"school_profile": ["long_form_semantic_answer", "citation_backlink"],
+				"leadership": ["exact_title_or_policy_name", "freshness_sensitive"],
+				"education_office": ["entity_alias_or_abbreviation", "citation_backlink"],
+				"organization_profile": ["long_form_semantic_answer", "citation_backlink"],
+				"no_hit": ["no_hit"],
+				"hard_negative": ["hard_negative"]
+			}
+		}
+	}
 }

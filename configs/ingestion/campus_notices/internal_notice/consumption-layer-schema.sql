@@ -218,7 +218,8 @@ ON ingestion_projection.internal_notice_schedule_image_ocr_attempt (
     admission_batch_id
 );
 
-CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_released_file_text_extraction_attempt (
+CREATE TABLE IF NOT EXISTS
+ingestion_projection.collected_notice_released_file_text_extraction_attempt (
     source_corpus text NOT NULL,
     source_collection text NOT NULL,
     source_notice_id text NOT NULL,
@@ -228,17 +229,18 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_released_file_t
     admission_batch_id text NOT NULL DEFAULT '',
     provider text NOT NULL,
     model text NOT NULL,
-    status text NOT NULL CONSTRAINT collected_notice_released_file_text_extraction_attempt_status_check
-        CHECK (
-            status IN (
-                'pending',
-                'completed',
-                'skipped',
-                'manual_review',
-                'failed_retryable',
-                'failed_terminal'
-            )
-        ),
+    status text NOT NULL CONSTRAINT
+    collected_notice_released_file_text_extraction_attempt_status_check
+    CHECK (
+        status IN (
+            'pending',
+            'completed',
+            'skipped',
+            'manual_review',
+            'failed_retryable',
+            'failed_terminal'
+        )
+    ),
     confidence text NOT NULL DEFAULT '',
     provider_response_key text NOT NULL DEFAULT '',
     plain_text_key text NOT NULL DEFAULT '',
@@ -283,16 +285,16 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_pdf_ocr_text_ex
     provider text NOT NULL,
     model text NOT NULL,
     status text NOT NULL CONSTRAINT collected_notice_pdf_ocr_text_extraction_attempt_status_check
-        CHECK (
-            status IN (
-                'pending',
-                'completed',
-                'skipped',
-                'manual_review',
-                'failed_retryable',
-                'failed_terminal'
-            )
-        ),
+    CHECK (
+        status IN (
+            'pending',
+            'completed',
+            'skipped',
+            'manual_review',
+            'failed_retryable',
+            'failed_terminal'
+        )
+    ),
     confidence text NOT NULL DEFAULT '',
     provider_response_key text NOT NULL DEFAULT '',
     plain_text_key text NOT NULL DEFAULT '',
@@ -337,16 +339,16 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_office_text_ext
     provider text NOT NULL,
     model text NOT NULL,
     status text NOT NULL CONSTRAINT collected_notice_office_text_extraction_attempt_status_check
-        CHECK (
-            status IN (
-                'pending',
-                'completed',
-                'skipped',
-                'manual_review',
-                'failed_retryable',
-                'failed_terminal'
-            )
-        ),
+    CHECK (
+        status IN (
+            'pending',
+            'completed',
+            'skipped',
+            'manual_review',
+            'failed_retryable',
+            'failed_terminal'
+        )
+    ),
     confidence text NOT NULL DEFAULT '',
     provider_response_key text NOT NULL DEFAULT '',
     plain_text_key text NOT NULL DEFAULT '',
@@ -391,16 +393,16 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_image_ocr_text_
     provider text NOT NULL,
     model text NOT NULL,
     status text NOT NULL CONSTRAINT collected_notice_image_ocr_text_extraction_attempt_status_check
-        CHECK (
-            status IN (
-                'pending',
-                'completed',
-                'skipped',
-                'manual_review',
-                'failed_retryable',
-                'failed_terminal'
-            )
-        ),
+    CHECK (
+        status IN (
+            'pending',
+            'completed',
+            'skipped',
+            'manual_review',
+            'failed_retryable',
+            'failed_terminal'
+        )
+    ),
     confidence text NOT NULL DEFAULT '',
     provider_response_key text NOT NULL DEFAULT '',
     plain_text_key text NOT NULL DEFAULT '',

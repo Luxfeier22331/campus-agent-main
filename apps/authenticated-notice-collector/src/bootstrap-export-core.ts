@@ -46,13 +46,13 @@ import {
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
 } from "./collector-run-ledger";
-import { enqueueVerifiedCollectorRun } from "./ingest-queue-enqueue";
 import {
 	type CollectorConfig,
 	ensureRuntimeDirs,
 	loadCollectorEnv,
 	resolveCollectorConfig,
 } from "./config";
+import { enqueueVerifiedCollectorRun } from "./ingest-queue-enqueue";
 import { applyNoticeTypeAllowlist, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission";

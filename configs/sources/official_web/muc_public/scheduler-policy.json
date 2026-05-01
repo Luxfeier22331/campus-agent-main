@@ -19,12 +19,7 @@
 			"enabled": true,
 			"run_intent": "baseline",
 			"cadence_minutes": 1440,
-			"host_filter": [
-				"www.muc.edu.cn",
-				"xxgk.muc.edu.cn",
-				"lib.muc.edu.cn",
-				"xiaoyou.muc.edu.cn"
-			],
+			"host_filter": ["www.muc.edu.cn", "xxgk.muc.edu.cn", "lib.muc.edu.cn", "xiaoyou.muc.edu.cn"],
 			"max_pages_per_host": 40,
 			"max_total_pages": 160,
 			"notes": "Daily bounded baseline for university-level consumer candidates; broad news crawl is not part of default recovery."
