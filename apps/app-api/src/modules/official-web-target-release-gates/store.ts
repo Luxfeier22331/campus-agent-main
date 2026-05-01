@@ -94,6 +94,7 @@ export function createPgOfficialWebTargetReleaseGateStore(
 					set: {
 						decidedAt: sql`excluded.decided_at`,
 						decidedBy: sql`excluded.decided_by`,
+						decision: sql`excluded.decision`,
 						errorJson: sql`excluded.error_json`,
 						evidenceJson: sql`excluded.evidence_json`,
 						executionJson: sql`excluded.execution_json`,

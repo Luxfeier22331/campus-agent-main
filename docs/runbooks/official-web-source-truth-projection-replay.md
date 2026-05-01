@@ -249,7 +249,9 @@ campus-ingestion-release-official-web-target \
 该 executor 会从 app-api internal route 读取 release gate，只导入匹配该 target
 `jobId + sourceUrl + official_web/stable_reference + release_gate_required` 的文档，并以
 `scope_refresh = None` 调用 projection import，避免为单条 release 清空整个
-`official_web/stable_reference` scope。默认 `publishAlias = false`，最终状态是 `indexed`。
+`official_web/stable_reference` scope。导入后 executor 会用同一个 `releaseId` 执行
+registry scope chunk preparation，再把通过验证的 preparation 交给 `release_registry_scope`
+索引。默认 `publishAlias = false`，最终状态是 `indexed`。
 
 1. 仅在 bootstrap / repair 需要人工复放老路径时，才执行 routed scope import / release：
 

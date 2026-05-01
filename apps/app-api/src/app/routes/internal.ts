@@ -338,19 +338,6 @@ export function registerInternalRoutes(input: {
 		},
 	);
 
-	input.app.get("/api/internal/official-web/target-release-gates/:releaseId", async (c) => {
-		if (!hasTrustedInternalRequest(c.req.raw, input.env)) {
-			return internalAuthRequiredResponse();
-		}
-		const scope = input.createRequestScope();
-
-		return jsonResponse(
-			await scope.resolveOfficialWebTargetReleaseGateService().getReleaseGateForExecution({
-				releaseId: c.req.param("releaseId"),
-			}),
-		);
-	});
-
 	input.app.post("/api/internal/operator/trace-backlinks", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {

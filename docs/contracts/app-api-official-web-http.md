@@ -473,6 +473,12 @@ contract。
 - `published`
 - `failed`
 
+规则：
+
+- executor 在 `materialized` 前必须完成 projection import 与同 `releaseId` 的
+  registry scope chunk preparation；`execution.chunkPreparation` 只记录摘要，不保存
+  chunk 文本
+
 ### `GET /api/operator/official-web/runs`
 
 用途：

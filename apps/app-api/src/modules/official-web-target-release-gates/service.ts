@@ -182,7 +182,10 @@ function normalizeRecordJson(value: unknown, fieldName: string): Record<string, 
 }
 
 function sanitizeIdPart(value: string): string {
-	return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+	return value
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "_")
+		.replace(/^_+|_+$/g, "");
 }
 
 function buildReleaseId(input: { inventoryId: string; runId: string }): string {
@@ -227,9 +230,7 @@ function findApprovalBlockers(entry: OfficialWebTargetInventoryRecord): string[]
 	if (entry.reviewState !== "previewed") {
 		blockers.push(`review_state_${entry.reviewState}`);
 	}
-	if (!evidence) {
-		blockers.push("missing_preview_evidence");
-	} else {
+	if (evidence) {
 		if (evidence.ingestionStatus !== "staged") {
 			blockers.push("ingestion_not_staged");
 		}
@@ -242,6 +243,8 @@ function findApprovalBlockers(entry: OfficialWebTargetInventoryRecord): string[]
 		if (evidence.sourceObjectKeys.length === 0) {
 			blockers.push("missing_source_object_keys");
 		}
+	} else {
+		blockers.push("missing_preview_evidence");
 	}
 	for (const fieldName of entry.requiredFields) {
 		if (entry.fieldStatus[fieldName] !== "present") {

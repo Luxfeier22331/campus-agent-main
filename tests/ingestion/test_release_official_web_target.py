@@ -47,6 +47,16 @@ class _ReleaseReport:
     published_at: str | None = None
 
 
+@dataclass(frozen=True)
+class _ChunkPreparationReport:
+    preparation_run_id: str
+    corpus: str
+    collection: str
+    document_count: int
+    chunk_count: int
+    validation_status: str
+
+
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -91,6 +101,8 @@ class ReleaseOfficialWebTargetTest(unittest.TestCase):
                 }
             )
             client = _FakeAppApiClient(_release_gate())
+            document_registry = object()
+            raw_asset_registry = object()
 
             def fake_replay(*, output_dir: Path, projection_output_dir: Path, **_: object):
                 _write_json(
@@ -158,6 +170,19 @@ class ReleaseOfficialWebTargetTest(unittest.TestCase):
                     return_value=import_report,
                 ) as import_projection_output,
                 patch(
+                    "campus_ingestion_worker.release_official_web_target.prepare_registry_scope_chunks",
+                    return_value=_ChunkPreparationReport(
+                        preparation_run_id=(
+                            "owrelease_muc_school_introduction_reference_owrun_school_intro"
+                        ),
+                        corpus="official_web",
+                        collection="stable_reference",
+                        document_count=1,
+                        chunk_count=2,
+                        validation_status="passed",
+                    ),
+                ) as prepare_registry_scope_chunks,
+                patch(
                     "campus_ingestion_worker.release_official_web_target.release_registry_scope",
                     return_value=_ReleaseReport(
                         release_id="official_web_stable_reference__r20260501_081000",
@@ -173,14 +198,21 @@ class ReleaseOfficialWebTargetTest(unittest.TestCase):
                     app_api_client=client,
                     object_store=object_store,
                     derived_object_store=object_store,
-                    document_registry=object(),
-                    raw_asset_registry=object(),
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
                     work_dir=root / "release",
                 )
 
             kwargs = import_projection_output.call_args.kwargs
             self.assertIsNone(kwargs["scope_refresh"])
             self.assertTrue(kwargs["require_promotable"])
+            prepare_registry_scope_chunks.assert_called_once_with(
+                corpus="official_web",
+                collection="stable_reference",
+                preparation_run_id="owrelease_muc_school_introduction_reference_owrun_school_intro",
+                registry=document_registry,
+                object_store=object_store,
+            )
             filtered_report = json.loads(
                 (kwargs["projection_output_dir"] / "projection-report.json").read_text(
                     encoding="utf-8"

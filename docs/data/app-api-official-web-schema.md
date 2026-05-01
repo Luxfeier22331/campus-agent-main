@@ -406,6 +406,8 @@ updated: 2026-05-01
 - stable-reference target release 默认 `publish_alias = false`
 - 单 target release import 必须以 `scope_refresh = null` 执行，不允许为一条 release 清空整个
   `official_web/stable_reference` scope
+- executor 必须在 `release_registry_scope` 前用同一个 `release_id` 生成并验证 registry scope
+  chunk preparation，避免 release 阶段引用不存在或不匹配的 preparation manifest
 - `execution_json` 只保存 executor 进度摘要，不保存 retained HTML、provider payload 或
   chunk 文本
 

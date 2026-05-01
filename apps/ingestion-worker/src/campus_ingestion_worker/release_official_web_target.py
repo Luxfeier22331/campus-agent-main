@@ -16,6 +16,7 @@ from campus_ingestion_core import (
     ObjectStoreSettings,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
+    prepare_registry_scope_chunks,
     release_registry_scope,
     replay_official_web_source_truth_local,
 )
@@ -208,11 +209,19 @@ def release_official_web_target(
             require_promotable=True,
             dry_run=False,
         )
+        chunk_preparation_report = prepare_registry_scope_chunks(
+            corpus=corpus,
+            collection=collection,
+            preparation_run_id=release_id,
+            registry=document_registry,  # type: ignore[arg-type]
+            object_store=derived_object_store,  # type: ignore[arg-type]
+        )
         _report_status(
             app_api_client=app_api_client,
             release_id=release_id,
             payload={
                 "execution": {
+                    "chunkPreparation": _jsonable(chunk_preparation_report),
                     "documentIds": list(import_report.document_ids),
                     "importReportPath": import_report.report_path,
                 },
