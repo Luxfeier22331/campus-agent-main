@@ -237,3 +237,28 @@ export const runOutbox = officialWeb.table(
 		),
 	}),
 );
+
+export const runAdmissionDecisions = officialWeb.table(
+	"run_admission_decisions",
+	{
+		decisionId: text("decision_id").primaryKey(),
+		runId: text("run_id")
+			.notNull()
+			.references(() => crawlRuns.runId, { onDelete: "cascade" }),
+		siteId: text("site_id").notNull(),
+		decision: text("decision").notNull(),
+		reasonCode: text("reason_code").notNull(),
+		reason: text("reason").notNull(),
+		decidedBy: text("decided_by").notNull(),
+		decidedAt: timestamp("decided_at", { withTimezone: true }).notNull(),
+		evidenceJson: jsonb("evidence_json").$type<Record<string, unknown>>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		runUnique: uniqueIndex("official_web_run_admission_decisions_run_idx").on(table.runId),
+		siteDecisionDecidedAtIndex: index(
+			"official_web_run_admission_decisions_site_decision_idx",
+		).on(table.siteId, table.decision, table.decidedAt),
+	}),
+);
