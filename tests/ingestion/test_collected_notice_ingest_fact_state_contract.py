@@ -55,6 +55,24 @@ class CollectedNoticeIngestFactStateContractTests(unittest.TestCase):
                 }
             )
 
+    def test_contract_accepts_not_applicable_search_only_target_hold(self) -> None:
+        payload = {
+            "schema_version": "notice_ingest_fact_state.v1",
+            "target": "regulation",
+            "source_unit_state": "searchable_ready",
+            "fact_readiness_state": "not_applicable",
+            "target_admission_state": "search_only",
+            "required_fact_groups": [],
+            "ready_fact_groups": [],
+            "missing_fact_groups": [],
+            "reason_codes": ["historical_annual_cycle_rule_not_promoted"],
+            "media_states": [],
+            "blocking_media": [],
+            "provenance": {"source_notice_id": "186977"},
+        }
+
+        validate_fact_state_payload(payload)
+
     def test_contract_rejects_needs_multimodal_without_blocking_media(self) -> None:
         payload = _payload(
             fact_readiness_state="blocked_by_required_media",

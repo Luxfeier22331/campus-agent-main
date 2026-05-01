@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0035
 status: accepted
 created: 2026-04-10
-updated: 2026-04-28
+updated: 2026-05-01
 ---
 # ADR-0035 Notice-Derived Regulation Promotion Boundary
 
@@ -100,9 +100,10 @@ promotion boundary 至少负责判断：
 - 当前仍可独立消费的 institution-wide regulation text
 - 当前仍有产品价值的 scoped rule text
 - 明显历史年度周期规则
+- 已过期时间窗口 scoped operational rule
 - wrapper notice / attachment relation truth / reference-only source
 
-对明显历史年度周期规则，默认处理为：
+对明显历史年度周期规则或已过期时间窗口 scoped operational rule，默认处理为：
 
 - 保留在 `campus_notices/internal_notice`
 - `promotion_disposition=hold_in_internal_notice`
@@ -113,6 +114,10 @@ promotion boundary 至少负责判断：
 示例：`药学院2021年硕博连读博士研究生招生实施细则` 可被识别为
 `policy_regulation`，但它绑定 `药学院 + 2021 + 硕博连读招生` 的历史年度周期，
 不应默认进入 regulation 文档站。
+
+示例：`生命与环境科学学院关于2021年暑假期间实验室安全管理规定` 可被识别为
+`policy_regulation` 和 scoped operational rule，但它绑定 `2021 + 暑假期间`
+的已过期时间窗口，不应默认进入 regulation 文档站。
 
 ### 决策 5：wrapper notice 必须继续留在 `internal_notice`
 

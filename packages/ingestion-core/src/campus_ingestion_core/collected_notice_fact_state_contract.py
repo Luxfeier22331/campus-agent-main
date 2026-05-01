@@ -36,6 +36,7 @@ FACT_READINESS_STATES = frozenset(
         "ready_from_mixed_sources",
         "partial",
         "missing",
+        "not_applicable",
         "blocked_by_required_media",
         "review_required",
     )
@@ -115,6 +116,7 @@ def _validate_state_combinations(payload: Mapping[str, Any]) -> None:
         "ready_from_text",
         "ready_from_owner_text",
         "ready_from_ocr",
+        "not_applicable",
     } and payload.get("missing_fact_groups"):
         raise ValueError(f"{fact_readiness_state} must not include missing_fact_groups")
 

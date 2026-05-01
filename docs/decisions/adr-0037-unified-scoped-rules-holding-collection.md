@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0037
 status: accepted
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-05-01
 ---
 # ADR-0037 Unified Scoped Rules Holding Collection
 
@@ -54,6 +54,7 @@ repo 新增统一 target collection：
   outcome 占位物
 - 稳定 institution-wide regulation 正文
 - 明显历史年度周期 notice，例如已经过期的院系年度招生实施细则
+- 明显已过期时间窗口 notice，例如已经过期的假期期间实验室安全管理规定
 
 ### 决策 2：`regulations/scoped_rules` 是 explicit/internal retrieval-ready collection
 
@@ -94,12 +95,13 @@ repo 新增统一 target collection：
 
 补充约束：
 
-- `annual_cycle_rule` 仍需通过 applicability gate 才能进入 scoped-rule target。
-- 如果 source text 明确绑定早于当前 processing year 的年度周期，默认
+- `annual_cycle_rule` 与 `time_bound_operational_rule` 仍需通过 applicability
+  gate 才能进入 scoped-rule target。
+- 如果 source text 明确绑定早于当前 processing year 的年度周期或时间窗口，默认
   `promotion_disposition=hold_in_internal_notice`，不进入 `regulations/scoped_rules`
   reader。
-- 这类历史年度 source 仍可在 `campus_notices/internal_notice` 作为 notice-level
-  search/query 证据保留。
+- 这类历史年度或历史时间窗口 source 仍可在 `campus_notices/internal_notice`
+  作为 notice-level search/query 证据保留。
 
 ### 决策 4：详细 query semantics 明确后置
 

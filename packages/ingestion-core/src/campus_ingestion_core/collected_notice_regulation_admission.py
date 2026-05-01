@@ -8,12 +8,14 @@ from typing import Any, Protocol
 
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
 from campus_ingestion_core.collected_notice_fact_readiness import (
+    build_policy_hold_fact_readiness,
     build_regulation_fact_readiness,
 )
 from campus_ingestion_core.collected_notice_regulation_admission_support import (
     INSTITUTIONAL_TARGET_COLLECTION,
     REGULATION_CLASS_DUPLICATE_HOLD,
     REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD,
+    REGULATION_CLASS_HISTORICAL_TIME_WINDOW_HOLD,
     REGULATION_CLASS_INSTITUTIONAL,
     REGULATION_CLASS_INVALID_CAPTURE,
     REGULATION_CLASS_MANUAL_REVIEW,
@@ -28,6 +30,7 @@ from campus_ingestion_core.collected_notice_regulation_admission_support import 
     _has_formal_owner_title,
     _has_regulation_body_structure,
     _is_historical_annual_cycle_rule,
+    _is_historical_time_window_rule,
     _issuing_org,
     _load_json_object,
     _looks_like_draft_or_operational_scheme,
@@ -359,6 +362,7 @@ def _initial_decision(
         unit=unit,
         multimodal_candidate_inventory=multimodal_candidate_inventory,
         owner_text_ready=_owner_text_status(unit) == "ready",
+        body_text_ready=bool(title and body_text and _has_regulation_body_structure(body_text)),
     )
     if not str(unit.get("unit_id") or "").strip():
         reasons.append("missing_searchable_unit_id")
@@ -453,20 +457,53 @@ def _initial_decision(
         unit,
         generated_at=generated_at,
     ):
+        hold_reason_codes = (
+            "historical_annual_cycle_rule_not_promoted",
+            "expired_cycle_year",
+            "notice_level_retained",
+        )
         return _decision(
             unit=unit,
             regulation_admission_class=REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD,
             consumption_class="search_only",
-            reason_codes=(
-                "historical_annual_cycle_rule_not_promoted",
-                "expired_cycle_year",
-                "notice_level_retained",
-            ),
+            reason_codes=hold_reason_codes,
             regulation_title=title,
             issuing_org=issuing_org,
             target_collection=target_collection,
             queue_trace_row=queue_trace_row,
-            fact_readiness=fact_readiness,
+            fact_readiness=build_policy_hold_fact_readiness(
+                unit=unit,
+                target=REGULATION_TARGET,
+                reason_codes=hold_reason_codes,
+            ),
+            applicability_status="historical_expired",
+            promotion_disposition="hold_in_internal_notice",
+            recommended_query_surface="notice_level_query",
+            cycle_year=_cycle_year(unit),
+        )
+    if target_collection == SCOPED_TARGET_COLLECTION and _is_historical_time_window_rule(
+        unit,
+        generated_at=generated_at,
+    ):
+        hold_reason_codes = (
+            "historical_time_window_rule_not_promoted",
+            "expired_time_window",
+            "notice_level_retained",
+        )
+        return _decision(
+            unit=unit,
+            regulation_admission_class=REGULATION_CLASS_HISTORICAL_TIME_WINDOW_HOLD,
+            consumption_class="search_only",
+            reason_codes=hold_reason_codes,
+            regulation_title=title,
+            issuing_org=issuing_org,
+            target_collection=target_collection,
+            queue_trace_row=queue_trace_row,
+            fact_readiness=build_policy_hold_fact_readiness(
+                unit=unit,
+                target=REGULATION_TARGET,
+                reason_codes=hold_reason_codes,
+            ),
             applicability_status="historical_expired",
             promotion_disposition="hold_in_internal_notice",
             recommended_query_surface="notice_level_query",

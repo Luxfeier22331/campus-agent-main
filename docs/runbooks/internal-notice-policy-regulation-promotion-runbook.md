@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-11
-updated: 2026-04-28
+updated: 2026-05-01
 ---
 # Internal Notice Regulation Promotion Runbook
 
@@ -66,6 +66,9 @@ operator 目标：
 
 - 先确认 `promote_candidate / hold_in_internal_notice /
   requires_multimodal_processing / no_adoption` 分布
+- 对 regulation admission preview，`historical_annual_cycle_rule_hold` 与
+  `historical_time_window_rule_hold` 都是 stop condition，不得继续 formal
+  import
 - 再确认 candidate 真的是独立 regulation owner body
 
 固定 operator 规则：
@@ -159,9 +162,11 @@ uv run --package campus-ingestion-worker python -m \
 - 只消费 `promote_candidate`
 - `policy_regulation` 只是 source triage signal，不是 target promotion
   eligibility
-- 明显历史年度周期规则必须 hold in `campus_notices/internal_notice`，例如
-  `药学院2021年硕博连读博士研究生招生实施细则` 应保留为 notice-level query，
-  不发布到 `regulations/scoped_rules`
+- 明显历史年度周期规则或已过期时间窗口规则必须 hold in
+  `campus_notices/internal_notice`，例如
+  `药学院2021年硕博连读博士研究生招生实施细则` 与
+  `生命与环境科学学院关于2021年暑假期间实验室安全管理规定` 应保留为
+  notice-level query，不发布到 `regulations/scoped_rules`
 - target `document_id` 不从 `notice_id` 派生
 - duplicate candidate 合并为一个 canonical target document
 - target scope 使用 scope refresh
@@ -201,7 +206,8 @@ operator 规则：
 - local-only dry-run 必须使用隔离 target 输出目录
 - admission manifest 使用 `target_surface=regulations/*`
 - dry-run 必须证明 selected notice 通过 applicability gate；如果输出
-  `historical_annual_cycle_rule_hold`，该 notice 不得继续进入 formal import
+  `historical_annual_cycle_rule_hold` 或 `historical_time_window_rule_hold`，该
+  notice 不得继续进入 formal import
 - generated target records 可以同时覆盖 `regulations/institutional_rules` 与
   `regulations/scoped_rules`
 - 输出 document reader assets 只作为 dry-run artifact，不表示 public docs deploy、

@@ -26,6 +26,7 @@ REGULATION_CLASS_NEEDS_MULTIMODAL = "needs_multimodal"
 REGULATION_CLASS_WRAPPER_ONLY = "wrapper_only_searchable"
 REGULATION_CLASS_DUPLICATE_HOLD = "duplicate_hold"
 REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD = "historical_annual_cycle_rule_hold"
+REGULATION_CLASS_HISTORICAL_TIME_WINDOW_HOLD = "historical_time_window_rule_hold"
 REGULATION_CLASS_MANUAL_REVIEW = "manual_review"
 REGULATION_CLASS_INVALID_CAPTURE = "invalid_capture"
 
@@ -210,6 +211,21 @@ def _is_historical_annual_cycle_rule(
         return False
     text = _policy_text(unit)
     if not any(keyword in text for keyword in _ANNUAL_CYCLE_OR_PROGRAM_RULE_KEYWORDS):
+        return False
+    cycle_year = _cycle_year_int(unit)
+    generated_year = _year_from_text(generated_at)
+    return cycle_year is not None and generated_year is not None and cycle_year < generated_year
+
+
+def _is_historical_time_window_rule(
+    unit: Mapping[str, Any],
+    *,
+    generated_at: str,
+) -> bool:
+    if _target_collection_for_text(unit) != SCOPED_TARGET_COLLECTION:
+        return False
+    text = _policy_text(unit)
+    if not any(keyword in text for keyword in _TIME_BOUND_OPERATIONAL_KEYWORDS):
         return False
     cycle_year = _cycle_year_int(unit)
     generated_year = _year_from_text(generated_at)
@@ -467,6 +483,7 @@ __all__ = [
     "INSTITUTIONAL_TARGET_COLLECTION",
     "REGULATION_CLASS_DUPLICATE_HOLD",
     "REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD",
+    "REGULATION_CLASS_HISTORICAL_TIME_WINDOW_HOLD",
     "REGULATION_CLASS_INSTITUTIONAL",
     "REGULATION_CLASS_INVALID_CAPTURE",
     "REGULATION_CLASS_MANUAL_REVIEW",
@@ -481,6 +498,7 @@ __all__ = [
     "_has_formal_owner_title",
     "_has_regulation_body_structure",
     "_is_historical_annual_cycle_rule",
+    "_is_historical_time_window_rule",
     "_issuing_org",
     "_load_json_object",
     "_looks_like_draft_or_operational_scheme",
