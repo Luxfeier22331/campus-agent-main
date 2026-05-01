@@ -12,6 +12,7 @@ import {
 	routeErrorResponse,
 	withNoStore,
 } from "../../http";
+import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
 import {
 	buildEndUserEmailAdmissionPolicy,
 	hashAppPassword,
@@ -150,6 +151,24 @@ export function registerInternalRoutes(input: {
 			}),
 		);
 	});
+
+	input.app.post(
+		"/api/internal/operator/authenticated-notices/processing-snapshots",
+		async (c) => {
+			const scope = input.createRequestScope();
+			if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+				return serviceCredentialRequiredResponse();
+			}
+
+			const payload = await readJsonRequestBody(c.req.raw);
+			assertNoForbiddenAuthenticatedNoticeProcessingFields(payload);
+			return jsonResponse(
+				await scope.resolveAuthenticatedNoticeProcessingCommandService().ingestSnapshots({
+					payload,
+				}),
+			);
+		},
+	);
 
 	input.app.post("/api/internal/execution/audit-events", async (c) => {
 		const scope = input.createRequestScope();

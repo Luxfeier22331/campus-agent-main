@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
@@ -11,6 +11,13 @@ interface OfficialWebArtifactProjectionJson {
 	contentSha256: string;
 	objectKey: string;
 	recordCount: number | null;
+}
+
+interface AuthenticatedNoticeTimelineEventJson {
+	stage: string;
+	status: string;
+	occurredAt: string;
+	summary: string;
 }
 
 interface RequestAuditDiagnosticsJson {
@@ -321,5 +328,102 @@ export const officialWebSiteProjection = operator.table(
 		latestRunStatusProjectedAtIndex: index(
 			"operator_official_web_site_projection_status_projected_at_idx",
 		).on(table.latestRunStatus, table.projectedAt),
+	}),
+);
+
+export const authenticatedNoticeProcessingProjection = operator.table(
+	"authenticated_notice_processing_projection",
+	{
+		processingId: text("processing_id").primaryKey(),
+		noticeKey: text("notice_key").notNull(),
+		sourceChannel: text("source_channel").notNull(),
+		sourceSurface: text("source_surface").notNull(),
+		siteId: text("site_id").notNull(),
+		noticeId: text("notice_id").notNull(),
+		title: text("title").notNull(),
+		runId: text("run_id"),
+		jobId: text("job_id"),
+		replayBatchId: text("replay_batch_id"),
+		enqueueSource: text("enqueue_source"),
+		queueStatus: text("queue_status").notNull(),
+		lifecycleStatus: text("lifecycle_status").notNull(),
+		latestStage: text("latest_stage").notNull(),
+		targetSurface: text("target_surface"),
+		candidateKind: text("candidate_kind"),
+		materializationStatus: text("materialization_status"),
+		releaseId: text("release_id"),
+		current: boolean("current").notNull().default(false),
+		toolReady: boolean("tool_ready").notNull().default(false),
+		readModelCountsJson: jsonb("read_model_counts_json")
+			.$type<Record<string, number | string | boolean | null>>()
+			.notNull()
+			.default({}),
+		childTaskSummaryJson: jsonb("child_task_summary_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		timelineJson: jsonb("timeline_json")
+			.$type<AuthenticatedNoticeTimelineEventJson[]>()
+			.notNull()
+			.default([]),
+		downstreamJson: jsonb("downstream_json").$type<Record<string, unknown> | null>(),
+		lastErrorCode: text("last_error_code"),
+		lastErrorMessage: text("last_error_message"),
+		attemptCount: integer("attempt_count").notNull().default(0),
+		lastObservedAt: timestamp("last_observed_at", { withTimezone: true }).notNull(),
+		sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+		producerVersion: text("producer_version").notNull(),
+		redactionVersion: text("redaction_version").notNull(),
+	},
+	(table) => ({
+		noticeProjectedAtIndex: index("operator_auth_notice_processing_notice_projected_idx").on(
+			table.noticeId,
+			table.projectedAt,
+		),
+		noticeKeyProjectedAtIndex: index(
+			"operator_auth_notice_processing_notice_key_projected_idx",
+		).on(table.noticeKey, table.projectedAt),
+		statusProjectedAtIndex: index("operator_auth_notice_processing_status_projected_idx").on(
+			table.lifecycleStatus,
+			table.projectedAt,
+		),
+		targetProjectedAtIndex: index("operator_auth_notice_processing_target_projected_idx").on(
+			table.targetSurface,
+			table.candidateKind,
+			table.projectedAt,
+		),
+		runProjectedAtIndex: index("operator_auth_notice_processing_run_projected_idx").on(
+			table.runId,
+			table.projectedAt,
+		),
+	}),
+);
+
+export const authenticatedNoticeProcessingEventProjection = operator.table(
+	"authenticated_notice_processing_event_projection",
+	{
+		eventId: text("event_id").primaryKey(),
+		processingId: text("processing_id").notNull(),
+		noticeKey: text("notice_key").notNull(),
+		noticeId: text("notice_id").notNull(),
+		runId: text("run_id"),
+		jobId: text("job_id"),
+		stage: text("stage").notNull(),
+		status: text("status").notNull(),
+		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		summary: text("summary").notNull(),
+		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull().default({}),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		processingOccurredAtIndex: index("operator_auth_notice_event_processing_occurred_idx").on(
+			table.processingId,
+			table.occurredAt,
+		),
+		noticeOccurredAtIndex: index("operator_auth_notice_event_notice_occurred_idx").on(
+			table.noticeId,
+			table.occurredAt,
+		),
 	}),
 );

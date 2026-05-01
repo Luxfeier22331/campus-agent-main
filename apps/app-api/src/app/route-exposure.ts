@@ -125,6 +125,18 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/authenticated-notices/processing",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/authenticated-notices/processing/:noticeId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/cost/summary",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -306,6 +318,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "POST",
 		path: "/api/internal/execution/audit-events",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/authenticated-notices/processing-snapshots",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},

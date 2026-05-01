@@ -155,6 +155,59 @@ export function registerOperatorRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/operator/authenticated-notices/processing", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveAuthenticatedNoticeProcessingQueryService().list({
+				filters: {
+					candidateKind: c.req.query("candidateKind") ?? null,
+					cursor: c.req.query("cursor") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					noticeId: c.req.query("noticeId") ?? null,
+					q: c.req.query("q") ?? null,
+					queueStatus: c.req.query("queueStatus") ?? null,
+					replayBatchId: c.req.query("replayBatchId") ?? null,
+					runId: c.req.query("runId") ?? null,
+					status: c.req.query("status") ?? null,
+					targetSurface: c.req.query("targetSurface") ?? null,
+					updatedAfter: c.req.query("updatedAfter") ?? null,
+					updatedBefore: c.req.query("updatedBefore") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.get("/api/operator/authenticated-notices/processing/:noticeId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse({
+			notice: await scope.resolveAuthenticatedNoticeProcessingQueryService().getByNoticeId({
+				noticeId: c.req.param("noticeId"),
+				principal: resolved.principal,
+			}),
+		});
+	});
+
 	input.app.get("/api/operator/intent/timeseries", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

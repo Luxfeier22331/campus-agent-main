@@ -17,6 +17,8 @@ export {
 	runOutbox,
 } from "./official-web";
 export {
+	authenticatedNoticeProcessingEventProjection,
+	authenticatedNoticeProcessingProjection,
 	metricRollup,
 	officialWebRunProjection,
 	officialWebSiteProjection,
@@ -53,6 +55,8 @@ import {
 	runOutbox,
 } from "./official-web";
 import {
+	authenticatedNoticeProcessingEventProjection,
+	authenticatedNoticeProcessingProjection,
 	metricRollup,
 	officialWebRunProjection,
 	officialWebSiteProjection,
@@ -104,6 +108,8 @@ export const appApiSchema = {
 	traceBacklinkProjection,
 	officialWebRunProjection,
 	officialWebSiteProjection,
+	authenticatedNoticeProcessingProjection,
+	authenticatedNoticeProcessingEventProjection,
 	wechatOfficialAccountCaptureRuns,
 	wechatOfficialAccountRunHeartbeats,
 	wechatOfficialAccountRunArtifacts,

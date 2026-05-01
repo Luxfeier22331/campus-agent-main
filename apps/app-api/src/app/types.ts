@@ -1,5 +1,7 @@
 import type { Env } from "../config";
 import type { AppAuthGetter, AppAuthResolutionInput, ResolvedAppPrincipal } from "../modules/auth";
+import type { AuthenticatedNoticeProcessingCommandService } from "../modules/authenticated-notice-processing-command";
+import type { AuthenticatedNoticeProcessingQueryService } from "../modules/authenticated-notice-processing-query";
 import type { ChatConversationService } from "../modules/chat";
 import type { DocsService } from "../modules/docs";
 import type { SupervisorCampusServicesProductPathPreflight } from "../modules/integration";
@@ -20,6 +22,8 @@ export interface AppDependencies {
 		env: Env,
 		input?: AppAuthResolutionInput,
 	) => Promise<Response> | Response;
+	authenticatedNoticeProcessingCommandService?: AuthenticatedNoticeProcessingCommandService;
+	authenticatedNoticeProcessingQueryService?: AuthenticatedNoticeProcessingQueryService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
 	docsService?: DocsService;
@@ -64,6 +68,8 @@ export interface AppRuntimeReadinessResult {
 
 export interface AppRequestScope {
 	getAppAuth: AppAuthGetter;
+	resolveAuthenticatedNoticeProcessingCommandService(): AuthenticatedNoticeProcessingCommandService;
+	resolveAuthenticatedNoticeProcessingQueryService(): AuthenticatedNoticeProcessingQueryService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDocsService(): DocsService;
