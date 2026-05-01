@@ -106,6 +106,160 @@ class AuthenticatedNoticeProcessingProjectionTest(unittest.TestCase):
         )
         self.assertFalse(_contains_forbidden_key(snapshot))
 
+    def test_builds_regulation_materialization_snapshot_without_tool_ready(self) -> None:
+        bundle_bytes = support._json_bytes([{"notice_id": "354006"}])
+        manifest_bytes = support._json_bytes({"run_id": "run-002"})
+        job = support._job(
+            run_id="run-002",
+            bundle_sha=support._sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=support._sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        record = build_notice_ingest_queue_record(job)
+        trace_row = {
+            "status": "completed",
+            "import_result": {
+                "selected_notices": [
+                    {
+                        "notice_id": "354006",
+                        "title": "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+                    }
+                ],
+                "selected_notice_ids": ["354006"],
+            },
+            "progress_events": [
+                {
+                    "event_id": "event-002",
+                    "generated_at": "2026-05-01T09:00:00.000Z",
+                    "stage": "regulation_admission",
+                    "transition": "admitted",
+                    "reason_code": "scoped_rule_candidate_detected",
+                    "regulation_admission_class": "scoped_rules_candidate",
+                    "promotion_disposition": "promote_to_regulation_target",
+                    "message": "regulation scoped rule admitted.",
+                }
+            ],
+            "downstream_materialization": {
+                "status": "completed",
+                "typed_materialization": {
+                    "status": "completed",
+                    "materialized_releases": [
+                        {
+                            "candidate_kind": "regulation",
+                            "collection": "scoped_rules",
+                            "corpus": "regulations",
+                            "current": True,
+                            "notice_ids": ["354006"],
+                            "release_id": "regulation-scoped-rules-run-002",
+                            "notice_read_model_counts": {
+                                "354006": {
+                                    "readerDocuments": 1,
+                                    "targetDocuments": 1,
+                                }
+                            },
+                        }
+                    ],
+                },
+            },
+        }
+
+        snapshots = build_authenticated_notice_processing_snapshots(
+            record=record,
+            trace_row=trace_row,
+            projected_at="2026-05-01T09:00:01.000Z",
+            producer_version="test@1",
+        )
+
+        self.assertEqual(len(snapshots), 1)
+        snapshot = snapshots[0]
+        self.assertEqual(snapshot["noticeId"], "354006")
+        self.assertEqual(snapshot["lifecycleStatus"], "materialized")
+        self.assertEqual(snapshot["targetSurface"], "regulations/scoped_rules")
+        self.assertEqual(snapshot["candidateKind"], "regulation")
+        self.assertEqual(snapshot["materializationStatus"], "completed")
+        self.assertFalse(snapshot["toolReady"])
+        self.assertEqual(snapshot["readModelCounts"]["readerDocuments"], 1)
+        self.assertEqual(
+            snapshot["timeline"][0]["payload"]["reasonCode"], "scoped_rule_candidate_detected"
+        )
+        self.assertEqual(
+            snapshot["timeline"][0]["payload"]["regulationAdmissionClass"], "scoped_rules_candidate"
+        )
+        self.assertEqual(
+            snapshot["timeline"][0]["payload"]["promotionDisposition"],
+            "promote_to_regulation_target",
+        )
+        self.assertEqual(
+            snapshot["downstream"],
+            {
+                "candidateKind": "regulation",
+                "current": True,
+                "readModelCounts": {
+                    "readerDocuments": 1,
+                    "rejectedSources": 0,
+                    "targetDocuments": 1,
+                },
+                "releaseId": "regulation-scoped-rules-run-002",
+                "targetSurface": "regulations/scoped_rules",
+                "toolReady": False,
+            },
+        )
+        self.assertFalse(_contains_forbidden_key(snapshot))
+
+    def test_builds_regulation_target_surface_from_release_collection(self) -> None:
+        bundle_bytes = support._json_bytes([{"notice_id": "188889"}])
+        manifest_bytes = support._json_bytes({"run_id": "run-003"})
+        job = support._job(
+            run_id="run-003",
+            bundle_sha=support._sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=support._sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        record = build_notice_ingest_queue_record(job)
+        trace_row = {
+            "status": "completed",
+            "import_result": {
+                "selected_notices": [
+                    {
+                        "notice_id": "188889",
+                        "title": "中央民族大学采购工作管理办法",
+                    }
+                ],
+                "selected_notice_ids": ["188889"],
+            },
+            "downstream_materialization": {
+                "status": "completed",
+                "typed_materialization": {
+                    "status": "completed",
+                    "materialized_releases": [
+                        {
+                            "candidate_kind": "regulation",
+                            "collection": "institutional_rules",
+                            "corpus": "regulations",
+                            "current": True,
+                            "notice_ids": ["188889"],
+                            "release_id": "regulation-institutional-rules-run-003",
+                        }
+                    ],
+                },
+            },
+        }
+
+        snapshots = build_authenticated_notice_processing_snapshots(
+            record=record,
+            trace_row=trace_row,
+            projected_at="2026-05-01T09:30:01.000Z",
+            producer_version="test@1",
+        )
+
+        self.assertEqual(snapshots[0]["targetSurface"], "regulations/institutional_rules")
+        self.assertEqual(
+            snapshots[0]["downstream"]["targetSurface"],
+            "regulations/institutional_rules",
+        )
+
 
 def _contains_forbidden_key(value: object) -> bool:
     forbidden = {

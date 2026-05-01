@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatAuthenticatedNoticeCandidateKindLabel } from "../src/panel/authenticated-notices/authenticated-notice-formatters";
 import appSource from "../src/panel/app.tsx?raw";
 import { buildAuthenticatedNoticeProcessingShowPath } from "../src/panel/authenticated-notices/authenticated-notice-routes";
 import listSource from "../src/panel/authenticated-notices/processing-list.tsx?raw";
@@ -42,6 +43,16 @@ describe("protected panel authenticated notice processing UI", () => {
 		expect(showSource).toContain("投影新鲜度");
 		expect(showSource).toContain("record.staleReasonCode");
 		expect(`${listSource}\n${showSource}`).not.toContain("Date.now()");
+	});
+
+	it("shows regulation admission and hold fields in the operator-safe projection", () => {
+		expect(formatAuthenticatedNoticeCandidateKindLabel("regulation")).toBe("规章制度");
+		expect(listSource).toContain('{ id: "regulation", name: "规章制度" }');
+		expect(showSource).toContain("Admission");
+		expect(showSource).toContain("promotionDisposition");
+		expect(showSource).toContain("applicabilityStatus");
+		expect(showSource).toContain("reasonCodes");
+		expect(showSource).not.toMatch(/sourceObjectRefs|objectKey|bodyText|ocrText/);
 	});
 
 	it("uses encoded show paths for notice ids", () => {

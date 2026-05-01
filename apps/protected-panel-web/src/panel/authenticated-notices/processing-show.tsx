@@ -35,11 +35,35 @@ function countValue(record: AuthenticatedNoticeProcessingRecord, key: string) {
 	return typeof value === "number" ? value : 0;
 }
 
+function latestTimelinePayloadValue(
+	record: AuthenticatedNoticeProcessingRecord,
+	key: string,
+): string | null {
+	for (const event of [...record.timeline].reverse()) {
+		const value = event.payload?.[key];
+		if (Array.isArray(value)) {
+			const text = value.map((item) => String(item)).join(", ");
+			if (text) {
+				return text;
+			}
+		}
+		if (typeof value === "string" && value.trim()) {
+			return value;
+		}
+	}
+	return null;
+}
+
 function ProcessingShowContent() {
 	const record = useRecordContext<AuthenticatedNoticeProcessingRecord>();
 	if (!record) {
 		return null;
 	}
+	const admissionClass = latestTimelinePayloadValue(record, "regulationAdmissionClass");
+	const promotionDisposition = latestTimelinePayloadValue(record, "promotionDisposition");
+	const applicabilityStatus = latestTimelinePayloadValue(record, "applicabilityStatus");
+	const targetCollection = latestTimelinePayloadValue(record, "targetCollection");
+	const reasonCodes = latestTimelinePayloadValue(record, "reasonCodes");
 
 	return (
 		<PanelPage>
@@ -156,6 +180,20 @@ function ProcessingShowContent() {
 									label="物化状态"
 									value={record.materializationStatus || PANEL_COPY.notAvailable}
 								/>
+								<FieldRow label="Admission" value={admissionClass || PANEL_COPY.notAvailable} />
+								<FieldRow
+									label="Promotion"
+									value={promotionDisposition || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="适用状态"
+									value={applicabilityStatus || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="目标集合"
+									value={targetCollection || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow label="原因码" value={reasonCodes || PANEL_COPY.notAvailable} />
 							</Stack>
 						</CardContent>
 					</Card>

@@ -112,7 +112,7 @@ def build_authenticated_notice_processing_snapshots(
             "queueStatus": _queue_status(trace_row=trace_row, record=record),
             "lifecycleStatus": lifecycle_status,
             "latestStage": lifecycle_status,
-            "targetSurface": _target_surface(candidate_kind),
+            "targetSurface": _target_surface(candidate_kind, release=release),
             "candidateKind": candidate_kind,
             "materializationStatus": _materialization_status(
                 lifecycle_status=lifecycle_status,
@@ -213,6 +213,18 @@ def _timeline(*, trace_row: Mapping[str, Any]) -> list[dict[str, Any]]:
         reason_code = _optional_text(event.get("reason_code") or event.get("reasonCode"))
         if reason_code:
             payload["reasonCode"] = reason_code
+        for source_key, target_key in (
+            ("regulation_admission_class", "regulationAdmissionClass"),
+            ("promotion_disposition", "promotionDisposition"),
+            ("applicability_status", "applicabilityStatus"),
+            ("target_collection", "targetCollection"),
+        ):
+            value = _optional_text(event.get(source_key) or event.get(target_key))
+            if value:
+                payload[target_key] = value
+        reason_codes = _string_list(event.get("reason_codes") or event.get("reasonCodes"))
+        if reason_codes:
+            payload["reasonCodes"] = list(reason_codes)
         rows.append(
             {
                 "eventId": _optional_text(event.get("event_id") or event.get("eventId")),
@@ -245,7 +257,7 @@ def _downstream_summary(
     if not release and not candidate_kind:
         return None
     return {
-        "targetSurface": _target_surface(candidate_kind),
+        "targetSurface": _target_surface(candidate_kind, release=release),
         "candidateKind": candidate_kind,
         "releaseId": _optional_text(release.get("release_id")) if release else None,
         "current": _bool(release.get("current")) if release else False,
@@ -296,6 +308,8 @@ def _tool_ready(
 ) -> bool:
     if not _bool(release.get("current")):
         return False
+    if candidate_kind == "regulation":
+        return False
     if candidate_kind == "transport_schedule":
         return (
             int(counts.get("scheduledDepartures") or 0) > 0
@@ -318,9 +332,17 @@ def _candidate_kind(
     return None
 
 
-def _target_surface(candidate_kind: str | None) -> str | None:
+def _target_surface(
+    candidate_kind: str | None,
+    *,
+    release: Mapping[str, Any] | None = None,
+) -> str | None:
     if candidate_kind in {"transport_schedule", "service_status"}:
         return "campus_services"
+    if candidate_kind == "regulation":
+        corpus = _optional_text((release or {}).get("corpus")) or "regulations"
+        collection = _optional_text((release or {}).get("collection")) or "scoped_rules"
+        return f"{corpus}/{collection}"
     return None
 
 

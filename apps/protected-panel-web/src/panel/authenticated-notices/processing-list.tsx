@@ -45,6 +45,7 @@ const filters = [
 	/>,
 	<SelectInput
 		choices={[
+			{ id: "regulation", name: "规章制度" },
 			{ id: "transport_schedule", name: "通勤班车" },
 			{ id: "service_status", name: "服务状态" },
 		]}

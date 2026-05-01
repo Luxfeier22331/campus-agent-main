@@ -22,6 +22,7 @@ const QUEUE_LABELS: Record<string, string> = {
 };
 
 const CANDIDATE_KIND_LABELS: Record<string, string> = {
+	regulation: "规章制度",
 	service_status: "服务状态",
 	transport_schedule: "通勤班车",
 };
