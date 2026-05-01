@@ -45,6 +45,7 @@ updated: 2026-05-01
 | `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 7` | 类型化 chat 来源列表已本地实现；app-api/public-chat 定向验证与仓库级 `web:lint` 已通过 |
 | `official web collection restart closeout` | `official-web-collection-restart-closeout` | `yes` | `.planning/workstreams/official-web-collection-restart-closeout/README.md` | `Phase 2` | Fresh university-core 与 `law.muc.edu.cn` single-host evidence 已补；crawl / validator / QC 通过，fixed projection validator / chunk audit 通过；后续收口 scheduler/preflight/repeated-run/retention/alert 与 import/promote handoff |
 | `authenticated notice fetch admission operator wiring` | `authenticated-notice-fetch-admission-operator-wiring` | `yes` | `.planning/workstreams/authenticated-notice-fetch-admission-operator-wiring/README.md` | `Phase 8 next` | 状态机 contract hardening 已完成；下一步优先对已采集 authenticated notice 内容跑 captured-content smoke，验证分流、fetch omission、media readiness、closeout、cleanup 与下游 admission。fresh collector smoke 降级为 auth 可用后的 manifest-consumption proof |
+| `authenticated notice ingest operator panel` | `authenticated-notice-ingest-operator-panel` | `yes` | `.planning/workstreams/authenticated-notice-ingest-operator-panel/README.md` | `Phase 1 next` | 新建 authenticated notice 处理状态的 app-api owned operator-safe projection 与 protected-panel 只读视图规划；目标是按 notice 展示 collect/enqueue/consume/OCR/admission/downstream/tool-readiness，不直连 queue/object-store/operations 内部 truth |
 
 ## Completed
 
