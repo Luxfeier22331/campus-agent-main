@@ -51,6 +51,10 @@ updated: 2026-05-01
 - Wrapper execute no-op guard is fixed: an execute smoke that does not lease/import/complete or fail any queue job now emits `queue_consume_no_progress` and fails instead of reporting a false pass.
 - Wrapper execute success acceptance is complete via an independent synthetic replay ledger run that reused the verified captured run's object refs without mutating the original succeeded queue job.
 - Wrapper execute now persists consumer summary, trace, and failed-report evidence under its operations directory.
+- Synthetic replay run creation is now a repo-owned CLI instead of ad hoc SQL: `campus-ingestion-create-authenticated-notice-smoke-replay-run`.
+- Wrapper execute now includes post-run audit in the smoke report: queue final state, consumer trace heartbeat summary, evidence file existence, import result summary, and downstream materialization status.
+- Downstream materialization acceptance is now an explicit wrapper lane via `--require-downstream-materialization` plus `--consumer-admission-manifest-path`; missing downstream evidence fails the smoke instead of passing as source-truth-only.
+- Verified collector runs can now be scheduled into the ingest queue by a repo-owned scan CLI: `campus-ingestion-enqueue-verified-authenticated-notice-runs`.
 - Historical local-only content repair/synthetic ledger upload remains operator-triggered, not automated by this workstream.
 
 ## Deferred By Operator Decision
@@ -112,6 +116,29 @@ Synthetic replay result:
 - Queue final state: `succeeded`
 - Import result summary: `notice_count=282`, `attachment_fetch_status_record_count=305`, `raw_uploaded_count=0`, `raw_reused_count=282`, `source_truth_only=true`
 - Lease heartbeat: `enabled=true`, `heartbeat_count=16`, `heartbeat_failed=false`, `lease_seconds=3600`
+
+## Gap Closeout After Phase 1
+
+Completed on 2026-05-01.
+
+Closed gaps:
+
+- Synthetic replay creation moved from one-off Python/SQL to a repo-owned dry-run/execute command.
+- Wrapper post-run audit is part of the smoke artifact instead of a separate manual DB script.
+- Downstream materialization has a separate fail-close acceptance lane rather than being implied by source-truth-only ingest.
+- Future collector-completed verified runs can be scanned and idempotently enqueued by ingestion-worker without collector owning ingestion runtime.
+
+New commands:
+
+```bash
+uv run --all-packages campus-ingestion-create-authenticated-notice-smoke-replay-run --source-run-id '<SOURCE_RUN_ID>' --purpose phase1_wrapper_execute_smoke --execute --output-dir .tmp/authenticated-notice-smoke-replay-run
+uv run --all-packages campus-ingestion-enqueue-verified-authenticated-notice-runs --replay-batch-id scheduled-authenticated-notice-runs --execute --output-dir .tmp/verified-authenticated-notice-run-enqueue-scan
+uv run --all-packages campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e --run-id '<RUN_ID>' --site-id muc_internal_portal --source-home-url https://my.muc.edu.cn --source-surface notice --execute --lease-seconds 3600 --require-downstream-materialization --consumer-admission-manifest-path '<CONSUMER_ADMISSION_MANIFEST>'
+```
+
+Remaining explicit non-blocker:
+
+- Historical local-only collected content still remains operator/manual-triggered by decision.
 
 ## Next Slice
 

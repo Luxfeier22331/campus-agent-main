@@ -376,7 +376,7 @@ class _ConsumeResult:
                     },
                     "lease_heartbeat": {
                         "heartbeat_failed": False,
-                    }
+                    },
                 }
             ]
         }

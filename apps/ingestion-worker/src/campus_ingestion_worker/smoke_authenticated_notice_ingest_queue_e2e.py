@@ -54,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cleanup-report-path")
     parser.add_argument("--materialize-downstream", action="store_true")
     parser.add_argument(
+        "--require-downstream-materialization",
+        action="store_true",
+        help="Fail smoke unless downstream projection/read-model materialization completes.",
+    )
+    parser.add_argument("--consumer-admission-manifest-path")
+    parser.add_argument(
         "--require-child-task-contract",
         action="store_true",
         help="Fail smoke on medium-or-higher child task contract findings.",
@@ -88,6 +94,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     consume_summary: Mapping[str, Any] | None = None
     queue_write_summary: Mapping[str, Any] | None = None
+    post_run_audit: Mapping[str, Any] | None = None
     findings: list[dict[str, Any]] = []
     child_task_contract = _child_task_contract_summary(
         sample_id=str(args.sample_id or ""),
@@ -97,6 +104,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     findings.extend(child_task_contract["findings"])
     if args.execute:
         queue_store = build_notice_ingest_queue_store_from_env(env, prefer_operator=True)
+        materialize_downstream = (
+            args.materialize_downstream or args.require_downstream_materialization
+        )
         queue_write_summary = execute_authenticated_notice_run_enqueue_plan(
             enqueue_plan,
             queue_store=queue_store,
@@ -119,9 +129,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             cleanup_report_path=(
                 Path(args.cleanup_report_path) if args.cleanup_report_path else None
             ),
-            source_truth_only=not args.materialize_downstream,
+            source_truth_only=not materialize_downstream,
+            consumer_admission_manifest_path=(
+                Path(args.consumer_admission_manifest_path)
+                if args.consumer_admission_manifest_path
+                else None
+            ),
         )
-        _write_consume_evidence_files(consume_result, output_dir=operations_dir)
+        consume_files = _write_consume_evidence_files(consume_result, output_dir=operations_dir)
         consume_summary = consume_result.queue_consume
         counts = consume_summary.get("counts", {})
         if int(counts.get("failed_count", 0)) > 0:
@@ -148,6 +163,14 @@ def main(argv: Sequence[str] | None = None) -> None:
                     ),
                 }
             )
+        post_run_audit = _post_run_audit(
+            queue_store=queue_store,
+            queue_write_summary=queue_write_summary,
+            consume_result=consume_result,
+            consume_files=consume_files,
+            require_downstream_materialization=args.require_downstream_materialization,
+        )
+        findings.extend(post_run_audit["findings"])
     report = {
         "schema_version": SMOKE_SCHEMA_VERSION,
         "mode": mode,
@@ -169,6 +192,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "enqueue_plan": enqueue_plan,
         "queue_write_summary": dict(queue_write_summary or {}),
         "consume_summary": dict(consume_summary or {}),
+        "post_run_audit": dict(post_run_audit or {}),
         "child_task_contract": child_task_contract,
         "findings": findings,
         "medium_or_higher_finding_count": sum(
@@ -216,6 +240,116 @@ def _write_consume_evidence_files(
         )
         written[filename] = file_path
     return written
+
+
+def _post_run_audit(
+    *,
+    queue_store: Any,
+    queue_write_summary: Mapping[str, Any],
+    consume_result: Any,
+    consume_files: Mapping[str, Path],
+    require_downstream_materialization: bool,
+) -> dict[str, Any]:
+    findings: list[dict[str, Any]] = []
+    queue_jobs = []
+    for item in queue_write_summary.get("enqueued_jobs") or ():
+        if not isinstance(item, Mapping):
+            continue
+        job_id = str(item.get("job_id") or "")
+        if not job_id:
+            continue
+        record = queue_store.get(job_id)
+        summary = _queue_record_summary(record, job_id=job_id)
+        queue_jobs.append(summary)
+        if summary.get("status") != "succeeded":
+            findings.append(
+                {
+                    "severity": "high",
+                    "code": "post_run_queue_not_succeeded",
+                    "message": f"post-run queue job {job_id} is not succeeded",
+                }
+            )
+    trace = consume_result.trace if isinstance(consume_result.trace, Mapping) else {}
+    trace_rows = trace.get("trace_rows") if isinstance(trace.get("trace_rows"), list) else []
+    first_trace_row = trace_rows[0] if trace_rows and isinstance(trace_rows[0], Mapping) else {}
+    first_heartbeat = (
+        first_trace_row.get("lease_heartbeat")
+        if isinstance(first_trace_row.get("lease_heartbeat"), Mapping)
+        else {}
+    )
+    if first_heartbeat.get("heartbeat_failed") is True:
+        findings.append(
+            {
+                "severity": "high",
+                "code": "post_run_lease_heartbeat_failed",
+                "message": "consumer trace reported a failed queue lease heartbeat",
+            }
+        )
+    downstream_materialization = (
+        first_trace_row.get("downstream_materialization")
+        if isinstance(first_trace_row.get("downstream_materialization"), Mapping)
+        else {}
+    )
+    if (
+        require_downstream_materialization
+        and downstream_materialization.get("status") != "completed"
+    ):
+        findings.append(
+            {
+                "severity": "high",
+                "code": "downstream_materialization_missing",
+                "message": "downstream materialization acceptance lane did not complete",
+            }
+        )
+    evidence_files = {
+        filename: {"path": str(path), "exists": path.exists()}
+        for filename, path in consume_files.items()
+    }
+    for filename, file_summary in evidence_files.items():
+        if not file_summary["exists"]:
+            findings.append(
+                {
+                    "severity": "high",
+                    "code": "post_run_evidence_file_missing",
+                    "message": f"consumer evidence file was not written: {filename}",
+                }
+            )
+    return {
+        "queue_jobs": queue_jobs,
+        "trace": {
+            "trace_row_count": len(trace_rows),
+            "first_status": first_trace_row.get("status"),
+            "first_import_result": first_trace_row.get("import_result", {}),
+            "first_lease_heartbeat": first_heartbeat,
+        },
+        "downstream_materialization": downstream_materialization,
+        "evidence_files": evidence_files,
+        "findings": findings,
+    }
+
+
+def _queue_record_summary(record: Any, *, job_id: str) -> dict[str, Any]:
+    if record is None:
+        return {
+            "job_id": job_id,
+            "status": "missing",
+        }
+    return {
+        "job_id": str(getattr(record, "job_id", job_id)),
+        "status": str(getattr(record, "status", "")),
+        "attempt_count": int(getattr(record, "attempt_count", 0)),
+        "leased_by": getattr(record, "leased_by", None),
+        "lease_expires_at": _json_value(getattr(record, "lease_expires_at", None)),
+        "last_error_code": getattr(record, "last_error_code", None),
+        "last_error_message": getattr(record, "last_error_message", None),
+        "updated_at": _json_value(getattr(record, "updated_at", None)),
+    }
+
+
+def _json_value(value: Any) -> Any:
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    return str(value)
 
 
 def _child_task_contract_summary(
