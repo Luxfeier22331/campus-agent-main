@@ -405,9 +405,7 @@ def consume_authenticated_notice_ingest_queue(
                 output_refs=[
                     {
                         "role": "media_gate_verdict",
-                        "schema_version": str(
-                            media_gate_verdict.get("schema_version") or ""
-                        )
+                        "schema_version": str(media_gate_verdict.get("schema_version") or "")
                         if media_gate_verdict is not None
                         else "",
                     }

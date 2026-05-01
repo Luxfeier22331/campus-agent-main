@@ -215,7 +215,7 @@ class _ConsumeResult:
             "counts": {
                 "completed_count": completed_count,
                 "failed_count": failed_count,
-            }
+            },
         }
         self.trace = {
             "trace_rows": [

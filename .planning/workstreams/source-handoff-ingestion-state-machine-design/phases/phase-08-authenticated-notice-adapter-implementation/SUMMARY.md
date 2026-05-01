@@ -58,14 +58,74 @@ runner evidence without making queue rows, worker local JSON or panel reads the 
 
 ```bash
 uv run --all-packages python -m unittest \
-  tests.ingestion.test_authenticated_notice_source_handoff_adapter
+  tests.ingestion.test_authenticated_notice_source_handoff_adapter \
+  tests.ingestion.test_authenticated_notice_run_queue_consumer \
+  tests.ingestion.test_authenticated_notice_run_enqueue \
+  tests.ingestion.test_source_handoff_state_machine \
+  tests.ingestion.test_source_handoff_store \
+  tests.ingestion.test_source_handoff_postgres \
+  tests.ingestion.test_source_handoff_projection
 ```
 
-Result: `Ran 1 test ... OK`.
+Result: `Ran 24 tests ... OK`.
 
 ```bash
-uv run --all-packages python -m unittest \
-  tests.ingestion.test_authenticated_notice_run_queue_consumer
+uv run --all-packages ruff check \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_handoff_adapter.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_run_queue_consumer.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_state_machine.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_store.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_postgres.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_projection.py \
+  tests/ingestion/test_authenticated_notice_source_handoff_adapter.py \
+  tests/ingestion/test_authenticated_notice_run_queue_consumer.py \
+  tests/ingestion/test_authenticated_notice_run_enqueue.py \
+  tests/ingestion/test_source_handoff_state_machine.py \
+  tests/ingestion/test_source_handoff_store.py \
+  tests/ingestion/test_source_handoff_postgres.py \
+  tests/ingestion/test_source_handoff_projection.py
 ```
 
-Result: `Ran 13 tests ... OK`.
+Result: `All checks passed!`.
+
+```bash
+uv run --all-packages ruff format --check \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_handoff_adapter.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_run_queue_consumer.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_state_machine.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_store.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_postgres.py \
+  packages/ingestion-core/src/campus_ingestion_core/source_handoff_projection.py \
+  tests/ingestion/test_authenticated_notice_source_handoff_adapter.py \
+  tests/ingestion/test_authenticated_notice_run_queue_consumer.py \
+  tests/ingestion/test_authenticated_notice_run_enqueue.py \
+  tests/ingestion/test_source_handoff_state_machine.py \
+  tests/ingestion/test_source_handoff_store.py \
+  tests/ingestion/test_source_handoff_postgres.py \
+  tests/ingestion/test_source_handoff_projection.py
+```
+
+Result: `13 files already formatted`.
+
+```bash
+pnpm exec markdownlint-cli2 --config .markdownlint-cli2.jsonc \
+  .planning/WORKSTREAMS.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/README.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/ROADMAP.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/STATE.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-08-authenticated-notice-adapter-implementation/PLAN.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-08-authenticated-notice-adapter-implementation/SUMMARY.md
+```
+
+Result: `Summary: 0 error(s)`.
+
+```bash
+git diff --check -- \
+  .planning/WORKSTREAMS.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_handoff_adapter.py \
+  packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_run_queue_consumer.py \
+  tests/ingestion/test_authenticated_notice_source_handoff_adapter.py
+```
+
+Result: no output, exit code `0`.

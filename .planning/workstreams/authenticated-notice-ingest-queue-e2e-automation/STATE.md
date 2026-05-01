@@ -13,7 +13,7 @@ updated: 2026-05-01
 **Status:** Completed
 **Current Phase:** Final verification complete
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Completed Phase 1 wrapper execute no-op guard; real wrapper re-run is waiting for a fresh verified run.
+**Last Activity Description:** Completed Phase 1 wrapper execute no-op guard and synthetic replay success acceptance against real Postgres/object-store infrastructure.
 
 ## Progress
 
@@ -49,6 +49,8 @@ updated: 2026-05-01
 - Real Postgres/object-store source-truth-only execute smoke completed against the verified captured run `muc_internal_portal:notice:20260428T181953007Z`.
 - Full-run execute lease hardening gap is fixed: consumer heartbeat prevents long imports from losing queue ownership, and the smoke wrapper exposes `--lease-seconds` for live acceptance runs.
 - Wrapper execute no-op guard is fixed: an execute smoke that does not lease/import/complete or fail any queue job now emits `queue_consume_no_progress` and fails instead of reporting a false pass.
+- Wrapper execute success acceptance is complete via an independent synthetic replay ledger run that reused the verified captured run's object refs without mutating the original succeeded queue job.
+- Wrapper execute now persists consumer summary, trace, and failed-report evidence under its operations directory.
 - Historical local-only content repair/synthetic ledger upload remains operator-triggered, not automated by this workstream.
 
 ## Deferred By Operator Decision
@@ -86,9 +88,30 @@ Result:
 - Queue consume counts: `leased_count=0`, `imported_count=0`, `completed_count=0`, `failed_count=0`
 - Queue write summary showed `existing_count=1`, `inserted_count=0`, and existing queue status `succeeded`.
 
-Remaining Phase 1 acceptance:
+Phase 1 success acceptance:
 
-- Full wrapper execute success must wait for a fresh verified collector run, or an operator-created independent smoke replay run id. Reusing the current succeeded production run is intentionally blocked as a false-pass path.
+- Full wrapper execute success was validated with an independent synthetic replay run id. Reusing the original succeeded production run remains intentionally blocked as a false-pass path.
+
+Synthetic replay command:
+
+```bash
+uv run --all-packages campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e --run-id 'muc_internal_portal:notice:20260428T181953007Z:smoke:20260501T005414634429Z' --site-id muc_internal_portal --source-home-url https://my.muc.edu.cn --source-surface notice --sample-id 355867 --execute --lease-seconds 3600 --require-child-task-contract --output-dir .tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_synthetic_replay_with_trace/wrapper-execute
+```
+
+Synthetic replay result:
+
+- Source run: `muc_internal_portal:notice:20260428T181953007Z`
+- Synthetic run: `muc_internal_portal:notice:20260428T181953007Z:smoke:20260501T005414634429Z`
+- Smoke report: `.tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_synthetic_replay_with_trace/wrapper-execute/authenticated-notice-ingest-queue-e2e-smoke.json`
+- Consumer summary: `.tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_synthetic_replay_with_trace/wrapper-execute/operations/authenticated-notice-run-queue-consume.execute.json`
+- Consumer trace: `.tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_synthetic_replay_with_trace/wrapper-execute/operations/authenticated-notice-run-queue-consume.trace.json`
+- Failed report: `.tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_synthetic_replay_with_trace/wrapper-execute/operations/authenticated-notice-run-queue-consume-failed-report.json`
+- Verdict: `passed`
+- Medium-or-higher findings: `0`
+- Consumer counts: `leased_count=1`, `imported_count=1`, `completed_count=1`, `failed_count=0`, `retryable_count=0`, `terminal_count=0`, `manual_review_count=0`
+- Queue final state: `succeeded`
+- Import result summary: `notice_count=282`, `attachment_fetch_status_record_count=305`, `raw_uploaded_count=0`, `raw_reused_count=282`, `source_truth_only=true`
+- Lease heartbeat: `enabled=true`, `heartbeat_count=16`, `heartbeat_failed=false`, `lease_seconds=3600`
 
 ## Next Slice
 
