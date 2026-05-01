@@ -27,7 +27,7 @@ function toReleaseGateRecord(
 		publishAlias: row.publishAlias,
 		releaseId: row.releaseId,
 		runId: row.runId ?? null,
-		status: row.status,
+		status: row.status as OfficialWebTargetReleaseGateRecord["status"],
 		summaryId: row.summaryId ?? null,
 		updatedAt: row.updatedAt.toISOString(),
 	};

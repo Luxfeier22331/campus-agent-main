@@ -10,26 +10,28 @@ export type OfficialWebTargetReleaseGateStatus =
 	| "approved"
 	| "failed"
 	| "indexed"
-	| "pending"
-	| "rejected";
+	| "materialized"
+	| "published"
+	| "rejected"
+	| "running";
 
 export interface OfficialWebTargetReleaseGateRecord {
-	createdAt?: string;
+	createdAt: string;
 	decidedAt: string;
 	decidedBy: string;
-	decision: OfficialWebTargetReleaseGateDecision | string;
-	errorJson?: Record<string, unknown> | null;
-	evidenceJson?: Record<string, unknown>;
-	executionJson?: Record<string, unknown> | null;
+	decision: OfficialWebTargetReleaseGateDecision;
+	errorJson: Record<string, unknown> | null;
+	evidenceJson: Record<string, unknown>;
+	executionJson: Record<string, unknown> | null;
 	inventoryId: string;
 	jobId: string;
 	notes: string | null;
 	publishAlias: boolean;
 	releaseId: string;
 	runId: string | null;
-	status: OfficialWebTargetReleaseGateStatus | string;
+	status: OfficialWebTargetReleaseGateStatus;
 	summaryId: string | null;
-	updatedAt?: string;
+	updatedAt: string;
 }
 
 export interface OfficialWebTargetReleaseGateCreatePayload {
@@ -51,7 +53,7 @@ export interface OfficialWebTargetReleaseGateStore {
 		errorJson: Record<string, unknown> | null;
 		executionJson: Record<string, unknown> | null;
 		releaseId: string;
-		status: string;
+		status: OfficialWebTargetReleaseGateStatus;
 		updatedAt: string;
 	}): Promise<OfficialWebTargetReleaseGateRecord | null>;
 	upsertReleaseGate(
@@ -66,8 +68,8 @@ export interface OfficialWebTargetReleaseGateService {
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ releaseGate: OfficialWebTargetReleaseGateRecord }>;
 	getReleaseGateById(input: {
-		releaseId: string;
 		principal: ResolvedAppPrincipal;
+		releaseId: string;
 	}): Promise<{ releaseGate: OfficialWebTargetReleaseGateRecord }>;
 	getReleaseGateForExecution(input: {
 		releaseId: string;
@@ -84,6 +86,20 @@ export interface OfficialWebTargetReleaseGateServiceDependencies {
 	store: OfficialWebTargetReleaseGateStore;
 }
 
+type ReleaseGateReviewableEntry = OfficialWebTargetInventoryRecord & {
+	previewEvidence: NonNullable<OfficialWebTargetInventoryRecord["previewEvidence"]>;
+};
+
+const RELEASE_GATE_EXECUTION_STATUSES = new Set<OfficialWebTargetReleaseGateStatus>([
+	"approved",
+	"failed",
+	"indexed",
+	"materialized",
+	"published",
+	"rejected",
+	"running",
+]);
+
 function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
 	if (!principal.permissions.operator) {
 		throw new AppApiRouteError({
@@ -96,27 +112,13 @@ function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
 }
 
 function normalizeOptionalString(value: unknown): string | null {
-	const normalized = typeof value === "string" ? value.trim() : "";
-	return normalized ? normalized : null;
-}
-
-function normalizeRecord(value: unknown): Record<string, unknown> | null {
-	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: null;
-}
-
-function sanitizeIdPart(value: string): string {
-	return value
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "_")
-		.replace(/^_+|_+$/g, "");
+	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function normalizeDecision(value: unknown): OfficialWebTargetReleaseGateDecision {
-	const decision = normalizeOptionalString(value);
-	if (decision === "approved" || decision === "rejected") {
-		return decision;
+	const normalized = normalizeOptionalString(value);
+	if (normalized === "approved" || normalized === "rejected") {
+		return normalized;
 	}
 	throw new AppApiRouteError({
 		code: "validation_failed",
@@ -127,73 +129,35 @@ function normalizeDecision(value: unknown): OfficialWebTargetReleaseGateDecision
 	});
 }
 
-function ensureReleaseGateReady(entry: OfficialWebTargetInventoryRecord): void {
+function normalizeStatus(value: unknown): OfficialWebTargetReleaseGateStatus {
+	const normalized = normalizeOptionalString(value);
 	if (
-		entry.reviewState !== "previewed" ||
-		!entry.previewEvidence ||
-		!entry.releaseBlockers.includes("release_gate_not_reviewed")
+		normalized &&
+		RELEASE_GATE_EXECUTION_STATUSES.has(normalized as OfficialWebTargetReleaseGateStatus)
 	) {
-		throw new AppApiRouteError({
-			code: "release_gate_not_ready",
-			message: "Official web target is not ready for release gate review.",
-			retryable: false,
-			status: 409,
-		});
+		return normalized as OfficialWebTargetReleaseGateStatus;
 	}
-}
-
-function buildReleaseId(input: { inventoryId: string; runId: string }): string {
-	return `owrelease_${sanitizeIdPart(input.inventoryId)}_${sanitizeIdPart(input.runId)}`;
-}
-
-function decidedBy(principal: ResolvedAppPrincipal): string {
-	return (
-		normalizeOptionalString(principal.actor.principalId) ??
-		normalizeOptionalString(principal.principal.email) ??
-		principal.principal.principalId
-	);
-}
-
-function evidenceFromEntry(entry: OfficialWebTargetInventoryRecord): Record<string, unknown> {
-	return {
-		admissionTargetId: entry.admissionTargetId,
-		fieldStatus: entry.fieldStatus,
-		inventoryId: entry.inventoryId,
-		releaseBlockers: entry.releaseBlockers,
-		requiredFields: entry.requiredFields,
-		reviewState: entry.reviewState,
-		selectedWriteTarget: entry.selectedWriteTarget,
-		sourceObjectKeys: entry.previewEvidence?.sourceObjectKeys ?? [],
-		sourceUrls: entry.sourceUrls,
-		targetLabel: entry.targetLabel,
-	};
-}
-
-function normalizeStatus(value: unknown): string {
-	const status = normalizeOptionalString(value);
-	if (!status) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field: "status" },
-			message: "status is required.",
-			retryable: false,
-			status: 422,
-		});
-	}
-	return status;
+	throw new AppApiRouteError({
+		code: "validation_failed",
+		details: { field: "status" },
+		message:
+			"status must be one of: approved, rejected, running, materialized, indexed, published, failed.",
+		retryable: false,
+		status: 422,
+	});
 }
 
 function normalizeUpdatedAt(value: unknown, fallbackNow: Date): string {
-	const timestamp = normalizeOptionalString(value);
-	if (!timestamp) {
+	const normalized = normalizeOptionalString(value);
+	if (!normalized) {
 		return fallbackNow.toISOString();
 	}
-	const parsed = new Date(timestamp);
-	if (Number.isNaN(parsed.getTime())) {
+	const parsed = new Date(normalized);
+	if (Number.isNaN(parsed.valueOf())) {
 		throw new AppApiRouteError({
 			code: "validation_failed",
 			details: { field: "updatedAt" },
-			message: "updatedAt must be an ISO timestamp.",
+			message: "updatedAt must be a valid ISO timestamp.",
 			retryable: false,
 			status: 422,
 		});
@@ -201,9 +165,138 @@ function normalizeUpdatedAt(value: unknown, fallbackNow: Date): string {
 	return parsed.toISOString();
 }
 
-function releaseGateNotFound(): AppApiRouteError {
+function normalizeRecordJson(value: unknown, fieldName: string): Record<string, unknown> | null {
+	if (value == null) {
+		return null;
+	}
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		return value as Record<string, unknown>;
+	}
+	throw new AppApiRouteError({
+		code: "validation_failed",
+		details: { field: fieldName },
+		message: `${fieldName} must be an object when provided.`,
+		retryable: false,
+		status: 422,
+	});
+}
+
+function sanitizeIdPart(value: string): string {
+	return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function buildReleaseId(input: { inventoryId: string; runId: string }): string {
+	return `owrelease_${sanitizeIdPart(input.inventoryId)}_${sanitizeIdPart(input.runId)}`;
+}
+
+function assertStableReferenceReleaseGateEntry(entry: OfficialWebTargetInventoryRecord): void {
+	if (
+		entry.consumerFamily !== "stable_reference_candidate" ||
+		entry.selectedWriteTarget !== "official_web/stable_reference"
+	) {
+		throw new AppApiRouteError({
+			code: "release_gate_not_supported",
+			details: {
+				consumerFamily: entry.consumerFamily,
+				selectedWriteTarget: entry.selectedWriteTarget,
+			},
+			message: "Only stable reference target inventory entries can use this release gate.",
+			retryable: false,
+			status: 409,
+		});
+	}
+}
+
+function assertReviewableReleaseGateEntry(
+	entry: OfficialWebTargetInventoryRecord,
+): asserts entry is ReleaseGateReviewableEntry {
+	if (!entry.previewEvidence) {
+		throw new AppApiRouteError({
+			code: "release_gate_not_ready",
+			details: { blockers: ["missing_preview_evidence"] },
+			message: "Stable reference target inventory entry has no preview evidence to review.",
+			retryable: false,
+			status: 409,
+		});
+	}
+}
+
+function findApprovalBlockers(entry: OfficialWebTargetInventoryRecord): string[] {
+	const blockers: string[] = [];
+	const evidence = entry.previewEvidence;
+	if (entry.reviewState !== "previewed") {
+		blockers.push(`review_state_${entry.reviewState}`);
+	}
+	if (!evidence) {
+		blockers.push("missing_preview_evidence");
+	} else {
+		if (evidence.ingestionStatus !== "staged") {
+			blockers.push("ingestion_not_staged");
+		}
+		if (evidence.promotionDecision !== "staged") {
+			blockers.push("promotion_not_staged");
+		}
+		if (!evidence.currentTruthImportWasNull) {
+			blockers.push("current_truth_import_present");
+		}
+		if (evidence.sourceObjectKeys.length === 0) {
+			blockers.push("missing_source_object_keys");
+		}
+	}
+	for (const fieldName of entry.requiredFields) {
+		if (entry.fieldStatus[fieldName] !== "present") {
+			blockers.push(`missing_${fieldName}`);
+		}
+	}
+	return blockers;
+}
+
+function assertApprovalReady(entry: OfficialWebTargetInventoryRecord): void {
+	const blockers = findApprovalBlockers(entry);
+	if (blockers.length > 0) {
+		throw new AppApiRouteError({
+			code: "release_gate_not_ready",
+			details: { blockers },
+			message: "Stable reference target inventory entry is not ready for release approval.",
+			retryable: false,
+			status: 409,
+		});
+	}
+}
+
+function buildReleaseEvidence(entry: ReleaseGateReviewableEntry): Record<string, unknown> {
+	return {
+		admissionTargetId: entry.admissionTargetId,
+		consumerFamily: entry.consumerFamily,
+		fieldStatus: entry.fieldStatus,
+		inventoryId: entry.inventoryId,
+		ownerSurface: entry.ownerSurface,
+		previewEvidence: entry.previewEvidence,
+		releaseBlockers: entry.releaseBlockers,
+		requiredFields: entry.requiredFields,
+		reviewState: entry.reviewState,
+		selectedWriteTarget: entry.selectedWriteTarget,
+		sourceObjectKeys: entry.previewEvidence.sourceObjectKeys,
+		sourceUrls: entry.sourceUrls,
+		targetAttemptId: entry.previewEvidence.targetAttemptId,
+		targetJobId: entry.previewEvidence.targetJobId,
+		targetLabel: entry.targetLabel,
+	};
+}
+
+function resolveDecidedBy(principal: ResolvedAppPrincipal): string {
+	return (
+		principal.principal.email ??
+		principal.principal.principalId ??
+		principal.actor.principalId ??
+		"unknown_operator"
+	);
+}
+
+function notFound(releaseId: string): AppApiRouteError {
 	return new AppApiRouteError({
 		code: "release_gate_not_found",
+		details: { releaseId },
 		message: "Official web target release gate not found.",
 		retryable: false,
 		status: 404,
@@ -222,58 +315,70 @@ export function buildOfficialWebTargetReleaseGateService(
 			if (!inventoryId) {
 				throw new AppApiRouteError({
 					code: "target_inventory_not_found",
-					message: "Official web target inventory row not found.",
+					message: "Official web target inventory entry not found.",
 					retryable: false,
 					status: 404,
 				});
 			}
+			const decision = normalizeDecision(input.payload.decision);
 			const entry = await dependencies.inventoryService.getTargetInventoryEntryById({
 				inventoryId,
 				principal: input.principal,
 			});
-			const decision = normalizeDecision(input.payload.decision);
+			assertStableReferenceReleaseGateEntry(entry);
+			assertReviewableReleaseGateEntry(entry);
 			if (decision === "approved") {
-				ensureReleaseGateReady(entry);
+				assertApprovalReady(entry);
 			}
+
+			const previewEvidence = entry.previewEvidence;
 			const timestamp = now().toISOString();
-			const preview = entry.previewEvidence;
 			const releaseGate = await dependencies.store.upsertReleaseGate({
+				createdAt: timestamp,
 				decidedAt: timestamp,
-				decidedBy: decidedBy(input.principal),
+				decidedBy: resolveDecidedBy(input.principal),
 				decision,
 				errorJson: null,
-				evidenceJson: evidenceFromEntry(entry),
+				evidenceJson: buildReleaseEvidence(entry),
 				executionJson: null,
 				inventoryId: entry.inventoryId,
-				jobId: preview?.targetJobId ?? entry.admissionTargetId,
+				jobId: previewEvidence.targetJobId,
 				notes: normalizeOptionalString(input.payload.notes),
 				publishAlias: input.payload.publishAlias === true,
 				releaseId: buildReleaseId({
 					inventoryId: entry.inventoryId,
-					runId: preview?.appApiRunId ?? timestamp,
+					runId: previewEvidence.appApiRunId,
 				}),
-				runId: preview?.appApiRunId ?? null,
+				runId: previewEvidence.appApiRunId,
 				status: decision,
 				summaryId: null,
+				updatedAt: timestamp,
 			});
+
 			return { releaseGate };
 		},
 
 		async getReleaseGateById(input) {
 			ensureOperatorPrincipal(input.principal);
 			const releaseId = normalizeOptionalString(input.releaseId);
-			const releaseGate = releaseId ? await dependencies.store.getReleaseGateById(releaseId) : null;
+			if (!releaseId) {
+				throw notFound("");
+			}
+			const releaseGate = await dependencies.store.getReleaseGateById(releaseId);
 			if (!releaseGate) {
-				throw releaseGateNotFound();
+				throw notFound(releaseId);
 			}
 			return { releaseGate };
 		},
 
 		async getReleaseGateForExecution(input) {
 			const releaseId = normalizeOptionalString(input.releaseId);
-			const releaseGate = releaseId ? await dependencies.store.getReleaseGateById(releaseId) : null;
+			if (!releaseId) {
+				throw notFound("");
+			}
+			const releaseGate = await dependencies.store.getReleaseGateById(releaseId);
 			if (!releaseGate) {
-				throw releaseGateNotFound();
+				throw notFound(releaseId);
 			}
 			return { releaseGate };
 		},
@@ -281,17 +386,19 @@ export function buildOfficialWebTargetReleaseGateService(
 		async updateReleaseGateExecutionStatus(input) {
 			const releaseId = normalizeOptionalString(input.releaseId);
 			if (!releaseId) {
-				throw releaseGateNotFound();
+				throw notFound("");
 			}
+			const status = normalizeStatus(input.payload.status);
+			const updatedAt = normalizeUpdatedAt(input.payload.updatedAt, now());
 			const releaseGate = await dependencies.store.updateReleaseGateExecutionStatus({
-				errorJson: normalizeRecord(input.payload.error),
-				executionJson: normalizeRecord(input.payload.execution),
+				errorJson: normalizeRecordJson(input.payload.error, "error"),
+				executionJson: normalizeRecordJson(input.payload.execution, "execution"),
 				releaseId,
-				status: normalizeStatus(input.payload.status),
-				updatedAt: normalizeUpdatedAt(input.payload.updatedAt, now()),
+				status,
+				updatedAt,
 			});
 			if (!releaseGate) {
-				throw releaseGateNotFound();
+				throw notFound(releaseId);
 			}
 			return { releaseGate };
 		},

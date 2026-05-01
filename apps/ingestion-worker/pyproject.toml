@@ -61,6 +61,7 @@ campus-ingestion-record-authenticated-notice-attachment-fetch-status = "campus_i
 campus-ingestion-show-authenticated-notice-attachment-fetch-status = "campus_ingestion_worker.show_authenticated_notice_attachment_fetch_status:main"
 campus-ingestion-official-web-handoff-dev = "campus_ingestion_worker.official_web_handoff_receiver:main"
 campus-ingestion-import-official-web-projection = "campus_ingestion_worker.official_web_projection_import:main"
+campus-ingestion-release-official-web-target = "campus_ingestion_worker.release_official_web_target:main"
 campus-ingestion-run-official-web-university-collection = "campus_ingestion_worker.official_web_university_collection:main"
 campus-ingestion-materialize-curriculum-program-semester-facts = "campus_ingestion_worker.materialize_curriculum_program_semester_facts:main"
 campus-ingestion-publish-document-reader-assets = "campus_ingestion_worker.publish_document_reader_assets:main"

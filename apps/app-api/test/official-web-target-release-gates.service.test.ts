@@ -9,6 +9,7 @@ import type {
 } from "../src/modules/official-web-target-inventory";
 import {
 	buildOfficialWebTargetReleaseGateService,
+	type OfficialWebTargetReleaseGateRecord,
 	type OfficialWebTargetReleaseGateStore,
 } from "../src/modules/official-web-target-release-gates";
 
@@ -77,7 +78,8 @@ const previewedStableReferenceEntry: OfficialWebTargetInventoryRecord = {
 function createReleaseGateStore(): OfficialWebTargetReleaseGateStore {
 	return {
 		getReleaseGateById: vi.fn(),
-		updateReleaseGateExecutionStatus: vi.fn(async (input) => ({
+		updateReleaseGateExecutionStatus: vi.fn(
+			async (input): Promise<OfficialWebTargetReleaseGateRecord> => ({
 			createdAt: "2026-05-01T08:00:00.000Z",
 			decidedAt: "2026-05-01T08:00:00.000Z",
 			decidedBy: "ops@example.com",

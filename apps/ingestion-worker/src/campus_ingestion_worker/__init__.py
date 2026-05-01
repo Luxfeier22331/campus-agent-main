@@ -170,6 +170,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "rebuild_local_data": ("campus_ingestion_worker.rebuild_local_data", "rebuild_local_data"),
     "register_raw_asset": ("campus_ingestion_worker.register_raw_asset", "register_raw_asset"),
     "release_index_main": ("campus_ingestion_worker.release_index", "main"),
+    "release_official_web_target": (
+        "campus_ingestion_worker.release_official_web_target",
+        "release_official_web_target",
+    ),
+    "release_official_web_target_main": (
+        "campus_ingestion_worker.release_official_web_target",
+        "main",
+    ),
     "release_registry_scope_main": ("campus_ingestion_worker.release_registry_scope", "main"),
     "validate_student_handbook_chunking": (
         "campus_ingestion_worker.validate_student_handbook_chunking",
