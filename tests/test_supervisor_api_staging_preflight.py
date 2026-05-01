@@ -26,7 +26,7 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         self.assertIn("SUPERVISOR_API_STAGING_PREFLIGHT_DOCKER_TIMEOUT_SECONDS", script)
         self.assertIn("SUPERVISOR_API_STAGING_PREFLIGHT_SKIP_REGISTRY", script)
         self.assertIn("SUPERVISOR_API_STAGING_PREFLIGHT_PULL", script)
-        self.assertIn("timeout \"${docker_timeout_seconds}\"", script)
+        self.assertIn('timeout "${docker_timeout_seconds}"', script)
         self.assertIn("buildx imagetools inspect", script)
         self.assertNotIn("docker info", script)
         self.assertNotIn("docker manifest inspect", script)
