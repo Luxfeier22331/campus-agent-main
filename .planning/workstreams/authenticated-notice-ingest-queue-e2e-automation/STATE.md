@@ -136,6 +136,21 @@ uv run --all-packages campus-ingestion-enqueue-verified-authenticated-notice-run
 uv run --all-packages campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e --run-id '<RUN_ID>' --site-id muc_internal_portal --source-home-url https://my.muc.edu.cn --source-surface notice --execute --lease-seconds 3600 --require-downstream-materialization --consumer-admission-manifest-path '<CONSUMER_ADMISSION_MANIFEST>'
 ```
 
+Repo-owned live verification:
+
+```bash
+uv run --all-packages campus-ingestion-create-authenticated-notice-smoke-replay-run --source-run-id 'muc_internal_portal:notice:20260428T181953007Z' --purpose phase1_repo_owned_replay_enqueue_wrapper_smoke --execute --output-dir .tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_repo_owned_replay_cli
+uv run --all-packages campus-ingestion-enqueue-verified-authenticated-notice-runs --replay-batch-id repo-owned-smoke-20260501T012606Z --execute --limit 20 --output-dir .tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_repo_owned_verified_scan_enqueue
+uv run --all-packages campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e --run-id 'muc_internal_portal:notice:20260428T181953007Z:smoke:20260501T012606Z' --site-id muc_internal_portal --source-home-url https://my.muc.edu.cn --source-surface notice --sample-id 355867 --execute --lease-seconds 3600 --require-child-task-contract --output-dir .tmp/authenticated-notice-ingest-queue-e2e-live-smoke/phase1_repo_owned_replay_wrapper_execute
+```
+
+Repo-owned live verification result:
+
+- Synthetic replay CLI: `inserted_count=1`.
+- Verified-run enqueue scan: `scanned_run_count=4`, `already_queued_count=3`, `planned_job_count=1`, `inserted_count=1`.
+- Wrapper execute: `verdict=passed`, `medium_or_higher_finding_count=0`.
+- Wrapper post-run audit: queue status `succeeded`, consumer evidence files all present, `heartbeat_failed=false`, `notice_count=282`, `raw_reused_count=282`, `raw_uploaded_count=0`.
+
 Remaining explicit non-blocker:
 
 - Historical local-only collected content still remains operator/manual-triggered by decision.
