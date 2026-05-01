@@ -3,6 +3,7 @@ import { registerDataProviderObservabilityAndOperatorSuite } from "./data-provid
 import { registerDataProviderOfficialWebSuite } from "./data-provider.official-web.suite";
 import { registerDataProviderRequestsSuite } from "./data-provider.requests.suite";
 import { registerDataProviderSafetyAuditSuite } from "./data-provider.safety-audit.suite";
+import { registerDataProviderAuthenticatedNoticeProcessingSuite } from "./data-provider.authenticated-notice-processing.suite";
 
 describe("protected panel data provider", () => {
 	beforeEach(() => {
@@ -14,6 +15,7 @@ describe("protected panel data provider", () => {
 	});
 
 	registerDataProviderRequestsSuite();
+	registerDataProviderAuthenticatedNoticeProcessingSuite();
 	registerDataProviderObservabilityAndOperatorSuite();
 	registerDataProviderSafetyAuditSuite();
 	registerDataProviderOfficialWebSuite();

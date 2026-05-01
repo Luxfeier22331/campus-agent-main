@@ -63,6 +63,22 @@ export function appendOfficialWebRunFilters(
 	}
 }
 
+export function appendAuthenticatedNoticeProcessingFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "noticeId", filter?.noticeId);
+	appendOptionalQueryParam(query, "q", filter?.q);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "targetSurface", filter?.targetSurface);
+	appendOptionalQueryParam(query, "candidateKind", filter?.candidateKind);
+	appendOptionalQueryParam(query, "queueStatus", filter?.queueStatus);
+	appendOptionalQueryParam(query, "runId", filter?.runId);
+	appendOptionalQueryParam(query, "replayBatchId", filter?.replayBatchId);
+	appendOptionalQueryParam(query, "updatedAfter", filter?.updatedAfter);
+	appendOptionalQueryParam(query, "updatedBefore", filter?.updatedBefore);
+}
+
 export function appendOptionalQueryParam(query: URLSearchParams, key: string, value: unknown) {
 	const normalized = normalizeFilterValue(value);
 	if (normalized) {

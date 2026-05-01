@@ -21,6 +21,10 @@ import {
 	type RequestProjectionRecord,
 } from "../types";
 import {
+	getAuthenticatedNoticeProcessingDetail,
+	getAuthenticatedNoticeProcessingList,
+} from "./authenticated-notice-processing";
+import {
 	getOfficialWebRunDetail,
 	getOfficialWebRunList,
 	getOfficialWebSiteDetail,
@@ -68,6 +72,11 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		if (resource === "officialWebSites") {
 			return (await getOfficialWebSiteList(params.signal)) as unknown as GetListResult<RecordType>;
 		}
+		if (resource === "authenticatedNoticeProcessing") {
+			return (await getAuthenticatedNoticeProcessingList(
+				params,
+			)) as unknown as GetListResult<RecordType>;
+		}
 
 		unsupportedMethod(resource, "getList");
 	},
@@ -106,6 +115,19 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 				data: items,
 			} as unknown as GetManyResult<RecordType>;
 		}
+		if (resource === "authenticatedNoticeProcessing") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getAuthenticatedNoticeProcessingDetail(id, params.signal).then(
+						(result) => result.data,
+					),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
 
 		unsupportedMethod(resource, "getMany");
 	},
@@ -130,6 +152,12 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		}
 		if (resource === "officialWebSites") {
 			return (await getOfficialWebSiteDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeProcessing") {
+			return (await getAuthenticatedNoticeProcessingDetail(
 				params.id,
 				params.signal,
 			)) as unknown as GetOneResult<RecordType>;
