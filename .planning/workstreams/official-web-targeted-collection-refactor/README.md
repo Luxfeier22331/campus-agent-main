@@ -17,11 +17,11 @@ target-scoped workset，collector 只执行已准入的 fetch / snapshot / norma
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 0 ready`
-- current slice: Phase 0 先封住 broad crawl 默认入口；Phase 1-9 目前仅为 outlines，不是已开工计划
-- active implementation: no, planning created
-- owner: unassigned
+- status: `completed`
+- current phase: `Phase 9 complete`
+- current slice: target-first official-web collection refactor completed
+- active implementation: no
+- owner: Codex session
 
 ## Target Shape
 
@@ -43,8 +43,19 @@ target-scoped workset，collector 只执行已准入的 fetch / snapshot / norma
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
-- current phase plan: `./phases/phase-00-boundary-and-freeze/PLAN.md`
-- future phase outlines: `./phases/phase-*/OUTLINE.md`
+- closeout evidence: `./CLOSEOUT.md`
+- completed phase summaries:
+  `./phases/phase-00-boundary-and-freeze/SUMMARY.md` through
+  `./phases/phase-09-legacy-closeout-and-acceptance/SUMMARY.md`
+
+## Implementation Result
+
+- official-web collection defaults to app-api target workset admission.
+- collector no longer turns host allowlists or seeds into collection scope.
+- target lineage is carried through source-truth artifacts, app-api page observations,
+  target attempts and ingestion reports.
+- no-promotion live seam writes staged ingestion evidence without current-truth promotion.
+- legacy broad crawl remains explicit debug/operator-only and excluded from handoff/promotion.
 
 ## GSD Status Contract
 

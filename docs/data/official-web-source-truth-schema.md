@@ -59,6 +59,14 @@ upstream，而不是让 downstream 永远依赖某个 parser 的原始输出或�
   source-truth schema；它们属于 control-plane truth。
 - consumer-denominator metadata 是 recovery/admission hint，只说明本页为何被 retained；
   它不是 current read-model truth，也不是 serving alias truth。
+- target-source-map 是采集准入 contract，不是 page source-truth 本身。它的 runtime
+  model 使用 camelCase 字段：`targetId`、`consumerFamily`、`ownerSurface`、
+  `selectedWriteTarget`、`sourceHosts`、`urlHints`、`titleHints`、
+  `requiredEvidence`、`retentionPolicy`、`reviewPolicy`、`materializationPolicy`、
+  `inventoryOnly`。
+- repo-tracked `target-source-map.json` 继续使用 snake_case 输入字段；其中
+  `url_hints` / `title_hints` 是 pre-fetch eligibility hints，`retention_policy` /
+  `review_policy` / `materialization_policy` / `inventory_only` 冻结 target 的下游语义。
 
 ## Canonical 形态
 

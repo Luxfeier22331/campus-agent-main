@@ -19,16 +19,16 @@ updated: 2026-05-01
 
 ## Phase Status
 
-- [ ] **Phase 0: Boundary And Broad Crawl Freeze** - 明确旧 closeout 与新 target-first 重构边界，冻结 broad crawl 默认扩张。
-- [ ] **Phase 1: Target Contract** - 重写 target-source-map / consumer-denominator / source capability contract，并保持 canonical family naming。
-- [ ] **Phase 2: App-API Job Control Plane** - 增加 target job、candidate URL、attempt、shared artifact-verification projection 与 operator-safe projection schema。
-- [ ] **Phase 3: Target Workset Planner** - 重构 `/plans:resolve`，返回 target-scoped workset，而不是 host-first workset。
-- [ ] **Phase 4: Collector Executor Refactor** - collector 只执行 workset，不再默认从 enabled hosts/seeds broad crawl。
-- [ ] **Phase 5: Source-Truth And Validation** - source-truth manifest 补 target lineage，validator/QC gate 对 target lineage fail-closed。
-- [ ] **Phase 6: Ingestion Projection Admission** - ingestion 按 target family 分流 candidate/review/release，不让 inventory-only promotion。
-- [ ] **Phase 7: Operator Panel Projection** - panel 展示 target jobs、attempts、artifact verification 和 ingestion/release status。
-- [ ] **Phase 8: No-Promotion Live Seam** - 跑真实 local/dev no-promotion seam，证明全链路可重复且不写 current truth。
-- [ ] **Phase 9: Legacy Closeout And Acceptance** - 清理 legacy broad path、更新文档、关闭 workstream。
+- [x] **Phase 0: Boundary And Broad Crawl Freeze** - 明确旧 closeout 与新 target-first 重构边界，冻结 broad crawl 默认扩张。
+- [x] **Phase 1: Target Contract** - 重写 target-source-map / consumer-denominator / source capability contract，并保持 canonical family naming。
+- [x] **Phase 2: App-API Job Control Plane** - 增加 target job、candidate URL、attempt、shared artifact-verification projection 与 operator-safe projection schema。
+- [x] **Phase 3: Target Workset Planner** - 重构 `/plans:resolve`，返回 target-scoped workset，而不是 host-first workset。
+- [x] **Phase 4: Collector Executor Refactor** - collector 只执行 workset，不再默认从 enabled hosts/seeds broad crawl。
+- [x] **Phase 5: Source-Truth And Validation** - source-truth manifest 补 target lineage，validator/QC gate 对 target lineage fail-closed。
+- [x] **Phase 6: Ingestion Projection Admission** - ingestion 按 target family 分流 candidate/review/release，不让 inventory-only promotion。
+- [x] **Phase 7: Operator Panel Projection** - panel 展示 target jobs、attempts、artifact verification 和 ingestion/release status。
+- [x] **Phase 8: No-Promotion Live Seam** - 跑真实 local/dev no-promotion seam，证明全链路可重复且不写 current truth。
+- [x] **Phase 9: Legacy Closeout And Acceptance** - 清理 legacy broad path、更新文档、关闭 workstream。
 
 ## Implementation Dependency
 
