@@ -13,6 +13,8 @@ const OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE =
 	"Protected operator observability queries require a trusted operator identity.";
 const OFFICIAL_WEB_IDENTITY_MESSAGE =
 	"Protected official web queries require a trusted operator identity.";
+const AUTHENTICATED_NOTICE_IDENTITY_MESSAGE =
+	"Protected authenticated notice processing queries require a trusted operator identity.";
 const REQUEST_IDENTITY_MESSAGE = "Protected request queries require a trusted operator identity.";
 
 const STATIC_PROXY_ROUTES = [
@@ -87,6 +89,11 @@ const STATIC_PROXY_ROUTES = [
 		targetPath: "/api/operator/official-web/runs",
 	},
 	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		path: "/api/authenticated-notices/processing",
+		targetPath: "/api/operator/authenticated-notices/processing",
+	},
+	{
 		identityMessage: REQUEST_IDENTITY_MESSAGE,
 		path: "/api/requests",
 		targetPath: "/api/operator/requests",
@@ -108,6 +115,11 @@ const PREFIX_PROXY_ROUTES = [
 		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
 		prefix: "/api/official-web/runs/",
 		targetPrefix: "/api/operator/official-web/runs/",
+	},
+	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		prefix: "/api/authenticated-notices/processing/",
+		targetPrefix: "/api/operator/authenticated-notices/processing/",
 	},
 	{
 		identityMessage: REQUEST_IDENTITY_MESSAGE,
@@ -235,6 +247,7 @@ export const worker = {
 					overview: "ready",
 					requests: "ready",
 					official_web: "ready",
+					authenticated_notices: "ready",
 					jobs: "blocked",
 					operations: "deferred",
 					audit: "ready",
