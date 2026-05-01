@@ -234,6 +234,47 @@ updated: 2026-04-12
 - projector 与 ingestion handoff 都必须以 `event_id` 幂等消费
 - outbox payload 只携带 run identity、site identity、terminal status 与 artifact refs
 
+## `official_web.run_admission_decisions`
+
+用途：
+
+- 记录 app-api 对 crawl-run 是否允许继续进入 projection / ingestion / selected-write 的控制面决策
+- 为旧契约 broad crawl cleanup 提供显式 ledger，而不是物理删除 source truth
+
+最小列：
+
+- `decision_id`
+- `run_id`
+- `site_id`
+- `decision`
+- `reason_code`
+- `reason`
+- `decided_by`
+- `decided_at`
+- `evidence_json`
+- `created_at`
+- `updated_at`
+
+最小索引：
+
+- unique `(run_id)`
+- `(site_id, decision, decided_at desc)`
+
+当前允许的 cleanup decision：
+
+- `legacy_contract_excluded`
+
+规则：
+
+- `legacy_contract_excluded` 表示该 run 来自 consumer-denominator / target-source-map
+  之前的 broad crawl 契约，只能作为历史 source ledger 保留，不得继续进入 handoff 或
+  selected-write
+- 该表不替代 run lifecycle status；不要把 `crawl_runs.status` 或
+  `ingestion_dispatch_status` 扩展成 cleanup 语义
+- cleanup CLI 只能写 admission ledger；不删除 `crawl_runs`、`run_artifacts`、对象存储
+  source-truth 或 derived artifacts
+- projection drain 必须在 materialize projection 和 dispatch handoff 前读取该表
+
 ## `official_web.page_observations`
 
 用途：

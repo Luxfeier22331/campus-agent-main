@@ -7,6 +7,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from campus_ingestion_worker.official_web_handoff_consumer_reporting import (
+    build_consumer_candidate_review_report,
+)
+
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 from .official_web_handoff_consumer_test_support import (
@@ -53,6 +57,65 @@ def _expected_candidate_key(
 
 
 class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
+    def test_legacy_excluded_run_blocks_selected_write_even_with_approved_review(
+        self,
+    ) -> None:
+        candidate_key = "owcand_legacy_excluded_contact"
+
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "campus_public",
+                "crawl_run_id": "owrun_legacy_excluded",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": candidate_key,
+                        "consumer_family": "contact_directory_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/contact_directory",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "联系我们",
+                        "normalized_canonical_url": "https://www.example.edu/contact",
+                        "matched_evidence": ["phone", "location"],
+                        "raw_asset_id": "owasset_contact",
+                        "raw_version_id": "owver_contact",
+                        "typed_candidate_schema_version": "contact_directory_candidate.v1",
+                        "typed_candidate": {
+                            "display_name": "办公室",
+                            "phone": "010-68933381",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    }
+                ],
+            },
+            consumer_review_manifest={
+                "schema_version": "official_web_selected_write_review_manifest.v1",
+                "site_id": "campus_public",
+                "run_id": "owrun_legacy_excluded",
+                "verdicts": [
+                    {
+                        "candidate_key": candidate_key,
+                        "verdict": "approved",
+                    }
+                ],
+            },
+            run_admission_decision={
+                "decision": "legacy_contract_excluded",
+                "reasonCode": "legacy_broad_crawl_contract",
+                "runId": "owrun_legacy_excluded",
+                "siteId": "campus_public",
+            },
+        )
+
+        self.assertEqual(review["selectedWrite"]["decision"], "blocked")
+        self.assertEqual(review["selectedWrite"]["reason"], "run_admission_decision_excluded")
+        self.assertEqual(review["counts"]["selected_write_ready_count"], 0)
+        self.assertFalse(review["candidates"][0]["ready_for_selected_write"])
+        self.assertEqual(
+            review["candidates"][0]["blocked_reason"],
+            "run_admission_decision_excluded",
+        )
+
     def test_consume_handoff_record_stages_projection_outputs_without_persisting_registry_by_default(
         self,
     ) -> None:

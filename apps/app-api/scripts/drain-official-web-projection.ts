@@ -110,7 +110,13 @@ export function buildLocalOfficialWebProjectionDrainRuntime(
 export async function drainOfficialWebProjection(
 	runtime: LocalOfficialWebProjectionDrainRuntime,
 	input: OfficialWebProjectionDrainArgs,
-): Promise<{ abandoned: number; failed: number; handoffConfigured: boolean; processed: number }> {
+): Promise<{
+	abandoned: number;
+	failed: number;
+	handoffConfigured: boolean;
+	processed: number;
+	skipped: number;
+}> {
 	const projector = buildOfficialWebProjectionProjector({
 		handoffPublisher: runtime.handoffConfigured
 			? createOfficialWebHandoffPublisher(runtime.env)

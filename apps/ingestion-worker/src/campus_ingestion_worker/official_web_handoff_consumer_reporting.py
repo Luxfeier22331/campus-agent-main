@@ -181,11 +181,13 @@ def build_consumer_candidate_review_report(
     *,
     replay_report: dict[str, object],
     consumer_review_manifest: dict[str, object] | None = None,
+    run_admission_decision: dict[str, object] | None = None,
 ) -> dict[str, object]:
     verdicts = _review_verdicts(
         consumer_review_manifest=consumer_review_manifest,
         replay_report=replay_report,
     )
+    run_excluded = _is_run_admission_excluded(run_admission_decision)
     raw_candidates = require_object_list(
         replay_report.get("consumer_candidate_pages"),
         "consumer_candidate_pages",
@@ -194,6 +196,7 @@ def build_consumer_candidate_review_report(
         _build_consumer_candidate_review_entry(
             index=index,
             candidate=candidate,
+            run_excluded=run_excluded,
             verdicts=verdicts,
         )
         for index, candidate in enumerate(raw_candidates, start=1)
@@ -260,6 +263,7 @@ def build_consumer_candidate_review_report(
             rejected_count=len(selected_write_rejected),
             pending_count=len(selected_write_pending),
             blocked_count=len(selected_write_blocked),
+            run_excluded=run_excluded,
             ready_candidates=selected_write_ready,
         ),
         "stableReferenceRelease": {
@@ -275,6 +279,7 @@ def _build_consumer_candidate_review_entry(
     *,
     index: int,
     candidate: dict[str, object],
+    run_excluded: bool,
     verdicts: dict[str, dict[str, object]],
 ) -> dict[str, object]:
     consumer_family = require_text(candidate.get("consumer_family"), "consumer_family")
@@ -306,12 +311,15 @@ def _build_consumer_candidate_review_entry(
         else {}
     )
     typed_candidate_schema_version = optional_text(candidate.get("typed_candidate_schema_version"))
-    ready_for_selected_write = _ready_for_selected_write(
-        admission_action=admission_action,
-        review_verdict=review_verdict,
-        quality_gate=quality_gate,
-        typed_candidate=typed_candidate,
-        typed_candidate_schema_version=typed_candidate_schema_version,
+    ready_for_selected_write = (
+        _ready_for_selected_write(
+            admission_action=admission_action,
+            review_verdict=review_verdict,
+            quality_gate=quality_gate,
+            typed_candidate=typed_candidate,
+            typed_candidate_schema_version=typed_candidate_schema_version,
+        )
+        and not run_excluded
     )
     effective_admission_action = (
         "selected_write_ready" if ready_for_selected_write else admission_action
@@ -354,6 +362,7 @@ def _build_consumer_candidate_review_entry(
             admission_action=admission_action,
             quality_gate=quality_gate,
             review_verdict=review_verdict,
+            run_excluded=run_excluded,
             typed_candidate=typed_candidate,
             typed_candidate_schema_version=typed_candidate_schema_version,
         ),
@@ -377,9 +386,12 @@ def _candidate_blocked_reason(
     admission_action: str,
     quality_gate: dict[object, object],
     review_verdict: str,
+    run_excluded: bool,
     typed_candidate: dict[object, object],
     typed_candidate_schema_version: str | None,
 ) -> str:
+    if run_excluded:
+        return "run_admission_decision_excluded"
     if admission_action == "inventory_only":
         return "inventory_only_until_runtime_admission"
     if admission_action == "release_gate_required":
@@ -400,6 +412,7 @@ def _build_selected_write_gate_report(
     rejected_count: int,
     pending_count: int,
     blocked_count: int,
+    run_excluded: bool,
     ready_candidates: list[dict[str, object]],
 ) -> dict[str, object]:
     if candidate_count == 0:
@@ -410,6 +423,16 @@ def _build_selected_write_gate_report(
             "pending_record_count": 0,
             "blocked_record_count": 0,
             "reason": "no_selected_write_candidates",
+            "preview_records": [],
+        }
+    if run_excluded:
+        return {
+            "decision": "blocked",
+            "ready_record_count": 0,
+            "rejected_record_count": rejected_count,
+            "pending_record_count": pending_count,
+            "blocked_record_count": blocked_count,
+            "reason": "run_admission_decision_excluded",
             "preview_records": [],
         }
     if ready_count == 0 and rejected_count == candidate_count:
@@ -431,6 +454,17 @@ def _build_selected_write_gate_report(
             _selected_write_preview_record(candidate) for candidate in ready_candidates
         ],
     }
+
+
+def _is_run_admission_excluded(
+    run_admission_decision: dict[str, object] | None,
+) -> bool:
+    if run_admission_decision is None:
+        return False
+    decision = optional_text(
+        run_admission_decision.get("decision") or run_admission_decision.get("admissionDecision")
+    )
+    return decision == "legacy_contract_excluded"
 
 
 def _review_verdicts(

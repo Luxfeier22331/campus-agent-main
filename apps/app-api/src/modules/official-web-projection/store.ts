@@ -7,6 +7,7 @@ import {
 	crawlRuns,
 	officialWebRunProjection,
 	officialWebSiteProjection,
+	runAdmissionDecisions,
 	runArtifacts,
 	runOutbox,
 } from "../../db/schema";
@@ -19,6 +20,7 @@ import type {
 import type {
 	OfficialWebArtifactSummary,
 	OfficialWebProjectionProjectorStore,
+	OfficialWebRunAdmissionDecision,
 	OfficialWebRunOutboxEvent,
 	OfficialWebRunProjectionSource,
 	OfficialWebSiteProjectionSource,
@@ -71,6 +73,22 @@ function toArtifactSummary(row: typeof runArtifacts.$inferSelect): OfficialWebAr
 	};
 }
 
+function toRunAdmissionDecision(
+	row: typeof runAdmissionDecisions.$inferSelect,
+): OfficialWebRunAdmissionDecision | null {
+	if (row.decision !== "legacy_contract_excluded") {
+		return null;
+	}
+	return {
+		decidedAt: row.decidedAt.toISOString(),
+		decision: row.decision,
+		decisionId: row.decisionId,
+		reasonCode: row.reasonCode,
+		runId: row.runId,
+		siteId: row.siteId,
+	};
+}
+
 function toRunProjectionSource(
 	row: typeof crawlRuns.$inferSelect,
 	artifactRows: (typeof runArtifacts.$inferSelect)[],
@@ -112,6 +130,17 @@ export function createPgOfficialWebProjectionStore(
 	const getDb = input.getDb ?? createRuntimeDbGetter(env);
 
 	return {
+		async getRunAdmissionDecision(runId) {
+			const db = await getDb();
+			const rows = await db
+				.select()
+				.from(runAdmissionDecisions)
+				.where(eq(runAdmissionDecisions.runId, runId))
+				.limit(1);
+			const row = rows[0];
+			return row ? toRunAdmissionDecision(row) : null;
+		},
+
 		async getRunProjectionSource(runId) {
 			const db = await getDb();
 			const runRows = await db.select().from(crawlRuns).where(eq(crawlRuns.runId, runId)).limit(1);

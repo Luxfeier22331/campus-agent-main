@@ -225,6 +225,9 @@ export function createMemoryProjectionStore(
 	state: MemoryState,
 ): OfficialWebProjectionProjectorStore {
 	return {
+		async getRunAdmissionDecision() {
+			return null;
+		},
 		async getRunProjectionSource(runId) {
 			const run = state.runs.get(runId);
 			if (!run) {

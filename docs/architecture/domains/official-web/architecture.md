@@ -65,6 +65,7 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 配置入口：
 
 - `configs/sources/official_web/muc_public/consumer-denominator.json`
+- `configs/sources/official_web/muc_public/target-source-map.json`
 
 允许的 retained consumer families：
 
@@ -86,6 +87,43 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   deterministic extraction evidence
 - listing pages 默认只作 discovery；除非自身命中 stable/contact/service denominator，否则不作为
   answer-bearing source-truth
+
+### Target Source Map
+
+`target-source-map.json` 是 consumer-driven collection 的定点采集地图。
+
+它负责把下游会消费的 target 显式映射到：
+
+- `consumer_family`
+- `owner_surface`
+- `selected_write_target`
+- `source_hosts`
+- URL / title hints
+- required evidence
+
+边界：
+
+- target source map 是采集准入与运营评审提示，不是 current read model
+- 它必须与 `consumer-denominator.json` 的 family / owner / selected-write target 保持一致
+- 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、handoff 或
+  selected-write
+- news / notice 类 target 当前保持 inventory-only，不打开 `fresh_news` 或 `news_archive`
+
+### Legacy Broad Crawl Cleanup
+
+旧契约下产生的 broad official-web crawl 不做物理硬删除。
+
+清理形态固定为：
+
+- `apps/app-api` 在 `official_web.run_admission_decisions` 写入 run-level
+  admission ledger
+- 当前 legacy cleanup decision 使用 `legacy_contract_excluded`
+- projection drain 遇到 `legacy_contract_excluded` run 时只消费 outbox event，不
+  materialize operator projection，不 dispatch ingestion handoff
+- ingestion selected-write gate 即使收到带有 legacy exclusion 的 handoff payload，也
+  必须 fail closed，不得产出 ready selected-write record
+- 本地 `.tmp` / collector `.tmp` 证据目录可以删除；PG source ledger 与对象存储 source-truth 不因
+  cleanup CLI 自动删除
 
 ## Policy And Contract Split
 

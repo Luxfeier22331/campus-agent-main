@@ -25,6 +25,15 @@ export interface OfficialWebRunOutboxEvent {
 	runId: string;
 }
 
+export interface OfficialWebRunAdmissionDecision {
+	decidedAt: string;
+	decision: "legacy_contract_excluded";
+	decisionId: string;
+	reasonCode: string;
+	runId: string;
+	siteId: string;
+}
+
 export interface OfficialWebRunProjectionSource {
 	artifacts: OfficialWebArtifactSummary[];
 	collectorVersion: string | null;
@@ -79,6 +88,7 @@ export interface OfficialWebSiteProjectionMaterialization extends OfficialWebSit
 }
 
 export interface OfficialWebProjectionProjectorStore {
+	getRunAdmissionDecision(runId: string): Promise<OfficialWebRunAdmissionDecision | null>;
 	getRunProjectionSource(runId: string): Promise<OfficialWebRunProjectionSource | null>;
 	getSiteProjectionSource(siteId: string): Promise<OfficialWebSiteProjectionSource | null>;
 	listPendingEvents(limit: number, now: Date): Promise<OfficialWebRunOutboxEvent[]>;
@@ -124,6 +134,7 @@ export interface OfficialWebIngestionHandoffPayload {
 	pageChanges: OfficialWebPageChange[];
 	pageChangeSummary: Record<string, number>;
 	runId: string;
+	runAdmissionDecision?: OfficialWebRunAdmissionDecision | null;
 	runIntent: OfficialWebRunIntent;
 	schedulerRunKey: string;
 	seedSet: string[];
@@ -144,7 +155,7 @@ export interface OfficialWebHandoffPublisher {
 export interface OfficialWebProjectionProjector {
 	drain(input?: {
 		limit?: number;
-	}): Promise<{ abandoned: number; failed: number; processed: number }>;
+	}): Promise<{ abandoned: number; failed: number; processed: number; skipped: number }>;
 }
 
 export interface OfficialWebProjectionProjectorDependencies {
@@ -239,6 +250,7 @@ function toOfficialWebIngestionHandoffPayload(input: {
 						notModifiedPages: 0,
 					},
 		runId: input.run.runId,
+		runAdmissionDecision: null,
 		runIntent: input.run.runIntent,
 		schedulerRunKey: input.run.schedulerRunKey,
 		seedSet: input.run.seedSet,
@@ -289,6 +301,7 @@ export function buildOfficialWebProjectionProjector(
 			const events = await dependencies.store.listPendingEvents(limit, now());
 			let processed = 0;
 			let failed = 0;
+			let skipped = 0;
 
 			for (const event of events) {
 				const eventProjectedAt = now().toISOString();
@@ -300,6 +313,17 @@ export function buildOfficialWebProjectionProjector(
 				let dispatchSucceeded = false;
 
 				try {
+					const admissionDecision = await dependencies.store.getRunAdmissionDecision(event.runId);
+					if (admissionDecision?.decision === "legacy_contract_excluded") {
+						await dependencies.store.markEventProcessed({
+							eventId: event.eventId,
+							processedAt: eventProjectedAt,
+						});
+						processed += 1;
+						skipped += 1;
+						continue;
+					}
+
 					run = await dependencies.store.getRunProjectionSource(event.runId);
 					if (!run) {
 						throw new Error(`Missing official_web crawl run source for ${event.runId}.`);
@@ -408,6 +432,7 @@ export function buildOfficialWebProjectionProjector(
 				abandoned,
 				failed,
 				processed,
+				skipped,
 			};
 		},
 	};

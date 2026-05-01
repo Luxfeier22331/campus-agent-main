@@ -309,6 +309,7 @@ def consume_handoff_record(
             consumer_review_manifest=read_json(consumer_review_manifest_path)
             if consumer_review_manifest_path is not None
             else None,
+            run_admission_decision=_run_admission_decision_from_payload(payload),
         )
         promotion_report = build_promotion_report(
             promote_import=settings.promote_import,
@@ -473,6 +474,11 @@ def _execution_ref(
     if canonical_context is None:
         return event_id
     return canonical_context.execution_id
+
+
+def _run_admission_decision_from_payload(payload: dict[str, object]) -> dict[str, object] | None:
+    decision = payload.get("runAdmissionDecision") or payload.get("run_admission_decision")
+    return decision if isinstance(decision, dict) else None
 
 
 def _mark_canonical_step_passed(
