@@ -21,12 +21,14 @@ The target user question is:
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 4/6 pending real-environment execution`
-- phases complete: `4 / 7`
-- Phase 1, Phase 2, Phase 3 and Phase 5 are implemented in current worktree.
-- Phase 4 historical backfill and Phase 6 real-data smoke remain open because
-  they require configured app-api DB/object-store execution against selected
-  historical notices.
+- current phase: `Phase 6 real-environment closeout`
+- phases complete: `6 / 7 complete for implementation and selected schedule notice acceptance; non-schedule real sample and final gates remain`
+- Phase 1, Phase 2, Phase 3, Phase 4, Phase 5 and Phase 7 implementation
+  deliverables are present in current worktree.
+- Phase 6 selected schedule notice smoke passed in the real local
+  Postgres/object-store environment for notice `355867`.
+- Remaining Phase 6 parity is a non-schedule authenticated notice sample if the
+  full roadmap acceptance bar is required before closeout.
 - created from observed gap after validating notice `355867`
   (`关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知`) reached
   `transport_schedule_lookup` consumption.
@@ -59,7 +61,7 @@ The first release is read-only:
 3. protected panel consumes only `app-api` operator endpoints.
 4. operators can search by notice id/title/run id and inspect lifecycle status,
    child task summaries, downstream materialization, release/read-model counts,
-   and serving/tool readiness.
+   serving/tool readiness, and app-api computed freshness/staleness.
 5. raw notice body, HTML, OCR payloads, attachment bytes, local paths, object
    store credentials, and raw operations file paths are never exposed.
 

@@ -45,6 +45,7 @@ updated: 2026-04-27
 ## Authenticated Notice / Internal Notice
 
 - `ingestion-worker-on-demand-batch-runbook.md`
+- `authenticated-notice-processing-operator-panel-runbook.md`
 - `authenticated-notice-file-release-auth-window-runbook.md`
 - `authenticated-notice-bootstrap-smoke-runbook.md`
 - `authenticated-notice-source-truth-replay-runbook.md`

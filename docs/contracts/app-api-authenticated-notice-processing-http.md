@@ -163,6 +163,8 @@ query filters：
 - `replayBatchId`
 - `updatedAfter`
 - `updatedBefore`
+- response field `freshnessStatus` is app-api computed but is not a first-release
+  list filter
 - `limit`
 - `cursor`
 
@@ -190,6 +192,8 @@ query filters：
     "lifecycleStatus": "tool_ready",
     "candidateKind": "transport_schedule",
     "toolReady": true,
+    "freshnessStatus": "fresh",
+    "staleReasonCode": null,
     "readModelCounts": {
       "scheduledDepartures": 49,
       "rejectedSources": 0
@@ -203,6 +207,18 @@ query filters：
 1. `toolReady=true`
 2. `current=true`
 3. `projectedAt desc`
+
+## Freshness
+
+Freshness is computed by app-api at query time. Protected panel must display the
+returned fields and must not infer staleness from local browser time.
+
+- terminal records (`tool_ready`, `materialized`, `manual_review`,
+  `failed_terminal`, `dead_letter`, `cancelled`, or queue `succeeded`) are
+  returned as `fresh`
+- active records older than the configured stale window are returned as `stale`
+  with `staleReasonCode=active_processing_observation_overdue`
+- records without a valid `lastObservedAt` are returned as `unknown`
 
 ## Redaction Rules
 

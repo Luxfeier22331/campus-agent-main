@@ -20,6 +20,7 @@ import { PanelResponsiveDatagrid } from "../panel-responsive-datagrid";
 import type { AuthenticatedNoticeProcessingRecord } from "../types";
 import {
 	AuthenticatedNoticeCandidateChip,
+	AuthenticatedNoticeFreshnessChip,
 	AuthenticatedNoticeLifecycleChip,
 	AuthenticatedNoticeQueueChip,
 	AuthenticatedNoticeToolReadyChip,
@@ -136,6 +137,12 @@ export function AuthenticatedNoticeProcessingListPage() {
 							label="队列"
 							render={(record: AuthenticatedNoticeProcessingRecord) => (
 								<AuthenticatedNoticeQueueChip status={record.queueStatus} />
+							)}
+						/>
+						<FunctionField
+							label="新鲜度"
+							render={(record: AuthenticatedNoticeProcessingRecord) => (
+								<AuthenticatedNoticeFreshnessChip status={record.freshnessStatus} />
 							)}
 						/>
 						<FunctionField

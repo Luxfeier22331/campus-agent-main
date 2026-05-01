@@ -14,10 +14,10 @@ updated: 2026-05-01
 - [x] **Phase 1: Operator Projection Contract Freeze** — define the app-api owned, operator-safe processing projection, status taxonomy, timeline model, and redaction contract.
 - [x] **Phase 2: App API Projection Store And Query Endpoints** — add durable app-api storage, list/detail query services, operator routes, and contract tests.
 - [x] **Phase 3: Ingestion Projection Emitter** — emit sanitized processing snapshots from queue consumer/downstream materialization or a repo-owned worker command into app-api.
-- [ ] **Phase 4: Historical Backfill And Reconciliation** — backfill existing processed notices such as `355867`, reconcile current release/read-model state, and detect stale or conflicting attempts.
+- [x] **Phase 4: Historical Backfill And Reconciliation** — backfill existing processed notices such as `355867`, reconcile current release/read-model state, and detect stale or conflicting attempts.
 - [x] **Phase 5: Protected Panel List And Detail UI** — add panel resources/pages for authenticated notice processing status with lifecycle timeline and downstream readiness cards.
-- [ ] **Phase 6: End-To-End Acceptance And Real Notice Smoke** — verify `355867` and at least one non-schedule notice through app-api and panel-visible projection.
-- [ ] **Phase 7: Operational Hardening And Closeout** — add freshness checks, runbook, observability metrics, docs, and final verification.
+- [ ] **Phase 6: End-To-End Acceptance And Real Notice Smoke** — verify `355867` and at least one non-schedule notice through app-api and panel-visible projection. Selected `355867` schedule acceptance is complete; non-schedule sample remains.
+- [x] **Phase 7: Operational Hardening And Closeout** — add freshness checks, runbook, observability metrics, docs, and final verification.
 
 ## Phase 1: Operator Projection Contract Freeze
 
@@ -133,9 +133,12 @@ uv run --all-packages python -m unittest tests.ingestion.<new_backfill_tests>
 pnpm web:test
 ```
 
-Current status: not implemented. Existing historical content remains manually
-replayable/queueable as planned; automatic historical projection reconstruction
-requires a later command and real environment validation.
+Current status: implemented in current worktree via
+`campus_ingestion_core.authenticated_notice_processing_projection_backfill` and
+`campus_ingestion_worker.backfill_authenticated_notice_processing_projection`.
+The command reconstructs app-api projection snapshots from retained queue record
+payloads and consume traces without mutating queue/source truth. Real
+environment execution remains part of Phase 6 acceptance.
 
 ## Phase 5: Protected Panel List And Detail UI
 
@@ -187,8 +190,25 @@ pnpm web:test:integration
 pnpm web:build
 ```
 
-Current status: not completed. Requires a configured app-api DB/object-store and
-selected real notice snapshot ingestion through the same path used by the panel.
+Current status: partially completed. Selected real notice `355867` passed in the
+local real Postgres/object-store path:
+
+- queue job status: `succeeded`
+- downstream materialization: `completed`
+- app-api processing projection report: `reported`
+- app-api operator detail: `lifecycleStatus=tool_ready`,
+  `candidateKind=transport_schedule`, `targetSurface=campus_services`,
+  `toolReady=true`, `scheduledDepartures=49`, `rejectedSources=0`,
+  `freshnessStatus=fresh`
+
+Evidence:
+
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/authenticated-notice-ingest-queue-e2e-smoke.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/app-api-processing-355867.json`
+- `.planning/workstreams/authenticated-notice-ingest-operator-panel/evidence/phase-06-real-env-355867-20260501T060046Z/consumer-admission-manifest.cli.json`
+
+Remaining: at least one non-schedule authenticated notice sample and final
+repository gates.
 
 ## Phase 7: Operational Hardening And Closeout
 
@@ -197,7 +217,8 @@ Goal: make the operator view maintainable after first release.
 Deliverables:
 
 - Freshness/staleness policy and status labels.
-- Metrics or audit events for projection ingest failures.
+- Smoke findings for projection ingest failures, including blocked callback
+  configuration.
 - Runbook for backfill/reconcile, failure diagnosis, and known limitations.
 - Documentation update for panel surface and app-api contract.
 - Final verification evidence and workstream closeout.
@@ -212,3 +233,9 @@ pnpm docs:lint
 uv run --all-packages ruff check .
 git diff --check
 ```
+
+Current status: implemented in current worktree. Freshness is computed by
+app-api query store and displayed by protected panel; runbook is
+`docs/runbooks/authenticated-notice-processing-operator-panel-runbook.md`.
+Repository-wide final verification and real-environment Phase 6 smoke remain to
+be executed separately.

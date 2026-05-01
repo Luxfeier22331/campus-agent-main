@@ -2,6 +2,7 @@ import { Chip } from "@mui/material";
 
 import {
 	formatAuthenticatedNoticeCandidateKindLabel,
+	formatAuthenticatedNoticeFreshnessLabel,
 	formatAuthenticatedNoticeLifecycleLabel,
 	formatAuthenticatedNoticeQueueStatusLabel,
 } from "./authenticated-notice-formatters";
@@ -62,6 +63,22 @@ export function AuthenticatedNoticeToolReadyChip({ ready }: { ready: boolean }) 
 			label={ready ? "工具可用" : "未就绪"}
 			size="small"
 			variant={ready ? "filled" : "outlined"}
+		/>
+	);
+}
+
+export function AuthenticatedNoticeFreshnessChip({
+	status,
+}: {
+	status: "fresh" | "stale" | "unknown";
+}) {
+	const color = status === "stale" ? "warning" : status === "fresh" ? "success" : "default";
+	return (
+		<Chip
+			color={color}
+			label={formatAuthenticatedNoticeFreshnessLabel(status)}
+			size="small"
+			variant={status === "stale" ? "filled" : "outlined"}
 		/>
 	);
 }

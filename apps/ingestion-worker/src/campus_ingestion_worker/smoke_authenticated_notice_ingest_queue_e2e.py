@@ -64,6 +64,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail smoke unless downstream projection/read-model materialization completes.",
     )
+    parser.add_argument(
+        "--require-processing-projection",
+        action="store_true",
+        help="Fail smoke unless the consumer reports app-api authenticated notice projection.",
+    )
+    parser.add_argument("--expected-notice-id")
+    parser.add_argument("--expected-candidate-kind")
+    parser.add_argument("--expected-target-surface")
+    parser.add_argument(
+        "--expected-read-model-count",
+        action="append",
+        default=[],
+        help="Expected read-model count in key=value form, for example scheduledDepartures=49.",
+    )
     parser.add_argument("--consumer-admission-manifest-path")
     parser.add_argument(
         "--require-child-task-contract",
@@ -109,6 +123,31 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     findings.extend(child_task_contract["findings"])
     if args.execute:
+        processing_projection_reporter = build_processing_projection_reporter_from_env(env)
+        if args.require_processing_projection and processing_projection_reporter is None:
+            findings.append(
+                {
+                    "severity": "high",
+                    "code": "app_api_projection_callback_missing",
+                    "message": (
+                        "INGESTION_WORKER_APP_API_BASE_URL and "
+                        "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET are required "
+                        "when --require-processing-projection is set"
+                    ),
+                }
+            )
+            report = _build_report(
+                args=args,
+                mode=mode,
+                enqueue_plan=enqueue_plan,
+                queue_write_summary=queue_write_summary,
+                consume_summary=consume_summary,
+                post_run_audit=post_run_audit,
+                child_task_contract=child_task_contract,
+                findings=findings,
+            )
+            _write_report(report, output_dir=output_dir)
+            return
         queue_store = build_notice_ingest_queue_store_from_env(env, prefer_operator=True)
         materialize_downstream = (
             args.materialize_downstream or args.require_downstream_materialization
@@ -128,7 +167,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             lease_seconds=args.lease_seconds,
             env=env,
             require_media_gate=args.require_media_gate,
-            processing_projection_reporter=build_processing_projection_reporter_from_env(env),
+            processing_projection_reporter=processing_projection_reporter,
             typed_downstream_materializer=materialize_authenticated_notice_typed_downstream,
             media_gate_evidence_dir=(
                 Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None
@@ -177,9 +216,43 @@ def main(argv: Sequence[str] | None = None) -> None:
             consume_result=consume_result,
             consume_files=consume_files,
             require_downstream_materialization=args.require_downstream_materialization,
+            require_processing_projection=args.require_processing_projection,
+            expected_notice_id=args.expected_notice_id,
+            expected_candidate_kind=args.expected_candidate_kind,
+            expected_target_surface=args.expected_target_surface,
+            expected_read_model_counts=_parse_expected_read_model_counts(
+                args.expected_read_model_count
+            ),
         )
         findings.extend(post_run_audit["findings"])
-    report = {
+    report = _build_report(
+        args=args,
+        mode=mode,
+        enqueue_plan=enqueue_plan,
+        queue_write_summary=queue_write_summary,
+        consume_summary=consume_summary,
+        post_run_audit=post_run_audit,
+        child_task_contract=child_task_contract,
+        findings=findings,
+    )
+    _write_report(report, output_dir=output_dir)
+
+
+def _build_report(
+    *,
+    args: Any,
+    mode: str,
+    enqueue_plan: Mapping[str, Any],
+    queue_write_summary: Mapping[str, Any] | None,
+    consume_summary: Mapping[str, Any] | None,
+    post_run_audit: Mapping[str, Any] | None,
+    child_task_contract: Mapping[str, Any],
+    findings: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    medium_or_higher_count = sum(
+        1 for item in findings if item.get("severity") in {"medium", "high"}
+    )
+    return {
         "schema_version": SMOKE_SCHEMA_VERSION,
         "mode": mode,
         "write_enabled": args.execute,
@@ -202,14 +275,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         "consume_summary": dict(consume_summary or {}),
         "post_run_audit": dict(post_run_audit or {}),
         "child_task_contract": child_task_contract,
-        "findings": findings,
-        "medium_or_higher_finding_count": sum(
-            1 for item in findings if item.get("severity") in {"medium", "high"}
-        ),
-        "verdict": "passed"
-        if not any(item.get("severity") in {"medium", "high"} for item in findings)
-        else "failed",
+        "findings": [dict(finding) for finding in findings],
+        "medium_or_higher_finding_count": medium_or_higher_count,
+        "verdict": _verdict(findings),
     }
+
+
+def _write_report(report: Mapping[str, Any], *, output_dir: Path) -> None:
     output_path = output_dir / "authenticated-notice-ingest-queue-e2e-smoke.json"
     output_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -257,6 +329,11 @@ def _post_run_audit(
     consume_result: Any,
     consume_files: Mapping[str, Path],
     require_downstream_materialization: bool,
+    require_processing_projection: bool = False,
+    expected_notice_id: str | None = None,
+    expected_candidate_kind: str | None = None,
+    expected_target_surface: str | None = None,
+    expected_read_model_counts: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
     queue_jobs = []
@@ -309,6 +386,27 @@ def _post_run_audit(
                 "message": "downstream materialization acceptance lane did not complete",
             }
         )
+    processing_projection_report = (
+        first_trace_row.get("processing_projection_report")
+        if isinstance(first_trace_row.get("processing_projection_report"), Mapping)
+        else {}
+    )
+    if require_processing_projection and processing_projection_report.get("status") != "reported":
+        findings.append(
+            {
+                "severity": "high",
+                "code": "processing_projection_not_reported",
+                "message": "consumer did not report authenticated notice processing projection",
+            }
+        )
+    expected_notice = _expected_notice_summary(
+        downstream_materialization=downstream_materialization,
+        expected_notice_id=expected_notice_id,
+        expected_candidate_kind=expected_candidate_kind,
+        expected_target_surface=expected_target_surface,
+        expected_read_model_counts=expected_read_model_counts or {},
+    )
+    findings.extend(expected_notice["findings"])
     evidence_files = {
         filename: {"path": str(path), "exists": path.exists()}
         for filename, path in consume_files.items()
@@ -331,9 +429,131 @@ def _post_run_audit(
             "first_lease_heartbeat": first_heartbeat,
         },
         "downstream_materialization": downstream_materialization,
+        "processing_projection_report": processing_projection_report,
+        "expected_notice": expected_notice,
         "evidence_files": evidence_files,
         "findings": findings,
     }
+
+
+def _expected_notice_summary(
+    *,
+    downstream_materialization: Mapping[str, Any],
+    expected_notice_id: str | None,
+    expected_candidate_kind: str | None,
+    expected_target_surface: str | None,
+    expected_read_model_counts: Mapping[str, int],
+) -> dict[str, Any]:
+    normalized_notice_id = str(expected_notice_id or "").strip()
+    if not normalized_notice_id:
+        return {"verdict": "skipped", "findings": []}
+    typed = (
+        downstream_materialization.get("typed_materialization")
+        if isinstance(downstream_materialization.get("typed_materialization"), Mapping)
+        else {}
+    )
+    releases = typed.get("materialized_releases") if isinstance(typed, Mapping) else ()
+    release = _release_for_notice(releases, normalized_notice_id)
+    findings: list[dict[str, Any]] = []
+    if not release:
+        findings.append(
+            {
+                "severity": "high",
+                "code": "expected_notice_not_materialized",
+                "message": f"expected notice {normalized_notice_id} was not materialized downstream",
+            }
+        )
+        return {"verdict": "failed", "notice_id": normalized_notice_id, "findings": findings}
+    candidate_kind = str(release.get("candidate_kind") or release.get("candidateKind") or "")
+    target_surface = _target_surface(candidate_kind)
+    counts_by_notice = (
+        release.get("notice_read_model_counts") or release.get("noticeReadModelCounts") or {}
+    )
+    counts = (
+        counts_by_notice.get(normalized_notice_id) if isinstance(counts_by_notice, Mapping) else {}
+    )
+    counts = counts if isinstance(counts, Mapping) else {}
+    if expected_candidate_kind and candidate_kind != expected_candidate_kind:
+        findings.append(
+            {
+                "severity": "high",
+                "code": "expected_candidate_kind_mismatch",
+                "message": (
+                    f"expected {expected_candidate_kind}, observed {candidate_kind or 'unknown'}"
+                ),
+            }
+        )
+    if expected_target_surface and target_surface != expected_target_surface:
+        findings.append(
+            {
+                "severity": "high",
+                "code": "expected_target_surface_mismatch",
+                "message": (
+                    f"expected {expected_target_surface}, observed {target_surface or 'unknown'}"
+                ),
+            }
+        )
+    for key, expected_value in expected_read_model_counts.items():
+        observed_value = int(counts.get(key) or 0)
+        if observed_value != expected_value:
+            findings.append(
+                {
+                    "severity": "high",
+                    "code": "expected_read_model_count_mismatch",
+                    "message": f"expected {key}={expected_value}, observed {observed_value}",
+                }
+            )
+    return {
+        "verdict": "passed"
+        if not any(item.get("severity") in {"medium", "high"} for item in findings)
+        else "failed",
+        "notice_id": normalized_notice_id,
+        "candidate_kind": candidate_kind or None,
+        "target_surface": target_surface,
+        "read_model_counts": dict(counts),
+        "findings": findings,
+    }
+
+
+def _release_for_notice(value: object, notice_id: str) -> Mapping[str, Any]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        return {}
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        notice_ids = item.get("notice_ids") or item.get("noticeIds") or ()
+        if (
+            isinstance(notice_ids, Sequence)
+            and not isinstance(notice_ids, str | bytes)
+            and notice_id in {str(candidate) for candidate in notice_ids}
+        ):
+            return item
+    return {}
+
+
+def _parse_expected_read_model_counts(values: Sequence[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for value in values:
+        key, separator, raw_count = str(value).partition("=")
+        if not separator or not key.strip():
+            raise ValueError("--expected-read-model-count must use key=value form")
+        counts[key.strip()] = int(raw_count)
+    return counts
+
+
+def _target_surface(candidate_kind: str) -> str | None:
+    if candidate_kind in {"transport_schedule", "service_status"}:
+        return "campus_services"
+    return None
+
+
+def _verdict(findings: Sequence[Mapping[str, Any]]) -> str:
+    medium_or_higher = [item for item in findings if item.get("severity") in {"medium", "high"}]
+    if not medium_or_higher:
+        return "passed"
+    if any(item.get("code") == "app_api_projection_callback_missing" for item in medium_or_higher):
+        return "blocked"
+    return "failed"
 
 
 def _queue_record_summary(record: Any, *, job_id: str) -> dict[str, Any]:

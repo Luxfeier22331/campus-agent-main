@@ -36,6 +36,14 @@ describe("protected panel authenticated notice processing UI", () => {
 		expect(`${listSource}\n${showSource}`).not.toMatch(/objectKey|ocrText|rawHtml|artifact_path/);
 	});
 
+	it("shows app-api computed freshness instead of making the panel infer staleness", () => {
+		expect(listSource).toContain("AuthenticatedNoticeFreshnessChip");
+		expect(listSource).toContain("record.freshnessStatus");
+		expect(showSource).toContain("投影新鲜度");
+		expect(showSource).toContain("record.staleReasonCode");
+		expect(`${listSource}\n${showSource}`).not.toContain("Date.now()");
+	});
+
 	it("uses encoded show paths for notice ids", () => {
 		expect(buildAuthenticatedNoticeProcessingShowPath("portal/355867")).toBe(
 			"/authenticatedNoticeProcessing/portal%2F355867",

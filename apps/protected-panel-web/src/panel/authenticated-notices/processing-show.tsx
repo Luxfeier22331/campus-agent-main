@@ -5,9 +5,13 @@ import { Show, useRecordContext } from "react-admin";
 import { PANEL_COPY } from "../panel-copy";
 import { PanelPage } from "../panel-page";
 import type { AuthenticatedNoticeProcessingRecord } from "../types";
-import { formatAuthenticatedNoticeTimestamp } from "./authenticated-notice-formatters";
+import {
+	formatAuthenticatedNoticeStaleReasonLabel,
+	formatAuthenticatedNoticeTimestamp,
+} from "./authenticated-notice-formatters";
 import {
 	AuthenticatedNoticeCandidateChip,
+	AuthenticatedNoticeFreshnessChip,
 	AuthenticatedNoticeLifecycleChip,
 	AuthenticatedNoticeQueueChip,
 	AuthenticatedNoticeToolReadyChip,
@@ -88,6 +92,24 @@ function ProcessingShowContent() {
 								<FieldRow
 									label="队列状态"
 									value={<AuthenticatedNoticeQueueChip status={record.queueStatus} />}
+								/>
+								<FieldRow
+									label="投影新鲜度"
+									value={
+										<AuthenticatedNoticeFreshnessChip status={record.freshnessStatus} />
+									}
+								/>
+								<FieldRow
+									label="滞后原因"
+									value={formatAuthenticatedNoticeStaleReasonLabel(record.staleReasonCode)}
+								/>
+								<FieldRow
+									label="观测年龄"
+									value={
+										record.observedAgeSeconds === null
+											? PANEL_COPY.notAvailable
+											: `${record.observedAgeSeconds}s / ${record.staleAfterSeconds}s`
+									}
 								/>
 								<FieldRow label="最新阶段" value={record.latestStage} />
 								<FieldRow label="尝试次数" value={record.attemptCount} />

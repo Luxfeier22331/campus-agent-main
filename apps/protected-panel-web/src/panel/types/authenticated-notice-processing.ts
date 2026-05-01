@@ -14,6 +14,7 @@ export interface RawAuthenticatedNoticeProcessingRecord {
 	current: boolean;
 	downstream: Record<string, unknown> | null;
 	enqueueSource: string | null;
+	freshnessStatus: "fresh" | "stale" | "unknown";
 	id: string;
 	jobId: string | null;
 	lastErrorCode: string | null;
@@ -36,6 +37,9 @@ export interface RawAuthenticatedNoticeProcessingRecord {
 	sourceChannel: string;
 	sourceSurface: string;
 	sourceUpdatedAt: string | null;
+	observedAgeSeconds: number | null;
+	staleAfterSeconds: number;
+	staleReasonCode: string | null;
 	targetSurface: string | null;
 	timeline: AuthenticatedNoticeProcessingTimelineEvent[];
 	title: string;

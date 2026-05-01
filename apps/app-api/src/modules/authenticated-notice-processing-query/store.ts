@@ -17,6 +17,23 @@ interface ProcessingCursor {
 	projectedAt: string;
 }
 
+const DEFAULT_STALE_AFTER_SECONDS = 1800;
+const TERMINAL_LIFECYCLE_STATUSES = new Set([
+	"tool_ready",
+	"materialized",
+	"manual_review",
+	"failed_terminal",
+	"dead_letter",
+	"cancelled",
+]);
+const TERMINAL_QUEUE_STATUSES = new Set([
+	"succeeded",
+	"manual_review",
+	"failed_terminal",
+	"dead_letter",
+	"cancelled",
+]);
+
 function toIsoString(value: Date | null): string | null {
 	return value ? value.toISOString() : null;
 }
@@ -47,7 +64,18 @@ function decodeCursor(cursor: string): ProcessingCursor | null {
 
 function toRecord(
 	row: typeof authenticatedNoticeProcessingProjection.$inferSelect,
+	input: {
+		now: Date;
+		staleAfterSeconds: number;
+	},
 ): AuthenticatedNoticeProcessingRecord {
+	const freshness = resolveFreshness({
+		lastObservedAt: row.lastObservedAt,
+		lifecycleStatus: row.lifecycleStatus,
+		now: input.now,
+		queueStatus: row.queueStatus,
+		staleAfterSeconds: input.staleAfterSeconds,
+	});
 	return {
 		attemptCount: row.attemptCount,
 		candidateKind: row.candidateKind ?? null,
@@ -81,6 +109,57 @@ function toRecord(
 		timeline: row.timelineJson ?? [],
 		title: row.title,
 		toolReady: row.toolReady,
+		...freshness,
+	};
+}
+
+function resolveFreshness(input: {
+	lastObservedAt: Date | null;
+	lifecycleStatus: string;
+	now: Date;
+	queueStatus: string;
+	staleAfterSeconds: number;
+}): Pick<
+	AuthenticatedNoticeProcessingRecord,
+	"freshnessStatus" | "observedAgeSeconds" | "staleAfterSeconds" | "staleReasonCode"
+> {
+	const staleAfterSeconds = Math.max(1, Math.floor(input.staleAfterSeconds));
+	if (!input.lastObservedAt || Number.isNaN(input.lastObservedAt.valueOf())) {
+		return {
+			freshnessStatus: "unknown",
+			observedAgeSeconds: null,
+			staleAfterSeconds,
+			staleReasonCode: "last_observed_at_missing",
+		};
+	}
+	const observedAgeSeconds = Math.max(
+		0,
+		Math.floor((input.now.getTime() - input.lastObservedAt.getTime()) / 1000),
+	);
+	if (
+		TERMINAL_LIFECYCLE_STATUSES.has(input.lifecycleStatus) ||
+		TERMINAL_QUEUE_STATUSES.has(input.queueStatus)
+	) {
+		return {
+			freshnessStatus: "fresh",
+			observedAgeSeconds,
+			staleAfterSeconds,
+			staleReasonCode: null,
+		};
+	}
+	if (observedAgeSeconds > staleAfterSeconds) {
+		return {
+			freshnessStatus: "stale",
+			observedAgeSeconds,
+			staleAfterSeconds,
+			staleReasonCode: "active_processing_observation_overdue",
+		};
+	}
+	return {
+		freshnessStatus: "fresh",
+		observedAgeSeconds,
+		staleAfterSeconds,
+		staleReasonCode: null,
 	};
 }
 
@@ -140,9 +219,13 @@ export function createPgAuthenticatedNoticeProcessingQueryStore(
 	env: Env,
 	input: {
 		getDb?: RuntimeDbGetter;
+		now?: () => Date;
+		staleAfterSeconds?: number;
 	} = {},
 ): AuthenticatedNoticeProcessingQueryStore {
 	const getDb = input.getDb ?? createRuntimeDbGetter(env);
+	const now = input.now ?? (() => new Date());
+	const staleAfterSeconds = input.staleAfterSeconds ?? DEFAULT_STALE_AFTER_SECONDS;
 
 	return {
 		async getByNoticeId(noticeId) {
@@ -157,11 +240,12 @@ export function createPgAuthenticatedNoticeProcessingQueryStore(
 					desc(authenticatedNoticeProcessingProjection.projectedAt),
 				)
 				.limit(1);
-			return rows[0] ? toRecord(rows[0]) : null;
+			return rows[0] ? toRecord(rows[0], { now: now(), staleAfterSeconds }) : null;
 		},
 
 		async list(filters) {
 			const db = await getDb();
+			const observedNow = now();
 			const rows = await db
 				.select()
 				.from(authenticatedNoticeProcessingProjection)
@@ -174,7 +258,7 @@ export function createPgAuthenticatedNoticeProcessingQueryStore(
 			const pageRows = rows.slice(0, filters.limit);
 			const last = pageRows.at(-1);
 			return {
-				notices: pageRows.map(toRecord),
+				notices: pageRows.map((row) => toRecord(row, { now: observedNow, staleAfterSeconds })),
 				page: {
 					nextCursor:
 						rows.length > filters.limit && last

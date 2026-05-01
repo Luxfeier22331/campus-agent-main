@@ -41,6 +41,10 @@ export interface AuthenticatedNoticeProcessingRecord {
 	projectedAt: string;
 	producerVersion: string;
 	redactionVersion: string;
+	freshnessStatus: "fresh" | "stale" | "unknown";
+	staleReasonCode: string | null;
+	staleAfterSeconds: number;
+	observedAgeSeconds: number | null;
 }
 
 export interface AuthenticatedNoticeProcessingListFilters {

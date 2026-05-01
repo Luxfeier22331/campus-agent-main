@@ -58,6 +58,102 @@ function createRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("authenticated notice processing query store", () => {
+	it("derives stale freshness for active processing records that stop reporting", async () => {
+		const rows = [
+			createRow({
+				lastObservedAt: new Date("2026-05-01T08:00:00.000Z"),
+				lifecycleStatus: "imported",
+				projectedAt: new Date("2026-05-01T08:00:00.000Z"),
+				queueStatus: "leased",
+				toolReady: false,
+			}),
+		];
+		const limit = vi.fn().mockResolvedValue(rows);
+		const orderBy = vi.fn(() => ({ limit }));
+		const where = vi.fn(() => ({ orderBy }));
+		const db = {
+			select: vi.fn(() => ({
+				from: vi.fn(() => ({
+					where,
+				})),
+			})),
+		};
+		const store = createPgAuthenticatedNoticeProcessingQueryStore({} as never, {
+			getDb: () => db as never,
+			now: () => new Date("2026-05-01T09:00:01.000Z"),
+			staleAfterSeconds: 1800,
+		});
+
+		const result = await store.list({
+			candidateKind: null,
+			cursor: null,
+			limit: 20,
+			noticeId: null,
+			q: null,
+			queueStatus: null,
+			replayBatchId: null,
+			runId: null,
+			status: null,
+			targetSurface: null,
+			updatedAfter: null,
+			updatedBefore: null,
+		});
+
+		expect(result.notices[0]).toMatchObject({
+			freshnessStatus: "stale",
+			observedAgeSeconds: 3601,
+			staleAfterSeconds: 1800,
+			staleReasonCode: "active_processing_observation_overdue",
+		});
+	});
+
+	it("keeps terminal tool-ready processing records fresh even when they are historical", async () => {
+		const rows = [
+			createRow({
+				lastObservedAt: new Date("2026-04-27T08:00:00.000Z"),
+				lifecycleStatus: "tool_ready",
+				projectedAt: new Date("2026-04-27T08:00:00.000Z"),
+				queueStatus: "succeeded",
+				toolReady: true,
+			}),
+		];
+		const limit = vi.fn().mockResolvedValue(rows);
+		const orderBy = vi.fn(() => ({ limit }));
+		const where = vi.fn(() => ({ orderBy }));
+		const db = {
+			select: vi.fn(() => ({
+				from: vi.fn(() => ({
+					where,
+				})),
+			})),
+		};
+		const store = createPgAuthenticatedNoticeProcessingQueryStore({} as never, {
+			getDb: () => db as never,
+			now: () => new Date("2026-05-01T09:00:01.000Z"),
+			staleAfterSeconds: 1800,
+		});
+
+		const result = await store.list({
+			candidateKind: null,
+			cursor: null,
+			limit: 20,
+			noticeId: null,
+			q: null,
+			queueStatus: null,
+			replayBatchId: null,
+			runId: null,
+			status: null,
+			targetSurface: null,
+			updatedAfter: null,
+			updatedBefore: null,
+		});
+
+		expect(result.notices[0]).toMatchObject({
+			freshnessStatus: "fresh",
+			staleReasonCode: null,
+		});
+	});
+
 	it("returns opaque cursors from the last visible processing row", async () => {
 		const rows = [
 			createRow({

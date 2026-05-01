@@ -26,6 +26,17 @@ const CANDIDATE_KIND_LABELS: Record<string, string> = {
 	transport_schedule: "通勤班车",
 };
 
+const FRESHNESS_LABELS: Record<string, string> = {
+	fresh: "新鲜",
+	stale: "已滞后",
+	unknown: "未知",
+};
+
+const STALE_REASON_LABELS: Record<string, string> = {
+	active_processing_observation_overdue: "活跃处理超过观测窗口未更新",
+	last_observed_at_missing: "缺少最近观测时间",
+};
+
 export function formatAuthenticatedNoticeLifecycleLabel(status: string | null) {
 	return status ? (LIFECYCLE_LABELS[status] ?? status) : "未知";
 }
@@ -36,6 +47,14 @@ export function formatAuthenticatedNoticeQueueStatusLabel(status: string | null)
 
 export function formatAuthenticatedNoticeCandidateKindLabel(kind: string | null) {
 	return kind ? (CANDIDATE_KIND_LABELS[kind] ?? kind) : "未命中";
+}
+
+export function formatAuthenticatedNoticeFreshnessLabel(status: string | null) {
+	return status ? (FRESHNESS_LABELS[status] ?? status) : "未知";
+}
+
+export function formatAuthenticatedNoticeStaleReasonLabel(reasonCode: string | null) {
+	return reasonCode ? (STALE_REASON_LABELS[reasonCode] ?? reasonCode) : "无";
 }
 
 export function formatAuthenticatedNoticeTimestamp(value: string | null) {
