@@ -195,6 +195,11 @@ function ProtectedPanelMenu() {
 				to="/officialWebSites"
 			/>
 			<RaMenu.Item
+				leftIcon={<RuleFolderOutlinedIcon />}
+				primaryText={PANEL_COPY.menu.officialWebTargetJobs}
+				to="/officialWebTargetJobs"
+			/>
+			<RaMenu.Item
 				leftIcon={<TravelExploreOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.officialWebRuns}
 				to="/officialWebRuns"

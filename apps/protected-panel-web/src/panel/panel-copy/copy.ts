@@ -29,6 +29,7 @@ export const PANEL_COPY = {
 		requests: "请求",
 		authenticatedNoticeProcessing: "通知处理",
 		officialWebSites: "官网站点",
+		officialWebTargetJobs: "官网目标任务",
 		officialWebRuns: "采集运行",
 		jobs: "任务",
 		operations: "操作",
@@ -544,6 +545,7 @@ export const PANEL_COPY = {
 		authenticatedNoticeProcessing: "暂无通知处理记录。",
 		officialWebRuns: "暂无官网采集运行。",
 		officialWebSites: "暂无官网站点。",
+		officialWebTargetJobs: "暂无官网目标任务。",
 	},
 	domainStatus: {
 		blocked: "阻塞",

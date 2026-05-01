@@ -1,6 +1,7 @@
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
+import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
 import TravelExploreOutlinedIcon from "@mui/icons-material/TravelExploreOutlined";
 import { Admin, CustomRoutes, Resource } from "react-admin";
 import { Navigate, Route } from "react-router-dom";
@@ -13,6 +14,8 @@ import { OfficialWebRunShowPage } from "./official-web/run-show";
 import { OfficialWebRunsListPage } from "./official-web/runs-list";
 import { OfficialWebSiteShowPage } from "./official-web/site-show";
 import { OfficialWebSitesListPage } from "./official-web/sites-list";
+import { OfficialWebTargetJobShowPage } from "./official-web/target-job-show";
+import { OfficialWebTargetJobsListPage } from "./official-web/target-jobs-list";
 import { AccessRequiredPage } from "./pages/access-required-page";
 import { AuditPage } from "./pages/audit-page";
 import { CostPage } from "./pages/cost-page";
@@ -66,6 +69,14 @@ export function ProtectedPanelAdminApp() {
 				options={{ label: PANEL_COPY.menu.officialWebSites }}
 				recordRepresentation="siteId"
 				show={OfficialWebSiteShowPage}
+			/>
+			<Resource
+				icon={RuleFolderOutlinedIcon}
+				list={OfficialWebTargetJobsListPage}
+				name="officialWebTargetJobs"
+				options={{ label: PANEL_COPY.menu.officialWebTargetJobs }}
+				recordRepresentation="targetId"
+				show={OfficialWebTargetJobShowPage}
 			/>
 			<Resource
 				icon={TravelExploreOutlinedIcon}

@@ -5,13 +5,17 @@ import type {
 	OfficialWebPageChangeRecord,
 	OfficialWebRunRecord,
 	OfficialWebSiteFreshnessSummary,
+	OfficialWebTargetJobRecord,
 } from "../types";
 import {
+	formatOfficialWebConsumerFamilyLabel,
 	formatIngestionStatusLabel,
 	formatOfficialWebFreshnessSummaryLabel,
+	formatOfficialWebMaterializationPolicyLabel,
 	formatOfficialWebPageChangeStatusLabel,
 	formatOfficialWebRunIntentLabel,
 	formatOfficialWebStatusLabel,
+	formatOfficialWebTargetJobStatusLabel,
 } from "./official-web-formatters";
 
 function toStatusColor(status: string) {
@@ -44,6 +48,62 @@ export function OfficialWebIngestionStatusChip({ status }: { status: string | nu
 			label={formatIngestionStatusLabel(status)}
 			size="small"
 			variant={status === "dispatched" ? "filled" : "outlined"}
+		/>
+	);
+}
+
+export function OfficialWebTargetJobStatusChip({ status }: { status: string }) {
+	return (
+		<Chip
+			color={status === "active" || status === "declared" ? "success" : "default"}
+			label={formatOfficialWebTargetJobStatusLabel(status)}
+			size="small"
+			variant={status === "active" ? "filled" : "outlined"}
+		/>
+	);
+}
+
+export function OfficialWebConsumerFamilyChip({ consumerFamily }: { consumerFamily: string }) {
+	return (
+		<Chip
+			label={formatOfficialWebConsumerFamilyLabel(consumerFamily)}
+			size="small"
+			variant="outlined"
+		/>
+	);
+}
+
+export function OfficialWebMaterializationPolicyChip({
+	materializationPolicy,
+}: {
+	materializationPolicy: string;
+}) {
+	return (
+		<Chip
+			color={materializationPolicy === "inventory_only" ? "warning" : "default"}
+			label={formatOfficialWebMaterializationPolicyLabel(materializationPolicy)}
+			size="small"
+			variant="outlined"
+		/>
+	);
+}
+
+export function OfficialWebArtifactVerificationChip({
+	record,
+}: {
+	record: OfficialWebTargetJobRecord;
+}) {
+	const summary = record.artifactVerificationSummary;
+	if (!summary) {
+		return <Chip label="暂无校验" size="small" variant="outlined" />;
+	}
+
+	return (
+		<Chip
+			color={summary.canonicalVerification ? "success" : "default"}
+			label={summary.status}
+			size="small"
+			variant={summary.canonicalVerification ? "filled" : "outlined"}
 		/>
 	);
 }

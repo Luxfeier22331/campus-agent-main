@@ -29,6 +29,8 @@ import {
 	getOfficialWebRunList,
 	getOfficialWebSiteDetail,
 	getOfficialWebSiteList,
+	getOfficialWebTargetJobDetail,
+	getOfficialWebTargetJobList,
 } from "./official-web";
 import {
 	getOperatorAuditEvent,
@@ -69,6 +71,9 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		if (resource === "officialWebRuns") {
 			return (await getOfficialWebRunList(params)) as unknown as GetListResult<RecordType>;
 		}
+		if (resource === "officialWebTargetJobs") {
+			return (await getOfficialWebTargetJobList(params)) as unknown as GetListResult<RecordType>;
+		}
 		if (resource === "officialWebSites") {
 			return (await getOfficialWebSiteList(params.signal)) as unknown as GetListResult<RecordType>;
 		}
@@ -97,6 +102,17 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 			const items = await Promise.all(
 				params.ids.map((id) =>
 					getOfficialWebRunDetail(id, params.signal).then((result) => result.data),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
+		if (resource === "officialWebTargetJobs") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getOfficialWebTargetJobDetail(id, params.signal).then((result) => result.data),
 				),
 			);
 
@@ -144,6 +160,12 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		}
 		if (resource === "officialWebRuns") {
 			return (await getOfficialWebRunDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
+		if (resource === "officialWebTargetJobs") {
+			return (await getOfficialWebTargetJobDetail(
 				params.id,
 				params.signal,
 			)) as unknown as GetOneResult<RecordType>;

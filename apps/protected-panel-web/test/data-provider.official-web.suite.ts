@@ -4,6 +4,196 @@ import { protectedPanelDataProvider } from "../src/panel/data-provider";
 import { createJsonResponse } from "./data-provider.test-support";
 
 export function registerDataProviderOfficialWebSuite() {
+	it("maps official web target job filters onto the protected app-api projection seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				jobs: [
+					{
+						artifactVerificationSummary: {
+							canonicalVerification: false,
+							objectVerificationId: null,
+							sourceHandoffId: null,
+							status: "projection_only",
+							updatedAt: "2026-05-01T08:00:00.000Z",
+						},
+						attemptCount: 1,
+						candidateCount: 2,
+						consumerFamily: "contact_directory_candidate",
+						createdAt: "2026-05-01T08:00:00.000Z",
+						declarationVersion: "muc_public_target_source_map_v2",
+						id: "owtarget_muc_public_contact",
+						inventoryOnly: false,
+						latestRunId: "owrun_01",
+						materializationPolicy: "candidate_only",
+						ownerSurface: "contact_directory_lookup",
+						requiredEvidence: ["phone", "location"],
+						retentionPolicy: "retain_source_truth",
+						reviewPolicy: "selected_write_requires_review",
+						selectedWriteTarget: "campus_services/contact_directory",
+						siteId: "muc_public",
+						sourceHosts: ["www.muc.edu.cn"],
+						status: "active",
+						targetId: "campus-services-contact-directory",
+						titleHints: ["联系"],
+						updatedAt: "2026-05-01T08:00:00.000Z",
+						urlHints: ["contact"],
+					},
+				],
+				page: {
+					nextCursor: "cursor_target_jobs_02",
+				},
+			}),
+		);
+
+		const response = await protectedPanelDataProvider.getList("officialWebTargetJobs", {
+			filter: {
+				siteId: "muc_public",
+				status: "active",
+				targetId: "campus-services-contact-directory",
+			},
+			meta: undefined,
+			pagination: {
+				page: 1,
+				perPage: 20,
+			},
+			signal: undefined,
+			sort: {
+				field: "updatedAt",
+				order: "DESC",
+			},
+		});
+
+		expect(response.data[0]).toMatchObject({
+			attemptCount: 1,
+			candidateCount: 2,
+			id: "owtarget_muc_public_contact",
+			targetId: "campus-services-contact-directory",
+		});
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/official-web/target-jobs?limit=20&siteId=muc_public&status=active&targetId=campus-services-contact-directory",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("loads official web target job detail without exposing object-store keys", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				targetJob: {
+					artifactVerificationSummaries: [
+						{
+							canonicalVerification: true,
+							objectVerificationId: "objver_01",
+							runId: "owrun_01",
+							sourceHandoffId: "handoff_01",
+							status: "verified",
+							summary: {
+								checkedObjects: 3,
+							},
+							summaryId: "owsummary_01",
+							updatedAt: "2026-05-01T08:10:00.000Z",
+						},
+					],
+					attempts: [
+						{
+							artifactCaptured: true,
+							attemptId: "owattempt_01",
+							attemptStatus: "completed",
+							attemptedAt: "2026-05-01T08:05:00.000Z",
+							candidateId: "owcand_01",
+							completedAt: "2026-05-01T08:05:30.000Z",
+							httpStatus: 200,
+							normalizedCanonicalUrl: "https://www.muc.edu.cn/contact",
+							runId: "owrun_01",
+						},
+					],
+					candidates: [
+						{
+							candidateId: "owcand_01",
+							createdAt: "2026-05-01T08:00:00.000Z",
+							eligibilityReason: "url_hint_match",
+							normalizedCandidateUrl: "https://www.muc.edu.cn/contact",
+							priorityScore: 90,
+							sourceHost: "www.muc.edu.cn",
+							status: "eligible",
+							titleHint: "联系",
+							updatedAt: "2026-05-01T08:00:00.000Z",
+							urlHint: "contact",
+						},
+					],
+					job: {
+						artifactVerificationSummary: {
+							canonicalVerification: true,
+							objectVerificationId: "objver_01",
+							sourceHandoffId: "handoff_01",
+							status: "verified",
+							updatedAt: "2026-05-01T08:10:00.000Z",
+						},
+						attemptCount: 1,
+						candidateCount: 2,
+						consumerFamily: "contact_directory_candidate",
+						createdAt: "2026-05-01T08:00:00.000Z",
+						declarationVersion: "muc_public_target_source_map_v2",
+						id: "owtarget_muc_public_contact",
+						inventoryOnly: false,
+						latestRunId: "owrun_01",
+						materializationPolicy: "candidate_only",
+						ownerSurface: "contact_directory_lookup",
+						requiredEvidence: ["phone", "location"],
+						retentionPolicy: "retain_source_truth",
+						reviewPolicy: "selected_write_requires_review",
+						selectedWriteTarget: "campus_services/contact_directory",
+						siteId: "muc_public",
+						sourceHosts: ["www.muc.edu.cn"],
+						status: "active",
+						targetId: "campus-services-contact-directory",
+						titleHints: ["联系"],
+						updatedAt: "2026-05-01T08:10:00.000Z",
+						urlHints: ["contact"],
+					},
+				},
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getOne("officialWebTargetJobs", {
+				id: "owtarget/muc public?debug=true#frag",
+				meta: undefined,
+				signal: undefined,
+			}),
+		).resolves.toMatchObject({
+			data: {
+				attempts: [
+					expect.not.objectContaining({
+						artifactObjectKey: expect.anything(),
+					}),
+				],
+				candidates: [
+					expect.objectContaining({
+						normalizedCandidateUrl: "https://www.muc.edu.cn/contact",
+					}),
+				],
+				id: "owtarget_muc_public_contact",
+				job: expect.objectContaining({
+					targetId: "campus-services-contact-directory",
+				}),
+			},
+		});
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/official-web/target-jobs/owtarget%2Fmuc%20public%3Fdebug%3Dtrue%23frag",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
 	it("maps official web run filters onto the protected same-site runtime seam", async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			createJsonResponse({

@@ -63,6 +63,15 @@ export function appendOfficialWebRunFilters(
 	}
 }
 
+export function appendOfficialWebTargetJobFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "siteId", filter?.siteId);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "targetId", filter?.targetId);
+}
+
 export function appendAuthenticatedNoticeProcessingFilters(
 	query: URLSearchParams,
 	filter: GetListParams["filter"],

@@ -59,6 +59,25 @@ const OFFICIAL_WEB_FRESHNESS_SUMMARY_LABELS: Record<string, string> = {
 	totalPages: "总页面数",
 };
 
+const OFFICIAL_WEB_CONSUMER_FAMILY_LABELS: Record<string, string> = {
+	contact_directory_candidate: "联系信息候选",
+	notice_news_candidate: "通知资讯清单",
+	service_guide_candidate: "办事指南候选",
+	stable_reference_candidate: "稳定参考候选",
+};
+
+const OFFICIAL_WEB_MATERIALIZATION_POLICY_LABELS: Record<string, string> = {
+	candidate_only: "候选暂存",
+	inventory_only: "仅清单",
+	stable_reference: "稳定参考",
+};
+
+const OFFICIAL_WEB_TARGET_JOB_STATUS_LABELS: Record<string, string> = {
+	active: "活跃",
+	declared: "已声明",
+	disabled: "已停用",
+};
+
 export function formatOfficialWebStatusLabel(status: string) {
 	switch (status) {
 		case "accepted":
@@ -108,6 +127,18 @@ export function formatOfficialWebChangeReasonLabel(reason: string) {
 
 export function formatOfficialWebFreshnessSummaryLabel(key: string) {
 	return OFFICIAL_WEB_FRESHNESS_SUMMARY_LABELS[key] ?? key;
+}
+
+export function formatOfficialWebConsumerFamilyLabel(value: string) {
+	return OFFICIAL_WEB_CONSUMER_FAMILY_LABELS[value] ?? value;
+}
+
+export function formatOfficialWebMaterializationPolicyLabel(value: string) {
+	return OFFICIAL_WEB_MATERIALIZATION_POLICY_LABELS[value] ?? value;
+}
+
+export function formatOfficialWebTargetJobStatusLabel(value: string) {
+	return OFFICIAL_WEB_TARGET_JOB_STATUS_LABELS[value] ?? value;
 }
 
 export function formatIngestionStatusLabel(status: string | null) {

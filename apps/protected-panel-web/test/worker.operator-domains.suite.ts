@@ -504,6 +504,107 @@ export function registerWorkerOperatorDomainsSuite() {
 		);
 	});
 
+	it("proxies official web target job queries to app-api with the same trusted operator bridge", async () => {
+		await withAccessAssertion(
+			{
+				accessTeamDomain: "https://team-official-web-targets.cloudflareaccess.com",
+				claims: {
+					email: "ops@example.com",
+					groups: ["panel", "ops"],
+					name: "Ops Team",
+					sub: "operator-001",
+				},
+			},
+			async (token) => {
+				const forwardedUrls: string[] = [];
+
+				const workerEnv = {
+					ACCESS_POLICY_AUD: "panel-operator-audience",
+					ACCESS_TEAM_DOMAIN: "https://team-official-web-targets.cloudflareaccess.com",
+					APP_API: {
+						fetch: async (request: Request) => {
+							forwardedUrls.push(request.url);
+							const pathname = new URL(request.url).pathname;
+							if (pathname.endsWith("/owtarget_muc_public_contact")) {
+								return new Response(
+									JSON.stringify({
+										targetJob: {
+											job: {
+												id: "owtarget_muc_public_contact",
+												targetId: "campus-services-contact-directory",
+											},
+										},
+									}),
+									{
+										headers: {
+											"content-type": "application/json; charset=utf-8",
+										},
+										status: 200,
+									},
+								);
+							}
+
+							return new Response(
+								JSON.stringify({
+									jobs: [{ id: "owtarget_muc_public_contact" }],
+									page: { nextCursor: null },
+								}),
+								{
+									headers: {
+										"content-type": "application/json; charset=utf-8",
+									},
+									status: 200,
+								},
+							);
+						},
+					},
+					PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+					PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+					PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+				};
+
+				const listResponse = await worker.fetch(
+					new Request("https://panel.example.com/api/official-web/target-jobs?siteId=muc_public", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					workerEnv,
+				);
+				expect(listResponse.status).toBe(200);
+				await expect(listResponse.json()).resolves.toEqual({
+					jobs: [{ id: "owtarget_muc_public_contact" }],
+					page: { nextCursor: null },
+				});
+
+				const detailResponse = await worker.fetch(
+					new Request(
+						"https://panel.example.com/api/official-web/target-jobs/owtarget_muc_public_contact",
+						{
+							headers: {
+								"cf-access-jwt-assertion": token,
+							},
+						},
+					),
+					workerEnv,
+				);
+				expect(detailResponse.status).toBe(200);
+				await expect(detailResponse.json()).resolves.toEqual({
+					targetJob: {
+						job: {
+							id: "owtarget_muc_public_contact",
+							targetId: "campus-services-contact-directory",
+						},
+					},
+				});
+				expect(forwardedUrls).toEqual([
+					"https://app-api.internal/api/operator/official-web/target-jobs?siteId=muc_public",
+					"https://app-api.internal/api/operator/official-web/target-jobs/owtarget_muc_public_contact",
+				]);
+			},
+		);
+	});
+
 	it("proxies authenticated notice processing queries to app-api operator projection", async () => {
 		await withAccessAssertion(
 			{

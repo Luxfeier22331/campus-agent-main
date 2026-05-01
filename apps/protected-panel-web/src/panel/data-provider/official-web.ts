@@ -6,16 +6,66 @@ import {
 	normalizeOfficialWebRunRecord,
 	normalizeOfficialWebSiteDetailRecord,
 	normalizeOfficialWebSiteRecord,
+	normalizeOfficialWebTargetJobDetailRecord,
+	normalizeOfficialWebTargetJobRecord,
 	type OfficialWebRunRecord,
 	type OfficialWebSiteRecord,
+	type OfficialWebTargetJobRecord,
 	type RawOfficialWebRunDetailResponse,
 	type RawOfficialWebRunListResponse,
 	type RawOfficialWebSiteDetailResponse,
 	type RawOfficialWebSiteListResponse,
+	type RawOfficialWebTargetJobDetailResponse,
+	type RawOfficialWebTargetJobListResponse,
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
-import { appendOfficialWebRunFilters } from "./filters";
+import { appendOfficialWebRunFilters, appendOfficialWebTargetJobFilters } from "./filters";
 import { encodePathIdentifier } from "./path";
+
+export async function getOfficialWebTargetJobList(params: GetListParams): Promise<{
+	data: OfficialWebTargetJobRecord[];
+	pageInfo: {
+		hasNextPage: boolean;
+		hasPreviousPage: boolean;
+	};
+}> {
+	return getSequentialCursorList<
+		RawOfficialWebTargetJobListResponse,
+		RawOfficialWebTargetJobListResponse["jobs"][number],
+		OfficialWebTargetJobRecord
+	>({
+		buildQuery(query) {
+			appendOfficialWebTargetJobFilters(query, params.filter);
+		},
+		cursorFilter: params.filter,
+		normalizeRecord: normalizeOfficialWebTargetJobRecord,
+		page: params.pagination?.page,
+		perPage: params.pagination?.perPage,
+		resource: "officialWebTargetJobs",
+		resourceLabel: "official web target job",
+		responseItems(payload) {
+			return payload.jobs;
+		},
+		signal: params.signal,
+		sourcePath: "/api/official-web/target-jobs",
+	});
+}
+
+export async function getOfficialWebTargetJobDetail(
+	id: Identifier,
+	signal?: AbortSignal,
+): Promise<{ data: OfficialWebTargetJobRecord }> {
+	const payload = await fetchJson<RawOfficialWebTargetJobDetailResponse>(
+		`/api/official-web/target-jobs/${encodePathIdentifier(id)}`,
+		{
+			signal,
+		},
+	);
+
+	return {
+		data: normalizeOfficialWebTargetJobDetailRecord(payload.targetJob),
+	};
+}
 
 export async function getOfficialWebRunList(params: GetListParams): Promise<{
 	data: OfficialWebRunRecord[];
