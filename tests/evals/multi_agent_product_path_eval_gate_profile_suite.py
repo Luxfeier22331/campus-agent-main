@@ -297,13 +297,12 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             "handoff": {
                 "target": "notice-agent",
                 "payload_kind": "campus_notice_get",
-                "allowed_tools": ["campus_notice_get"],
+                "allowed_tools": [],
             },
             "handoff_chain": [
                 {
                     "target": "notice-agent",
                     "payload_kind": "campus_notice_get",
-                    "selected_tool": "campus_notice_get",
                 },
                 {
                     "target": "rag-agent",
@@ -312,7 +311,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
                 },
             ],
             "selected_target": "rag-agent",
-            "selected_tools": ["campus_notice_get", "retrieval.query"],
+            "selected_tools": ["retrieval.query"],
             "tool_argument_summary": {
                 "payload_kind": "campus_notice_get",
                 "selected_tool": "retrieval.query",
@@ -449,18 +448,41 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             guardrail_scope="in_scope",
         )
     if profile == "notice_get_direct_opened":
-        return _tool_workflow_trace_summary(
-            target="notice-agent",
-            tool="campus_notice_get",
-            branch="direct",
-            mode="direct_runtime",
-            argument_summary={
+        return {
+            **base,
+            "direct_vs_delegate_branch": "direct",
+            "workflow_mode": "direct_runtime",
+            "handoff": {"target": "notice-agent"},
+            "handoff_chain": [],
+            "selected_target": "notice-agent",
+            "selected_tools": [],
+            "tool_argument_summary": {
                 "payload_kind": "campus_notice_get",
-                "selected_tool": "campus_notice_get",
                 "source_family": "wechat_public_notice",
             },
-            guardrail_scope="in_scope",
-        )
+            "trace_steps": [
+                {
+                    "step_id": "runtime_policy",
+                    "span_kind": "runtime_policy",
+                    "parent_step_id": "",
+                    "outcome": "delegate",
+                },
+                {
+                    "step_id": "finalization",
+                    "span_kind": "finalization",
+                    "parent_step_id": "runtime_policy",
+                    "outcome": "completed",
+                    "result_status": "completed",
+                },
+            ],
+            "tool_call_summaries": [],
+            "guardrail_outcomes": {
+                "context_preflight": "not_follow_up",
+                "policy_gate": "delegate",
+                "scope_gate": "in_scope",
+            },
+            "fail_close_reason": "",
+        }
     if profile == "transactional_approval_required":
         return {
             **base,

@@ -21,7 +21,6 @@ class ToolFunctionSchemaTest(unittest.TestCase):
                 "transport_schedule_lookup",
                 "contact_directory_lookup",
                 "campus_notice_discover",
-                "campus_notice_get",
             ),
         )
         for schema in schemas:
@@ -53,13 +52,10 @@ class ToolFunctionSchemaTest(unittest.TestCase):
             set(transport["route_selector"]["properties"]),
         )
 
-    def test_optional_fields_are_strict_nullable_instead_of_missing_from_required(self) -> None:
+    def test_notice_body_get_is_not_a_provider_function_schema(self) -> None:
         schemas = {schema["name"]: schema for schema in generate_provider_function_schemas()}
 
-        notice_get = schemas["campus_notice_get"]["parameters"]
-
-        self.assertEqual(set(notice_get["required"]), {"notice_id", "source_family"})
-        self.assertEqual(notice_get["properties"]["source_family"]["type"], ["string", "null"])
+        self.assertNotIn("campus_notice_get", schemas)
 
     def test_provider_function_schema_snapshot_is_stable(self) -> None:
         snapshot_path = Path("packages/evals/fixtures/provider_function_tools.v1.json")

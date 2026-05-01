@@ -57,6 +57,7 @@ def _validate_cases(cases: tuple[ProviderToolCallCase, ...]) -> None:
         "wrong_tool_call",
         "invalid_arguments",
         "tool_result_projected",
+        "internal_tool_closed",
     }
     for case in cases:
         if case.case_id in seen_case_ids:

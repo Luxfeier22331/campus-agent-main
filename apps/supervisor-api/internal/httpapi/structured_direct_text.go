@@ -58,9 +58,15 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			}
 		case structuredquery.ToolCampusNoticeGet:
 			title := stringValue(result["title"])
-			body := strings.TrimSpace(stringValue(result["normalized_body"]))
-			if title != "" && body != "" {
-				return title + "\n\n" + body
+			sourceURL := stringValue(result["source_url"])
+			if title != "" && sourceURL != "" {
+				return title + "\n\n官方原文：" + sourceURL
+			}
+			if title != "" {
+				return title
+			}
+			if sourceURL != "" {
+				return "官方原文：" + sourceURL
 			}
 		}
 	}

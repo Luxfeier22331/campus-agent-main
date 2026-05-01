@@ -1,7 +1,7 @@
 ---
 doc_type: state
 workstream: notice-agent-card-first-tool-boundary
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -12,25 +12,25 @@ updated: 2026-05-01
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 0 ready
+**Status:** Completed
+**Current Phase:** Phase 6 complete
 **Last Activity:** 2026-05-01
-**Last Activity Description:** Expanded Phase 0-6 into executable design. Target architecture now freezes card-first notice surface, separates agent-facing discover tool from internal selected notice query functions, and treats `campus_notice_get` body serving as a migration target rather than accepted truth.
+**Last Activity Description:** Completed card-first notice tool/function boundary implementation. `campus_notice_discover` remains agent-facing; `campus_notice_get` is internal/closed for provider and SDK surfaces; Go finalizer inference, API readyz, workflow trace evals, docs, eval denominator and opening review were updated.
 
 ## Current Blockers
 
-- Phase 0 must inventory all existing `normalized_body` public-output paths before implementation.
-- Phase 0 must record the final `campus_notice_get` migration choice: hardcut, demote, or replace.
-- Phase 1 must land before Go/Python behavior changes so both runtimes consume the same contract.
+- None.
 
 ## Next Slice
 
-Execute Phase 0: boundary freeze and body-serving path inventory.
+No active implementation slice. Reopen only under the reopen rule in `CLOSEOUT.md`.
 
 ## Initial Verification Targets
 
 ```bash
 pnpm docs:lint
-pnpm exec markdownlint-cli2 ".planning/workstreams/notice-agent-card-first-tool-boundary/**/*.md"
+(cd apps/supervisor-api && go test ./internal/...)
+uv run --all-packages ruff check apps/supervisor-agent-worker packages/notice-agent packages/evals tests
+uv run --all-packages python -m unittest discover -s tests -t .
 git diff --check
 ```

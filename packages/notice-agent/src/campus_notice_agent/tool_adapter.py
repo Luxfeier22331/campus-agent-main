@@ -71,9 +71,9 @@ def _handle_notice_get(
     *,
     query_service: NoticeQueryService,
 ) -> AgentResponse:
-    tool_name = "campus_notice_get"
-    if tool_name not in request.allowed_tools:
-        return _tool_not_allowed(tool_name)
+    tool_name = ""
+    if request.allowed_tools:
+        return _tool_not_allowed("campus_notice_get")
     try:
         result = query_service.get_notice(
             NoticeGetQuery(
@@ -131,26 +131,13 @@ def _discover_response(result: CampusNoticeDiscoverResult) -> AgentResponse:
 def _get_response(result: CampusNoticeGetResult) -> AgentResponse:
     if result.outcome in {"resolved_current", "resolved_historical_reference"}:
         confidence = "high" if result.outcome == "resolved_current" else "medium"
-        if result.reference_only:
-            source_url = result.source_url or result.canonical_url
-            answer_text = result.title
-            if source_url:
-                answer_text = f"{result.title}\n\n该通知当前仅提供原文链接：{source_url}"
-            return AgentResponse(
-                target="notice-agent",
-                status="completed",
-                answer_text=answer_text,
-                confidence=confidence,
-                result=result,
-                agent_observability=_agent_observability("campus_notice_get", result),
-            )
         return AgentResponse(
             target="notice-agent",
             status="completed",
-            answer_text=f"{result.title}\n\n{result.normalized_body}",
+            answer_text=_notice_card_answer_text(result),
             confidence=confidence,
             result=result,
-            agent_observability=_agent_observability("campus_notice_get", result),
+            agent_observability=_agent_observability("", result),
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要读取的通知。"
@@ -161,7 +148,7 @@ def _get_response(result: CampusNoticeGetResult) -> AgentResponse:
             follow_up_question=follow_up,
             confidence="medium",
             result=result,
-            agent_observability=_agent_observability("campus_notice_get", result),
+            agent_observability=_agent_observability("", result),
         )
     if result.outcome == "temporarily_unverifiable":
         return AgentResponse(
@@ -170,7 +157,7 @@ def _get_response(result: CampusNoticeGetResult) -> AgentResponse:
             answer_text="当前还不能稳定读取这条通知。",
             confidence="low",
             result=result,
-            agent_observability=_agent_observability("campus_notice_get", result),
+            agent_observability=_agent_observability("", result),
         )
     return AgentResponse(
         target="notice-agent",
@@ -178,8 +165,19 @@ def _get_response(result: CampusNoticeGetResult) -> AgentResponse:
         answer_text="当前没有找到对应通知。",
         confidence="low",
         result=result,
-        agent_observability=_agent_observability("campus_notice_get", result),
+        agent_observability=_agent_observability("", result),
     )
+
+
+def _notice_card_answer_text(result: CampusNoticeGetResult) -> str:
+    parts = [result.title.strip()]
+    summary = result.bounded_summary.strip() or result.body_excerpt.strip()
+    if summary:
+        parts.append(f"摘要：{summary}")
+    source_url = (result.source_url or result.canonical_url).strip()
+    if source_url:
+        parts.append(f"原文链接：{source_url}")
+    return "\n\n".join(part for part in parts if part)
 
 
 def _access_context_from_request(request: AgentRequest) -> NoticeAccessContext:

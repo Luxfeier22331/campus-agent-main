@@ -105,18 +105,25 @@ type noticeReadModelRecord struct {
 	ProvenanceRefs             []string `json:"provenance_refs"`
 }
 
+type noticeDisplayPolicy struct {
+	PublicSurface     string `json:"public_surface"`
+	FullBodyForbidden bool   `json:"full_body_forbidden"`
+	BodyAccess        string `json:"body_access"`
+}
+
 type noticeCard struct {
-	NoticeID      string `json:"notice_id"`
-	Title         string `json:"title"`
-	SourceFamily  string `json:"source_family"`
-	SourceURL     string `json:"source_url"`
-	CanonicalURL  string `json:"canonical_url,omitempty"`
-	PublishedAt   string `json:"published_at,omitempty"`
-	EffectiveAt   string `json:"effective_at,omitempty"`
-	TargetSurface string `json:"target_surface,omitempty"`
-	PrimaryRole   string `json:"primary_role,omitempty"`
-	BodyExcerpt   string `json:"body_excerpt,omitempty"`
-	IsCurrent     bool   `json:"is_current"`
+	NoticeID      string              `json:"notice_id"`
+	Title         string              `json:"title"`
+	SourceFamily  string              `json:"source_family"`
+	SourceURL     string              `json:"source_url"`
+	CanonicalURL  string              `json:"canonical_url,omitempty"`
+	PublishedAt   string              `json:"published_at,omitempty"`
+	EffectiveAt   string              `json:"effective_at,omitempty"`
+	TargetSurface string              `json:"target_surface,omitempty"`
+	PrimaryRole   string              `json:"primary_role,omitempty"`
+	BodyExcerpt   string              `json:"body_excerpt,omitempty"`
+	IsCurrent     bool                `json:"is_current"`
+	DisplayPolicy noticeDisplayPolicy `json:"display_policy"`
 }
 
 type noticeDiscoverResult struct {
@@ -130,22 +137,26 @@ type noticeDiscoverResult struct {
 }
 
 type noticeGetResult struct {
-	NoticeID                  string   `json:"notice_id"`
-	Outcome                   string   `json:"outcome"`
-	Title                     string   `json:"title,omitempty"`
-	SourceFamily              string   `json:"source_family,omitempty"`
-	SourceURL                 string   `json:"source_url,omitempty"`
-	CanonicalURL              string   `json:"canonical_url,omitempty"`
-	NormalizedBody            string   `json:"normalized_body,omitempty"`
-	ReferenceOnly             bool     `json:"reference_only,omitempty"`
-	PublishedAt               string   `json:"published_at,omitempty"`
-	EffectiveAt               string   `json:"effective_at,omitempty"`
-	TargetSurface             string   `json:"target_surface,omitempty"`
-	PrimaryRole               string   `json:"primary_role,omitempty"`
-	AttachmentRefs            []string `json:"attachment_refs,omitempty"`
-	ProvenanceRefs            []string `json:"provenance_refs,omitempty"`
-	HistoricalDowngradeReason string   `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason           string   `json:"fail_close_reason,omitempty"`
+	NoticeID                  string              `json:"notice_id"`
+	Outcome                   string              `json:"outcome"`
+	Title                     string              `json:"title,omitempty"`
+	SourceFamily              string              `json:"source_family,omitempty"`
+	SourceURL                 string              `json:"source_url,omitempty"`
+	CanonicalURL              string              `json:"canonical_url,omitempty"`
+	NormalizedBody            string              `json:"normalized_body,omitempty"`
+	ReferenceOnly             bool                `json:"reference_only,omitempty"`
+	DisplayPolicy             noticeDisplayPolicy `json:"display_policy"`
+	BodyExcerpt               string              `json:"body_excerpt,omitempty"`
+	BoundedSummary            string              `json:"bounded_summary,omitempty"`
+	ExtractedFacts            []string            `json:"extracted_facts,omitempty"`
+	PublishedAt               string              `json:"published_at,omitempty"`
+	EffectiveAt               string              `json:"effective_at,omitempty"`
+	TargetSurface             string              `json:"target_surface,omitempty"`
+	PrimaryRole               string              `json:"primary_role,omitempty"`
+	AttachmentRefs            []string            `json:"attachment_refs,omitempty"`
+	ProvenanceRefs            []string            `json:"provenance_refs,omitempty"`
+	HistoricalDowngradeReason string              `json:"historical_downgrade_reason,omitempty"`
+	FailCloseReason           string              `json:"fail_close_reason,omitempty"`
 }
 
 func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte) Response {
@@ -223,6 +234,7 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 			PrimaryRole:   row.PrimaryRole,
 			BodyExcerpt:   row.BodyExcerpt,
 			IsCurrent:     true,
+			DisplayPolicy: noticePublicCardDisplayPolicy(),
 		})
 	}
 	body := noticeDiscoverResult{
@@ -261,9 +273,6 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_family_unavailable")
 	}
 	if r.noticeReadModelStore == nil {
-		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
-	}
-	if sourceFamily == internalNoticeRestrictedSourceFamily && r.noticeBodyStore == nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
 	if err := ctx.Err(); err != nil {
@@ -312,35 +321,6 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	if sourceURL == "" {
 		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
 	}
-	objectKey := strings.TrimSpace(row.CanonicalMarkdownObjectKey)
-	if objectKey == "" {
-		if isPublicNoticeSourceFamily(resolvedSourceFamily) {
-			body := noticeGetResult{
-				NoticeID:       resolvedNoticeID,
-				Outcome:        "resolved_current",
-				Title:          title,
-				SourceFamily:   resolvedSourceFamily,
-				SourceURL:      sourceURL,
-				CanonicalURL:   noticeCanonicalURL(row),
-				ReferenceOnly:  true,
-				PublishedAt:    row.PublishedAt,
-				EffectiveAt:    row.EffectiveAt,
-				TargetSurface:  row.TargetSurface,
-				PrimaryRole:    row.PrimaryRole,
-				AttachmentRefs: append([]string(nil), row.AttachmentRefs...),
-				ProvenanceRefs: append([]string(nil), row.ProvenanceRefs...),
-			}
-			return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
-		}
-		return failClosedNoticeGet(request.NoticeID, row.SourceFamily, "source_truth_unavailable")
-	}
-	if r.noticeBodyStore == nil {
-		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
-	}
-	bodyText, err := r.noticeBodyStore.GetNoticeBody(ctx, objectKey)
-	if err != nil || strings.TrimSpace(bodyText) == "" {
-		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
-	}
 	body := noticeGetResult{
 		NoticeID:       resolvedNoticeID,
 		Outcome:        "resolved_current",
@@ -348,7 +328,9 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 		SourceFamily:   resolvedSourceFamily,
 		SourceURL:      sourceURL,
 		CanonicalURL:   noticeCanonicalURL(row),
-		NormalizedBody: bodyText,
+		ReferenceOnly:  true,
+		DisplayPolicy:  noticePublicCardDisplayPolicy(),
+		BodyExcerpt:    strings.TrimSpace(row.BodyExcerpt),
 		PublishedAt:    row.PublishedAt,
 		EffectiveAt:    row.EffectiveAt,
 		TargetSurface:  row.TargetSurface,
@@ -357,6 +339,14 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 		ProvenanceRefs: append([]string(nil), row.ProvenanceRefs...),
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func noticePublicCardDisplayPolicy() noticeDisplayPolicy {
+	return noticeDisplayPolicy{
+		PublicSurface:     "card_only",
+		FullBodyForbidden: true,
+		BodyAccess:        "none",
+	}
 }
 
 func decodeNoticeEnvelope(rawBody []byte) (noticeQueryEnvelope, error) {

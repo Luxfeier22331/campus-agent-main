@@ -19,6 +19,7 @@ class ProviderToolCallCasesTest(unittest.TestCase):
                 "wrong_tool_call",
                 "invalid_arguments",
                 "tool_result_projected",
+                "internal_tool_closed",
             },
         )
 

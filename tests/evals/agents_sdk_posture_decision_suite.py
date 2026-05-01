@@ -119,7 +119,7 @@ def _passing_report() -> AgentsSdkPilotParityReport:
     sdk = _observation("sdk")
     provider = _observation("provider")
     result = AgentsSdkPilotParityResult(
-        case_id="notice_get_should_call_minimal_args",
+        case_id="notice_get_sdk_and_provider_closed",
         passed=True,
         failure_class="",
         reason="ok",
@@ -139,7 +139,7 @@ def _failing_report(failure_class: str) -> AgentsSdkPilotParityReport:
     sdk = _observation("sdk")
     provider = _observation("provider")
     result = AgentsSdkPilotParityResult(
-        case_id="notice_get_should_call_minimal_args",
+        case_id="notice_get_sdk_and_provider_closed",
         passed=False,
         failure_class=failure_class,
         reason="drift",
@@ -158,17 +158,17 @@ def _failing_report(failure_class: str) -> AgentsSdkPilotParityReport:
 def _observation(lane: str) -> AgentsSdkPilotParityObservation:
     return AgentsSdkPilotParityObservation(
         lane=lane,
-        status="completed",
-        selected_tool="campus_notice_get",
-        tool_attempted=True,
-        tool_outcome="completed",
+        status="error",
+        selected_tool="",
+        tool_attempted=False,
+        tool_outcome="runtime_closed",
         failure_class="",
-        failure_kind="",
-        argument_keys=("notice_id",),
-        source_ref_count=2,
-        result_outcome="resolved_current",
-        tool_execution_count=1,
-        final_answer_present=True,
+        failure_kind="runtime_closed",
+        argument_keys=(),
+        source_ref_count=0,
+        result_outcome="runtime_closed",
+        tool_execution_count=0,
+        final_answer_present=False,
         tool_output_submitted=lane == "sdk",
     )
 

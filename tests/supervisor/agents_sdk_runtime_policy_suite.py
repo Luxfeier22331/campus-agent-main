@@ -40,7 +40,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                     "prompt_runtime_provider": "openai-responses",
                     "agent_model": "gpt-agent",
                     "allowed_targets": ("notice-agent",),
-                    "allowed_tools": ("campus_notice_get",),
+                    "allowed_tools": ("campus_notice_discover",),
                 },
                 "dependency_missing",
             ),
@@ -50,7 +50,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                     "prompt_runtime_provider": "",
                     "agent_model": "gpt-agent",
                     "allowed_targets": ("notice-agent",),
-                    "allowed_tools": ("campus_notice_get",),
+                    "allowed_tools": ("campus_notice_discover",),
                 },
                 "provider_config_missing",
             ),
@@ -60,7 +60,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                     "prompt_runtime_provider": "openai-responses",
                     "agent_model": "",
                     "allowed_targets": ("notice-agent",),
-                    "allowed_tools": ("campus_notice_get",),
+                    "allowed_tools": ("campus_notice_discover",),
                 },
                 "model_missing",
             ),
@@ -70,7 +70,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                     "prompt_runtime_provider": "openai-responses",
                     "agent_model": "gpt-agent",
                     "allowed_targets": (),
-                    "allowed_tools": ("campus_notice_get",),
+                    "allowed_tools": ("campus_notice_discover",),
                 },
                 "allowed_target_missing",
             ),
@@ -92,7 +92,22 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
             self.assertEqual(status["admission_reason"], reason)
             self.assertFalse(status["admitted"])
 
-    def test_status_admits_only_when_enabled_and_configured(self) -> None:
+    def test_status_admits_only_when_enabled_and_configured_for_agent_facing_tool(self) -> None:
+        status = agents_sdk_runtime_status(
+            enabled=True,
+            allowed_targets=("notice-agent",),
+            allowed_tools=("campus_notice_discover",),
+            prompt_runtime_provider="openai-responses",
+            agent_model="gpt-agent",
+            sdk_available=True,
+        )
+
+        self.assertTrue(status["admitted"])
+        self.assertEqual(status["admission_reason"], "admitted")
+        self.assertEqual(status["allowed_targets"], ["notice-agent"])
+        self.assertEqual(status["allowed_tools"], ["campus_notice_discover"])
+
+    def test_status_rejects_stale_notice_get_sdk_tool(self) -> None:
         status = agents_sdk_runtime_status(
             enabled=True,
             allowed_targets=("notice-agent",),
@@ -102,9 +117,8 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
             sdk_available=True,
         )
 
-        self.assertTrue(status["admitted"])
-        self.assertEqual(status["admission_reason"], "admitted")
-        self.assertEqual(status["allowed_targets"], ["notice-agent"])
+        self.assertFalse(status["admitted"])
+        self.assertEqual(status["admission_reason"], "unsupported_allowed_tool")
         self.assertEqual(status["allowed_tools"], ["campus_notice_get"])
 
 

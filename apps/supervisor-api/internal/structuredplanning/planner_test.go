@@ -356,7 +356,7 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 			wantTarget:  "notice-agent",
 			wantKind:    "campus_notice_get",
-			wantTool:    "campus_notice_get",
+			wantTool:    "",
 			wantPayload: map[string]any{"notice_id": "notice:2026-spring-break"},
 		},
 	}
@@ -381,7 +381,11 @@ func TestPlanGoldenCases(t *testing.T) {
 			if handoff.Target != tt.wantTarget || handoff.PayloadKind != tt.wantKind {
 				t.Fatalf("handoff = %#v", handoff)
 			}
-			if len(handoff.AllowedTools) != 1 || handoff.AllowedTools[0] != tt.wantTool {
+			if tt.wantTool == "" {
+				if len(handoff.AllowedTools) != 0 {
+					t.Fatalf("allowed tools = %#v, want none", handoff.AllowedTools)
+				}
+			} else if len(handoff.AllowedTools) != 1 || handoff.AllowedTools[0] != tt.wantTool {
 				t.Fatalf("allowed tools = %#v, want %q", handoff.AllowedTools, tt.wantTool)
 			}
 			for key, want := range tt.wantPayload {
@@ -505,6 +509,9 @@ func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T)
 	}
 	if handoffs[0].Target != "notice-agent" || handoffs[0].PayloadKind != "campus_notice_get" {
 		t.Fatalf("first handoff = %#v, want notice get", handoffs[0])
+	}
+	if len(handoffs[0].AllowedTools) != 0 {
+		t.Fatalf("first handoff allowed tools = %#v, want none for internal notice context", handoffs[0].AllowedTools)
 	}
 	if handoffs[0].Payload["notice_id"] != "notice:smoke:001" {
 		t.Fatalf("first handoff notice_id = %#v", handoffs[0].Payload["notice_id"])

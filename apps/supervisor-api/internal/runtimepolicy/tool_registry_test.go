@@ -24,7 +24,7 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if got := registry.AllowedToolsForTarget("campus-services-agent"); !sameStrings(got, want) {
 		t.Fatalf("campus services tools = %#v, want %#v", got, want)
 	}
-	wantNotice := []string{"campus_notice_discover", "campus_notice_get"}
+	wantNotice := []string{"campus_notice_discover"}
 	if got := registry.AllowedToolsForTarget("notice-agent"); !sameStrings(got, wantNotice) {
 		t.Fatalf("notice tools = %#v, want %#v", got, wantNotice)
 	}
@@ -35,9 +35,14 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if !ok {
 		t.Fatal("campus_notice_get missing from ToolSpec")
 	}
-	if !noticeGet.FunctionSchema.Available || noticeGet.RuntimePosture != "provider_loop_pilot" {
+	if !noticeGet.Active ||
+		noticeGet.Surface != "agent_internal" ||
+		noticeGet.FunctionSchema.Available ||
+		noticeGet.RuntimePosture != "closed" {
 		t.Fatalf(
-			"campus_notice_get function/runtime posture = %#v/%q, want available provider_loop_pilot",
+			"campus_notice_get active/surface/function/runtime posture = %v/%q/%#v/%q, want active agent_internal unavailable closed",
+			noticeGet.Active,
+			noticeGet.Surface,
 			noticeGet.FunctionSchema,
 			noticeGet.RuntimePosture,
 		)

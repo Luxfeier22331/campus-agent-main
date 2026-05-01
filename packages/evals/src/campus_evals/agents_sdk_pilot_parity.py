@@ -312,10 +312,7 @@ def _parse_expectation(value: object, field_name: str) -> AgentsSdkPilotLaneExpe
     item = _mapping(value, field_name)
     return AgentsSdkPilotLaneExpectation(
         status=_required_string(item.get("status"), f"{field_name}.status"),
-        selected_tool=_required_string(
-            item.get("selected_tool"),
-            f"{field_name}.selected_tool",
-        ),
+        selected_tool=_optional_string(item.get("selected_tool")),
         failure_kind=_optional_string(item.get("failure_kind")),
         argument_keys=_string_tuple(
             item.get("argument_keys") or [], f"{field_name}.argument_keys", allow_empty=True

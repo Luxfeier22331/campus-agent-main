@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from campus_contracts import (
     AgentRequest,
-    CampusNoticeGetPayload,
+    CampusNoticeDiscoverPayload,
     ServiceStatusLookupPayload,
 )
 from campus_supervisor_agent_worker.agents_sdk_runner import (
@@ -15,6 +16,10 @@ from campus_supervisor_agent_worker.agents_sdk_runner import (
     AgentsSdkToolCall,
     AgentsSdkToolExecutionRequest,
     run_agents_sdk_runner_shell,
+)
+from campus_supervisor_agent_worker.tool_spec_registry import (
+    ToolSpecRegistry,
+    default_tool_spec_registry,
 )
 
 
@@ -26,45 +31,47 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             nonlocal captured_request
             captured_request = run_request
             return AgentsSdkRunResult(
-                final_output="这条通知已读取。",
+                final_output="已找到相关通知。",
                 tool_calls=(
                     AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={"notice_id": "notice:2026-spring"},
+                        name="campus_notice_discover",
+                        arguments={"query_text": "春假通知"},
                         call_id="call-sdk-001",
                     ),
                 ),
                 model_response_ref="resp-sdk-001",
             )
 
-        request = _notice_get_request()
+        request = _notice_discover_request()
         response = run_agents_sdk_runner_shell(
             request,
             runner=fake_runner,
             enabled=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertIsNotNone(captured_request)
         assert captured_request is not None
         self.assertIs(captured_request.agent_request, request)
         self.assertEqual(captured_request.target, "notice-agent")
-        self.assertEqual(captured_request.allowed_tools, ("campus_notice_get",))
-        self.assertEqual(captured_request.user_goal, "读取这条通知")
+        self.assertEqual(captured_request.allowed_tools, ("campus_notice_discover",))
+        self.assertEqual(captured_request.user_goal, "找春假通知")
         self.assertEqual(
-            [tool.name for tool in captured_request.tool_descriptors], ["campus_notice_get"]
+            [tool.name for tool in captured_request.tool_descriptors],
+            ["campus_notice_discover"],
         )
         self.assertEqual(response.target, "notice-agent")
         self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, "这条通知已读取。")
+        self.assertEqual(response.answer_text, "已找到相关通知。")
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.selected_tool, "campus_notice_get")
+        self.assertEqual(response.agent_observability.selected_tool, "campus_notice_discover")
         self.assertEqual(response.agent_observability.tool_outcome, "sdk_completed")
         projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
         self.assertEqual(projection["schema_version"], "agents-sdk-runner-projection-v1")
         self.assertEqual(projection["model_tool_call_ref"], "call-sdk-001")
         self.assertEqual(projection["model_response_ref"], "resp-sdk-001")
-        self.assertEqual(projection["argument_keys"], ["notice_id"])
+        self.assertEqual(projection["argument_keys"], ["query_text"])
 
     def test_runner_shell_passes_validated_tool_executor_to_runner(self) -> None:
         captured_execution: AgentsSdkToolExecutionRequest | None = None
@@ -74,24 +81,18 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             assert run_request.execute_tool is not None
             tool_result = run_request.execute_tool(
                 AgentsSdkToolExecutionRequest(
-                    name="campus_notice_get",
-                    arguments={
-                        "notice_id": "notice:2026-spring",
-                        "source_family": "official_web_public_notice",
-                    },
+                    name="campus_notice_discover",
+                    arguments={"query_text": "春假通知"},
                     call_id="call-execute-001",
                 )
             )
             self.assertEqual(tool_result["outcome"], "resolved_current")
             return AgentsSdkRunResult(
-                final_output="已根据通知正文回答。",
+                final_output="已根据通知卡片回答。",
                 tool_calls=(
                     AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={
-                            "notice_id": "notice:2026-spring",
-                            "source_family": "official_web_public_notice",
-                        },
+                        name="campus_notice_discover",
+                        arguments={"query_text": "春假通知"},
                         call_id="call-execute-001",
                     ),
                 ),
@@ -109,17 +110,18 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             }
 
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=fake_runner,
             enabled=True,
             execute_tool=execute_tool,
             require_tool_execution=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "completed")
         self.assertIsNotNone(captured_execution)
         assert captured_execution is not None
-        self.assertEqual(captured_execution.name, "campus_notice_get")
+        self.assertEqual(captured_execution.name, "campus_notice_discover")
         self.assertEqual(captured_execution.call_id, "call-execute-001")
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
@@ -132,13 +134,13 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
 
     def test_runner_shell_fails_closed_when_required_tool_execution_is_missing(self) -> None:
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=lambda _run_request: AgentsSdkRunResult(
-                final_output="模型声称已读取。",
+                final_output="模型声称已找到。",
                 tool_calls=(
                     AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={"notice_id": "notice:2026-spring"},
+                        name="campus_notice_discover",
+                        arguments={"query_text": "春假通知"},
                         call_id="call-not-executed",
                     ),
                 ),
@@ -146,6 +148,7 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             enabled=True,
             execute_tool=lambda _execution: {"outcome": "resolved_current"},
             require_tool_execution=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -161,28 +164,29 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             assert run_request.execute_tool is not None
             run_request.execute_tool(
                 AgentsSdkToolExecutionRequest(
-                    name="campus_notice_get",
-                    arguments={"notice_id": "notice:executed"},
+                    name="campus_notice_discover",
+                    arguments={"query_text": "春假通知"},
                     call_id="call-drift",
                 )
             )
             return AgentsSdkRunResult(
-                final_output="已读取。",
+                final_output="已找到。",
                 tool_calls=(
                     AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={"notice_id": "notice:reported"},
+                        name="campus_notice_discover",
+                        arguments={"query_text": "暑假通知"},
                         call_id="call-drift",
                     ),
                 ),
             )
 
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=fake_runner,
             enabled=True,
             execute_tool=lambda _execution: {"outcome": "resolved_current"},
             require_tool_execution=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -196,8 +200,8 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             assert run_request.execute_tool is not None
             run_request.execute_tool(
                 AgentsSdkToolExecutionRequest(
-                    name="campus_notice_get",
-                    arguments={"notice_id": "notice:2026-spring"},
+                    name="campus_notice_discover",
+                    arguments={"query_text": "春假通知"},
                     call_id="call-execute-failed",
                 )
             )
@@ -207,11 +211,12 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             raise RuntimeError("query service unavailable")
 
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=fake_runner,
             enabled=True,
             execute_tool=execute_tool,
             require_tool_execution=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -229,7 +234,7 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             return AgentsSdkRunResult(final_output="x")
 
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=fake_runner,
             enabled=False,
         )
@@ -264,11 +269,12 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
 
     def test_runner_shell_rejects_result_without_tool_call(self) -> None:
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=lambda _run_request: AgentsSdkRunResult(
                 final_output="不需要工具", tool_calls=()
             ),
             enabled=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -278,18 +284,19 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
 
     def test_runner_shell_rejects_wrong_tool_call(self) -> None:
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=lambda _run_request: AgentsSdkRunResult(
                 final_output="x",
                 tool_calls=(
                     AgentsSdkToolCall(
-                        name="campus_notice_discover",
-                        arguments={"query_text": "春假"},
+                        name="service_status_lookup",
+                        arguments={"subject_query": "校车"},
                         call_id="call-wrong",
                     ),
                 ),
             ),
             enabled=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -299,18 +306,19 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
 
     def test_runner_shell_rejects_invalid_tool_arguments(self) -> None:
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=lambda _run_request: AgentsSdkRunResult(
                 final_output="x",
                 tool_calls=(
                     AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={"notice_id": ""},
+                        name="campus_notice_discover",
+                        arguments={"query_text": ""},
                         call_id="call-bad-args",
                     ),
                 ),
             ),
             enabled=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -320,18 +328,19 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
 
     def test_runner_shell_rejects_malformed_final_output(self) -> None:
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=lambda _run_request: AgentsSdkRunResult(
                 final_output="",
                 tool_calls=(
                     AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={"notice_id": "notice:2026-spring"},
+                        name="campus_notice_discover",
+                        arguments={"query_text": "春假通知"},
                         call_id="call-empty-output",
                     ),
                 ),
             ),
             enabled=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -344,9 +353,10 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             raise AgentsSdkRunnerTimeoutError("SDK run timed out")
 
         response = run_agents_sdk_runner_shell(
-            _notice_get_request(),
+            _notice_discover_request(),
             runner=timed_out,
             enabled=True,
+            tool_registry=_sdk_test_tool_registry(),
         )
 
         self.assertEqual(response.status, "error")
@@ -380,13 +390,26 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
                 self.assertNotIn(fragment, source)
 
 
-def _notice_get_request() -> AgentRequest:
+def _notice_discover_request() -> AgentRequest:
     return AgentRequest(
         target="notice-agent",
-        user_goal="读取这条通知",
+        user_goal="找春假通知",
         request_id="req-sdk-001",
-        payload=CampusNoticeGetPayload(notice_id="notice:placeholder"),
-        allowed_tools=("campus_notice_get",),
+        payload=CampusNoticeDiscoverPayload(query_text="春假通知"),
+        allowed_tools=("campus_notice_discover",),
+    )
+
+
+def _sdk_test_tool_registry() -> ToolSpecRegistry:
+    registry = default_tool_spec_registry()
+    return replace(
+        registry,
+        tools=tuple(
+            replace(tool, runtime_posture="provider_loop_pilot")
+            if tool.name == "campus_notice_discover"
+            else tool
+            for tool in registry.tools
+        ),
     )
 
 

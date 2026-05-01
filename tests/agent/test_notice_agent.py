@@ -13,6 +13,7 @@ from campus_contracts import (
     CampusNoticeGetResult,
     ContextProjection,
     NoticeCard,
+    NoticeDisplayPolicy,
     TemporalQuery,
 )
 from campus_notice_agent.http_query_service import NoticeHTTPQueryService
@@ -57,6 +58,8 @@ class _FakeNoticeQueryService:
             source_url="https://campus.example/notices/spring-holiday",
             canonical_url="https://campus.example/notices/spring-holiday",
             normalized_body="春假时间为 5 月 1 日至 5 月 5 日。",
+            body_excerpt="春假时间为 5 月 1 日至 5 月 5 日。",
+            bounded_summary="春假安排已发布，请以官方原文为准。",
             published_at="2026-04-20T09:00:00+08:00",
         )
 
@@ -228,7 +231,7 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(result.notice_cards[0].notice_id, "355222")
         self.assertEqual(result.notice_cards[0].target_surface, "notice_level_query")
 
-    def test_http_query_service_posts_get_payload_and_decodes_body_result(self) -> None:
+    def test_http_query_service_posts_get_payload_and_decodes_card_first_result(self) -> None:
         transport = _RecordingNoticeHTTPTransport(
             {
                 "notice_id": "355222",
@@ -238,6 +241,14 @@ class NoticeAgentTest(unittest.TestCase):
                 "source_url": "https://portal.example.edu/notices/355222",
                 "canonical_url": "https://portal.example.edu/notices/355222",
                 "normalized_body": "# 采购公告\n\n供应商应按要求投标。\n",
+                "display_policy": {
+                    "public_surface": "bounded_summary",
+                    "full_body_forbidden": True,
+                    "body_access": "internal_context_only",
+                },
+                "body_excerpt": "供应商应按要求投标。",
+                "bounded_summary": "家具采购项目比选公告已发布。",
+                "extracted_facts": ["采购项目为丰台校区家具。"],
                 "published_at": "2026-04-12",
                 "effective_at": "2026-04-12",
                 "target_surface": "notice_level_query",
@@ -269,6 +280,17 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(transport.calls[0][2]["payload"]["notice_id"], "355222")
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.normalized_body, "# 采购公告\n\n供应商应按要求投标。\n")
+        self.assertEqual(
+            result.display_policy,
+            NoticeDisplayPolicy(
+                public_surface="bounded_summary",
+                full_body_forbidden=True,
+                body_access="internal_context_only",
+            ),
+        )
+        self.assertEqual(result.body_excerpt, "供应商应按要求投标。")
+        self.assertEqual(result.bounded_summary, "家具采购项目比选公告已发布。")
+        self.assertEqual(result.extracted_facts, ("采购项目为丰台校区家具。",))
         self.assertEqual(result.target_surface, "notice_level_query")
         self.assertEqual(result.attachment_refs, ("attachment:355222:1",))
 
@@ -302,7 +324,7 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertTrue(result.reference_only)
         self.assertEqual(result.normalized_body, "")
 
-    def test_notice_get_reference_only_result_returns_source_url_answer(self) -> None:
+    def test_notice_get_internal_result_returns_source_url_answer_without_body(self) -> None:
         response = delegate_to_notice_agent(
             AgentRequest(
                 target="notice-agent",
@@ -311,7 +333,7 @@ class NoticeAgentTest(unittest.TestCase):
                     notice_id="wechat:article:001",
                     source_family="wechat_public_notice",
                 ),
-                allowed_tools=("campus_notice_get",),
+                allowed_tools=(),
                 actor=ActorContext(user_id="student-001"),
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001"),
@@ -325,8 +347,31 @@ class NoticeAgentTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertIn("仅提供原文链接", response.answer_text)
+        self.assertIn("原文链接", response.answer_text)
         self.assertIn("https://mp.weixin.qq.com/s/example", response.answer_text)
+        self.assertNotIn("春假时间为 5 月 1 日至 5 月 5 日", response.answer_text)
+
+    def test_notice_get_internal_result_never_emits_normalized_body(self) -> None:
+        response = delegate_to_notice_agent(
+            AgentRequest(
+                target="notice-agent",
+                user_goal="读取这条通知",
+                payload=CampusNoticeGetPayload(
+                    notice_id="notice:2026-spring-holiday",
+                    source_family="official_web_public_notice",
+                ),
+                allowed_tools=(),
+            ),
+            query_service=_FakeNoticeQueryService(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("2026 年春假安排通知", response.answer_text)
+        self.assertIn("https://campus.example/notices/spring-holiday", response.answer_text)
+        self.assertNotIn("春假时间为 5 月 1 日至 5 月 5 日", response.answer_text)
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        self.assertEqual(response.agent_observability.selected_tool, "")
 
 
 def _restricted_access_context() -> NoticeAccessContext:

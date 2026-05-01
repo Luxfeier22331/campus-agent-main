@@ -7,32 +7,17 @@ from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
     AgentsSdkToolBridgeError,
     build_agents_sdk_tool_descriptors,
 )
-from campus_supervisor_agent_worker.tool_function_schema import (
-    generate_provider_function_schemas,
-)
 
 
 class AgentsSdkToolBridgeTest(unittest.TestCase):
-    def test_builds_notice_get_descriptor_from_toolspec_and_provider_schema(self) -> None:
-        descriptors = build_agents_sdk_tool_descriptors(("campus_notice_get",))
+    def test_rejects_internal_notice_get_tool_surface(self) -> None:
+        with self.assertRaisesRegex(
+            AgentsSdkToolBridgeError,
+            "unsupported_tool_surface",
+        ) as caught:
+            build_agents_sdk_tool_descriptors(("campus_notice_get",))
 
-        self.assertEqual(len(descriptors), 1)
-        descriptor = descriptors[0]
-        provider_schema = _provider_schema("campus_notice_get")
-        self.assertEqual(descriptor.name, "campus_notice_get")
-        self.assertEqual(descriptor.owner_agent, "notice-agent")
-        self.assertEqual(descriptor.capability, "notice")
-        self.assertEqual(descriptor.payload_kind, "campus_notice_get")
-        self.assertEqual(descriptor.runtime_posture, "provider_loop_pilot")
-        self.assertTrue(descriptor.read_only)
-        self.assertTrue(descriptor.function_schema_strict)
-        self.assertEqual(descriptor.function_schema, provider_schema)
-        self.assertEqual(descriptor.parameters, provider_schema["parameters"])
-        self.assertEqual(descriptor.runtime_policy["read_only"], True)
-        self.assertEqual(descriptor.runtime_policy["result_projection"], "repo_bounded")
-        self.assertEqual(descriptor.runtime_policy["fail_close_reason"], "sdk_tool_not_admitted")
-        self.assertGreater(descriptor.runtime_policy["timeout_seconds"], 0)
-        self.assertGreater(descriptor.runtime_policy["max_result_bytes"], 0)
+        self.assertEqual(caught.exception.reason, "unsupported_tool_surface")
 
     def test_rejects_empty_allowed_tools(self) -> None:
         with self.assertRaisesRegex(AgentsSdkToolBridgeError, "allowed_tools_missing") as caught:
@@ -87,13 +72,6 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
         for fragment in forbidden_fragments:
             with self.subTest(fragment=fragment):
                 self.assertNotIn(fragment, source)
-
-
-def _provider_schema(name: str) -> dict[str, object]:
-    for schema in generate_provider_function_schemas():
-        if schema["name"] == name:
-            return schema
-    raise AssertionError(f"missing provider schema for {name}")
 
 
 if __name__ == "__main__":

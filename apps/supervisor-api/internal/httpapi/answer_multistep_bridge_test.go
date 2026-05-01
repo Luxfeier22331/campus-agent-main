@@ -39,11 +39,11 @@ func TestAnswerExecutesRecordedMultiStepWorkflow(t *testing.T) {
 						"result":{
 							"outcome":"resolved_current",
 							"title":"烟雾测试通知",
-							"normalized_body":"通知正文要求结合学生手册相关规定理解。",
+							"body_excerpt":"通知短摘要要求结合学生手册相关规定理解。",
 							"source_url":"https://example.invalid/notices/smoke",
 							"source_refs":["notice:smoke:001"]
 						},
-						"agent_observability":{"selected_tool":"campus_notice_get"}
+						"agent_observability":{"selected_tool":""}
 					}`),
 				}, nil
 			case "rag-agent":
@@ -109,7 +109,7 @@ func TestAnswerExecutesRecordedMultiStepWorkflow(t *testing.T) {
 	}
 	if !strings.Contains(ragUserGoal, "已读取的通知上下文") ||
 		!strings.Contains(ragUserGoal, "烟雾测试通知") ||
-		!strings.Contains(ragUserGoal, "通知正文要求结合学生手册相关规定理解。") {
+		!strings.Contains(ragUserGoal, "通知短摘要要求结合学生手册相关规定理解。") {
 		t.Fatalf("rag user_goal did not include notice step context: %q", ragUserGoal)
 	}
 	body := decodeBody(t, response)

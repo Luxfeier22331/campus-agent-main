@@ -363,13 +363,15 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             source_family=card.source_family,
             source_url=card.source_url,
             canonical_url=card.canonical_url,
-            normalized_body="采购公告正文。",
             target_surface=card.target_surface,
             published_at=card.published_at,
+            display_policy=NoticeDisplayPolicy(public_surface="card_only"),
         )
 
         self.assertEqual(card.target_surface, "notice_level_query")
         self.assertEqual(result.target_surface, "notice_level_query")
+        self.assertEqual(result.display_policy.public_surface, "card_only")
+        self.assertTrue(result.display_policy.full_body_forbidden)
 
     def test_service_status_historical_result_allows_missing_downgrade_reason(self) -> None:
         result = ServiceStatusLookupResult(
@@ -406,24 +408,25 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             title="2024年春假安排通知",
             source_family="official_web_public_notice",
             source_url="https://www.muc.edu.cn/info/2024-spring-break.htm",
-            normalized_body="历史通知正文。",
         )
 
         self.assertEqual(result.outcome, "resolved_historical_reference")
         self.assertEqual(result.historical_downgrade_reason, "")
 
-    def test_notice_get_result_requires_normalized_body_for_resolved_notice(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError,
-            "normalized_body must not be empty for resolved notice results",
-        ):
-            CampusNoticeGetResult(
-                notice_id="notice:muc-spring-break-2026",
-                title="2026年春假安排通知",
-                outcome="resolved_current",
-                source_family="official_web_public_notice",
-                source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
-            )
+    def test_notice_get_result_does_not_require_normalized_body_for_resolved_notice(
+        self,
+    ) -> None:
+        result = CampusNoticeGetResult(
+            notice_id="notice:muc-spring-break-2026",
+            title="2026年春假安排通知",
+            outcome="resolved_current",
+            source_family="official_web_public_notice",
+            source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+        )
+
+        self.assertEqual(result.normalized_body, "")
+        self.assertEqual(result.display_policy.public_surface, "card_only")
+        self.assertTrue(result.display_policy.full_body_forbidden)
 
     def test_notice_get_result_allows_reference_only_resolved_notice_without_body(self) -> None:
         result = CampusNoticeGetResult(
@@ -437,6 +440,40 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
 
         self.assertTrue(result.reference_only)
         self.assertEqual(result.normalized_body, "")
+
+    def test_notice_context_projection_rejects_raw_body_fields(self) -> None:
+        projection = NoticeContextProjection(
+            projection_id="projection:notice_context:abc123",
+            notice_ref=SelectedNoticeRef(
+                notice_id="notice:muc-spring-break-2026",
+                source_family="official_web_public_notice",
+                title="2026年春假安排通知",
+            ),
+            content_hash="sha256:abc123",
+            source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+            body_excerpt="春假安排短摘要。",
+            bounded_summary="该通知说明春假安排，以官方链接为准。",
+            extracted_facts=("春假安排以官方链接为准",),
+        )
+
+        payload = asdict(projection)
+
+        self.assertNotIn("normalized_body", payload)
+        self.assertEqual(payload["display_policy"]["public_surface"], "bounded_summary")
+        self.assertTrue(payload["display_policy"]["full_body_forbidden"])
+
+    def test_notice_display_policy_forbids_public_full_body_policy(self) -> None:
+        with self.assertRaisesRegex(ValueError, "full_body_forbidden must be true"):
+            NoticeDisplayPolicy(full_body_forbidden=False)
+
+    def test_agent_request_rejects_notice_get_as_agent_facing_allowed_tool(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported allowed_tool: campus_notice_get"):
+            AgentRequest(
+                target="notice-agent",
+                user_goal="打开这条通知",
+                payload=CampusNoticeGetPayload(notice_id="notice:muc-spring-break-2026"),
+                allowed_tools=("campus_notice_get",),  # type: ignore[arg-type]
+            )
 
     def test_agent_request_accepts_service_status_payload(self) -> None:
         request = AgentRequest(
@@ -488,7 +525,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 source_family="official_web_public_notice",
                 source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
                 canonical_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
-                normalized_body="一、放假时间为 4 月 30 日至 5 月 5 日。",
+                body_excerpt="春假安排以官方链接为准。",
                 published_at="2026-04-18",
                 effective_at="2026-04-30",
                 attachment_refs=("asset:notice-attachment-001",),
@@ -500,6 +537,8 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
 
         self.assertEqual(payload["result"]["notice_id"], "notice:muc-spring-break-2026")
         self.assertEqual(payload["result"]["source_family"], "official_web_public_notice")
+        self.assertEqual(payload["result"]["display_policy"]["public_surface"], "card_only")
+        self.assertEqual(payload["result"]["normalized_body"], "")
         self.assertEqual(
             tuple(payload["result"]["attachment_refs"]),
             ("asset:notice-attachment-001",),

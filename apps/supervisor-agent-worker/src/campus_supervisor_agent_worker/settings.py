@@ -45,10 +45,7 @@ def _read_provider_tool_runtime_allowed_tools(name: str) -> tuple[str, ...]:
         return DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS
     normalized = tuple(item.strip() for item in value.split(",") if item.strip())
     if normalized != DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS:
-        raise ValueError(
-            f"{name} currently only supports "
-            f"{','.join(DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS)}"
-        )
+        raise ValueError(f"{name} no longer supports provider-native notice get tools")
     return normalized
 
 
@@ -182,8 +179,8 @@ class ApiSettings:
         )
         if self.provider_tool_runtime_allowed_tools != DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS:
             raise ValueError(
-                "provider_tool_runtime_allowed_tools currently only supports "
-                f"{DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS!r}"
+                "provider_tool_runtime_allowed_tools no longer supports "
+                "provider-native notice get tools"
             )
         _require_positive_float("cancel_flag_ttl_seconds", self.cancel_flag_ttl_seconds)
 

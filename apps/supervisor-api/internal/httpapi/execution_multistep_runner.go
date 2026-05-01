@@ -366,7 +366,7 @@ func workflowProjectionFromBridgeResponse(
 	sourceStepID string,
 	response bridge.ExecuteResponse,
 ) (execution.StepOutputProjection, bool) {
-	if handoff.Target != "notice-agent" || runtimeSelectedTool(handoff) != "campus_notice_get" {
+	if handoff.Target != "notice-agent" || handoff.PayloadKind != "campus_notice_get" {
 		return execution.StepOutputProjection{}, false
 	}
 	if response.Kind != "agent_response" {
@@ -380,14 +380,10 @@ func workflowProjectionFromBridgeResponse(
 		return execution.StepOutputProjection{}, false
 	}
 	result, _ := body["result"].(map[string]any)
-	noticeBody := firstWorkflowString(result, "normalized_body", "body_text", "body")
-	if noticeBody == "" {
-		noticeBody, _ = body["answer_text"].(string)
-	}
 	return execution.NewNoticeContextProjection(
 		sourceStepID,
 		firstWorkflowString(result, "title"),
-		noticeBody,
+		firstWorkflowString(result, "body_excerpt", "bounded_summary"),
 		firstWorkflowString(result, "source_url", "canonical_url"),
 	)
 }

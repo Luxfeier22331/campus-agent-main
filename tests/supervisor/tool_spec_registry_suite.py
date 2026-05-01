@@ -30,7 +30,7 @@ class ToolSpecRegistryTest(unittest.TestCase):
         )
         self.assertEqual(registry.structured_tool_names_for_target("rag-agent"), ())
 
-    def test_function_schema_availability_is_separate_from_runtime_posture(self) -> None:
+    def test_notice_get_is_not_agent_facing_provider_tool(self) -> None:
         registry = load_tool_spec_registry()
         notice_get = registry.tool_by_name("campus_notice_get")
         service_status = registry.tool_by_name("service_status_lookup")
@@ -39,8 +39,13 @@ class ToolSpecRegistryTest(unittest.TestCase):
         self.assertIsNotNone(service_status)
         assert notice_get is not None
         assert service_status is not None
-        self.assertTrue(notice_get.function_schema.available)
-        self.assertEqual(notice_get.runtime_posture, "provider_loop_pilot")
+        self.assertTrue(notice_get.active)
+        self.assertEqual(notice_get.surface, "agent_internal")
+        self.assertFalse(notice_get.function_schema.available)
+        self.assertEqual(notice_get.runtime_posture, "closed")
+        self.assertEqual(
+            registry.structured_tool_names_for_target("notice-agent"), ("campus_notice_discover",)
+        )
         self.assertTrue(service_status.function_schema.available)
         self.assertEqual(service_status.runtime_posture, "typed_handoff_only")
 

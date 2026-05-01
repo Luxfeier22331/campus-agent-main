@@ -170,6 +170,24 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
         )
         self.assertTrue(any(case.expectation.fail_close_expected for case in case_set.cases))
 
+    def test_fixture_keeps_notice_get_internal_not_selected_tool(self) -> None:
+        case_set = load_workflow_trace_cases()
+
+        for case in case_set.cases:
+            self.assertNotIn("campus_notice_get", case.expectation.selected_tools)
+            self.assertFalse(
+                _contains_selected_notice_get(case.expectation.handoff),
+                f"{case.case_id} handoff exposes campus_notice_get as selected_tool",
+            )
+            self.assertFalse(
+                _contains_selected_notice_get(case.expectation.handoff_chain),
+                f"{case.case_id} handoff_chain exposes campus_notice_get as selected_tool",
+            )
+            self.assertFalse(
+                _contains_selected_notice_get(case.expectation.tool_argument_summary),
+                f"{case.case_id} tool_argument_summary exposes campus_notice_get as selected_tool",
+            )
+
     def test_validation_requires_tool_call_summaries_for_selected_tools(self) -> None:
         case_set = WorkflowTraceCaseSet(
             schema_version=1,
@@ -218,18 +236,18 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
             direct_vs_delegate_branch="multi_step",
             workflow_mode="multi_step",
             selected_target="rag-agent",
-            selected_tools=("campus_notice_get", "retrieval.query"),
+            selected_tools=("retrieval.query",),
             handoff_chain=(
                 {"target": "notice-agent", "payload_kind": "campus_notice_get"},
                 {"target": "rag-agent", "payload_kind": "rag_request"},
             ),
-            expected_tool_order=("campus_notice_get", "retrieval.query"),
+            expected_tool_order=("retrieval.query",),
         )
         summary = _trace_summary(
             direct_vs_delegate_branch="multi_step",
             workflow_mode="multi_step",
             selected_target="rag-agent",
-            selected_tools=("campus_notice_get", "retrieval.query"),
+            selected_tools=("retrieval.query",),
             handoff_chain=(
                 {"target": "notice-agent", "payload_kind": "campus_notice_get"},
                 {"target": "rag-agent", "payload_kind": "rag_request"},
@@ -334,7 +352,7 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
             handoff={"target": "rag-agent"},
             handoff_chain=(
                 {"target": "rag-agent", "selected_tool": "retrieval.query"},
-                {"target": "notice-agent", "selected_tool": "campus_notice_get"},
+                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
             ),
             tool_argument_summary={"collection": "student_rules"},
             tool_call_summaries=(
@@ -687,3 +705,13 @@ class WorkflowTraceGatePublicExportTest(unittest.TestCase):
             evaluate_workflow_trace_case(_workflow_case(), _trace_summary()).handoff_correctness,
             DimensionResult,
         )
+
+
+def _contains_selected_notice_get(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("selected_tool") == "campus_notice_get":
+            return True
+        return any(_contains_selected_notice_get(nested) for nested in value.values())
+    if isinstance(value, tuple | list):
+        return any(_contains_selected_notice_get(item) for item in value)
+    return False

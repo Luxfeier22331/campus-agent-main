@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS = ("campus_notice_get",)
-DEFAULT_PROVIDER_TOOL_RUNTIME_POSTURE = "provider_loop_pilot"
+DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS: tuple[str, ...] = ()
+DEFAULT_PROVIDER_TOOL_RUNTIME_POSTURE = "closed"
 
 
 def provider_tool_runtime_status(
@@ -22,7 +22,7 @@ def provider_tool_runtime_status(
         "admitted": enabled and not admission_reason,
         "admission_reason": admission_reason,
         "allowed_tools": list(allowed_tools),
-        "schema_available": allowed_tools == DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS,
+        "schema_available": False,
         "runtime_enabled": enabled,
         "runtime_admitted": enabled and not admission_reason,
         "runtime_posture": DEFAULT_PROVIDER_TOOL_RUNTIME_POSTURE,
@@ -40,11 +40,11 @@ def _provider_tool_runtime_admission_reason(
         return "disabled"
     if allowed_tools != DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS:
         return "unsupported_allowed_tools"
+    return "runtime_closed"
     if not prompt_runtime_admitted:
         return "prompt_runtime_not_admitted"
     if not structured_query_configured:
         return "structured_query_service_not_configured"
-    return ""
 
 
 __all__ = [

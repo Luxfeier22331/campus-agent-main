@@ -28,7 +28,6 @@ AgentToolName = Literal[
     "transport_schedule_lookup",
     "contact_directory_lookup",
     "campus_notice_discover",
-    "campus_notice_get",
 ]
 RequestedCapability = Literal["knowledge", "place_lookup", "campus_services", "notice"]
 SupervisorStatus = Literal[
@@ -117,6 +116,17 @@ NoticeTargetSurface = Literal[
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",
 ]
+NoticePublicSurfacePolicy = Literal[
+    "card_only",
+    "link_only",
+    "bounded_summary",
+    "fact_extraction_only",
+]
+NoticeBodyAccessPolicy = Literal[
+    "none",
+    "internal_context_only",
+    "downstream_materialization_only",
+]
 ServiceStatusValue = Literal["open", "closed", "temporarily_closed", "limited_service", "unknown"]
 TransportServiceStatusValue = Literal[
     "running",
@@ -177,7 +187,6 @@ ALLOWED_AGENT_TOOL_NAMES = (
     "transport_schedule_lookup",
     "contact_directory_lookup",
     "campus_notice_discover",
-    "campus_notice_get",
 )
 ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "place_lookup", "campus_services", "notice")
 ALLOWED_SUPERVISOR_STATUSES = (
@@ -272,6 +281,17 @@ ALLOWED_NOTICE_TARGET_SURFACES = (
     "campus_services/service_status_candidate",
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",
+)
+ALLOWED_NOTICE_PUBLIC_SURFACE_POLICIES = (
+    "card_only",
+    "link_only",
+    "bounded_summary",
+    "fact_extraction_only",
+)
+ALLOWED_NOTICE_BODY_ACCESS_POLICIES = (
+    "none",
+    "internal_context_only",
+    "downstream_materialization_only",
 )
 ALLOWED_SERVICE_STATUS_VALUES = (
     "open",
@@ -413,6 +433,16 @@ def _validate_notice_source_family(source_family: str) -> None:
 def _validate_notice_target_surface(target_surface: str) -> None:
     if target_surface not in ALLOWED_NOTICE_TARGET_SURFACES:
         raise ValueError(f"unsupported notice target surface: {target_surface}")
+
+
+def _validate_notice_public_surface_policy(public_surface: str) -> None:
+    if public_surface not in ALLOWED_NOTICE_PUBLIC_SURFACE_POLICIES:
+        raise ValueError(f"unsupported notice public surface policy: {public_surface}")
+
+
+def _validate_notice_body_access_policy(body_access: str) -> None:
+    if body_access not in ALLOWED_NOTICE_BODY_ACCESS_POLICIES:
+        raise ValueError(f"unsupported notice body access policy: {body_access}")
 
 
 def _validate_service_status_value(status: str) -> None:

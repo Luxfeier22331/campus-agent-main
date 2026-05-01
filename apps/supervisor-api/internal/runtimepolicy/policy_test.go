@@ -577,8 +577,8 @@ func TestEvaluateRuntimePolicyFailsClosedPlaceLookupUntilNavigationRollout(t *te
 
 func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
 	allowed := AllowedToolsForPayloadKind("notice-agent", "campus_notice_get")
-	if len(allowed) != 1 || allowed[0] != "campus_notice_get" {
-		t.Fatalf("allowed = %#v, want campus_notice_get", allowed)
+	if allowed != nil {
+		t.Fatalf("allowed = %#v, want nil for closed campus_notice_get", allowed)
 	}
 	if AllowedToolsForPayloadKind("notice-agent", "service_status_lookup") != nil {
 		t.Fatal("notice-agent must not allow service_status_lookup")

@@ -113,13 +113,15 @@ terminal policy、resume policy 与 semantic retry policy；真实 delegate payl
 `runtime_decisions.handoff.agent_request` 进入 Python bridge。当前 runtime 可发出
 `terminal`、`direct_runtime`、`single_handoff`，以及受 gate 保护的 `multi_step`。
 首条 live `multi_step` path 是 selected notice context + knowledge follow-through：
-`notice-agent campus_notice_get -> rag-agent retrieval.query`。notice step 输出会被
+`notice-agent internal selected notice resolve
+(payload_kind=campus_notice_get) -> rag-agent retrieval.query`。notice step 输出会被
 `supervisor-api` 投影成 canonical `StepOutputProjection`，再输入后续 RAG step；
 `workflow_plan.edges[].required_projection_kind` 声明跨 step 输入要求。operator / eval
 可见的 `workflow_trace_summary.context_projections` 只包含 sanitized projection summary：
 `projection_id`、`source_step_id`、`projection_kind`、`content_hash` 与 `safety`，不包含
-notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace 至少
-包含两个 handoff。semantic retry/replan 与 resumable resume 仍不是当前 public contract 承诺。
+notice 正文 payload。该 path 必须配置 workflow run store；completed `multi_step` trace
+至少包含两个 handoff。semantic retry/replan 与 resumable resume 仍不是当前 public
+contract 承诺。
 
 ## 设计原则
 
@@ -310,8 +312,9 @@ product/control-plane endpoint。
   kernel，可解析 current snapshot metadata、route clarification、first / next /
   last departure、departure list、service window、timetable 与 temporary
   suspension summary
-- `campus_notice_discover` / `campus_notice_get` 已具备 Go-owned PG read-model
-  与 S3-compatible canonical body query runtime；notice 请求使用
+- `campus_notice_discover` 与 internal selected notice resolve
+  (`payload_kind=campus_notice_get`) 已具备 Go-owned PG read-model 与
+  S3-compatible canonical body query runtime；notice 请求使用
   `payload + access_context` envelope 以在 Go 内执行 restricted notice fail-close
   authorization
 - Python orchestration 仅在配置 `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与

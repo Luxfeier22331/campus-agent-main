@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 
 import httpx
-from campus_contracts import AgentRequest, CampusNoticeGetPayload
+from campus_contracts import AgentRequest
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
 from campus_rag_agent.service import delegate_to_rag_agent
@@ -19,9 +19,6 @@ from campus_supervisor_agent_worker.agent_dispatch import (
 from campus_supervisor_agent_worker.agents_sdk_runner import AgentsSdkRunner
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 from campus_supervisor_agent_worker.prompt_executor import ProviderBackedRagPromptExecutor
-from campus_supervisor_agent_worker.provider_tool_runtime_policy import (
-    DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS,
-)
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
     build_retrieval_runtime_event_sink,
     build_runtime_event_jsonl_emitter,
@@ -127,54 +124,10 @@ def _delegate_to_notice_agent(
     provider_tool_provider: ProviderFunctionToolProvider | None,
     agents_sdk_notice_get_runner: AgentsSdkRunner | None,
 ):
-    if (
-        agents_sdk_notice_get_runner is not None
-        and settings.agents_sdk_runtime_enabled
-        and _notice_get_admitted_for_agents_sdk_pilot(settings, agent_request)
-    ):
-        from campus_supervisor_agent_worker.agents_sdk_notice_get_pilot import (
-            run_notice_get_agents_sdk_pilot_adapter,
-        )
-
-        return run_notice_get_agents_sdk_pilot_adapter(
-            agent_request,
-            runner=agents_sdk_notice_get_runner,
-            query_service=query_service,
-            enabled=True,
-        )
-    if (
-        provider_tool_provider is not None
-        and settings.provider_tool_runtime_enabled
-        and isinstance(agent_request.payload, CampusNoticeGetPayload)
-        and agent_request.allowed_tools == ("campus_notice_get",)
-    ):
-        from campus_supervisor_agent_worker.provider_tool_runtime import (
-            run_notice_get_provider_tool_adapter,
-        )
-
-        return run_notice_get_provider_tool_adapter(
-            agent_request,
-            provider=provider_tool_provider,
-            query_service=query_service,
-            enabled=True,
-            finalize_with_provider=True,
-        )
+    _ = settings, provider_tool_provider, agents_sdk_notice_get_runner
     return delegate_to_notice_agent(
         agent_request,
         query_service=query_service,
-    )
-
-
-def _notice_get_admitted_for_agents_sdk_pilot(
-    settings: ApiSettings,
-    agent_request: AgentRequest,
-) -> bool:
-    return (
-        agent_request.target == "notice-agent"
-        and isinstance(agent_request.payload, CampusNoticeGetPayload)
-        and agent_request.allowed_tools == ("campus_notice_get",)
-        and settings.agents_sdk_runtime_allowed_targets == ("notice-agent",)
-        and settings.agents_sdk_runtime_allowed_tools == ("campus_notice_get",)
     )
 
 
@@ -224,7 +177,7 @@ def _build_provider_tool_provider(
 ) -> ProviderFunctionToolProvider | None:
     if not settings.provider_tool_runtime_enabled:
         return None
-    if settings.provider_tool_runtime_allowed_tools != DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS:
+    if not settings.provider_tool_runtime_allowed_tools:
         return None
     provider = settings.prompt_runtime_provider or settings.runtime_provider
     if (
@@ -268,40 +221,5 @@ def _build_provider_tool_provider(
 
 
 def _build_agents_sdk_notice_get_runner(settings: ApiSettings) -> AgentsSdkRunner | None:
-    if not settings.agents_sdk_runtime_enabled:
-        return None
-    if settings.agents_sdk_runtime_allowed_targets != ("notice-agent",):
-        return None
-    if settings.agents_sdk_runtime_allowed_tools != ("campus_notice_get",):
-        return None
-    provider = settings.prompt_runtime_provider or settings.runtime_provider
-    if not provider or not settings.prompt_runtime_api_key or not settings.agent_prompt_model:
-        return None
-    try:
-        from campus_supervisor_agent_worker.agents_sdk_openai_runner import (
-            OpenAIAgentsSdkRunner,
-        )
-
-        provider_config = PromptRuntimeProviderConfig(
-            provider=provider,
-            transport=settings.prompt_runtime_transport,  # type: ignore[arg-type]
-            api_key=settings.prompt_runtime_api_key,
-            base_url=settings.prompt_runtime_base_url,
-            reasoning_effort=settings.prompt_runtime_reasoning_effort,
-            max_output_tokens=settings.prompt_runtime_max_output_tokens,
-            http_settings=PromptRuntimeHTTPSettings(
-                connect_timeout_seconds=settings.prompt_runtime_connect_timeout_seconds,
-                read_timeout_seconds=settings.prompt_runtime_read_timeout_seconds,
-                write_timeout_seconds=settings.prompt_runtime_write_timeout_seconds,
-                pool_timeout_seconds=settings.prompt_runtime_pool_timeout_seconds,
-                max_connections=settings.prompt_runtime_max_connections,
-                max_keepalive_connections=settings.prompt_runtime_max_keepalive_connections,
-                keepalive_expiry_seconds=settings.prompt_runtime_keepalive_expiry_seconds,
-            ),
-        )
-    except ValueError:
-        return None
-    return OpenAIAgentsSdkRunner(
-        provider_config=provider_config,
-        model_name=settings.agent_prompt_model,
-    )
+    _ = settings
+    return None

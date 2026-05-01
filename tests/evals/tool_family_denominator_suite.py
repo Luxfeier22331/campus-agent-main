@@ -68,6 +68,21 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
                 f"{tool_name} missing splits: {sorted(required_splits - splits)}",
             )
 
+    def test_notice_get_denominator_is_card_first_internal_resolve(self) -> None:
+        fixture = load_tool_family_denominator()
+        notice_get_cases = [case for case in fixture.cases if case.tool_name == "campus_notice_get"]
+
+        self.assertTrue(notice_get_cases)
+        for case in notice_get_cases:
+            with self.subTest(case_id=case.case_id):
+                self.assertNotIn("normalized_body", case.expected_arguments)
+                self.assertNotIn("body", case.expected_arguments)
+                self.assertTrue(case.expected_arguments.get("full_body_forbidden"))
+                self.assertIn(
+                    case.expected_result_status,
+                    {"source_card", "bounded_summary", "authorization_denied"},
+                )
+
     def test_evaluate_tool_family_denominator_distinguishes_failure_classes(self) -> None:
         fixture = load_tool_family_denominator()
         observations = {

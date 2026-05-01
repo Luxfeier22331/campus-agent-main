@@ -546,6 +546,7 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         and not summary.fail_close_reason
         and summary.direct_vs_delegate_branch != "clarification"
         and summary.workflow_mode != "terminal"
+        and not _is_internal_notice_resolve(summary)
     ):
         missing.append("selected_tools")
     if summary.selected_tools and not summary.tool_call_summaries:
@@ -560,6 +561,14 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         passed=not missing,
         reason="" if not missing else "missing workflow trace fields: " + ", ".join(missing),
     )
+
+
+def _is_internal_notice_resolve(summary: WorkflowTraceSummary) -> bool:
+    payload_kind = str(summary.tool_argument_summary.get("payload_kind") or "").strip()
+    if payload_kind == "campus_notice_get":
+        return True
+    handoff_payload_kind = str(summary.handoff.get("payload_kind") or "").strip()
+    return handoff_payload_kind == "campus_notice_get"
 
 
 def _trace_steps_lack_timeline_fields(trace_steps: tuple[dict[str, object], ...]) -> bool:

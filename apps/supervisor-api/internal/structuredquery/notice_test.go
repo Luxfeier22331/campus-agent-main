@@ -338,7 +338,7 @@ func TestLookupCampusNoticeDiscoverClampsMaxResults(t *testing.T) {
 	}
 }
 
-func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
+func TestLookupCampusNoticeGetReturnsSourceCardWithoutCanonicalBody(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
 		getRow: &noticeReadModelRecord{
 			SourceFamily:               "internal_notice_restricted",
@@ -354,6 +354,7 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 			TargetSurface:              "notice_level_query",
 			PrimaryRole:                "notice_window",
 			CanonicalMarkdownObjectKey: "campus_notices/documents/internal_notice/355222/canonical.md",
+			BodyExcerpt:                "家具采购项目摘要。",
 			AttachmentRefs:             []string{"attachment:355222:1"},
 			ProvenanceRefs:             []string{"notice:muc_internal_portal:355222"},
 		},
@@ -395,8 +396,16 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 	if result.Outcome != "resolved_current" {
 		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
 	}
-	if result.NormalizedBody != "# 采购公告\n\n供应商应按要求投标。" {
-		t.Fatalf("normalized_body = %q", result.NormalizedBody)
+	if result.NormalizedBody != "" {
+		t.Fatalf("normalized_body = %q, want empty", result.NormalizedBody)
+	}
+	if result.BodyExcerpt != "家具采购项目摘要。" {
+		t.Fatalf("body_excerpt = %q", result.BodyExcerpt)
+	}
+	if result.DisplayPolicy.PublicSurface != "card_only" ||
+		!result.DisplayPolicy.FullBodyForbidden ||
+		result.DisplayPolicy.BodyAccess != "none" {
+		t.Fatalf("display_policy = %#v, want public card-only policy", result.DisplayPolicy)
 	}
 	if len(result.AttachmentRefs) != 1 || result.AttachmentRefs[0] != "attachment:355222:1" {
 		t.Fatalf("attachment_refs = %#v", result.AttachmentRefs)
@@ -407,8 +416,8 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 	if result.PrimaryRole != "notice_window" {
 		t.Fatalf("primary_role = %q", result.PrimaryRole)
 	}
-	if bodyStore.readCount != 1 {
-		t.Fatalf("body read count = %d, want 1", bodyStore.readCount)
+	if bodyStore.readCount != 0 {
+		t.Fatalf("body read count = %d, want 0 for card-first notice get", bodyStore.readCount)
 	}
 }
 

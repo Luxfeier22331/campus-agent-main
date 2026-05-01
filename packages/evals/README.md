@@ -142,8 +142,10 @@ Evaluation helpers for campus-agent v2.
   `packages/evals/fixtures/tool_family_denominators.v1.json` 与
   `campus_evals.tool_family_denominator`；它覆盖 `service_status_lookup`、
   `transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup`、
-  `campus_notice_discover` 与 `campus_notice_get`，并把 failure class 固定为
-  routing error、read-model gap、authorization fail-close 或 missing observation
+  `campus_notice_discover` 与 internal selected notice resolve 的 `campus_notice_get`。
+  其中 `campus_notice_get` 不是 provider/SDK tool denominator，只验证 source-card /
+  bounded-summary / authorization fail-close posture；failure class 固定为 routing error、
+  read-model gap、authorization fail-close 或 missing observation
 - multimodal / OCR document quality eval 固定在
   `packages/evals/fixtures/document_quality_cases.v1.json` 与
   `campus_evals.document_quality_eval`；它覆盖 required span、table header、confidence、
@@ -233,7 +235,7 @@ Evaluation helpers for campus-agent v2.
 - `workflow_trace_summary.workflow_mode` 现在是 canonical enum：
   `terminal`、`direct_runtime`、`single_handoff`、`multi_step`。当前 live runtime 已验证前三种，
   并新增受 gate 保护的首条 `multi_step` profile：selected notice context + knowledge
-  follow-through，执行 `notice-agent campus_notice_get -> rag-agent retrieval.query`。
+  follow-through，执行 internal selected notice resolve -> `rag-agent retrieval.query`。
   workflow trace gate 会拒绝把单个 handoff projection 伪装成 `multi_step`；completed
   `multi_step` 至少需要两段 handoff chain，并且需要 cross-step context 的路径必须提供
   `workflow_trace_summary.context_projections` sanitized summary。resume 与 semantic

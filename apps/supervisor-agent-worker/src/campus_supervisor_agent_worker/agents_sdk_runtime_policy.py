@@ -62,6 +62,8 @@ def _agents_sdk_runtime_admission_reason(
         return "allowed_target_missing"
     if not allowed_tools:
         return "allowed_tool_missing"
+    if "campus_notice_get" in allowed_tools:
+        return "unsupported_allowed_tool"
     return "admitted"
 
 

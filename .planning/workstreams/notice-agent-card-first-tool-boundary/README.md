@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -21,20 +21,22 @@ source-link / card-first 的通知能力边界。
 - `campus_notice_discover` 保留为 agent-facing tool，因为它表达“找通知”的用户意图。
 - selected notice card/context/body/media 读取应下沉为 notice-agent 或 Go internal query
   service 的 deterministic query functions，不应默认作为 agent-facing ToolSpec 顶层 tool。
-- `campus_notice_get` 的现有 body-serving 语义需要重构、改名或降级，不能继续作为
-  provider/SDK 可自由调用的正文输出工具。
+- `campus_notice_get` 已降级为 internal selected notice resolve/context function；
+  provider/SDK notice-get runtime 已关闭。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 0 ready`
-- current slice: freeze notice tool/function boundary before implementation
+- status: `completed`
+- current phase: `Phase 6 complete`
+- current slice: card-first notice tool/function boundary closed out
 
 ## Native Planning Truth
 
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
+- opening review: `./OPENING-REVIEW.md`
+- closeout: `./CLOSEOUT.md`
 - phase plans: `./phases/*/PLAN.md`
 
 ## Source Of Truth Inputs

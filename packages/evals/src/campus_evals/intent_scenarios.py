@@ -609,7 +609,7 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
             expected_target="notice-agent",
-            expected_allowed_tools=("campus_notice_get",),
+            expected_allowed_tools=(),
             expected_context_resolution_state="resolved",
             expected_context_reference_type="selected_notice",
             critical=True,

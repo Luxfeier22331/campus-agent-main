@@ -72,8 +72,8 @@ func bridgeUserGoalForHandoff(
 	if title := projection.NoticeTitle(); title != "" {
 		parts = append(parts, "标题："+title)
 	}
-	if body := projection.NoticeBodyExcerpt(); body != "" {
-		parts = append(parts, "正文："+body)
+	if summary := projection.NoticeBodyExcerpt(); summary != "" {
+		parts = append(parts, "摘要："+summary)
 	}
 	if sourceURL := projection.NoticeSourceURL(); sourceURL != "" {
 		parts = append(parts, "原文链接："+sourceURL)

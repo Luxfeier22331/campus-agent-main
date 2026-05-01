@@ -699,39 +699,6 @@
           "max_results"
         ]
       }
-    },
-    {
-      "type": "function",
-      "name": "campus_notice_get",
-      "description": "Fetch a governed campus notice by normalized notice id.",
-      "strict": true,
-      "parameters": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "notice_id": {
-            "type": "string",
-            "description": "Normalized governed notice id."
-          },
-          "source_family": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "official_web_public_notice",
-              "internal_notice_restricted",
-              "wechat_public_notice",
-              null
-            ],
-            "description": "Optional notice source family."
-          }
-        },
-        "required": [
-          "notice_id",
-          "source_family"
-        ]
-      }
     }
   ]
 }

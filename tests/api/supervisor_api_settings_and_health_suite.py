@@ -57,11 +57,11 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 "enabled": False,
                 "admitted": False,
                 "admission_reason": "disabled",
-                "allowed_tools": ["campus_notice_get"],
-                "schema_available": True,
+                "allowed_tools": [],
+                "schema_available": False,
                 "runtime_enabled": False,
                 "runtime_admitted": False,
-                "runtime_posture": "provider_loop_pilot",
+                "runtime_posture": "closed",
             },
         )
         self.assertEqual(
@@ -139,10 +139,10 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES": "2048",
             "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "123",
             "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED": "true",
-            "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "campus_notice_get",
+            "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "",
             "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
             "SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS": "notice-agent",
-            "SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS": "campus_notice_get",
+            "SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS": "campus_notice_discover",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -167,10 +167,10 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.bridge_request_body_limit_bytes, 2048)
         self.assertEqual(settings.cancel_flag_ttl_seconds, 123)
         self.assertTrue(settings.provider_tool_runtime_enabled)
-        self.assertEqual(settings.provider_tool_runtime_allowed_tools, ("campus_notice_get",))
+        self.assertEqual(settings.provider_tool_runtime_allowed_tools, ())
         self.assertTrue(settings.agents_sdk_runtime_enabled)
         self.assertEqual(settings.agents_sdk_runtime_allowed_targets, ("notice-agent",))
-        self.assertEqual(settings.agents_sdk_runtime_allowed_tools, ("campus_notice_get",))
+        self.assertEqual(settings.agents_sdk_runtime_allowed_tools, ("campus_notice_discover",))
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
 
     def test_bridge_readyz_degrades_when_agents_sdk_runtime_enabled_without_allowed_tool(
@@ -218,7 +218,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         )
         self.assertTrue(settings.retrieval_observation_include_query_text)
 
-    def test_bridge_readyz_reports_provider_tool_runtime_gate_admission(self) -> None:
+    def test_bridge_readyz_reports_provider_tool_runtime_closed_when_enabled(self) -> None:
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
@@ -240,18 +240,18 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
         )
 
-        self.assertEqual(ready.status_code, 200)
+        self.assertEqual(ready.status_code, 503)
         self.assertEqual(
             ready.json_body["provider_tool_runtime"],
             {
                 "enabled": True,
-                "admitted": True,
-                "admission_reason": "",
-                "allowed_tools": ["campus_notice_get"],
-                "schema_available": True,
+                "admitted": False,
+                "admission_reason": "runtime_closed",
+                "allowed_tools": [],
+                "schema_available": False,
                 "runtime_enabled": True,
-                "runtime_admitted": True,
-                "runtime_posture": "provider_loop_pilot",
+                "runtime_admitted": False,
+                "runtime_posture": "closed",
             },
         )
         app.close()
@@ -281,7 +281,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(ready.status_code, 503)
         self.assertEqual(
             ready.json_body["provider_tool_runtime"]["admission_reason"],
-            "structured_query_service_not_configured",
+            "runtime_closed",
         )
         app.close()
 
@@ -340,7 +340,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(rows[0]["request_id"], "req-rag-jsonl")
 
-    def test_notice_get_delegate_uses_provider_tool_runtime_when_gate_is_admitted(self) -> None:
+    def test_notice_get_delegate_uses_internal_query_when_provider_runtime_enabled(self) -> None:
         captured_provider_requests: list[ProviderFunctionToolRequest] = []
         query_service = _FakeNoticeGetQueryService()
 
@@ -389,24 +389,14 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 user_goal="读取这条通知",
                 request_id="req-provider-tool",
                 payload=CampusNoticeGetPayload(notice_id="notice:placeholder"),
-                allowed_tools=("campus_notice_get",),
             )
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, "通知已读取。")
-        self.assertEqual(len(captured_provider_requests), 2)
-        captured_provider_request = captured_provider_requests[0]
-        self.assertEqual(
-            [tool["name"] for tool in captured_provider_request.tools],
-            ["campus_notice_get"],
-        )
-        self.assertEqual(
-            captured_provider_requests[1].input_items[-1]["call_id"], "call-provider-selected"
-        )
+        self.assertEqual(len(captured_provider_requests), 0)
         self.assertIsNotNone(query_service.last_get_query)
         assert query_service.last_get_query is not None
-        self.assertEqual(query_service.last_get_query.payload.notice_id, "notice:provider-selected")
+        self.assertEqual(query_service.last_get_query.payload.notice_id, "notice:placeholder")
 
     def test_api_settings_from_env_rejects_non_positive_cancel_flag_ttl(self) -> None:
         with (

@@ -199,28 +199,16 @@
 				"direct_vs_delegate_branch": "direct",
 				"workflow_mode": "direct_runtime",
 				"selected_target": "notice-agent",
-				"selected_tools": ["campus_notice_get"],
+				"selected_tools": [],
 				"handoff": {
 					"target": "notice-agent"
 				},
 				"handoff_chain": [],
 				"tool_argument_summary": {
 					"payload_kind": "campus_notice_get",
-					"selected_tool": "campus_notice_get",
 					"source_family": "wechat_public_notice"
 				},
-				"tool_call_summaries": [
-					{
-						"tool_name": "campus_notice_get",
-						"result_status": "completed",
-						"argument_summary": {
-							"payload_kind": "campus_notice_get",
-							"selected_tool": "campus_notice_get",
-							"source_family": "wechat_public_notice"
-						},
-						"source_ids": []
-					}
-				],
+				"tool_call_summaries": [],
 				"guardrail_outcomes": {
 					"scope_gate": "in_scope"
 				},
@@ -272,7 +260,7 @@
 				"direct_vs_delegate_branch": "multi_step",
 				"workflow_mode": "multi_step",
 				"selected_target": "rag-agent",
-				"selected_tools": ["campus_notice_get", "retrieval.query"],
+				"selected_tools": ["retrieval.query"],
 				"handoff": {
 					"target": "notice-agent",
 					"payload_kind": "campus_notice_get"
@@ -280,8 +268,7 @@
 				"handoff_chain": [
 					{
 						"target": "notice-agent",
-						"payload_kind": "campus_notice_get",
-						"selected_tool": "campus_notice_get"
+						"payload_kind": "campus_notice_get"
 					},
 					{
 						"target": "rag-agent",
@@ -296,16 +283,6 @@
 					"source_family": "wechat_public_notice"
 				},
 				"tool_call_summaries": [
-					{
-						"tool_name": "campus_notice_get",
-						"result_status": "completed",
-						"argument_summary": {
-							"payload_kind": "campus_notice_get",
-							"notice_id": "notice:smoke:001",
-							"source_family": "wechat_public_notice"
-						},
-						"source_ids": []
-					},
 					{
 						"tool_name": "retrieval.query",
 						"result_status": "needs_clarification",

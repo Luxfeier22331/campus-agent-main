@@ -98,7 +98,8 @@ Docker-side Go runtime control plane 长期负责：
   gate 中不依赖 LLM 的部分
 - structured runtime dispatch，例如 projection-backed `transport_schedule_lookup`、
   `service_status_lookup`、`service_guide_lookup`、
-  `campus_notice_discover`、`campus_notice_get`
+  `campus_notice_discover`、internal selected notice resolve
+  (`payload_kind=campus_notice_get`)
 - runtime metrics、structured logs、audit writer、cost / token / latency accounting
   与 failure fingerprint
 - transport / timeout / bridge unavailable / policy unavailable 等 fail-close response
@@ -143,8 +144,9 @@ Docker-side Go runtime control plane 长期负责：
   agent/tool execution 的终局裁决，`direct_runtime` 表示 Go-owned projection-backed
   structured runtime，`single_handoff` 表示 supervisor 只委派给一个 domain-agent。
   `multi_step` 已有 gated runtime path，但默认关闭；当前只覆盖 selected notice context +
-  knowledge follow-through 的两步链路：`notice-agent campus_notice_get -> rag-agent
-  retrieval.query`。第一步 notice 结果会先落成 repo-owned canonical
+  knowledge follow-through 的两步链路：`notice-agent internal selected notice resolve
+  (payload_kind=campus_notice_get) -> rag-agent retrieval.query`。第一步 notice
+  结果会先落成 repo-owned canonical
   `StepOutputProjection`，再以有长度上限的 `notice_context` 输入第二步 RAG bridge
   payload；operator / eval 可见的 `workflow_trace_summary.context_projections`
   只暴露 projection id、source step、kind、content hash 与 safety summary，不暴露正文 payload。
@@ -159,16 +161,17 @@ Docker-side Go runtime control plane 长期负责：
   与 handoff chain、context projections 的内部 run-state shape。生产打开 `multi_step` 必须配置
   `SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL` 并安装 `runtime.workflow_runs` schema；
   `SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE=true` 只适合 local/dev 或明确允许启动迁移的环境。
-  completed `multi_step` 至少包含两个有序 handoff / tool execution step；需要 cross-step
+  completed `multi_step` 至少包含两个有序 handoff step；需要 cross-step
   context 的 edge 必须声明 `required_projection_kind`，projection 缺失时 fail-closed
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup`
   均通过 PostgreSQL release current pointer + typed read model 消费，
   `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
-  Python thin-adapter wiring；`campus_notice_discover` / `campus_notice_get`
-  具备 Go-owned PG read-model + S3-compatible canonical body query runtime 与
-  Python notice-agent HTTP thin-adapter wiring；其 authenticated-notice-backed
-  offline projection builder 属于 ingestion data plane，产品主路由 gate 仍保持关闭
+  Python thin-adapter wiring；`campus_notice_discover` 具备 agent-facing notice card
+  discovery runtime，`campus_notice_get` 只保留为 Go-owned internal selected notice
+  card/context resolve function，不进入 provider/SDK tool surface；其
+  authenticated-notice-backed offline projection builder 属于 ingestion data plane，
+  产品主路由 gate 仍保持关闭
 - Go `supervisor-api` 已拥有 deterministic delegate handoff planner，bridge v6
   通过 `runtime_decisions.handoff.agent_request` 传递完整
   `AgentRequest`、target、allowed tools 与 planning outcome；Python worker 只消费
@@ -468,35 +471,28 @@ function calling 中自由并发。provider-native parallel tool call 只有在 
 runtime_posture、eval denominator 与 result merge policy 都明确允许时才可打开；否则
 domain-agent adapter 应保持 single-call loop 或 serial loop。
 
-当前 Python worker 已有 repo-owned provider function-call adapter 与 gated provider
-tool loop：它只接收 Go `allowed_tools` 对应的 provider schema 子集，通过 injectable
-Responses HTTP runtime 发送 `tool_choice=required`、`parallel_tool_calls=false` 的
-第一轮请求，解析 Responses-style `function_call` output，并把 repo-owned bounded
-`function_call_output` 连同对应 provider `call_id` 提交给第二轮 provider finalization。
-缺失 call、wrong tool、非对象 arguments、final response malformed、schema 不存在或
-query service failure 都必须转成结构化 `AgentResponse` fail-close，而不是穿透为 bridge
-500。该 adapter 不把 raw provider response 写入 `AgentResponse`、workflow trace、panel 或
-eval canonical surface。
+当前 Python worker 的 repo-owned provider function-call adapter 只允许从 ToolSpec 中的
+agent-facing `structured_handoff` tool 生成 strict provider schema。内部 deterministic
+query function，例如 selected notice resolve/context，不能因为存在 DTO/schema 就进入 provider
+tool loop。缺失 call、wrong tool、非对象 arguments、final response malformed、schema
+不存在或 query service failure 都必须转成结构化 `AgentResponse` fail-close，而不是穿透为
+bridge 500。该 adapter 不把 raw provider response 写入 `AgentResponse`、workflow trace、
+panel 或 eval canonical surface。
 
-该 provider tool runtime 仍是 default-off pilot：必须显式设置
-`SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED=true`，且
-`SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS` 当前只接受 `campus_notice_get`。
-Python `/internal/bridge/readyz` 会发布 `provider_tool_runtime` admission summary，并显式拆分
-`schema_available`、`runtime_enabled`、`runtime_admitted` 与 `runtime_posture`；
-gate 打开但 prompt runtime 或 structured query service 未配置时，worker readiness
-degraded。gate admitted 后，notice-agent 的 `campus_notice_get` delegate 会走 provider
-tool loop，再回到 repo-owned notice query service；其它 notice tool 仍走原 typed adapter。
+notice-get provider tool runtime 当前最终姿态是 closed：
 
-Agents SDK 试点的当前收口结论是 `keep_experimental_lane`。它只作为
-`notice-agent + campus_notice_get` 的 default-off domain-agent adapter lane 保留，
-必须同时满足 `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED`、allowed target 与 allowed tool
-gate；它不替换 provider tool loop，不改变产品默认 runtime，也不改变 Go
-`supervisor-api` 的 admission、ToolSpec / `allowed_tools`、workflow policy、fail-close
-与 finalization ownership。SDK `FunctionTool` surface 只能由 repo-owned ToolSpec 派生；
-SDK run / trace / native state 不得进入 `packages/contracts`、panel、eval 或
-`workflow_trace_summary`。当前只允许经过 `agents_sdk_trace_projection` 与
-`agents_sdk_tool_lifecycle_projection` 的 sanitized debug/eval projection，用来对齐
-Phase 6 parity evidence 与 operator-safe diagnostics。
+- `SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS` 默认空
+- `campus_notice_get` 不再是 provider-loop pilot denominator
+- stale `campus_notice_get` provider config 必须 fail-closed
+- Python `/internal/bridge/readyz` 只能发布 closed/degraded admission summary，不能把
+  notice-get provider loop 描述成 admitted runtime truth
+
+Agents SDK 试点当前也不承载 `campus_notice_get`。SDK runner shell、tool bridge 与 trace
+projection 可以继续作为 default-off infrastructure lane 存在，用于后续新 denominator
+评估；但 notice-get SDK pilot 已关闭，stale `campus_notice_get` allowed tool 必须返回
+unsupported/closed。SDK `FunctionTool` surface 只能由 repo-owned ToolSpec
+派生；SDK run / trace / native state 不得进入 `packages/contracts`、panel、eval 或
+`workflow_trace_summary`。
 
 notice-family 的目标态需要把 agent-facing tool 与内部 query function 分开。通知用户面默认
 是 source-link / card-first：`title`、official URL、source family、发布时间、短摘要或
@@ -587,8 +583,9 @@ projection owner 继续显式分层：
   - public `official_web` notice-like pages 与 restricted
     `campus_notices/internal_notice` 继续先分 projection，再由 `notice-agent` 收口
 - `campus_notice_get`
-  - 只读 canonical notice body projection
-  - 不得在 query time 拼 raw notice/source bundle 或退化成 link-only read
+  - 只作为 internal selected notice card/context resolve function
+  - 默认返回 official URL、display policy、bounded summary / facts 和 provenance refs
+  - 不得进入 provider/SDK tool surface，也不得把 full body 拼入 public answer
 
 ## Structured Runtime Opening Gate
 

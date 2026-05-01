@@ -4,7 +4,6 @@ import unittest
 
 from campus_contracts import (
     AgentRequest,
-    CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
 )
@@ -16,8 +15,6 @@ from campus_supervisor_agent_worker.agents_sdk_notice_get_pilot import (
 from campus_supervisor_agent_worker.agents_sdk_runner import (
     AgentsSdkRunRequest,
     AgentsSdkRunResult,
-    AgentsSdkToolCall,
-    AgentsSdkToolExecutionRequest,
 )
 from campus_supervisor_agent_worker.provider_function_calling import (
     ProviderFunctionToolRequest,
@@ -41,52 +38,25 @@ class _FakeNoticeGetQueryService:
             title="2026 年春假安排通知",
             source_family=query.payload.source_family or "official_web_public_notice",
             source_url="https://campus.example/notices/spring-holiday",
-            canonical_url="https://campus.example/notices/spring-holiday",
-            normalized_body="春假时间为 5 月 1 日至 5 月 5 日。",
+            body_excerpt="春假时间为 5 月 1 日至 5 月 5 日。",
             provenance_refs=("source-truth:notice:2026-spring",),
         )
 
     def discover_notice(self, _query: NoticeDiscoverQuery):
         self.discover_called = True
-        raise AssertionError("notice_get SDK pilot must not call discover")
+        raise AssertionError("selected notice resolve must not call discover")
 
 
 class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
-    def test_notice_get_pilot_executes_repo_owned_tool_before_final_answer(self) -> None:
-        captured_run_request: AgentsSdkRunRequest | None = None
-
-        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
-            nonlocal captured_run_request
-            captured_run_request = run_request
-            self.assertIsNotNone(run_request.execute_tool)
-            assert run_request.execute_tool is not None
-            tool_result = run_request.execute_tool(
-                AgentsSdkToolExecutionRequest(
-                    name="campus_notice_get",
-                    arguments={
-                        "notice_id": "notice:2026-spring-holiday",
-                        "source_family": "official_web_public_notice",
-                    },
-                    call_id="call-sdk-notice-get",
-                )
-            )
-            self.assertEqual(tool_result["outcome"], "resolved_current")
-            return AgentsSdkRunResult(
-                final_output="春假时间为 5 月 1 日至 5 月 5 日。",
-                tool_calls=(
-                    AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={
-                            "notice_id": "notice:2026-spring-holiday",
-                            "source_family": "official_web_public_notice",
-                        },
-                        call_id="call-sdk-notice-get",
-                    ),
-                ),
-                model_response_ref="resp-sdk-notice-get",
-            )
-
+    def test_notice_get_pilot_is_closed_even_when_enabled(self) -> None:
+        runner_called = False
         query_service = _FakeNoticeGetQueryService()
+
+        def fake_runner(_run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            nonlocal runner_called
+            runner_called = True
+            raise AssertionError("closed notice get pilot must not call SDK runner")
+
         response = run_notice_get_agents_sdk_pilot_adapter(
             _notice_get_request(),
             runner=fake_runner,
@@ -94,35 +64,13 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             enabled=True,
         )
 
-        self.assertIsNotNone(captured_run_request)
-        self.assertIsNotNone(query_service.last_get_query)
-        assert query_service.last_get_query is not None
-        self.assertEqual(
-            query_service.last_get_query.payload,
-            CampusNoticeGetPayload(
-                notice_id="notice:2026-spring-holiday",
-                source_family="official_web_public_notice",
-            ),
-        )
-        self.assertFalse(query_service.discover_called)
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, "春假时间为 5 月 1 日至 5 月 5 日。")
-        self.assertIsInstance(response.result, CampusNoticeGetResult)
-        assert isinstance(response.result, CampusNoticeGetResult)
-        self.assertEqual(response.result.notice_id, "notice:2026-spring-holiday")
+        self.assertFalse(runner_called)
+        self.assertIsNone(query_service.last_get_query)
+        self.assertEqual(response.status, "error")
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.source_ref_count, 2)
-        safe_details = response.agent_observability.safe_details
-        self.assertIn("agents_sdk_runner_projection", safe_details)
-        self.assertEqual(
-            safe_details["agents_sdk_runner_projection"]["tool_execution_count"],
-            1,
-        )
-        self.assertEqual(
-            safe_details["agents_sdk_notice_get_pilot"]["tool_response_status"],
-            "completed",
-        )
+        self.assertEqual(response.agent_observability.failure_class, "runtime_closed")
+        self.assertEqual(response.agent_observability.selected_tool, "")
 
     def test_notice_get_pilot_requires_explicit_gate(self) -> None:
         runner_called = False
@@ -147,78 +95,20 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.failure_class, "runtime_disabled")
 
-    def test_notice_get_pilot_rejects_non_notice_get_request(self) -> None:
-        response = run_notice_get_agents_sdk_pilot_adapter(
-            AgentRequest(
-                target="notice-agent",
-                user_goal="找春假通知",
-                payload=CampusNoticeDiscoverPayload(query_text="春假"),
-                allowed_tools=("campus_notice_discover",),
-            ),
-            runner=lambda _run_request: AgentsSdkRunResult(final_output="x"),
-            query_service=_FakeNoticeGetQueryService(),
-            enabled=True,
-        )
-
-        self.assertEqual(response.status, "error")
-        self.assertIsNotNone(response.agent_observability)
-        assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.failure_class, "request_not_admitted")
-
-    def test_notice_get_pilot_fails_closed_on_query_service_failure(self) -> None:
-        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
-            self.assertIsNotNone(run_request.execute_tool)
-            assert run_request.execute_tool is not None
-            run_request.execute_tool(
-                AgentsSdkToolExecutionRequest(
-                    name="campus_notice_get",
-                    arguments={"notice_id": "notice:2026-spring-holiday"},
-                    call_id="call-sdk-notice-failure",
-                )
-            )
-            raise AssertionError("tool execution failure should abort the runner")
-
-        response = run_notice_get_agents_sdk_pilot_adapter(
-            _notice_get_request(),
-            runner=fake_runner,
-            query_service=_FakeNoticeGetQueryService(fail_get=True),
-            enabled=True,
-        )
-
-        self.assertEqual(response.status, "error")
-        self.assertTrue(response.error.retryable if response.error else False)
-        self.assertIsNotNone(response.agent_observability)
-        assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.failure_class, "sdk_tool_execution_failed")
-
-    def test_agent_delegates_route_notice_get_to_sdk_pilot_when_gate_matches(self) -> None:
+    def test_agent_delegates_do_not_route_internal_notice_get_to_sdk_or_provider(self) -> None:
         provider_called = False
+        runner_called = False
+        query_service = _FakeNoticeGetQueryService()
 
         def provider(_request: ProviderFunctionToolRequest) -> dict[str, object]:
             nonlocal provider_called
             provider_called = True
-            raise AssertionError("SDK pilot should be preferred over provider tool runtime")
+            raise AssertionError("internal notice get must not call provider runtime")
 
-        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
-            self.assertIsNotNone(run_request.execute_tool)
-            assert run_request.execute_tool is not None
-            run_request.execute_tool(
-                AgentsSdkToolExecutionRequest(
-                    name="campus_notice_get",
-                    arguments={"notice_id": "notice:2026-spring-holiday"},
-                    call_id="call-sdk-delegate",
-                )
-            )
-            return AgentsSdkRunResult(
-                final_output="SDK pilot final answer.",
-                tool_calls=(
-                    AgentsSdkToolCall(
-                        name="campus_notice_get",
-                        arguments={"notice_id": "notice:2026-spring-holiday"},
-                        call_id="call-sdk-delegate",
-                    ),
-                ),
-            )
+        def fake_runner(_run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            nonlocal runner_called
+            runner_called = True
+            raise AssertionError("internal notice get must not call SDK pilot")
 
         delegates = _build_agent_delegates(
             settings=ApiSettings(
@@ -229,7 +119,7 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
-            notice_query_service=_FakeNoticeGetQueryService(),
+            notice_query_service=query_service,
             provider_tool_provider=provider,
             agents_sdk_notice_get_runner=fake_runner,
         )
@@ -237,11 +127,13 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         response = delegates["notice-agent"](_notice_get_request())
 
         self.assertFalse(provider_called)
+        self.assertFalse(runner_called)
+        self.assertIsNotNone(query_service.last_get_query)
         self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, "SDK pilot final answer.")
+        self.assertIn("原文链接", response.answer_text)
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
-        self.assertIn(
+        self.assertNotIn(
             "agents_sdk_notice_get_pilot",
             response.agent_observability.safe_details,
         )
@@ -253,7 +145,7 @@ def _notice_get_request() -> AgentRequest:
         user_goal="读取这条通知",
         request_id="req-sdk-notice-get",
         payload=CampusNoticeGetPayload(notice_id="notice:placeholder"),
-        allowed_tools=("campus_notice_get",),
+        allowed_tools=(),
     )
 
 

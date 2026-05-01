@@ -183,6 +183,23 @@ class IntentSyntheticTest(unittest.TestCase):
         self.assertTrue(all("synthetic_regression" in case.tags for case in regression_cases))
         self.assertTrue(all("synthetic_exploratory" in case.tags for case in exploratory_cases))
 
+    def test_synthetic_selected_notice_cases_do_not_expect_notice_get_allowed_tool(self) -> None:
+        regression_cases = intent_suite_cases("synthetic_regression")
+
+        selected_notice_cases = [
+            case
+            for case in regression_cases
+            if case.expected_context_reference_type == "selected_notice"
+        ]
+
+        self.assertTrue(selected_notice_cases)
+        self.assertTrue(
+            all(
+                "campus_notice_get" not in case.expected_allowed_tools
+                for case in selected_notice_cases
+            )
+        )
+
     def test_release_gate_covers_service_status_long_tail_cases(self) -> None:
         cases = {case.user_goal: case for case in intent_suite_cases("release_gate")}
 

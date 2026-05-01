@@ -100,15 +100,15 @@
       "payload_schema_ref": "campus_contracts.models_tools.CampusNoticeGetPayload",
       "result_schema_ref": "campus_contracts.models_tools.CampusNoticeGetResult",
       "backend": "internal_structured_query_service",
-      "surface": "structured_handoff",
+      "surface": "agent_internal",
       "read_only": true,
       "active": true,
       "function_schema": {
-        "available": true,
-        "strict": true
+        "available": false,
+        "strict": false
       },
-      "runtime_posture": "provider_loop_pilot",
-      "description": "Fetch a governed campus notice by normalized notice id."
+      "runtime_posture": "closed",
+      "description": "Deprecated body-serving notice get; selected notice resolution is an internal query function."
     },
     {
       "name": "retrieval.query",

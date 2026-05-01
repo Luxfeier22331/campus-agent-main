@@ -10,6 +10,7 @@ from campus_contracts import (
     CampusNoticeDiscoverResult,
     CampusNoticeGetResult,
     NoticeCard,
+    NoticeDisplayPolicy,
 )
 
 from campus_notice_agent.query_service import NoticeDiscoverQuery, NoticeGetQuery
@@ -164,6 +165,10 @@ def _get_result_from_dict(
         canonical_url=_string(body.get("canonical_url")),
         normalized_body=_body_string(body.get("normalized_body")),
         reference_only=_bool(body.get("reference_only"), default=False),
+        display_policy=_notice_display_policy(body.get("display_policy")),
+        body_excerpt=_string(body.get("body_excerpt")),
+        bounded_summary=_string(body.get("bounded_summary")),
+        extracted_facts=_string_tuple(body.get("extracted_facts")),
         target_surface=_string(body.get("target_surface")),
         published_at=_string(body.get("published_at")),
         effective_at=_string(body.get("effective_at")),
@@ -185,9 +190,22 @@ def _notice_card(value: object) -> NoticeCard | None:
         source_url=_string(item.get("source_url")),
         canonical_url=_string(item.get("canonical_url")),
         target_surface=_string(item.get("target_surface")),
+        summary=_string(item.get("summary")),
         published_at=_string(item.get("published_at")),
         effective_at=_string(item.get("effective_at")),
         is_current=_bool(item.get("is_current"), default=True),
+        display_policy=_notice_display_policy(item.get("display_policy")),
+    )
+
+
+def _notice_display_policy(value: object) -> NoticeDisplayPolicy:
+    item = _dict(value)
+    if item is None:
+        return NoticeDisplayPolicy()
+    return NoticeDisplayPolicy(
+        public_surface=_string(item.get("public_surface")) or "card_only",
+        full_body_forbidden=_bool(item.get("full_body_forbidden"), default=True),
+        body_access=_string(item.get("body_access")) or "none",
     )
 
 

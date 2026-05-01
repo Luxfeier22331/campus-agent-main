@@ -29,13 +29,13 @@ source-truth / internal context / downstream materialization plane，默认用�
 
 ## Phase Status
 
-- [ ] **Phase 0: Boundary Freeze And Inventory** — inventory current body-serving paths, freeze vocabulary, and record the `campus_notice_get` migration decision.
-- [ ] **Phase 1: Contract And ToolSpec Recut** — update notice contracts, ToolSpec registry posture, provider schema rules, and cross-language fixtures.
-- [ ] **Phase 2: Go Runtime And Finalizer Guard** — stop Go direct runtime/finalizer from emitting notice full body and add source-card rendering.
-- [ ] **Phase 3: Python Notice-Agent And SDK Recut** — refactor notice-agent adapter, provider tool loop, and SDK pilot away from body-serving notice get.
-- [ ] **Phase 4: Eval Denominator And Drift Guards** — add card-first behavior evals, body leak fixtures, and ToolSpec/provider/SDK drift guards.
-- [ ] **Phase 5: Downstream Workflow Integration** — wire bounded notice context into schedule/status/service-guide/RAG workflows without raw body handoff.
-- [ ] **Phase 6: Closeout Docs And Opening Review** — update final docs, freeze reopen rule, and decide card-first notice serving readiness.
+- [x] **Phase 0: Boundary Freeze And Inventory** — inventory current body-serving paths, freeze vocabulary, and record the `campus_notice_get` migration decision.
+- [x] **Phase 1: Contract And ToolSpec Recut** — update notice contracts, ToolSpec registry posture, provider schema rules, and cross-language fixtures.
+- [x] **Phase 2: Go Runtime And Finalizer Guard** — stop Go direct runtime/finalizer from emitting notice full body and add source-card rendering.
+- [x] **Phase 3: Python Notice-Agent And SDK Recut** — refactor notice-agent adapter, provider tool loop, and SDK pilot away from body-serving notice get.
+- [x] **Phase 4: Eval Denominator And Drift Guards** — add card-first behavior evals, body leak fixtures, and ToolSpec/provider/SDK drift guards.
+- [x] **Phase 5: Downstream Workflow Integration** — wire bounded notice context into schedule/status/service-guide/RAG workflows without raw body handoff.
+- [x] **Phase 6: Closeout Docs And Opening Review** — update final docs, freeze reopen rule, and decide card-first notice serving readiness.
 
 ## Dependency Graph
 

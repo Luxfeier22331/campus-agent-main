@@ -193,9 +193,7 @@ func inferSelectedTool(target string, result map[string]any) string {
 	switch {
 	case target == "navigation-agent":
 		return "place_lookup"
-	case target == "notice-agent" && stringValue(result["notice_id"]) != "":
-		return "campus_notice_get"
-	case target == "notice-agent":
+	case target == "notice-agent" && len(arrayValue(result["notice_cards"])) > 0:
 		return "campus_notice_discover"
 	case stringValue(result["contact_focus"]) != "":
 		return "contact_directory_lookup"

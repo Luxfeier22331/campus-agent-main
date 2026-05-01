@@ -228,39 +228,43 @@
 			}
 		},
 		{
-			"case_id": "tool-notice-get-smoke-public-title-url",
+			"case_id": "tool-notice-resolve-smoke-source-card",
 			"tool_name": "campus_notice_get",
 			"split": "smoke",
-			"expected_result_status": "completed",
+			"expected_result_status": "source_card",
 			"expected_arguments": {
-				"source_family": "public_title_url"
+				"display_policy": "card_only",
+				"full_body_forbidden": true
 			}
 		},
 		{
-			"case_id": "tool-notice-get-release-public-title-url",
+			"case_id": "tool-notice-resolve-release-official-url",
 			"tool_name": "campus_notice_get",
 			"split": "release_gate",
-			"expected_result_status": "completed",
+			"expected_result_status": "source_card",
 			"expected_arguments": {
-				"source_family": "public_title_url"
+				"display_policy": "link_only",
+				"full_body_forbidden": true
 			}
 		},
 		{
-			"case_id": "tool-notice-get-regression-restricted-deny",
+			"case_id": "tool-notice-resolve-regression-restricted-deny",
 			"tool_name": "campus_notice_get",
 			"split": "regression_locked",
 			"expected_result_status": "authorization_denied",
 			"expected_arguments": {
-				"source_family": "internal_notice_restricted"
+				"display_policy": "card_only",
+				"full_body_forbidden": true
 			}
 		},
 		{
-			"case_id": "tool-notice-get-exploratory-attachment-summary",
+			"case_id": "tool-notice-resolve-exploratory-bounded-summary",
 			"tool_name": "campus_notice_get",
 			"split": "exploratory",
-			"expected_result_status": "completed",
+			"expected_result_status": "bounded_summary",
 			"expected_arguments": {
-				"source_family": "public_notice_with_attachment"
+				"display_policy": "bounded_summary",
+				"full_body_forbidden": true
 			}
 		},
 		{

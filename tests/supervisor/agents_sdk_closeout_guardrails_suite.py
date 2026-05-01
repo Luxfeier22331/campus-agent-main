@@ -10,22 +10,22 @@ WORKSTREAM_DIR = REPO_ROOT / ".planning/workstreams/agents-sdk-domain-agent-adap
 
 
 class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
-    def test_sdk_runtime_defaults_stay_off_and_single_tool_scoped(self) -> None:
+    def test_sdk_runtime_defaults_stay_off_and_notice_get_not_admitted(self) -> None:
         settings_source = (SDK_SOURCE_DIR / "settings.py").read_text(encoding="utf-8")
         delegates_source = (SDK_SOURCE_DIR / "agent_delegates.py").read_text(encoding="utf-8")
+        policy_source = (SDK_SOURCE_DIR / "agents_sdk_runtime_policy.py").read_text(
+            encoding="utf-8"
+        )
 
         self.assertRegex(settings_source, r"agents_sdk_runtime_enabled:\s*bool\s*=\s*False")
         self.assertRegex(
             settings_source,
             r'"SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED",\s*default=False',
         )
-        self.assertIn(
-            'settings.agents_sdk_runtime_allowed_targets == ("notice-agent",)', delegates_source
+        self.assertNotIn(
+            'settings.agents_sdk_runtime_allowed_tools == ("campus_notice_get",)', delegates_source
         )
-        self.assertIn(
-            'settings.agents_sdk_runtime_allowed_tools == ("campus_notice_get",)',
-            delegates_source,
-        )
+        self.assertIn('"campus_notice_get" in allowed_tools', policy_source)
 
     def test_sdk_source_does_not_admit_hosted_or_stateful_tool_surfaces(self) -> None:
         forbidden_patterns = {

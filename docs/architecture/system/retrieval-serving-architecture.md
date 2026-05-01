@@ -299,7 +299,7 @@ structured query seam。
     `docs/architecture/domains/campus-services/architecture.md`
 - notice family
   - `campus_notice_discover`
-  - `campus_notice_get`
+  - internal selected notice resolve with `payload_kind=campus_notice_get`
   - 继续区分 public `official_web` notice family 与 restricted `internal_notice`
     notice family
 

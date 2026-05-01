@@ -129,7 +129,7 @@ def _evidence_considered(evidence: AgentsSdkPostureEvidence) -> list[str]:
 def _promotion_criteria() -> tuple[str, ...]:
     return (
         "Phase 5 sanitized trace and lifecycle projections are present",
-        "Phase 6 parity report passes all required campus_notice_get denominator cases",
+        "Phase 6 parity report passes required closed-posture and provider-facing denominator cases",
         "Boundary checks show no SDK type, raw trace, or raw provider payload crosses contracts",
         "Readiness gate covers disabled, missing dependency/config, mismatch, and admitted states",
         "Rollback path preserves existing provider tool loop",
@@ -154,7 +154,7 @@ def _rollout_notes(selected_posture: str) -> tuple[str, ...]:
     ]
     if selected_posture == "promote_selected_adapter":
         notes.append("promotion remains selected-tool and explicit-gate scoped")
-        notes.append("rollback returns notice-agent campus_notice_get to provider tool loop")
+        notes.append("rollback returns the selected adapter to the provider tool loop")
     if selected_posture == "keep_experimental_lane":
         notes.append("SDK stays default-off and can collect additional evidence")
     if selected_posture == "defer_expansion":
@@ -170,7 +170,7 @@ def _residual_risks(
 ) -> tuple[str, ...]:
     risks = [
         "SDK trace semantics remain external debug evidence, not repo contract truth",
-        "only notice-agent campus_notice_get has parity evidence",
+        "only selected SDK adapter cases have closed/opening evidence",
     ]
     if not evidence.live_smoke_present:
         risks.append("no live SDK smoke evidence recorded in Phase 7")
@@ -193,7 +193,7 @@ def _next_allowed_changes(selected_posture: str) -> tuple[str, ...]:
     if selected_posture == "defer_expansion":
         return (
             "close missing evidence before adding SDK tools",
-            "do not expand beyond notice-agent campus_notice_get",
+            "do not expand beyond explicitly admitted provider-facing tools",
         )
     return (
         "create cleanup phase to remove or quarantine SDK adapter code",

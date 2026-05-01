@@ -97,8 +97,8 @@ func TestWorkflowRunProjectsMultiStepHandoffChain(t *testing.T) {
 			{
 				Target:       "notice-agent",
 				PayloadKind:  "campus_notice_get",
-				AllowedTools: []string{"campus_notice_get"},
-				SelectedTool: "campus_notice_get",
+				AllowedTools: []string{},
+				SelectedTool: "",
 			},
 		},
 	}

@@ -23,37 +23,55 @@ class ProviderFunctionCallingTest(unittest.TestCase):
             nonlocal captured_request
             captured_request = request
             return _responses_function_call(
-                name="campus_notice_get",
-                arguments={"notice_id": "notice:2026-spring"},
+                name="campus_notice_discover",
+                arguments={"query_text": "春假通知"},
                 call_id="call-001",
             )
 
         call = plan_required_provider_function_call(
-            user_goal="读取这条通知",
-            allowed_tools=("campus_notice_get",),
+            user_goal="找春假通知",
+            allowed_tools=("campus_notice_discover",),
             provider=provider,
         )
 
         self.assertIsNotNone(captured_request)
         assert captured_request is not None
-        self.assertEqual([tool["name"] for tool in captured_request.tools], ["campus_notice_get"])
-        self.assertEqual(call.name, "campus_notice_get")
-        self.assertEqual(call.arguments, {"notice_id": "notice:2026-spring"})
+        self.assertEqual(
+            [tool["name"] for tool in captured_request.tools],
+            ["campus_notice_discover"],
+        )
+        self.assertEqual(call.name, "campus_notice_discover")
+        self.assertEqual(call.arguments, {"query_text": "春假通知"})
         self.assertEqual(call.call_id, "call-001")
 
     def test_plan_required_call_rejects_hallucinated_tool_name(self) -> None:
         def provider(_request: ProviderFunctionToolRequest) -> dict[str, object]:
             return _responses_function_call(
-                name="campus_notice_discover",
-                arguments={"query_text": "春假"},
+                name="service_status_lookup",
+                arguments={"subject_query": "校车"},
                 call_id="call-002",
             )
 
-        with self.assertRaisesRegex(ProviderFunctionToolAdmissionError, "campus_notice_discover"):
+        with self.assertRaisesRegex(ProviderFunctionToolAdmissionError, "service_status_lookup"):
+            plan_required_provider_function_call(
+                user_goal="找春假通知",
+                allowed_tools=("campus_notice_discover",),
+                provider=provider,
+            )
+
+    def test_plan_required_call_rejects_internal_notice_get_tool(self) -> None:
+        with self.assertRaisesRegex(
+            ProviderFunctionToolAdmissionError,
+            "missing provider function schema for campus_notice_get",
+        ):
             plan_required_provider_function_call(
                 user_goal="读取这条通知",
                 allowed_tools=("campus_notice_get",),
-                provider=provider,
+                provider=lambda _request: _responses_function_call(
+                    name="campus_notice_get",
+                    arguments={"notice_id": "notice:2026-spring"},
+                    call_id="call-internal",
+                ),
             )
 
     def test_plan_required_call_rejects_provider_response_without_function_call(self) -> None:
@@ -69,8 +87,8 @@ class ProviderFunctionCallingTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ProviderFunctionToolAdmissionError, "required function call"):
             plan_required_provider_function_call(
-                user_goal="读取这条通知",
-                allowed_tools=("campus_notice_get",),
+                user_goal="找春假通知",
+                allowed_tools=("campus_notice_discover",),
                 provider=provider,
             )
 
@@ -80,8 +98,8 @@ class ProviderFunctionCallingTest(unittest.TestCase):
                 "output": [
                     {
                         "type": "function_call",
-                        "name": "campus_notice_get",
-                        "arguments": json.dumps(["notice:2026-spring"]),
+                        "name": "campus_notice_discover",
+                        "arguments": json.dumps(["春假通知"]),
                         "call_id": "call-003",
                     }
                 ]
@@ -89,8 +107,8 @@ class ProviderFunctionCallingTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ProviderFunctionToolAdmissionError, "arguments"):
             plan_required_provider_function_call(
-                user_goal="读取这条通知",
-                allowed_tools=("campus_notice_get",),
+                user_goal="找春假通知",
+                allowed_tools=("campus_notice_discover",),
                 provider=provider,
             )
 
@@ -103,8 +121,8 @@ class ProviderFunctionCallingTest(unittest.TestCase):
             return httpx.Response(
                 200,
                 json=_responses_function_call(
-                    name="campus_notice_get",
-                    arguments={"notice_id": "notice:2026-spring"},
+                    name="campus_notice_discover",
+                    arguments={"query_text": "春假通知"},
                     call_id="call-http-001",
                 ),
             )
@@ -124,8 +142,8 @@ class ProviderFunctionCallingTest(unittest.TestCase):
         )
 
         call = plan_required_provider_function_call(
-            user_goal="读取这条通知",
-            allowed_tools=("campus_notice_get",),
+            user_goal="找春假通知",
+            allowed_tools=("campus_notice_discover",),
             provider=provider,
         )
 
@@ -137,9 +155,9 @@ class ProviderFunctionCallingTest(unittest.TestCase):
         self.assertEqual(body["model"], "gpt-test")
         self.assertEqual(body["tool_choice"], "required")
         self.assertEqual(body["parallel_tool_calls"], False)
-        self.assertEqual([tool["name"] for tool in body["tools"]], ["campus_notice_get"])
+        self.assertEqual([tool["name"] for tool in body["tools"]], ["campus_notice_discover"])
         self.assertEqual(body["input"][0]["role"], "user")
-        self.assertEqual(body["input"][0]["content"], "读取这条通知")
+        self.assertEqual(body["input"][0]["content"], "找春假通知")
         self.assertEqual(call.call_id, "call-http-001")
 
     def test_required_tool_loop_submits_bounded_tool_output_with_call_id_for_final_answer(
@@ -151,15 +169,15 @@ class ProviderFunctionCallingTest(unittest.TestCase):
             captured_requests.append(request)
             if len(captured_requests) == 1:
                 return _responses_function_call(
-                    name="campus_notice_get",
-                    arguments={"notice_id": "notice:2026-spring"},
+                    name="campus_notice_discover",
+                    arguments={"query_text": "春假通知"},
                     call_id="call-loop-001",
                     response_id="resp-loop-001",
                 )
-            return _responses_message("这条通知说明春假时间为 5 月 1 日至 5 月 5 日。")
+            return _responses_message("已找到春假安排通知。")
 
         def execute_tool(_name: str, arguments: dict[str, object]) -> dict[str, object]:
-            self.assertEqual(arguments, {"notice_id": "notice:2026-spring"})
+            self.assertEqual(arguments, {"query_text": "春假通知"})
             return {
                 "outcome": "resolved_current",
                 "title": "2026 年春假安排通知",
@@ -167,14 +185,14 @@ class ProviderFunctionCallingTest(unittest.TestCase):
             }
 
         result = run_required_provider_tool_loop(
-            user_goal="读取这条通知并总结",
-            allowed_tools=("campus_notice_get",),
+            user_goal="找春假通知",
+            allowed_tools=("campus_notice_discover",),
             provider=provider,
             execute_tool=execute_tool,
         )
 
         self.assertIsInstance(result, ProviderToolLoopResult)
-        self.assertEqual(result.final_answer_text, "这条通知说明春假时间为 5 月 1 日至 5 月 5 日。")
+        self.assertEqual(result.final_answer_text, "已找到春假安排通知。")
         self.assertEqual(result.tool_call.call_id, "call-loop-001")
         self.assertEqual(result.model_response_ref, "resp-loop-001")
         self.assertEqual(len(captured_requests), 2)
