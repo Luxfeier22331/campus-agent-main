@@ -201,8 +201,39 @@ def _lifecycle_status(queue_status_counts: Mapping[str, int]) -> str:
 def _source_truth_summary(trace_rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     notice_ids: set[str] = set()
     titles: dict[str, str] = {}
+    imported_notice_count = 0
+    attachment_fetch_status_record_count = 0
+    raw_reused_count = 0
+    raw_uploaded_count = 0
     for row in trace_rows:
         import_result = _mapping(row.get("import_result"))
+        imported_notice_count = max(
+            imported_notice_count,
+            _optional_int(import_result.get("notice_count") or import_result.get("noticeCount"))
+            or 0,
+        )
+        attachment_fetch_status_record_count = max(
+            attachment_fetch_status_record_count,
+            _optional_int(
+                import_result.get("attachment_fetch_status_record_count")
+                or import_result.get("attachmentFetchStatusRecordCount")
+            )
+            or 0,
+        )
+        raw_reused_count = max(
+            raw_reused_count,
+            _optional_int(
+                import_result.get("raw_reused_count") or import_result.get("rawReusedCount")
+            )
+            or 0,
+        )
+        raw_uploaded_count = max(
+            raw_uploaded_count,
+            _optional_int(
+                import_result.get("raw_uploaded_count") or import_result.get("rawUploadedCount")
+            )
+            or 0,
+        )
         for item in _list_of_mappings(import_result.get("selected_notices")):
             notice_id = _optional_text(item.get("notice_id") or item.get("noticeId"))
             if not notice_id:
@@ -212,8 +243,13 @@ def _source_truth_summary(trace_rows: Sequence[Mapping[str, Any]]) -> dict[str, 
             if title:
                 titles[notice_id] = title
         notice_ids.update(_string_list(import_result.get("selected_notice_ids")))
+    selected_notice_count = len(notice_ids) if notice_ids else imported_notice_count
     return {
-        "selectedNoticeCount": len(notice_ids),
+        "attachmentFetchStatusRecordCount": attachment_fetch_status_record_count,
+        "importedNoticeCount": imported_notice_count,
+        "rawReusedCount": raw_reused_count,
+        "rawUploadedCount": raw_uploaded_count,
+        "selectedNoticeCount": selected_notice_count,
         "selectedNoticeIds": sorted(notice_ids),
         "titleSamples": [titles[key] for key in sorted(titles)[:5]],
     }
