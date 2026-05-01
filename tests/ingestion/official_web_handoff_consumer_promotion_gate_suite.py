@@ -6,6 +6,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from campus_ingestion_core import ObjectStoreSettings
+from campus_ingestion_core.campusrag_ingestion_reporting import ImportReport
+from campus_ingestion_worker import official_web_handoff_consumer_runtime as consumer_runtime
+
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 from .official_web_handoff_consumer_test_support import (
@@ -25,6 +29,101 @@ from .official_web_handoff_consumer_test_support import (
 
 
 class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
+    def test_persist_projection_output_refreshes_each_promotable_target_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_output_dir = root / "projection-output"
+            replay_input_dir = root / "replay-input"
+            work_dir = root / "work"
+            projection_output_dir.mkdir(parents=True)
+            replay_input_dir.mkdir(parents=True)
+            _write_json(
+                projection_output_dir / "projection-report.json",
+                {
+                    "schemaVersion": "official_web_projection_replay_report.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_001",
+                    "documents": [
+                        {
+                            "document_id": "official_web:muc_public_pages:article_detail:doc-1",
+                            "serving_intent": "promotable",
+                            "target_collection": "muc_public_pages",
+                            "target_corpus": "official_web",
+                        },
+                        {
+                            "document_id": "official_web:stable_reference:article_detail:doc-2",
+                            "serving_intent": "promotable",
+                            "target_collection": "stable_reference",
+                            "target_corpus": "official_web",
+                        },
+                        {
+                            "document_id": "official_web:news_archive:listing_page:audit-only",
+                            "serving_intent": "audit_only",
+                            "target_collection": "news_archive",
+                            "target_corpus": "official_web",
+                        },
+                    ],
+                },
+            )
+            calls: list[tuple[str, str] | None] = []
+
+            def fake_import_projection_output(**kwargs):
+                scope_refresh = kwargs["scope_refresh"]
+                calls.append(scope_refresh)
+                assert scope_refresh is not None
+                collection = scope_refresh[1]
+                return ImportReport(
+                    import_mode="official_web_source_truth_replay",
+                    success_count=1,
+                    skipped_count=0,
+                    failed_count=0,
+                    raw_uploaded_count=1,
+                    raw_reused_count=0,
+                    document_ids=(f"official_web:{collection}:article_detail:doc",),
+                    unresolved_source_pdfs=(),
+                    errors=(),
+                    report_path=str(root / f"{collection}-import-report.json"),
+                    created_document_ids=(f"official_web:{collection}:article_detail:doc",),
+                )
+
+            with patch(
+                "campus_ingestion_worker.official_web_handoff_consumer_runtime.import_projection_output",
+                side_effect=fake_import_projection_output,
+            ):
+                report = consumer_runtime.persist_projection_output(
+                    work_dir=work_dir,
+                    projection_output_dir=projection_output_dir,
+                    replay_input_dir=replay_input_dir,
+                    bundle_payload={"pages": [{}]},
+                    source_object_store=object(),
+                    derived_object_store=object(),
+                    document_registry=InMemoryDocumentRegistry(),
+                    raw_asset_registry=InMemoryRawAssetRegistry(),
+                    object_store_settings=ObjectStoreSettings(
+                        endpoint="http://localhost:9000",
+                        access_key="minio",
+                        secret_key="minio-secret",
+                    ),
+                )
+
+            self.assertEqual(
+                calls,
+                [
+                    ("official_web", "muc_public_pages"),
+                    ("official_web", "stable_reference"),
+                ],
+            )
+            self.assertEqual(report.success_count, 2)
+            self.assertEqual(report.raw_uploaded_count, 2)
+            self.assertEqual(report.skipped_count, 0)
+            self.assertEqual(
+                report.document_ids,
+                (
+                    "official_web:muc_public_pages:article_detail:doc",
+                    "official_web:stable_reference:article_detail:doc",
+                ),
+            )
+
     def test_consume_handoff_record_blocks_promote_when_projection_documents_are_audit_only(
         self,
     ) -> None:

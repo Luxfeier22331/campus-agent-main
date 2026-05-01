@@ -2,7 +2,7 @@
 doc_type: phase_plan
 workstream: authenticated-notice-ingest-queue-e2e-automation
 phase: 9
-status: ready
+status: implemented
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -269,3 +269,18 @@ Phase 9 is complete when the new child task contract and processor profile contr
 implemented, captured-content smoke validates the full chain with zero medium-or-higher
 findings, and the workstream can return to final Verification/closeout without relying
 on manual artifact stitching or ambiguous multimodal-first routing.
+
+## Implementation Summary
+
+Implemented on 2026-05-01.
+
+- Added `authenticated_notice_child_task_state_contract.v1` helpers for child task
+  identity, lifecycle states, progress events, operator-safe refs, and summaries.
+- Added `authenticated_notice_processor_profile.v1` helpers for `text_notice`,
+  `image_schedule_notice`, `attachment_owner_text_notice`, and `mixed_notice`.
+- Wired run-level queue consumer trace rows to child tasks, progress events, and child
+  task summaries.
+- Added OCR-first smoke contract enforcement for notice `355867`.
+- Exposed authenticated notice enqueue/consume/smoke commands as worker console scripts.
+- Added contract/runbook documentation for child task evidence, processor profiles, and
+  operator troubleshooting.

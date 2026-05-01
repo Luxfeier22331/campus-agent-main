@@ -15,12 +15,14 @@ updated: 2026-05-01
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 9 planned`
-- phases complete: `8`
+- status: `completed`
+- current phase: `Final verification complete`
+- phases complete: `9`
 - baseline: authenticated notice run-level queue、verified ledger handoff、run consumer、consumer-owned media gate evidence manifest、downstream materialization guard、cleanup guard 与 captured-content smoke harness 已在当前 worktree 中落地。
-- current slice: Phase 9 补齐 parent job -> child task / attempt 状态合同、OCR-first processor profile、progress event、retry/resource budget 与 downstream success criteria。
-- deferred by operator decision: local-only historical content 不自动入队；后续由 operator 手动触发 verified/repair ledger enqueue。真实 Postgres/object-store full execute smoke 验收也后置，不作为本轮修复完成条件。
+- current slice: Phase 1-9、final verification/closeout、以及 verified captured run 的真实 Postgres/object-store source-truth-only execute smoke 已完成。
+- live infra acceptance: `muc_internal_portal:notice:20260428T181953007Z` 已通过真实 queue consumer execute，queue final state 为 `succeeded`，document/raw registry 均写入 `282` 条 `campus_notices/internal_notice`。
+- deferred by operator decision: local-only historical content 不自动入队；后续由 operator 手动触发 verified/repair ledger enqueue。
+- lease hardening: full-run execute 超过默认 300 秒 lease 的缺口已修复；run-level consumer 现在会 heartbeat 续约，smoke wrapper 也暴露 `--lease-seconds` 并透传到 consumer。
 
 ## Problem
 

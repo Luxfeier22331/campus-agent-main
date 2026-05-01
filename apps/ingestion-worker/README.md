@@ -1007,6 +1007,63 @@ signal; it does not open query-serving by default.
 Dry-run / plan mode must not write object store, registry, projection, read
 model, current pointer, or admission lifecycle state.
 
+### Authenticated Notice Ingest Queue
+
+Authenticated notice queue automation uses a run-level parent job and
+consumer-owned child task evidence.
+
+Primary commands:
+
+- `campus-ingestion-enqueue-authenticated-notice-collector-run`
+- `campus-ingestion-consume-authenticated-notice-ingest-queue`
+- `campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e`
+
+The parent queue payload remains `authenticated_notice_ingest_job.v1`; it only
+identifies a verified collector run and object refs. It must not carry body text,
+HTML, OCR payloads, attachment bytes, local paths, projection rows, or read-model
+rows.
+
+The queue consumer emits child task evidence under its operations directory:
+
+- `source_unit_import`
+- `media_candidate_evaluation`
+- `ocr_table_extraction`
+- `multimodal_enrichment`
+- `fact_readiness_evaluation`
+- `target_admission`
+- `downstream_materialization`
+- `cleanup_evaluation`
+- `smoke_assertion`
+
+Child task states are `pending`, `running`, `completed`, `skipped`,
+`failed_retryable`, `failed_terminal`, `manual_review`, and `cancelled`.
+Operator summaries include counts by child task kind, state, processor profile,
+highest severity, and the blocked task reason code.
+
+Processor profile rules:
+
+- `text_notice` consumes body facts first and does not choose multimodal first.
+- `image_schedule_notice` uses OCR/table extraction before generic multimodal.
+- `attachment_owner_text_notice` starts from object-backed owner text.
+- `mixed_notice` handles body/media/attachment facts with explicit escalation.
+
+For schedule/table image facts such as notice `355867`, OCR/table extraction is
+the default first processor. Generic multimodal is only an explicit escalation
+when OCR is low-confidence, extracts no valid rows, lacks route/date context, or
+the media is semantic image content rather than table-shaped OCR content.
+
+Captured-content smoke can enforce this contract:
+
+```bash
+uv run --all-packages \
+  campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e \
+  --run-id muc_internal_portal:notice:20260402T235919838Z \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn/page/11 \
+  --sample-id 355867 \
+  --require-child-task-contract
+```
+
 ### `campus-ingestion-admit-schedule-image-ocr-results`
 
 Admits reviewed schedule-image OCR dry-run results into source/derived

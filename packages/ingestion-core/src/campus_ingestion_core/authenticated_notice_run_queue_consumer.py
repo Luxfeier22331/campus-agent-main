@@ -5,8 +5,14 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Event, Lock, Thread
 from typing import Any, Protocol
 
+from campus_ingestion_core.authenticated_notice_child_tasks import (
+    build_child_task,
+    build_progress_event,
+    summarize_child_tasks,
+)
 from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
     AuthenticatedNoticeCollectorRunObjectRefs,
@@ -32,6 +38,18 @@ from campus_ingestion_core.authenticated_notice_media_gate_evidence import (
     build_authenticated_notice_media_gate_evidence_manifest,
     validate_authenticated_notice_media_gate_evidence_manifest,
 )
+from campus_ingestion_core.authenticated_notice_processor_profiles import (
+    get_processor_profile,
+    profile_retry_budget,
+)
+from campus_ingestion_core.authenticated_notice_source_handoff_adapter import (
+    AuthenticatedNoticeCanonicalExecutionContext,
+    complete_authenticated_notice_canonical_execution,
+    fail_authenticated_notice_canonical_execution,
+    mark_authenticated_notice_canonical_step_passed,
+    prepare_authenticated_notice_canonical_execution,
+    project_authenticated_notice_canonical_child_tasks,
+)
 from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
 from campus_ingestion_core.collected_notice_ingest_queue import (
     AUTHENTICATED_NOTICE_INGEST_JOB_KIND,
@@ -42,6 +60,7 @@ from campus_ingestion_core.collected_notice_ingest_queue_store import (
     NoticeIngestQueueRecord,
     NoticeIngestQueueStore,
 )
+from campus_ingestion_core.source_handoff_store import SourceHandoffStore
 
 AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_SCHEMA_VERSION = "authenticated_notice_run_queue_consume.v1"
 AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_TRACE_SCHEMA_VERSION = (
@@ -99,6 +118,76 @@ class _RunQueueConsumeFailure(RuntimeError):
         self.failure_class = failure_class
 
 
+class _LeaseHeartbeatMonitor:
+    def __init__(
+        self,
+        *,
+        queue_store: NoticeIngestQueueStore,
+        record: NoticeIngestQueueRecord,
+        worker_id: str,
+        lease_seconds: int,
+        interval_seconds: float,
+    ) -> None:
+        self._queue_store = queue_store
+        self._record = record
+        self._worker_id = worker_id
+        self._lease_seconds = int(lease_seconds)
+        self._interval_seconds = float(interval_seconds)
+        self._stop = Event()
+        self._lock = Lock()
+        self._thread: Thread | None = None
+        self._heartbeat_count = 0
+        self._heartbeat_failed = False
+        self._last_error_message = ""
+
+    def start(self) -> _LeaseHeartbeatMonitor:
+        self._thread = Thread(
+            target=self._run,
+            name=f"authenticated-notice-lease-heartbeat:{self._record.job_id}",
+            daemon=True,
+        )
+        self._thread.start()
+        return self
+
+    def stop(self) -> dict[str, Any]:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+        return self.summary()
+
+    def summary(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "enabled": True,
+                "lease_seconds": self._lease_seconds,
+                "interval_seconds": self._interval_seconds,
+                "heartbeat_count": self._heartbeat_count,
+                "heartbeat_failed": self._heartbeat_failed,
+                "last_error_message": self._last_error_message,
+            }
+
+    def failure_message(self) -> str:
+        with self._lock:
+            return self._last_error_message if self._heartbeat_failed else ""
+
+    def _run(self) -> None:
+        while not self._stop.wait(self._interval_seconds):
+            try:
+                self._queue_store.heartbeat(
+                    self._record.job_id,
+                    worker_id=self._worker_id,
+                    lease_seconds=self._lease_seconds,
+                )
+            except Exception as exc:
+                with self._lock:
+                    self._heartbeat_failed = True
+                    self._last_error_message = str(exc)
+                self._stop.set()
+                return
+            with self._lock:
+                self._heartbeat_count += 1
+
+
 def consume_authenticated_notice_ingest_queue(
     *,
     queue_store: NoticeIngestQueueStore,
@@ -106,6 +195,7 @@ def consume_authenticated_notice_ingest_queue(
     mode: str = "dry_run",
     worker_id: str = DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID,
     lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
+    heartbeat_interval_seconds: float | None = None,
     limit: int = DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT,
     replay_batch_id: str | None = None,
     run_id: str | None = None,
@@ -130,12 +220,17 @@ def consume_authenticated_notice_ingest_queue(
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     default_entitlement_groups: Sequence[str] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS,
     visibility_scope: str | None = DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
+    source_handoff_store: SourceHandoffStore | None = None,
     generated_by: str = "campus_ingestion_worker.consume_authenticated_notice_ingest_queue",
 ) -> AuthenticatedNoticeRunQueueConsumeResult:
     normalized_mode = _normalize_mode(mode)
     normalized_worker_id = _required_text(worker_id, "worker_id")
     normalized_limit = _positive_int(limit, "limit")
     normalized_lease_seconds = _positive_int(lease_seconds, "lease_seconds")
+    normalized_heartbeat_interval_seconds = _normalize_heartbeat_interval_seconds(
+        lease_seconds=normalized_lease_seconds,
+        heartbeat_interval_seconds=heartbeat_interval_seconds,
+    )
     normalized_retry_after_seconds = _non_negative_int(
         retry_after_seconds,
         "retry_after_seconds",
@@ -166,7 +261,18 @@ def consume_authenticated_notice_ingest_queue(
             root=operations_dir,
             record=record,
         )
+        processor_profile = get_processor_profile("mixed_notice")
+        canonical_context: AuthenticatedNoticeCanonicalExecutionContext | None = None
+        child_tasks: list[dict[str, Any]] = []
+        progress_events: list[dict[str, Any]] = []
         trace_row["operations_dir"] = str(record_operations_dir)
+        heartbeat = _LeaseHeartbeatMonitor(
+            queue_store=queue_store,
+            record=record,
+            worker_id=normalized_worker_id,
+            lease_seconds=normalized_lease_seconds,
+            interval_seconds=normalized_heartbeat_interval_seconds,
+        ).start()
         try:
             _assert_authenticated_notice_run_job(record)
             if record.source_surface != normalized_source_surface:
@@ -184,7 +290,24 @@ def consume_authenticated_notice_ingest_queue(
                 collector_run_ledger_table=collector_run_ledger_table,
                 run_ref_resolver=run_ref_resolver,
             )
-            _verify_source_objects(object_store=object_store, refs=refs)
+            if source_handoff_store is not None and normalized_mode == "execute":
+                canonical_context = prepare_authenticated_notice_canonical_execution(
+                    run_refs=refs,
+                    site_id=normalized_site_id,
+                    object_store=object_store,
+                    source_handoff_store=source_handoff_store,
+                    worker_id=normalized_worker_id,
+                    lease_seconds=normalized_lease_seconds,
+                    processor_profile=str(processor_profile["profile_id"]),
+                )
+                trace_row.update(
+                    {
+                        "source_handoff_id": canonical_context.handoff_id,
+                        "ingestion_execution_id": canonical_context.execution_id,
+                    }
+                )
+            else:
+                _verify_source_objects(object_store=object_store, refs=refs)
             if not source_truth_only and consumer_admission_manifest_path is None:
                 raise _RunQueueConsumeFailure(
                     error_code="consumer_admission_manifest_required",
@@ -219,12 +342,77 @@ def consume_authenticated_notice_ingest_queue(
                 env=source,
                 object_store=object_store,
             )
+            _append_child_task(
+                child_tasks=child_tasks,
+                progress_events=progress_events,
+                record=record,
+                task_kind="source_unit_import",
+                processor_profile_id=str(processor_profile["profile_id"]),
+                state="completed",
+                reason_code="source_truth_imported",
+                output_refs=[
+                    {
+                        "role": "import_result_summary",
+                        "schema_version": str(import_result.get("schema_version") or ""),
+                    }
+                ],
+            )
+            _mark_canonical_step_passed(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                step_name="source_truth_import",
+                output_refs=[
+                    {
+                        "role": "import_result_summary",
+                        "schema_version": str(import_result.get("schema_version") or ""),
+                    }
+                ],
+            )
             media_gate_verdict = None
             if require_media_gate:
                 media_gate_verdict = _validate_required_media_gate(
                     run_id=record.run_id,
                     media_gate_evidence_dir=media_gate_evidence_dir or record_operations_dir,
                 )
+            _append_child_task(
+                child_tasks=child_tasks,
+                progress_events=progress_events,
+                record=record,
+                task_kind="media_candidate_evaluation",
+                processor_profile_id=str(processor_profile["profile_id"]),
+                state="completed",
+                reason_code=(
+                    "strict_media_gate_passed"
+                    if media_gate_verdict is not None
+                    else "media_candidates_evaluated"
+                ),
+                output_refs=[
+                    {
+                        "role": "media_gate_verdict",
+                        "artifact_path": str(
+                            (media_gate_evidence_dir or record_operations_dir)
+                            / "authenticated-notice-media-gate-evidence-verdict.json"
+                        )
+                        if media_gate_verdict is not None
+                        else "",
+                    }
+                ],
+            )
+            _mark_canonical_step_passed(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                step_name="media_gate",
+                output_refs=[
+                    {
+                        "role": "media_gate_verdict",
+                        "schema_version": str(
+                            media_gate_verdict.get("schema_version") or ""
+                        )
+                        if media_gate_verdict is not None
+                        else "",
+                    }
+                ],
+            )
             cleanup = _cleanup_summary(
                 cleanup_report_path=cleanup_report_path
                 or _default_cleanup_report_path(record_operations_dir),
@@ -235,6 +423,85 @@ def consume_authenticated_notice_ingest_queue(
                 import_result,
                 source_truth_only=source_truth_only,
             )
+            if not source_truth_only:
+                downstream_state = (
+                    "completed"
+                    if downstream_materialization["status"] == "completed"
+                    else "manual_review"
+                )
+                downstream_reason = (
+                    "downstream_materialization_completed"
+                    if downstream_state == "completed"
+                    else "downstream_materialization_missing"
+                )
+                _append_child_task(
+                    child_tasks=child_tasks,
+                    progress_events=progress_events,
+                    record=record,
+                    task_kind="downstream_materialization",
+                    processor_profile_id=str(processor_profile["profile_id"]),
+                    state=downstream_state,
+                    reason_code=downstream_reason,
+                    retry_budget=profile_retry_budget(
+                        processor_profile,
+                        "downstream_materialization",
+                    ),
+                    output_refs=[
+                        {
+                            "role": "downstream_materialization_summary",
+                            "schema_version": str(
+                                downstream_materialization.get("schema_version") or ""
+                            ),
+                        }
+                    ],
+                )
+                if downstream_state == "completed":
+                    _mark_canonical_step_passed(
+                        source_handoff_store=source_handoff_store,
+                        canonical_context=canonical_context,
+                        step_name="downstream_materialization",
+                        output_refs=[
+                            {
+                                "role": "downstream_materialization_summary",
+                                "schema_version": str(
+                                    downstream_materialization.get("schema_version") or ""
+                                ),
+                            }
+                        ],
+                    )
+            cleanup_state = "manual_review" if cleanup["status"] == "blocked" else "completed"
+            _append_child_task(
+                child_tasks=child_tasks,
+                progress_events=progress_events,
+                record=record,
+                task_kind="cleanup_evaluation",
+                processor_profile_id=str(processor_profile["profile_id"]),
+                state=cleanup_state,
+                reason_code=(
+                    "cleanup_requires_media_gate"
+                    if cleanup_state == "manual_review"
+                    else str(cleanup["status"])
+                ),
+                retry_budget=profile_retry_budget(processor_profile, "cleanup_evaluation"),
+                output_refs=[
+                    {
+                        "role": "cleanup_report",
+                        "artifact_path": str(cleanup.get("report_path") or ""),
+                    }
+                ],
+            )
+            if cleanup_state == "completed":
+                _mark_canonical_step_passed(
+                    source_handoff_store=source_handoff_store,
+                    canonical_context=canonical_context,
+                    step_name="cleanup_guard",
+                    output_refs=[
+                        {
+                            "role": "cleanup_report",
+                            "schema_version": str(cleanup.get("schema_version") or ""),
+                        }
+                    ],
+                )
             imported_count += 1
             trace_row.update(
                 {
@@ -246,6 +513,12 @@ def consume_authenticated_notice_ingest_queue(
             )
             if media_gate_verdict is not None:
                 trace_row["media_gate"] = media_gate_verdict
+            _attach_child_task_evidence(trace_row, child_tasks, progress_events)
+            _project_canonical_child_tasks(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                child_tasks=child_tasks,
+            )
             if not source_truth_only and downstream_materialization["status"] != "completed":
                 raise _RunQueueConsumeFailure(
                     error_code="downstream_materialization_missing",
@@ -261,6 +534,13 @@ def consume_authenticated_notice_ingest_queue(
                     message=str(cleanup["reason"]),
                     failure_class="manual_review",
                 )
+            _raise_if_heartbeat_failed(heartbeat)
+            if source_handoff_store is not None and canonical_context is not None:
+                complete_authenticated_notice_canonical_execution(
+                    source_handoff_store=source_handoff_store,
+                    context=canonical_context,
+                    result_kind="materialized",
+                )
             if normalized_mode == "execute":
                 queue_store.complete(record.job_id, worker_id=normalized_worker_id)
                 completed_count += 1
@@ -268,6 +548,14 @@ def consume_authenticated_notice_ingest_queue(
             else:
                 queue_store.release(record.job_id, worker_id=normalized_worker_id)
         except _RunQueueConsumeFailure as exc:
+            if not child_tasks:
+                _append_failure_child_task(
+                    child_tasks=child_tasks,
+                    progress_events=progress_events,
+                    record=record,
+                    processor_profile_id=str(processor_profile["profile_id"]),
+                    exc=exc,
+                )
             _apply_failure_transition(
                 queue_store=queue_store,
                 record=record,
@@ -285,10 +573,31 @@ def consume_authenticated_notice_ingest_queue(
                     "failure_class": exc.failure_class,
                 }
             )
+            _attach_child_task_evidence(trace_row, child_tasks, progress_events)
+            _project_canonical_child_tasks(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                child_tasks=child_tasks,
+            )
+            _fail_canonical_execution(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                trace_row=trace_row,
+                exc=exc,
+                retry_after_seconds=normalized_retry_after_seconds,
+            )
             if normalized_mode != "execute":
                 queue_store.release(record.job_id, worker_id=normalized_worker_id)
         except ValueError as exc:
             failure = _classify_value_error(exc)
+            if not child_tasks:
+                _append_failure_child_task(
+                    child_tasks=child_tasks,
+                    progress_events=progress_events,
+                    record=record,
+                    processor_profile_id=str(processor_profile["profile_id"]),
+                    exc=failure,
+                )
             _apply_failure_transition(
                 queue_store=queue_store,
                 record=record,
@@ -306,6 +615,19 @@ def consume_authenticated_notice_ingest_queue(
                     "failure_class": failure.failure_class,
                 }
             )
+            _attach_child_task_evidence(trace_row, child_tasks, progress_events)
+            _project_canonical_child_tasks(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                child_tasks=child_tasks,
+            )
+            _fail_canonical_execution(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                trace_row=trace_row,
+                exc=failure,
+                retry_after_seconds=normalized_retry_after_seconds,
+            )
             if normalized_mode != "execute":
                 queue_store.release(record.job_id, worker_id=normalized_worker_id)
         except Exception as exc:
@@ -314,6 +636,14 @@ def consume_authenticated_notice_ingest_queue(
                 message=f"authenticated notice import failed: {exc}",
                 failure_class="retryable",
             )
+            if not child_tasks:
+                _append_failure_child_task(
+                    child_tasks=child_tasks,
+                    progress_events=progress_events,
+                    record=record,
+                    processor_profile_id=str(processor_profile["profile_id"]),
+                    exc=failure,
+                )
             _apply_failure_transition(
                 queue_store=queue_store,
                 record=record,
@@ -331,8 +661,23 @@ def consume_authenticated_notice_ingest_queue(
                     "failure_class": failure.failure_class,
                 }
             )
+            _attach_child_task_evidence(trace_row, child_tasks, progress_events)
+            _project_canonical_child_tasks(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                child_tasks=child_tasks,
+            )
+            _fail_canonical_execution(
+                source_handoff_store=source_handoff_store,
+                canonical_context=canonical_context,
+                trace_row=trace_row,
+                exc=failure,
+                retry_after_seconds=normalized_retry_after_seconds,
+            )
             if normalized_mode != "execute":
                 queue_store.release(record.job_id, worker_id=normalized_worker_id)
+        finally:
+            trace_row["lease_heartbeat"] = heartbeat.stop()
         trace_rows.append(trace_row)
 
     counts = {
@@ -360,6 +705,7 @@ def consume_authenticated_notice_ingest_queue(
             "write_enabled": normalized_mode == "execute",
             "worker_id": normalized_worker_id,
             "lease_seconds": normalized_lease_seconds,
+            "heartbeat_interval_seconds": normalized_heartbeat_interval_seconds,
             "limit": normalized_limit,
             "run_id": normalized_run_id,
             "replay_batch_id": normalized_replay_batch_id,
@@ -407,6 +753,17 @@ def _assert_authenticated_notice_run_job(record: NoticeIngestQueueRecord) -> Non
             ),
             failure_class="terminal",
         )
+
+
+def _raise_if_heartbeat_failed(heartbeat: _LeaseHeartbeatMonitor) -> None:
+    message = heartbeat.failure_message()
+    if not message:
+        return
+    raise _RunQueueConsumeFailure(
+        error_code="lease_heartbeat_failed",
+        message=f"notice ingest queue lease heartbeat failed: {message}",
+        failure_class="retryable",
+    )
 
 
 def _validate_required_media_gate(
@@ -625,6 +982,142 @@ def _base_trace_row(record: NoticeIngestQueueRecord) -> dict[str, Any]:
     }
 
 
+def _append_child_task(
+    *,
+    child_tasks: list[dict[str, Any]],
+    progress_events: list[dict[str, Any]],
+    record: NoticeIngestQueueRecord,
+    task_kind: str,
+    processor_profile_id: str,
+    state: str,
+    reason_code: str,
+    retry_budget: Mapping[str, Any] | None = None,
+    output_refs: Sequence[Mapping[str, Any]] | None = None,
+) -> None:
+    task = build_child_task(
+        parent_job_id=record.job_id,
+        run_id=record.run_id,
+        task_kind=task_kind,
+        processor_profile_id=processor_profile_id,
+        state=state,
+        source_unit_id=record.source_identity,
+        attempt_ordinal=int(record.attempt_count) + 1,
+        reason_code=reason_code,
+        retry_budget=retry_budget,
+        input_refs=[ref.to_payload() for ref in record.source_object_refs],
+        output_refs=output_refs or (),
+    )
+    event = build_progress_event(
+        parent_job_id=record.job_id,
+        run_id=record.run_id,
+        child_task_id=str(task["task_id"]),
+        stage=task_kind,
+        transition=state,
+        reason_code=reason_code,
+        message=f"{task_kind} transitioned to {state}: {reason_code}",
+        input_refs=[ref.to_payload() for ref in record.source_object_refs],
+        output_refs=output_refs or (),
+    )
+    task["progress_event_refs"] = [
+        {
+            "role": "progress_event",
+            "key": str(event["event_id"]),
+            "schema_version": str(event["schema_version"]),
+        }
+    ]
+    child_tasks.append(task)
+    progress_events.append(event)
+
+
+def _append_failure_child_task(
+    *,
+    child_tasks: list[dict[str, Any]],
+    progress_events: list[dict[str, Any]],
+    record: NoticeIngestQueueRecord,
+    processor_profile_id: str,
+    exc: _RunQueueConsumeFailure,
+) -> None:
+    state = {
+        "retryable": "failed_retryable",
+        "terminal": "failed_terminal",
+        "manual_review": "manual_review",
+    }[exc.failure_class]
+    _append_child_task(
+        child_tasks=child_tasks,
+        progress_events=progress_events,
+        record=record,
+        task_kind="source_unit_import",
+        processor_profile_id=processor_profile_id,
+        state=state,
+        reason_code=exc.error_code,
+    )
+
+
+def _attach_child_task_evidence(
+    trace_row: dict[str, Any],
+    child_tasks: Sequence[Mapping[str, Any]],
+    progress_events: Sequence[Mapping[str, Any]],
+) -> None:
+    trace_row["child_tasks"] = [dict(task) for task in child_tasks]
+    trace_row["progress_events"] = [dict(event) for event in progress_events]
+    trace_row["child_task_summary"] = summarize_child_tasks(child_tasks)
+
+
+def _mark_canonical_step_passed(
+    *,
+    source_handoff_store: SourceHandoffStore | None,
+    canonical_context: AuthenticatedNoticeCanonicalExecutionContext | None,
+    step_name: str,
+    output_refs: Sequence[Mapping[str, object]] = (),
+) -> None:
+    if source_handoff_store is None or canonical_context is None:
+        return
+    mark_authenticated_notice_canonical_step_passed(
+        source_handoff_store=source_handoff_store,
+        context=canonical_context,
+        step_name=step_name,
+        output_refs=output_refs,
+    )
+
+
+def _project_canonical_child_tasks(
+    *,
+    source_handoff_store: SourceHandoffStore | None,
+    canonical_context: AuthenticatedNoticeCanonicalExecutionContext | None,
+    child_tasks: Sequence[Mapping[str, object]],
+) -> None:
+    if source_handoff_store is None or canonical_context is None:
+        return
+    project_authenticated_notice_canonical_child_tasks(
+        source_handoff_store=source_handoff_store,
+        context=canonical_context,
+        child_tasks=child_tasks,
+    )
+
+
+def _fail_canonical_execution(
+    *,
+    source_handoff_store: SourceHandoffStore | None,
+    canonical_context: AuthenticatedNoticeCanonicalExecutionContext | None,
+    trace_row: dict[str, Any],
+    exc: _RunQueueConsumeFailure,
+    retry_after_seconds: int,
+) -> None:
+    if source_handoff_store is None or canonical_context is None:
+        return
+    try:
+        fail_authenticated_notice_canonical_execution(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            error_code=exc.error_code,
+            error_message=str(exc),
+            failure_class=exc.failure_class,
+            retry_after_seconds=retry_after_seconds,
+        )
+    except Exception as canonical_exc:
+        trace_row["canonical_execution_failure_error"] = str(canonical_exc)
+
+
 def _failure_payload(
     record: NoticeIngestQueueRecord,
     exc: _RunQueueConsumeFailure,
@@ -794,11 +1287,28 @@ def _positive_int(value: object, label: str) -> int:
     return parsed
 
 
+def _positive_float(value: object, label: str) -> float:
+    parsed = float(value)  # type: ignore[arg-type]
+    if parsed <= 0:
+        raise ValueError(f"{label} must be positive")
+    return parsed
+
+
 def _non_negative_int(value: object, label: str) -> int:
     parsed = int(value)  # type: ignore[arg-type]
     if parsed < 0:
         raise ValueError(f"{label} must be non-negative")
     return parsed
+
+
+def _normalize_heartbeat_interval_seconds(
+    *,
+    lease_seconds: int,
+    heartbeat_interval_seconds: float | None,
+) -> float:
+    if heartbeat_interval_seconds is not None:
+        return _positive_float(heartbeat_interval_seconds, "heartbeat_interval_seconds")
+    return min(float(lease_seconds) / 3.0, 60.0)
 
 
 __all__ = [

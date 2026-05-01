@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -19,7 +19,11 @@ updated: 2026-05-01
 - [x] **Phase 6: Downstream Materialization And Read-Model Rebuild** — trigger explicitly admitted target materializers/read models after promotion.
 - [x] **Phase 7: Cleanup Lifecycle Integration** — turn cleanup dry-run and destructive cleanup eligibility into a guarded lifecycle stage.
 - [x] **Phase 8: Unattended Captured-Content E2E Smoke** — prove queue-to-downstream chain over already collected content with no manual artifact stitching.
-- [ ] **Phase 9: Child Task State Contract And Processor Profile Consolidation** — formalize parent job to child task/attempt state, OCR-first processor profiles, progress events, retry/resource budgets, and downstream success criteria before final verification.
+- [x] **Phase 9: Child Task State Contract And Processor Profile Consolidation** — formalize parent job to child task/attempt state, OCR-first processor profiles, progress events, retry/resource budgets, and downstream success criteria before final verification.
+
+Final verification completed on 2026-05-01. Workstream status is `completed`
+with live infra execute smoke and historical local-only enqueue explicitly deferred
+by operator decision.
 
 ## Phase 1: Queue Contract And Lifecycle Freeze
 

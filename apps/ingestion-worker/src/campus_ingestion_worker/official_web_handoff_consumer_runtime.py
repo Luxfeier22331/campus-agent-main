@@ -13,8 +13,13 @@ from campus_ingestion_core import (
     replay_official_web_source_truth_local,
     validate_official_web_projection_output,
 )
+from campus_ingestion_core.campusrag_ingestion_reporting import (
+    ImportReport,
+    write_import_report,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
+from campus_ingestion_core.source_handoff_store import SourceHandoffStore
 
 from campus_ingestion_worker.official_web_handoff_consumer_io import (
     as_error_dict,
@@ -52,6 +57,13 @@ from campus_ingestion_worker.official_web_handoff_consumer_reporting import (
     report_execution_status,
 )
 from campus_ingestion_worker.official_web_projection_import import import_projection_output
+from campus_ingestion_worker.official_web_source_handoff_adapter import (
+    OfficialWebCanonicalExecutionContext,
+    complete_official_web_canonical_execution,
+    fail_official_web_canonical_execution,
+    mark_official_web_canonical_step_passed,
+    prepare_official_web_canonical_execution,
+)
 
 
 def consume_official_web_handoffs(
@@ -67,6 +79,7 @@ def consume_official_web_handoffs(
     force: bool = False,
     promote_import: bool | None = None,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
+    source_handoff_store: SourceHandoffStore | None = None,
 ) -> OfficialWebHandoffConsumeBatchReport:
     runtime_settings = resolve_runtime_settings(settings=settings, promote_import=promote_import)
     runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env())
@@ -96,6 +109,7 @@ def consume_official_web_handoffs(
             declarations_path=declarations_path,
             force=force,
             status_reporter=runtime_status_reporter,
+            source_handoff_store=source_handoff_store,
         )
         for record_path in record_paths
     ]
@@ -127,6 +141,7 @@ def consume_handoff_record(
     declarations_path: Path | None = None,
     force: bool = False,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
+    source_handoff_store: SourceHandoffStore | None = None,
 ) -> OfficialWebHandoffConsumeResult:
     record = read_json(record_path)
     event_id = require_text(record.get("eventId"), "eventId")
@@ -192,13 +207,28 @@ def consume_handoff_record(
         "import": None,
         "error": None,
     }
+    canonical_context: OfficialWebCanonicalExecutionContext | None = None
 
     try:
+        if source_handoff_store is not None:
+            canonical_context = prepare_official_web_canonical_execution(
+                payload=payload,
+                settings=settings,
+                object_store=object_store,
+                source_handoff_store=source_handoff_store,
+            )
+            record.update(
+                {
+                    "sourceHandoffId": canonical_context.handoff_id,
+                    "ingestionExecutionId": canonical_context.execution_id,
+                }
+            )
+            write_json(record_path, record)
         report_execution_status(
             reporter=status_reporter,
             run_id=run_id,
             payload={
-                "executionRef": event_id,
+                "executionRef": _execution_ref(event_id, canonical_context),
                 "status": "running",
                 "updatedAt": utcnow(),
             },
@@ -222,13 +252,28 @@ def consume_handoff_record(
             object_store=object_store,
             bucket=settings.source_bucket,
         )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="materialize_replay_input",
+        )
         replay_report = replay_official_web_source_truth_local(
             output_dir=execution_paths["replay_input_dir"],
             projection_output_dir=execution_paths["projection_output_dir"],
             declarations_path=declarations_path,
         )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="source_truth_import",
+        )
         validation_report = validate_official_web_projection_output(
             execution_paths["projection_output_dir"],
+        )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="projection_validation",
         )
         execution_report["replay"] = asdict(replay_report)
         execution_report["validation"] = asdict(validation_report)
@@ -242,6 +287,11 @@ def consume_handoff_record(
             )
         chunk_audit_report = audit_official_web_projection_chunking(
             execution_paths["projection_output_dir"],
+        )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="chunk_audit",
         )
         coverage_report = build_stage_quality_report(
             settings=settings,
@@ -264,13 +314,19 @@ def consume_handoff_record(
                     "code": "promotion_blocked",
                     "message": build_promotion_blocked_message(promotion_report["blockedChecks"]),
                 }
+            if source_handoff_store is not None and canonical_context is not None:
+                complete_official_web_canonical_execution(
+                    source_handoff_store=source_handoff_store,
+                    context=canonical_context,
+                    result_kind="staged",
+                )
             report_execution_status(
                 reporter=status_reporter,
                 run_id=run_id,
                 payload={
                     "errorCode": staged_error["code"] if staged_error is not None else None,
                     "errorMessage": staged_error["message"] if staged_error is not None else None,
-                    "executionRef": event_id,
+                    "executionRef": _execution_ref(event_id, canonical_context),
                     "status": "staged",
                     "updatedAt": utcnow(),
                 },
@@ -316,11 +372,22 @@ def consume_handoff_record(
             ),
         )
         execution_report["import"] = asdict(import_report)
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="downstream_materialization",
+        )
+        if source_handoff_store is not None and canonical_context is not None:
+            complete_official_web_canonical_execution(
+                source_handoff_store=source_handoff_store,
+                context=canonical_context,
+                result_kind="promoted",
+            )
         report_execution_status(
             reporter=status_reporter,
             run_id=run_id,
             payload={
-                "executionRef": event_id,
+                "executionRef": _execution_ref(event_id, canonical_context),
                 "status": "promoted",
                 "updatedAt": utcnow(),
             },
@@ -347,13 +414,19 @@ def consume_handoff_record(
         )
     except Exception as exc:
         error_payload = normalize_error(exc)
+        if source_handoff_store is not None and canonical_context is not None:
+            fail_official_web_canonical_execution(
+                source_handoff_store=source_handoff_store,
+                context=canonical_context,
+                error_payload=error_payload,
+            )
         report_execution_status(
             reporter=status_reporter,
             run_id=run_id,
             payload={
                 "errorCode": error_payload.get("code"),
                 "errorMessage": error_payload.get("message"),
-                "executionRef": event_id,
+                "executionRef": _execution_ref(event_id, canonical_context),
                 "status": "failed",
                 "updatedAt": utcnow(),
             },
@@ -380,6 +453,30 @@ def consume_handoff_record(
             replay_input_dir=str(execution_paths["replay_input_dir"]),
             error=error_payload,
         )
+
+
+def _execution_ref(
+    event_id: str,
+    canonical_context: OfficialWebCanonicalExecutionContext | None,
+) -> str:
+    if canonical_context is None:
+        return event_id
+    return canonical_context.execution_id
+
+
+def _mark_canonical_step_passed(
+    *,
+    source_handoff_store: SourceHandoffStore | None,
+    context: OfficialWebCanonicalExecutionContext | None,
+    step_name: str,
+) -> None:
+    if source_handoff_store is None or context is None:
+        return
+    mark_official_web_canonical_step_passed(
+        source_handoff_store=source_handoff_store,
+        context=context,
+        step_name=step_name,
+    )
 
 
 def resolve_record_paths(
@@ -536,17 +633,85 @@ def persist_projection_output(
             code="invalid_source_truth_bundle",
             message="bundle pages must be an array.",
         )
-    return import_projection_output(
-        work_dir=work_dir,
-        projection_output_dir=projection_output_dir,
-        replay_input_dir=replay_input_dir,
-        source_object_store=source_object_store,
-        derived_object_store=derived_object_store,
-        document_registry=document_registry,
-        raw_asset_registry=raw_asset_registry,
-        object_store_settings=object_store_settings,
-        scope_refresh=("official_web", "muc_public_pages"),
-        require_promotable=True,
+    scope_refreshes = resolve_promotable_scope_refreshes(projection_output_dir)
+    if not scope_refreshes:
+        raise OfficialWebHandoffConsumeError(
+            code="missing_promotable_projection_scope",
+            message="projection report contains no promotable official_web target scope.",
+        )
+    reports = [
+        import_projection_output(
+            work_dir=work_dir,
+            projection_output_dir=projection_output_dir,
+            replay_input_dir=replay_input_dir,
+            source_object_store=source_object_store,
+            derived_object_store=derived_object_store,
+            document_registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
+            object_store_settings=object_store_settings,
+            scope_refresh=scope_refresh,
+            require_promotable=True,
+        )
+        for scope_refresh in scope_refreshes
+    ]
+    return merge_import_reports(work_dir=work_dir, reports=reports)
+
+
+def resolve_promotable_scope_refreshes(projection_output_dir: Path) -> tuple[tuple[str, str], ...]:
+    projection_report = read_json(projection_output_dir / "projection-report.json")
+    raw_documents = projection_report.get("documents")
+    if not isinstance(raw_documents, list):
+        raise OfficialWebHandoffConsumeError(
+            code="invalid_projection_report",
+            message="projection report documents must be an array.",
+        )
+
+    scope_refreshes: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for raw_document in raw_documents:
+        document = require_object(raw_document, "documents[]")
+        if optional_text(document.get("serving_intent")) != "promotable":
+            continue
+        scope_refresh = (
+            require_text(document.get("target_corpus"), "documents[].target_corpus"),
+            require_text(document.get("target_collection"), "documents[].target_collection"),
+        )
+        if scope_refresh in seen:
+            continue
+        seen.add(scope_refresh)
+        scope_refreshes.append(scope_refresh)
+    return tuple(scope_refreshes)
+
+
+def merge_import_reports(*, work_dir: Path, reports: list[ImportReport]) -> ImportReport:
+    if len(reports) == 1:
+        return reports[0]
+    return write_import_report(
+        import_mode="official_web_source_truth_replay_multi_scope",
+        report_dir=work_dir / "import-reports",
+        report_prefix="official-web-import-multi-scope",
+        success_count=sum(report.success_count for report in reports),
+        skipped_count=sum(report.skipped_count for report in reports),
+        failed_count=sum(report.failed_count for report in reports),
+        raw_uploaded_count=sum(report.raw_uploaded_count for report in reports),
+        raw_reused_count=sum(report.raw_reused_count for report in reports),
+        document_ids=tuple(
+            document_id for report in reports for document_id in report.document_ids
+        ),
+        created_document_ids=tuple(
+            document_id for report in reports for document_id in report.created_document_ids
+        ),
+        updated_document_ids=tuple(
+            document_id for report in reports for document_id in report.updated_document_ids
+        ),
+        skipped_document_ids=tuple(
+            document_id for report in reports for document_id in report.skipped_document_ids
+        ),
+        unresolved_source_pdfs=tuple(
+            source_pdf for report in reports for source_pdf in report.unresolved_source_pdfs
+        ),
+        errors=tuple(error for report in reports for error in report.errors),
+        timestamp=utcnow(),
     )
 
 

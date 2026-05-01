@@ -10,6 +10,9 @@ from typing import Any
 from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
     resolve_authenticated_notice_collector_run_refs,
 )
+from campus_ingestion_core.authenticated_notice_processor_profiles import (
+    select_processor_profile,
+)
 from campus_ingestion_core.authenticated_notice_run_enqueue import (
     build_authenticated_notice_run_enqueue_plan,
     execute_authenticated_notice_run_enqueue_plan,
@@ -45,10 +48,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--operations-dir")
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--lease-seconds", type=int, default=300)
     parser.add_argument("--require-media-gate", action="store_true")
     parser.add_argument("--media-gate-evidence-dir")
     parser.add_argument("--cleanup-report-path")
     parser.add_argument("--materialize-downstream", action="store_true")
+    parser.add_argument(
+        "--require-child-task-contract",
+        action="store_true",
+        help="Fail smoke on medium-or-higher child task contract findings.",
+    )
     return parser
 
 
@@ -80,6 +89,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     consume_summary: Mapping[str, Any] | None = None
     queue_write_summary: Mapping[str, Any] | None = None
     findings: list[dict[str, Any]] = []
+    child_task_contract = _child_task_contract_summary(
+        sample_id=str(args.sample_id or ""),
+        source_surface=args.source_surface,
+        require_child_task_contract=args.require_child_task_contract,
+    )
+    findings.extend(child_task_contract["findings"])
     if args.execute:
         queue_store = build_notice_ingest_queue_store_from_env(env, prefer_operator=True)
         queue_write_summary = execute_authenticated_notice_run_enqueue_plan(
@@ -94,6 +109,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             site_id=args.site_id,
             source_home_url=args.source_home_url,
             source_surface=args.source_surface,
+            lease_seconds=args.lease_seconds,
             env=env,
             require_media_gate=args.require_media_gate,
             media_gate_evidence_dir=(
@@ -105,13 +121,31 @@ def main(argv: Sequence[str] | None = None) -> None:
             ),
             source_truth_only=not args.materialize_downstream,
         )
+        _write_consume_evidence_files(consume_result, output_dir=operations_dir)
         consume_summary = consume_result.queue_consume
-        if int(consume_summary.get("counts", {}).get("failed_count", 0)) > 0:
+        counts = consume_summary.get("counts", {})
+        if int(counts.get("failed_count", 0)) > 0:
             findings.append(
                 {
                     "severity": "high",
                     "code": "queue_consume_failed",
                     "message": "authenticated notice queue consume reported failures",
+                }
+            )
+        if (
+            int(counts.get("completed_count", 0)) == 0
+            and int(counts.get("imported_count", 0)) == 0
+            and int(counts.get("leased_count", 0)) == 0
+            and int(counts.get("failed_count", 0)) == 0
+        ):
+            findings.append(
+                {
+                    "severity": "high",
+                    "code": "queue_consume_no_progress",
+                    "message": (
+                        "authenticated notice execute smoke made no queue progress; "
+                        "verify the run_id is not already completed or filtered out"
+                    ),
                 }
             )
     report = {
@@ -130,10 +164,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             "media_gate",
             "downstream_materialization",
             "cleanup_guard",
+            "child_task_contract",
         ],
         "enqueue_plan": enqueue_plan,
         "queue_write_summary": dict(queue_write_summary or {}),
         "consume_summary": dict(consume_summary or {}),
+        "child_task_contract": child_task_contract,
         "findings": findings,
         "medium_or_higher_finding_count": sum(
             1 for item in findings if item.get("severity") in {"medium", "high"}
@@ -163,6 +199,72 @@ def main(argv: Sequence[str] | None = None) -> None:
             sort_keys=True,
         )
     )
+
+
+def _write_consume_evidence_files(
+    consume_result: Any,
+    *,
+    output_dir: Path,
+) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: dict[str, Path] = {}
+    for filename, file_payload in consume_result.to_output_files().items():
+        file_path = output_dir / filename
+        file_path.write_text(
+            json.dumps(file_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        written[filename] = file_path
+    return written
+
+
+def _child_task_contract_summary(
+    *,
+    sample_id: str,
+    source_surface: str,
+    require_child_task_contract: bool,
+) -> dict[str, Any]:
+    if not require_child_task_contract:
+        return {
+            "required": False,
+            "verdict": "skipped",
+            "processor_profile": {},
+            "findings": [],
+        }
+    profile = select_processor_profile(
+        source_surface=source_surface,
+        sample_id=sample_id,
+        target_family="transport_schedule",
+        media_roles=["schedule_table_carrier"] if sample_id == "355867" else [],
+        title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知"
+        if sample_id == "355867"
+        else "",
+    )
+    findings: list[dict[str, Any]] = []
+    if sample_id == "355867" and profile["processor_order"][0] != "ocr_table_extraction":
+        findings.append(
+            {
+                "severity": "high",
+                "code": "schedule_image_not_ocr_first",
+                "message": "notice 355867 must select OCR/table extraction before multimodal",
+            }
+        )
+    if profile.get("multimodal_policy") != "explicit_escalation_only":
+        findings.append(
+            {
+                "severity": "medium",
+                "code": "multimodal_not_explicit_escalation",
+                "message": "generic multimodal must be an explicit escalation lane",
+            }
+        )
+    return {
+        "required": True,
+        "verdict": "passed"
+        if not any(item.get("severity") in {"medium", "high"} for item in findings)
+        else "failed",
+        "processor_profile": profile,
+        "findings": findings,
+    }
 
 
 __all__ = ["SMOKE_SCHEMA_VERSION", "build_parser", "main"]

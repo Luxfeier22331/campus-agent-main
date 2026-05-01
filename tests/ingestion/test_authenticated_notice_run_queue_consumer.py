@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -68,6 +69,101 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
         self.assertIsNone(request.bundle_path)
         self.assertIsNone(request.export_manifest_path)
         self.assertFalse(request.allow_local_fixture_import)
+        row = result.trace["trace_rows"][0]
+        self.assertEqual(row["child_task_summary"]["by_state"]["completed"], 3)
+        self.assertEqual(row["child_task_summary"]["highest_severity"], "none")
+        self.assertEqual(row["child_tasks"][0]["task_kind"], "source_unit_import")
+        self.assertGreaterEqual(len(row["progress_events"]), 3)
+
+    def test_execute_heartbeats_long_running_import_before_completion(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = _HeartbeatRecordingQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+        importer = _WaitForHeartbeatImporter(
+            store.heartbeat_seen,
+            {"notice_count": 1, "source_truth_only": True},
+        )
+
+        result = consume_authenticated_notice_ingest_queue(
+            queue_store=store,
+            object_store=_ObjectStore(
+                {
+                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                }
+            ),
+            run_ref_resolver=_resolver_for(job),
+            importer=importer,
+            mode="execute",
+            worker_id="worker-a",
+            lease_seconds=3,
+            heartbeat_interval_seconds=0.01,
+            site_id="muc_internal_portal",
+            source_home_url="https://my.muc.edu.cn",
+            source_truth_only=True,
+        )
+
+        self.assertEqual(store.get(job.job_id).status, "succeeded")  # type: ignore[union-attr]
+        self.assertGreaterEqual(store.heartbeat_count, 1)
+        self.assertTrue(importer.observed_heartbeat)
+        row = result.trace["trace_rows"][0]
+        self.assertTrue(row["lease_heartbeat"]["enabled"])
+        self.assertEqual(row["lease_heartbeat"]["heartbeat_failed"], False)
+        self.assertGreaterEqual(row["lease_heartbeat"]["heartbeat_count"], 1)
+
+    def test_execute_maps_heartbeat_failure_to_retryable_failure(self) -> None:
+        bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
+        manifest_bytes = _json_bytes({"run_id": "run-001", "filters": {}})
+        store = _FailingHeartbeatQueueStore()
+        job = _job(
+            run_id="run-001",
+            bundle_sha=_sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=_sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+        importer = _WaitForHeartbeatAttemptImporter(
+            store.heartbeat_attempted,
+            {"notice_count": 1, "source_truth_only": True},
+        )
+
+        result = consume_authenticated_notice_ingest_queue(
+            queue_store=store,
+            object_store=_ObjectStore(
+                {
+                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                }
+            ),
+            run_ref_resolver=_resolver_for(job),
+            importer=importer,
+            mode="execute",
+            worker_id="worker-a",
+            lease_seconds=3,
+            heartbeat_interval_seconds=0.01,
+            site_id="muc_internal_portal",
+            source_home_url="https://my.muc.edu.cn",
+            source_truth_only=True,
+        )
+
+        record = store.get(job.job_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.status, "failed_retryable")
+        self.assertEqual(record.last_error_code, "lease_heartbeat_failed")
+        self.assertEqual(result.queue_consume["counts"]["completed_count"], 0)
+        self.assertEqual(result.queue_consume["counts"]["retryable_count"], 1)
+        row = result.trace["trace_rows"][0]
+        self.assertTrue(row["lease_heartbeat"]["heartbeat_failed"])
+        self.assertIn("boom", row["lease_heartbeat"]["last_error_message"])
 
     def test_missing_source_object_maps_to_retryable_failure_with_retry_after(self) -> None:
         bundle_bytes = _json_bytes([{"notice_id": "355867"}])
@@ -367,6 +463,11 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
             1,
         )
         self.assertEqual(store.get(job.job_id).status, "succeeded")  # type: ignore[union-attr]
+        self.assertEqual(
+            row["child_task_summary"]["by_kind"]["downstream_materialization"],
+            1,
+        )
+        self.assertEqual(row["child_task_summary"]["highest_severity"], "none")
 
     def test_missing_downstream_materialization_result_maps_to_manual_review(self) -> None:
         bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
@@ -407,6 +508,15 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
         self.assertEqual(record.status, "manual_review")
         self.assertEqual(record.last_error_code, "downstream_materialization_missing")
         self.assertEqual(result.failed_report["manual_review_count"], 1)
+        row = result.trace["trace_rows"][0]
+        self.assertEqual(row["child_task_summary"]["highest_severity"], "medium")
+        downstream_tasks = [
+            task for task in row["child_tasks"] if task["task_kind"] == "downstream_materialization"
+        ]
+        self.assertEqual(
+            downstream_tasks[0]["reason_code"],
+            "downstream_materialization_missing",
+        )
 
     def test_cleanup_dry_run_posture_is_recorded_when_report_path_is_supplied(self) -> None:
         bundle_bytes = _json_bytes([{"notice_id": "355867", "title": "班车通知"}])
@@ -505,6 +615,28 @@ class _ObjectStore:
             raise KeyError(f"{bucket}/{key}") from exc
 
 
+class _HeartbeatRecordingQueueStore(InMemoryNoticeIngestQueueStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.heartbeat_seen = threading.Event()
+        self.heartbeat_count = 0
+
+    def heartbeat(self, *args, **kwargs):
+        self.heartbeat_count += 1
+        self.heartbeat_seen.set()
+        return super().heartbeat(*args, **kwargs)
+
+
+class _FailingHeartbeatQueueStore(InMemoryNoticeIngestQueueStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.heartbeat_attempted = threading.Event()
+
+    def heartbeat(self, *args, **kwargs):
+        self.heartbeat_attempted.set()
+        raise RuntimeError("heartbeat boom")
+
+
 class _RecordingImporter:
     def __init__(self, result: dict[str, object]) -> None:
         self.result = result
@@ -514,6 +646,30 @@ class _RecordingImporter:
         del env, object_store
         self.requests.append(request)
         return dict(self.result)
+
+
+class _WaitForHeartbeatImporter(_RecordingImporter):
+    def __init__(self, heartbeat_seen: threading.Event, result: dict[str, object]) -> None:
+        super().__init__(result)
+        self.heartbeat_seen = heartbeat_seen
+        self.observed_heartbeat = False
+
+    def __call__(self, *, request, env, object_store):
+        self.observed_heartbeat = self.heartbeat_seen.wait(timeout=1.0)
+        if not self.observed_heartbeat:
+            raise AssertionError("consumer did not heartbeat before importer returned")
+        return super().__call__(request=request, env=env, object_store=object_store)
+
+
+class _WaitForHeartbeatAttemptImporter(_RecordingImporter):
+    def __init__(self, heartbeat_attempted: threading.Event, result: dict[str, object]) -> None:
+        super().__init__(result)
+        self.heartbeat_attempted = heartbeat_attempted
+
+    def __call__(self, *, request, env, object_store):
+        if not self.heartbeat_attempted.wait(timeout=1.0):
+            raise AssertionError("consumer did not attempt heartbeat before importer returned")
+        return super().__call__(request=request, env=env, object_store=object_store)
 
 
 def _resolver_for(job):

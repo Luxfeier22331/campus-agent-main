@@ -205,6 +205,23 @@ ingest queue payload。它只调度已经写入 run ledger 且对象校验通过
 collector auto-enqueue、run-level consumer、media gate、promotion、downstream
 materialization 与 captured-content smoke。
 
+Phase 9 之后，authenticated notice queue consumer 还必须输出
+`authenticated_notice_child_task_state_contract.v1` 证据。operator 排查 pending /
+manual-review / failed job 时，先看 child task summary，而不是直接打开原始 bundle 或 OCR
+payload：
+
+- `source_unit_import` 失败通常是 ledger / object-store / import contract 问题。
+- `ocr_table_extraction` 或 `multimodal_enrichment` 失败说明 media processor
+  或升级策略有问题。
+- `target_admission` / `downstream_materialization` 失败说明 fact readiness
+  或 read-model materialization 缺证据。
+- `cleanup_evaluation` blocked 说明 destructive cleanup 缺少 fresh passed media
+  gate evidence。
+
+对 `355867` 这类 schedule facts 由图片承载的通知，processor profile 应为
+`image_schedule_notice`，并且第一处理器必须是 OCR/table extraction；generic multimodal
+只能作为明确 escalation。
+
 首次从 export bundle 计划并执行：
 
 ```bash
