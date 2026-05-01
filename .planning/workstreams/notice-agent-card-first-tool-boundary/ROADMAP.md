@@ -1,7 +1,7 @@
 ---
 doc_type: roadmap
 workstream: notice-agent-card-first-tool-boundary
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
