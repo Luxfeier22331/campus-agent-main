@@ -362,7 +362,7 @@ def seed_target_workset(
         ) values (
           $1, $2, $3, $4, $5,
           $6, 'manual_live_seam_seed', $7, $8, 'eligible',
-          10000, $9, $9
+          2147483647, $9, $9
         )
         on conflict (candidate_id) do update set
           eligibility_reason = excluded.eligibility_reason,

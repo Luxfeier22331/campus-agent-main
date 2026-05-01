@@ -223,6 +223,50 @@ export function registerOfficialWebRoutes(input: {
 		});
 	});
 
+	input.app.post(
+		"/api/operator/official-web/target-inventory/:inventoryId/release-gates",
+		async (c) => {
+			const scope = input.createRequestScope();
+			const resolved = await requireOperatorPrincipal({
+				env: input.env,
+				getPrincipal: input.getPrincipal,
+				request: c.req.raw,
+				scope,
+			});
+			if (resolved.response) {
+				return resolved.response;
+			}
+
+			return jsonResponse(
+				await scope.resolveOfficialWebTargetReleaseGateService().createReleaseGate({
+					inventoryId: c.req.param("inventoryId"),
+					payload: await readJsonRequestBody(c.req.raw),
+					principal: resolved.principal,
+				}),
+			);
+		},
+	);
+
+	input.app.get("/api/operator/official-web/target-release-gates/:releaseId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOfficialWebTargetReleaseGateService().getReleaseGateById({
+				principal: resolved.principal,
+				releaseId: c.req.param("releaseId"),
+			}),
+		);
+	});
+
 	input.app.get("/api/operator/official-web/target-jobs/:jobId", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

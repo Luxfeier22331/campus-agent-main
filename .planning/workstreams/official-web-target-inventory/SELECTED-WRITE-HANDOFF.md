@@ -35,18 +35,22 @@ as `present`.
 
 Current target-field review flow:
 
-- `ingestion-worker` derives per-candidate `field_status` from target inventory `required_fields`,
-  typed candidate extraction and source refs.
+- `ingestion-worker` derives `field_status` from target inventory `required_fields`.
+- selected-write candidates use typed candidate extraction and source refs.
+- release-gated stable-reference documents use projected document lineage, document content presence
+  and source refs.
 - staged/promoted ingestion callbacks send `targetFieldReviews` to `app-api`.
 - `app-api` persists those reviews in `official_web.target_artifact_verification_summaries`.
 - target inventory projection reads the latest target summary from PG and combines it with preview
   lineage to classify rows as `blocked_fields` or `ready_for_selected_write`.
+- `release_gate_required` targets with complete preview lineage and complete fields stay `previewed`
+  with `release_gate_not_reviewed`; they do not become `ready_for_selected_write`.
 
 Known current blockers:
 
 - contact/service extraction may still leave semantic fields missing, for example
   `responsible_office`, `location`, `office_hours` or `required_materials`.
-- `official_web/stable_reference` remains release-gated and is not selected-write-ready merely
-  because the page was staged.
+- `official_web/stable_reference` remains release-gated and needs an explicit release gate before
+  serving alias changes.
 - existing preview runs before this callback change need a rerun or explicit review summary write
   before app-api can show non-default field status.

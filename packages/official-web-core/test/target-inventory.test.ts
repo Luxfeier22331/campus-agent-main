@@ -85,6 +85,47 @@ describe("official web target inventory report", () => {
 		});
 	});
 
+	it("keeps release-gated stable references out of selected-write readiness", () => {
+		const config = loadOfficialWebConfig("muc_public");
+		const evidence: OfficialWebTargetInventoryPreviewEvidence = {
+			appApiRunId: "owrun_school_intro",
+			currentTruthImportWasNull: true,
+			ingestionStatus: "staged",
+			inventoryId: "muc-school-introduction-reference",
+			promotionDecision: "staged",
+			rawAssetId: "owasset_school_intro",
+			rawVersionId: "owver_school_intro",
+			sourceObjectKeys: [
+				"official_web/muc_public/runs/owrun_school_intro/source-truth-bundle.json",
+			],
+			targetAttemptId: "owattempt_school_intro",
+			targetJobId: "owtarget_school_intro",
+		};
+
+		const report = buildOfficialWebTargetInventoryReport(config, {
+			fieldStatusByInventoryId: {
+				"muc-school-introduction-reference": {
+					authoritative_source_url: "present",
+					normalized_content_summary: "present",
+					reference_title: "present",
+					release_scope: "present",
+					source_version_evidence: "present",
+				},
+			},
+			previewEvidence: [evidence],
+		});
+
+		expect(report.entries[2]).toMatchObject({
+			inventoryId: "muc-school-introduction-reference",
+			releaseBlockers: ["release_gate_not_reviewed"],
+			reviewState: "previewed",
+		});
+		expect(report.countsByReviewState).toMatchObject({
+			candidate: 2,
+			previewed: 1,
+		});
+	});
+
 	it("normalizes bundled manifest JSON into the same report contract without filesystem access", () => {
 		const inventory = normalizeOfficialWebTargetInventoryManifest({
 			entries: [

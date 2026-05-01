@@ -144,6 +144,11 @@ function fieldBlockers(
 	return blockers;
 }
 
+function releaseGateBlockers(entry: OfficialWebTargetInventoryEntry): string[] {
+	const blockers = entry.releaseBlockers.filter((blocker) => blocker !== "no_preview_evidence");
+	return blockers.length > 0 ? blockers : ["release_gate_not_reviewed"];
+}
+
 function buildEntryReport(
 	entry: OfficialWebTargetInventoryEntry,
 	input: {
@@ -168,6 +173,9 @@ function buildEntryReport(
 			if (missingFields.length > 0) {
 				reviewState = "blocked_fields";
 				releaseBlockers = missingFields;
+			} else if (entry.materializationPolicy === "release_gate_required") {
+				reviewState = "previewed";
+				releaseBlockers = releaseGateBlockers(entry);
 			} else {
 				reviewState = "ready_for_selected_write";
 				releaseBlockers = [];

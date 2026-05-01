@@ -34,6 +34,10 @@ import {
 	createPgOfficialWebTargetJobStore,
 } from "../modules/official-web-target-jobs";
 import {
+	buildOfficialWebTargetReleaseGateService,
+	createPgOfficialWebTargetReleaseGateStore,
+} from "../modules/official-web-target-release-gates";
+import {
 	buildOperatorObservabilityCommandService,
 	buildOperatorTraceBacklinkRecorder,
 	createPgOperatorObservabilityCommandStore,
@@ -79,6 +83,8 @@ export function createRequestScopeFactory(input: {
 			let officialWebTargetInventoryService =
 				input.dependencies.officialWebTargetInventoryService ?? null;
 			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
+			let officialWebTargetReleaseGateService =
+				input.dependencies.officialWebTargetReleaseGateService ?? null;
 			let operatorObservabilityCommandService =
 				input.dependencies.operatorObservabilityCommandService ?? null;
 			let operatorQueryService = input.dependencies.operatorQueryService ?? null;
@@ -187,6 +193,20 @@ export function createRequestScopeFactory(input: {
 				return officialWebTargetInventoryService;
 			}
 
+			function resolveOfficialWebTargetReleaseGateService() {
+				if (officialWebTargetReleaseGateService) {
+					return officialWebTargetReleaseGateService;
+				}
+
+				officialWebTargetReleaseGateService = buildOfficialWebTargetReleaseGateService({
+					inventoryService: resolveOfficialWebTargetInventoryService(),
+					store: createPgOfficialWebTargetReleaseGateStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
+				});
+				return officialWebTargetReleaseGateService;
+			}
+
 			function resolveDocsService() {
 				if (docsService) {
 					return docsService;
@@ -269,6 +289,7 @@ export function createRequestScopeFactory(input: {
 				resolveOfficialWebQueryService,
 				resolveOfficialWebTargetInventoryService,
 				resolveOfficialWebTargetJobService,
+				resolveOfficialWebTargetReleaseGateService,
 				resolveOperatorObservabilityCommandService,
 				resolveOperatorQueryService,
 				resolveProfileMemoryService,

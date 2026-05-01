@@ -278,9 +278,26 @@ def build_consumer_candidate_review_report(
         and require_text(document.get("target_collection"), "target_collection")
         == "stable_reference"
     ]
+    stable_reference_target_field_reviews = [
+        review
+        for review in (
+            _stable_reference_target_field_review_record(
+                document=document,
+                run_id=require_text(replay_report.get("crawl_run_id"), "crawl_run_id"),
+                target_inventory_entry=_target_inventory_entry_for_document(
+                    document=document,
+                    target_inventory_entries=target_inventory_entries,
+                ),
+            )
+            for document in stable_reference_documents
+        )
+        if review is not None
+    ]
     return {
         "schemaVersion": "official_web_consumer_candidate_review.v1",
-        "status": "pending_review" if candidates else "not_applicable",
+        "status": "pending_review"
+        if candidates or stable_reference_documents
+        else "not_applicable",
         "counts": {
             "candidate_count": len(candidates),
             "selected_write_candidate_count": len(selected_write_candidates),
@@ -322,7 +339,8 @@ def build_consumer_candidate_review_report(
                 for candidate in candidates
             )
             if review is not None
-        ],
+        ]
+        + stable_reference_target_field_reviews,
         "candidates": candidates,
     }
 
@@ -454,6 +472,25 @@ def _target_inventory_entry_for_candidate(
 ) -> dict[str, object] | None:
     target_id = optional_text(candidate.get("target_id"))
     normalized_canonical_url = optional_text(candidate.get("normalized_canonical_url"))
+    if target_id is None:
+        return None
+    for entry in target_inventory_entries:
+        if optional_text(entry.get("admission_target_id")) != target_id:
+            continue
+        source_urls = normalize_string_list(entry.get("source_urls"))
+        if source_urls and normalized_canonical_url not in source_urls:
+            continue
+        return entry
+    return None
+
+
+def _target_inventory_entry_for_document(
+    *,
+    document: dict[str, object],
+    target_inventory_entries: list[dict[str, object]],
+) -> dict[str, object] | None:
+    target_id = optional_text(document.get("target_id"))
+    normalized_canonical_url = optional_text(document.get("normalized_canonical_url"))
     if target_id is None:
         return None
     for entry in target_inventory_entries:
@@ -603,6 +640,109 @@ def _target_field_review_record(
             "targetId": candidate.get("target_id"),
         },
     }
+
+
+def _stable_reference_target_field_review_record(
+    *,
+    document: dict[str, object],
+    run_id: str,
+    target_inventory_entry: dict[str, object] | None,
+) -> dict[str, object] | None:
+    job_id = optional_text(document.get("target_job_id"))
+    required_fields = _target_inventory_required_fields(target_inventory_entry)
+    if job_id is None or not required_fields:
+        return None
+    field_status = _stable_reference_field_status_for_required_fields(
+        document=document,
+        required_fields=required_fields,
+    )
+    status = (
+        "blocked_fields"
+        if any(value in {"missing", "ambiguous"} for value in field_status.values())
+        else "release_gate_required"
+    )
+    normalized_canonical_url = require_text(
+        document.get("normalized_canonical_url"),
+        "normalized_canonical_url",
+    )
+    return {
+        "canonicalVerification": False,
+        "jobId": job_id,
+        "runId": run_id,
+        "sourceHandoffId": None,
+        "status": status,
+        "summary": {
+            "schemaVersion": "official_web_target_field_review.v1",
+            "candidateKey": (
+                f"owdoc:{require_text(document.get('document_id'), 'document_id')}:"
+                f"{require_text(document.get('version_id'), 'version_id')}"
+            ),
+            "consumerFamily": "stable_reference_candidate",
+            "fieldStatus": field_status,
+            "inventoryId": optional_text(target_inventory_entry.get("inventory_id"))
+            if target_inventory_entry is not None
+            else None,
+            "normalizedCanonicalUrl": normalized_canonical_url,
+            "readyForSelectedWrite": False,
+            "requiredFields": required_fields,
+            "reviewVerdict": "pending_review",
+            "selectedWriteTarget": document.get("selected_write_target"),
+            "sourceRef": {
+                "source_channel": "official_web",
+                "raw_asset_id": require_text(document.get("raw_asset_id"), "raw_asset_id"),
+                "raw_version_id": require_text(document.get("raw_version_id"), "raw_version_id"),
+                "normalized_canonical_url": normalized_canonical_url,
+            },
+            "targetId": document.get("target_id"),
+        },
+    }
+
+
+def _stable_reference_field_status_for_required_fields(
+    *,
+    document: dict[str, object],
+    required_fields: list[str],
+) -> dict[str, str]:
+    return {
+        field_name: _stable_reference_field_status_for_required_field(
+            document=document,
+            field_name=field_name,
+        )
+        for field_name in required_fields
+    }
+
+
+def _stable_reference_field_status_for_required_field(
+    *,
+    document: dict[str, object],
+    field_name: str,
+) -> str:
+    if field_name == "reference_title":
+        return "present" if optional_text(document.get("title")) else "missing"
+    if field_name == "normalized_content_summary":
+        return (
+            "present"
+            if coerce_non_negative_int(document.get("unit_count")) > 0
+            or optional_text(document.get("canonical_markdown_path"))
+            else "missing"
+        )
+    if field_name in {"authoritative_source_url", "source_url"}:
+        return "present" if optional_text(document.get("normalized_canonical_url")) else "missing"
+    if field_name == "release_scope":
+        return (
+            "present"
+            if optional_text(document.get("target_corpus")) == "official_web"
+            and optional_text(document.get("target_collection")) == "stable_reference"
+            else "missing"
+        )
+    if field_name == "source_version_evidence":
+        return (
+            "present"
+            if optional_text(document.get("raw_asset_id"))
+            and optional_text(document.get("raw_version_id"))
+            else "missing"
+        )
+    return "not_applicable"
 
 
 def _candidate_admission_action(

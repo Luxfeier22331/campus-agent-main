@@ -100,6 +100,7 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
         self.assertIn("update official_web.page_freshness", node_code)
         self.assertIn("next_eligible_fetch_at = $", node_code)
         self.assertIn("manual_live_seam_preview_requeue", node_code)
+        self.assertIn("2147483647, $9, $9", node_code)
         self.assertIn("where site_id = $1", node_code)
         self.assertIn("normalized_canonical_url = $2", node_code)
 

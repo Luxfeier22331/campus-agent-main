@@ -204,6 +204,13 @@
       "when": 1777616437808,
       "tag": "0028_goofy_sumo",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1777650831776,
+      "tag": "0029_official_web_target_release_gates",
+      "breakpoints": true
     }
   ]
 }

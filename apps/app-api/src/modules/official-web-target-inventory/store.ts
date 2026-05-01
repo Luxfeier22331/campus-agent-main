@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
+import type { OfficialWebTargetInventoryPreviewEvidence } from "official-web-core/target-inventory";
 
 import type { Env } from "../../config";
 import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
@@ -31,9 +32,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function coerceFieldStatus(
-	value: unknown,
-): Record<string, OfficialWebTargetInventoryFieldStatus> {
+function coerceFieldStatus(value: unknown): Record<string, OfficialWebTargetInventoryFieldStatus> {
 	if (!isRecord(value)) {
 		return {};
 	}
@@ -50,10 +49,7 @@ function normalizeOptionalString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function summaryMatchesEntrySource(
-	summary: unknown,
-	sourceUrls: string[],
-): boolean {
+function summaryMatchesEntrySource(summary: unknown, sourceUrls: string[]): boolean {
 	if (!isRecord(summary)) {
 		return false;
 	}
@@ -72,7 +68,7 @@ export function createPgOfficialWebTargetInventoryPreviewEvidenceStore(
 	return {
 		async listPreviewEvidence(input) {
 			const db = await getDb();
-			const evidence = [];
+			const evidence: OfficialWebTargetInventoryPreviewEvidence[] = [];
 
 			for (const entry of input.entries) {
 				if (entry.sourceUrls.length === 0) {
@@ -162,10 +158,7 @@ export function createPgOfficialWebTargetInventoryFieldStatusStore(
 					.from(officialWebTargetArtifactVerificationSummaries)
 					.innerJoin(
 						officialWebTargetJobs,
-						eq(
-							officialWebTargetJobs.jobId,
-							officialWebTargetArtifactVerificationSummaries.jobId,
-						),
+						eq(officialWebTargetJobs.jobId, officialWebTargetArtifactVerificationSummaries.jobId),
 					)
 					.where(
 						and(

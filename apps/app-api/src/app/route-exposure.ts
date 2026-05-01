@@ -197,6 +197,18 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/official-web/target-release-gates/:releaseId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "POST",
+		path: "/api/operator/official-web/target-inventory/:inventoryId/release-gates",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/official-web/sites",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -354,6 +366,18 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "POST",
 		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "GET",
+		path: "/api/internal/official-web/target-release-gates/:releaseId",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/official-web/target-release-gates/:releaseId/execution-status",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},

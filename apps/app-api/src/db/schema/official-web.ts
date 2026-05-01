@@ -399,3 +399,39 @@ export const officialWebTargetArtifactVerificationSummaries = officialWeb.table(
 		),
 	}),
 );
+
+export const officialWebTargetReleaseGates = officialWeb.table(
+	"target_release_gates",
+	{
+		releaseId: text("release_id").primaryKey(),
+		inventoryId: text("inventory_id").notNull(),
+		jobId: text("job_id")
+			.notNull()
+			.references(() => officialWebTargetJobs.jobId, { onDelete: "restrict" }),
+		runId: text("run_id").references(() => crawlRuns.runId, { onDelete: "set null" }),
+		summaryId: text("summary_id").references(
+			() => officialWebTargetArtifactVerificationSummaries.summaryId,
+			{ onDelete: "set null" },
+		),
+		decision: text("decision").notNull(),
+		status: text("status").notNull(),
+		publishAlias: boolean("publish_alias").notNull().default(false),
+		decidedBy: text("decided_by").notNull(),
+		decidedAt: timestamp("decided_at", { withTimezone: true }).notNull(),
+		notes: text("notes"),
+		evidenceJson: jsonb("evidence_json").$type<Record<string, unknown>>().notNull(),
+		executionJson: jsonb("execution_json").$type<Record<string, unknown> | null>(),
+		errorJson: jsonb("error_json").$type<Record<string, unknown> | null>(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		inventoryRunDecisionUnique: uniqueIndex(
+			"official_web_target_release_gates_inventory_run_decision_idx",
+		).on(table.inventoryId, table.runId, table.decision),
+		statusUpdatedAtIndex: index("official_web_target_release_gates_status_updated_at_idx").on(
+			table.status,
+			table.updatedAt,
+		),
+	}),
+);

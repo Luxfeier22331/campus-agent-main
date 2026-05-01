@@ -1,8 +1,8 @@
 import { AppApiRouteError } from "../../http";
 import type { OfficialWebIngestionExecutionStatus } from "../official-web-command";
 import {
-	type OfficialWebTargetArtifactVerificationSummaryWrite,
 	type OfficialWebProjectionProjectorStore,
+	type OfficialWebTargetArtifactVerificationSummaryWrite,
 	toOfficialWebRunProjectionMaterialization,
 	toOfficialWebSiteProjectionMaterialization,
 } from "../official-web-projection";
@@ -93,7 +93,10 @@ function normalizeBoolean(value: unknown, fallback: boolean): boolean {
 }
 
 function sanitizeIdPart(value: string): string {
-	return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+	return value
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "_")
+		.replace(/^_+|_+$/g, "");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -134,7 +137,7 @@ function normalizeTargetFieldReviews(
 		const reviewRunId = normalizeOptionalString(item.runId) ?? input.runId;
 		const status = normalizeOptionalString(item.status);
 		const summary = item.summary;
-		if (!jobId || !status || !isRecord(summary)) {
+		if (!(jobId && status && isRecord(summary))) {
 			throw new AppApiRouteError({
 				code: "validation_failed",
 				details: { field: `targetFieldReviews[${index}]` },

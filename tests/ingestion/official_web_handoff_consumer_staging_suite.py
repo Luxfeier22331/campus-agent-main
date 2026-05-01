@@ -230,6 +230,115 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             ],
         )
 
+    def test_stable_reference_document_reports_target_inventory_field_status(
+        self,
+    ) -> None:
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_stable_reference_review",
+                "documents": [
+                    {
+                        "document_id": "official_web:muc_public:generic_content_page:school",
+                        "version_id": "owdocver_school_intro",
+                        "title": "学校简介",
+                        "declaration_id": "generic-content-primary",
+                        "page_family": "generic_content_page",
+                        "projection_family": "content_document",
+                        "document_kind": "article",
+                        "target_corpus": "official_web",
+                        "target_collection": "stable_reference",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                        "raw_asset_id": "owasset_school_intro",
+                        "raw_version_id": "owver_school_intro",
+                        "unit_count": 3,
+                        "canonical_markdown_path": "/tmp/school-introduction/canonical.md",
+                        "document_units_path": "/tmp/school-introduction/document-units.jsonl",
+                        "serving_intent": "promotable",
+                        "promotion_block_reason": None,
+                        "materialization_policy": "release_gate_required",
+                        "selected_write_target": "official_web/stable_reference",
+                        "target_id": "official-web-stable-reference",
+                        "target_job_id": "owtarget_school_intro",
+                        "target_candidate_id": "owcandidate_school_intro",
+                    }
+                ],
+                "consumer_candidate_pages": [],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_v1",
+                "entries": [
+                    {
+                        "inventory_id": "muc-school-introduction-reference",
+                        "admission_target_id": "official-web-stable-reference",
+                        "source_urls": ["https://www.muc.edu.cn/xxgk1/xxjj.htm"],
+                        "required_fields": [
+                            "reference_title",
+                            "normalized_content_summary",
+                            "authoritative_source_url",
+                            "release_scope",
+                            "source_version_evidence",
+                        ],
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(review["status"], "pending_review")
+        self.assertEqual(
+            review["stableReferenceRelease"],
+            {
+                "decision": "release_gate_required",
+                "candidate_count": 1,
+                "serving_alias_update": "not_allowed_in_consumer_denominator_recovery",
+            },
+        )
+        self.assertEqual(
+            review["targetFieldReviews"],
+            [
+                {
+                    "canonicalVerification": False,
+                    "jobId": "owtarget_school_intro",
+                    "runId": "owrun_stable_reference_review",
+                    "sourceHandoffId": None,
+                    "status": "release_gate_required",
+                    "summary": {
+                        "schemaVersion": "official_web_target_field_review.v1",
+                        "candidateKey": "owdoc:official_web:muc_public:generic_content_page:school:owdocver_school_intro",
+                        "consumerFamily": "stable_reference_candidate",
+                        "fieldStatus": {
+                            "reference_title": "present",
+                            "normalized_content_summary": "present",
+                            "authoritative_source_url": "present",
+                            "release_scope": "present",
+                            "source_version_evidence": "present",
+                        },
+                        "inventoryId": "muc-school-introduction-reference",
+                        "normalizedCanonicalUrl": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                        "readyForSelectedWrite": False,
+                        "requiredFields": [
+                            "reference_title",
+                            "normalized_content_summary",
+                            "authoritative_source_url",
+                            "release_scope",
+                            "source_version_evidence",
+                        ],
+                        "reviewVerdict": "pending_review",
+                        "selectedWriteTarget": "official_web/stable_reference",
+                        "sourceRef": {
+                            "source_channel": "official_web",
+                            "raw_asset_id": "owasset_school_intro",
+                            "raw_version_id": "owver_school_intro",
+                            "normalized_canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                        },
+                        "targetId": "official-web-stable-reference",
+                    },
+                }
+            ],
+        )
+
     def test_consume_handoff_record_stages_projection_outputs_without_persisting_registry_by_default(
         self,
     ) -> None:
