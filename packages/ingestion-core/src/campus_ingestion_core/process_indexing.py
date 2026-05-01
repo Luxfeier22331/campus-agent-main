@@ -94,6 +94,10 @@ def index_chunks_to_qdrant(
     points: list[qdrant_models.PointStruct] = []
     for chunk in chunks:
         node = chunk.to_node()
+        for key, value in _chunk_lineage_payload_defaults(
+            chunk=chunk, metadata=node.metadata
+        ).items():
+            node.metadata.setdefault(key, value)
         if runtime_extra_payload:
             node.metadata.update(runtime_extra_payload)
         if chunk.embedding is None:
@@ -140,10 +144,14 @@ def ensure_payload_indexes_exist(*, qdrant_client: QdrantClient, collection_name
 def required_payload_index_schemas() -> PayloadIndexSchema:
     return (
         ("document_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("notice_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("source_notice_ids", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("source_document_ids", qdrant_models.PayloadSchemaType.KEYWORD),
         ("revision_track", qdrant_models.PayloadSchemaType.KEYWORD),
         ("version_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("corpus", qdrant_models.PayloadSchemaType.KEYWORD),
         ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("target_surface", qdrant_models.PayloadSchemaType.KEYWORD),
         ("canonical_course_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("canonical_course_family_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("canonical_program_family_id", qdrant_models.PayloadSchemaType.KEYWORD),
@@ -155,6 +163,59 @@ def required_payload_index_schemas() -> PayloadIndexSchema:
         ("source_channel", qdrant_models.PayloadSchemaType.KEYWORD),
         ("is_current", qdrant_models.PayloadSchemaType.BOOL),
     )
+
+
+def _chunk_lineage_payload_defaults(
+    *,
+    chunk: IndexableChunk,
+    metadata: Mapping[str, object],
+) -> dict[str, object]:
+    defaults: dict[str, object] = {
+        "target_surface": f"{chunk.corpus}/{chunk.collection}",
+    }
+    source_notice_ids = _string_list(metadata.get("source_notice_ids"))
+    if source_notice_ids:
+        defaults["source_notice_ids"] = source_notice_ids
+        if len(source_notice_ids) == 1:
+            defaults["notice_id"] = source_notice_ids[0]
+    source_document_ids = _source_document_ids(
+        metadata=metadata, fallback_document_id=chunk.document_id
+    )
+    if source_document_ids:
+        defaults["source_document_ids"] = source_document_ids
+    return defaults
+
+
+def _source_document_ids(
+    *,
+    metadata: Mapping[str, object],
+    fallback_document_id: str,
+) -> list[str]:
+    source_document_ids = _string_list(metadata.get("source_document_ids"))
+    if source_document_ids:
+        return source_document_ids
+    candidates: list[str] = []
+    for key in (
+        "source_document_id",
+        "source_notice_document_id",
+        "semantic_owner_document_id",
+        "source_attachment_document_id",
+    ):
+        value = str(metadata.get(key) or "").strip()
+        if value:
+            candidates.append(value)
+    if not candidates:
+        candidates.append(fallback_document_id)
+    return list(dict.fromkeys(candidates))
+
+
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        normalized = value.strip()
+        return [normalized] if normalized else []
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
+        return list(dict.fromkeys(str(item).strip() for item in value if str(item).strip()))
+    return []
 
 
 def audit_payload_indexes(

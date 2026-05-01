@@ -17,6 +17,7 @@ from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
+from campus_ingestion_core.process_indexing import required_payload_index_schemas
 from campus_ingestion_core.scope_catalog import QdrantIndexBinding
 from campus_ingestion_core.sparse import (
     MockSparseEmbeddingSettings,
@@ -327,6 +328,7 @@ __all__ = (
     "qdrant_models",
     "query_targets_source_title",
     "replace",
+    "required_payload_index_schemas",
     "select_supporting_evidence_sources",
     "unittest",
     "uuid",

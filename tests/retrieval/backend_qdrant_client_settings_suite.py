@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from campus_ingestion_core.process_indexing import audit_payload_indexes
+from campus_ingestion_core.process_indexing import (
+    audit_payload_indexes,
+    required_payload_index_schemas,
+)
 
 from tests.retrieval.backend_qdrant_test_support import (
     STUDENT_HANDBOOK_QDRANT_COLLECTION,
@@ -62,10 +65,14 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         class _CollectionInfo:
             payload_schema = {
                 "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "notice_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                "source_notice_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                "source_document_ids": qdrant_models.PayloadSchemaType.KEYWORD,
                 "revision_track": qdrant_models.PayloadSchemaType.KEYWORD,
                 "version_id": qdrant_models.PayloadSchemaType.KEYWORD,
                 "corpus": qdrant_models.PayloadSchemaType.KEYWORD,
                 "collection": qdrant_models.PayloadSchemaType.KEYWORD,
+                "target_surface": qdrant_models.PayloadSchemaType.KEYWORD,
                 "canonical_course_id": qdrant_models.PayloadSchemaType.KEYWORD,
                 "canonical_course_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
                 "canonical_program_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
@@ -181,6 +188,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         point = qdrant_client.upsert.call_args.kwargs["points"][0]
         self.assertIn("dense", point.vector)
         self.assertIn("sparse", point.vector)
+        self.assertEqual(point.payload["target_surface"], "regulations/student_rules")
         self.assertIsInstance(point.vector["sparse"], qdrant_models.Document)
         self.assertEqual(point.vector["sparse"].model, "qdrant/bm25")
         indexed_fields = [
@@ -190,10 +198,14 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             indexed_fields,
             [
                 "document_id",
+                "notice_id",
+                "source_notice_ids",
+                "source_document_ids",
                 "revision_track",
                 "version_id",
                 "corpus",
                 "collection",
+                "target_surface",
                 "canonical_course_id",
                 "canonical_course_family_id",
                 "canonical_program_family_id",
@@ -218,6 +230,14 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             )
         )
         self.assertEqual(indexed_schemas["is_current"], qdrant_models.PayloadSchemaType.BOOL)
+
+    def test_required_payload_indexes_include_notice_target_residue_audit_fields(self) -> None:
+        indexed_fields = [field_name for field_name, _schema in required_payload_index_schemas()]
+
+        self.assertIn("notice_id", indexed_fields)
+        self.assertIn("source_notice_ids", indexed_fields)
+        self.assertIn("source_document_ids", indexed_fields)
+        self.assertIn("target_surface", indexed_fields)
 
     def test_backend_rejects_query_disabled_corpus(self) -> None:
         backend = QdrantRetrievalBackend(

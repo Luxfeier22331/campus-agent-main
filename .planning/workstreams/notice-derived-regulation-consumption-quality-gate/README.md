@@ -49,6 +49,12 @@ eligibility、target materialization gate 与文档站/RAG 消费前质量验收
 - post-cleanup residue audit result:
   `postgres_exact_remaining=0`, `object_store_exact_keys_remaining=0`,
   `object_store_title_key_matches=[]`
+- bounded reopen added durable operation entries:
+  `campus_ingestion_worker.audit_collected_notice_regulation_admission_batch` and
+  `campus_ingestion_worker.cleanup_internal_notice_regulation_target_residue`
+- target residue cleanup now covers exact Postgres target rows, explicitly selected derived
+  object keys and exact Qdrant points, with operator projection fields limited to compact
+  audit/cleanup evidence
 
 Local evidence paths:
 
