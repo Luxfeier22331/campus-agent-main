@@ -73,6 +73,10 @@ class ConsumeAuthenticatedNoticeIngestQueueWorkerTest(unittest.TestCase):
             self.assertEqual(kwargs["site_id"], "muc_internal_portal")
             self.assertEqual(kwargs["source_home_url"], "https://my.muc.edu.cn")
             self.assertTrue(kwargs["require_media_gate"])
+            self.assertIs(
+                kwargs["typed_downstream_materializer"],
+                worker.materialize_authenticated_notice_typed_downstream,
+            )
             self.assertIsNone(kwargs["media_gate_evidence_dir"])
             self.assertEqual(str(kwargs["operations_dir"]), str(output_dir / "operations"))
             payload = json.loads(stdout.getvalue())

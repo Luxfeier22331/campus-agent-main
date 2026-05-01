@@ -255,6 +255,10 @@ class SmokeAuthenticatedNoticeIngestQueueE2EWorkerTest(unittest.TestCase):
                 )
 
             self.assertEqual(consume.call_args.kwargs["source_truth_only"], False)
+            self.assertIs(
+                consume.call_args.kwargs["typed_downstream_materializer"],
+                worker.materialize_authenticated_notice_typed_downstream,
+            )
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["verdict"], "failed")
             report = json.loads(
