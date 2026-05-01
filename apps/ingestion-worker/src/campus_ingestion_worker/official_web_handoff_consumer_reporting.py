@@ -46,6 +46,14 @@ def build_stage_quality_report(
         require_text(document.get("serving_intent") or "unknown", "serving_intent")
         for document in replay_documents
     )
+    target_family_counts = _int_mapping(replay_report.get("target_family_counts"))
+    target_materialization_policy_counts = _int_mapping(
+        replay_report.get("target_materialization_policy_counts")
+    )
+    target_lineage_issues = require_object_list(
+        replay_report.get("target_lineage_issues") or [],
+        "target_lineage_issues",
+    )
     manual_review_page_family_counts = count_by_value(
         require_text(page.get("page_family"), "page_family")
         for page in require_object_list(
@@ -153,6 +161,30 @@ def build_stage_quality_report(
         actual=document_serving_intent_counts,
         expected={"allowed": ["promotable", "audit_only"]},
     )
+    inventory_only_promotable_documents = [
+        require_text(document.get("document_id"), "document_id")
+        for document in replay_documents
+        if require_text(document.get("serving_intent") or "unknown", "serving_intent")
+        == "promotable"
+        and optional_text(document.get("materialization_policy")) == "inventory_only"
+    ]
+    record_check(
+        code="target_lineage_valid",
+        passed=not target_lineage_issues,
+        message="target-workset replay contains pages with missing or invalid target lineage",
+        actual={
+            "issue_count": len(target_lineage_issues),
+            "issues": target_lineage_issues,
+        },
+        expected={"issue_count": 0},
+    )
+    record_check(
+        code="inventory_only_not_promotable",
+        passed=not inventory_only_promotable_documents,
+        message="inventory-only target records must not be promoted to current truth",
+        actual=inventory_only_promotable_documents,
+        expected={"document_ids": []},
+    )
 
     return {
         "passed": len(blocked_checks) == 0,
@@ -171,6 +203,9 @@ def build_stage_quality_report(
         "actualHosts": actual_host_set,
         "documentPageFamilyCounts": document_page_family_counts,
         "documentServingIntentCounts": document_serving_intent_counts,
+        "targetFamilyCounts": target_family_counts,
+        "targetMaterializationPolicyCounts": target_materialization_policy_counts,
+        "targetLineageIssues": target_lineage_issues,
         "manualReviewPageFamilyCounts": manual_review_page_family_counts,
         "checks": checks,
         "blockedChecks": blocked_checks,
@@ -550,6 +585,17 @@ def _selected_write_preview_record(candidate: dict[str, object]) -> dict[str, ob
         "typed_candidate": candidate.get("typed_candidate"),
         "source_ref": candidate.get("source_ref"),
     }
+
+
+def _int_mapping(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, raw_count in value.items():
+        if not isinstance(key, str) or not key.strip():
+            continue
+        result[key] = coerce_non_negative_int(raw_count)
+    return result
 
 
 def build_promotion_report(

@@ -102,6 +102,7 @@ def _page_bundle_entry(
     normalized_canonical_url: str,
     page_family: str,
     consumer_matches: list[dict[str, object]] | None = None,
+    target_matches: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     entry = {
         "rawAssetId": raw_asset_id,
@@ -119,6 +120,22 @@ def _page_bundle_entry(
     if consumer_matches is not None:
         entry["consumerMatches"] = consumer_matches
         entry["consumerRetentionDecision"] = "retain_source_truth"
+    if target_matches is not None:
+        entry["targetMatches"] = target_matches
+        entry["targetJobId"] = target_matches[0]["targetJobId"] if target_matches else None
+        entry["targetCandidateId"] = (
+            target_matches[0]["targetCandidateId"] if target_matches else None
+        )
+        entry["targetDeclarationVersion"] = (
+            target_matches[0]["targetDeclarationVersion"] if target_matches else None
+        )
+        entry["materializationPolicy"] = (
+            target_matches[0]["materializationPolicy"] if target_matches else None
+        )
+        entry["selectedWriteTarget"] = (
+            target_matches[0]["selectedWriteTarget"] if target_matches else ""
+        )
+        entry["reviewPolicy"] = target_matches[0]["reviewPolicy"] if target_matches else None
     return entry
 
 
@@ -136,6 +153,7 @@ def _write_output_page(
     published_at: str | None = None,
     last_modified: str | None = None,
     consumer_matches: list[dict[str, object]] | None = None,
+    target_matches: list[dict[str, object]] | None = None,
 ) -> None:
     base_dir = output_dir / "source-assets" / raw_asset_id / raw_version_id
     _write_json(
@@ -192,9 +210,57 @@ def _write_output_page(
                 if consumer_matches is not None
                 else {}
             ),
+            **(
+                {
+                    "targetJobId": target_matches[0]["targetJobId"] if target_matches else None,
+                    "targetCandidateId": (
+                        target_matches[0]["targetCandidateId"] if target_matches else None
+                    ),
+                    "targetDeclarationVersion": (
+                        target_matches[0]["targetDeclarationVersion"] if target_matches else None
+                    ),
+                    "targetMatches": target_matches,
+                    "materializationPolicy": (
+                        target_matches[0]["materializationPolicy"] if target_matches else None
+                    ),
+                    "selectedWriteTarget": (
+                        target_matches[0]["selectedWriteTarget"] if target_matches else ""
+                    ),
+                    "reviewPolicy": target_matches[0]["reviewPolicy"] if target_matches else None,
+                }
+                if target_matches is not None
+                else {}
+            ),
         },
     )
     _write_jsonl(base_dir / "source-truth" / "content-blocks.jsonl", blocks)
+
+
+def _target_match(
+    *,
+    consumer_family: str,
+    materialization_policy: str,
+    selected_write_target: str,
+    target_id: str,
+    target_job_id: str = "owtargetjob_test",
+    target_candidate_id: str | None = "owtargetcandidate_test",
+    target_declaration_version: str = "muc_public_target_source_map_v2",
+    retention_policy: str = "retain_source_truth",
+    review_policy: str = "selected_write_requires_review",
+    workset_reason: str = "target_source_map_match",
+) -> dict[str, object]:
+    return {
+        "targetJobId": target_job_id,
+        "targetCandidateId": target_candidate_id,
+        "targetId": target_id,
+        "targetDeclarationVersion": target_declaration_version,
+        "consumerFamily": consumer_family,
+        "retentionPolicy": retention_policy,
+        "materializationPolicy": materialization_policy,
+        "selectedWriteTarget": selected_write_target,
+        "reviewPolicy": review_policy,
+        "worksetReason": workset_reason,
+    }
 
 
 def _block(

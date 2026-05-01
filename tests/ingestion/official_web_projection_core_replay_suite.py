@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import asdict
 
 from .official_web_projection_test_support import *
 
@@ -518,6 +519,284 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
                 [],
             )
             self.assertGreaterEqual(len(contact_candidate["evidence_spans"]), 2)
+
+    def test_replay_target_workset_uses_target_lineage_for_family_grouping_and_projection(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            stable_match = _target_match(
+                consumer_family="stable_reference_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="official_web/stable_reference",
+                target_id="official-web-stable-reference",
+                review_policy="release_gate_required",
+            )
+            contact_match = _target_match(
+                consumer_family="contact_directory_candidate",
+                materialization_policy="candidate_only",
+                selected_write_target="campus_services/contact_directory",
+                target_id="campus-services-contact-directory",
+            )
+            notice_match = _target_match(
+                consumer_family="notice_news_candidate",
+                materialization_policy="inventory_only",
+                selected_write_target="",
+                target_id="official-web-notice-news-inventory",
+                retention_policy="inventory_only",
+                review_policy="inventory_only",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_target_workset",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_target_stable",
+                            raw_version_id="owver_target_stable",
+                            normalized_canonical_url="https://www.example.edu/intro",
+                            page_family="article_detail",
+                            target_matches=[stable_match],
+                        ),
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_target_contact",
+                            raw_version_id="owver_target_contact",
+                            normalized_canonical_url="https://www.example.edu/contact",
+                            page_family="article_detail",
+                            target_matches=[contact_match],
+                        ),
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_target_notice",
+                            raw_version_id="owver_target_notice",
+                            normalized_canonical_url="https://www.example.edu/news/notice",
+                            page_family="article_detail",
+                            target_matches=[notice_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_target_stable",
+                raw_version_id="owver_target_stable",
+                normalized_canonical_url="https://www.example.edu/intro",
+                page_title="学校简介",
+                page_family="article_detail",
+                target_matches=[stable_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_target_stable",
+                        raw_version_id="owver_target_stable",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="学校简介",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_target_stable",
+                        raw_version_id="owver_target_stable",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="中央民族大学是一所特色鲜明的高水平大学。",
+                    ),
+                ],
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_target_contact",
+                raw_version_id="owver_target_contact",
+                normalized_canonical_url="https://www.example.edu/contact",
+                page_title="联系我们",
+                page_family="article_detail",
+                target_matches=[contact_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_target_contact",
+                        raw_version_id="owver_target_contact",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="联系我们",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_target_contact",
+                        raw_version_id="owver_target_contact",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="办公地点：中慧楼二层，联系电话：010-68933381。",
+                    ),
+                ],
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_target_notice",
+                raw_version_id="owver_target_notice",
+                normalized_canonical_url="https://www.example.edu/news/notice",
+                page_title="关于近期活动安排的通知",
+                page_family="article_detail",
+                target_matches=[notice_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_target_notice",
+                        raw_version_id="owver_target_notice",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="关于近期活动安排的通知",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_target_notice",
+                        raw_version_id="owver_target_notice",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="活动安排以现场通知为准。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            self.assertEqual(report.counts["emitted_documents"], 1)
+            self.assertEqual(report.counts["consumer_candidate_pages"], 2)
+            self.assertEqual(
+                report.target_family_counts,
+                {
+                    "stable_reference_candidate": 1,
+                    "contact_directory_candidate": 1,
+                    "notice_news_candidate": 1,
+                },
+            )
+            self.assertEqual(
+                report.target_materialization_policy_counts,
+                {
+                    "release_gate_required": 1,
+                    "candidate_only": 1,
+                    "inventory_only": 1,
+                },
+            )
+            self.assertEqual(report.target_lineage_issues, [])
+            self.assertEqual(
+                report.documents[0]["target_consumer_family"],
+                "stable_reference_candidate",
+            )
+            self.assertEqual(report.documents[0]["target_job_id"], "owtargetjob_test")
+            self.assertEqual(report.documents[0]["target_id"], "official-web-stable-reference")
+            self.assertEqual(report.documents[0]["materialization_policy"], "release_gate_required")
+            candidates_by_family = {
+                candidate["consumer_family"]: candidate
+                for candidate in report.consumer_candidate_pages
+            }
+            self.assertEqual(
+                candidates_by_family["contact_directory_candidate"]["target_id"],
+                "campus-services-contact-directory",
+            )
+            self.assertEqual(
+                candidates_by_family["notice_news_candidate"]["source_family"],
+                "official_web_public_notice",
+            )
+            self.assertNotIn("public_notice_inventory", json.dumps(asdict(report)))
+
+    def test_target_workset_missing_lineage_fails_projection_admission(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_missing_lineage",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_missing_lineage",
+                            raw_version_id="owver_missing_lineage",
+                            normalized_canonical_url="https://www.example.edu/contact",
+                            page_family="article_detail",
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_missing_lineage",
+                raw_version_id="owver_missing_lineage",
+                normalized_canonical_url="https://www.example.edu/contact",
+                page_title="联系我们",
+                page_family="article_detail",
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_missing_lineage",
+                        raw_version_id="owver_missing_lineage",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="联系我们",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_missing_lineage",
+                        raw_version_id="owver_missing_lineage",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="办公地点：中慧楼二层，联系电话：010-68933381。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+            validation = validate_official_web_projection_output(projection_dir)
+
+            self.assertEqual(report.counts["target_lineage_issue_pages"], 1)
+            self.assertEqual(report.target_lineage_issues[0]["code"], "missing_target_lineage")
+            self.assertFalse(validation.valid)
+            self.assertIn(
+                "target_workset_missing_lineage",
+                {issue["code"] for issue in validation.issues},
+            )
 
     def test_replay_official_web_source_truth_local_routes_fresh_news_seed_titles_to_fresh_news_scope(
         self,

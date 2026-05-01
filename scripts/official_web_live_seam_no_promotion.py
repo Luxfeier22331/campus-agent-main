@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib import error as url_error
 from urllib import request as url_request
+from urllib.parse import urlparse
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -73,6 +74,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         wait_for_json(f"http://127.0.0.1:{args.handoff_port}/readyz")
         wait_for_json(f"http://127.0.0.1:{args.app_api_port}/healthz")
 
+        target_seed = seed_target_workset(repo_root, args, output_root=output_root)
         collector_result = run_json_command(
             repo_root,
             (
@@ -170,6 +172,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             execution_report_path=execution_report_path,
             local_run_id=local_run_id,
             output_root=output_root,
+            target_seed=target_seed,
         )
         assert_seam_report(seam_report)
         write_json(output_root / "seam-report.json", seam_report)
@@ -182,12 +185,211 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run official_web no-promotion live seam.")
     parser.add_argument("--site-id", default="muc_public")
     parser.add_argument("--host", default="xxgk.muc.edu.cn")
+    parser.add_argument("--target-id", default="campus-services-service-guide")
+    parser.add_argument("--target-url", default="https://xxgk.muc.edu.cn/info/1007/1113.htm")
     parser.add_argument("--max-pages-per-host", type=int, default=6)
     parser.add_argument("--max-total-pages", type=int, default=6)
     parser.add_argument("--app-api-port", type=int, default=8787)
     parser.add_argument("--handoff-port", type=int, default=8789)
     parser.add_argument("--output-root", type=Path, default=Path("var/official-web-live-seam"))
     return parser
+
+
+def seed_target_workset(
+    repo_root: Path,
+    args: argparse.Namespace,
+    *,
+    output_root: Path,
+) -> dict[str, object]:
+    parsed_url = urlparse(str(args.target_url))
+    target_host = (parsed_url.hostname or "").lower()
+    if not target_host:
+        raise RuntimeError("--target-url must include a valid host")
+    if target_host != str(args.host).lower():
+        raise RuntimeError("--host must match --target-url host for a target-workset seam")
+
+    code = r"""
+(async () => {
+  const { createHash } = await import('node:crypto');
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const { Client } = await import('pg');
+
+  const [siteId, targetId, targetUrl] = process.argv.slice(-3);
+  const configPath = resolve(
+    process.cwd(),
+    '..',
+    '..',
+    'configs',
+    'sources',
+    'official_web',
+    siteId,
+    'target-source-map.json',
+  );
+  const targetMap = JSON.parse(readFileSync(configPath, 'utf8'));
+  const target = targetMap.targets.find((item) => item.target_id === targetId);
+  if (!target) {
+    throw new Error(`target ${targetId} is not declared in ${configPath}`);
+  }
+  const sourceHost = new URL(targetUrl).hostname.toLowerCase();
+  if (!target.source_hosts.includes(sourceHost)) {
+    throw new Error(`target ${targetId} does not admit host ${sourceHost}`);
+  }
+  const jobId = `owtarget_${siteId}_${targetId}`.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const candidateId = `owcand_${createHash('sha256')
+    .update(`${siteId}:${targetMap.map_version}:${targetId}:${targetUrl}`)
+    .digest('hex')
+    .slice(0, 24)}`;
+  const now = new Date().toISOString();
+  const idempotencyKey = `${siteId}:${targetMap.map_version}:${targetId}`;
+
+  const client = new Client({
+    connectionString: process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB,
+  });
+  await client.connect();
+  try {
+    await client.query('begin');
+    await client.query(
+      `
+        insert into official_web.target_jobs (
+          job_id, site_id, target_id, declaration_version, idempotency_key, status,
+          consumer_family, owner_surface, selected_write_target, source_hosts_json,
+          url_hints_json, title_hints_json, required_evidence_json, retention_policy,
+          review_policy, materialization_policy, inventory_only, latest_run_id,
+          candidate_count, attempt_count, created_at, updated_at
+        ) values (
+          $1, $2, $3, $4, $5, 'declared',
+          $6, $7, $8, $9::jsonb,
+          $10::jsonb, $11::jsonb, $12::jsonb, $13,
+          $14, $15, $16, null,
+          0, 0, $17, $17
+        )
+        on conflict (idempotency_key) do update set
+          consumer_family = excluded.consumer_family,
+          inventory_only = excluded.inventory_only,
+          materialization_policy = excluded.materialization_policy,
+          owner_surface = excluded.owner_surface,
+          required_evidence_json = excluded.required_evidence_json,
+          retention_policy = excluded.retention_policy,
+          review_policy = excluded.review_policy,
+          selected_write_target = excluded.selected_write_target,
+          source_hosts_json = excluded.source_hosts_json,
+          status = case
+            when official_web.target_jobs.status = 'active' then official_web.target_jobs.status
+            else excluded.status
+          end,
+          title_hints_json = excluded.title_hints_json,
+          updated_at = excluded.updated_at,
+          url_hints_json = excluded.url_hints_json
+      `,
+      [
+        jobId,
+        siteId,
+        targetId,
+        targetMap.map_version,
+        idempotencyKey,
+        target.consumer_family,
+        target.owner_surface,
+        target.selected_write_target,
+        JSON.stringify(target.source_hosts),
+        JSON.stringify(target.url_hints),
+        JSON.stringify(target.title_hints),
+        JSON.stringify(target.required_evidence),
+        target.retention_policy,
+        target.review_policy,
+        target.materialization_policy,
+        Boolean(target.inventory_only),
+        now,
+      ],
+    );
+    await client.query(
+      `
+        insert into official_web.target_job_candidates (
+          candidate_id, job_id, site_id, target_id, normalized_candidate_url,
+          source_host, eligibility_reason, url_hint, title_hint, status,
+          priority_score, created_at, updated_at
+        ) values (
+          $1, $2, $3, $4, $5,
+          $6, 'manual_live_seam_seed', $7, $8, 'eligible',
+          10000, $9, $9
+        )
+        on conflict (candidate_id) do update set
+          eligibility_reason = excluded.eligibility_reason,
+          normalized_candidate_url = excluded.normalized_candidate_url,
+          priority_score = excluded.priority_score,
+          source_host = excluded.source_host,
+          status = excluded.status,
+          title_hint = excluded.title_hint,
+          updated_at = excluded.updated_at,
+          url_hint = excluded.url_hint
+      `,
+      [
+        candidateId,
+        jobId,
+        siteId,
+        targetId,
+        targetUrl,
+        sourceHost,
+        target.url_hints[0] || null,
+        target.title_hints[0] || null,
+        now,
+      ],
+    );
+    await client.query(
+      `
+        update official_web.target_jobs
+        set
+          candidate_count = (
+            select count(*)::int
+            from official_web.target_job_candidates
+            where job_id = $1
+          ),
+          updated_at = $2
+        where job_id = $1
+      `,
+      [jobId, now],
+    );
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    await client.end();
+  }
+
+  console.log(JSON.stringify({
+    declarationVersion: targetMap.map_version,
+    sourceHost,
+    targetCandidateId: candidateId,
+    targetId,
+    targetJobId: jobId,
+    targetUrl,
+  }));
+})().catch((error) => {
+  console.log(JSON.stringify({ error: String(error.message || error) }));
+  process.exit(1);
+});
+""".strip()
+    return run_json_command(
+        repo_root,
+        (
+            "pnpm",
+            "--dir",
+            "apps/app-api",
+            "exec",
+            "node",
+            "-e",
+            code,
+            str(args.site_id),
+            str(args.target_id),
+            str(args.target_url),
+        ),
+        env={
+            **load_env_file(repo_root / "apps" / "app-api" / ".env"),
+            **load_env_file(repo_root / "apps" / "app-api" / ".dev.vars"),
+        },
+        log_path=output_root / "target-seed.log",
+    )
 
 
 def load_env_file(path: Path) -> dict[str, str]:
@@ -336,8 +538,70 @@ def query_app_api_run(repo_root: Path, run_id: str, *, output_root: Path) -> dic
     'select status, ingestion_dispatch_status, ingestion_execution_status, ingestion_execution_error_code from official_web.crawl_runs where run_id=$1',
     [process.argv.at(-1)],
   );
+  if (!result.rows[0]) {
+    await client.end();
+    console.log(JSON.stringify({ error: 'run_not_found' }));
+    return;
+  }
+  const attemptResult = await client.query(
+    `
+      select
+        count(*)::int as target_attempt_count,
+        coalesce(
+          array_agg(distinct job_id) filter (where job_id is not null),
+          ARRAY[]::text[]
+        ) as target_job_ids,
+        coalesce(
+          json_agg(
+            json_build_object(
+              'attemptId', attempt_id,
+              'attemptStatus', attempt_status,
+              'candidateId', candidate_id,
+              'httpStatus', http_status,
+              'jobId', job_id,
+              'normalizedCanonicalUrl', normalized_canonical_url,
+              'targetId', target_id
+            )
+            order by attempted_at
+          ) filter (where attempt_id is not null),
+          '[]'::json
+        ) as target_attempts
+      from official_web.target_page_attempts
+      where run_id=$1
+    `,
+    [process.argv.at(-1)],
+  );
+  const attemptRow = attemptResult.rows[0] || {
+    target_attempt_count: 0,
+    target_attempts: [],
+    target_job_ids: [],
+  };
+  const targetJobIds = attemptRow.target_job_ids || [];
+  const jobResult = targetJobIds.length
+    ? await client.query(
+        `
+          select
+            job_id,
+            target_id,
+            status,
+            latest_run_id,
+            candidate_count,
+            attempt_count
+          from official_web.target_jobs
+          where job_id = any($1::text[])
+          order by job_id
+        `,
+        [targetJobIds],
+      )
+    : { rows: [] };
   await client.end();
-  console.log(JSON.stringify(result.rows[0] || null));
+  console.log(JSON.stringify({
+    ...result.rows[0],
+    target_attempt_count: attemptRow.target_attempt_count,
+    target_attempts: attemptRow.target_attempts || [],
+    target_job_ids: targetJobIds,
+    target_jobs: jobResult.rows,
+  }));
 })().catch((error) => {
   console.log(JSON.stringify({ error: String(error.message || error) }));
   process.exit(1);
@@ -346,9 +610,48 @@ def query_app_api_run(repo_root: Path, run_id: str, *, output_root: Path) -> dic
     return run_json_command(
         repo_root,
         ("pnpm", "--dir", "apps/app-api", "exec", "node", "-e", code, run_id),
-        env=load_env_file(repo_root / "apps" / "app-api" / ".env"),
+        env={
+            **load_env_file(repo_root / "apps" / "app-api" / ".env"),
+            **load_env_file(repo_root / "apps" / "app-api" / ".dev.vars"),
+        },
         log_path=output_root / "app-api-query.log",
     )
+
+
+def _object_mapping(value: object) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
+
+
+def _int_mapping(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, item in value.items():
+        if isinstance(key, str) and isinstance(item, int):
+            result[key] = item
+    return result
+
+
+def _object_list(value: object) -> list[object]:
+    return value if isinstance(value, list) else []
+
+
+def _target_report_fields(execution_report: dict[str, object]) -> dict[str, object]:
+    replay = _object_mapping(execution_report.get("replay"))
+    coverage = _object_mapping(execution_report.get("coverage"))
+    target_lineage_issues = _object_list(
+        coverage.get("targetLineageIssues") or replay.get("target_lineage_issues")
+    )
+    return {
+        "target_family_counts": _int_mapping(
+            coverage.get("targetFamilyCounts") or replay.get("target_family_counts")
+        ),
+        "target_lineage_issues": target_lineage_issues,
+        "target_materialization_policy_counts": _int_mapping(
+            coverage.get("targetMaterializationPolicyCounts")
+            or replay.get("target_materialization_policy_counts")
+        ),
+    }
 
 
 def build_seam_report(
@@ -363,6 +666,7 @@ def build_seam_report(
     execution_report_path: Path,
     local_run_id: str,
     output_root: Path,
+    target_seed: dict[str, object],
 ) -> dict[str, object]:
     crawl_run = collector_result["crawlRun"]
     assert isinstance(crawl_run, dict)
@@ -375,6 +679,16 @@ def build_seam_report(
         for artifact in collector_result["uploadedArtifacts"]
         if artifact["artifactType"] == "source_truth_bundle"
     )
+    uploaded_artifacts = [
+        {
+            "artifact_type": artifact.get("artifactType"),
+            "object_key": artifact.get("objectKey"),
+            "record_count": artifact.get("recordCount"),
+        }
+        for artifact in collector_result["uploadedArtifacts"]
+        if isinstance(artifact, dict)
+    ]
+    target_report = _target_report_fields(execution_report)
     return {
         "schema_version": "official_web_no_promotion_live_seam.v1",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -382,15 +696,22 @@ def build_seam_report(
         "actual_run_id": actual_run_id,
         "event_id": event_id,
         "output_root": str(output_root.resolve()),
+        "target_seed": target_seed,
         "collector": {
             "status": crawl_run.get("status"),
             "retained_source_truth_pages": denominator.get("retainedSourceTruthPages"),
+            "rejected_pages": denominator.get("rejectedPages"),
             "source_truth_bundle_record_count": source_bundle.get("recordCount"),
             "source_truth_bundle_object_key": source_bundle.get("objectKey"),
+            "uploaded_object_refs": uploaded_artifacts,
         },
         "app_api": {
             "drain": drain_result,
             "db_run": db_run,
+            "target_attempt_count": db_run.get("target_attempt_count"),
+            "target_attempts": db_run.get("target_attempts") or [],
+            "target_job_ids": db_run.get("target_job_ids") or [],
+            "target_jobs": db_run.get("target_jobs") or [],
         },
         "consumer": {
             "counts": consumer_result.get("counts"),
@@ -404,6 +725,7 @@ def build_seam_report(
                 .get("counts", {})
                 .get("candidate_count")
             ),
+            **target_report,
         },
     }
 
@@ -433,6 +755,16 @@ def assert_seam_report(report: dict[str, object]) -> None:
         raise RuntimeError("app-api execution status was not staged")
     if db_run.get("ingestion_execution_error_code") is not None:
         raise RuntimeError("app-api execution status has an error")
+    if int(app_api.get("target_attempt_count") or 0) < 1:
+        raise RuntimeError("app-api recorded no target attempts for the seam run")
+    if not app_api.get("target_job_ids"):
+        raise RuntimeError("app-api target job ids are missing from seam evidence")
+    if not consumer.get("target_family_counts"):
+        raise RuntimeError("consumer target family counts are missing")
+    if not consumer.get("target_materialization_policy_counts"):
+        raise RuntimeError("consumer target materialization policy counts are missing")
+    if consumer.get("target_lineage_issues"):
+        raise RuntimeError("consumer reported target lineage issues")
 
 
 def write_json(path: Path, payload: object) -> None:

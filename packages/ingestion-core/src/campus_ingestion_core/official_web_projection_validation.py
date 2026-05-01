@@ -87,6 +87,18 @@ def validate_official_web_projection_output(
             }
         )
         consumer_candidate_pages = []
+    target_lineage_issues = report_payload.get("target_lineage_issues")
+    if target_lineage_issues is None:
+        target_lineage_issues = []
+    if not isinstance(target_lineage_issues, list):
+        issues.append(
+            {
+                "severity": "error",
+                "code": "projection_report_target_lineage_issues_invalid",
+                "message": "projection report target_lineage_issues must be an array",
+            }
+        )
+        target_lineage_issues = []
 
     seen_document_ids: set[str] = set()
     for document in documents:
@@ -200,6 +212,30 @@ def validate_official_web_projection_output(
             continue
         _validate_consumer_candidate(candidate=candidate, issues=issues)
 
+    for issue in target_lineage_issues:
+        if not isinstance(issue, dict):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "target_workset_lineage_issue_invalid",
+                    "message": "projection report target lineage issue must be an object",
+                }
+            )
+            continue
+        issue_code = _optional_text(issue.get("code"))
+        if issue_code == "missing_target_lineage":
+            code = "target_workset_missing_lineage"
+        else:
+            code = "target_workset_invalid_lineage"
+        issues.append(
+            {
+                "severity": "error",
+                "code": code,
+                "message": str(issue.get("message") or issue_code or "target lineage issue"),
+                "target_lineage_issue": issue,
+            }
+        )
+
     errors = sum(1 for issue in issues if issue["severity"] == "error")
     warnings = sum(1 for issue in issues if issue["severity"] == "warning")
     return OfficialWebProjectionValidationReport(
@@ -210,6 +246,7 @@ def validate_official_web_projection_output(
         counts={
             "documents": len(documents),
             "consumer_candidate_pages": len(consumer_candidate_pages),
+            "target_lineage_issues": len(target_lineage_issues),
             "errors": errors,
             "warnings": warnings,
         },

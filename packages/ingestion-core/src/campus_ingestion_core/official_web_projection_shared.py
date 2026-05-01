@@ -85,6 +85,10 @@ class OfficialWebProjectionReplayReport:
     documents: list[dict[str, object]]
     manual_review_pages: list[dict[str, object]]
     consumer_candidate_pages: list[dict[str, object]] = field(default_factory=list)
+    collection_mode: str | None = None
+    target_family_counts: dict[str, int] = field(default_factory=dict)
+    target_materialization_policy_counts: dict[str, int] = field(default_factory=dict)
+    target_lineage_issues: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

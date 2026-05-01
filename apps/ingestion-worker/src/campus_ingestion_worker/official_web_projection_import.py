@@ -286,6 +286,13 @@ def _build_official_web_raw_asset_record(
 def _resolve_promotable_document_import_action(*, document: dict[str, object]) -> str:
     page_family = _require_text(document.get("page_family"), "documents[].page_family")
     serving_intent = _require_text(document.get("serving_intent"), "documents[].serving_intent")
+    materialization_policy = _optional_text(document.get("materialization_policy"))
+    target_consumer_family = _optional_text(document.get("target_consumer_family"))
+    if (
+        materialization_policy == "inventory_only"
+        or target_consumer_family == "notice_news_candidate"
+    ):
+        raise ValueError("inventory-only target documents cannot be promoted")
     if serving_intent == "promotable":
         if page_family in _PROMOTION_DISALLOWED_PAGE_FAMILIES:
             raise ValueError(f"non-promotable page family in projection report: {page_family}")

@@ -53,6 +53,18 @@ _SELECTED_WRITE_SUPPRESSION_RE = re.compile(
 _SERVICE_PROCESS_RE = re.compile(r"(办理流程|流程|步骤|申请|补办|挂失|办理|报销|预约)")
 _SERVICE_ENTRY_RE = re.compile(r"(入口|系统|APP|小程序|自助|线下|窗口|前台)", re.IGNORECASE)
 _SERVICE_MATERIAL_RE = re.compile(r"(材料|申请表|证明|身份证|证件|附件)")
+_TARGET_WORKSET_COLLECTION_MODE = "target-workset"
+_TARGET_CONSUMER_FAMILIES = frozenset(
+    {
+        "contact_directory_candidate",
+        "service_guide_candidate",
+        "stable_reference_candidate",
+        "notice_news_candidate",
+    }
+)
+_TARGET_MATERIALIZATION_POLICIES = frozenset(
+    {"candidate_only", "release_gate_required", "inventory_only"}
+)
 
 
 def replay_official_web_source_truth_local(
@@ -94,11 +106,17 @@ def replay_official_web_source_truth_local(
     pages = bundle_payload.get("pages")
     if not isinstance(pages, list):
         raise ValueError("source-truth bundle pages must be an array")
+    collection_mode = _require_optional_text(
+        bundle_payload.get("collectionMode") or bundle_payload.get("collection_mode")
+    )
 
     projection_output_dir.mkdir(parents=True, exist_ok=True)
     documents: list[dict[str, object]] = []
     manual_review_pages: list[dict[str, object]] = []
     consumer_candidate_pages: list[dict[str, object]] = []
+    target_family_counts: dict[str, int] = {}
+    target_materialization_policy_counts: dict[str, int] = {}
+    target_lineage_issues: list[dict[str, object]] = []
     for raw_page in pages:
         if not isinstance(raw_page, dict):
             raise ValueError("source-truth bundle page must be an object")
@@ -119,10 +137,39 @@ def replay_official_web_source_truth_local(
                 "rawVersionId",
             ),
         )
-        title = _resolve_document_title(manifest=manifest, blocks=blocks)
-        consumer_projection = _resolve_consumer_projection(
+        target_matches = _target_matches(manifest) or _target_matches(raw_page)
+        page_target_lineage_issues = _target_lineage_issues(
+            collection_mode=collection_mode,
             manifest=manifest,
             raw_page=raw_page,
+            target_matches=target_matches,
+        )
+        target_lineage_issues.extend(page_target_lineage_issues)
+        for target_match in target_matches:
+            consumer_family = _require_optional_text(
+                target_match.get("consumerFamily") or target_match.get("consumer_family")
+            )
+            materialization_policy = _require_optional_text(
+                target_match.get("materializationPolicy")
+                or target_match.get("materialization_policy")
+            )
+            if consumer_family:
+                target_family_counts[consumer_family] = (
+                    target_family_counts.get(consumer_family, 0) + 1
+                )
+            if materialization_policy:
+                target_materialization_policy_counts[materialization_policy] = (
+                    target_materialization_policy_counts.get(materialization_policy, 0) + 1
+                )
+        title = _resolve_document_title(manifest=manifest, blocks=blocks)
+        projection_matches = (
+            target_matches
+            if target_matches or collection_mode == _TARGET_WORKSET_COLLECTION_MODE
+            else _consumer_matches(manifest) or _consumer_matches(raw_page)
+        )
+        consumer_projection = _resolve_consumer_projection(
+            manifest=manifest,
+            matches=projection_matches,
             blocks=blocks,
             title=title,
         )
@@ -181,6 +228,15 @@ def replay_official_web_source_truth_local(
             routing_route_id=consumer_routing_route_id
             or (matched_route.route_id if matched_route is not None else None),
         )
+        target_lineage = (
+            consumer_projection.get("target_lineage")
+            if consumer_projection is not None
+            and consumer_projection.get("action") == "emit_document"
+            and isinstance(consumer_projection.get("target_lineage"), dict)
+            else _single_target_lineage(target_matches)
+        )
+        if target_lineage is not None:
+            document.update(_target_projection_fields(target_lineage))
         documents.append(document)
 
     report = OfficialWebProjectionReplayReport(
@@ -195,10 +251,24 @@ def replay_official_web_source_truth_local(
             "emitted_documents": len(documents),
             "manual_review_pages": len(manual_review_pages),
             "consumer_candidate_pages": len(consumer_candidate_pages),
+            "target_lineage_issues": len(target_lineage_issues),
+            "target_lineage_issue_pages": len(
+                {
+                    (
+                        str(issue.get("raw_asset_id") or ""),
+                        str(issue.get("raw_version_id") or ""),
+                    )
+                    for issue in target_lineage_issues
+                }
+            ),
         },
         documents=documents,
         manual_review_pages=manual_review_pages,
         consumer_candidate_pages=consumer_candidate_pages,
+        collection_mode=collection_mode,
+        target_family_counts=target_family_counts,
+        target_materialization_policy_counts=target_materialization_policy_counts,
+        target_lineage_issues=target_lineage_issues,
     )
     (projection_output_dir / "projection-report.json").write_text(
         json.dumps(asdict(report), ensure_ascii=False, indent=2),
@@ -210,11 +280,10 @@ def replay_official_web_source_truth_local(
 def _resolve_consumer_projection(
     *,
     manifest: dict[str, object],
-    raw_page: dict[str, object],
+    matches: list[dict[str, object]],
     blocks: list[dict[str, object]],
     title: str,
 ) -> dict[str, object] | None:
-    matches = _consumer_matches(manifest) or _consumer_matches(raw_page)
     if not matches:
         return None
     stable_match = _find_consumer_match(matches, "stable_reference_candidate")
@@ -224,6 +293,7 @@ def _resolve_consumer_projection(
             "target_corpus": "official_web",
             "target_collection": "stable_reference",
             "routing_route_id": "consumer-denominator:stable_reference_candidate",
+            "target_lineage": stable_match,
         }
 
     candidate_pages: list[dict[str, object]] = []
@@ -255,12 +325,14 @@ def _resolve_consumer_projection(
                 materialization_policy=materialization_policy,
                 matched_evidence=_string_list(
                     match.get("matchedEvidence") or match.get("matched_evidence")
-                ),
+                )
+                or _target_lineage_matched_evidence(match),
                 review_policy=_require_optional_text(
                     match.get("reviewPolicy") or match.get("review_policy")
                 )
                 or "",
                 selected_write_target=selected_write_target,
+                target_lineage=match,
                 target_collection=target_collection,
                 target_corpus=target_corpus,
                 title=title,
@@ -280,6 +352,7 @@ def _build_consumer_candidate_page(
     matched_evidence: list[str],
     review_policy: str,
     selected_write_target: str,
+    target_lineage: dict[str, object] | None,
     target_collection: str,
     target_corpus: str,
     title: str,
@@ -297,7 +370,7 @@ def _build_consumer_candidate_page(
             title=title,
         )
     )
-    return {
+    candidate = {
         "candidate_key": _build_candidate_key(
             consumer_family=consumer_family,
             normalized_canonical_url=normalized_canonical_url,
@@ -321,6 +394,11 @@ def _build_consumer_candidate_page(
         "quality_gate": quality_gate,
         "evidence_spans": evidence_spans,
     }
+    if consumer_family == "notice_news_candidate":
+        candidate["source_family"] = "official_web_public_notice"
+    if target_lineage is not None:
+        candidate.update(_target_projection_fields(target_lineage))
+    return candidate
 
 
 def _build_candidate_key(
@@ -504,6 +582,152 @@ def _consumer_matches(payload: dict[str, object]) -> list[dict[str, object]]:
     return [item for item in raw_matches if isinstance(item, dict)]
 
 
+def _target_matches(payload: dict[str, object]) -> list[dict[str, object]]:
+    raw_matches = payload.get("targetMatches") or payload.get("target_matches")
+    if not isinstance(raw_matches, list):
+        return []
+    return [item for item in raw_matches if isinstance(item, dict)]
+
+
+def _single_target_lineage(
+    target_matches: list[dict[str, object]],
+) -> dict[str, object] | None:
+    if len(target_matches) != 1:
+        return None
+    return target_matches[0]
+
+
+def _target_lineage_issues(
+    *,
+    collection_mode: str | None,
+    manifest: dict[str, object],
+    raw_page: dict[str, object],
+    target_matches: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    if collection_mode != _TARGET_WORKSET_COLLECTION_MODE and not target_matches:
+        return []
+    raw_asset_id = str(
+        raw_page.get("rawAssetId")
+        or raw_page.get("raw_asset_id")
+        or manifest.get("rawAssetId")
+        or ""
+    )
+    raw_version_id = str(
+        raw_page.get("rawVersionId")
+        or raw_page.get("raw_version_id")
+        or manifest.get("rawVersionId")
+        or ""
+    )
+    normalized_canonical_url = str(
+        raw_page.get("normalizedCanonicalUrl")
+        or raw_page.get("normalized_canonical_url")
+        or manifest.get("normalizedCanonicalUrl")
+        or ""
+    )
+
+    base_issue = {
+        "raw_asset_id": raw_asset_id,
+        "raw_version_id": raw_version_id,
+        "normalized_canonical_url": normalized_canonical_url,
+    }
+    issues: list[dict[str, object]] = []
+    if collection_mode == _TARGET_WORKSET_COLLECTION_MODE and not target_matches:
+        issues.append(
+            {
+                **base_issue,
+                "code": "missing_target_lineage",
+                "message": "target-workset source-truth page is missing targetMatches",
+            }
+        )
+        return issues
+
+    for target_match in target_matches:
+        consumer_family = _require_optional_text(
+            target_match.get("consumerFamily") or target_match.get("consumer_family")
+        )
+        materialization_policy = _require_optional_text(
+            target_match.get("materializationPolicy") or target_match.get("materialization_policy")
+        )
+        if consumer_family not in _TARGET_CONSUMER_FAMILIES:
+            issues.append(
+                {
+                    **base_issue,
+                    "code": "unsupported_target_consumer_family",
+                    "message": (
+                        "targetMatches consumerFamily is not canonical: "
+                        f"{consumer_family or '<empty>'}"
+                    ),
+                }
+            )
+        if materialization_policy not in _TARGET_MATERIALIZATION_POLICIES:
+            issues.append(
+                {
+                    **base_issue,
+                    "code": "unsupported_target_materialization_policy",
+                    "message": (
+                        "targetMatches materializationPolicy is not supported: "
+                        f"{materialization_policy or '<empty>'}"
+                    ),
+                }
+            )
+        if consumer_family == "public_notice_inventory":
+            issues.append(
+                {
+                    **base_issue,
+                    "code": "forbidden_public_notice_inventory_family",
+                    "message": "public_notice_inventory is not a canonical official-web family",
+                }
+            )
+    return issues
+
+
+def _target_projection_fields(target_lineage: dict[str, object]) -> dict[str, object]:
+    return {
+        "target_job_id": _require_optional_text(
+            target_lineage.get("targetJobId") or target_lineage.get("target_job_id")
+        ),
+        "target_candidate_id": _require_optional_text(
+            target_lineage.get("targetCandidateId") or target_lineage.get("target_candidate_id")
+        ),
+        "target_id": _require_optional_text(
+            target_lineage.get("targetId") or target_lineage.get("target_id")
+        ),
+        "target_declaration_version": _require_optional_text(
+            target_lineage.get("targetDeclarationVersion")
+            or target_lineage.get("target_declaration_version")
+        ),
+        "target_consumer_family": _require_optional_text(
+            target_lineage.get("consumerFamily") or target_lineage.get("consumer_family")
+        ),
+        "retention_policy": _require_optional_text(
+            target_lineage.get("retentionPolicy") or target_lineage.get("retention_policy")
+        ),
+        "materialization_policy": _require_optional_text(
+            target_lineage.get("materializationPolicy")
+            or target_lineage.get("materialization_policy")
+        ),
+        "selected_write_target": _require_optional_text(
+            target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
+        )
+        or "",
+        "review_policy": _require_optional_text(
+            target_lineage.get("reviewPolicy") or target_lineage.get("review_policy")
+        ),
+        "workset_reason": _require_optional_text(
+            target_lineage.get("worksetReason") or target_lineage.get("workset_reason")
+        ),
+    }
+
+
+def _target_lineage_matched_evidence(match: dict[str, object]) -> list[str]:
+    workset_reason = _require_optional_text(
+        match.get("worksetReason") or match.get("workset_reason")
+    )
+    target_id = _require_optional_text(match.get("targetId") or match.get("target_id"))
+    values = [item for item in (workset_reason, target_id) if item]
+    return values or ["target_lineage_match"]
+
+
 def _find_consumer_match(
     matches: list[dict[str, object]],
     consumer_family: str,
@@ -527,7 +751,7 @@ def _target_from_consumer_match(match: dict[str, object]) -> tuple[str, str]:
             return corpus, collection
     consumer_family = str(match.get("consumerFamily") or match.get("consumer_family") or "")
     if consumer_family == "notice_news_candidate":
-        return "official_web", "fresh_news"
+        return "official_web_public_notice", "inventory"
     return "official_web", "muc_public_pages"
 
 
