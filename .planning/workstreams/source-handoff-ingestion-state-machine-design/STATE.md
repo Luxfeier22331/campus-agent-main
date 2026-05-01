@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-05-01
 updated: 2026-05-01
 ---
@@ -11,13 +11,14 @@ updated: 2026-05-01
 
 ## Current Status
 
-- status: `active`
-- current slice: Phase 9 worker execution and operator projection implementation complete
+- status: `completed`
+- current slice: Phase 10 closeout complete
 - owner: unassigned
 - active implementation: shared contract/store plus official-web/authenticated-notice adapters and
   worker/operator projection foundation implemented
-- latest completed phase: Phase 9 `Worker Execution And Operator Projection Implementation`
-- next phase: Phase 10 `Closeout Gate And Migration Readiness`
+- latest completed phase: Phase 10 `Closeout Gate And Migration Readiness`
+- next phase: none; production runtime adoption is dormant seed
+  `.planning/seeds/SEED-003-source-handoff-runtime-store-adoption.md`
 
 ## Captured Context
 
@@ -238,11 +239,25 @@ Accepted design direction:
 - Added Phase 9 plan and summary under
   `phases/phase-09-worker-execution-and-operator-projection-implementation/`.
 
+## Completed In Phase 10
+
+- Added `CLOSEOUT.md`.
+- Added `.planning/seeds/SEED-003-source-handoff-runtime-store-adoption.md`.
+- Added Phase 10 plan and summary under
+  `phases/phase-10-closeout-gate-and-migration-readiness/`.
+- Closed this workstream as completed.
+- Recorded production runtime adoption gaps as follow-up:
+  - `PostgresSourceHandoffStore`
+  - production worker store wiring
+  - optional app-api operator read projection admission
+  - optional historical compatibility backfill
+- Moved repo registry entry from Active to Completed.
+
 ## Blockers
 
 - No design blocker.
-- Phase 10 can start from closeout gate and migration readiness review.
-- Current worktree has unrelated dirty files from other workstreams; do not edit or revert them.
+- No active implementation remains in this workstream.
+- Reopen only under the rule in `CLOSEOUT.md`.
 
 ## Verification Plan
 
@@ -261,6 +276,7 @@ pnpm exec markdownlint-cli2 --config .markdownlint-cli2.jsonc \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/AUTHENTICATED-NOTICE-ADAPTER-PLAN.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/WORKER-EXECUTION-OPERATOR-PROJECTION-PLAN.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/IMPLEMENTATION-READINESS-REVIEW.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/CLOSEOUT.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-01-contract-package-and-store-plan/PLAN.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-01-contract-package-and-store-plan/SUMMARY.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-02-official-web-adapter-implementation-plan/PLAN.md \
@@ -278,7 +294,9 @@ pnpm exec markdownlint-cli2 --config .markdownlint-cli2.jsonc \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-08-authenticated-notice-adapter-implementation/PLAN.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-08-authenticated-notice-adapter-implementation/SUMMARY.md \
   .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-09-worker-execution-and-operator-projection-implementation/PLAN.md \
-  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-10-closeout-gate-and-migration-readiness/PLAN.md \
+  .planning/workstreams/source-handoff-ingestion-state-machine-design/phases/phase-10-closeout-gate-and-migration-readiness/SUMMARY.md
 ```
 
 ```bash
@@ -372,6 +390,6 @@ uv run --all-packages python -m unittest \
 
 ## Session Continuity
 
-**Stopped At:** Phase 9 worker execution and operator projection implementation complete.
+**Stopped At:** Phase 10 closeout complete.
 
-**Resume File:** `phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md`
+**Resume File:** `CLOSEOUT.md`

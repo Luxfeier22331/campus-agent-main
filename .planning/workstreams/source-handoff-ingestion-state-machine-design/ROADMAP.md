@@ -11,8 +11,9 @@ updated: 2026-05-01
 
 ## Status Semantics
 
-This workstream is active. The design/review phases are complete and implementation has started
-from the shared contract/store foundation.
+This workstream is completed. The state-machine design and foundation implementation are closed;
+production runtime adoption is tracked by dormant seed
+`.planning/seeds/SEED-003-source-handoff-runtime-store-adoption.md`.
 
 ## Phase 0: State Machine Design Freeze
 
@@ -245,7 +246,7 @@ source of truth.
 
 ## Phase 10: Closeout Gate And Migration Readiness
 
-**Status:** ready.
+**Status:** completed on 2026-05-01.
 
 **Goal:** Decide whether this workstream is ready to close or needs a separate deployment/runtime
 slice for Postgres-backed store adoption and app-api operator projection wiring.
@@ -266,3 +267,16 @@ slice for Postgres-backed store adoption and app-api operator projection wiring.
 - No app-api authenticated-notice control-plane route is opened.
 - No panel direct database/object/local-file read is introduced.
 - No query-serving surface is opened.
+
+**Evidence:** `./phases/phase-10-closeout-gate-and-migration-readiness/SUMMARY.md`.
+
+## Closeout Decision
+
+**Status:** completed on 2026-05-01.
+
+This workstream is closed as complete. Remaining production adoption gaps are follow-up work, not
+unresolved design blockers.
+
+Follow-up trigger:
+
+- `.planning/seeds/SEED-003-source-handoff-runtime-store-adoption.md`

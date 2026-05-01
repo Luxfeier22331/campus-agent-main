@@ -21,13 +21,13 @@ updated: 2026-05-01
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 9 worker execution and operator projection implementation complete`
+- status: `completed`
+- current phase: `Phase 10 closeout complete`
 - active implementation: shared contract/store plus official-web and authenticated-notice adapter
   foundations plus worker/operator projection implemented
-- current slice: Phase 9 已完成 shared canonical execution runner helper、operator-safe projection、
-  worker consume/show shell 与 no-serving gate。下一步进入 Phase 10 closeout gate and migration
-  readiness。
+- current slice: 本 workstream 已完成并关闭。后续生产化 adoption 走 dormant seed
+  `.planning/seeds/SEED-003-source-handoff-runtime-store-adoption.md`，不要把部署 wiring 继续塞回
+  本设计线。
 
 ## Native Planning Truth
 
@@ -41,6 +41,7 @@ updated: 2026-05-01
 - worker execution / operator projection plan:
   `./WORKER-EXECUTION-OPERATOR-PROJECTION-PLAN.md`
 - implementation readiness review: `./IMPLEMENTATION-READINESS-REVIEW.md`
+- closeout: `./CLOSEOUT.md`
 
 ## Phase Plans
 
@@ -53,6 +54,7 @@ updated: 2026-05-01
 - Phase 7: `./phases/phase-07-official-web-adapter-implementation/PLAN.md`
 - Phase 8: `./phases/phase-08-authenticated-notice-adapter-implementation/PLAN.md`
 - Phase 9: `./phases/phase-09-worker-execution-and-operator-projection-implementation/PLAN.md`
+- Phase 10: `./phases/phase-10-closeout-gate-and-migration-readiness/PLAN.md`
 
 Phase summaries:
 
@@ -65,6 +67,7 @@ Phase summaries:
 - Phase 7: `./phases/phase-07-official-web-adapter-implementation/SUMMARY.md`
 - Phase 8: `./phases/phase-08-authenticated-notice-adapter-implementation/SUMMARY.md`
 - Phase 9: `./phases/phase-09-worker-execution-and-operator-projection-implementation/SUMMARY.md`
+- Phase 10: `./phases/phase-10-closeout-gate-and-migration-readiness/SUMMARY.md`
 
 ## Boundary Notes
 
