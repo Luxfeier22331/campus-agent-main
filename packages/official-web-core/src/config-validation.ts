@@ -427,16 +427,54 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 				`targetSourceMap ${target.targetId} selectedWriteTarget must match consumer denominator`,
 			);
 		}
+		if (target.materializationPolicy !== consumerRule.materializationPolicy) {
+			throw new Error(
+				`targetSourceMap ${target.targetId} materializationPolicy must match consumer denominator`,
+			);
+		}
+		if (target.reviewPolicy !== consumerRule.reviewPolicy) {
+			throw new Error(
+				`targetSourceMap ${target.targetId} reviewPolicy must match consumer denominator`,
+			);
+		}
 		if (target.sourceHosts.length === 0) {
 			throw new Error(`targetSourceMap ${target.targetId} must define sourceHosts`);
+		}
+		if (target.urlHints.length === 0 && target.titleHints.length === 0) {
+			throw new Error(`targetSourceMap ${target.targetId} must define urlHints or titleHints`);
 		}
 		if (target.requiredEvidence.length === 0) {
 			throw new Error(`targetSourceMap ${target.targetId} must define requiredEvidence`);
 		}
 		ensureUnique(target.sourceHosts, `targetSourceMap ${target.targetId}.sourceHosts`);
-		ensureUnique(target.urlPatterns, `targetSourceMap ${target.targetId}.urlPatterns`);
-		ensureUnique(target.titleKeywords, `targetSourceMap ${target.targetId}.titleKeywords`);
+		ensureUnique(target.urlHints, `targetSourceMap ${target.targetId}.urlHints`);
+		ensureUnique(target.titleHints, `targetSourceMap ${target.targetId}.titleHints`);
 		ensureUnique(target.requiredEvidence, `targetSourceMap ${target.targetId}.requiredEvidence`);
+		if (target.inventoryOnly) {
+			if (target.selectedWriteTarget) {
+				throw new Error(
+					`targetSourceMap ${target.targetId} inventory-only selectedWriteTarget must be empty`,
+				);
+			}
+			if (target.materializationPolicy !== "inventory_only") {
+				throw new Error(
+					`targetSourceMap ${target.targetId} inventoryOnly requires materializationPolicy=inventory_only`,
+				);
+			}
+			if (target.retentionPolicy !== "inventory_only") {
+				throw new Error(
+					`targetSourceMap ${target.targetId} inventoryOnly requires retentionPolicy=inventory_only`,
+				);
+			}
+		} else if (target.materializationPolicy === "inventory_only") {
+			throw new Error(
+				`targetSourceMap ${target.targetId} materializationPolicy=inventory_only requires inventoryOnly=true`,
+			);
+		} else if (target.retentionPolicy === "inventory_only") {
+			throw new Error(
+				`targetSourceMap ${target.targetId} retentionPolicy=inventory_only requires inventoryOnly=true`,
+			);
+		}
 		for (const sourceHost of target.sourceHosts) {
 			validateHostName(sourceHost, `targetSourceMap ${target.targetId}.sourceHosts`);
 			const host = hostIndex.get(sourceHost);
@@ -453,7 +491,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 				);
 			}
 		}
-		validateRegexList(target.urlPatterns, `targetSourceMap ${target.targetId}.urlPatterns`);
+		validateRegexList(target.urlHints, `targetSourceMap ${target.targetId}.urlHints`);
 	}
 
 	if (bundle.qcPolicy.siteId !== bundle.site.siteId) {

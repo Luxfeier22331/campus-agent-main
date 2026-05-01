@@ -85,6 +85,7 @@ export interface OfficialWebControlPlaneFinalizeResponse {
 
 export interface OfficialWebPlannerPageCandidate {
 	cadenceClass: string;
+	consumerFamily: string;
 	contentType: string | null;
 	discoveredFromUrl: string | null;
 	discoveryMethod:
@@ -94,23 +95,38 @@ export interface OfficialWebPlannerPageCandidate {
 		| "navigation"
 		| "manual_requeue";
 	etag: string | null;
+	fetchProfile: string;
 	host: string;
+	hostPolicy: {
+		host: string;
+		sourceHost: string;
+	};
+	inventoryOnly: boolean;
 	lastChangeReason: string;
 	lastChangedAt: string | null;
-	lastFetchDisposition: "fetched" | "not_modified" | "deleted" | "fetch_failed";
+	lastFetchDisposition: "fetched" | "not_modified" | "deleted" | "fetch_failed" | "never_fetched";
 	lastHttpStatus: number | null;
 	lastModified: string | null;
 	lastNotModifiedAt: string | null;
 	lastSeenAt: string;
 	lastSuccessfulRunId: string | null;
 	mainContentHash: string | null;
+	materializationPolicy: string;
 	nextEligibleFetchAt: string;
 	normalizedCanonicalUrl: string;
 	pageFamily: string;
 	pageTitleNormalized: string;
 	priorityScore: number;
 	responseBodyHash: string | null;
+	retentionPolicy: string;
+	reviewPolicy: string;
+	selectedWriteTarget: string;
 	siteId: string;
+	targetCandidateId: string | null;
+	targetDeclarationVersion: string;
+	targetId: string;
+	targetJobId: string;
+	worksetReason: string;
 }
 
 export interface OfficialWebControlPlanePlanResponse {
@@ -128,6 +144,8 @@ export interface OfficialWebControlPlanePlanResponse {
 			repairPages: number;
 			selectedHosts: number;
 			staticPages: number;
+			targetJobs: number;
+			worksetRows: number;
 		};
 	};
 }

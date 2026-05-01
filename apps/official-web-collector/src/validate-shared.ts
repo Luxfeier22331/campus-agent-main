@@ -32,6 +32,9 @@ export interface CollectorValidationIssue {
 		| "response_body_hash_mismatch"
 		| "block_count_mismatch"
 		| "content_block_identity_mismatch"
+		| "target_lineage_snake_case"
+		| "target_lineage_missing"
+		| "target_lineage_mismatch"
 		| "quality_gate_review"
 		| "quality_gate_fail";
 	message: string;

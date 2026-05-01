@@ -70,6 +70,9 @@ export type {
 	OfficialWebSeed,
 	OfficialWebSeedSet,
 	OfficialWebSiteConfig,
+	OfficialWebTargetRetentionPolicy,
+	OfficialWebTargetSourceMap,
+	OfficialWebTargetSourceMapTarget,
 } from "./config.ts";
 export {
 	ALLOWED_CREDENTIALS_MODES,
@@ -91,6 +94,7 @@ export {
 	OFFICIAL_WEB_PROJECTION_ACTIONS,
 	OFFICIAL_WEB_RUN_INTENTS,
 	OFFICIAL_WEB_SOURCE_CHANNEL,
+	OFFICIAL_WEB_TARGET_RETENTION_POLICIES,
 	resolveOfficialWebConfigPaths,
 	validateOfficialWebConfig,
 } from "./config.ts";
@@ -118,6 +122,7 @@ export type {
 	OfficialWebPageFamily,
 	OfficialWebPageManifest,
 	OfficialWebPageSignalSummary,
+	OfficialWebPageTargetMatch,
 	OfficialWebProviderPageExtraction,
 	OfficialWebSourceArtifactStage,
 	OfficialWebSourceTruthBundle,

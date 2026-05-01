@@ -1,6 +1,10 @@
 import type { OfficialWebDiscoveryMethod, OfficialWebRunIntent } from "./config.ts";
 import type { OfficialWebUrlIdentityBasis } from "./policy.ts";
-import type { OfficialWebPageFamily, OfficialWebPageSignalSummary } from "./source-truth.ts";
+import type {
+	OfficialWebPageFamily,
+	OfficialWebPageSignalSummary,
+	OfficialWebPageTargetMatch,
+} from "./source-truth.ts";
 
 export const OFFICIAL_WEB_REQUIRED_RUN_ARTIFACTS = [
 	"crawl-run.json",
@@ -169,6 +173,10 @@ export interface OfficialWebPageObservationRecord {
 	responseBodyHash: string | null;
 	mainContentHash: string | null;
 	disposition: OfficialWebPageObservationDisposition;
+	targetCandidateId?: string | null;
+	targetDeclarationVersion?: string;
+	targetId?: string;
+	targetJobId?: string;
 }
 
 export interface OfficialWebPageQualityAuditIssue {
@@ -186,6 +194,8 @@ export interface OfficialWebPageQualityAuditEntry {
 	pageFamily: OfficialWebPageFamily;
 	pageFamilyConfidence: number;
 	pageFamilyReason: string | null;
+	targetMatches?: OfficialWebPageTargetMatch[];
+	consumerRetentionDecision?: "retain_source_truth" | "discovery_only" | "reject";
 	counts: {
 		blockCount: number;
 		mainContentBlockCount: number;
@@ -210,6 +220,8 @@ export interface OfficialWebQualityAuditDocument {
 		failPages: number;
 		familyCounts: Record<OfficialWebPageFamily, number>;
 		issueCounts: Record<string, number>;
+		targetFamilyCounts?: Record<string, number>;
+		retentionDecisionCounts?: Record<string, number>;
 	};
 	pages: OfficialWebPageQualityAuditEntry[];
 }
@@ -321,6 +333,10 @@ export function buildOfficialWebPageObservationRecord(
 		responseBodyHash: input.responseBodyHash,
 		mainContentHash: input.mainContentHash,
 		disposition: input.disposition,
+		targetCandidateId: input.targetCandidateId,
+		targetDeclarationVersion: input.targetDeclarationVersion,
+		targetId: input.targetId,
+		targetJobId: input.targetJobId,
 	};
 }
 
@@ -370,6 +386,18 @@ export function buildOfficialWebQualityAuditDocument(
 	const passPages = input.pages.filter((page) => page.status === "pass").length;
 	const reviewPages = input.pages.filter((page) => page.status === "review").length;
 	const failPages = input.pages.filter((page) => page.status === "fail").length;
+	const targetFamilyCounts = input.pages.reduce<Record<string, number>>((result, page) => {
+		for (const match of page.targetMatches ?? []) {
+			result[match.consumerFamily] = (result[match.consumerFamily] ?? 0) + 1;
+		}
+		return result;
+	}, {});
+	const retentionDecisionCounts = input.pages.reduce<Record<string, number>>((result, page) => {
+		if (page.consumerRetentionDecision) {
+			result[page.consumerRetentionDecision] = (result[page.consumerRetentionDecision] ?? 0) + 1;
+		}
+		return result;
+	}, {});
 
 	return {
 		schemaVersion: "official_web_quality_audit.v1",
@@ -383,6 +411,8 @@ export function buildOfficialWebQualityAuditDocument(
 			failPages,
 			familyCounts,
 			issueCounts,
+			targetFamilyCounts,
+			retentionDecisionCounts,
 		},
 		pages: input.pages,
 	};

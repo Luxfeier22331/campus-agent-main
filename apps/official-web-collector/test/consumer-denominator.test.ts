@@ -6,6 +6,7 @@ import { evaluateOfficialWebConsumerDenominator } from "../src/consumer-denomina
 import { crawlSite } from "../src/crawl";
 import {
 	createCollectedPageArtifactForTest,
+	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 	readJsonArtifact,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	writeTestConfigRoot,
@@ -292,6 +293,7 @@ describe("official web consumer denominator", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_consumer_filter",
+			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{

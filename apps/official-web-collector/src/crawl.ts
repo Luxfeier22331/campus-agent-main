@@ -41,6 +41,7 @@ import type {
 } from "./crawl-internal-types.ts";
 import { buildPageObservations } from "./crawl-observations.ts";
 import {
+	buildTargetWorksetProgressCounts,
 	countUniqueRawAssets,
 	emptyProgressCounts,
 	sameProgressCounts,
@@ -71,9 +72,23 @@ export interface CrawlSiteOptions {
 	maxTotalPages?: number;
 	artifactStore?: OfficialWebArtifactStore;
 	controlPlaneClient?: OfficialWebControlPlaneClient;
+	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmissionInput;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
 	crawlHosts?: (input: CrawlHostsWithCrawleeInput) => Promise<CollectorAggregatedResults>;
 }
+
+export interface LegacyBroadCrawlAdmission {
+	exclusionDecision: "legacy_contract_excluded";
+	reason: string;
+}
+
+export type LegacyBroadCrawlAdmissionInput =
+	| LegacyBroadCrawlAdmission
+	| {
+			reason: string;
+	  };
+
+type OfficialWebCollectorExecutionMode = "target-workset" | "legacy-broad-crawl";
 
 export interface CrawlSiteResult {
 	outputDir: string;
@@ -88,6 +103,8 @@ export interface CrawlSiteResult {
 	pages: CollectedPageArtifact[];
 	dynamicShellDiscoveryAudits: OfficialWebDynamicShellDiscoveryAudit[];
 	uploadedArtifacts: OfficialWebRunArtifactRef[];
+	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmission;
+	executionMode: OfficialWebCollectorExecutionMode;
 }
 
 export async function crawlSite(
@@ -97,6 +114,17 @@ export async function crawlSite(
 	const bundle = loadOfficialWebConfig(siteId, {
 		repoRoot: options.repoRoot,
 		configRoot: options.configRoot,
+	});
+	const legacyBroadCrawlAdmission = normalizeLegacyBroadCrawlAdmission(
+		options.legacyBroadCrawlAdmission,
+	);
+	const executionMode: OfficialWebCollectorExecutionMode = options.controlPlaneClient
+		? "target-workset"
+		: "legacy-broad-crawl";
+	assertCollectorRunAdmission({
+		hasControlPlaneAdmission: options.controlPlaneClient != null,
+		hasHostFilter: (options.hostFilter?.length ?? 0) > 0,
+		legacyBroadCrawlAdmission,
 	});
 	let plan = buildCollectorPlan(siteId, {
 		repoRoot: options.repoRoot,
@@ -162,9 +190,22 @@ export async function crawlSite(
 						repairPages: 0,
 						selectedHosts: 0,
 						staticPages: 0,
+						targetJobs: 0,
+						worksetRows: 0,
 					},
 				},
 			};
+
+	const executionHostFilter = resolveExecutionHostFilter({
+		dynamicPlan: dynamicPlan.plan,
+		executionMode,
+		fallbackHosts: selectedHosts.map((item) => item.host),
+	});
+	selectedHosts = buildSelectedHosts(plan, executionHostFilter);
+	const targetWorksetProgressCounts =
+		executionMode === "target-workset"
+			? buildTargetWorksetProgressCounts(dynamicPlan.plan.duePages)
+			: {};
 
 	const outputDir = options.outputDir ?? defaultCollectorOutputDir(plan.siteId, plan.crawlRunId);
 	mkdirSync(outputDir, { recursive: true });
@@ -200,7 +241,8 @@ export async function crawlSite(
 						dynamicPlan: dynamicPlan.plan,
 						plan,
 						config,
-						hostFilter: selectedHosts.map((item) => item.host),
+						executionMode,
+						hostFilter: executionHostFilter,
 						maxPagesPerHost,
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
@@ -211,7 +253,8 @@ export async function crawlSite(
 						dynamicPlan: dynamicPlan.plan,
 						plan,
 						config,
-						hostFilter: selectedHosts.map((item) => item.host),
+						executionMode,
+						hostFilter: executionHostFilter,
 						maxPagesPerHost,
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
@@ -276,6 +319,10 @@ export async function crawlSite(
 			plan.siteId,
 			plan.crawlRunId,
 			normalizedResults.pages,
+			{
+				collectionMode: executionMode,
+				legacyBroadCrawlAdmission,
+			},
 		);
 		const qualityAudit = buildCollectorQualityAudit({
 			siteId: plan.siteId,
@@ -308,10 +355,10 @@ export async function crawlSite(
 						pages: normalizedResults.pages,
 					});
 		const previousProgress = latestProgress;
-		const finalProgress = summarizeProgressCounts(
-			normalizedResults,
-			uploadResult.artifactUploadCount,
-		);
+		const finalProgress = {
+			...summarizeProgressCounts(normalizedResults, uploadResult.artifactUploadCount),
+			...targetWorksetProgressCounts,
+		};
 		latestProgress = finalProgress;
 
 		if (
@@ -353,6 +400,8 @@ export async function crawlSite(
 			pages: normalizedResults.pages,
 			dynamicShellDiscoveryAudits: normalizedResults.dynamicShellDiscoveryAudits ?? [],
 			uploadedArtifacts: uploadResult.uploadedArtifacts,
+			legacyBroadCrawlAdmission,
+			executionMode,
 		};
 	} catch (error) {
 		if (options.controlPlaneClient) {
@@ -378,6 +427,66 @@ export async function crawlSite(
 		}
 		throw error;
 	}
+}
+
+function normalizeLegacyBroadCrawlAdmission(
+	admission: CrawlSiteOptions["legacyBroadCrawlAdmission"],
+): LegacyBroadCrawlAdmission | undefined {
+	if (admission == null) {
+		return;
+	}
+	const reason = admission.reason.trim();
+	if (reason.length === 0) {
+		throw new Error("legacy broad crawl admission requires a non-empty reason.");
+	}
+
+	return {
+		exclusionDecision: "legacy_contract_excluded",
+		reason,
+	};
+}
+
+function resolveExecutionHostFilter(input: {
+	dynamicPlan: {
+		duePages: Array<{ host?: string; normalizedCanonicalUrl: string }>;
+	};
+	executionMode: OfficialWebCollectorExecutionMode;
+	fallbackHosts: string[];
+}): string[] {
+	if (input.executionMode !== "target-workset") {
+		return input.fallbackHosts;
+	}
+
+	return [
+		...new Set(
+			input.dynamicPlan.duePages
+				.map((page) => {
+					const host = page.host || new URL(page.normalizedCanonicalUrl).hostname;
+					return host.trim().toLowerCase();
+				})
+				.filter(Boolean),
+		),
+	].sort();
+}
+
+function assertCollectorRunAdmission(input: {
+	hasControlPlaneAdmission: boolean;
+	hasHostFilter: boolean;
+	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmission;
+}): void {
+	if (input.hasControlPlaneAdmission && input.legacyBroadCrawlAdmission) {
+		throw new Error(
+			"legacy broad crawl admission cannot be combined with app-api target workset admission; record legacy exclusion in app-api instead.",
+		);
+	}
+	if (input.hasControlPlaneAdmission || input.legacyBroadCrawlAdmission) {
+		return;
+	}
+
+	const hostFilterNote = input.hasHostFilter ? " hostFilter cannot create target scope." : "";
+	throw new Error(
+		`official-web collector requires app-api target workset admission or explicit legacy broad crawl admission.${hostFilterNote}`,
+	);
 }
 
 export function crawlMain(argv: string[] = process.argv.slice(2)): Promise<void> {

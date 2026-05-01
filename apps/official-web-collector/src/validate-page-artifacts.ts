@@ -18,6 +18,7 @@ export function validateBundlePage(
 	outputDir: string,
 	page: OfficialWebSourceTruthBundle["pages"][number],
 	issues: CollectorValidationIssue[],
+	options: { requireTargetLineage?: boolean } = {},
 ): void {
 	const baseDir = resolve(outputDir, "source-assets", page.rawAssetId, page.rawVersionId);
 	const pagePaths: Record<PageArtifactRelativePath, string> = {
@@ -116,7 +117,7 @@ export function validateBundlePage(
 	);
 
 	if (existsSync(pagePaths["source-truth/page-manifest.json"])) {
-		validatePageManifest(outputDir, page, pagePaths, issues);
+		validatePageManifest(outputDir, page, pagePaths, issues, options);
 	}
 
 	if (existsSync(pagePaths["source-truth/content-blocks.jsonl"])) {
@@ -137,6 +138,7 @@ function validatePageManifest(
 	page: OfficialWebSourceTruthBundle["pages"][number],
 	pagePaths: Record<PageArtifactRelativePath, string>,
 	issues: CollectorValidationIssue[],
+	options: { requireTargetLineage?: boolean },
 ): void {
 	let manifest: OfficialWebPageManifest;
 	try {
@@ -175,6 +177,13 @@ function validatePageManifest(
 		});
 	}
 
+	validateTargetLineage({
+		manifest,
+		page,
+		issues,
+		requireTargetLineage: Boolean(options.requireTargetLineage),
+	});
+
 	const responseHtml = existsSync(pagePaths["capture/response.html"])
 		? readFileSync(pagePaths["capture/response.html"], "utf-8")
 		: null;
@@ -202,6 +211,72 @@ function validatePageManifest(
 			message: `bundle blockCount does not match page manifest for ${page.rawAssetId}/${page.rawVersionId}`,
 		});
 	}
+}
+
+function validateTargetLineage(input: {
+	manifest: OfficialWebPageManifest;
+	page: OfficialWebSourceTruthBundle["pages"][number];
+	issues: CollectorValidationIssue[];
+	requireTargetLineage: boolean;
+}): void {
+	const rawManifest = input.manifest as unknown as Record<string, unknown>;
+	const snakeCaseKeys = [
+		"target_job_id",
+		"target_candidate_id",
+		"target_declaration_version",
+		"target_matches",
+		"consumer_retention_decision",
+		"materialization_policy",
+		"selected_write_target",
+		"review_policy",
+	].filter((key) => key in rawManifest);
+	if (snakeCaseKeys.length > 0) {
+		input.issues.push({
+			severity: "error",
+			category: "correctness",
+			code: "target_lineage_snake_case",
+			message: `page manifest uses snake_case target lineage keys for ${input.page.rawAssetId}/${input.page.rawVersionId}: ${snakeCaseKeys.join(", ")}`,
+		});
+	}
+
+	if (input.requireTargetLineage && !hasCompleteTargetLineage(input.manifest)) {
+		input.issues.push({
+			severity: "error",
+			category: "correctness",
+			code: "target_lineage_missing",
+			message: `page manifest is missing target lineage for ${input.page.rawAssetId}/${input.page.rawVersionId}`,
+		});
+		return;
+	}
+
+	if (
+		hasCompleteTargetLineage(input.manifest) &&
+		(input.page.targetJobId !== input.manifest.targetJobId ||
+			input.page.targetCandidateId !== input.manifest.targetCandidateId ||
+			input.page.targetDeclarationVersion !== input.manifest.targetDeclarationVersion ||
+			input.page.materializationPolicy !== input.manifest.materializationPolicy ||
+			input.page.selectedWriteTarget !== input.manifest.selectedWriteTarget ||
+			input.page.reviewPolicy !== input.manifest.reviewPolicy)
+	) {
+		input.issues.push({
+			severity: "error",
+			category: "correctness",
+			code: "target_lineage_mismatch",
+			message: `bundle target lineage does not match page manifest for ${input.page.rawAssetId}/${input.page.rawVersionId}`,
+		});
+	}
+}
+
+function hasCompleteTargetLineage(manifest: OfficialWebPageManifest): boolean {
+	return Boolean(
+		manifest.targetJobId &&
+			manifest.targetDeclarationVersion &&
+			Array.isArray(manifest.targetMatches) &&
+			manifest.targetMatches.length > 0 &&
+			manifest.materializationPolicy &&
+			typeof manifest.selectedWriteTarget === "string" &&
+			manifest.reviewPolicy,
+	);
 }
 
 function validateContentBlocks(

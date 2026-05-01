@@ -58,8 +58,9 @@ export async function validateCollectorOutput(
 		return finalizeReport(outputDir, issues, 0);
 	}
 
+	const requireTargetLineage = bundle.collectionMode === "target-workset";
 	for (const page of bundle.pages) {
-		validateBundlePage(outputDir, page, issues);
+		validateBundlePage(outputDir, page, issues, { requireTargetLineage });
 	}
 
 	const auditPath = resolve(outputDir, OFFICIAL_WEB_QUALITY_AUDIT_ARTIFACT);

@@ -27,6 +27,7 @@ export function buildListingRequeueRequests(input: {
 	page: CollectedPageArtifact;
 	plannerPageLookup: Map<string, OfficialWebPlannerPageCandidate>;
 	robotsState: CollectorRobotsState;
+	targetWorksetOnly?: boolean;
 }): Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }> {
 	if (!shouldPromoteListingRequeue({ knownPage: input.knownPage, page: input.page })) {
 		return [];
@@ -62,6 +63,10 @@ export function buildListingRequeueRequests(input: {
 		}
 
 		const knownPage = input.plannerPageLookup.get(link.normalizedUrl);
+		if (input.targetWorksetOnly && !knownPage) {
+			input.hostSummary.admissionRejected += 1;
+			continue;
+		}
 		requests.set(link.normalizedUrl, {
 			url: link.normalizedUrl,
 			uniqueKey: link.normalizedUrl,
@@ -93,6 +98,7 @@ export async function buildDynamicShellRequeueRequests(input: {
 	plan: OfficialWebCrawlPlan;
 	plannerPageLookup: Map<string, OfficialWebPlannerPageCandidate>;
 	robotsState: CollectorRobotsState;
+	targetWorksetOnly?: boolean;
 }): Promise<{
 	requests: Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>;
 	audits: OfficialWebDynamicShellDiscoveryAudit[];
@@ -140,6 +146,10 @@ export async function buildDynamicShellRequeueRequests(input: {
 			}
 
 			const knownPage = input.plannerPageLookup.get(url);
+			if (input.targetWorksetOnly && !knownPage) {
+				input.hostSummary.admissionRejected += 1;
+				continue;
+			}
 			requests.set(url, {
 				url,
 				uniqueKey: url,

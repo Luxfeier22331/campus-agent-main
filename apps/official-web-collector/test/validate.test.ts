@@ -9,9 +9,14 @@ import {
 } from "official-web-core";
 import { describe, expect, it } from "vitest";
 
+import type { OfficialWebControlPlaneClient } from "../src/control-plane";
 import * as collector from "../src/index";
 import * as pageArtifactsModule from "../src/page-artifacts";
-import { SAMPLE_PAGE_HTML, writeTestConfigRoot } from "./test-support";
+import {
+	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+	SAMPLE_PAGE_HTML,
+	writeTestConfigRoot,
+} from "./test-support";
 
 describe("official-web-collector validate", () => {
 	it("validates a complete local output directory", async () => {
@@ -73,6 +78,7 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_001",
+			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -174,6 +180,7 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_002",
+			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -297,6 +304,7 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_003",
+			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -372,5 +380,136 @@ describe("official-web-collector validate", () => {
 		expect(report.counts.errors).toBe(0);
 		expect(report.counts.warnings).toBe(1);
 		expect(report.issues.some((item) => item.code === "quality_gate_review")).toBe(true);
+	});
+
+	it("fails target-workset validation when retained pages are missing target lineage", async () => {
+		const crawlSite = (
+			collector as unknown as {
+				crawlSite?: typeof collector.crawlSite;
+			}
+		).crawlSite;
+		const validateCollectorOutput = (
+			collector as unknown as {
+				validateCollectorOutput?: typeof collector.validateCollectorOutput;
+			}
+		).validateCollectorOutput;
+		const buildCollectedPageArtifacts = (
+			pageArtifactsModule as unknown as {
+				buildCollectedPageArtifacts?: typeof pageArtifactsModule.buildCollectedPageArtifacts;
+			}
+		).buildCollectedPageArtifacts;
+
+		expect(crawlSite).toBeTypeOf("function");
+		expect(validateCollectorOutput).toBeTypeOf("function");
+		expect(buildCollectedPageArtifacts).toBeTypeOf("function");
+		if (!(crawlSite && validateCollectorOutput && buildCollectedPageArtifacts)) {
+			return;
+		}
+
+		const { configRoot, outputDir } = writeTestConfigRoot();
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const plan = buildOfficialWebCrawlPlan("campus_public", {
+			configRoot,
+			crawlRunId: "owrun_validate_target_missing_lineage",
+		});
+		const hostPolicy = findOfficialWebHostPolicy(bundle, "www.example.edu");
+		expect(hostPolicy).not.toBeNull();
+		if (!hostPolicy) {
+			return;
+		}
+
+		const pageArtifacts = buildCollectedPageArtifacts({
+			bundle,
+			plan,
+			hostPolicy,
+			requestedUrl: "https://www.example.edu/contact/",
+			finalUrl: "https://www.example.edu/contact/",
+			declaredCanonicalUrl: null,
+			responseBody: SAMPLE_PAGE_HTML,
+			responseHeaders: {
+				"content-type": "text/html; charset=utf-8",
+			},
+			httpStatus: 200,
+			contentType: "text/html",
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: null,
+			fetchedAt: "2026-05-01T08:00:00.000Z",
+			html: load(SAMPLE_PAGE_HTML),
+		});
+
+		await crawlSite("campus_public", {
+			configRoot,
+			outputDir,
+			crawlRunId: "owrun_validate_target_missing_lineage",
+			controlPlaneClient: {
+				startRun: async () => ({
+					run: {
+						runId: "owrun_validate_target_missing_lineage",
+						siteId: "campus_public",
+						startedAt: "2026-05-01T08:00:00.000Z",
+						status: "accepted",
+					},
+				}),
+				resolvePlan: async () => ({
+					plan: {
+						duePages: [
+							{
+								host: "www.example.edu",
+								normalizedCanonicalUrl: "https://www.example.edu/contact/",
+								targetJobId: "owtarget_contact",
+								consumerFamily: "contact_directory_candidate",
+							},
+						],
+						hostFilter: ["www.example.edu"],
+						maxPagesPerHost: 1,
+						maxTotalPages: 1,
+						resolvedAt: "2026-05-01T08:00:00.000Z",
+						runIntent: "baseline",
+						siteId: "campus_public",
+						summary: {
+							duePages: 1,
+							listingPages: 0,
+							repairPages: 0,
+							selectedHosts: 1,
+							staticPages: 1,
+							targetJobs: 1,
+							worksetRows: 1,
+						},
+					},
+				}),
+				sendHeartbeat: async () => ({
+					run: {
+						runId: "owrun_validate_target_missing_lineage",
+						status: "running",
+					},
+				}),
+				finalizeRun: async () => ({
+					run: {
+						runId: "owrun_validate_target_missing_lineage",
+						status: "completed",
+						finishedAt: "2026-05-01T08:00:01.000Z",
+					},
+				}),
+			} as unknown as OfficialWebControlPlaneClient,
+			crawlHosts: async () => ({
+				hostSummaries: [
+					{
+						host: "www.example.edu",
+						pagesObserved: 1,
+						pagesFetched: 1,
+						failures: 0,
+						admissionRejected: 0,
+						robotsBlocked: false,
+					},
+				],
+				urlResults: [],
+				failures: [],
+				pages: [pageArtifacts],
+			}),
+		});
+
+		const report = await validateCollectorOutput(outputDir);
+		expect(report.valid).toBe(false);
+		expect(report.issues.some((item) => item.code === "target_lineage_missing")).toBe(true);
 	});
 });

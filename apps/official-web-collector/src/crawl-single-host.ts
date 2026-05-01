@@ -35,6 +35,7 @@ import {
 	type OfficialWebHostPolicy,
 	type OfficialWebHostSummaryRecord,
 	type OfficialWebPageObservationRecord,
+	type OfficialWebPageTargetMatch,
 	type OfficialWebUrlResultRecord,
 } from "./official-web-core.ts";
 import { buildCollectedPageArtifacts, type CollectedPageArtifact } from "./page-artifacts.ts";
@@ -45,6 +46,7 @@ export interface CrawlSingleHostInput {
 	hostPolicy: OfficialWebHostPolicy;
 	config: Configuration;
 	plannerPages: OfficialWebPlannerPageCandidate[];
+	executionMode: "target-workset" | "legacy-broad-crawl";
 	maxPagesForHost: number;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
 }
@@ -92,6 +94,7 @@ export async function crawlSingleHost(
 		plan: input.plan,
 		hostPolicy: input.hostPolicy,
 		plannerPages: input.plannerPages,
+		executionMode: input.executionMode,
 		robotsState,
 		hostSummary,
 		urlResults,
@@ -196,6 +199,7 @@ export async function crawlSingleHost(
 							discoveryMethod: userData.discoveryMethod,
 							discoveredFromUrl: userData.discoveredFromUrl,
 							fetchedAt: new Date().toISOString(),
+							targetLineage: buildTargetLineage(knownPage),
 							html: context.$,
 						});
 						pages.push(pageArtifact);
@@ -217,6 +221,7 @@ export async function crawlSingleHost(
 							page: pageArtifact,
 							robotsState,
 							depth: Math.min(userData.depth + 1, input.hostPolicy.maxDepth),
+							targetWorksetOnly: input.executionMode === "target-workset",
 						});
 						const dynamicShellRequests = await buildDynamicShellRequeueRequests({
 							bundle: input.bundle,
@@ -228,6 +233,7 @@ export async function crawlSingleHost(
 							page: pageArtifact,
 							robotsState,
 							depth: Math.min(userData.depth + 1, input.hostPolicy.maxDepth),
+							targetWorksetOnly: input.executionMode === "target-workset",
 							dynamicShellDiscoverer:
 								input.dynamicShellDiscoverer ?? discoverDynamicShellPromotedUrls,
 						});
@@ -324,6 +330,7 @@ export async function crawlSingleHost(
 					baseUrl: finalUrl,
 					depth: userData.depth + 1,
 					hostSummary,
+					targetWorksetOnly: input.executionMode === "target-workset",
 				});
 				if (nextRequests.length > 0) {
 					await context.crawler.addRequests(nextRequests);
@@ -373,5 +380,27 @@ export async function crawlSingleHost(
 		pages,
 		dynamicShellDiscoveryAudits,
 		completed: true,
+	};
+}
+
+function buildTargetLineage(
+	knownPage: OfficialWebPlannerPageCandidate | undefined,
+): OfficialWebPageTargetMatch | undefined {
+	if (!knownPage) {
+		return;
+	}
+
+	return {
+		targetJobId: knownPage.targetJobId,
+		targetCandidateId: knownPage.targetCandidateId,
+		targetId: knownPage.targetId,
+		targetDeclarationVersion: knownPage.targetDeclarationVersion,
+		consumerFamily: knownPage.consumerFamily as OfficialWebPageTargetMatch["consumerFamily"],
+		retentionPolicy: knownPage.retentionPolicy as OfficialWebPageTargetMatch["retentionPolicy"],
+		materializationPolicy:
+			knownPage.materializationPolicy as OfficialWebPageTargetMatch["materializationPolicy"],
+		selectedWriteTarget: knownPage.selectedWriteTarget,
+		reviewPolicy: knownPage.reviewPolicy,
+		worksetReason: knownPage.worksetReason,
 	};
 }

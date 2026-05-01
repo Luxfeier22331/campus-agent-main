@@ -34,6 +34,7 @@ export type {
 	OfficialWebSeed,
 	OfficialWebSeedSet,
 	OfficialWebSiteConfig,
+	OfficialWebTargetRetentionPolicy,
 	OfficialWebTargetSourceMap,
 	OfficialWebTargetSourceMapTarget,
 } from "./config-models.ts";
@@ -51,6 +52,7 @@ export {
 	OFFICIAL_WEB_PROJECTION_ACTIONS,
 	OFFICIAL_WEB_RUN_INTENTS,
 	OFFICIAL_WEB_SOURCE_CHANNEL,
+	OFFICIAL_WEB_TARGET_RETENTION_POLICIES,
 } from "./config-models.ts";
 export {
 	defaultOfficialWebConfigRoot,

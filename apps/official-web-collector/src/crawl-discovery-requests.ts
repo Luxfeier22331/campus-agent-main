@@ -17,6 +17,7 @@ export async function buildInitialRequests(input: {
 	plan: OfficialWebCrawlPlan;
 	hostPolicy: OfficialWebHostPolicy;
 	plannerPages: OfficialWebPlannerPageCandidate[];
+	executionMode?: "target-workset" | "legacy-broad-crawl";
 	robotsState: CollectorRobotsState;
 	hostSummary: OfficialWebHostSummaryRecord;
 	urlResults: OfficialWebUrlResultRecord[];
@@ -26,25 +27,31 @@ export async function buildInitialRequests(input: {
 		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
 		discoveredFromUrl?: string | null;
 		knownPage?: OfficialWebPlannerPageCandidate;
-	}> = input.hostPolicy.seedUrls.map((url) => ({
-		url,
-		discoveryMethod: "seed",
-	}));
+	}> = [];
 
-	const robotsSitemaps = input.robotsState.robots?.getSitemaps() ?? [];
-	if (robotsSitemaps.length > 0) {
-		const discoveredUrls = await loadSitemapUrls(robotsSitemaps);
-		for (const url of discoveredUrls) {
-			candidates.push({ url, discoveryMethod: "robots_sitemap" });
+	if (input.executionMode !== "target-workset") {
+		candidates.push(
+			...input.hostPolicy.seedUrls.map((url) => ({
+				url,
+				discoveryMethod: "seed" as const,
+			})),
+		);
+
+		const robotsSitemaps = input.robotsState.robots?.getSitemaps() ?? [];
+		if (robotsSitemaps.length > 0) {
+			const discoveredUrls = await loadSitemapUrls(robotsSitemaps);
+			for (const url of discoveredUrls) {
+				candidates.push({ url, discoveryMethod: "robots_sitemap" });
+			}
 		}
-	}
-	const configuredOnly = input.hostPolicy.explicitSitemaps.filter(
-		(url) => !robotsSitemaps.includes(url),
-	);
-	if (configuredOnly.length > 0) {
-		const discoveredUrls = await loadSitemapUrls(configuredOnly);
-		for (const url of discoveredUrls) {
-			candidates.push({ url, discoveryMethod: "configured_sitemap" });
+		const configuredOnly = input.hostPolicy.explicitSitemaps.filter(
+			(url) => !robotsSitemaps.includes(url),
+		);
+		if (configuredOnly.length > 0) {
+			const discoveredUrls = await loadSitemapUrls(configuredOnly);
+			for (const url of discoveredUrls) {
+				candidates.push({ url, discoveryMethod: "configured_sitemap" });
+			}
 		}
 	}
 	for (const page of input.plannerPages) {
@@ -142,6 +149,7 @@ export function collectNavigationRequests(input: {
 	baseUrl: string;
 	depth: number;
 	hostSummary: OfficialWebHostSummaryRecord;
+	targetWorksetOnly?: boolean;
 }): Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }> {
 	const requests = new Map<
 		string,
@@ -171,6 +179,11 @@ export function collectNavigationRequests(input: {
 			input.hostSummary.admissionRejected += 1;
 			continue;
 		}
+		const knownPage = input.plannerPageLookup.get(admission.normalizedUrl);
+		if (input.targetWorksetOnly && !knownPage) {
+			input.hostSummary.admissionRejected += 1;
+			continue;
+		}
 		if (
 			input.robotsState.robots != null &&
 			!input.robotsState.robots.isAllowed(
@@ -187,12 +200,10 @@ export function collectNavigationRequests(input: {
 			uniqueKey: admission.normalizedUrl,
 			userData: {
 				discoveryMethod: "navigation",
-				conditionalHeaders: buildConditionalHeaders(
-					input.plannerPageLookup.get(admission.normalizedUrl),
-				),
+				conditionalHeaders: buildConditionalHeaders(knownPage),
 				discoveredFromUrl: input.baseUrl,
 				depth: input.depth,
-				knownPage: input.plannerPageLookup.get(admission.normalizedUrl),
+				knownPage,
 			},
 		});
 	}

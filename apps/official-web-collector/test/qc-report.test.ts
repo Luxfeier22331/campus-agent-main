@@ -15,6 +15,7 @@ import { crawlSite } from "../src/crawl";
 import { buildCollectedPageArtifacts } from "../src/page-artifacts";
 import { buildCollectorQcReport } from "../src/qc-report";
 import {
+	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_NEWS_HOME_PAGE_HTML,
 	SAMPLE_PAGE_HTML,
@@ -280,6 +281,7 @@ async function writeOutputDir(input: {
 		configRoot,
 		outputDir,
 		crawlRunId: input.crawlRunId,
+		legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 		crawlHosts: async () => ({
 			hostSummaries: [
 				{

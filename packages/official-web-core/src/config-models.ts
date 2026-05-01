@@ -34,6 +34,10 @@ export const OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES = [
 	"release_gate_required",
 	"inventory_only",
 ] as const;
+export const OFFICIAL_WEB_TARGET_RETENTION_POLICIES = [
+	"retain_source_truth",
+	"inventory_only",
+] as const;
 export const OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE = [
 	"phone",
 	"email",
@@ -76,6 +80,8 @@ export type OfficialWebProjectionAction = (typeof OFFICIAL_WEB_PROJECTION_ACTION
 export type OfficialWebConsumerFamily = (typeof OFFICIAL_WEB_CONSUMER_FAMILIES)[number];
 export type OfficialWebConsumerMaterializationPolicy =
 	(typeof OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES)[number];
+export type OfficialWebTargetRetentionPolicy =
+	(typeof OFFICIAL_WEB_TARGET_RETENTION_POLICIES)[number];
 export type OfficialWebConsumerRequiredEvidence =
 	(typeof OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE)[number];
 export type OfficialWebConsumerRejectedPolicy =
@@ -246,9 +252,13 @@ export interface OfficialWebTargetSourceMapTarget {
 	ownerSurface: string;
 	selectedWriteTarget: string;
 	sourceHosts: string[];
-	urlPatterns: string[];
-	titleKeywords: string[];
+	urlHints: string[];
+	titleHints: string[];
 	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	retentionPolicy: OfficialWebTargetRetentionPolicy;
+	reviewPolicy: string;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	inventoryOnly: boolean;
 	notes: string;
 }
 

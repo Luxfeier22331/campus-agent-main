@@ -1,4 +1,10 @@
-import type { OfficialWebConfigBundle, OfficialWebDiscoveryMethod } from "./config-models.ts";
+import type {
+	OfficialWebConfigBundle,
+	OfficialWebConsumerFamily,
+	OfficialWebConsumerMaterializationPolicy,
+	OfficialWebDiscoveryMethod,
+	OfficialWebTargetRetentionPolicy,
+} from "./config-models.ts";
 import {
 	asArray,
 	asConsumerEnforcementMode,
@@ -20,6 +26,7 @@ import {
 	asRunIntent,
 	asString,
 	asStringArray,
+	asTargetRetentionPolicy,
 	readJson,
 } from "./config-parsing.ts";
 import { resolveOfficialWebConfigPaths } from "./config-paths.ts";
@@ -200,17 +207,7 @@ export function loadOfficialWebConfig(
 			schemaVersion: asString(targetSourceMapPayload.schema_version),
 			siteId: asString(targetSourceMapPayload.site_id),
 			mapVersion: asString(targetSourceMapPayload.map_version),
-			targets: asArray(targetSourceMapPayload.targets).map((item) => ({
-				targetId: asPathSegment(item.target_id, "target_source_map.target_id"),
-				consumerFamily: asConsumerFamily(item.consumer_family),
-				ownerSurface: asString(item.owner_surface),
-				selectedWriteTarget: asString(item.selected_write_target),
-				sourceHosts: asStringArray(item.source_hosts).map((host) => host.toLowerCase()),
-				urlPatterns: asStringArray(item.url_patterns),
-				titleKeywords: asStringArray(item.title_keywords),
-				requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
-				notes: asString(item.notes),
-			})),
+			targets: asArray(targetSourceMapPayload.targets).map(loadTargetSourceMapTarget),
 		},
 		schedulerPolicy: {
 			schemaVersion: asString(schedulerPolicyPayload.schema_version),
@@ -248,4 +245,67 @@ export function loadOfficialWebConfig(
 
 	validateOfficialWebConfig(bundle);
 	return bundle;
+}
+
+function loadTargetSourceMapTarget(item: Record<string, unknown>) {
+	const consumerFamily = asConsumerFamily(item.consumer_family);
+	const materializationPolicy = asConsumerMaterializationPolicy(
+		item.materialization_policy ?? defaultMaterializationPolicyForConsumerFamily(consumerFamily),
+	);
+	const retentionPolicy = asTargetRetentionPolicy(
+		item.retention_policy ?? defaultRetentionPolicyForMaterialization(materializationPolicy),
+	);
+
+	return {
+		targetId: asPathSegment(item.target_id, "target_source_map.target_id"),
+		consumerFamily,
+		ownerSurface: asString(item.owner_surface),
+		selectedWriteTarget: asString(item.selected_write_target),
+		sourceHosts: asStringArray(item.source_hosts).map((host) => host.toLowerCase()),
+		urlHints:
+			item.url_hints == null ? asStringArray(item.url_patterns) : asStringArray(item.url_hints),
+		titleHints:
+			item.title_hints == null
+				? asStringArray(item.title_keywords)
+				: asStringArray(item.title_hints),
+		requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+		retentionPolicy,
+		reviewPolicy: asString(
+			item.review_policy ?? defaultReviewPolicyForConsumerFamily(consumerFamily),
+		),
+		materializationPolicy,
+		inventoryOnly:
+			item.inventory_only == null
+				? materializationPolicy === "inventory_only"
+				: Boolean(item.inventory_only),
+		notes: asString(item.notes),
+	};
+}
+
+function defaultMaterializationPolicyForConsumerFamily(
+	consumerFamily: OfficialWebConsumerFamily,
+): OfficialWebConsumerMaterializationPolicy {
+	if (consumerFamily === "stable_reference_candidate") {
+		return "release_gate_required";
+	}
+	if (consumerFamily === "notice_news_candidate") {
+		return "inventory_only";
+	}
+	return "candidate_only";
+}
+
+function defaultReviewPolicyForConsumerFamily(consumerFamily: OfficialWebConsumerFamily): string {
+	if (consumerFamily === "stable_reference_candidate") {
+		return "release_gate_required";
+	}
+	if (consumerFamily === "notice_news_candidate") {
+		return "inventory_only";
+	}
+	return "selected_write_requires_review";
+}
+
+function defaultRetentionPolicyForMaterialization(
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy,
+): OfficialWebTargetRetentionPolicy {
+	return materializationPolicy === "inventory_only" ? "inventory_only" : "retain_source_truth";
 }

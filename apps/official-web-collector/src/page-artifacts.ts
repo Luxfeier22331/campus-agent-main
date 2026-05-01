@@ -6,6 +6,7 @@ import {
 	hashOfficialWebContent,
 	type OfficialWebConfigBundle,
 	type OfficialWebHostPolicy,
+	type OfficialWebPageTargetMatch,
 } from "./official-web-core.ts";
 import { buildCollectedContentBlocks } from "./page-artifacts-blocks.ts";
 import type { CollectedPageArtifact } from "./page-artifacts-contract.ts";
@@ -59,6 +60,7 @@ export function buildCollectedPageArtifacts(input: {
 		| "manual_requeue";
 	discoveredFromUrl: string | null;
 	fetchedAt: string;
+	targetLineage?: OfficialWebPageTargetMatch;
 	html: CheerioCrawlingContext["$"];
 }): CollectedPageArtifact {
 	const urlIdentity = buildOfficialWebUrlIdentity(input.bundle, {
@@ -159,6 +161,14 @@ export function buildCollectedPageArtifacts(input: {
 		hostPolicyVersion: input.bundle.site.hostPolicyVersion,
 		crawlPolicyVersion: input.bundle.site.crawlPolicyVersion,
 		credentialsMode: input.bundle.site.credentialsMode,
+		consumerDenominatorVersion: input.bundle.consumerDenominator.denominatorVersion,
+		targetJobId: input.targetLineage?.targetJobId,
+		targetCandidateId: input.targetLineage?.targetCandidateId,
+		targetDeclarationVersion: input.targetLineage?.targetDeclarationVersion,
+		targetMatches: input.targetLineage ? [input.targetLineage] : undefined,
+		materializationPolicy: input.targetLineage?.materializationPolicy,
+		selectedWriteTarget: input.targetLineage?.selectedWriteTarget,
+		reviewPolicy: input.targetLineage?.reviewPolicy,
 	});
 
 	const providerExtraction = buildOfficialWebProviderPageExtraction({

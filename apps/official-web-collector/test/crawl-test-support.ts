@@ -10,6 +10,7 @@ import * as collector from "../src/index";
 import * as pageArtifactsModule from "../src/page-artifacts";
 
 export {
+	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_PAGE_HTML,
 	writeTestConfigRoot,

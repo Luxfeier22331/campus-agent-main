@@ -5,7 +5,7 @@ import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,
 } from "./crawl-internal-types.ts";
-import { summarizeProgressCounts } from "./crawl-progress.ts";
+import { buildTargetWorksetProgressCounts, summarizeProgressCounts } from "./crawl-progress.ts";
 import { crawlSingleHost } from "./crawl-single-host.ts";
 import type {
 	OfficialWebDynamicShellDiscoverer,
@@ -34,10 +34,13 @@ export interface CrawlHostsWithCrawleeInput {
 			repairPages: number;
 			selectedHosts: number;
 			staticPages: number;
+			targetJobs: number;
+			worksetRows: number;
 		};
 	};
 	plan: OfficialWebCrawlPlan;
 	config: Configuration;
+	executionMode: "target-workset" | "legacy-broad-crawl";
 	hostFilter?: string[];
 	maxPagesPerHost: number;
 	maxTotalPages: number;
@@ -49,9 +52,18 @@ export async function crawlHostsWithCrawlee(
 	input: CrawlHostsWithCrawleeInput,
 ): Promise<CollectorAggregatedResults> {
 	const hostFilter = new Set((input.hostFilter ?? []).map((item) => item.toLowerCase()));
-	const selectedHosts = input.plan.enabledHosts.filter(
-		(item) => hostFilter.size === 0 || hostFilter.has(item.host.toLowerCase()),
-	);
+	const worksetHosts = new Set(input.dynamicPlan.duePages.map((page) => page.host.toLowerCase()));
+	const selectedHosts = input.plan.enabledHosts.filter((item) => {
+		const host = item.host.toLowerCase();
+		if (input.executionMode === "target-workset") {
+			return worksetHosts.has(host) && (hostFilter.size === 0 || hostFilter.has(host));
+		}
+		return hostFilter.size === 0 || hostFilter.has(host);
+	});
+	const targetWorksetProgressCounts =
+		input.executionMode === "target-workset"
+			? buildTargetWorksetProgressCounts(input.dynamicPlan.duePages)
+			: {};
 
 	const hostSummaries: OfficialWebHostSummaryRecord[] = [];
 	const pageObservations: OfficialWebPageObservationRecord[] = [];
@@ -84,12 +96,13 @@ export async function crawlHostsWithCrawlee(
 				}),
 			);
 			if (input.reportProgress) {
-				await input.reportProgress(
-					summarizeProgressCounts(
+				await input.reportProgress({
+					...summarizeProgressCounts(
 						{ hostSummaries, pageObservations, urlResults, failures, pages },
 						0,
 					),
-				);
+					...targetWorksetProgressCounts,
+				});
 			}
 			continue;
 		}
@@ -100,6 +113,7 @@ export async function crawlHostsWithCrawlee(
 			hostPolicy,
 			config: input.config,
 			plannerPages: input.dynamicPlan.duePages.filter((page) => page.host === plannedHost.host),
+			executionMode: input.executionMode,
 			maxPagesForHost: Math.min(
 				input.maxPagesPerHost,
 				plannedHost.maxPagesPerRun,
@@ -116,12 +130,13 @@ export async function crawlHostsWithCrawlee(
 		remainingTotalPages -= hostResult.urlResults.length;
 
 		if (input.reportProgress) {
-			await input.reportProgress(
-				summarizeProgressCounts(
+			await input.reportProgress({
+				...summarizeProgressCounts(
 					{ hostSummaries, pageObservations, urlResults, failures, pages },
 					0,
 				),
-			);
+				...targetWorksetProgressCounts,
+			});
 		}
 	}
 

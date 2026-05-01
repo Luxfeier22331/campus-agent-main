@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(TEST_DIR, "fixtures", "pages");
 
+export const LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST = {
+	exclusionDecision: "legacy_contract_excluded",
+	reason: "collector test exercises legacy crawl executor explicitly",
+};
+
 export function writeTestConfigRoot(
 	options: { consumerDenominatorEnforcementMode?: "audit_only" | "retain_matching_only" } = {},
 ): { configRoot: string; outputDir: string } {
@@ -331,6 +336,87 @@ export function writeTestConfigRoot(
 					"retained_source_truth_pages",
 					"rejected_pages",
 					"consumer_family_counts",
+				],
+			},
+			null,
+			2,
+		),
+	);
+	writeFileSync(
+		resolve(siteRoot, "target-source-map.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_target_source_map.v2",
+				site_id: "campus_public",
+				map_version: "campus_public_target_source_map_v2",
+				targets: [
+					{
+						target_id: "campus-services-contact-directory",
+						consumer_family: "contact_directory_candidate",
+						owner_surface: "contact_directory_lookup",
+						selected_write_target: "campus_services/contact_directory",
+						source_hosts: ["www.example.edu"],
+						url_hints: ["contact", "lianxi"],
+						title_hints: ["联系", "联系我们", "联系方式"],
+						required_evidence: ["phone", "email", "location", "office_hours"],
+						retention_policy: "retain_source_truth",
+						review_policy: "selected_write_requires_review",
+						materialization_policy: "candidate_only",
+						inventory_only: false,
+						notes: "Test target for public contact-directory evidence.",
+					},
+					{
+						target_id: "campus-services-service-guide",
+						consumer_family: "service_guide_candidate",
+						owner_surface: "service_guide_lookup",
+						selected_write_target: "campus_services/service_guide",
+						source_hosts: ["www.example.edu"],
+						url_hints: ["service", "guide", "card"],
+						title_hints: ["办理", "申请", "补办", "挂失", "指南", "服务"],
+						required_evidence: [
+							"service_process",
+							"service_entry",
+							"service_material",
+							"phone",
+							"location",
+							"office_hours",
+						],
+						retention_policy: "retain_source_truth",
+						review_policy: "selected_write_requires_review",
+						materialization_policy: "candidate_only",
+						inventory_only: false,
+						notes: "Test target for public service-guide evidence.",
+					},
+					{
+						target_id: "official-web-stable-reference",
+						consumer_family: "stable_reference_candidate",
+						owner_surface: "official_web/stable_reference",
+						selected_write_target: "official_web/stable_reference",
+						source_hosts: ["www.example.edu"],
+						url_hints: ["about", "intro", "leader"],
+						title_hints: ["学校简介", "学校概况", "现任领导", "机构设置"],
+						required_evidence: ["stable_reference"],
+						retention_policy: "retain_source_truth",
+						review_policy: "release_gate_required",
+						materialization_policy: "release_gate_required",
+						inventory_only: false,
+						notes: "Test target for stable institutional reference evidence.",
+					},
+					{
+						target_id: "official-web-notice-news-inventory",
+						consumer_family: "notice_news_candidate",
+						owner_surface: "future_notice_runtime",
+						selected_write_target: "",
+						source_hosts: ["www.example.edu"],
+						url_hints: ["news", "info"],
+						title_hints: ["新闻", "通知", "公告", "讲座", "活动"],
+						required_evidence: ["notice_news"],
+						retention_policy: "inventory_only",
+						review_policy: "inventory_only",
+						materialization_policy: "inventory_only",
+						inventory_only: true,
+						notes: "Test inventory-only target for notice/news evidence.",
+					},
 				],
 			},
 			null,

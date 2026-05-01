@@ -1,7 +1,7 @@
 {
-	"schema_version": "official_web_target_source_map.v1",
+	"schema_version": "official_web_target_source_map.v2",
 	"site_id": "muc_public",
-	"map_version": "muc_public_target_source_map_v1",
+	"map_version": "muc_public_target_source_map_v2",
 	"targets": [
 		{
 			"target_id": "campus-services-contact-directory",
@@ -9,9 +9,13 @@
 			"owner_surface": "contact_directory_lookup",
 			"selected_write_target": "campus_services/contact_directory",
 			"source_hosts": ["www.muc.edu.cn", "xxgk.muc.edu.cn", "lib.muc.edu.cn"],
-			"url_patterns": ["contact", "lianxi", "lxwm", "bgs", "office"],
-			"title_keywords": ["联系", "联系我们", "联系方式", "电话", "办公地点"],
+			"url_hints": ["contact", "lianxi", "lxwm", "bgs", "office"],
+			"title_hints": ["联系", "联系我们", "联系方式", "电话", "办公地点"],
 			"required_evidence": ["phone", "email", "location", "office_hours"],
+			"retention_policy": "retain_source_truth",
+			"review_policy": "selected_write_requires_review",
+			"materialization_policy": "candidate_only",
+			"inventory_only": false,
 			"notes": "Targeted public-web evidence for phone, email, office location, and office-hour lookup."
 		},
 		{
@@ -20,8 +24,8 @@
 			"owner_surface": "service_guide_lookup",
 			"selected_write_target": "campus_services/service_guide",
 			"source_hosts": ["www.muc.edu.cn", "xxgk.muc.edu.cn", "lib.muc.edu.cn"],
-			"url_patterns": ["service", "guide", "card", "apply", "ywzn", "bszn"],
-			"title_keywords": ["办理", "申请", "补办", "挂失", "指南", "服务", "入口"],
+			"url_hints": ["service", "guide", "card", "apply", "ywzn", "bszn"],
+			"title_hints": ["办理", "申请", "补办", "挂失", "指南", "服务", "入口"],
 			"required_evidence": [
 				"service_process",
 				"service_entry",
@@ -30,6 +34,10 @@
 				"location",
 				"office_hours"
 			],
+			"retention_policy": "retain_source_truth",
+			"review_policy": "selected_write_requires_review",
+			"materialization_policy": "candidate_only",
+			"inventory_only": false,
 			"notes": "Targeted public-web evidence for informational service-guide answers, not transactional submission."
 		},
 		{
@@ -38,9 +46,13 @@
 			"owner_surface": "official_web/stable_reference",
 			"selected_write_target": "official_web/stable_reference",
 			"source_hosts": ["www.muc.edu.cn", "xxgk.muc.edu.cn"],
-			"url_patterns": ["about", "intro", "leader", "gk", "jj", "jgsz"],
-			"title_keywords": ["学校简介", "学校概况", "现任领导", "机构设置"],
+			"url_hints": ["about", "intro", "leader", "gk", "jj", "jgsz"],
+			"title_hints": ["学校简介", "学校概况", "现任领导", "机构设置"],
 			"required_evidence": ["stable_reference"],
+			"retention_policy": "retain_source_truth",
+			"review_policy": "release_gate_required",
+			"materialization_policy": "release_gate_required",
+			"inventory_only": false,
 			"notes": "Long-lived institutional reference candidates; release-gated before serving alias changes."
 		},
 		{
@@ -49,9 +61,13 @@
 			"owner_surface": "future_notice_runtime",
 			"selected_write_target": "",
 			"source_hosts": ["news.muc.edu.cn", "www.muc.edu.cn", "xxgk.muc.edu.cn"],
-			"url_patterns": ["news", "info", "tzgg", "xwdt"],
-			"title_keywords": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
+			"url_hints": ["news", "info", "tzgg", "xwdt"],
+			"title_hints": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
 			"required_evidence": ["notice_news"],
+			"retention_policy": "inventory_only",
+			"review_policy": "inventory_only",
+			"materialization_policy": "inventory_only",
+			"inventory_only": true,
 			"notes": "Inventory-only evidence; this does not open fresh_news or news_archive runtime."
 		}
 	]

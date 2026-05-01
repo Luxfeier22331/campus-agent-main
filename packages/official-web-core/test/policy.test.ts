@@ -238,9 +238,9 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			],
 		},
 		targetSourceMap: {
-			schemaVersion: "official_web_target_source_map.v1",
+			schemaVersion: "official_web_target_source_map.v2",
 			siteId: "campus_public",
-			mapVersion: "campus_public_target_source_map_v1",
+			mapVersion: "campus_public_target_source_map_v2",
 			targets: [
 				{
 					targetId: "contact-directory",
@@ -248,9 +248,13 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 					ownerSurface: "contact_directory_lookup",
 					selectedWriteTarget: "campus_services/contact_directory",
 					sourceHosts: ["www.example.edu"],
-					urlPatterns: ["contact"],
-					titleKeywords: ["联系"],
+					urlHints: ["contact"],
+					titleHints: ["联系"],
 					requiredEvidence: ["phone"],
+					retentionPolicy: "retain_source_truth",
+					reviewPolicy: "selected_write_requires_review",
+					materializationPolicy: "candidate_only",
+					inventoryOnly: false,
 					notes: "test target",
 				},
 			],
@@ -591,5 +595,50 @@ describe("official-web-core policy", () => {
 		expect(failure.schemaVersion).toBe("official_web_failure.v1");
 		expect(failure.phase).toBe("fetch");
 		expect(failure.reason).toBe("timeout");
+	});
+
+	it("rejects inventory-only target declarations with selected-write output", () => {
+		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const noticeTarget = bundle.targetSourceMap.targets.find(
+			(target) => target.consumerFamily === "notice_news_candidate",
+		);
+		if (!noticeTarget) {
+			throw new Error("notice target is required");
+		}
+		noticeTarget.selectedWriteTarget = "official_web/public_notice";
+
+		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
+			/selectedWriteTarget/u,
+		);
+	});
+
+	it("rejects target declarations with owner or host drift", () => {
+		const ownerDriftBundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const ownerTarget = ownerDriftBundle.targetSourceMap.targets[0];
+		if (!ownerTarget) {
+			throw new Error("owner drift target is required");
+		}
+		ownerDriftBundle.targetSourceMap.targets[0] = {
+			...ownerTarget,
+			ownerSurface: "unknown_owner_surface",
+		};
+
+		expect(() => officialWebCore.validateOfficialWebConfig(ownerDriftBundle)).toThrowError(
+			/ownerSurface/u,
+		);
+
+		const hostDriftBundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const hostTarget = hostDriftBundle.targetSourceMap.targets[0];
+		if (!hostTarget) {
+			throw new Error("host drift target is required");
+		}
+		hostDriftBundle.targetSourceMap.targets[0] = {
+			...hostTarget,
+			sourceHosts: ["unknown.muc.edu.cn"],
+		};
+
+		expect(() => officialWebCore.validateOfficialWebConfig(hostDriftBundle)).toThrowError(
+			/references unavailable host/u,
+		);
 	});
 });

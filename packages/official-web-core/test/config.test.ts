@@ -115,9 +115,9 @@ function writeMinimalTargetSourceMap(siteRoot: string): void {
 		resolve(siteRoot, "target-source-map.json"),
 		JSON.stringify(
 			{
-				schema_version: "official_web_target_source_map.v1",
+				schema_version: "official_web_target_source_map.v2",
 				site_id: "campus_public",
-				map_version: "test_target_source_map_v1",
+				map_version: "test_target_source_map_v2",
 				targets: [
 					{
 						target_id: "contact-directory",
@@ -125,9 +125,13 @@ function writeMinimalTargetSourceMap(siteRoot: string): void {
 						owner_surface: "contact_directory_lookup",
 						selected_write_target: "campus_services/contact_directory",
 						source_hosts: ["www.example.edu"],
-						url_patterns: ["contact"],
-						title_keywords: ["Contact"],
+						url_hints: ["contact"],
+						title_hints: ["Contact"],
 						required_evidence: ["phone"],
+						retention_policy: "retain_source_truth",
+						review_policy: "selected_write_requires_review",
+						materialization_policy: "candidate_only",
+						inventory_only: false,
 						notes: "test target",
 					},
 				],
@@ -195,7 +199,7 @@ describe("official-web-core config loading", () => {
 		);
 		expect(config.qcPolicy.allowedReviewPageFamilies).toContain("dynamic_shell_page");
 		expect(config.schedulerPolicy.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
-		expect(config.targetSourceMap.mapVersion).toBe("muc_public_target_source_map_v1");
+		expect(config.targetSourceMap.mapVersion).toBe("muc_public_target_source_map_v2");
 		expect(config.targetSourceMap.targets.map((target) => target.targetId)).toEqual([
 			"campus-services-contact-directory",
 			"campus-services-service-guide",
@@ -204,7 +208,21 @@ describe("official-web-core config loading", () => {
 		]);
 		expect(config.targetSourceMap.targets[0]).toMatchObject({
 			consumerFamily: "contact_directory_candidate",
+			inventoryOnly: false,
+			materializationPolicy: "candidate_only",
+			retentionPolicy: "retain_source_truth",
+			reviewPolicy: "selected_write_requires_review",
 			selectedWriteTarget: "campus_services/contact_directory",
+			titleHints: ["联系", "联系我们", "联系方式", "电话", "办公地点"],
+			urlHints: ["contact", "lianxi", "lxwm", "bgs", "office"],
+		});
+		expect(config.targetSourceMap.targets[3]).toMatchObject({
+			consumerFamily: "notice_news_candidate",
+			inventoryOnly: true,
+			materializationPolicy: "inventory_only",
+			retentionPolicy: "inventory_only",
+			reviewPolicy: "inventory_only",
+			selectedWriteTarget: "",
 		});
 		expect(config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
 			hostGroup: "university_core",
@@ -248,6 +266,11 @@ describe("official-web-core config loading", () => {
 			schedulerRunKeyPattern: "muc_public:consumer-stable-baseline:{scheduled-at-iso}",
 			siteId: "muc_public",
 		});
+		expect(
+			schedulerPlan.lanes
+				.filter((lane) => lane.enabled && lane.runIntent !== "repair")
+				.every((lane) => lane.hostFilter.length > 0),
+		).toBe(true);
 	});
 
 	it("allows multiple scheduler lanes for the same run intent when lane ids are unique", () => {

@@ -34,6 +34,10 @@ export function buildPageObservationFromCollectedPage(
 		mainContentHash: page.pageManifest.mainContentHash,
 		disposition: "fetched",
 		observedAt: page.pageManifest.fetchedAt,
+		targetCandidateId: page.pageManifest.targetCandidateId,
+		targetDeclarationVersion: page.pageManifest.targetDeclarationVersion,
+		targetId: page.pageManifest.targetMatches?.[0]?.targetId,
+		targetJobId: page.pageManifest.targetJobId,
 	});
 }
 
@@ -70,6 +74,10 @@ export function buildKnownPageObservation(input: {
 		mainContentHash: input.disposition === "not_modified" ? input.knownPage.mainContentHash : null,
 		disposition: input.disposition,
 		observedAt: input.observedAt,
+		targetCandidateId: input.knownPage.targetCandidateId,
+		targetDeclarationVersion: input.knownPage.targetDeclarationVersion,
+		targetId: input.knownPage.targetId,
+		targetJobId: input.knownPage.targetJobId,
 	});
 }
 

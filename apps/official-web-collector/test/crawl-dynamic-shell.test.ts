@@ -5,6 +5,7 @@ import { load } from "cheerio";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_NEWS_ARTICLE_DETAIL_HTML,
 	writeTestConfigRoot,
@@ -231,6 +232,7 @@ describe("official-web-collector dynamic shell crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_dynamic_shell",
+				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 				maxPagesPerHost: 5,
 				maxTotalPages: 5,
 				dynamicShellDiscoverer,

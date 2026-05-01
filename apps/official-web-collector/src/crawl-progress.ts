@@ -1,3 +1,4 @@
+import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,
@@ -27,17 +28,40 @@ export function emptyProgressCounts(): CollectorProgressCounts {
 	};
 }
 
+function sanitizeCounterKey(value: string | undefined): string {
+	return (value || "unknown").replace(/[^A-Za-z0-9_:-]+/g, "_");
+}
+
+export function buildTargetWorksetProgressCounts(
+	pages: OfficialWebPlannerPageCandidate[],
+): Record<string, number> {
+	const counts: Record<string, number> = {
+		targetWorksetRows: pages.length,
+		targetJobs: new Set(pages.map((page) => page.targetJobId || "unknown")).size,
+		consumerFamilies: new Set(pages.map((page) => page.consumerFamily || "unknown")).size,
+	};
+	for (const page of pages) {
+		const targetJobId = sanitizeCounterKey(page.targetJobId);
+		const consumerFamily = sanitizeCounterKey(page.consumerFamily);
+		counts[`targetJob.${targetJobId}.worksetRows`] =
+			(counts[`targetJob.${targetJobId}.worksetRows`] ?? 0) + 1;
+		counts[`consumerFamily.${consumerFamily}.worksetRows`] =
+			(counts[`consumerFamily.${consumerFamily}.worksetRows`] ?? 0) + 1;
+	}
+	return counts;
+}
+
 export function sameProgressCounts(
 	a: CollectorProgressCounts,
 	b: CollectorProgressCounts,
 ): boolean {
-	return (
-		a.urlsDiscovered === b.urlsDiscovered &&
-		a.urlsFetched === b.urlsFetched &&
-		a.pagesNormalized === b.pagesNormalized &&
-		a.artifactUploads === b.artifactUploads &&
-		a.failures === b.failures
-	);
+	const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+	for (const key of keys) {
+		if (a[key] !== b[key]) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export function countUniqueRawAssets(pages: CollectedPageArtifact[]): number {

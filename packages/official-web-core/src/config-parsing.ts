@@ -13,6 +13,7 @@ import {
 	OFFICIAL_WEB_HOST_GROUPS,
 	OFFICIAL_WEB_PROJECTION_ACTIONS,
 	OFFICIAL_WEB_RUN_INTENTS,
+	OFFICIAL_WEB_TARGET_RETENTION_POLICIES,
 	type OfficialWebConsumerEnforcementMode,
 	type OfficialWebConsumerFamily,
 	type OfficialWebConsumerMaterializationPolicy,
@@ -26,6 +27,7 @@ import {
 	type OfficialWebProjectionAction,
 	type OfficialWebPublicKind,
 	type OfficialWebRunIntent,
+	type OfficialWebTargetRetentionPolicy,
 } from "./config-models.ts";
 
 export function readJson(path: string): Record<string, unknown> {
@@ -129,6 +131,14 @@ export function asConsumerMaterializationPolicy(
 	const normalized = asString(value) as OfficialWebConsumerMaterializationPolicy;
 	if (!OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES.includes(normalized)) {
 		throw new Error(`unsupported official_web consumer materialization policy: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asTargetRetentionPolicy(value: unknown): OfficialWebTargetRetentionPolicy {
+	const normalized = asString(value) as OfficialWebTargetRetentionPolicy;
+	if (!OFFICIAL_WEB_TARGET_RETENTION_POLICIES.includes(normalized)) {
+		throw new Error(`unsupported official_web target retention policy: ${String(value)}`);
 	}
 	return normalized;
 }

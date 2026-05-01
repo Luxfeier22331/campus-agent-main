@@ -35,6 +35,7 @@ export interface CollectorAggregatedResults {
 }
 
 export interface CollectorProgressCounts {
+	[key: string]: number;
 	urlsDiscovered: number;
 	urlsFetched: number;
 	pagesNormalized: number;

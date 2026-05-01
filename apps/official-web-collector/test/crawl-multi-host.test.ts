@@ -4,7 +4,7 @@ import { load } from "cheerio";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { writeTestConfigRoot } from "./test-support";
+import { LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST, writeTestConfigRoot } from "./test-support";
 
 const CRAWL_TEST_TIMEOUT_MS = 30_000;
 
@@ -220,6 +220,7 @@ describe("official-web-collector multi-host crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_multi_host_queue",
+				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 				hostFilter: ["www.example.edu", "news.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 2,
@@ -242,6 +243,7 @@ describe("official-web-collector multi-host crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_unknown_host_filter",
+				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 				hostFilter: ["ethnology.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,

@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import {
 	createCollectedPageArtifactForTest,
 	getCrawlSite,
+	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 	readJsonArtifact,
 	readJsonlArtifact,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
@@ -10,6 +11,48 @@ import {
 } from "./crawl-test-support";
 
 export function registerCrawlCoreSuite() {
+	it("fails closed when programmatic crawl lacks target workset or explicit legacy admission", async () => {
+		const crawlSite = getCrawlSite();
+		const { configRoot, outputDir } = writeTestConfigRoot();
+		let crawlHostsCalled = false;
+
+		await expect(
+			crawlSite("campus_public", {
+				configRoot,
+				outputDir,
+				crawlRunId: "owrun_missing_admission",
+				crawlHosts: async () => {
+					crawlHostsCalled = true;
+					return {
+						hostSummaries: [],
+						pageObservations: [],
+						urlResults: [],
+						failures: [],
+						pages: [],
+					};
+				},
+			}),
+		).rejects.toThrow(/target workset admission.*legacy broad crawl admission/u);
+		expect(crawlHostsCalled).toBe(false);
+	});
+
+	it("does not treat hostFilter as collection admission", async () => {
+		const crawlSite = getCrawlSite();
+		const { configRoot, outputDir } = writeTestConfigRoot();
+
+		await expect(
+			crawlSite("campus_public", {
+				configRoot,
+				outputDir,
+				crawlRunId: "owrun_host_filter_without_admission",
+				hostFilter: ["www.example.edu"],
+				crawlHosts: async () => {
+					throw new Error("crawl should not start without admission");
+				},
+			}),
+		).rejects.toThrow(/hostFilter cannot create target scope/u);
+	});
+
 	it("writes stable local artifacts from host crawl results", async () => {
 		const crawlSite = getCrawlSite();
 		const { configRoot, outputDir } = writeTestConfigRoot();
@@ -17,6 +60,7 @@ export function registerCrawlCoreSuite() {
 			configRoot,
 			outputDir,
 			crawlRunId: "campus_public-TEST",
+			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -68,11 +112,13 @@ export function registerCrawlCoreSuite() {
 		})) as {
 			artifactPaths: Record<string, string>;
 			crawlRun: { runIntent: string; status: string };
+			legacyBroadCrawlAdmission?: { exclusionDecision: string };
 			outputDir: string;
 			pageObservations: unknown[];
 		};
 
 		expect(result.outputDir).toBe(outputDir);
+		expect(result.legacyBroadCrawlAdmission?.exclusionDecision).toBe("legacy_contract_excluded");
 		expect(result.crawlRun.status).toBe("completed_with_errors");
 		expect(result.crawlRun.runIntent).toBe("baseline");
 		expect(result.pageObservations).toEqual([]);
@@ -122,6 +168,7 @@ export function registerCrawlCoreSuite() {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_duplicate_fetch",
+			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{

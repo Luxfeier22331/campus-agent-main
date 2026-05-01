@@ -173,10 +173,19 @@ export function buildRunSourceTruthBundle(
 	siteId: string,
 	crawlRunId: string,
 	pages: CollectedPageArtifact[],
+	options: {
+		collectionMode?: "target-workset" | "legacy-broad-crawl";
+		legacyBroadCrawlAdmission?: {
+			exclusionDecision: "legacy_contract_excluded";
+			reason: string;
+		};
+	} = {},
 ): OfficialWebSourceTruthBundle {
 	return buildOfficialWebSourceTruthBundle({
 		siteId,
 		crawlRunId,
+		collectionMode: options.collectionMode,
+		legacyBroadCrawlAdmission: options.legacyBroadCrawlAdmission,
 		pages: pages.map((page) => ({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,
@@ -198,6 +207,13 @@ export function buildRunSourceTruthBundle(
 			consumerMatches: page.pageManifest.consumerMatches ?? [],
 			consumerRetentionDecision: page.pageManifest.consumerRetentionDecision,
 			consumerRejectionReason: page.pageManifest.consumerRejectionReason ?? null,
+			targetJobId: page.pageManifest.targetJobId,
+			targetCandidateId: page.pageManifest.targetCandidateId,
+			targetDeclarationVersion: page.pageManifest.targetDeclarationVersion,
+			targetMatches: page.pageManifest.targetMatches,
+			materializationPolicy: page.pageManifest.materializationPolicy,
+			selectedWriteTarget: page.pageManifest.selectedWriteTarget,
+			reviewPolicy: page.pageManifest.reviewPolicy,
 		})),
 	});
 }
