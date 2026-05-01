@@ -498,6 +498,17 @@ SDK run / trace / native state 不得进入 `packages/contracts`、panel、eval 
 `agents_sdk_tool_lifecycle_projection` 的 sanitized debug/eval projection，用来对齐
 Phase 6 parity evidence 与 operator-safe diagnostics。
 
+notice-family 的目标态需要把 agent-facing tool 与内部 query function 分开。通知用户面默认
+是 source-link / card-first：`title`、official URL、source family、发布时间、短摘要或
+匹配原因可以进入 answer/card；canonical body、OCR owner text、inline image text 与附件正文
+只作为 source-truth、内部 context、下游 materialization、bounded summary 或 fact extraction
+输入，不作为默认 public answer 全文输出。`campus_notice_discover` 是合理的
+agent-facing tool，因为它表达“找通知”这个用户意图；按 notice id 取 card、取 bounded
+context、读取 media / OCR owner text 更适合作为 notice-agent 或 Go internal query
+service 的 deterministic query function。若后续保留或改造 `campus_notice_get`，目标语义也必须从
+“fetch body”重切为 selected notice ref/card/context resolution，并带 display policy 与
+finalizer guard。
+
 当前 workflow trace 的 tool call summary 已显式记录：
 
 - `workflow_run_ref`
@@ -539,9 +550,11 @@ query。
   - 详细领域边界、projection owner 与 opening gate 统一看
     `docs/architecture/domains/campus-services/architecture.md`
 - `notice-agent`
-  - 承接 `campus_notice_discover`、`campus_notice_get`
-  - 回答 notice 发现、canonical notice 正文读取，以及 current-year miss 时的 historical
-    downgrade
+  - 承接 `campus_notice_discover`、selected notice ref resolution、official source card
+    rendering 与 bounded notice context projection
+  - 回答 notice 发现、候选消歧、官方链接回链、短摘要/事实抽取所需的内部 context，以及
+    current-year miss 时的 historical downgrade
+  - 不作为默认正文阅读器；canonical notice body / OCR owner text 不得直接进入用户面全文输出
   - future source family 至少显式区分 public `official_web` notice-like pages 与
     restricted `campus_notices/internal_notice`
 - `navigation-agent`

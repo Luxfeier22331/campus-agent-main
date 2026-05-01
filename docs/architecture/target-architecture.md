@@ -86,6 +86,10 @@ raw/source-truth/projection/document/chunk/index`
   app-api、panel、eval canonical asset 或 downstream prompt context
 - cross-agent handoff / context projection 必须使用 bounded typed artifact；不得把上一步
   agent 的完整自然语言解释、raw evidence dump 或 provider trace 直接塞进下一步 prompt
+- notice-family 用户可见 surface 默认采用 source-link / card-first posture：title、
+  official URL、source family、发布时间与短摘要/匹配原因可以进入用户面；canonical body、
+  OCR owner text、inline image text 与附件正文只能作为 source-truth、内部 context、
+  下游 materialization 或 bounded summary/fact extraction 输入，不得作为默认全文输出。
 
 ## 长期产品/runtime 形态
 
@@ -140,8 +144,10 @@ raw/source-truth/projection/document/chunk/index`
   schedule、service status、service guide、temporary override 与 later-wave contact
   directory 等结构化校园服务真相；其中 `service_guide_lookup` 只回答办理指南、材料、
   入口说明、服务时间、联系方式与来源引用，不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
-- `notice-agent` 长期承接 notice discovery、canonical notice reading、historical
-  downgrade 与 source-linked notice rendering
+- `notice-agent` 长期承接 notice discovery、selected notice ref resolution、
+  official source card rendering、historical downgrade、短摘要/事实抽取的 bounded notice
+  context projection，以及向 campus-services / RAG / regulation 等下游 family 提供
+  source-linked notice context。它不是默认正文阅读器，不负责把官方通知全文复制到用户面。
 - `navigation-agent` 长期可消费 transport point refs / service point refs，但不拥有
   timetable truth 或 service-status truth；当前 runtime package 为
   `packages/navigation-agent`
@@ -158,7 +164,8 @@ raw/source-truth/projection/document/chunk/index`
 - `routing clarification` 与 `agent clarification` 必须显式分层；前者由 supervisor
   拥有，后者由对应 agent 拥有
 - 对 `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`、
-  `campus_notice_discover/get` 这类结构化 runtime capability，长期实现形态固定为
+  `campus_notice_discover` 与 selected notice card/context resolution 这类结构化 runtime
+  capability，长期实现形态固定为
   `projection-backed internal query service + thin tool adapter + domain-agent`，而不是
   query-time raw source scan、browser/public API 直连，或 execution path 回调
   `app-api` loopback HTTP
@@ -172,7 +179,7 @@ raw/source-truth/projection/document/chunk/index`
 
 - transport / schedule answer
   - `campus-services-agent` 读取 current schedule baseline
-  - `notice-agent` 读取近期 override / change notice
+  - `notice-agent` 提供近期 override / change notice 的 source-linked bounded context
   - `navigation-agent` 补充 stop / pickup point context
   - `rag-agent` 或 grounding validator 校验证据是否足以回答
 - service handling answer
@@ -180,7 +187,7 @@ raw/source-truth/projection/document/chunk/index`
   - `navigation-agent` 补充办理地点
   - `rag-agent` 补充稳定制度依据
 - notice explanation answer
-  - `notice-agent` 读取 canonical notice
+  - `notice-agent` 解析 selected notice ref，提供 official source card 与 bounded context
   - `rag-agent` 读取相关制度 / reference evidence
   - supervisor 统一 finalization 与 fail-close semantics
 
@@ -217,6 +224,20 @@ repo-owned internal query service -> sanitized result projection`
   answer synthesis、workflow trace、operator projection 或下一步 handoff
 - remote MCP / provider built-in web search 只能作为 future admitted source-channel
   adjunct；未 admission 前不得作为 campus answer-bearing fallback
+
+tool 与 deterministic query function 的边界必须保持清晰：
+
+- agent-facing tool 应表达用户意图级能力，例如找通知、查班次、查服务状态或查办理指南。
+- deterministic query function 应表达内部读模型函数，例如按 notice id 取 source card、
+  按 selected notice ref 取 bounded context、读取附件 refs 或读取 OCR owner text。
+- query function 不应因为实现上有 JSON schema 就自动进入 ToolSpec 顶层 tool surface。
+- notice family 默认只暴露 `campus_notice_discover` 这类 card discovery tool；
+  selected notice card/context resolution 应优先作为 notice-agent 或 Go internal query
+  service 的 deterministic function。若未来确需 agent-facing resolve tool，也必须只返回
+  `ResolvedNoticeRef` / `NoticeCard` / display policy，不返回 full body。
+- canonical notice body、OCR owner text、inline image text 与附件正文不得作为 provider
+  function tool output 直接进入 public answer；只允许进入 bounded summary、fact extraction、
+  downstream materialization 或 source-linked context projection。
 
 长期需要一个 repo-owned `ToolSpec` registry 作为 canonical artifact。该 registry 至少固定：
 
