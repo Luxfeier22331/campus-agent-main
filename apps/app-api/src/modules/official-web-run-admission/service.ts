@@ -69,8 +69,7 @@ export interface OfficialWebRunAdmissionCleanupServiceDependencies {
 	store: OfficialWebRunAdmissionCleanupStore;
 }
 
-const LEGACY_EXCLUSION_DECISION: OfficialWebRunAdmissionDecisionValue =
-	"legacy_contract_excluded";
+const LEGACY_EXCLUSION_DECISION: OfficialWebRunAdmissionDecisionValue = "legacy_contract_excluded";
 const LEGACY_EXCLUSION_REASON_CODE = "legacy_broad_crawl_contract";
 const LEGACY_EXCLUSION_REASON =
 	"Run predates the consumer-driven official_web target-source-map and consumer-denominator contract; exclude it from projection handoff and selected-write.";
@@ -137,8 +136,7 @@ export function buildOfficialWebRunAdmissionCleanupService(
 ): OfficialWebRunAdmissionCleanupService {
 	const now = dependencies.now ?? (() => new Date());
 	const generateId =
-		dependencies.generateId ??
-		(() => `owad_${crypto.randomUUID().replaceAll("-", "")}`);
+		dependencies.generateId ?? (() => `owad_${crypto.randomUUID().replaceAll("-", "")}`);
 
 	async function buildPlan(input: {
 		before: string;

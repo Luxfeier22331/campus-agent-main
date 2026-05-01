@@ -76,10 +76,7 @@ export function createPgOfficialWebRunAdmissionCleanupStore(
 					run: crawlRuns,
 				})
 				.from(crawlRuns)
-				.leftJoin(
-					runAdmissionDecisions,
-					eq(runAdmissionDecisions.runId, crawlRuns.runId),
-				)
+				.leftJoin(runAdmissionDecisions, eq(runAdmissionDecisions.runId, crawlRuns.runId))
 				.where(
 					and(
 						eq(crawlRuns.siteId, input.siteId),

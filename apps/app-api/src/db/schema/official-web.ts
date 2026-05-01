@@ -257,8 +257,10 @@ export const runAdmissionDecisions = officialWeb.table(
 	},
 	(table) => ({
 		runUnique: uniqueIndex("official_web_run_admission_decisions_run_idx").on(table.runId),
-		siteDecisionDecidedAtIndex: index(
-			"official_web_run_admission_decisions_site_decision_idx",
-		).on(table.siteId, table.decision, table.decidedAt),
+		siteDecisionDecidedAtIndex: index("official_web_run_admission_decisions_site_decision_idx").on(
+			table.siteId,
+			table.decision,
+			table.decidedAt,
+		),
 	}),
 );

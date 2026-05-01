@@ -436,14 +436,11 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		ensureUnique(target.sourceHosts, `targetSourceMap ${target.targetId}.sourceHosts`);
 		ensureUnique(target.urlPatterns, `targetSourceMap ${target.targetId}.urlPatterns`);
 		ensureUnique(target.titleKeywords, `targetSourceMap ${target.targetId}.titleKeywords`);
-		ensureUnique(
-			target.requiredEvidence,
-			`targetSourceMap ${target.targetId}.requiredEvidence`,
-		);
+		ensureUnique(target.requiredEvidence, `targetSourceMap ${target.targetId}.requiredEvidence`);
 		for (const sourceHost of target.sourceHosts) {
 			validateHostName(sourceHost, `targetSourceMap ${target.targetId}.sourceHosts`);
 			const host = hostIndex.get(sourceHost);
-			if (!host || !host.enabled) {
+			if (!host?.enabled) {
 				throw new Error(
 					`targetSourceMap ${target.targetId} references unavailable host ${sourceHost}`,
 				);
